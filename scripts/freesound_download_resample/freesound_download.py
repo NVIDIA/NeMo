@@ -248,7 +248,12 @@ def get_text_query_with_resource_limit_checks(client, query: str, filters: list,
 
     while pages is None:
         try:
-            pages = client.text_search(query=query, filter=" ".join(filters), fields=fields, page_size=str(page_size),)
+            pages = client.text_search(
+                query=query,
+                filter=" ".join(filters),
+                fields=fields,
+                page_size=str(page_size),
+            )
 
         except freesound.FreesoundException as e:
             # Most probably a rate limit or a request limit
@@ -417,7 +422,7 @@ def get_songs_by_category(
         min_filesize_in_mb: minimum filesize of the song in MB
         max_filesize_in_mb: maximum filesize of the song in MB
         n_jobs: number of jobs for parallel processing
-        
+
     Returns:
 
     """

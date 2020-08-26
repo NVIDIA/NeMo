@@ -35,7 +35,8 @@ app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheet
 def parse_args():
     parser = argparse.ArgumentParser(description='Speech Data Explorer')
     parser.add_argument(
-        'manifest', help='path to JSON manifest file',
+        'manifest',
+        help='path to JSON manifest file',
     )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
     args = parser.parse_args()
@@ -144,18 +145,41 @@ stats_layout = [
     ),
     dbc.Row(dbc.Col(html.H5(children='Alphabet'), className='text-secondary'), className='mt-3'),
     dbc.Row(
-        dbc.Col(html.Div('{}'.format(sorted(alphabet))),), className='mt-2 bg-light text-monospace rounded border'
+        dbc.Col(
+            html.Div('{}'.format(sorted(alphabet))),
+        ),
+        className='mt-2 bg-light text-monospace rounded border',
     ),
     dbc.Row(dbc.Col(html.H5('Duration (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='duration-graph', figure=figure_duration),),),
+    dbc.Row(
+        dbc.Col(
+            dcc.Graph(id='duration-graph', figure=figure_duration),
+        ),
+    ),
     dbc.Row(dbc.Col(html.H5('Number of words (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='num-words-graph', figure=figure_num_words),),),
+    dbc.Row(
+        dbc.Col(
+            dcc.Graph(id='num-words-graph', figure=figure_num_words),
+        ),
+    ),
     dbc.Row(dbc.Col(html.H5('Number of characters (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='num-chars-graph', figure=figure_num_chars),),),
+    dbc.Row(
+        dbc.Col(
+            dcc.Graph(id='num-chars-graph', figure=figure_num_chars),
+        ),
+    ),
     dbc.Row(dbc.Col(html.H5('Word rate (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='word-rate-graph', figure=figure_word_rate),),),
+    dbc.Row(
+        dbc.Col(
+            dcc.Graph(id='word-rate-graph', figure=figure_word_rate),
+        ),
+    ),
     dbc.Row(dbc.Col(html.H5('Character rate (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='char-rate-graph', figure=figure_char_rate),),),
+    dbc.Row(
+        dbc.Col(
+            dcc.Graph(id='char-rate-graph', figure=figure_char_rate),
+        ),
+    ),
     dbc.Row(dbc.Col(html.H5('Vocabulary'), className='text-secondary'), className='mt-3'),
     dbc.Row(
         dbc.Col(
@@ -192,7 +216,10 @@ samples_layout = [
                 page_current=0,
                 page_size=10,
                 style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0, 'textAlign': 'left'},
-                style_header={'color': 'text-primary', 'text_align': 'center',},
+                style_header={
+                    'color': 'text-primary',
+                    'text_align': 'center',
+                },
                 style_cell_conditional=[{'if': {'column_id': 'audio_filepath'}, 'width': '15%'}]
                 + [
                     {'if': {'column_id': c}, 'width': '10%', 'text_align': 'center'}
@@ -201,9 +228,24 @@ samples_layout = [
             ),
         )
     ),
-    dbc.Row(dbc.Col(html.Div(id='filename'),), className='mt-2 bg-light text-monospace text-break rounded border'),
-    dbc.Row(dbc.Col(html.Div(id='transcript'),), className='mt-2 bg-light text-monospace rounded border'),
-    dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), className='mt-3'),
+    dbc.Row(
+        dbc.Col(
+            html.Div(id='filename'),
+        ),
+        className='mt-2 bg-light text-monospace text-break rounded border',
+    ),
+    dbc.Row(
+        dbc.Col(
+            html.Div(id='transcript'),
+        ),
+        className='mt-2 bg-light text-monospace rounded border',
+    ),
+    dbc.Row(
+        dbc.Col(
+            html.Audio(id='player', controls=True),
+        ),
+        className='mt-3',
+    ),
     dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), className='mt-3'),
 ]
 
@@ -261,7 +303,11 @@ def plot_signal(idx):
     figs.add_trace(
         go.Heatmap(
             z=s_db,
-            colorscale=[[0, 'rgb(30,62,62)'], [0.5, 'rgb(30,128,128)'], [1, 'rgb(30,255,30)'],],
+            colorscale=[
+                [0, 'rgb(30,62,62)'],
+                [0.5, 'rgb(30,128,128)'],
+                [1, 'rgb(30,255,30)'],
+            ],
             colorbar=dict(yanchor='middle', lenmode='fraction', y=0.2, len=0.5, ticksuffix=' dB'),
             dx=time_stride,
             dy=fs / n_fft / 1000,

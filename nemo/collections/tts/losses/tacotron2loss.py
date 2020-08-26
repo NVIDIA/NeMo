@@ -22,8 +22,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class Tacotron2Loss(Loss):
-    """ A Loss module that computes loss for Tacotron2
-    """
+    """A Loss module that computes loss for Tacotron2"""
 
     @property
     def input_types(self):

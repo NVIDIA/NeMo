@@ -182,8 +182,7 @@ class BertTokenClassificationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -217,7 +216,8 @@ class BertTokenClassificationDataset(Dataset):
         tokenizer_type = type(tokenizer.tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         features_pkl = os.path.join(
-            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+            data_dir,
+            "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
         )
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
@@ -297,8 +297,7 @@ class BertTokenClassificationInferDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -308,7 +307,10 @@ class BertTokenClassificationInferDataset(Dataset):
         }
 
     def __init__(
-        self, queries: List[str], max_seq_length: int, tokenizer: TokenizerSpec,
+        self,
+        queries: List[str],
+        max_seq_length: int,
+        tokenizer: TokenizerSpec,
     ):
         """
         Initializes BertTokenClassificationInferDataset

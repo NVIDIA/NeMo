@@ -37,14 +37,14 @@ __all__ = ['MODELS', 'get_huggingface_lm_model', 'get_huggingface_lm_models_list
 def get_huggingface_lm_model(
     pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None
 ):
-    '''
+    """
     Returns the dict of special tokens associated with the model.
     Args:
         pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
             for example: bert-base-cased
         config_dict: dict with huggingface config
         config_file: path to huggingface configuration .json file.
-    '''
+    """
     if config_dict and config_file:
         logging.warning(f"Both config_dict and config_file were found, config_file: {config_file} will be used.")
     model_type = pretrained_model_name.split('-')[0]
@@ -91,9 +91,9 @@ MODELS = {
 
 
 def get_huggingface_lm_models_list() -> List[str]:
-    '''
+    """
     Returns the list of supported HuggingFace models
-    '''
+    """
     huggingface_models = []
     for model in MODELS:
         model_names = MODELS[model]['model_list']

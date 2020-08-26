@@ -54,7 +54,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_trainer_loggers(self, cleanup_local_folder, tmp_path):
-        """ Test that a trainer with logger errors out with a number of arguments. Test that it works with
+        """Test that a trainer with logger errors out with a number of arguments. Test that it works with
         create_tensorboard_logger set to False
         """
         test_trainer = pl.Trainer()  # Should create logger and modelcheckpoint
@@ -108,7 +108,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_checkpoint_configurations(self, cleanup_local_folder):
-        """ Test that trainer creating modelcheckpoint and asking exp_manager to do it too results in errors, but
+        """Test that trainer creating modelcheckpoint and asking exp_manager to do it too results in errors, but
         is error free if only one is asked to do so.
         """
         disable_tb_logger = {"create_tensorboard_logger": False}

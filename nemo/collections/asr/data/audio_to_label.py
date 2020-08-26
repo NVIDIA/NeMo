@@ -61,8 +61,7 @@ target_label_n, "offset": offset_in_sec_n}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(
                 ('B', 'T'),
@@ -89,7 +88,9 @@ target_label_n, "offset": offset_in_sec_n}
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
+            manifests_files=manifest_filepath.split(','),
+            min_duration=min_duration,
+            max_duration=max_duration,
         )
 
         self.featurizer = featurizer

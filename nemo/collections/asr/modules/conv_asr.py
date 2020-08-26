@@ -80,8 +80,7 @@ class ConvASREncoder(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return OrderedDict(
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
@@ -91,8 +90,7 @@ class ConvASREncoder(NeuralModule, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return OrderedDict(
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -185,10 +183,10 @@ class ConvASREncoder(NeuralModule, Exportable):
 class ConvASRDecoder(NeuralModule, Exportable):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
-     Based on these papers:
-        https://arxiv.org/pdf/1904.03288.pdf
-        https://arxiv.org/pdf/1910.10261.pdf
-        https://arxiv.org/pdf/2005.04290.pdf
+    Based on these papers:
+       https://arxiv.org/pdf/1904.03288.pdf
+       https://arxiv.org/pdf/1910.10261.pdf
+       https://arxiv.org/pdf/2005.04290.pdf
     """
 
     def save_to(self, save_path: str):
@@ -252,8 +250,8 @@ class ConvASRDecoder(NeuralModule, Exportable):
 class ConvASRDecoderClassification(NeuralModule):
     """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
 
-     Based on these papers:
-        https://arxiv.org/pdf/2005.04290.pdf
+    Based on these papers:
+       https://arxiv.org/pdf/2005.04290.pdf
     """
 
     def save_to(self, save_path: str):
@@ -343,7 +341,12 @@ class SpeakerDecoder(NeuralModule):
         )
 
     def __init__(
-        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform",
+        self,
+        feat_in,
+        num_classes,
+        emb_sizes=[1024, 1024],
+        pool_mode='xvector',
+        init_mode="xavier_uniform",
     ):
         super().__init__()
 

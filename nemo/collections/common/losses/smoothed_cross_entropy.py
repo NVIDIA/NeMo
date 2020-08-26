@@ -45,8 +45,7 @@ class SmoothedCrossEntropyLoss(Loss):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
@@ -55,8 +54,7 @@ class SmoothedCrossEntropyLoss(Loss):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(

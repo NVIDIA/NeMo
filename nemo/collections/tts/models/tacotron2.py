@@ -60,8 +60,7 @@ class Tacotron2Config:
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
 class Tacotron2Model(ModelPT):
-    """ Tacotron 2 Model that is used to generate mel spectrograms from text
-    """
+    """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
     # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):

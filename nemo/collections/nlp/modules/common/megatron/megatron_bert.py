@@ -76,10 +76,10 @@ class MegatronBertEncoder(BertModule):
     @property
     def hidden_size(self):
         """
-            Property returning hidden size.
+        Property returning hidden size.
 
-            Returns:
-                Hidden size.
+        Returns:
+            Hidden size.
         """
         return self._hidden_size
 

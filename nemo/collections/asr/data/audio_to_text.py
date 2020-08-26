@@ -104,8 +104,7 @@ class _AudioTextDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(
                 ('B', 'T'),
@@ -161,7 +160,10 @@ class _AudioTextDataset(Dataset):
                 offset = 0
 
             features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim,
+                sample.audio_file,
+                offset=offset,
+                duration=sample.duration,
+                trim=self.trim,
             )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
@@ -228,8 +230,7 @@ class AudioToCharDataset(_AudioTextDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(
                 ('B', 'T'),
@@ -266,7 +267,11 @@ class AudioToCharDataset(_AudioTextDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
         )
 
         super().__init__(
@@ -291,8 +296,7 @@ class AudioToCharDataset(_AudioTextDataset):
 class AudioToBPEDataset(_AudioTextDataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'audio_signal': NeuralType(
                 ('B', 'T'),
@@ -397,7 +401,9 @@ class AudioLabelDataset(Dataset):
         load_audio=True,
     ):
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
+            manifests_files=manifest_filepath.split(','),
+            min_duration=min_duration,
+            max_duration=max_duration,
         )
 
         self.featurizer = featurizer
@@ -609,8 +615,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         return _speech_collate_fn(batch, self.pad_id)
 
     def _build_sample(self, tup):
-        """Builds the training sample by combining the data from the WebDataset with the manifest info.
-        """
+        """Builds the training sample by combining the data from the WebDataset with the manifest info."""
         audio_bytes, audio_filename = tup
 
         # Grab manifest entry from self.collection
@@ -625,7 +630,10 @@ class _TarredAudioToTextDataset(IterableDataset):
         # Convert audio bytes to IO stream for processing (for SoundFile to read)
         audio_filestream = io.BytesIO(audio_bytes)
         features = self.featurizer.process(
-            audio_filestream, offset=offset, duration=manifest_entry.duration, trim=self.trim,
+            audio_filestream,
+            offset=offset,
+            duration=manifest_entry.duration,
+            trim=self.trim,
         )
         audio_filestream.close()
 

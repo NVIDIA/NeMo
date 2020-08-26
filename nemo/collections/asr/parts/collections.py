@@ -91,7 +91,8 @@ class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(
-        typename='AudioTextEntity', field_names='id audio_file duration text_tokens offset text_raw speaker',
+        typename='AudioTextEntity',
+        field_names='id audio_file duration text_tokens offset text_raw speaker',
     )
 
     def __init__(
@@ -132,7 +133,12 @@ class AudioText(_Collection):
             self.mapping = {}
 
         for id_, audio_file, duration, offset, text, speaker in zip(
-            ids, audio_files, durations, offsets, texts, speakers,
+            ids,
+            audio_files,
+            durations,
+            offsets,
+            texts,
+            speakers,
         ):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
@@ -202,7 +208,10 @@ class ASRAudioText(AudioText):
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='SpeechLabelEntity', field_names='audio_file duration label offset',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='SpeechLabelEntity',
+        field_names='audio_file duration label offset',
+    )
 
     def __init__(
         self,
@@ -250,7 +259,8 @@ class SpeechLabel(_Collection):
             data.sort(key=lambda entity: entity.duration)
 
         logging.info(
-            "Filtered duration for loading collection is %f.", duration_filtered,
+            "Filtered duration for loading collection is %f.",
+            duration_filtered,
         )
         self.uniq_labels = sorted(set(map(lambda x: x.label, data)))
         logging.info("# {} files loaded accounting to # {} labels".format(len(data), len(self.uniq_labels)))

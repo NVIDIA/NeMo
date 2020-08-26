@@ -41,8 +41,7 @@ class IntentSlotClassificationModel(ModelPT):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """ Initializes BERT Joint Intent and Slot model.
-        """
+        """Initializes BERT Joint Intent and Slot model."""
 
         # TODO: All these variables should be initialized before call to super init
         self.data_dir = cfg.data_dir

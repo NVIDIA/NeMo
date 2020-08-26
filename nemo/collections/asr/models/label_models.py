@@ -39,11 +39,11 @@ __all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 class EncDecSpeakerLabelModel(ModelPT):
     """Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
-    performing model forward pass. 
-    Expects config dict for 
+    performing model forward pass.
+    Expects config dict for
     * preprocessor
     * Jasper/Quartznet Encoder
-    * Speaker Decoder 
+    * Speaker Decoder
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -132,7 +132,8 @@ class EncDecSpeakerLabelModel(ModelPT):
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal,
+            length=input_signal_length,
         )
 
         encoded, _ = self.encoder(audio_signal=processed_signal, length=processed_signal_len)

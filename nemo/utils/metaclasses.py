@@ -17,8 +17,8 @@ import threading
 
 
 class Singleton(type):
-    """ Implementation of a generic, tread-safe singleton meta-class.
-        Can be used as meta-class, i.e. will create 
+    """Implementation of a generic, tread-safe singleton meta-class.
+    Can be used as meta-class, i.e. will create
     """
 
     # List of instances - one per class.

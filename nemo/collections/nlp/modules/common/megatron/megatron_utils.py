@@ -69,7 +69,7 @@ def get_megatron_lm_model(
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
 ):
-    '''
+    """
     Returns the dict of special tokens associated with the model.
     Args:
         pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
@@ -77,7 +77,7 @@ def get_megatron_lm_model(
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
         checkpoint_file: path to checkpoint file.
-    '''
+    """
     config = None
     # get default config and checkpoint
     if config_file:
@@ -105,44 +105,44 @@ def get_megatron_lm_model(
 
 
 def get_megatron_lm_models_list() -> List[str]:
-    '''
+    """
     Return the list of support Megatron models
-    '''
+    """
     return list(MEGATRON_CONFIG_MAP.keys())
 
 
 def get_megatron_config(pretrained_model_name):
-    '''
+    """
     Returns model config file
     Args:
         pretrained_model_name (str): pretrained model name
     Returns:
         config (dict): contains model configuration: number of hidden layers, number of attention heads, etc
-    '''
+    """
     return MEGATRON_CONFIG_MAP[pretrained_model_name]['config']
 
 
 def get_megatron_vocab_file(pretrained_model_name):
-    '''
+    """
     Gets vocabulary file from cache or downloads it
     Args:
         pretrained_model_name (str): pretrained model name
     Returns:
         path (str): path to the vocab file
-    '''
+    """
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['vocab']
     path = cached_path(url, cache_dir=MEGATRON_CACHE)
     return path
 
 
 def get_megatron_checkpoint(pretrained_model_name):
-    '''
+    """
     Gets checkpoint file from cache or downloads it
     Args:
         pretrained_model_name (str): pretrained model name
     Returns:
         path (str): path to model checkpoint
-    '''
+    """
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['checkpoint']
     if url is None:
         return None
@@ -163,11 +163,11 @@ def get_megatron_checkpoint(pretrained_model_name):
 
 
 def is_lower_cased_megatron(pretrained_model_name):
-    '''
+    """
     Returns if the megatron is cased or uncased
     Args:
         pretrained_model_name (str): pretrained model name
     Returns:
         do_lower_cased (bool): whether the model uses lower cased data
-    '''
+    """
     return MEGATRON_CONFIG_MAP[pretrained_model_name]['do_lower_case']
