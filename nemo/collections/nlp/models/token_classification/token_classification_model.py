@@ -30,7 +30,7 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import typecheck, PretrainedModelInfo
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
@@ -386,5 +386,19 @@ class TokenClassificationModel(ModelPT):
             logging.info(get_classification_report(all_labels, all_preds, label_ids))
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="NERmodel",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/ner.nemo",
+            description="The model is trained on GMB(Groningen Meaning Bank) corpus for entity recognition and " +
+            "achieves 74.61 F1 Macro score.",
+        )
+        result.append(model)
+        return result
