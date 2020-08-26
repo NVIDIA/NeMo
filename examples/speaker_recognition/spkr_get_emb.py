@@ -54,8 +54,7 @@ def main(cfg):
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
     speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)
     speaker_model.setup_test_data(cfg.model.test_ds)
-    if speaker_model.prepare_test(trainer):
-        trainer.test(speaker_model)
+    trainer.test(speaker_model)
 
 
 if __name__ == '__main__':

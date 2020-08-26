@@ -96,6 +96,7 @@ target_label_n, "offset": offset_in_sec_n}
         self.trim = trim
         self.load_audio = load_audio
         self.time_length = time_length
+        logging.info("Timelength considered for collate func is {}".format(time_length))
 
         self.labels = labels if labels else self.collection.uniq_labels
         self.num_classes = len(self.labels)
