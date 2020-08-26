@@ -144,7 +144,7 @@ class StyleCommand(distutils_cmd.Command):
         return return_code
 
     def _isort(self, scope, check):
-        return self.__call_checker(base_command=self.__ISORT_BASE.split(), scope=scope, check=check,)
+        return self.__call_checker(base_command=self.__ISORT_BASE.split(), scope=scope, check=check)
 
     def _black(self, scope, check):
         self.__call_checker(base_command=self.__BLACK_BASE.split(), scope=scope, check=check)
