@@ -88,13 +88,11 @@ def get_megatron_lm_model(
                 "num_attention_heads": configf['num-attention-heads'],
                 "num_layers": configf['num-layers'],
                 "max_position_embeddings": configf['max-seq-length'],
-                "onnx_safe": True,
             }
     elif config_dict:
         config = config_dict
     else:
         config = get_megatron_config(pretrained_model_name)
-        config["onnx_safe"] = True
     if config is None:
         raise ValueError(f'config_file or config_dict is required for {pretrained_model_name}')
 
