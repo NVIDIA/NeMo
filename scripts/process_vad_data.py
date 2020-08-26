@@ -33,6 +33,7 @@ import urllib.request
 import librosa
 import numpy as np
 from sklearn.model_selection import train_test_split
+import soundfile as sf
 
 sr = 16000
 
@@ -311,7 +312,9 @@ def generate_variety_noise(data_dir, filename, prefix):
             magnitude = rng.uniform(0.0, 1.0)
             y_slice *= magnitude
             out_file_path = os.path.join(silence_path, file_name)
-            librosa.output.write_wav(out_file_path, y_slice, sr)
+#             librosa.output.write_wav(out_file_path, y_slice, sr)
+            sf.write(out_file_path, y_slice, sr)
+
             silence_files.append(out_file_path)
 
     new_list_file = os.path.join(silence_path, filename)
