@@ -17,7 +17,13 @@ import torch
 import torch.nn as nn
 from omegaconf import ListConfig, OmegaConf
 
-from nemo.collections.asr.parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
+from nemo.collections.asr.parts.jasper import (
+    JasperBlock,
+    MaskedConv1d,
+    StatsPoolLayer,
+    init_weights,
+    jasper_activations,
+)
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
@@ -47,7 +53,7 @@ class ConvASREncoder(NeuralModule, Exportable):
     def _prepare_for_export(self):
         m_count = 0
         for m in self.modules():
-            if type(m).__name__ == "MaskedConv1d":
+            if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
         logging.warning(f"Turned off {m_count} masked convolutions")
@@ -238,6 +244,16 @@ class ConvASRDecoder(NeuralModule, Exportable):
         seq = 64
         input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
         return tuple([input_example])
+
+    def _prepare_for_export(self):
+        m_count = 0
+        for m in self.modules():
+            if type(m).__name__ == "MaskedConv1d":
+                m.use_mask = False
+                m_count += 1
+        if m_count > 0:
+            logging.warning(f"Turned off {m_count} masked convolutions")
+        Exportable._prepare_for_export(self)
 
     @property
     def vocabulary(self):
