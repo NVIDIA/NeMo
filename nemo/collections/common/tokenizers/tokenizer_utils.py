@@ -84,21 +84,21 @@ def get_tokenizer(
     vocab_size: Optional[int] = None,
     do_lower_case: Optional[bool] = False,
 ):
-    '''
+    """
     Args:
-    tokenizer_name: sentencepiece or nemobert
-    data_file: data file used to build sentencepiece
-    tokenizer_model: tokenizer model file of sentencepiece
-    sample_size: sample size for building sentencepiece
-    pretrained_model_name: name of the pretrained model from the hugging face list,
-        for example: bert-base-cased
-        To see the list of pretrained models, use: nemo_nlp.modules.common.get_pretrained_lm_models_list()
-    special_tokens: dict of special tokens
-    vocab_file: path to vocab file
-    vocab_size: vocab size for building sentence piece
-    do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with
-        sentencepiece
-    '''
+        tokenizer_name: sentencepiece or nemobert
+        data_file: data file used to build sentencepiece
+        tokenizer_model: tokenizer model file of sentencepiece
+        sample_size: sample size for building sentencepiece
+        pretrained_model_name: name of the pretrained model from the hugging face list,
+            for example: bert-base-cased
+            To see the list of pretrained models, use: nemo_nlp.modules.common.get_pretrained_lm_models_list()
+        special_tokens: dict of special tokens
+        vocab_file: path to vocab file
+        vocab_size: vocab size for building sentence piece
+        do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with
+             sentencepiece
+    """
     pretrained_lm_models_list = nemo.collections.nlp.modules.common.common_utils.get_pretrained_lm_models_list()
     if pretrained_model_name not in pretrained_lm_models_list:
         raise ValueError(

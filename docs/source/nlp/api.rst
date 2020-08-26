@@ -56,3 +56,7 @@ Modules
 .. autoclass:: nemo.collections.nlp.modules.SequenceTokenClassifier
     :show-inheritance:
     :members:
+
+.. autofunction::  nemo.collections.nlp.modules.get_pretrained_lm_model
+
+.. autofunction::  nemo.collections.nlp.modules.get_pretrained_lm_models_list
