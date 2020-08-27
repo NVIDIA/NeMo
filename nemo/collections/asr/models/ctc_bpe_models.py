@@ -129,6 +129,15 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `manifest_filepath` was None or "
+                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
+                )
+                return None
+
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
             dataset = TarredAudioToBPEDataset(
                 audio_tar_filepaths=config['tarred_audio_filepaths'],
@@ -148,6 +157,10 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             )
             shuffle = False
         else:
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+                return None
+
             dataset = AudioToBPEDataset(
                 manifest_filepath=config['manifest_filepath'],
                 tokenizer=self.tokenizer,

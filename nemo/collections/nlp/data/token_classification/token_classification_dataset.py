@@ -221,6 +221,7 @@ class BertTokenClassificationDataset(Dataset):
         )
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        features = None
         if master_device and (not use_cache or not os.path.exists(features_pkl)):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
@@ -263,8 +264,9 @@ class BertTokenClassificationDataset(Dataset):
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
-        features = pickle.load(open(features_pkl, 'rb'))
-        logging.info(f'features restored from {features_pkl}')
+        if features is None:
+            features = pickle.load(open(features_pkl, 'rb'))
+            logging.info(f'features restored from {features_pkl}')
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]

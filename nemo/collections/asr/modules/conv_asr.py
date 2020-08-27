@@ -17,7 +17,13 @@ import torch
 import torch.nn as nn
 from omegaconf import ListConfig, OmegaConf
 
-from nemo.collections.asr.parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
+from nemo.collections.asr.parts.jasper import (
+    JasperBlock,
+    MaskedConv1d,
+    StatsPoolLayer,
+    init_weights,
+    jasper_activations,
+)
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
@@ -47,13 +53,19 @@ class ConvASREncoder(NeuralModule, Exportable):
     def _prepare_for_export(self):
         m_count = 0
         for m in self.modules():
-            if type(m).__name__ == "MaskedConv1d":
+            if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
         logging.warning(f"Turned off {m_count} masked convolutions")
 
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
         input_example = torch.randn(16, self.__feat_in, 256).to(next(self.parameters()).device)
-        return input_example, None
+        return tuple([input_example])
 
     @property
     def disabled_deployment_input_names(self):
@@ -222,17 +234,26 @@ class ConvASRDecoder(NeuralModule, Exportable):
     def forward(self, encoder_output):
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 
-    def _prepare_for_export(self):
+    def input_example(self):
         """
-        Returns a pair in input, output examples for tracing.
+        Generates input examples for tracing etc.
         Returns:
-            A pair of (input, output) examples.
+            A tuple of input examples.
         """
         bs = 8
         seq = 64
         input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
-        output_example = self.forward(encoder_output=input_example)
-        return input_example, output_example
+        return tuple([input_example])
+
+    def _prepare_for_export(self):
+        m_count = 0
+        for m in self.modules():
+            if type(m).__name__ == "MaskedConv1d":
+                m.use_mask = False
+                m_count += 1
+        if m_count > 0:
+            logging.warning(f"Turned off {m_count} masked convolutions")
+        Exportable._prepare_for_export(self)
 
     @property
     def vocabulary(self):
