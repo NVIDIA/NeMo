@@ -15,6 +15,7 @@
 from typing import Dict, Optional
 
 import torch
+import json
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
@@ -110,6 +111,17 @@ class QAModel(ModelPT):
             'end_logits': end_logits,
         }
         return {'val_loss': loss, 'eval_tensors': eval_tensors}
+    
+    def test_step(self, batch, batch_idx):
+        input_ids, input_type_ids, input_mask, unique_ids = batch
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+
+        test_tensors = {
+            'unique_ids': unique_ids,
+            'logits': logits,
+        }
+        return {'test_tensors': test_tensors}
+
 
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -159,10 +171,70 @@ class QAModel(ModelPT):
                 do_lower_case=self.do_lower_case,
             )
 
+            
+            if self.validation_config.output_nbest_file is not None:
+                with open(self.validation_config.output_nbest_file, "w") as writer:
+                    writer.write(json.dumps(all_nbest, indent=4) + "\n")
+            if self.validation_config.output_prediction_file is not None:
+                with open(self.validation_config.output_prediction_file, "w") as writer:
+                    writer.write(json.dumps(all_predictions, indent=4) + "\n")
+
         logging.info(f"exact match {exact_match}")
         logging.info(f"f1 {f1}")
+
+
         tensorboard_logs = {'val_loss': avg_loss, 'exact_match': exact_match, 'f1': f1}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+
+    
+    def test_epoch_end(self, outputs):
+
+        unique_ids = torch.cat([x['test_tensors']['unique_ids'] for x in outputs])
+        logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
+
+        all_unique_ids = []
+        all_logits = []
+        if torch.distributed.is_initialized():
+            world_size = torch.distributed.get_world_size()
+            for ind in range(world_size):
+                all_unique_ids.append(torch.empty_like(unique_ids))
+                all_logits.append(torch.empty_like(logits))
+            torch.distributed.all_gather(all_unique_ids, unique_ids)
+            torch.distributed.all_gather(all_logits, logits)
+        else:
+            all_unique_ids.append(unique_ids)
+            all_logits.append(logits)
+
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+
+            unique_ids = []
+            start_logits = []
+            end_logits = []
+            for u in all_unique_ids:
+                unique_ids.extend(u.cpu().numpy().tolist())
+            for u in all_logits:
+                s, e = u.split(dim=-1, split_size=1)
+                start_logits.extend(s.squeeze().cpu().numpy().tolist())
+                end_logits.extend(e.squeeze().cpu().numpy().tolist())
+
+            (all_predictions, all_nbest, scores_diff) = self.test_dataset.get_predictions(
+                unique_ids=unique_ids,
+                start_logits=start_logits,
+                end_logits=end_logits,
+                n_best_size=self.test_config.n_best_size,
+                max_answer_length=self.test_config.max_answer_length,
+                version_2_with_negative=self.version_2_with_negative,
+                null_score_diff_threshold=self.test_config.null_score_diff_threshold,
+                do_lower_case=self.do_lower_case,
+            )
+
+            if self.test_config.output_nbest_file is not None:
+                with open(self.test_config.output_nbest_file, "w") as writer:
+                    writer.write(json.dumps(all_nbest, indent=4) + "\n")
+            if self.test_config.output_prediction_file is not None:
+                with open(self.test_config.output_prediction_file, "w") as writer:
+                    writer.write(json.dumps(all_predictions, indent=4) + "\n")
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
@@ -173,6 +245,8 @@ class QAModel(ModelPT):
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self.test_config = test_data_config
+        
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = SquadDataset(
@@ -188,6 +262,8 @@ class QAModel(ModelPT):
         )
         if cfg.mode == "eval":
             self.validation_dataset = dataset
+        elif cfg.mode == "test":
+            self.test_dataset = dataset
 
         dl = torch.utils.data.DataLoader(
             dataset=dataset,

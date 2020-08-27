@@ -65,9 +65,33 @@ model:
     # generated. This is needed because the start
     # and end predictions are not conditioned
     # on one another.
-    output_prediction_file: predictions.json
+    output_prediction_file: null
     # File to write predictions to. Only in evaluation or test mode,
-    output_nbest_file: nbest.json
+    output_nbest_file: null
+    # File to write nbest predictions to. Only in evaluation or test mode.
+    null_score_diff_threshold: 0.0
+    # If null_score - best_non_null is greater than the threshold predict null.
+    n_best_size: 20
+    # The total number of n-best predictions to generate at testing.
+
+
+  test_ds:
+    mode: test
+    file: null # .json file
+    batch_size: 24 # per GPU
+    shuffle: false
+    num_samples: -1
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
+    max_answer_length: 30
+    # The maximum length of an answer that can be
+    # generated. This is needed because the start
+    # and end predictions are not conditioned
+    # on one another.
+    output_prediction_file: test_prediction.json
+    # File to write predictions to. Only in evaluation or test mode,
+    output_nbest_file: test_nbest.json
     # File to write nbest predictions to. Only in evaluation or test mode.
     null_score_diff_threshold: 0.0
     # If null_score - best_non_null is greater than the threshold predict null.
