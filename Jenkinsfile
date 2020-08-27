@@ -247,13 +247,11 @@ pipeline {
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            trainer.num_sanity_val_steps=1000 \
             exp_manager.exp_dir=exp_bert_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
@@ -269,14 +267,12 @@ pipeline {
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
-            trainer.num_sanity_val_steps=1000 \
             exp_manager.exp_dir=exp_bert_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
@@ -323,18 +319,16 @@ pipeline {
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
             model.dataset.do_lower_case=true \
-            model.train_ds.batch_size=4 \
+            model.train_ds.batch_size=3 \
             model.validation_ds.batch_size=4 \
 	    trainer.distributed_backend=ddp \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            trainer.num_sanity_val_steps=1000 \
             exp_manager.exp_dir=exp_megabert_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_megabert_squad_2.0'
@@ -343,7 +337,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel RoBERTa SQUAD v1.1 / v2.0') {
+    stage('L2: Parallel RoBERTa SQUAD v1.1') {
       when {
         anyOf{
           branch 'candidate'
@@ -362,7 +356,6 @@ pipeline {
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
@@ -370,34 +363,9 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            trainer.num_sanity_val_steps=1000 \
             exp_manager.exp_dir=exp_roberta_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
-          }
-        }
-        stage('RoBERTa SQUAD 2.0') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
-          steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.dataset.use_cache=false \
-            model.train_ds.batch_size=8 \
-            model.validation_ds.batch_size=8 \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.dataset.do_lower_case=false \
-            model.language_model.pretrained_model_name=roberta-base \
-            model.dataset.version_2_with_negative=true \
-            trainer.precision=16 \
-            trainer.amp_level=O1 \
-            trainer.gpus=[1] \
-            trainer.num_sanity_val_steps=1000 \
-            exp_manager.exp_dir=exp_roberta_squad_2.0 \
-            '
-            sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_2.0'
           }
         }
       }
