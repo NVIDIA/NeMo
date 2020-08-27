@@ -21,11 +21,11 @@ except Exception:
 
 import os
 import tempfile
-import torch 
 from unittest import TestCase
 
 import onnx
 import pytest
+import torch
 
 import nemo.collections.nlp as nemo_nlp
 
@@ -47,7 +47,7 @@ class TestMegatron(TestCase):
 
         assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
 
-        if False: #  apex_available:
+        if False:  #  apex_available:
             model = apex.amp.initialize(model, opt_level="O2")
         with tempfile.TemporaryDirectory() as tmpdir:
             # Generate filename in the temporary directory.

@@ -13,5 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
-from nemo.collections.tts.modules.tacotron2 import Encoder as Taco2Encoder, Decoder as Taco2Decoder, Postnet as Taco2Postnet
+from nemo.collections.tts.modules.tacotron2 import Decoder as Taco2Decoder
+from nemo.collections.tts.modules.tacotron2 import Encoder as Taco2Encoder
+from nemo.collections.tts.modules.tacotron2 import Postnet as Taco2Postnet
 from nemo.collections.tts.modules.waveglow import WaveGlowModule

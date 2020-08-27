@@ -16,7 +16,7 @@ from enum import Enum
 import torch
 
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
-from nemo.core.classes import NeuralModule, typecheck, Exportable
+from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     IntType,
@@ -149,9 +149,9 @@ class WaveGlowModule(NeuralModule, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.n_mel_channels, 96), device = par.device, dtype = par.dtype)
+        mel = torch.randn((1, self.n_mel_channels, 96), device=par.device, dtype=par.dtype)
         return tuple([mel])
-        
+
     def audio_to_normal_dist(self, *, spect: torch.Tensor, audio: torch.Tensor) -> (torch.Tensor, list, list):
         #  Upsample spectrogram to size of audio
         spect = self.upsample(spect)
