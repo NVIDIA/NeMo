@@ -93,20 +93,30 @@ class Tacotron2Model(SpectrogramGenerator):
     def parser(self):
         if self._parser is not None:
             return self._parser
+        if self._validation_dl is not None:
+            return self._validation_dl.dataset.parser
+        if self._test_dl is not None:
+            return self._test_dl.dataset.parser
         if self._train_dl is not None:
             return self._train_dl.dataset.parser
 
         # Else construct a parser
-        # Try to get validation params
+        # Try to get params from validation, test, and then train
+        params = {}
         try:
             params = self._cfg.validation_ds.dataset.params
         except ConfigAttributeError:
+            pass
+        if params == {}:
+            try:
+                params = self._cfg.test_ds.dataset.params
+            except ConfigAttributeError:
+                pass
+        if params == {}:
             try:
                 params = self._cfg.train_ds.dataset.params
             except ConfigAttributeError:
                 pass
-        finally:
-            params = {}
 
         name = params.get('parser', None) or params.get('parser', None) or 'en'
         unk_id = params.get('unk_index', None) or params.get('unk_index', None) or -1
