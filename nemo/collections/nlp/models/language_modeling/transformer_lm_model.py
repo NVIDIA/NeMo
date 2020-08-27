@@ -39,9 +39,11 @@ __all__ = ['TransformerLMModel']
 
 @experimental
 class TransformerLMModel(ModelPT):
+    """
+    Left-to-right Transformer language model.
+    """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """Initializes the BERTTextClassifier model.
-        """
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
