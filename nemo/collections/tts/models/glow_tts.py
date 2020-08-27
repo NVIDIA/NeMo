@@ -27,7 +27,7 @@ from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import LengthsType, MelSpectrogramType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
@@ -56,7 +56,6 @@ class GlowTTSConfig:
     test_ds: Optional[Dict[Any, Any]] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models
 class GlowTTSModel(SpectrogramGenerator):
     """
     GlowTTS model used to generate spectrograms from text
@@ -269,8 +268,20 @@ class GlowTTSModel(SpectrogramGenerator):
         return spect
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    def export(self, **kwargs):
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="GlowTTS-22050Hz",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/glow_tts.nemo",
+            description=(
+                "The model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
+                "English voices with an American accent."
+            ),
+        )
+        list_of_models.append(model)
+        return list_of_models

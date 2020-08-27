@@ -25,7 +25,7 @@ from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import tacotron2_log_to_tb_func
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     EmbeddedTextType,
@@ -61,10 +61,8 @@ class Tacotron2Config:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models
 class Tacotron2Model(SpectrogramGenerator):
-    """ Tacotron 2 Model that is used to generate mel spectrograms from text
-    """
+    """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
     # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -115,7 +113,11 @@ class Tacotron2Model(SpectrogramGenerator):
         blank_id = params.get('blank_index', None) or params.get('blank_index', None) or -1
         do_normalize = params.get('normalize', None) or params.get('normalize', None) or False
         self._parser = parsers.make_parser(
-            labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
+            labels=self._cfg.labels,
+            name=name,
+            unk_id=unk_id,
+            blank_id=blank_id,
+            do_normalize=do_normalize,
         )
         return self._parser
 
@@ -281,6 +283,20 @@ class Tacotron2Model(SpectrogramGenerator):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
     @classmethod
-    def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        """TODO: Implement me!"""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="Tacotron2-22050Hz",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/tacotron2.nemo",
+            description=(
+                "The model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
+                "English voices with an American accent."
+            ),
+        )
+        list_of_models.append(model)
+        return list_of_models
