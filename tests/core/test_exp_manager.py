@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import re
 import shutil
 from pathlib import Path
@@ -20,6 +19,7 @@ import pytest
 import pytorch_lightning as pl
 from omegaconf.errors import OmegaConfBaseException
 
+from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils.exp_manager import (
     CheckpointMisconfigurationError,
     LoggerMisconfigurationError,
@@ -136,7 +136,7 @@ class TestExpManager:
         assert re.match(r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}", sub_dirs[0].name)
 
     @pytest.mark.unit
-    def test_log_dir_overrides(self, tmp_path):
+    def test_log_dir_overrides(self, monkeypatch, tmp_path):
         """Check a variety of trainer options with exp_manager"""
         # Checks that explicit_log_dir ignores exp_dir, name, and version
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
@@ -152,6 +152,7 @@ class TestExpManager:
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_no_name" / "default" / "957").exists()
 
+        monkeypatch.delenv(NEMO_ENV_VARNAME_VERSION)
         # Checks that use_datetime_version False toggle works
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
         log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False})
@@ -159,6 +160,7 @@ class TestExpManager:
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_no_name" / "default" / "version_0").exists()
 
+        monkeypatch.delenv(NEMO_ENV_VARNAME_VERSION)
         # Checks that use_datetime_version False toggle works and version increments
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
         log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False})

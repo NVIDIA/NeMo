@@ -25,6 +25,13 @@ try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
+        """
+        Replaces Apex's FusedLayerNorm with nn.LayerNorm. This is required for ONNX export.
+        Args:
+           n: the FusedLayerNorm pytorch module to replace
+        Returns:
+           Equivalent LayerNorm module
+        """
         if not apex_available or not isinstance(n, FusedLayerNorm):
             return None
         # FusedLayerNorm could have only resided on CUDA
@@ -72,6 +79,13 @@ def expand_Conv1D(conv1d: nn.Module) -> Optional[nn.Conv2d]:
 
 
 def expand_BatchNorm1d(bn1d: nn.Module) -> Optional[nn.BatchNorm2d]:
+    """
+    Expands a BatchNorm1d into a BatchNorm2d. This is required for many (closed source) commercial tools with poor support for BatchNorm1d in Onnx.
+    Args:
+        bn1d: the BatchNorm1d pytorch module to expand
+    Returns:
+        bn2d: BatchNorm2d module with identical weights and params
+    """
     if not isinstance(bn1d, nn.BatchNorm1d):
         return None
     mod = torch.nn.BatchNorm2d(
@@ -86,7 +100,16 @@ def expand_BatchNorm1d(bn1d: nn.Module) -> Optional[nn.BatchNorm2d]:
     return mod
 
 
-def simple_expand(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
+def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
+    """
+    Generic function generator to replace BaseT module with DestT. BaseT and DestT should have same atrributes. No weights are copied.
+    Args:
+        BaseT : module type to replace 
+        DestT : destination module type
+    Returns:
+        swap function to replace BaseT module with DestT
+    """
+
     def expansion_fn(mod: nn.Module) -> Optional[nn.Module]:
         if not isinstance(mod, BaseT):
             return None
@@ -97,7 +120,7 @@ def simple_expand(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[n
     return expansion_fn
 
 
-def swap_module(model: nn.Module, mapping: Dict[str, nn.Module]):
+def swap_modules(model: nn.Module, mapping: Dict[str, nn.Module]):
     """
     This function swaps nested modules as specified by "dot paths" in mod with a desired replacement. This allows
     for swapping nested modules through arbitrary levels if children
@@ -115,17 +138,18 @@ def swap_module(model: nn.Module, mapping: Dict[str, nn.Module]):
     return model
 
 
-default_1D_2D_replacements = {
-    "Conv1d": expand_Conv1D,
-    "BatchNorm1d": expand_BatchNorm1d,
-    "AdaptiveAvgPool1d": simple_expand(nn.AdaptiveAvgPool1d, nn.AdaptiveAvgPool2d),
-    "AvgPool1d": simple_expand(nn.AvgPool1d, nn.AvgPool2d),
-}
-
-
 def replace_modules(
     model: nn.Module, expansions: Dict[str, Callable[[nn.Module], Optional[nn.Module]]] = None
 ) -> nn.Module:
+    """
+    Top-level function to replace modules in model, specified by class name with a desired replacement.
+    NOTE: This occurs in place, if you want to preserve model then make sure to copy it first.
+    Args:
+        model : top level module
+        expansions : replacement dictionary: module class name -> replacement function generator
+    Returns:
+        model, possibly modified in-place
+    """
     mapping: Dict[str, nn.Module] = {}
     for name, m in model.named_modules():
         m_type = type(m).__name__
@@ -134,11 +158,29 @@ def replace_modules(
             if swapped:
                 mapping[name] = swapped
     logging.warning(f"Swapped {len(mapping)} modules")
-    swap_module(model, mapping)
+    swap_modules(model, mapping)
     return model
 
 
-def replace_for_export(
-    model: nn.Module, expansions: Dict[str, Callable[[nn.Module], Optional[nn.Module]]] = None
-) -> nn.Module:
+default_1D_2D_replacements = {
+    "Conv1d": expand_Conv1D,
+    "BatchNorm1d": expand_BatchNorm1d,
+    "AdaptiveAvgPool1d": simple_replace(nn.AdaptiveAvgPool1d, nn.AdaptiveAvgPool2d),
+    "AvgPool1d": simple_replace(nn.AvgPool1d, nn.AvgPool2d),
+}
+
+
+def replace_for_export(model: nn.Module, replace_1D_2D: bool = False) -> nn.Module:
+    """
+    Top-level function to replace default set of modules in model
+    NOTE: This occurs in place, if you want to preserve model then make sure to copy it first.
+    Args:
+        model : top level module
+        replace_1D_2D : include 1D -> 2D replacements
+    Returns:
+        model, possibly modified in-place
+    """
     replace_modules(model, default_Apex_replacements)
+    if replace_1D_2D:
+        # TODO: add squeeze/unsqueeze
+        replace_modules(model, default_Apex_replacements)

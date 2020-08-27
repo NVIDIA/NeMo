@@ -1,4 +1,4 @@
-black
+black==19.10b0
 isort[requirements] < 5
 parameterized
 pytest
