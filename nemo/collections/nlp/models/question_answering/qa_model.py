@@ -182,6 +182,7 @@ class QAModel(ModelPT):
             max_query_length=self.max_query_length,
             max_seq_length=self.max_seq_length,
             version_2_with_negative=self.version_2_with_negative,
+            num_samples=cfg.num_samples,
             mode=cfg.mode,
             use_cache=self.use_cache,
         )

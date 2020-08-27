@@ -60,6 +60,8 @@ class SquadDataset(Dataset):
         max_seq_length (int): All training files which have a duration more
             than max_duration are dropped. Can't be used if the `utt2dur` file
             does not exist. Defaults to None.
+        num_samples: number of samples you want to use for the dataset.
+            If -1, use all dataset. Useful for testing.
         mode (str): Use "train", "eval" or "test" to define between
             training and evaluation.
         use_cache (bool): Caches preprocessed data for future usage
@@ -73,6 +75,7 @@ class SquadDataset(Dataset):
         max_query_length: int,
         max_seq_length: int,
         version_2_with_negative: bool,
+        num_samples: int,
         mode: str,
         use_cache: bool,
     ):
@@ -89,8 +92,8 @@ class SquadDataset(Dataset):
         cached_features_file = (
             data_file
             + '_cache'
-            + '_{}_{}_{}_{}_{}_{}'.format(
-                mode, tokenizer_type, str(vocab_size), str(max_seq_length), str(doc_stride), str(max_query_length)
+            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+                mode, tokenizer_type, str(vocab_size), str(max_seq_length), str(doc_stride), str(max_query_length), str(num_samples)
             )
         )
 
@@ -100,6 +103,11 @@ class SquadDataset(Dataset):
                 self.features = pickle.load(reader)
         else:
             logging.info(f"Preprocessing data.")
+            if num_samples == 0:
+                raise ValueError("num_samples has to be positive", num_samples)
+            elif num_samples > 0:
+                self.examples = self.examples[:num_samples]
+
             self.features = convert_examples_to_features(
                 examples=self.examples,
                 tokenizer=tokenizer,
