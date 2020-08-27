@@ -35,14 +35,14 @@
 import math
 
 import librosa
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from librosa.util import pad_center, tiny
+from scipy.signal import get_window
 from torch.autograd import Variable
 from torch_stft import STFT
-import numpy as np
-from scipy.signal import get_window
-from librosa.util import pad_center, tiny
 
 from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
@@ -149,37 +149,40 @@ class STFTPatch(STFT):
 # Create helper class for STFT that yields num_frames = num_samples / hop_length
 class STFTExactPad(STFT):
     """adapted from Prem Seetharaman's https://github.com/pseeth/pytorch-stft"""
+
     def __init__(self, *params, **kw_params):
         super(STFTExactPad, self).__init__(*params, **kw_params)
         self.pad_amount = (self.filter_length - self.hop_length) // 2
 
     def inverse(self, magnitude, phase):
-        recombine_magnitude_phase = torch.cat(
-            [magnitude*torch.cos(phase), magnitude*torch.sin(phase)], dim=1)
+        recombine_magnitude_phase = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
 
         inverse_transform = F.conv_transpose1d(
             recombine_magnitude_phase,
             Variable(self.inverse_basis, requires_grad=False),
             stride=self.hop_length,
-            padding=0)
+            padding=0,
+        )
 
         if self.window is not None:
             window_sum = librosa.filters.window_sumsquare(
-                self.window, magnitude.size(-1), hop_length=self.hop_length,
-                win_length=self.win_length, n_fft=self.filter_length,
-                dtype=np.float32)
+                self.window,
+                magnitude.size(-1),
+                hop_length=self.hop_length,
+                win_length=self.win_length,
+                n_fft=self.filter_length,
+                dtype=np.float32,
+            )
             # remove modulation effects
-            approx_nonzero_indices = torch.from_numpy(
-                np.where(window_sum > tiny(window_sum))[0])
-            window_sum = torch.autograd.Variable(
-                torch.from_numpy(window_sum), requires_grad=False)
+            approx_nonzero_indices = torch.from_numpy(np.where(window_sum > tiny(window_sum))[0])
+            window_sum = torch.autograd.Variable(torch.from_numpy(window_sum), requires_grad=False)
             inverse_transform[:, :, approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
 
             # scale by hop ratio
             inverse_transform *= float(self.filter_length) / self.hop_length
 
-        inverse_transform = inverse_transform[:, :, int(self.filter_length/2):]
-        inverse_transform = inverse_transform[:, :, :-int(self.filter_length/2):]
+        inverse_transform = inverse_transform[:, :, int(self.filter_length / 2) :]
+        inverse_transform = inverse_transform[:, :, : -int(self.filter_length / 2) :]
 
         return inverse_transform
 
@@ -280,8 +283,6 @@ class FilterbankFeatures(nn.Module):
             librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq,),
             dtype=torch.float,
         ).unsqueeze(0)
-        # self.fb = filterbanks
-        # self.window = window_tensor
         self.register_buffer("fb", filterbanks)
 
         # Calculate maximum sequence length
@@ -301,19 +302,6 @@ class FilterbankFeatures(nn.Module):
             )
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
-
-        # self.log_zero_guard_value = lambda _: log_zero_guard_value
-        # if isinstance(log_zero_guard_value, str):
-        #     if log_zero_guard_value == "tiny":
-        #         self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).tiny
-        #     elif log_zero_guard_value == "eps":
-        #         self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).eps
-        #     else:
-        #         raise ValueError(
-        #             f"{self} received {log_zero_guard_value} for the "
-        #             f"log_zero_guard_type parameter. It must be either a "
-        #             f"number, 'tiny', or 'eps'"
-        #         )
         self.log_zero_guard_type = log_zero_guard_type
 
     def log_zero_guard_value_fn(self, x):

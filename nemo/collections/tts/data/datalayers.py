@@ -13,12 +13,12 @@
 # limitations under the License.
 
 
-from typing import Dict, Optional, Union
 import random
+from typing import Dict, Optional, Union
 
-import torch
-import soundfile as sf
 import numpy as np
+import soundfile as sf
+import torch
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
@@ -119,7 +119,9 @@ class AudioDataset(Dataset):
         randomly chosen if the audio is longer than n_segments.
         """
         example = self.collection[index]
-        features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim, truncate_to=self.truncate_to)
+        features = AudioSegment.segment_from_file(
+            example.audio_file, n_segments=self.n_segments, trim=self.trim, truncate_to=self.truncate_to
+        )
         features = torch.tensor(features.samples)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
@@ -196,7 +198,7 @@ class SplicedAudioDataset(Dataset):
                 samples = f.read(dtype='float32').transpose()
                 self.samples.append(samples)
         self.samples = np.concatenate(self.samples, axis=0)
-        self.samples = self.samples[:self.samples.shape[0] - (self.samples.shape[0] % self.n_segments), ...]
+        self.samples = self.samples[: self.samples.shape[0] - (self.samples.shape[0] % self.n_segments), ...]
 
     def __getitem__(self, index):
         """
@@ -204,7 +206,7 @@ class SplicedAudioDataset(Dataset):
         randomly chosen if the audio is longer than n_segments.
         """
         audio_index = index * self.n_segments
-        audio = self.samples[audio_index:audio_index+self.n_segments]
+        audio = self.samples[audio_index : audio_index + self.n_segments]
 
         return audio, self.n_segments
 

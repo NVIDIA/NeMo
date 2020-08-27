@@ -188,7 +188,7 @@ class SqueezeWaveModel(ModelPT):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
-    def convert_spectrogram_to_audio(self, spect: torch.Tensor, sigma: bool=1.0) -> torch.Tensor:
+    def convert_spectrogram_to_audio(self, spect: torch.Tensor, sigma: bool = 1.0) -> torch.Tensor:
         self.eval()
         self.mode = OperationMode.infer
         self.squeezewave.mode = OperationMode.infer
