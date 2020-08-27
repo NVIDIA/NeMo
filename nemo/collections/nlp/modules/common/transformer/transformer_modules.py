@@ -61,6 +61,8 @@ class TransformerEmbedding(nn.Module):
         num_token_types: number of different token types
             (e.g. tokens of sentence A and tokens of sentence B in BERT)
         embedding_dropout: probability of dropout applied to embeddings
+        learn_positional_encodings: whether to learn positional encodings or
+            use fixed (sine-cosine) ones
     """
 
     def __init__(
@@ -175,86 +177,6 @@ class MultiHeadAttention(nn.Module):
         output_states = self.layer_norm(queries + output_states)
 
         return output_states
-
-
-class LightweightConv1d(nn.Module):
-    """
-    Lightweight convolution layer from https://arxiv.org/abs/1901.10430
-
-    Args:
-        hidden_size: size of the embeddings in the model, also known as d_model
-        num_heads: number of heads in lightweight convolution
-        kernel_size: convolution kernel size
-        conv_weight_dropout: probability of dropout applied to the convolution
-            kernel (strictly speaking, DropConnect)
-        conv_layer_dropout: probability of dropout applied to the output of the
-            whole layer, but before layer normalization
-    """
-
-    def __init__(self, hidden_size, num_attention_heads, kernel_size, conv_weight_dropout=0.0, conv_layer_dropout=0.0):
-        super().__init__()
-        self.num_heads = num_attention_heads
-        self.kernel_size = kernel_size
-        self.weight = nn.Parameter(torch.Tensor(num_attention_heads, 1, kernel_size))
-        self.in_projection = nn.Linear(hidden_size, hidden_size)
-        self.out_projection = nn.Linear(hidden_size, hidden_size)
-
-        self.conv_weight_dropout = nn.Dropout(conv_weight_dropout)
-        self.conv_layer_dropout = nn.Dropout(conv_layer_dropout)
-        self.layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
-
-    def forward(self, hidden_states, attention_mask):
-        batch_size, seq_len, hidden_size = hidden_states.size()
-        output_states = self.in_projection(hidden_states)
-        output_states = output_states.permute(0, 2, 1)
-
-        weight = torch.softmax(self.weight, dim=-1)
-        weight = self.conv_weight_dropout(weight)
-
-        if attention_mask:
-            pivot = self.kernel_size // 2 + 1
-            weight[:, :, pivot:] = 0
-
-        output_states = output_states.contiguous().view(-1, self.num_heads, seq_len)
-        output_states = torch.conv1d(output_states, weight, padding=self.kernel_size // 2, groups=self.num_heads)
-        output_states = output_states.view(batch_size, hidden_size, seq_len)
-        output_states = output_states.permute(0, 2, 1)
-
-        # output projection
-        output_states = self.out_projection(output_states)
-        output_states = self.conv_layer_dropout(output_states)
-        output_states = self.layer_norm(hidden_states + output_states)
-
-        return output_states
-
-
-class TwoStreamSelfAttention(nn.Module):
-    """
-    Two-Stream Self-Attention layer from https://arxiv.org/abs/1906.08237
-
-    Args:
-        hidden_size: size of the embeddings in the model, also known as d_model
-        num_attention_heads: number of heads in multi-head attention
-        attn_score_dropout: probability of dropout applied to attention scores
-        attn_layer_dropout: probability of dropout applied to the output of the
-            whole layer, but before layer normalization
-    """
-
-    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0):
-        super().__init__()
-        self.query_stream = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
-        )
-        self.content_stream = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
-        )
-
-    def forward(self, query_states, content_states, query_attention_mask, content_attention_mask):
-        output_query_states = self.query_stream(query_states, content_states, content_states, query_attention_mask)
-        output_content_states = self.content_stream(
-            query_states, content_states, content_states, content_attention_mask
-        )
-        return output_query_states, output_content_states
 
 
 class PositionWiseFF(nn.Module):

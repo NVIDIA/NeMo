@@ -19,7 +19,7 @@ model:
 
   language_model:
     tokenizer: CharTokenizer
-    vocab_file: /workspace/datasets/aishell2/vocab.txt
+    vocab_file: ???
     hidden_size: 512
     num_layers: 6
     num_attn_heads: 8
@@ -37,13 +37,13 @@ model:
     pin_memory: false # enables pin_memory feature of the data loaders
 
   train_ds:
-    file_name: /workspace/datasets/aishell2/train.txt # path to file with training data
+    file_name: ??? # path to file with training data
     batch_size: 32
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
   validation_ds:
-    file_name: /workspace/datasets/aishell2/valid.txt # path to file with validation data
+    file_name: ??? # path to file with validation data
     batch_size: 32
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset

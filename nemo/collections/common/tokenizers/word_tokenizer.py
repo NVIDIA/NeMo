@@ -12,22 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 
 __all__ = ['WordTokenizer']
 
 
-class WordTokenizer(TokenizerSpec):
-    def __init__(self, vocab_file):
+class WordTokenizer(CharTokenizer):
+    def __init__(
+        self,
+        vocab_file: str,
+        bos_token: str = "<BOS>",
+        eos_token: str = "<EOS>",
+        pad_token: str = "<PAD>",
+        unk_token: str = "<UNK>",
+    ):
+        """
+        Args:
+            vocab_file: path to file with vocabulary which consists
+                of characters separated by \n
+            bos_token: the beginning of sequence token
+            eos_token: the end of sequence token
+            pad_token: token to use for padding
+            unk_token: token to use for unknown tokens
+        """
 
-        vocab_list = open(vocab_file, "r").readlines()
-        self.vocab = {vocab_list[i].strip(): i for i in range(len(vocab_list))}
-        for special_token in ["<PAD>", "<UNK>", "<BOS>", "<EOS>"]:
-            if special_token not in self.vocab:
-                self.vocab[special_token] = len(self.vocab)
-        self.inv_vocab = {v: k for k, v in self.vocab.items()}
-        self.vocab_size = len(self.vocab)
-        self.special_tokens = self.tokens_to_ids(["<PAD>", "<UNK>", "<BOS>", "<EOS>"])
+        super().__init__()
 
     def text_to_tokens(self, text):
         token_candidates = text.strip().split()
@@ -36,33 +45,9 @@ class WordTokenizer(TokenizerSpec):
             if token in self.vocab:
                 tokens.append(token)
             else:
-                tokens.append("<UNK>")
+                tokens.append(self.unk_token)
         return tokens
-
-    def tokens_to_text(self, tokens):
-        return self.ids_to_text(self.tokens_to_ids(tokens))
-
-    def text_to_ids(self, text):
-        return [self.vocab[token] for token in self.text_to_tokens(text)]
 
     def ids_to_text(self, ids):
         ids_ = [id_ for id_ in ids if id_ not in self.special_tokens]
         return " ".join(self.ids_to_tokens(ids_))
-
-    def tokens_to_ids(self, tokens):
-        return [self.vocab[token] for token in tokens]
-
-    def ids_to_tokens(self, ids):
-        return [self.inv_vocab[id] for id in ids]
-
-    @property
-    def pad_id(self):
-        return self.vocab["<PAD>"]
-
-    @property
-    def bos_id(self):
-        return self.vocab["<BOS>"]
-
-    @property
-    def eos_id(self):
-        return self.vocab["<EOS>"]

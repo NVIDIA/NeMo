@@ -16,9 +16,13 @@ import torch
 import torch.nn as nn
 
 from nemo.collections.nlp.utils.data_utils import mask_padded_tokens
-from nemo.collections.nlp.utils.transformer_utils import NEG_INF
+from nemo.collections.common.parts import NEG_INF
 
-__all__ = []
+__all__ = [
+    "GreedySequenceGenerator",
+    "TopKSequenceGenerator",
+    "BeamSearchSequenceGenerator",
+]
 
 
 class GreedySequenceGenerator(nn.Module):
@@ -89,7 +93,6 @@ class GreedySequenceGenerator(nn.Module):
 
         decoder_hidden_states = self.embedding.forward(decoder_input_ids, start_pos=pos)
         decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
-        # TODO: make sure float() work with mixed precision
 
         if encoder_hidden_states is not None:
             decoder_mems_list = self.decoder.forward(
