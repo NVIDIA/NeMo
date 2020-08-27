@@ -11,7 +11,7 @@ Requirements
 
 To use Megatron-LM models, please install NVIDIA APEX `from here <https://github.com/NVIDIA/apex>`_. 
 We strongly recommend using one of NGC's recent PyTorch containers (has APEX pre-installed) or NeMo docker container with all dependencies pre-installed, \
-more details could be found in the `Getting Started section <https://nvidia.github.io/NeMo/index.html#getting-started>`_.
+more details could be found in the `Getting Started section <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/stable/tutorials/intro.html>`_.
 
 Download pretrained models
 --------------------------

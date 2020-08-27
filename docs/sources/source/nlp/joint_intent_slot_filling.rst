@@ -14,7 +14,7 @@ The type of the encoder can get defined by the argument `--pretrained_model_name
 
 .. tip::
 
-    For pretraining BERT model in NeMo and also downloading pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+    For pretraining BERT model in NeMo and also downloading pretrained model checkpoints go to `BERT pretraining <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/stable/nlp/bert_pretraining.html>`__.
 
 
 Preliminaries
