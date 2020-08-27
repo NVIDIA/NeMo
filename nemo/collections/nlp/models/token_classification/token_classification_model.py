@@ -64,7 +64,12 @@ class TokenClassificationModel(ModelPT):
             ),
             do_lower_case=cfg.language_model.do_lower_case,
         )
-        # After this line self._cfg == cfg
+
+        self._cfg = cfg
+        self.data_desc = None
+        self.update_data_dir(cfg.dataset.data_dir)
+        self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_pretrained_lm_model(
@@ -84,15 +89,15 @@ class TokenClassificationModel(ModelPT):
             use_transformer_init=self._cfg.head.use_transformer_init,
         )
 
-        self.update_data_dir(self._cfg.dataset.data_dir)
-        self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
-
+        self.loss = self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
         # setup to track metrics
         self.classification_report = ClassificationReport(len(self._cfg.label_ids), label_ids=self._cfg.label_ids)
 
     def update_data_dir(self, data_dir: str) -> None:
         """
-        Get dataset stats
+        Update data directory and get data stats with Data Descriptor
+        Weights are later used to setup loss
+
         Args:
             data_dir: path to data directory
         """
@@ -100,9 +105,10 @@ class TokenClassificationModel(ModelPT):
         self._cfg.dataset.data_dir = data_dir
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
 
-        self.data_desc = TokenClassificationDataDesc(
-            data_dir=data_dir, modes=modes, pad_label=self._cfg.dataset.pad_label
-        )
+        if os.path.exists(data_dir):
+            self.data_desc = TokenClassificationDataDesc(
+                data_dir=data_dir, modes=modes, pad_label=self._cfg.dataset.pad_label
+            )
 
     def setup_loss(self, class_balancing: str = None):
         """Setup loss
@@ -111,11 +117,12 @@ class TokenClassificationModel(ModelPT):
         Args:
             class_balancing: whether to use class weights during training
         """
-        if class_balancing == 'weighted_loss':
-            # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.class_weights)
+        if class_balancing == 'weighted_loss' and self.data_desc:
+            # you may need to increase the number of epochs for convergence when using weighted_loss
+            loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.class_weights)
         else:
-            self.loss = CrossEntropyLoss(logits_ndim=3)
+            loss = CrossEntropyLoss(logits_ndim=3)
+        return loss
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
