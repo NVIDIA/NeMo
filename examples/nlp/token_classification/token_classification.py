@@ -12,6 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+## Tasks
+Token Classificatin script supports Named Entity Recognition task and other token level classification tasks,
+as long as the data followes the format specified below.
+
+Token Classification Model requires the data to be splitted into 2 files: text.txt and labels.txt.
+Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e.:
+[WORD] [SPACE] [WORD] [SPACE] [WORD].
+The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces, i.e.:
+[LABEL] [SPACE] [LABEL] [SPACE] [LABEL].
+
+Example of a text.txt file:
+Jennifer is from New York City .
+She likes ...
+...
+
+Corresponding labels.txt file:
+B-PER O O B-LOC I-LOC I-LOC O
+O O ...
+...
+
+
+## Preparing the dataset
+To convert an IOB format data to the format required for training, run
+examples/nlp/token_classification/data/import_from_iob_format.py on your train and dev files, as follows:
+
+python examples/nlp/token_classification/data/import_from_iob_format.py --data_file PATH_TO_IOB_FORMAT_DATAFILE
+
+
+## Model Training
+
+To train TokenClassification model with the default config file, run:
+
+    python token_classification.py \
+    model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
+    trainer.max_epochs=<NUM_EPOCHS> \
+    trainer.gpus="[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
+
+More details on how to use this script could be found in
+tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
+"""
 import os
 
 import pytorch_lightning as pl
