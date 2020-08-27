@@ -21,8 +21,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class Tacotron2Loss(Loss):
-    """ A Loss module that computes loss for Tacotron2
-    """
+    """A Loss module that computes loss for Tacotron2"""
 
     @property
     def input_types(self):
@@ -79,6 +78,7 @@ class Tacotron2Loss(Loss):
         gate_pred.data.masked_fill_(mask[:, 0, :], 1e3)
 
         gate_pred = gate_pred.view(-1, 1)
-        mel_loss = torch.nn.MSELoss()(spec_pred_dec, spec_target) + torch.nn.MSELoss()(spec_pred_postnet, spec_target)
-        gate_loss = torch.nn.BCEWithLogitsLoss()(gate_pred, gate_target)
-        return mel_loss + gate_loss, gate_target
+        rnn_mel_loss = torch.nn.functional.mse_loss(spec_pred_dec, spec_target)
+        postnet_mel_loss = torch.nn.functional.mse_loss(spec_pred_postnet, spec_target)
+        gate_loss = torch.nn.functional.binary_cross_entropy_with_logits(gate_pred, gate_target)
+        return rnn_mel_loss + postnet_mel_loss + gate_loss, gate_target
