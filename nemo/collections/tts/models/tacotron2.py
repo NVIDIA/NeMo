@@ -113,11 +113,7 @@ class Tacotron2Model(SpectrogramGenerator):
         blank_id = params.get('blank_index', None) or params.get('blank_index', None) or -1
         do_normalize = params.get('normalize', None) or params.get('normalize', None) or False
         self._parser = parsers.make_parser(
-            labels=self._cfg.labels,
-            name=name,
-            unk_id=unk_id,
-            blank_id=blank_id,
-            do_normalize=do_normalize,
+            labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
         )
         return self._parser
 
