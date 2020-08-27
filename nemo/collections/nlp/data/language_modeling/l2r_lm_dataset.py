@@ -20,8 +20,8 @@ from typing import Dict, List, Optional
 import numpy as np
 from torch.utils.data import Dataset
 
-from nemo.collections.nlp.data.data_utils import dataset_to_ids
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.data_utils import dataset_to_ids
 
 __all__ = ['L2RLanguageModelingDataset']
 
@@ -38,12 +38,13 @@ class L2RLanguageModelingDataset(Dataset):
             the text. By default, it is equal to max_seq_length which corresponds
             to splitting text into disjoint segments covering full dataset
     """
+
     def __init__(
         self,
         tokenizer: TokenizerSpec,
         dataset: str,
         max_seq_length: Optional[int] = 512,
-        batch_step: Optional[int] = None
+        batch_step: Optional[int] = None,
     ):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length

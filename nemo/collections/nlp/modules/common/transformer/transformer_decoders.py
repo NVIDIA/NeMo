@@ -17,11 +17,11 @@ import copy
 import torch
 import torch.nn as nn
 
+from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules import (
     MultiHeadAttention,
     PositionWiseFF,
 )
-from nemo.collections.common.parts import form_attention_mask
 
 __all__ = ["TransformerDecoder"]
 

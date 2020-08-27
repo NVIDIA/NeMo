@@ -38,14 +38,14 @@ class CharTokenizer(TokenizerSpec):
 
         vocab_list = open(vocab_file, "r").readlines()
         self.vocab = {vocab_list[i].strip(): i for i in range(len(vocab_list))}
-        
+
         special_tokens_dict = {
             "bos_token": bos_token,
             "eos_token": eos_token,
             "pad_token": pad_token,
-            "unk_token": unk_token
+            "unk_token": unk_token,
         }
-        
+
         self.add_special_tokens(special_tokens_dict)
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.vocab_size = len(self.vocab)
