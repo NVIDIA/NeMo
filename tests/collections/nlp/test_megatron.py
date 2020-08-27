@@ -16,7 +16,7 @@ try:
     import apex
 
     apex_available = True
-except e:
+except Exception:
     apex_available = False
 
 import os
