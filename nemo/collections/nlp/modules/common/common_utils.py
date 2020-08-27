@@ -16,6 +16,7 @@
 
 from typing import List, Optional
 
+from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_lm_models_list,
@@ -24,15 +25,14 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_model,
     get_megatron_lm_models_list,
 )
-from nemo.utils import logging
 
 __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
 
 
 def get_pretrained_lm_models_list() -> List[str]:
-    '''
+    """
     Returns the list of support pretrained models
-    '''
+    """
     return get_megatron_lm_models_list() + get_huggingface_lm_models_list()
 
 
@@ -41,17 +41,20 @@ def get_pretrained_lm_model(
     config_dict: Optional[dict] = None,
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
-):
-    '''
+) -> BertModule:
+    """
     Returns pretrained model
+
     Args:
-        pretrained_model_name (str): pretrained model name, for example, bert-base-uncased.
+        pretrained_model_name: pretrained model name, for example, bert-base-uncased.
             See the full list by calling get_pretrained_lm_models_list()
-        config_file (str): path to the model configuration file
-        checkpoint_file (str): path to the pretrained model checkpoint
+        config_dict: path to the model configuration dictionary
+        config_file: path to the model configuration file
+        checkpoint_file: path to the pretrained model checkpoint
+
     Returns:
-        Pretrained model (NM)
-    '''
+        Pretrained BertModule
+    """
     if pretrained_model_name in get_huggingface_lm_models_list():
         model = get_huggingface_lm_model(
             config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name

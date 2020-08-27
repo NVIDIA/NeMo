@@ -29,10 +29,8 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils.decorators import experimental
 
 
-@experimental
 class IntentSlotClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -59,10 +57,12 @@ class IntentSlotClassificationModel(ModelPT):
             do_lower_case=cfg.language_model.do_lower_case,
         )
 
+        self.data_desc = IntentSlotDataDesc(
+            data_dir=cfg.data_dir, modes=[cfg.train_ds.prefix, cfg.validation_ds.prefix]
+        )
+
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        self.data_desc = IntentSlotDataDesc(data_dir=cfg.data_dir, modes=["train", "test", "dev"])
 
         # initialize Bert model
         self.bert_model = get_pretrained_lm_model(
@@ -230,7 +230,7 @@ class IntentSlotClassificationModel(ModelPT):
             tokenizer=self.tokenizer,
             max_seq_length=self.max_seq_length,
             num_samples=cfg.num_samples,
-            pad_label=self._cfg.pad_label,
+            pad_label=self.data_desc.pad_label,
             ignore_extra_tokens=self._cfg.ignore_extra_tokens,
             ignore_start_end=self._cfg.ignore_start_end,
         )
@@ -242,6 +242,7 @@ class IntentSlotClassificationModel(ModelPT):
             num_workers=cfg.num_workers,
             pin_memory=cfg.pin_memory,
             drop_last=cfg.drop_last,
+            collate_fn=dataset.collate_fn,
         )
 
     @classmethod

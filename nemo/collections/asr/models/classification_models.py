@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional, Union
+import copy
+from typing import Dict, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioLabelDataset
@@ -24,8 +25,9 @@ from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy, compute_topk_accuracy
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecClassificationModel', 'MatchboxNet']
@@ -107,12 +109,46 @@ class EncDecClassificationModel(ASRModel):
             return self._test_dl
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="MatchboxNet-3x1x64-v1",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x1x64-v1.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) "
+            "which obtains 97.32% accuracy on test set.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="MatchboxNet-3x2x64-v1",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v1.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) "
+            "which obtains 97.68% accuracy on test set.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="MatchboxNet-3x1x64-v2",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x1x64-v2.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 35 classes) "
+            "which obtains 97.12% accuracy on test set.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="MatchboxNet-3x1x64-v2",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v2.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 30 classes) "
+            "which obtains 97.29% accuracy on test set.",
+        )
+        result.append(model)
+        return result
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -208,6 +244,57 @@ class EncDecClassificationModel(ASRModel):
             tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
 
         return {'log': tensorboard_log}
+
+    def change_labels(self, new_labels: List[str]):
+        """
+        Changes labels used by the decoder model. Use this method when fine-tuning on from pre-trained model.
+        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
+        use it if you want to use pretrained encoder when fine-tuning on a data in another dataset.
+
+        If new_labels == self.decoder.vocabulary then nothing will be changed.
+
+        Args:
+
+            new_labels: list with new labels. Must contain at least 2 elements. Typically, \
+            this is set of labels for the dataset.
+
+        Returns: None
+
+        """
+        if new_labels is not None and not isinstance(new_labels, ListConfig):
+            new_labels = ListConfig(new_labels)
+
+        if self._cfg.labels == new_labels:
+            logging.warning(
+                f"Old labels ({self._cfg.labels}) and new labels ({new_labels}) match. Not changing anything"
+            )
+        else:
+            if new_labels is None or len(new_labels) == 0:
+                raise ValueError(f'New labels must be non-empty list of labels. But I got: {new_labels}')
+
+            decoder_config = self.decoder.to_config_dict()
+            new_decoder_config = copy.deepcopy(decoder_config)
+            new_decoder_config['params']['num_classes'] = len(new_labels)
+            del self.decoder
+            self.decoder = EncDecClassificationModel.from_config_dict(new_decoder_config)
+
+            # Update config
+            self._cfg.labels = new_labels
+
+            OmegaConf.set_struct(self._cfg.decoder, False)
+            self._cfg.decoder = new_decoder_config
+            OmegaConf.set_struct(self._cfg.decoder, True)
+
+            if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
+                self._cfg.train_ds.labels = new_labels
+
+            if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
+                self._cfg.validation_ds.labels = new_labels
+
+            if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
+                self._cfg.test_ds.labels = new_labels
+
+            logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
 
 
 @experimental

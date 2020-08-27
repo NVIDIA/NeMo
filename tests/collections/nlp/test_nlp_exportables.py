@@ -29,20 +29,24 @@ from nemo.collections.nlp.modules.common import (
 def classifier_export(obj):
     with tempfile.TemporaryDirectory() as tmpdir:
         filename = os.path.join(tmpdir, obj.__class__.__name__ + '.onnx')
+        obj = obj.cuda()
         obj.export(output=filename)
 
 
 class TestExportableClassifiers:
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_token_classifier_export_to_onnx(self):
         for num_layers in [1, 2, 4]:
             classifier_export(TokenClassifier(hidden_size=256, num_layers=num_layers, num_classes=16))
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_bert_pretraining_export_to_onnx(self):
         for num_layers in [1, 2, 4]:
             classifier_export(TokenClassifier(hidden_size=256, num_layers=num_layers, num_classes=16))
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_sequence_token_classifier_export_to_onnx(self):
         for num_layers in [1, 2, 4]:
@@ -50,11 +54,13 @@ class TestExportableClassifiers:
                 SequenceTokenClassifier(hidden_size=256, num_slots=8, num_intents=8, num_layers=num_layers)
             )
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_sequence_classifier_export_to_onnx(self):
         for num_layers in [1, 2, 4]:
             classifier_export(SequenceClassifier(hidden_size=256, num_classes=16, num_layers=num_layers))
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_sequence_regression_export_to_onnx(self):
         for num_layers in [1, 2, 4]:

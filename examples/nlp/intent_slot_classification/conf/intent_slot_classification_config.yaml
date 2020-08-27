@@ -13,16 +13,16 @@ trainer:
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
-  checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
+  checkpoint_callback: false  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
 
 model:
   data_dir: ??? # /path/to/data
   class_balancing: null # or weighted_loss
   intent_loss_weight: 0.6 # relation of intent to slot loss in total loss (between 0 to 1)
-  pad_label: 128
+  pad_label: -1 # if -1 not slot token will be used
   ignore_extra_tokens: false
-  ignore_start_end: false
+  ignore_start_end: true # do not use first and last token for slot training
 
   train_ds:
     prefix: train
@@ -84,8 +84,8 @@ model:
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: "IntentSlot"  # The name of your model
-  create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
-  create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
+  create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
+  create_checkpoint_callback: true  # Whether you want exp_manager to create a modelcheckpoint callback
 
 hydra:
   run:
