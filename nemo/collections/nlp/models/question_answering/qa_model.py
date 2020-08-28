@@ -239,6 +239,8 @@ class QAModel(ModelPT):
         self.validation_config = val_data_config
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
+        if test_data_config.file is None:
+            return
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
         self.test_config = test_data_config
 
