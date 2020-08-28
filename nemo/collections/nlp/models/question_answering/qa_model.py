@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Dict, Optional
 
 import torch
-import json
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
@@ -111,7 +111,7 @@ class QAModel(ModelPT):
             'end_logits': end_logits,
         }
         return {'val_loss': loss, 'eval_tensors': eval_tensors}
-    
+
     def test_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, unique_ids = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
@@ -121,7 +121,6 @@ class QAModel(ModelPT):
             'logits': logits,
         }
         return {'test_tensors': test_tensors}
-
 
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -171,7 +170,6 @@ class QAModel(ModelPT):
                 do_lower_case=self.do_lower_case,
             )
 
-            
             if self.validation_config.output_nbest_file is not None:
                 with open(self.validation_config.output_nbest_file, "w") as writer:
                     writer.write(json.dumps(all_nbest, indent=4) + "\n")
@@ -182,12 +180,9 @@ class QAModel(ModelPT):
         logging.info(f"exact match {exact_match}")
         logging.info(f"f1 {f1}")
 
-
         tensorboard_logs = {'val_loss': avg_loss, 'exact_match': exact_match, 'f1': f1}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-
-    
     def test_epoch_end(self, outputs):
 
         unique_ids = torch.cat([x['test_tensors']['unique_ids'] for x in outputs])
@@ -246,7 +241,6 @@ class QAModel(ModelPT):
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
         self.test_config = test_data_config
-        
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = SquadDataset(
