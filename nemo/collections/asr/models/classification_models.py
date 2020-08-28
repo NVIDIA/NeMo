@@ -117,7 +117,7 @@ class EncDecClassificationModel(ASRModel):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x1x64-v1",
-            location="",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x1x64-v1.nemo",
             description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) "
             "which obtains 97.32% accuracy on test set.",
         )
@@ -125,7 +125,7 @@ class EncDecClassificationModel(ASRModel):
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x2x64-v1",
-            location="",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v1.nemo",
             description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) "
             "which obtains 97.68% accuracy on test set.",
         )
@@ -133,7 +133,7 @@ class EncDecClassificationModel(ASRModel):
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x1x64-v2",
-            location="",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x1x64-v2.nemo",
             description="MatchboxNet model trained on Google Speech Commands dataset (v2, 35 classes) "
             "which obtains 97.12% accuracy on test set.",
         )
@@ -141,7 +141,7 @@ class EncDecClassificationModel(ASRModel):
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x1x64-v2",
-            location="",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v2.nemo",
             description="MatchboxNet model trained on Google Speech Commands dataset (v2, 30 classes) "
             "which obtains 97.29% accuracy on test set.",
         )
