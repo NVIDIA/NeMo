@@ -21,6 +21,7 @@ from nemo.collections.asr.models import EncDecSpeakerLabelModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+from nemo.collections.common.callbacks import LogTrainValidLossCallback
 
 """
 Basic run (on CPU for 50 epochs):
@@ -52,6 +53,7 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
+    trainer.callbacks.extend([LogTrainValidLossCallback()])
     trainer.fit(speaker_model)
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
     speaker_model.save_to(model_path)

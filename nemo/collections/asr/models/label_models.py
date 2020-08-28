@@ -150,12 +150,13 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
+        # import ipdb; ipdb.set_trace()
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(logits=logits, labels=labels)
+        self.loss_value = self.loss(logits=logits, labels=labels)
 
         tensorboard_logs = {
-            'train_loss': loss_value,
+            'train_loss': self.loss_value,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
 
@@ -168,14 +169,19 @@ class EncDecSpeakerLabelModel(ModelPT):
 
             tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = correct_count / float(total_count)
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        return {'loss': self.loss_value, 'log': tensorboard_logs}
+    
+    # def training_epoch_end(self,outputs):
+    #     val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+    #     logging.info("")
+        
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(logits=logits, labels=labels)
+        self.loss_value = self.loss(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
-        return {'val_loss': loss_value, 'val_correct_counts': correct_counts, 'val_total_counts': total_counts}
+        return {'val_loss': self.loss_value, 'val_correct_counts': correct_counts, 'val_total_counts': total_counts}
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -185,7 +191,7 @@ class EncDecSpeakerLabelModel(ModelPT):
         topk_scores = compute_topk_accuracy(correct_counts, total_counts)
 
         tensorboard_log = {'val_loss': val_loss_mean}
-        logging.info("val_loss{}".format(val_loss_mean))
+        logging.info("val_loss {}".format(val_loss_mean))
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
             logging.info("val_epoch_top@{}: {}".format(top_k, score))

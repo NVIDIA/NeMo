@@ -15,6 +15,7 @@ import time
 
 from pytorch_lightning.callbacks.base import Callback
 from pytorch_lightning.utilities import rank_zero_only
+from nemo.utils import logging
 
 
 class LogEpochTimeCallback(Callback):
@@ -30,3 +31,17 @@ class LogEpochTimeCallback(Callback):
         curr_time = time.time()
         duration = curr_time - self.epoch_start
         trainer.logger.log_metrics({"epoch_time": duration}, step=trainer.global_step)
+
+class LogTrainValidLossCallback(Callback):
+
+    @rank_zero_only
+    def on_epoch_start(self, trainer, pl_module):
+        logging.info(" Training started")
+    
+    @rank_zero_only
+    def on_train_epoch_start(self,trainer,pl_module):
+        print_freq = trainer.row_log_interval
+        logging.info("batch_idx")
+        if 4 % print_freq == 0:
+            logging.info("Epoch: {} batch: {} train_loss: {}".format(trainer.current_epoch,1,pl_module.loss))
+
