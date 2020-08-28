@@ -137,7 +137,7 @@ class WaveGlowModel(Vocoder):
         self.mode = OperationMode.training
         self.waveglow.mode = OperationMode.training
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list = self.forward(audio=audio, audio_len=audio_len)
+        z, log_s_list, log_det_W_list = self(audio=audio, audio_len=audio_len, run_inverse=False)
 
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
         output = {
@@ -151,7 +151,7 @@ class WaveGlowModel(Vocoder):
         self.mode = OperationMode.validation
         self.waveglow.mode = OperationMode.validation
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self.forward(
+        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self(
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)
         )
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
