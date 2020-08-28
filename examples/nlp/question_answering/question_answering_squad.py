@@ -28,7 +28,6 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
-
     infer_datasets = [cfg.model.validation_ds, cfg.model.test_ds]
     for infer_dataset in infer_datasets:
         if infer_dataset.output_prediction_file is not None: 
@@ -41,7 +40,8 @@ def main(cfg: DictConfig) -> None:
     if cfg.model.nemo_path:
         question_answering_model.save_to(cfg.model.nemo_path)
     
-    trainer.test(question_answering_model, ckpt_path=None)
+    if cfg.model.test_ds.file is not None:
+        trainer.test(question_answering_model, ckpt_path=None)
 
 
 if __name__ == '__main__':
