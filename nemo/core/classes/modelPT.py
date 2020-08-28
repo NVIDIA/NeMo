@@ -758,17 +758,17 @@ class ModelPT(LightningModule, Model):
 
         # Replace ddp multi-gpu until PTL has a fix
         DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
-                    "with single GPU and no DDP to obtain accurate results.\n"
-                    "Following pattern should be used: \n"
-                    "gpu = 1 if cfg.trainer.gpus != 0 else 0\n"
-                    "trainer = Trainer(gpus=gpu)\n"
-                    "if model.prepare_test(trainer):\n"
+                    "with single GPU and no DDP to obtain accurate results.
+                    "Following pattern should be used: "
+                    "gpu = 1 if cfg.trainer.gpus != 0 else 0"
+                    "trainer = Trainer(gpus=gpu)"
+                    "if model.prepare_test(trainer):"
                     "  trainer.test(model)\n\n"""
 
         if trainer is not None:
             if trainer.num_gpus > 1:
                 logging.warning(DDP_WARN)
-                return True
+                return False
 
         # Assign trainer to the model
         self.set_trainer(trainer)
@@ -786,6 +786,15 @@ class ModelPT(LightningModule, Model):
     @property
     def num_weights(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    @property
+    def cfg(self):
+        return self._cfg
+
+    @cfg.setter
+    def cfg(self, cfg):
+        self._cfg = cfg
+        self._set_hparams(cfg)
 
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
