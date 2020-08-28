@@ -41,7 +41,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
 
-@experimental
 class ConvASREncoder(NeuralModule, Exportable):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
@@ -187,7 +186,6 @@ class ConvASREncoder(NeuralModule, Exportable):
         return s_input[-1], length
 
 
-@experimental
 class ConvASRDecoder(NeuralModule, Exportable):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
@@ -264,7 +262,6 @@ class ConvASRDecoder(NeuralModule, Exportable):
         return self._num_classes
 
 
-@experimental
 class ConvASRDecoderClassification(NeuralModule):
     """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
 
