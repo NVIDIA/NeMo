@@ -1,4 +1,5 @@
 # Config file for training left-to-right Transformer language model
+name: &name TransformerLM
 
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU
@@ -18,7 +19,7 @@ trainer:
 model:
 
   language_model:
-    tokenizer: CharTokenizer
+    tokenizer: word
     vocab_file: ???
     hidden_size: 512
     num_layers: 6
@@ -66,8 +67,8 @@ model:
       reduce_on_plateau: false
 
 exp_manager:
-  exp_dir: aishell  # where to store logs and checkpoints
-  name: TransformerLanguageModeling  # The name of your model
+  exp_dir: null  # where to store logs and checkpoints
+  name: *name  # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 

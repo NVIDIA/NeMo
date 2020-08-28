@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import math
-import os
 from typing import Dict, Optional
 
 import torch
@@ -22,19 +21,16 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.common.tokenizers import CharTokenizer, WordTokenizer
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import L2RLanguageModelingDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.utils.decorators import experimental
 
 __all__ = ['TransformerLMModel']
 
 
-@experimental
 class TransformerLMModel(ModelPT):
     """
     Left-to-right Transformer language model.
@@ -44,8 +40,9 @@ class TransformerLMModel(ModelPT):
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
-
-        self.tokenizer = globals()[cfg.language_model.tokenizer](vocab_file=cfg.language_model.vocab_file)
+        self.tokenizer = get_tokenizer(
+            tokenizer_name=cfg.language_model.tokenizer, vocab_file=cfg.language_model.vocab_file
+        )
 
         # make vocabulary size divisible by 8 for fast fp16 training
         vocab_size = 8 * math.ceil(self.tokenizer.vocab_size / 8)
@@ -149,15 +146,12 @@ class TransformerLMModel(ModelPT):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        input_file = cfg.file_name
-
         dataset = L2RLanguageModelingDataset(
             tokenizer=self.tokenizer,
             dataset=cfg.file_name,
             max_seq_length=self.dataset_cfg.max_seq_length,
             batch_step=cfg.get("predict_last_k", 0),
         )
-
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg.batch_size,
@@ -166,3 +160,7 @@ class TransformerLMModel(ModelPT):
             pin_memory=self.dataset_cfg.get("pin_memory", False),
             drop_last=self.dataset_cfg.get("drop_last", False),
         )
+
+    @classmethod
+    def list_available_models(cls) -> Optional[Dict[str, str]]:
+        pass

@@ -13,9 +13,7 @@
 # limitations under the License.
 
 """Pytorch Dataset for training left-to-right language models."""
-import os
-import re
-from typing import Dict, List, Optional
+from typing import Optional
 
 import numpy as np
 from torch.utils.data import Dataset

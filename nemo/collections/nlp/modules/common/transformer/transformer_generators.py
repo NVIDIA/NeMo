@@ -15,8 +15,7 @@
 import torch
 import torch.nn as nn
 
-from nemo.collections.common.parts import NEG_INF
-from nemo.collections.nlp.utils.data_utils import mask_padded_tokens
+from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
 
 __all__ = [
     "GreedySequenceGenerator",
