@@ -93,7 +93,13 @@ class SquadDataset(Dataset):
             data_file
             + '_cache'
             + '_{}_{}_{}_{}_{}_{}_{}'.format(
-                mode, tokenizer_type, str(vocab_size), str(max_seq_length), str(doc_stride), str(max_query_length), str(num_samples)
+                mode,
+                tokenizer_type,
+                str(vocab_size),
+                str(max_seq_length),
+                str(doc_stride),
+                str(max_query_length),
+                str(num_samples),
             )
         )
 

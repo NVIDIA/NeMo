@@ -13,8 +13,9 @@
 # limitations under the License.
 
 
-import pytorch_lightning as pl
 import os
+
+import pytorch_lightning as pl
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
@@ -30,16 +31,16 @@ def main(cfg: DictConfig) -> None:
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     infer_datasets = [cfg.model.validation_ds, cfg.model.test_ds]
     for infer_dataset in infer_datasets:
-        if infer_dataset.output_prediction_file is not None: 
+        if infer_dataset.output_prediction_file is not None:
             infer_dataset.output_prediction_file = os.path.join(log_dir, infer_dataset.output_prediction_file)
-        if infer_dataset.output_nbest_file is not None: 
+        if infer_dataset.output_nbest_file is not None:
             infer_dataset.output_nbest_file = os.path.join(log_dir, infer_dataset.output_nbest_file)
-    
+
     question_answering_model = QAModel(cfg.model, trainer=trainer)
     trainer.fit(question_answering_model)
     if cfg.model.nemo_path:
         question_answering_model.save_to(cfg.model.nemo_path)
-    
+
     if cfg.model.test_ds.file is not None:
         trainer.test(question_answering_model, ckpt_path=None)
 
