@@ -399,7 +399,6 @@ class SquadDataset(Dataset):
         version_2_with_negative: bool,
         null_score_diff_threshold: float,
     ):
-
         (all_predictions, all_nbest_json, scores_diff_json) = self.get_predictions(
             unique_ids,
             start_logits,

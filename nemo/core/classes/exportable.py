@@ -22,6 +22,7 @@ import torch
 
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
+from nemo.utils.export_utils import replace_for_export
 
 __all__ = ['ExportFormat', 'Exportable']
 
@@ -46,11 +47,21 @@ class Exportable(ABC):
     """
 
     def export(
-        self, output: str, input_example=None, output_example=None, onnx_opset_version=12, try_script=False,
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
     ):
         try:
             # Disable typechecks
             typecheck.set_typecheck_enabled(enabled=False)
+
+            # Set module to eval mode
+            if set_eval:
+                self.eval()
 
             filename, file_extension = os.path.splitext(output)
             if file_extension not in _EXT_DICT.keys():
@@ -58,12 +69,15 @@ class Exportable(ABC):
 
             format = _EXT_DICT[file_extension]
 
-            _in_example, _out_example = self._prepare_for_export()
+            self._prepare_for_export()
 
             if input_example is not None:
                 _in_example = input_example
-            if output_example is not None:
-                _out_example = output_example
+            else:
+                _in_example = self.input_example()
+
+            if output_example is None:
+                _out_example = self.forward(*_in_example)
 
             if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
                 raise NotImplementedError('For export to work you must define input and output types')
@@ -88,9 +102,6 @@ class Exportable(ABC):
 
             if len(dynamic_axes) == 0:
                 dynamic_axes = None
-
-            # Set module to eval mode
-            self.eval()
 
             with torch.jit.optimized_execution(True):
                 jitted_model = None
@@ -126,6 +137,7 @@ class Exportable(ABC):
                         verbose=False,
                         export_params=True,
                         do_constant_folding=True,
+                        keep_initializers_as_inputs=True,
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
                         example_outputs=_out_example,
@@ -180,9 +192,7 @@ class Exportable(ABC):
 
     def _prepare_for_export(self):
         """
-        Implement this method to prepare module for export. Do all necessary changes on module pre-export here.
-        Also, return a pair in input, output examples for tracing.
-        Returns:
-            A pair of (input, output) examples.
+        Override this method to prepare module for export. This is in-place operation. 
+        Base version does common necessary module replacements (Apex etc) 
         """
-        pass
+        replace_for_export(self)
