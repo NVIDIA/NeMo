@@ -56,7 +56,7 @@ python process_vad_data.py \
     --background_data_root=<path where the background data are stored> \
     --rebalance_method=<'under' or 'over' of 'fixed'> \ 
     --log
-    (Optional --generate (for demonstration in tutorial). If you want to use your own background noise data, make sure to delete --generates)
+    (Optional --demo (for demonstration in tutorial). If you want to use your own background noise data, make sure to delete --demo)
 ```
 
 ## Train to convergence
@@ -96,6 +96,7 @@ def main(cfg):
         trainer = pl.Trainer(gpus=gpu)
         if asr_model.prepare_test(trainer):
             trainer.test(asr_model)
+
 
 
 if __name__ == '__main__':
