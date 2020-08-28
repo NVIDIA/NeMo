@@ -148,6 +148,14 @@ class EncDecClassificationModel(ASRModel):
             "which obtains 97.29% accuracy on test set.",
         )
         result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="MatchboxNet-3x1x64-v2-subset-task",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v2-subset-task.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) "
+            "which obtains 98.4% accuracy on test set.",
+        )
+        result.append(model)
         return result
 
     @property
