@@ -49,7 +49,7 @@ class AudioSegment(object):
     :raises TypeError: If the sample data type is not float or int.
     """
 
-    def __init__(self, samples, sample_rate, target_sr=None, trim=False, trim_db=60):
+    def __init__(self, samples, sample_rate, target_sr=None, trim=False, trim_db=60, orig_sr=None):
         """Create audio segment from samples.
         Samples are convert float32 internally, with int scaled to [-1, 1].
         """
@@ -63,6 +63,8 @@ class AudioSegment(object):
         self._sample_rate = sample_rate
         if self._samples.ndim >= 2:
             self._samples = np.mean(self._samples, 1)
+
+        self._orig_sr = orig_sr if orig_sr is not None else sample_rate
 
     def __eq__(self, other):
         """Return whether two objects are equal."""
@@ -108,7 +110,7 @@ class AudioSegment(object):
 
     @classmethod
     def from_file(
-        cls, audio_file, target_sr=None, int_values=False, offset=0, duration=0, trim=False,
+        cls, audio_file, target_sr=None, int_values=False, offset=0, duration=0, trim=False, orig_sr=None,
     ):
         """
         Load a file supported by librosa and return as an AudioSegment.
@@ -130,10 +132,10 @@ class AudioSegment(object):
                 samples = f.read(dtype=dtype)
 
         samples = samples.transpose()
-        return cls(samples, sample_rate, target_sr=target_sr, trim=trim)
+        return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 
     @classmethod
-    def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False):
+    def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False, orig_sr=None):
         """Grabs n_segments number of samples from audio_file randomly from the
         file as opposed to at a specified offset.
 
@@ -150,7 +152,7 @@ class AudioSegment(object):
                 samples = f.read(dtype='float32')
 
         samples = samples.transpose()
-        return cls(samples, sample_rate, target_sr=target_sr, trim=trim)
+        return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 
     @property
     def samples(self):
@@ -172,6 +174,10 @@ class AudioSegment(object):
     def rms_db(self):
         mean_square = np.mean(self._samples ** 2)
         return 10 * np.log10(mean_square)
+
+    @property
+    def orig_sr(self):
+        return self._orig_sr
 
     def gain_db(self, gain):
         self._samples *= 10.0 ** (gain / 20.0)

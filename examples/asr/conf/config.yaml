@@ -17,6 +17,7 @@ model:
     shuffle: True
     is_tarred: False
     tarred_audio_filepaths: null
+    augmentor: null
 
   validation_ds:
     manifest_filepath: ???

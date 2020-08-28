@@ -162,6 +162,7 @@ class _AudioTextDataset(Dataset):
 
             features = self.featurizer.process(
                 sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim,
+                orig_sr=sample.orig_sr,
             )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
@@ -421,8 +422,8 @@ class AudioLabelDataset(Dataset):
                 offset = 0
 
             features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim
-            )
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim,
+                orig_sr = manifest_entry.orig_sr)
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
             f, fl = None, None
@@ -626,6 +627,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         audio_filestream = io.BytesIO(audio_bytes)
         features = self.featurizer.process(
             audio_filestream, offset=offset, duration=manifest_entry.duration, trim=self.trim,
+            orig_sr=manifest_entry.orig_sr,
         )
         audio_filestream.close()
 
