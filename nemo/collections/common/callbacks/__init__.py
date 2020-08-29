@@ -12,5 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.callbacks.callbacks import LogEpochTimeCallback,LogTrainValidLossCallback
-
+from nemo.collections.common.callbacks.callbacks import (
+    CallbackManager,
+    LogEpochTimeCallback,
+    LogTrainValidLossCallback,
+)

@@ -12,10 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from typing import List, Union
 
 from pytorch_lightning.callbacks.base import Callback
 from pytorch_lightning.utilities import rank_zero_only
+
 from nemo.utils import logging
+
+
+class CallbackManager:
+    def __init__(self) -> None:
+        self.callbacks = set(['LogEpochTimeCallback()', 'LogTrainValidLossCallback()'])
+
+    def get_callback(self, callback_name: str):
+        if callback_name in self.callbacks:
+            return eval(callback_name)
+        else:
+            raise NameError("Provided Callback name is not part of nemo Callback system")
+
+    def add_callback(self, callback_names: Union[str, List]):
+        if type(callback_names) is str:
+            callback_names = callback_names.split(',')
+
+        callbacks = []
+        for name in callback_names:
+            callbacks.append(self.get_callback(name))
+
+        return callbacks
 
 
 class LogEpochTimeCallback(Callback):
@@ -32,16 +55,30 @@ class LogEpochTimeCallback(Callback):
         duration = curr_time - self.epoch_start
         trainer.logger.log_metrics({"epoch_time": duration}, step=trainer.global_step)
 
+
 class LogTrainValidLossCallback(Callback):
+    @rank_zero_only
+    def on_train_start(self, trainer, pl_module):
+        logging.info("Training started")
 
     @rank_zero_only
-    def on_epoch_start(self, trainer, pl_module):
-        logging.info(" Training started")
-    
-    @rank_zero_only
-    def on_train_epoch_start(self,trainer,pl_module):
+    def on_train_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
         print_freq = trainer.row_log_interval
-        logging.info("batch_idx")
-        if 4 % print_freq == 0:
-            logging.info("Epoch: {} batch: {} train_loss: {}".format(trainer.current_epoch,1,pl_module.loss))
+        if batch_idx % print_freq == 0:
+            logging.info(
+                "Epoch: {}/{} batch: {}/{} train_loss: {:.3f} train_acc: {:.2f}".format(
+                    trainer.current_epoch + 1,
+                    trainer.max_epochs,
+                    batch_idx + 1,
+                    trainer.num_training_batches,
+                    pl_module.loss_value,
+                    pl_module.accuracy,
+                )
+            )
 
+    def on_validation_epoch_end(self, trainer, pl_module):
+        logging.info(
+            "----> Epoch: {}/{} val_loss: {:.3f} val_acc: {:.2f} <----".format(
+                trainer.current_epoch + 1, trainer.max_epochs, pl_module.val_loss_mean, pl_module.accuracy
+            )
+        )
