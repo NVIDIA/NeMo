@@ -253,7 +253,7 @@ class ModelPT(LightningModule, Model):
                 *args,
                 map_location=map_location,
                 hparams_file=hparams_file,
-                strict=str,
+                strict=strict,
                 **kwargs,
             )
 
