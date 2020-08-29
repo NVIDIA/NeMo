@@ -179,11 +179,13 @@ class ModelPT(LightningModule, Model):
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @classmethod
-    def restore_from(cls, restore_path: str):
+    def restore_from(cls, restore_path: str, override_config_path: Optional[str] = None):
         """
         Restores model instance (weights and configuration) into .nemo file
         Args:
             restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file
 
             Example:
                 ```
@@ -204,9 +206,19 @@ class ModelPT(LightningModule, Model):
                 cls.__set_model_restore_state(is_being_restored=True)
                 cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
-                config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
-                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                if override_config_path is None:
+                    config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+                else:
+                    config_yaml = override_config_path
                 conf = OmegaConf.load(config_yaml)
+                if override_config_path is not None:
+                    # Resolve the override config
+                    conf = OmegaConf.to_container(conf, resolve=True)
+                    conf = OmegaConf.create(conf)
+                    # If override is top level config, extract just `model` from it
+                    if 'model' in conf:
+                        conf = conf.model
+                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 OmegaConf.set_struct(conf, True)
                 instance = cls.from_config_dict(config=conf)
                 instance.load_state_dict(torch.load(model_weights))
@@ -225,19 +237,24 @@ class ModelPT(LightningModule, Model):
         *args,
         map_location: Optional[Union[Dict[str, str], str, torch.device, int, Callable]] = None,
         hparams_file: Optional[str] = None,
+        strict: bool = True,
         **kwargs,
     ):
         """
         Loads ModelPT from checkpoint, with some maintenance of restoration.
         For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
         """
-        # TODO (@titu1994): When PTL 0.9+ is supported, add `strict=False` flag to constructor
         checkpoint = None
         try:
             cls.__set_model_restore_state(is_being_restored=True)
 
             checkpoint = super().load_from_checkpoint(
-                checkpoint_path=checkpoint_path, *args, map_location=map_location, hparams_file=hparams_file, **kwargs
+                checkpoint_path=checkpoint_path,
+                *args,
+                map_location=map_location,
+                hparams_file=hparams_file,
+                strict=str,
+                **kwargs,
             )
 
         finally:

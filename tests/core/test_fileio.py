@@ -16,7 +16,7 @@ import tempfile
 
 import numpy as np
 import pytest
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
 
@@ -136,3 +136,36 @@ class TestFileIO:
             w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
 
             assert np.array_equal(w1, w2)
+
+    @pytest.mark.unit
+    def test_save_restore_from_nemo_file_with_override(self, asr_model):
+        """" Test makes sure that the second instance created from the same configuration AND checkpoint
+        has the same weights. """
+
+        with tempfile.NamedTemporaryFile() as fp, tempfile.NamedTemporaryFile(mode='a+') as conf_fp:
+            filename = fp.name
+
+            # Save model (with random artifact).
+            with tempfile.NamedTemporaryFile() as artifact:
+                asr_model.register_artifact(config_path=None, src=artifact.name)
+                asr_model.save_to(save_path=filename)
+
+            # Modify config slightly
+            cfg = asr_model.cfg
+            cfg.encoder.params.activation = 'swish'
+            yaml_cfg = OmegaConf.to_yaml(cfg)
+            conf_fp.write(yaml_cfg)
+            conf_fp.seek(0)
+
+            # Restore the model.
+            asr_model2 = EncDecCTCModel.restore_from(restore_path=filename, override_config_path=conf_fp.name)
+
+            assert len(asr_model.decoder.vocabulary) == len(asr_model2.decoder.vocabulary)
+            assert asr_model.num_weights == asr_model2.num_weights
+
+            w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert np.array_equal(w1, w2)
+
+            assert asr_model2.cfg.encoder.params.activation == 'swish'
