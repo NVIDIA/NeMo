@@ -196,7 +196,6 @@ class QAModel(ModelPT):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def test_epoch_end(self, outputs):
-
         unique_ids = torch.cat([x['test_tensors']['unique_ids'] for x in outputs])
         logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
 
@@ -242,6 +241,7 @@ class QAModel(ModelPT):
             if self.test_config.output_prediction_file is not None:
                 with open(self.test_config.output_prediction_file, "w") as writer:
                     writer.write(json.dumps(all_predictions, indent=4) + "\n")
+        return {}
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(**cfg)
