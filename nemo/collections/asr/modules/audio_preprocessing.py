@@ -247,7 +247,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         return self.featurizer.filter_banks
 
 
-@experimental
 class AudioToMFCCPreprocessor(AudioPreprocessor):
     """Preprocessor that converts wavs to MFCCs.
     Uses torchaudio.transforms.MFCC.
