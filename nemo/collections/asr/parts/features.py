@@ -51,6 +51,11 @@ def normalize_batch(x, seq_len, normalize_type):
         x_mean = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
         x_std = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
         for i in range(x.shape[0]):
+            if x[i, :, : seq_len[i]].shape[1] == 1:
+                raise ValueError(
+                    "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
+                    "in torch.std() returning nan"
+                )
             x_mean[i, :] = x[i, :, : seq_len[i]].mean(dim=1)
             x_std[i, :] = x[i, :, : seq_len[i]].std(dim=1)
         # make sure x_std is not zero
@@ -225,8 +230,7 @@ class FilterbankFeatures(nn.Module):
         highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
-            librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq,),
-            dtype=torch.float,
+            librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float,
         ).unsqueeze(0)
         # self.fb = filterbanks
         # self.window = window_tensor
@@ -296,15 +300,18 @@ class FilterbankFeatures(nn.Module):
 
         # do preemphasis
         if self.preemph is not None:
-            x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1,)
+            x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1)
 
-        x = self.stft(x)
+        with torch.cuda.amp.autocast(enabled=False):
+            x = self.stft(x)
+
+        # torch returns real, imag; so convert to magnitude
+        if not self.stft_conv:
+            x = torch.sqrt(x.pow(2).sum(-1))
 
         # get power spectrum
         if self.mag_power != 1.0:
             x = x.pow(self.mag_power)
-        if not self.stft_conv:
-            x = x.sum(-1)
 
         # dot with filterbank energies
         x = torch.matmul(self.fb.to(x.dtype), x)
@@ -331,7 +338,7 @@ class FilterbankFeatures(nn.Module):
         max_len = x.size(-1)
         mask = torch.arange(max_len).to(x.device)
         mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
-        x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value,)
+        x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
         del mask
         pad_to = self.pad_to
         if not self.training:
