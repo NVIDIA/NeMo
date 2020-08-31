@@ -19,7 +19,7 @@ trainer:
 
 model:
   nemo_path: null # exported .nemo path
-  pretrained_model_name: bert-base-uncased # huggingface model name
+  pretrained_model_name: bert-base-uncased # BERT-like model name
   dataset:
     version_2_with_negative: false
     # If true, the examples contain some that do not have an answer.

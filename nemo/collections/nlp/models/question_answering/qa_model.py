@@ -244,7 +244,17 @@ class QAModel(ModelPT):
         return {}
 
     def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(**cfg)
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            data_file=cfg.data_file,
+            tokenizer_model=cfg.tokenizer_model,
+            sample_size=cfg.sample_size,
+            pretrained_model_name=cfg.pretrained_model_name,
+            special_tokens=cfg.special_tokens,
+            vocab_file=cfg.vocab_file,
+            vocab_size=cfg.vocab_size,
+            do_lower_case=cfg.do_lower_case,
+        )
         self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
