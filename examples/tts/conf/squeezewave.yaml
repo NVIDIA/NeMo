@@ -33,8 +33,8 @@ model:
         min_duration: 0.1
         n_segments: -1
         trim: false
-        # This value is hard-coded to reflect n_window_stride * pad_to
-        truncate_to: 256
+        # This value is hard-coded to reflect n_window_stride * lcm(2, pad_to)
+        truncate_to: 512
     dataloader_params:
       drop_last: false
       shuffle: false
@@ -88,7 +88,7 @@ model:
 trainer:
   gpus: 1 # number of gpus
   max_epochs: 10000
-  max_steps: 200000
+  max_steps: 400000
   num_nodes: 1
   distributed_backend: ddp
   accumulate_grad_batches: 1

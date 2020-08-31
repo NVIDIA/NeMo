@@ -179,10 +179,10 @@ class STFTExactPad(STFT):
             inverse_transform[:, :, approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
 
             # scale by hop ratio
-            inverse_transform *= float(self.filter_length) / self.hop_length
+            inverse_transform *= self.filter_length / self.hop_length
 
-        inverse_transform = inverse_transform[:, :, int(self.filter_length / 2) :]
-        inverse_transform = inverse_transform[:, :, : -int(self.filter_length / 2) :]
+        inverse_transform = inverse_transform[:, :, self.pad_amount :]
+        inverse_transform = inverse_transform[:, :, : -self.pad_amount :]
 
         return inverse_transform
 
