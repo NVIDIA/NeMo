@@ -27,6 +27,11 @@ from nemo.core.neural_types.elements import ClassificationTarget, Index, Normali
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import add_port_docs, experimental
 
+from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
+
+# Create the config store instance.
+cs = ConfigStore.instance()
 
 @dataclass
 class MNISTDatasetConfig(Config):
@@ -40,13 +45,16 @@ class MNISTDatasetConfig(Config):
         train: use train or test splits (DEFAULT: True)
         name: Name of the module (DEFAULT: None)
     """
-
     height: int = 28
     width: int = 28
     data_folder: str = "~/data/mnist"
     train: bool = True
     download: bool = True
 
+# Register the config.
+cs.store(
+    group="dataset", name="mnist", node=ObjectConf(target="nemo.collections.cv.datasets.MNISTDataset", params=MNISTDatasetConfig()),
+)
 
 class MNISTDataset(Dataset):
     """

@@ -32,6 +32,74 @@ __all__ = [
 ]
 
 
+from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
+
+cs = ConfigStore.instance()
+
+
+@dataclass
+class AdamConfig:
+    lr: float = 1e-3
+    betas: tuple = (0.9, 0.999)
+    eps: float = 1e-8
+    weight_decay: float = 0
+    amsgrad: bool = False
+
+# Register Adam.
+cs.store(
+    group="opt", name="adam", node=ObjectConf(target="torch.optim.Adam", params=AdamConfig()),
+)
+
+@dataclass
+class SGDConfig:
+    lr: float = 1e-2
+    momentum: float = 0
+    weight_decay: float = 0
+    dampening: float = 0
+    nesterov: bool = False
+
+# Register SGD.
+cs.store(
+    group="opt", name="sgd", node=ObjectConf(target="torch.optim.SGD", params=SGDConfig()),
+)
+
+
+@dataclass
+class NovogradConfig:
+    """
+    Configuration of the Novograd optimizer.
+
+    It has been proposed  in "Stochastic Gradient Methods with Layer-wise
+    Adaptive Moments for Training of Deep Networks"
+    (https://arxiv.org/abs/1905.11286)
+
+    Args:
+        lr (float, optional): learning rate (default: 1e-3)
+        betas (Tuple[float, float], optional): coefficients used for computing
+            running averages of gradient and its square (default: (0.9, 0.999))
+        eps (float, optional): term added to the denominator to improve
+            numerical stability (default: 1e-8)
+        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+        amsgrad (boolean, optional): whether to use the AMSGrad variant of this
+            algorithm from the paper "On the Convergence of Adam and Beyond"
+    """
+    lr: float = 1e-3
+    betas: Tuple[float, float] = (0.95, 0.98)
+    eps: float = 1e-8
+    weight_decay: float = 0
+    grad_averaging: bool = False
+    amsgrad: bool = False
+    luc: bool = False
+    luc_trust: float = 1e-3
+    luc_eps: float = 1e-8
+
+# Register Novograd.
+cs.store(
+    group="opt", name="novograd", node=ObjectConf(target="nemo.core.optim.Novograd", params=NovogradConfig()),
+)
+
+
 @dataclass
 class OptimizerParams:
     """
@@ -67,8 +135,7 @@ class AdamParams(OptimizerParams):
         For the details on the function/meanings of the arguments, please refer to:
         https://pytorch.org/docs/stable/optim.html?highlight=adam#torch.optim.Adam
     """
-
-    # betas: Tuple[float, float] = (0.9, 0.999)
+    # betas: Tuple[float, float] = (0.9, 0.999) # Why betas are commented out??
     eps: float = 1e-08
     weight_decay: float = 0
     amsgrad: bool = False
