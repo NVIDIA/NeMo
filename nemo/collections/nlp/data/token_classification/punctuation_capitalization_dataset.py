@@ -440,22 +440,9 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
         }
 
-    def __init__(
-        self,
-        queries: List[str],
-        max_seq_length: int,
-        tokenizer: TokenizerSpec,
-        ignore_extra_tokens=False,
-        ignore_start_end: Optional[bool] = False,
-    ):
+    def __init__(self, queries: List[str], max_seq_length: int, tokenizer: TokenizerSpec):
         """ Initializes BertPunctuationCapitalizationInferDataset. """
-        features = get_features(
-            queries=queries,
-            max_seq_length=max_seq_length,
-            tokenizer=tokenizer,
-            ignore_extra_tokens=ignore_extra_tokens,
-            ignore_start_end=ignore_start_end,
-        )
+        features = get_features(queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer)
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
