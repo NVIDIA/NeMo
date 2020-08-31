@@ -78,7 +78,7 @@ class ModelPT(LightningModule, Model):
 
         self._cfg = config
 
-        self.save_hyperparameters(OmegaConf.to_container(self._cfg, resolve=True))
+        self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
@@ -101,21 +101,21 @@ class ModelPT(LightningModule, Model):
                 logging.warning(
                     f"Please call the ModelPT.setup_training_data() method "
                     f"and provide a valid configuration file to setup the train data loader.\n"
-                    f"Train config : \n{self._cfg.train_ds}"
+                    f"Train config : \n{OmegaConf.to_yaml(self._cfg.train_ds)}"
                 )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
                 logging.warning(
                     f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
                     f"and provide a valid configuration file to setup the validation data loader(s). \n"
-                    f"Validation config : \n{self._cfg.validation_ds}"
+                    f"Validation config : \n{OmegaConf.to_yaml(self._cfg.validation_ds)}"
                 )
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 logging.warning(
                     f"Please call the ModelPT.setup_test_data() or ModelPT.setup_multiple_test_data() method "
                     f"and provide a valid configuration file to setup the test data loader(s).\n"
-                    f"Test config : \n{self._cfg.test_ds}"
+                    f"Test config : \n{OmegaConf.to_yaml(self._cfg.test_ds)}"
                 )
 
     def register_artifact(self, config_path: str, src: str):
@@ -495,14 +495,14 @@ class ModelPT(LightningModule, Model):
             return self._validation_dl
 
     def validation_step(self, batch, batch_ix):
-        pass
+        return {}
 
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
 
     def test_step(self, batch, batch_ix):
-        pass
+        return {}
 
     def validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
@@ -529,7 +529,7 @@ class ModelPT(LightningModule, Model):
         """
         # Case where we dont provide data loaders
         if outputs is not None and len(outputs) == 0:
-            return
+            return {}
 
         # Case where we provide exactly 1 data loader
         if type(outputs[0]) == dict:
@@ -624,7 +624,7 @@ class ModelPT(LightningModule, Model):
         """
         # Case where we dont provide data loaders
         if outputs is not None and len(outputs) == 0:
-            return
+            return {}
 
         # Case where we provide exactly 1 data loader
         if type(outputs[0]) == dict:
@@ -758,11 +758,11 @@ class ModelPT(LightningModule, Model):
 
         # Replace ddp multi-gpu until PTL has a fix
         DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
-                    "with single GPU and no DDP.\n"
-                    "Following pattern should be used: \n"
-                    "gpu = 1 if cfg.trainer.gpus != 0 else 0\n"
-                    "trainer = Trainer(gpus=gpu)\n"
-                    "if model.prepare_test(trainer):\n"
+                    "with single GPU and no DDP to obtain accurate results.
+                    "Following pattern should be used: "
+                    "gpu = 1 if cfg.trainer.gpus != 0 else 0"
+                    "trainer = Trainer(gpus=gpu)"
+                    "if model.prepare_test(trainer):"
                     "  trainer.test(model)\n\n"""
 
         if trainer is not None:
@@ -786,6 +786,15 @@ class ModelPT(LightningModule, Model):
     @property
     def num_weights(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    @property
+    def cfg(self):
+        return self._cfg
+
+    @cfg.setter
+    def cfg(self, cfg):
+        self._cfg = cfg
+        self._set_hparams(cfg)
 
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):

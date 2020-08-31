@@ -18,9 +18,9 @@ python process_vad_data.py \
     --out_dir=<output path to where the generated manifest should be stored> \
     --speech_data_root=<path where the speech data are stored> \
     --background_data_root=<path where the background data are stored> \
-    --rebalance_method=<'under' or 'over' of 'fixed'> \ 
+    --rebalance_method=<'under' or 'over' or 'fixed'> \ 
     --log
-    (Optional --generate (for demonstration in tutorial). If you want to use your own background noise data, make sure to delete --generates)
+    (Optional --demo (for demonstration in tutorial). If you want to use your own background noise data, make sure to delete --demo)
 """
 import argparse
 import glob
@@ -32,6 +32,7 @@ import urllib.request
 
 import librosa
 import numpy as np
+import soundfile as sf
 from sklearn.model_selection import train_test_split
 
 sr = 16000
@@ -77,12 +78,19 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
         logging.info(f'Skipping extracting. Data already there {data_dir}')
 
 
-def split_train_val_test(data_dir, file_type, test_size=0.1, val_size=0.1):
+def split_train_val_test(data_dir, file_type, test_size=0.1, val_size=0.1, demo=False):
     X = []
     if file_type == "speech":
         for o in os.listdir(data_dir):
             if os.path.isdir(os.path.join(data_dir, o)) and o.split("/")[-1] != "_background_noise_":
                 X.extend(glob.glob(os.path.join(data_dir, o) + '/*.wav'))
+
+        if demo:
+            logging.info(
+                f"For Demonstration, we use {int(len(X)/100)}/{len(X)} speech data. Make sure to remove --demo flag when you actually train your model!"
+            )
+            X = np.random.choice(X, int(len(X) / 100), replace=False)
+
     else:
         for o in os.listdir(data_dir):
             if os.path.isdir(os.path.join(data_dir, o)):
@@ -305,20 +313,24 @@ def generate_variety_noise(data_dir, filename, prefix):
 
     for file in files:
         y, sr = librosa.load(file, sr=sampling_rate)
-        for i in range(0, len(y) - sampling_rate, silence_stride):
+
+        for i in range(
+            0, len(y) - sampling_rate, silence_stride * 100
+        ):  # stride * 100 to generate less samples for demo
             file_name = "{}_{}.wav".format(file.split("/")[-1], i)
             y_slice = y[i : i + sampling_rate]
             magnitude = rng.uniform(0.0, 1.0)
             y_slice *= magnitude
             out_file_path = os.path.join(silence_path, file_name)
-            librosa.output.write_wav(out_file_path, y_slice, sr)
+            sf.write(out_file_path, y_slice, sr)
+
             silence_files.append(out_file_path)
 
     new_list_file = os.path.join(silence_path, filename)
     with open(new_list_file, "w") as outfile:
         outfile.write("\n".join(silence_files))
 
-    logging.info(f"Generate more background for {file_path}. => {new_list_file} !")
+    logging.info(f"Generate {len(out_file_path)} background files for {file_path}. => {new_list_file} !")
     return len(silence_files)
 
 
@@ -329,9 +341,10 @@ def main():
     parser.add_argument("--background_data_root", required=True, default=None, type=str)
     parser.add_argument('--test_size', required=False, default=0.1, type=float)
     parser.add_argument('--val_size', required=False, default=0.1, type=float)
+    parser.add_argument('--seg_len', required=False, default=0.63, type=float)
     parser.add_argument('--log', required=False, action='store_true')
     parser.add_argument('--rebalance_method', required=False, default=None, type=str)
-    parser.add_argument('--generate', required=False, action='store_true')
+    parser.add_argument('--demo', required=False, action='store_true')
     parser.set_defaults(log=False, generate=False)
     args = parser.parse_args()
 
@@ -364,7 +377,7 @@ def main():
 
     logging.info(f"Split speech data!")
     # dataset provide testing.txt and validation.txt feel free to split data using that with process_google_speech_train
-    split_train_val_test(speech_data_folder, "speech", args.test_size, args.val_size)
+    split_train_val_test(speech_data_folder, "speech", args.test_size, args.val_size, args.demo)
 
     logging.info(f"Split background data!")
     split_train_val_test(background_data_folder, "background", args.test_size, args.val_size)
@@ -374,13 +387,13 @@ def main():
     # Process Speech manifest
     logging.info(f"=== Write speech data to manifest!")
     skip_num_val, speech_seg_num_val, speech_val = load_list_write_manifest(
-        speech_data_folder, out_dir, 'validation_list.txt', 'speech', 0.2, 0.8, 0.63, 0.63
+        speech_data_folder, out_dir, 'validation_list.txt', 'speech', 0.2, 0.8, args.seg_len, args.seg_len
     )
     skip_num_test, speech_seg_num_test, speech_test = load_list_write_manifest(
-        speech_data_folder, out_dir, 'testing_list.txt', 'speech', 0.2, 0.8, 0.01, 0.63
+        speech_data_folder, out_dir, 'testing_list.txt', 'speech', 0.2, 0.8, 0.01, args.seg_len
     )
     skip_num_train, speech_seg_num_train, speech_train = load_list_write_manifest(
-        speech_data_folder, out_dir, 'training_list.txt', 'speech', 0.2, 0.8, 0.63, 0.63
+        speech_data_folder, out_dir, 'training_list.txt', 'speech', 0.2, 0.8, args.seg_len, args.seg_len
     )
 
     logging.info(f'Val: Skip {skip_num_val} samples. Get {speech_seg_num_val} segments! => {speech_val} ')
@@ -389,7 +402,7 @@ def main():
 
     # Process background manifest
     # if we select to generate more background noise data
-    if args.generate:
+    if args.demo:
         logging.info("Start generating more background noise data")
         generate_variety_noise(background_data_folder, 'validation_list.txt', 'background')
         generate_variety_noise(background_data_folder, 'training_list.txt', 'background')
@@ -400,13 +413,13 @@ def main():
 
     logging.info(f"=== Write background data to manifest!")
     skip_num_val, background_seg_num_val, background_val = load_list_write_manifest(
-        background_data_folder, out_dir, 'validation_list.txt', 'background', 0, None, 0.15, 0.63
+        background_data_folder, out_dir, 'validation_list.txt', 'background', 0, None, 0.15, args.seg_len
     )
     skip_num_test, background_seg_num_test, background_test = load_list_write_manifest(
-        background_data_folder, out_dir, 'testing_list.txt', 'background', 0, None, 0.01, 0.63
+        background_data_folder, out_dir, 'testing_list.txt', 'background', 0, None, 0.01, args.seg_len
     )
     skip_num_train, background_seg_num_train, background_train = load_list_write_manifest(
-        background_data_folder, out_dir, 'training_list.txt', 'background', 0, None, 0.15, 0.63
+        background_data_folder, out_dir, 'training_list.txt', 'background', 0, None, 0.15, args.seg_len
     )
 
     logging.info(f'Val: Skip {skip_num_val} samples. Get {background_seg_num_val} segments! => {background_val}')
@@ -454,7 +467,7 @@ def main():
             rebalance_json(out_dir, speech_train, max_train, 'balanced')
 
         if args.rebalance_method == 'fixed':
-            fixed_test, fixed_val, fixed_train = 1000, 1000, 5000
+            fixed_test, fixed_val, fixed_train = 200, 100, 500
             logging.info(f"Rebalancing number of samples in classes using {args.rebalance_method} sampling.")
             logging.info(f'Val: {fixed_val} Test: {fixed_test} Train: {fixed_train}!')
 

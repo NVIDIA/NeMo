@@ -16,7 +16,7 @@ from enum import Enum
 import torch
 
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     IntType,
@@ -37,7 +37,7 @@ class OperationMode(Enum):
 
 
 @experimental  # TODO: Implement save_to() and restore_from()
-class WaveGlowModule(NeuralModule):
+class WaveGlowModule(NeuralModule, Exportable):
     def __init__(
         self,
         n_mel_channels: int,
@@ -65,6 +65,7 @@ class WaveGlowModule(NeuralModule):
         super().__init__()
 
         self.upsample = torch.nn.ConvTranspose1d(n_mel_channels, n_mel_channels, 1024, stride=256)
+        self.n_mel_channels = n_mel_channels
         assert n_group % 2 == 0
         self.n_flows = n_flows
         self.n_group = n_group
@@ -74,7 +75,7 @@ class WaveGlowModule(NeuralModule):
         self.convinv = torch.nn.ModuleList()
         self.mode = OperationMode.infer
 
-        n_half = int(n_group / 2)
+        n_half = n_group // 2
 
         # Set up layers with the right sizes based on how many dimensions
         # have been output already
@@ -96,7 +97,7 @@ class WaveGlowModule(NeuralModule):
         self.n_remaining_channels = n_remaining_channels
 
     @typecheck()
-    def forward(self, *, spect, audio=None, run_inverse=True):
+    def forward(self, spect, audio=None, run_inverse=True):
         """ TODO
         """
         if self.training and self.mode != OperationMode.training:
@@ -140,6 +141,16 @@ class WaveGlowModule(NeuralModule):
             return {
                 "audio": NeuralType(('B', 'T'), AudioSignal()),
             }
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.parameters())
+        mel = torch.randn((1, self.n_mel_channels, 96), device=par.device, dtype=par.dtype)
+        return tuple([mel])
 
     def audio_to_normal_dist(self, *, spect: torch.Tensor, audio: torch.Tensor) -> (torch.Tensor, list, list):
         #  Upsample spectrogram to size of audio
@@ -195,7 +206,7 @@ class WaveGlowModule(NeuralModule):
         )
 
         for k in reversed(range(self.n_flows)):
-            n_half = int(audio.size(1) / 2)
+            n_half = audio.size(1) // 2
             audio_0 = audio[:, :n_half, :]
             audio_1 = audio[:, n_half:, :]
 

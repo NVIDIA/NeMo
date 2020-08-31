@@ -231,13 +231,6 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
         model._validation_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
         unique_names_check(name_list=model._validation_names)
-
-        # In fast-dev-run, only one data loader is used
-        if hasattr(model, '_trainer') and model._trainer is not None:
-            if hasattr(model._trainer, 'fast_dev_run') and model._trainer.fast_dev_run:
-                model._validation_dl = model._validation_dl[:1]
-                model._validation_names = model._validation_names[:1]
-
         return
 
     else:
@@ -307,12 +300,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
         model._test_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
         unique_names_check(name_list=model._test_names)
-
-        # In fast-dev-run, only one data loader is used
-        if hasattr(model, '_trainer') and model._trainer is not None:
-            if hasattr(model._trainer, 'fast_dev_run') and model._trainer.fast_dev_run:
-                model._test_dl = model._test_dl[:1]
-                model._test_names = model._test_names[:1]
+        return
 
     else:
         model.setup_test_data(cfg.test_ds)

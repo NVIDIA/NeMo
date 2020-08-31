@@ -24,10 +24,13 @@ __all__ = ['SmoothedCrossEntropyLoss']
 
 class SmoothedCrossEntropyLoss(Loss):
     """
-    Calculates Cross-entropy loss with label smoothing for a batch of sequences, and it
+    Calculates Cross-entropy loss with label smoothing for a batch of sequences.
+
+    SmoothedCrossEntropyLoss:
     1) excludes padding tokens from loss calculation
     2) allows to use label smoothing regularization
     3) allows to calculate loss for the desired number of last tokens
+
     Args:
         label_smoothing (float): label smoothing regularization coefficient
         predict_last_k (int): parameter which sets the number of last tokens to calculate the loss for, for example
