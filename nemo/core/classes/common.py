@@ -281,7 +281,7 @@ class FileIO(ABC):
 
     @classmethod
     @abstractmethod
-    def restore_from(cls, restore_path: str):
+    def restore_from(cls, restore_path: str, override_config_path: Optional[str] = None):
         """Restores module/model with weights"""
         pass
 
