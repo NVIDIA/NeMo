@@ -16,3 +16,4 @@ import nemo.collections.tts.modules.glow_tts
 import nemo.collections.tts.modules.squeezewave
 import nemo.collections.tts.modules.tacotron2
 import nemo.collections.tts.modules.waveglow
+import nemo.collections.tts.modules.denoiser
