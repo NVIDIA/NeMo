@@ -62,7 +62,7 @@ class QAModel(ModelPT):
                 )
             )
             self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
-        elif cfg.language_model.bert_config.vocab_size is not None:
+        elif cfg.language_model.bert_config and cfg.language_model.bert_config.vocab_size is not None:
             self.vocab_size = cfg.language_model.bert_config.vocab_size
         else:
             self.vocab_size = None
@@ -74,7 +74,9 @@ class QAModel(ModelPT):
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config_file,
-            config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
+            config_dict=OmegaConf.to_container(cfg.language_model.bert_config)
+            if cfg.language_model.bert_config
+            else None,
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
