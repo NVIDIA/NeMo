@@ -373,6 +373,7 @@ class TokenClassificationModel(ModelPT):
         """
         Run inference on data from a file, plot confusion matrix and calculate classification report.
         Use this method for final evaluation.
+
         Args:
             output_dir: path to output directory to store model predictions, confusion matrix plot (if set to True)
             text_file: path to file with text. Each line of the text.txt file contains text sequences, where words

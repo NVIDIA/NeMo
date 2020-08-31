@@ -99,6 +99,8 @@ To run tutorials:
      - Online Noise Augmentation
      - `05_Online_Noise_Augmentation.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
+     - Token Classification (Named Entity Recognition)
+     - `Token_Classification_Named_Entity_Recognition_tutorial.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition_tutorial.ipynb>`_
      - Punctuation and Capitialization
      - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
 
