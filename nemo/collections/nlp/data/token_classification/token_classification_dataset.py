@@ -38,8 +38,8 @@ __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDatase
 
 def get_features(
     queries: List[str],
-    max_seq_length: int,
     tokenizer: TokenizerSpec,
+    max_seq_length: int = -1,
     label_ids: dict = None,
     pad_label: str = 'O',
     raw_labels: List[str] = None,
@@ -50,8 +50,8 @@ def get_features(
     Processes the data and returns features.
     Args:
         queries: text sequences
-        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
         tokenizer: such as NemoBertTokenizer
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP], when -1 - use the max len from the data
         pad_label: pad value use for labels. By default, it's the neutral label.
         raw_labels: list of labels for every word in a sequence
         label_ids: dict to map labels to label ids.
@@ -111,8 +111,9 @@ def get_features(
             labels.append(pad_id)
             all_labels.append(labels)
 
-    max_seq_length = min(max_seq_length, max(sent_lengths))
-    logging.info(f'Max length: {max_seq_length}')
+    max_seq_length_data = max(sent_lengths)
+    max_seq_length = min(max_seq_length, max_seq_length_data) if max_seq_length > 0 else max_seq_length_data
+    logging.info(f'Setting Max Seq length to: {max_seq_length}')
     get_stats(sent_lengths)
     too_long_count = 0
 
@@ -143,7 +144,7 @@ def get_features(
 
     logging.warning(f'{too_long_count} are longer than {max_seq_length}')
 
-    for i in range(min(len(all_input_ids), 5)):
+    for i in range(min(len(all_input_ids), 1)):
         logging.info("*** Example ***")
         logging.info("i: %s", i)
         logging.info("subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
@@ -152,7 +153,7 @@ def get_features(
         logging.info("subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i]))))
         if with_label:
             logging.info("labels: %s", " ".join(list(map(str, all_labels[i]))))
-    return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_labels)
+    return (all_input_ids, all_segment_ids, all_input_mask, all_subtokens_mask, all_loss_mask, all_labels)
 
 
 class BertTokenClassificationDataset(Dataset):
@@ -188,8 +189,8 @@ class BertTokenClassificationDataset(Dataset):
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'labels': NeuralType(('B', 'T'), LabelsType()),
         }
 
@@ -217,7 +218,10 @@ class BertTokenClassificationDataset(Dataset):
         tokenizer_type = type(tokenizer.tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         features_pkl = os.path.join(
-            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+            data_dir,
+            "cached_{}_{}_{}_{}_{}".format(
+                filename, tokenizer_type, str(max_seq_length), str(vocab_size), str(num_samples)
+            ),
         )
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
@@ -247,9 +251,9 @@ class BertTokenClassificationDataset(Dataset):
                 labels_lines = dataset[1]
 
             features = get_features(
-                text_lines,
-                max_seq_length,
-                tokenizer,
+                queries=text_lines,
+                max_seq_length=max_seq_length,
+                tokenizer=tokenizer,
                 pad_label=pad_label,
                 raw_labels=labels_lines,
                 label_ids=label_ids,
@@ -271,8 +275,8 @@ class BertTokenClassificationDataset(Dataset):
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
-        self.all_loss_mask = features[3]
-        self.all_subtokens_mask = features[4]
+        self.all_subtokens_mask = features[3]
+        self.all_loss_mask = features[4]
         self.all_labels = features[5]
 
     def __len__(self):
@@ -283,8 +287,8 @@ class BertTokenClassificationDataset(Dataset):
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
             np.array(self.all_input_mask[idx], dtype=np.long),
-            np.array(self.all_loss_mask[idx]),
             np.array(self.all_subtokens_mask[idx]),
+            np.array(self.all_loss_mask[idx]),
             np.array(self.all_labels[idx]),
         )
 
@@ -303,7 +307,6 @@ class BertTokenClassificationInferDataset(Dataset):
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
         }
 
@@ -313,17 +316,16 @@ class BertTokenClassificationInferDataset(Dataset):
         """
         Initializes BertTokenClassificationInferDataset
         Args:
-            queries: list of queries to run inference on
+            queries: text sequences
             max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
             tokenizer: such as NemoBertTokenizer
         """
-        features = get_features(queries, max_seq_length, tokenizer)
+        features = get_features(queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer)
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
-        self.all_loss_mask = features[3]
-        self.all_subtokens_mask = features[4]
+        self.all_subtokens_mask = features[3]
 
     def __len__(self):
         return len(self.all_input_ids)
@@ -333,6 +335,5 @@ class BertTokenClassificationInferDataset(Dataset):
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
             np.array(self.all_input_mask[idx], dtype=np.long),
-            np.array(self.all_loss_mask[idx]),
             np.array(self.all_subtokens_mask[idx]),
         )
