@@ -19,6 +19,10 @@ from omegaconf import MISSING
 
 __all__ = ['DataLoaderConfig']
 
+from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
+
+cs = ConfigStore.instance()
 
 @dataclass
 class DataLoaderConfig:
@@ -43,3 +47,8 @@ class DataLoaderConfig:
     timeout: int = 0
     worker_init_fn: Optional[Any] = None
     multiprocessing_context: Optional[Any] = None
+
+# Register the dataloader config.
+cs.store(
+    group="dataloader", name="dataloader", node=ObjectConf(target="torch.utils.data.DataLoader", params=DataLoaderConfig()),
+)

@@ -1,0 +1,26 @@
+defaults:
+  # Load default model settings.
+  - dataset@model.training.dataset: mnist
+  - dataloader@model.training.dataloader: dataloader
+  - opt@model.opt: novograd
+  # Load default trainer settings.
+  - trainer: trainer
+
+
+# Overwrite model settings.
+model: 
+  module: # empty
+  training:
+    dataloader:
+      params:
+        batch_size: 64
+  opt:
+    params:
+      lr: 0.02
+    
+
+# Overwrite trainer settings.
+trainer:
+  gpus: 2
+  distributed_backend: "dp"
+

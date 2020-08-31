@@ -26,36 +26,6 @@ from nemo.core.config import Config, CosineAnnealingParams, DataLoaderConfig, No
 from nemo.core.neural_types import *
 
 
-@dataclass
-class NovogradScheduler(Config):
-    """
-    Scheduler setup for novograd
-    """
-
-    # Mandatory parameters
-    name: str = "CosineAnnealing"
-    args: CosineAnnealingParams = CosineAnnealingParams()  # can be a string to param, or "auto", just like in YAML
-
-    # pytorch lightning parameters
-    monitor: str = "val_loss"
-    iters_per_batch: Optional[float] = None  # computed at runtime
-    max_steps: Optional[int] = None  # computed at runtime or explicitly set here
-    reduce_on_plateau: bool = False
-
-
-@dataclass
-class MNISTOptimizer(Config):
-    """
-    Optimizer setup for novograd
-    """
-
-    # Mandatory arguments
-    name: str = "novograd"
-    lr: float = 0.01
-
-    args: NovogradParams = NovogradParams(betas=(0.8, 0.5))
-    # sched: NovogradScheduler = NovogradScheduler()
-
 
 @dataclass
 class MNISTLeNet5Config(Config):
@@ -66,7 +36,7 @@ class MNISTLeNet5Config(Config):
     dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
     dataloader: DataLoaderConfig = DataLoaderConfig(batch_size=64, shuffle=True)
     module: Config = Config()
-    optim: MNISTOptimizer = MNISTOptimizer()
+    #optim: MNISTOptimizer = MNISTOptimizer()
 
 
 class MNISTLeNet5(ModelPT):
@@ -102,19 +72,19 @@ class MNISTLeNet5(ModelPT):
         """ Propagates data by calling the module :class:`LeNet5Module` forward. """
         return self.module.forward(images=images)
 
-    def setup_training_data(self, train_data_layer_config: Optional[Dict] = None):
+    def setup_training_data(self, train_ds_config: Optional[Dict] = None):
         """ Creates dataset, wrap it with dataloader and return the latter """
         # Instantiate dataset.
-        mnist_ds = MNISTDataset(self._cfg.dataset)
+        mnist_ds = MNISTDataset(self._cfg.training.dataset.params)
         # Configure data loader.
-        train_dataloader = DataLoader(dataset=mnist_ds, **(self._cfg.dataloader))
+        train_dataloader = DataLoader(dataset=mnist_ds, **(self._cfg.training.dataloader.params))
         self._train_dl = train_dataloader
 
-    def setup_validation_data(self, val_data_layer_config: Optional[Dict] = None):
+    def setup_validation_data(self, val_ds_config: Optional[Dict] = None):
         """ Not implemented. """
         self._val_dl = None
 
-    def setup_test_data(self, test_data_layer_params: Optional[Dict] = None):
+    def setup_test_data(self, test_ds_params: Optional[Dict] = None):
         """ Not implemented. """
         self._test_dl = None
 

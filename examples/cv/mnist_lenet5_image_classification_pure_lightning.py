@@ -18,9 +18,11 @@ import pytorch_lightning as ptl
 from omegaconf import DictConfig
 
 from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config
-from nemo.core.config import Config, TrainerConfig, set_config
 from nemo.utils import logging
+from nemo.core.config import hydra_runner
+from nemo.core.config import Config, TrainerConfig #, set_config
 
+import hydra
 
 @dataclass
 class AppConfig(Config):
@@ -34,11 +36,13 @@ class AppConfig(Config):
     """
 
     name: str = "Training of a LeNet-5 Model using a pure PyTorchLightning approach - using DDP on 2 GPUs."
-    trainer: TrainerConfig = TrainerConfig(gpus=2, distributed_backend="dp")
+    trainer: TrainerConfig = TrainerConfig()
     model: MNISTLeNet5Config = MNISTLeNet5Config()
 
 
-@set_config(config=AppConfig)
+#@set_config(config=AppConfig)
+#@hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification")
+@hydra.main(config_path="conf", config_name="mnist_lenet5_image_classification")
 def main(cfg: DictConfig):
     # Show configuration - user can modify every parameter from command line!
     logging.info("Application config\n" + cfg.pretty())
@@ -50,13 +54,13 @@ def main(cfg: DictConfig):
     lenet5.setup_training_data()
 
     # Setup optimizer and scheduler
-    lenet5.setup_optimization()
+    #lenet5.setup_optimization()
 
     # Create trainer.
     trainer = ptl.Trainer(**(cfg.trainer))
 
     # Train.
-    trainer.fit(model=lenet5)
+    #trainer.fit(model=lenet5)
 
 
 if __name__ == "__main__":
