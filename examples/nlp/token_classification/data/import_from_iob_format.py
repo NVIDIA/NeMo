@@ -28,7 +28,8 @@ def __convert_data(in_file: str, out_text_f: str, out_labels_f: str, max_length:
         in_file: input file name
         out_text_f: output file with text
         out_labels_f: output file with labels
-        max_length:
+        max_length: use -1 to leave the examples' length as is, otherwise long examples will be splitted into multiple
+            examples
     After the conversion, the dataset is splitted into 2 files: text.txt
     and labels.txt.
     Each line of the text.txt file contains text sequences, where words
@@ -98,8 +99,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Convert data from IOB format to the format compatible with nlp/examples/token_classification.py'
     )
-    parser.add_argument("--data_file", required=True, type=str)
-    parser.add_argument("--max_length", default=-1, type=int)
+    parser.add_argument("--data_file", required=True, type=str, help='path to a file in IOB format')
+    parser.add_argument(
+        "--max_length",
+        default=-1,
+        type=int,
+        help='use -1 to leave the examples\'s length as is, '
+        'otherwise long examples will be splitted into '
+        'multiple examples',
+    )
     args = parser.parse_args()
 
     data_dir = os.path.dirname(args.data_file)
