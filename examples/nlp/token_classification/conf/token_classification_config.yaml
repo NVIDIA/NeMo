@@ -47,6 +47,10 @@ model:
     ignore_extra_tokens: false
     ignore_start_end: false
     use_cache: true
+    # shared among dataloaders
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
 
   train_ds:
     text_file: text_train.txt
@@ -54,9 +58,6 @@ model:
     shuffle: true
     num_samples: -1
     batch_size: 64
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   validation_ds:
     text_file: text_dev.txt
@@ -64,9 +65,6 @@ model:
     shuffle: false
     num_samples: -1
     batch_size: 64
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   language_model:
     pretrained_model_name: bert-base-uncased
