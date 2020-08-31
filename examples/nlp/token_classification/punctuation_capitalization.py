@@ -41,8 +41,8 @@ def main(cfg: DictConfig) -> None:
     inference_results = model.add_punctuation_capitalization(queries)
 
     for query, result in zip(queries, inference_results):
-        logging.info(f'Query   : {query}')
-        logging.info(f'Combined: {result.strip()}\n')
+        logging.info(f'Query : {query}')
+        logging.info(f'Result: {result.strip()}\n')
 
 
 if __name__ == '__main__':
