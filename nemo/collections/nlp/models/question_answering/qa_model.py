@@ -16,7 +16,7 @@ import json
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
@@ -51,21 +51,30 @@ class QAModel(ModelPT):
         self.doc_stride = cfg.dataset.doc_stride
         self.max_query_length = cfg.dataset.max_query_length
         self.max_seq_length = cfg.dataset.max_seq_length
-        self.do_lower_case = cfg.dataset.do_lower_case
+        self.do_lower_case = cfg.tokenizer.do_lower_case
         self.use_cache = cfg.dataset.use_cache
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=cfg.language_model.vocab_file,
-            tokenizer_model=cfg.language_model.tokenizer_model,
-            do_lower_case=cfg.dataset.do_lower_case,
-        )
+
+        if cfg.language_model.bert_config_file is not None:
+            logging.info(
+                (
+                    f"HuggingFace BERT config file found. "
+                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
+                )
+            )
+            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
+        elif cfg.language_model.bert_config.vocab_size is not None:
+            self.vocab_size = cfg.language_model.bert_config.vocab_size
+        else:
+            self.vocab_size = None
+
+        cfg.tokenizer.vocab_size = self.vocab_size
+        self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
-
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config,
+            config_file=cfg.language_model.bert_config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
@@ -84,6 +93,7 @@ class QAModel(ModelPT):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
+
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
@@ -230,6 +240,10 @@ class QAModel(ModelPT):
             if self.test_config.output_prediction_file is not None:
                 with open(self.test_config.output_prediction_file, "w") as writer:
                     writer.write(json.dumps(all_predictions, indent=4) + "\n")
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(**cfg)
+        self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
