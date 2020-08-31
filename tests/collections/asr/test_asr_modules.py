@@ -23,14 +23,20 @@ class TestASRModulesBasicTests:
     def test_AudioToMelSpectrogramPreprocessor(self):
         # Make sure constructor works
         instance1 = modules.AudioToMelSpectrogramPreprocessor(dither=0)
-        assert isinstance(instance1, modules.AudioToMelSpectrogramPreprocessor)
+        instance2 = modules.AudioToMelSpectrogramPreprocessor(dither=0, stft_conv=True)
 
         # Make sure forward doesn't throw with expected input
         input_signal = torch.randn(size=(4, 512))
-        length = torch.randint(low=4, high=444, size=[4])
-        res = instance1(input_signal=input_signal, length=length)
-        assert isinstance(res, tuple)
-        assert len(res) == 2
+        length = torch.randint(low=161, high=500, size=[4])
+        res1, length1 = instance1(input_signal=input_signal, length=length)
+        res2, length2 = instance2(input_signal=input_signal, length=length)
+        for len1, len2 in zip(length1, length2):
+            assert len1 == len2
+        assert res1.shape == res2.shape
+        diff = torch.mean(torch.abs(res1 - res2))
+        assert diff <= 3e-3
+        diff = torch.max(torch.abs(res1 - res2))
+        assert diff <= 1
 
     @pytest.mark.unit
     def test_SpectrogramAugmentationr(self):
@@ -41,7 +47,7 @@ class TestASRModulesBasicTests:
         # Make sure forward doesn't throw with expected input
         instance0 = modules.AudioToMelSpectrogramPreprocessor(dither=0)
         input_signal = torch.randn(size=(4, 512))
-        length = torch.randint(low=4, high=444, size=[4])
+        length = torch.randint(low=161, high=500, size=[4])
         res0 = instance0(input_signal=input_signal, length=length)
         res = instance1(input_spec=res0[0])
 
@@ -57,7 +63,7 @@ class TestASRModulesBasicTests:
         # Make sure forward doesn't throw with expected input
         instance0 = modules.AudioToMelSpectrogramPreprocessor(dither=0)
         input_signal = torch.randn(size=(4, 512))
-        length = torch.randint(low=4, high=444, size=[4])
+        length = torch.randint(low=161, high=500, size=[4])
         res0 = instance0(input_signal=input_signal, length=length)
         res, new_length = instance1(input_signal=res0[0], length=length)
 
