@@ -495,14 +495,14 @@ class ModelPT(LightningModule, Model):
             return self._validation_dl
 
     def validation_step(self, batch, batch_ix):
-        pass
+        return {}
 
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
 
     def test_step(self, batch, batch_ix):
-        pass
+        return {}
 
     def validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
@@ -529,7 +529,7 @@ class ModelPT(LightningModule, Model):
         """
         # Case where we dont provide data loaders
         if outputs is not None and len(outputs) == 0:
-            return
+            return {}
 
         # Case where we provide exactly 1 data loader
         if type(outputs[0]) == dict:
@@ -624,7 +624,7 @@ class ModelPT(LightningModule, Model):
         """
         # Case where we dont provide data loaders
         if outputs is not None and len(outputs) == 0:
-            return
+            return {}
 
         # Case where we provide exactly 1 data loader
         if type(outputs[0]) == dict:
