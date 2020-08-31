@@ -257,27 +257,18 @@ class PunctuationCapitalizationModel(ModelPT):
 
     def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
         """
-        Setup function for a temporary data loader which wraps the provided audio file.
+        Setup function for a infer data loader.
 
         Args:
-            config: A python dictionary which contains the following keys:
-            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-                Recommended length per file is between 5 and 25 seconds.
-            batch_size: (int) batch size to use during inference. \
-                Bigger will result in better throughput performance but would use more memory.
-            temp_dir: (str) A temporary directory where the audio manifest is temporarily
-                stored.
+            queries: lower cased text without punctuation
+            batch_size: batch size to use during inference
 
         Returns:
             A pytorch DataLoader.
         """
 
         dataset = BertPunctuationCapitalizationInferDataset(
-            tokenizer=self.tokenizer,
-            queries=queries,
-            max_seq_length=self._cfg.dataset.max_seq_length,
-            ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
-            ignore_start_end=self._cfg.dataset.ignore_start_end,
+            tokenizer=self.tokenizer, queries=queries, max_seq_length=self._cfg.dataset.max_seq_length
         )
 
         return torch.utils.data.DataLoader(
@@ -295,7 +286,7 @@ class PunctuationCapitalizationModel(ModelPT):
         Adds punctuation and capitalization to the queries. Use this method for debugging and prototyping.
         Args:
             queries: lower cased text without punctuation
-            batch_size: batch size to use during inference.
+            batch_size: batch size to use during inference
         Returns:
             result: text with added capitalization and punctuation
         """
@@ -305,15 +296,16 @@ class PunctuationCapitalizationModel(ModelPT):
             batch_size = len(queries)
             logging.info(f'Using batch size {batch_size} for inference')
 
-        # We will store transcriptions here
+        # We will store the output here
         result = []
 
         # Model's mode and device
         mode = self.training
-        device = self._device
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         try:
             # Switch model to evaluation mode
             self.eval()
+            self = self.to(device)
             infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
 
             # store predictions for all queries in a single list
