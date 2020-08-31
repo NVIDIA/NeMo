@@ -35,6 +35,7 @@ class TokenClassificationDataDesc:
             It is going to look for the data files at {data_dir}/{mode}.txt
         """
         self.data_dir = data_dir
+        self.label_ids = None
         unique_labels = set()
 
         for mode in modes:

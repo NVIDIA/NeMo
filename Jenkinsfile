@@ -453,7 +453,8 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc'
+            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc \
+            model.output_dir=examples/nlp/glue_benchmark/mrpc'
             sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
           }
         }
