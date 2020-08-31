@@ -47,13 +47,17 @@ class Exportable(ABC):
     """
 
     def export(
-        self,
-        output: str,
-        input_example=None,
-        output_example=None,
-        onnx_opset_version: int = 12,
-        try_script: bool = False,
-        set_eval: bool = True,
+            self,
+            output: str,
+            input_example=None,
+            output_example=None,
+            verbose=False,
+            export_params=True,
+            do_constant_folding=True,
+            keep_initializers_as_inputs=False,
+            onnx_opset_version: int = 12,
+            try_script: bool = False,
+            set_eval: bool = True,
     ):
         try:
             # Disable typechecks
@@ -134,10 +138,10 @@ class Exportable(ABC):
                         output,
                         input_names=input_names,
                         output_names=output_names,
-                        verbose=False,
-                        export_params=True,
-                        do_constant_folding=True,
-                        keep_initializers_as_inputs=True,
+                        verbose=verbose,
+                        export_params=export_params,
+                        do_constant_folding=do_constant_folding,
+                        keep_initializers_as_inputs=keep_initializers_as_inputs,
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
                         example_outputs=_out_example,
