@@ -34,7 +34,7 @@ class TestASRModulesBasicTests:
             assert len1 == len2
         assert res1.shape == res2.shape
         diff = torch.mean(torch.abs(res1 - res2))
-        assert diff <= 1e-3
+        assert diff <= 3e-3
         diff = torch.max(torch.abs(res1 - res2))
         assert diff <= 1
 
