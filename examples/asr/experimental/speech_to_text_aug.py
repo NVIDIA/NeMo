@@ -12,39 +12,58 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytorch_lightning as pl
-import soundfile as sf
-import subprocess
-import numpy as np
-from tempfile import NamedTemporaryFile
-from omegaconf import OmegaConf, DictConfig
 import copy
 import os
 import random
+import subprocess
+from tempfile import NamedTemporaryFile
+
+import numpy as np
+import pytorch_lightning as pl
+import soundfile as sf
 import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
-from nemo.core.config import hydra_runner
-from nemo.utils.exp_manager import exp_manager
 from nemo.collections.asr.parts import perturb
 from nemo.collections.asr.parts.segment import AudioSegment
+from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
+
 
 class RirAndNoisePerturbation(perturb.Perturbation):
     def __init__(
-        self, rir_manifest_path=None, noise_manifest_paths=None, min_snr_db=10, max_snr_db=50,
+        self,
+        rir_manifest_path=None,
+        noise_manifest_paths=None,
+        min_snr_db=10,
+        max_snr_db=50,
         rir_prob=0.5,
-        max_gain_db=300.0, rng=None, rir_tar_filepaths=None, rir_shuffle_n=100,
-        noise_tar_filepaths=None, noise_shuffle_n=None, apply_noise_rir=False, max_frequency=None,
-        max_additions=5, max_duration=2.0,
-        bg_noise_manifest_paths=None, bg_min_snr_db=10, bg_max_snr_db=50, bg_max_gain_db=300.0,
-        bg_noise_tar_filepaths=None, bg_noise_shuffle_n=None, bg_max_frequency=None,
+        max_gain_db=300.0,
+        rng=None,
+        rir_tar_filepaths=None,
+        rir_shuffle_n=100,
+        noise_tar_filepaths=None,
+        noise_shuffle_n=None,
+        apply_noise_rir=False,
+        max_frequency=None,
+        max_additions=5,
+        max_duration=2.0,
+        bg_noise_manifest_paths=None,
+        bg_min_snr_db=10,
+        bg_max_snr_db=50,
+        bg_max_gain_db=300.0,
+        bg_noise_tar_filepaths=None,
+        bg_noise_shuffle_n=None,
+        bg_max_frequency=None,
     ):
         logging.info("Called init")
-        self._rir_prob=rir_prob
+        self._rir_prob = rir_prob
         self._rng = random.Random() if rng is None else rng
-        self._rir_perturber = perturb.ImpulsePerturbation(manifest_path=rir_manifest_path, rng=rng,
-                                                   audio_tar_filepaths=rir_tar_filepaths, shuffle_n=rir_shuffle_n)
+        self._rir_perturber = perturb.ImpulsePerturbation(
+            manifest_path=rir_manifest_path, rng=rng, audio_tar_filepaths=rir_tar_filepaths, shuffle_n=rir_shuffle_n
+        )
         self._fg_noise_perturbers = {}
         self._bg_noise_perturbers = {}
         if noise_manifest_paths:
@@ -57,10 +76,16 @@ class RirAndNoisePerturbation(perturb.Perturbation):
                     max_freq = 16000
                 else:
                     max_freq = max_frequency[i]
-                self._fg_noise_perturbers[max_freq] = perturb.NoisePerturbation(manifest_path=noise_manifest_paths[i], min_snr_db=min_snr_db[i],
-                                      max_snr_db=max_snr_db[i], max_gain_db=max_gain_db[i], rng=rng,
-                                      audio_tar_filepaths=noise_tar_filepaths[i], shuffle_n=shuffle_n,
-                                      max_freq=max_freq)
+                self._fg_noise_perturbers[max_freq] = perturb.NoisePerturbation(
+                    manifest_path=noise_manifest_paths[i],
+                    min_snr_db=min_snr_db[i],
+                    max_snr_db=max_snr_db[i],
+                    max_gain_db=max_gain_db[i],
+                    rng=rng,
+                    audio_tar_filepaths=noise_tar_filepaths[i],
+                    shuffle_n=shuffle_n,
+                    max_freq=max_freq,
+                )
         self._max_additions = max_additions
         self._max_duration = max_duration
         if bg_noise_manifest_paths:
@@ -73,12 +98,16 @@ class RirAndNoisePerturbation(perturb.Perturbation):
                     max_freq = 16000
                 else:
                     max_freq = bg_max_frequency[i]
-                self._bg_noise_perturbers[max_freq] = perturb.NoisePerturbation(manifest_path=bg_noise_manifest_paths[i], min_snr_db=bg_min_snr_db[i],
-                                      max_snr_db=bg_max_snr_db[i], max_gain_db=bg_max_gain_db[i], rng=rng,
-                                      audio_tar_filepaths=bg_noise_tar_filepaths[i], shuffle_n=shuffle_n,
-                                      max_freq=max_freq)
-
-
+                self._bg_noise_perturbers[max_freq] = perturb.NoisePerturbation(
+                    manifest_path=bg_noise_manifest_paths[i],
+                    min_snr_db=bg_min_snr_db[i],
+                    max_snr_db=bg_max_snr_db[i],
+                    max_gain_db=bg_max_gain_db[i],
+                    rng=rng,
+                    audio_tar_filepaths=bg_noise_tar_filepaths[i],
+                    shuffle_n=shuffle_n,
+                    max_freq=max_freq,
+                )
 
         # self._fg_noise_perturber = NoisePerturbation(manifest_path=noise_manifest_path, min_snr_db=min_snr_db,
         #                                             max_snr_db=max_snr_db, max_gain_db=max_gain_db, rng=rng,
@@ -92,7 +121,7 @@ class RirAndNoisePerturbation(perturb.Perturbation):
         if prob < self._rir_prob:
             self._rir_perturber.perturb(data)
 
-        orig_sr=data.orig_sr
+        orig_sr = data.orig_sr
         if orig_sr not in self._fg_noise_perturbers:
             orig_sr = max(self._fg_noise_perturbers.keys())
         fg_perturber = self._fg_noise_perturbers[orig_sr]
@@ -106,9 +135,9 @@ class RirAndNoisePerturbation(perturb.Perturbation):
         noise = fg_perturber.get_one_noise_sample(data.sample_rate)
         if self._apply_noise_rir:
             self._rir_perturber.perturb(noise)
-        fg_perturber.perturb_with_point_noise(data, noise, data_rms=data_rms,
-                                            max_noise_dur=self._max_duration,
-                                            max_additions=self._max_additions)
+        fg_perturber.perturb_with_point_noise(
+            data, noise, data_rms=data_rms, max_noise_dur=self._max_duration, max_additions=self._max_additions
+        )
         noise = bg_perturber.get_one_noise_sample(data.sample_rate)
         bg_perturber.perturb_with_input_noise(data, noise, data_rms=data_rms)
 
@@ -125,48 +154,57 @@ class TranscodePerturbation(perturb.Perturbation):
         codec_ind = random.randint(0, len(self._codecs) - 1)
         if self._codecs[codec_ind] == "amr-nb":
             transcoded_f = NamedTemporaryFile(suffix="_amr.wav")
-            rates = list(range(0,8))
+            rates = list(range(0, 8))
             rate = rates[random.randint(0, len(rates) - 1)]
             _ = subprocess.check_output(
-                f"sox {orig_f.name} -V0 -C {rate} -t amr-nb - | sox -t amr-nb - -V0 -b 16 -r 16000 {transcoded_f.name}", shell=True)
-
+                f"sox {orig_f.name} -V0 -C {rate} -t amr-nb - | sox -t amr-nb - -V0 -b 16 -r 16000 {transcoded_f.name}",
+                shell=True,
+            )
 
         elif self._codecs[codec_ind] == "g711":
             transcoded_f = NamedTemporaryFile(suffix="_g711.wav")
             _ = subprocess.check_output(
-                f"sox {orig_f.name} -V0  -r 8000 -c 1 -e a-law {transcoded_f.name}", shell=True)
+                f"sox {orig_f.name} -V0  -r 8000 -c 1 -e a-law {transcoded_f.name}", shell=True
+            )
 
         new_data = AudioSegment.from_file(transcoded_f.name, target_sr=16000)
-        data._samples = new_data._samples[0:data._samples.shape[0]]
+        data._samples = new_data._samples[0 : data._samples.shape[0]]
         return
+
 
 def get_augmentor_dict():
     audio_augmentations = dict(
         rir_noise_aug=dict(
-            prob = 0.5,
-            rir_manifest_path = "/data/datasets/freesound_20s/rir_noises_tarred/rir_tarred/tarred/tarred_audio_manifest.json",
-            rir_tar_filepaths = "/data/datasets/freesound_20s/rir_noises_tarred/rir_tarred/tarred/audio_{0..1}.tar",
-            rir_prob = 0.5,
-            noise_manifest_paths = ["/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json",
-                                   "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json"],
-            noise_tar_filepaths = ["/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/audio_{0..63}.tar",
-                                  "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/audio_{0..63}.tar"],
-            min_snr_db = [0, 0],
-            max_snr_db = [30, 30],
-            max_gain_db = [300.0, 300],
-            max_frequency = [16000, 8000],
-            bg_noise_manifest_paths = ["/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json",
-                                      "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json"],
-            bg_noise_tar_filepaths = ["/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/audio_{0..63}.tar",
-                                     "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/audio_{0..63}.tar"],
-            bg_min_snr_db = [10, 10],
-            bg_max_snr_db = [40, 40],
-            bg_max_gain_db = [300.0, 300],
-            bg_max_frequency = [16000, 8000],
+            prob=0.5,
+            rir_manifest_path="/data/datasets/freesound_20s/rir_noises_tarred/rir_tarred/tarred/tarred_audio_manifest.json",
+            rir_tar_filepaths="/data/datasets/freesound_20s/rir_noises_tarred/rir_tarred/tarred/audio_{0..1}.tar",
+            rir_prob=0.5,
+            noise_manifest_paths=[
+                "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json",
+                "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json",
+            ],
+            noise_tar_filepaths=[
+                "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/audio_{0..63}.tar",
+                "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/audio_{0..63}.tar",
+            ],
+            min_snr_db=[0, 0],
+            max_snr_db=[30, 30],
+            max_gain_db=[300.0, 300],
+            max_frequency=[16000, 8000],
+            bg_noise_manifest_paths=[
+                "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json",
+                "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/tarred_audio_manifest.json",
+            ],
+            bg_noise_tar_filepaths=[
+                "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/audio_{0..63}.tar",
+                "/data/datasets/freesound_20s/rir_noises_tarred/noises_20s_tarred/audio_{0..63}.tar",
+            ],
+            bg_min_snr_db=[10, 10],
+            bg_max_snr_db=[40, 40],
+            bg_max_gain_db=[300.0, 300],
+            bg_max_frequency=[16000, 8000],
         ),
-        transcode_aug = dict(
-            prob = 0.5,
-        )
+        transcode_aug=dict(prob=0.5,),
     )
     return audio_augmentations
 
@@ -222,8 +260,8 @@ def main(cfg):
 
     OmegaConf.set_struct(cfg, False)
     if cfg.trainer.gpus > 0 and "num_workers" not in cfg.model.train_ds:
-       total_cpus = os.cpu_count()
-       cfg.model.train_ds.num_workers = max(int(total_cpus / cfg.trainer.gpus), 1)
+        total_cpus = os.cpu_count()
+        cfg.model.train_ds.num_workers = max(int(total_cpus / cfg.trainer.gpus), 1)
     cfg.model.train_ds.augmentor = OmegaConf.create(get_augmentor_dict())
 
     # Lets see the new optim config
@@ -244,7 +282,8 @@ def main(cfg):
 
     trainer.fit(asr_model)
 
-    #trainer.test(asr_model, ckpt_path=None)
+    # trainer.test(asr_model, ckpt_path=None)
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter

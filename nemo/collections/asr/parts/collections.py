@@ -199,7 +199,7 @@ class ASRAudioText(AudioText):
             speakers.append(item['speaker'])
             orig_srs.append(item['orig_sr'])
 
-        super().__init__(ids, audio_files, durations, texts, offsets, speakers, orig_srs,  *args, **kwargs)
+        super().__init__(ids, audio_files, durations, texts, offsets, speakers, orig_srs, *args, **kwargs)
 
 
 class SpeechLabel(_Collection):
