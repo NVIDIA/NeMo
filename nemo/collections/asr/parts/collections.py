@@ -119,6 +119,7 @@ class AudioText(_Collection):
             texts: List of raw text transcripts.
             offsets: List of duration offsets or None.
             speakers: List of optional speakers ids.
+            orig_sampling_rates: List of original sampling rates of audio files.
             parser: Instance of `CharParser` to convert string to tokens.
             min_duration: Minimum duration to keep entry with (default: None).
             max_duration: Maximum duration to keep entry with (default: None).
@@ -198,7 +199,7 @@ class ASRAudioText(AudioText):
             speakers.append(item['speaker'])
             orig_srs.append(item['orig_sr'])
 
-        super().__init__(ids, audio_files, durations, texts, offsets, speakers,orig_srs,  *args, **kwargs)
+        super().__init__(ids, audio_files, durations, texts, offsets, speakers, orig_srs,  *args, **kwargs)
 
 
 class SpeechLabel(_Collection):
