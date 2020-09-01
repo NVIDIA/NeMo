@@ -93,6 +93,6 @@ class BertModule(NeuralModule, Exportable):
             A tuple of input examples.
         """
         sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=16, size=(2, 16)).to(sample.device)
-        attention_mask = torch.randint(low=0, high=1, size=(2, 16)).to(sample.device)
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        attention_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
         return tuple([input_ids, attention_mask, attention_mask])
