@@ -119,7 +119,7 @@ class TextEncoder(NeuralModule):
         self.ffn_layers = nn.ModuleList()
         self.norm_layers_2 = nn.ModuleList()
 
-        for i in range(self.n_layers):
+        for _ in range(self.n_layers):
             self.attn_layers.append(
                 glow_tts_submodules.AttentionBlock(
                     hidden_channels, hidden_channels, n_heads, window_size=window_size, p_dropout=p_dropout,
@@ -158,7 +158,7 @@ class TextEncoder(NeuralModule):
         }
 
     @typecheck()
-    def forward(self, text, text_lengths, speaker_embeddings=None):
+    def forward(self, *, text, text_lengths, speaker_embeddings=None):
 
         x = self.emb(text) * math.sqrt(self.hidden_channels)  # [b, t, h]
 
@@ -198,12 +198,10 @@ class TextEncoder(NeuralModule):
 
     def save_to(self, save_path: str):
         """TODO: Implement"""
-        pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
         """TODO: Implement"""
-        pass
 
 
 @experimental
@@ -241,7 +239,7 @@ class FlowSpecDecoder(NeuralModule):
         self.n_sqz = n_sqz
 
         self.flows = nn.ModuleList()
-        for b in range(n_blocks):
+        for _ in range(n_blocks):
             self.flows.append(glow_tts_submodules.ActNorm(channels=in_channels * n_sqz))
             self.flows.append(glow_tts_submodules.InvConvNear(channels=in_channels * n_sqz, n_split=n_split))
             self.flows.append(
@@ -274,7 +272,7 @@ class FlowSpecDecoder(NeuralModule):
         }
 
     @typecheck()
-    def forward(self, spect, spect_mask, speaker_embeddings=None, reverse=False):
+    def forward(self, *, spect, spect_mask, speaker_embeddings=None, reverse=False):
         if not reverse:
             flows = self.flows
             logdet_tot = 0
@@ -329,12 +327,10 @@ class FlowSpecDecoder(NeuralModule):
 
     def save_to(self, save_path: str):
         """TODO: Implement"""
-        pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
         """TODO: Implement"""
-        pass
 
 
 class GlowTTSModule(NeuralModule):
@@ -362,10 +358,10 @@ class GlowTTSModule(NeuralModule):
     def input_types(self):
         return {
             "text": NeuralType(('B', 'T'), TokenIndex()),
-            "text_lengths": NeuralType(('B',), LengthsType()),
+            "text_lengths": NeuralType(('B'), LengthsType()),
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spect_lengths": NeuralType(('B',), LengthsType()),
-            "speaker": NeuralType(('B',), IntType(), optional=True),
+            "spect_lengths": NeuralType(('B'), LengthsType()),
+            "speaker": NeuralType(('B'), IntType(), optional=True),
         }
 
     @property
@@ -374,21 +370,21 @@ class GlowTTSModule(NeuralModule):
             "z": NeuralType(('B', 'D', 'T'), NormalDistributionSamplesType()),
             "y_m": NeuralType(('B', 'D', 'T'), NormalDistributionMeanType()),
             "y_logs": NeuralType(('B', 'D', 'T'), NormalDistributionLogVarianceType()),
-            "logdet": NeuralType(('B',), LogDeterminantType()),
+            "logdet": NeuralType(('B'), LogDeterminantType()),
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "log_durs_extracted": NeuralType(('B', 'T'), TokenLogDurationType()),
-            "spect_lengths": NeuralType(('B',), LengthsType()),
+            "spect_lengths": NeuralType(('B'), LengthsType()),
             "attn": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
         }
 
     @typecheck()
-    def forward(self, text, text_lengths, spect, spect_lengths, g=None):
+    def forward(self, *, text, text_lengths, spect, spect_lengths, speaker=None):
 
-        if g is not None:
-            g = F.normalize(self.emb_g(g)).unsqueeze(-1)  # [b, h]
+        if speaker is not None:
+            speaker = F.normalize(self.emb_g(speaker)).unsqueeze(-1)  # [b, h]
 
         x_m, x_logs, log_durs_predicted, x_mask = self.encoder(
-            text=text, text_lengths=text_lengths, speaker_embeddings=g
+            text=text, text_lengths=text_lengths, speaker_embeddings=speaker
         )
 
         y_max_length = spect.size(2)
@@ -400,7 +396,7 @@ class GlowTTSModule(NeuralModule):
         y_mask = torch.unsqueeze(glow_tts_submodules.sequence_mask(spect_lengths, y_max_length), 1).to(x_mask.dtype)
         attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)
 
-        z, logdet = self.decoder(spect=spect, spect_mask=y_mask, speaker_embeddings=g, reverse=False)
+        z, logdet = self.decoder(spect=spect, spect_mask=y_mask, speaker_embeddings=speaker, reverse=False)
 
         with torch.no_grad():
             x_s_sq_r = torch.exp(-2 * x_logs)
@@ -419,13 +415,26 @@ class GlowTTSModule(NeuralModule):
 
         return z, y_m, y_logs, logdet, log_durs_predicted, log_durs_extracted, spect_lengths, attn
 
-    def generate_spect(self, text, text_lengths, g=None, noise_scale=0.3, length_scale=1.0):
+    @typecheck(
+        input_types={
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "text_lengths": NeuralType(('B',), LengthsType()),
+            "speaker": NeuralType(('B'), IntType(), optional=True),
+            "noise_scale": NeuralType(optional=True),
+            "length_scale": NeuralType(optional=True),
+        },
+        output_types={
+            "y": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "attn": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+        },
+    )
+    def generate_spect(self, *, text, text_lengths, speaker=None, noise_scale=0.3, length_scale=1.0):
 
-        if g is not None:
-            g = F.normalize(self.emb_g(g)).unsqueeze(-1)  # [b, h]
+        if speaker is not None:
+            speaker = F.normalize(self.emb_g(speaker)).unsqueeze(-1)  # [b, h]
 
         x_m, x_logs, log_durs_predicted, x_mask = self.encoder(
-            text=text, text_lengths=text_lengths, speaker_embeddings=g
+            text=text, text_lengths=text_lengths, speaker_embeddings=speaker
         )
 
         w = torch.exp(log_durs_predicted) * x_mask.squeeze() * length_scale
@@ -444,15 +453,13 @@ class GlowTTSModule(NeuralModule):
         y_logs = torch.matmul(x_logs, attn)
 
         z = (y_m + torch.exp(y_logs) * torch.randn_like(y_m) * noise_scale) * y_mask
-        y, _ = self.decoder(spect=z, spect_mask=y_mask, speaker_embeddings=g, reverse=True)
+        y, _ = self.decoder(spect=z, spect_mask=y_mask, speaker_embeddings=speaker, reverse=True)
 
         return y, attn
 
     def save_to(self, save_path: str):
         """TODO: Implement"""
-        pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
         """TODO: Implement"""
-        pass

@@ -78,9 +78,6 @@ class GlowTTSLoss(Loss):
             "logdet": NeuralType(elements_type=VoidType()),
         }
 
-    def __init__(self):
-        super().__init__()
-
     @typecheck()
     def forward(self, z, y_m, y_logs, logdet, logw, logw_, x_lengths, y_lengths):
 
