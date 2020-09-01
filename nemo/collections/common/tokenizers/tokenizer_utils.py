@@ -16,7 +16,7 @@ import os
 from typing import List, Optional
 
 import nemo
-from nemo.collections.common.tokenizers.huggingface import (
+from nemo.collections.common.tokenizers import (
     AlbertTokenizer,
     BertTokenizer,
     DistilBertTokenizer,
