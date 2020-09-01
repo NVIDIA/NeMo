@@ -19,6 +19,7 @@ trainer:
 
 model:
   nemo_path: null # exported .nemo path
+  pretrained_model_name: bert-base-uncased # BERT-like model name
   dataset:
     version_2_with_negative: false
     # If true, the examples contain some that do not have an answer.
@@ -34,10 +35,9 @@ model:
     # WordPiece tokenization. Sequences longer than this
     # will be truncated, and sequences shorter than this
     # will be padded.
-    do_lower_case: true # true for uncased models, false for cased models
     use_cache: true
-
-
+    # if true does lower case
+    do_lower_case: true
 
   train_ds:
     mode: train
@@ -49,7 +49,6 @@ model:
     num_workers:  2
     pin_memory: false
     drop_last: false
-
 
   validation_ds:
     mode: eval
@@ -65,14 +64,74 @@ model:
     # generated. This is needed because the start
     # and end predictions are not conditioned
     # on one another.
-    output_prediction_file: predictions.json
+    output_prediction_file: null
     # File to write predictions to. Only in evaluation or test mode,
-    output_nbest_file: nbest.json
+    output_nbest_file: null
     # File to write nbest predictions to. Only in evaluation or test mode.
     null_score_diff_threshold: 0.0
     # If null_score - best_non_null is greater than the threshold predict null.
     n_best_size: 20
     # The total number of n-best predictions to generate at testing.
+
+  test_ds:
+    mode: test
+    file: null # .json file
+    batch_size: 24 # per GPU
+    shuffle: false
+    num_samples: -1
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
+    max_answer_length: 30
+    # The maximum length of an answer that can be
+    # generated. This is needed because the start
+    # and end predictions are not conditioned
+    # on one another.
+    output_prediction_file: test_prediction.json
+    # File to write predictions to. Only in evaluation or test mode,
+    output_nbest_file: test_nbest.json
+    # File to write nbest predictions to. Only in evaluation or test mode.
+    null_score_diff_threshold: 0.0
+    # If null_score - best_non_null is greater than the threshold predict null.
+    n_best_size: 20
+    # The total number of n-best predictions to generate at testing.
+
+    
+  tokenizer:
+    tokenizer_name: nemobert # or sentencepiece
+    pretrained_model_name: ${model.pretrained_model_name}
+    special_tokens: null
+    vocab_file: null # path to vocab file
+    data_file: null # used to build sentencepiece
+    sample_size: null # for sentencepiece
+    vocab_size: null # vocab size for building sentence piece
+    do_lower_case: ${model.dataset.do_lower_case} # only used when tokenizer is build with vocab file or with sentencepiece  
+    tokenizer_model: null # only used if tokenizer is sentencepiece
+
+  language_model:
+    pretrained_model_name: ${model.pretrained_model_name}
+    bert_checkpoint: null
+    bert_config: null # loads pretrained model. To initialize model from scratch uncomment the following
+      # attention_probs_dropout_prob: 0.1
+      # hidden_act: gelu
+      # hidden_dropout_prob: 0.1
+      # hidden_size: 768
+      # initializer_range: 0.02
+      # intermediate_size: 3072
+      # max_position_embeddings: 512
+      # num_attention_heads: 12
+      # num_hidden_layers: 12
+      # type_vocab_size: 2
+      # vocab_size: 30522
+    bert_config_file: null # json file, precedence over bert_config
+
+  token_classifier:
+    num_layers: 1
+    dropout: 0.0
+    num_classes: 2
+    activation: relu
+    log_softmax: false
+    use_transformer_init: true
 
 
   optim:
@@ -90,23 +149,6 @@ model:
       warmup_steps: null
       warmup_ratio: 0.0
       last_epoch: -1
-
-  language_model:
-    pretrained_model_name: bert-base-uncased
-    bert_checkpoint: null
-    bert_config: null
-    tokenizer: nemobert # only used if using custom checkpoint
-    tokenizer_model: null # only used if tokenizer is sentencepiece
-    vocab_file: null
-
-  token_classifier:
-    num_layers: 1
-    dropout: 0.0
-    num_classes: 2
-    activation: relu
-    log_softmax: false
-    use_transformer_init: true
-
 
 exp_manager:
   exp_dir: null # where to store logs and checkpoints
