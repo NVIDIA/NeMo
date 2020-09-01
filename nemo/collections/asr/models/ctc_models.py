@@ -35,7 +35,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 
-@experimental
 class EncDecCTCModel(ASRModel):
     """Base class for encoder decoder CTC-based models."""
 
@@ -363,11 +362,9 @@ class EncDecCTCModel(ASRModel):
         return temporary_datalayer
 
 
-@experimental
 class JasperNet(EncDecCTCModel):
     pass
 
 
-@experimental
 class QuartzNet(EncDecCTCModel):
     pass
