@@ -1,4 +1,4 @@
-name: &name "Tacotron 2"
+name: &name Tacotron2
 sample_rate: &sr 22050
 # <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script
 labels: &labels [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
