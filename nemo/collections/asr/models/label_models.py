@@ -172,10 +172,6 @@ class EncDecSpeakerLabelModel(ModelPT):
 
         return {'loss': self.loss_value, 'log': tensorboard_logs}
 
-    # def training_epoch_end(self,outputs):
-    #     val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-    #     logging.info("")
-
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
@@ -213,16 +209,17 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
     def test_step(self, batch, batch_ix):
-        audio_signal, audio_signal_len, labels, _ = batch
+        audio_signal, audio_signal_len, labels, slices = batch
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        return {'embs': embs, 'labels': labels}
+        return {'embs': embs, 'labels': labels, 'slices': slices}
 
     def test_epoch_end(self, outputs):
         embs = torch.cat([x['embs'] for x in outputs])
+        slices = torch.cat([x['slices'] for x in outputs])
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
         out_embeddings = {}
-
+        start_idx=0
         with open(self.test_manifest, 'r') as manifest:
             for idx, line in enumerate(manifest.readlines()):
                 line = line.strip()
@@ -231,7 +228,10 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
                 uniq_name = '@'.join(structure)
                 if uniq_name in out_embeddings:
                     raise KeyError("Embeddings for label {} already present in emb dictionary".format(uniq_name))
-                out_embeddings[uniq_name] = embs[idx]
+                num_slices = slices[idx]
+                end_idx = start_idx+num_slices
+                out_embeddings[uniq_name] = embs[start_idx:end_idx].mean(axis=0)
+                start_idx = end_idx
 
         embedding_dir = os.path.join(self.embedding_dir, 'embeddings')
         if not os.path.exists(embedding_dir):

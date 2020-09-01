@@ -20,27 +20,6 @@ from pytorch_lightning.utilities import rank_zero_only
 from nemo.utils import logging
 
 
-class CallbackManager:
-    def __init__(self) -> None:
-        self.callbacks = set(['LogEpochTimeCallback()', 'LogTrainValidLossCallback()'])
-
-    def get_callback(self, callback_name: str):
-        if callback_name in self.callbacks:
-            return eval(callback_name)
-        else:
-            raise NameError("Provided Callback name is not part of nemo Callback system")
-
-    def add_callback(self, callback_names: Union[str, List]):
-        if type(callback_names) is str:
-            callback_names = callback_names.split(',')
-
-        callbacks = []
-        for name in callback_names:
-            callbacks.append(self.get_callback(name))
-
-        return callbacks
-
-
 class LogEpochTimeCallback(Callback):
     """Simple callback that logs how long each epoch takes, in seconds, to a pytorch lightning log
     """
@@ -64,13 +43,16 @@ class LogTrainValidLossCallback(Callback):
     @rank_zero_only
     def on_train_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
         print_freq = trainer.row_log_interval
+        total_batches = trainer.num_training_batches
+        if 0 < print_freq < 1:
+            print_freq = int(total_batches*print_freq)
         if batch_idx % print_freq == 0:
             logging.info(
                 "Epoch: {}/{} batch: {}/{} train_loss: {:.3f} train_acc: {:.2f}".format(
                     trainer.current_epoch + 1,
                     trainer.max_epochs,
                     batch_idx + 1,
-                    trainer.num_training_batches,
+                    total_batches,
                     pl_module.loss_value,
                     pl_module.accuracy,
                 )

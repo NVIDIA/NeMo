@@ -36,6 +36,28 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 
 
+class CallbackManager:
+    def __init__(self) -> None:
+        self.callbacks = set(['LogEpochTimeCallback()', 'LogTrainValidLossCallback()'])
+
+    def get_callback(self, callback_name: str):
+        if callback_name in self.callbacks:
+            return eval(callback_name)
+        else:
+            raise NameError("Provided Callback name is not part of nemo Callback system")
+
+    def add_callback(self, callback_names: Union[str, List]):
+        if type(callback_names) is str:
+            callback_names = callback_names.split(',')
+
+        callbacks = []
+        for name in callback_names:
+            callbacks.append(self.get_callback(name))
+
+        return callbacks
+
+
+
 class NotFoundError(NeMoBaseException):
     """ Raised when a file or folder is not found"""
 
