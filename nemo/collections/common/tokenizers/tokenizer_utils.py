@@ -16,12 +16,7 @@ import os
 from typing import List, Optional
 
 import nemo
-from nemo.collections.common.tokenizers import (
-    AlbertTokenizer,
-    BertTokenizer,
-    DistilBertTokenizer,
-    RobertaTokenizer,
-)
+from nemo.collections.common.tokenizers import AlbertTokenizer, BertTokenizer, DistilBertTokenizer, RobertaTokenizer
 
 __all__ = ['get_tokenizer']
 
