@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
+PIP=pip
+
 echo 'Uninstalling stuff'
-pip uninstall -y nemo_toolkit
+${PIP} uninstall -y nemo_toolkit
 
 # Kept for legacy purposes
-pip uninstall -y nemo_asr
-pip uninstall -y nemo_nlp
-pip uninstall -y nemo_tts
-pip uninstall -y nemo_simple_gan
+${PIP} uninstall -y nemo_asr
+${PIP} uninstall -y nemo_nlp
+${PIP} uninstall -y nemo_tts
+${PIP} uninstall -y nemo_simple_gan
+
+${PIP} install -U setuptools
+
+for f in requirements/*.txt; do ${PIP} install ${PIP_FLAGS}--disable-pip-version-check --no-cache-dir -r $f; done 
 
 echo 'Installing stuff'
-pip install -e ".[all]"
+${PIP} install -e ".[all]"
 
 echo 'All done!'
