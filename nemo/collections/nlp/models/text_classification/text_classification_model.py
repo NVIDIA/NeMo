@@ -24,7 +24,7 @@ from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import SequenceClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.common_utils import get_lm_model
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -63,7 +63,7 @@ class TextClassificationModel(ModelPT):
             train_file=cfg.train_ds.file_name, val_files=[cfg.validation_ds.file_name]
         )
 
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config,
             checkpoint_file=cfg.language_model.bert_checkpoint_file,

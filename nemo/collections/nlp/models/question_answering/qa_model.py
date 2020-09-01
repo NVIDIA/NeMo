@@ -24,7 +24,7 @@ from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.common_utils import get_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -71,7 +71,7 @@ class QAModel(ModelPT):
         self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config_file,
@@ -251,7 +251,7 @@ class QAModel(ModelPT):
             tokenizer_model=cfg.tokenizer_model,
             sample_size=cfg.sample_size,
             pretrained_model_name=cfg.pretrained_model_name,
-            special_tokens=cfg.special_tokens,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
             vocab_file=cfg.vocab_file,
             vocab_size=cfg.vocab_size,
             do_lower_case=cfg.do_lower_case,

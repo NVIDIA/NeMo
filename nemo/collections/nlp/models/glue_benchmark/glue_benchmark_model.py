@@ -27,7 +27,7 @@ from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUE_TASKS_NUM_LABELS, GLUEDataset
 from nemo.collections.nlp.models.glue_benchmark.metrics_for_glue import compute_metrics
 from nemo.collections.nlp.modules.common import SequenceClassifier, SequenceRegression
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.common_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -110,7 +110,7 @@ class GLUEModel(ModelPT):
 
         num_labels = GLUE_TASKS_NUM_LABELS[self.task_name]
 
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config,
             checkpoint_file=cfg.language_model.bert_checkpoint,

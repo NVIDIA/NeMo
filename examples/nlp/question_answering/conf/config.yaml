@@ -98,20 +98,28 @@ model:
 
     
   tokenizer:
-    tokenizer_name: nemobert # or sentencepiece
+    tokenizer_name: bert # or sentencepiece
     pretrained_model_name: ${model.pretrained_model_name}
-    special_tokens: null
     vocab_file: null # path to vocab file
     data_file: null # used to build sentencepiece
     sample_size: null # for sentencepiece
     vocab_size: null # vocab size for building sentence piece
     do_lower_case: ${model.dataset.do_lower_case} # only used when tokenizer is build with vocab file or with sentencepiece  
     tokenizer_model: null # only used if tokenizer is sentencepiece
+    special_tokens: null # uncomment the following if special tokens need to be added
+        # unk_token: '[UNK]'
+        # sep_token: '[SEP]'
+        # pad_token: '[PAD]'
+        # bos_token: '[CLS]'
+        # mask_token: '[MASK]'
+        # eos_token: '[SEP]'
+        # cls_token: '[CLS]'
 
   language_model:
     model_type: bert
     pretrained_model_name: ${model.pretrained_model_name}
     bert_checkpoint: null
+    bert_config_file: null # json file, precedence over bert_config
     bert_config: null # loads pretrained model. To initialize model from scratch uncomment the following
       # attention_probs_dropout_prob: 0.1
       # hidden_act: gelu
@@ -124,7 +132,6 @@ model:
       # num_hidden_layers: 12
       # type_vocab_size: 2
       # vocab_size: 30522
-    bert_config_file: null # json file, precedence over bert_config
 
   token_classifier:
     num_layers: 1

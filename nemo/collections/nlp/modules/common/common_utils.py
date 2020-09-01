@@ -18,16 +18,16 @@ from typing import List, Optional
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
+    HUGGINGFACE_MODELS,
     get_huggingface_lm_model,
     get_huggingface_pretrained_lm_models_list,
-    HUGGINGFACE_MODELS
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_model,
     get_megatron_lm_models_list,
 )
 
-__all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
+__all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
 
 def get_pretrained_lm_models_list() -> List[str]:
@@ -36,6 +36,7 @@ def get_pretrained_lm_models_list() -> List[str]:
     """
     return get_megatron_lm_models_list() + get_huggingface_pretrained_lm_models_list()
 
+
 def get_lm_models_list() -> List[str]:
     """
     Returns the list of support models
@@ -43,7 +44,7 @@ def get_lm_models_list() -> List[str]:
     return ["megatron"] + list(HUGGINGFACE_MODELS.keys())
 
 
-def get_pretrained_lm_model(
+def get_lm_model(
     model_type: str,
     pretrained_model_name: Optional[str] = None,
     config_dict: Optional[dict] = None,
@@ -65,14 +66,15 @@ def get_pretrained_lm_model(
         Pretrained BertModule
     """
 
-
-    # check valid model type    
+    # check valid model type
     if model_type not in get_lm_models_list():
         raise ValueError(f'model_type needs to be from {get_lm_models_list()}, however got {model_type}')
 
     # warning when user passes both configuration dict and file
     if config_dict and config_file:
-        logging.warning(f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used.")
+        logging.warning(
+            f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
+        )
 
     # check either config or pretrained_model name is specified, not both
     if (config_dict or config_file) and pretrained_model_name:
@@ -80,13 +82,16 @@ def get_pretrained_lm_model(
 
     # check valid optional pretrained_model_name
     if pretrained_model_name and pretrained_model_name not in get_pretrained_lm_models_list():
-        raise ValueError(f'pretrained_mode_name needs to be from {get_pretrained_lm_models_list()}, however got {pretrained_mode_name}')
-
-
+        raise ValueError(
+            f'pretrained_mode_name needs to be from {get_pretrained_lm_models_list()}, however got {pretrained_mode_name}'
+        )
 
     if model_type in HUGGINGFACE_MODELS.keys():
         model = get_huggingface_lm_model(
-            model_type=model_type, config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name
+            model_type=model_type,
+            config_dict=config_dict,
+            config_file=config_file,
+            pretrained_model_name=pretrained_model_name,
         )
     elif model_type == "megatron":
         if pretrained_model_name in get_megatron_lm_models_list():

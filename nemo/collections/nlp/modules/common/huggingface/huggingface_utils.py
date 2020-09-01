@@ -62,8 +62,11 @@ HUGGINGFACE_MODELS = {
 }
 
 
-def get_huggingface_lm_model(model_type: str, 
-    pretrained_model_name: Optional[str] = None, config_dict: Optional[dict] = None, config_file: Optional[str] = None
+def get_huggingface_lm_model(
+    model_type: str,
+    pretrained_model_name: Optional[str] = None,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
 ):
     '''
     Returns lm model instantiated with Huggingface

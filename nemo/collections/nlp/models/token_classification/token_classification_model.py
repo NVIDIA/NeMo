@@ -29,7 +29,7 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.common_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -72,7 +72,7 @@ class TokenClassificationModel(ModelPT):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=self._cfg.language_model.pretrained_model_name,
             config_file=self._cfg.language_model.bert_config,
             checkpoint_file=self._cfg.language_model.bert_checkpoint,

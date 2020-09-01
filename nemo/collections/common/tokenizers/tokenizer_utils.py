@@ -100,14 +100,12 @@ def get_tokenizer(
              sentencepiece
     """
     pretrained_lm_models_list = nemo.collections.nlp.modules.common.common_utils.get_pretrained_lm_models_list()
-    if pretrained_model_name not in pretrained_lm_models_list:
+    if pretrained_model_name and pretrained_model_name not in pretrained_lm_models_list:
         raise ValueError(
             f'Provided pretrained_model_name: "{pretrained_model_name}" is not supported, choose from {pretrained_lm_models_list}'
         )
-    if pretrained_model_name:
-        model_type = pretrained_model_name.split('-')[0]
 
-    if 'megatron' in pretrained_model_name:
+    if tokenizer_name == "megatron":
         do_lower_case = nemo.collections.nlp.modules.common.megatron.megatron_utils.is_lower_cased_megatron(
             pretrained_model_name
         )
@@ -117,16 +115,19 @@ def get_tokenizer(
         tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
             bert_derivative='bert', vocab_file=vocab_file, do_lower_case=do_lower_case
         )
-    elif tokenizer_name == 'nemobert':
+    elif tokenizer_name in ['bert', 'albert', 'roberta', 'distilbert']:
         tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
-            pretrained_model=pretrained_model_name, vocab_file=vocab_file, do_lower_case=do_lower_case
+            pretrained_model=pretrained_model_name,
+            vocab_file=vocab_file,
+            do_lower_case=do_lower_case,
+            bert_derivative=tokenizer_name,
         )
     elif tokenizer_name == 'sentencepiece':
         if not tokenizer_model and not data_file:
             raise ValueError(f'either tokenizer model or data_file must passed')
         if not tokenizer_model or not os.path.exists(tokenizer_model):
-            if not special_tokens and pretrained_model_name:
-                special_tokens = MODEL_SPECIAL_TOKENS[model_type]
+            num_special_tokens = 0
+            if special_tokens:
                 num_special_tokens = len(set(special_tokens.values()))
             tokenizer_model, _ = nemo.collections.common.tokenizers.sentencepiece_tokenizer.create_spt_model(
                 data_file=data_file,
