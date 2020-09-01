@@ -1,12 +1,3 @@
-defaults:
-  # Load default model settings.
-  - dataset@model.training.dataset: mnist
-  - dataloader@model.training.dataloader: dataloader
-  - opt@model.opt: novograd
-  # Load default trainer settings.
-  - trainer: trainer
-
-
 # Overwrite model settings.
 model: 
   module: # empty
