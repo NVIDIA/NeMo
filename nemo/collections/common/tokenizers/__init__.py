@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.common.tokenizers.gpt2_tokenizer import NemoGPT2Tokenizer
-from nemo.collections.common.tokenizers.huggingface_tokenizer import HuggingFaceTokenizer
+from nemo.collections.common.tokenizers.huggingface_tokenizer import huggingface_tokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
+from nemo.collections.common.tokenizers.huggingface import *
