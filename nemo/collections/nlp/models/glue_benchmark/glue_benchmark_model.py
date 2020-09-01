@@ -98,21 +98,33 @@ class GLUEModel(ModelPT):
             cfg.validation_ds.file_name = os.path.join(self.data_dir, cfg.validation_ds.file_name)
         logging.info(f'Using {cfg.validation_ds.file_name} for model evaluation.')
 
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=cfg.language_model.vocab_file,
-            tokenizer_model=cfg.language_model.tokenizer_model,
-            do_lower_case=cfg.language_model.do_lower_case,
-        )
+        if cfg.language_model.bert_config_file is not None:
+            logging.info(
+                (
+                    f"HuggingFace BERT config file found. "
+                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
+                )
+            )
+            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
+        elif cfg.language_model.bert_config and cfg.language_model.bert_config.vocab_size is not None:
+            self.vocab_size = cfg.language_model.bert_config.vocab_size
+        else:
+            self.vocab_size = None
+
+        cfg.tokenizer.vocab_size = self.vocab_size
+        self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
         num_labels = GLUE_TASKS_NUM_LABELS[self.task_name]
 
         self.bert_model = get_lm_model(
+            model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config,
+            config_file=cfg.language_model.bert_config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.bert_config)
+            if cfg.language_model.bert_config
+            else None,
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
         self.hidden_size = self.bert_model.hidden_size
@@ -209,6 +221,20 @@ class GLUEModel(ModelPT):
 
         tensorboard_logs['val_loss'] = avg_loss
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            data_file=cfg.data_file,
+            tokenizer_model=cfg.tokenizer_model,
+            sample_size=cfg.sample_size,
+            pretrained_model_name=cfg.pretrained_model_name,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            vocab_file=cfg.vocab_file,
+            vocab_size=cfg.vocab_size,
+            do_lower_case=cfg.do_lower_case,
+        )
+        self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)

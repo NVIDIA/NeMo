@@ -20,7 +20,10 @@ model:
   only_mlm_loss: true # only use masked language model without next sentence prediction
   num_tok_classification_layers: 1 # number of token classification head output layers
   num_seq_classification_layers: 2 # number of sequence classification head output layers
+
+
   language_model:
+    model_type: bert
     pretrained_model_name: bert-base-uncased # huggingface model name
     bert_checkpoint: null
     bert_config:

@@ -77,9 +77,12 @@ class BERTLMModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
+            model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config_file,
-            config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
+            config_dict=OmegaConf.to_container(cfg.language_model.bert_config)
+            if cfg.language_model.bert_config
+            else None,
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
@@ -230,7 +233,17 @@ class BERTLMModel(ModelPT):
         return dl
 
     def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(**cfg)
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            data_file=cfg.data_file,
+            tokenizer_model=cfg.tokenizer_model,
+            sample_size=cfg.sample_size,
+            pretrained_model_name=cfg.pretrained_model_name,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            vocab_file=cfg.vocab_file,
+            vocab_size=cfg.vocab_size,
+            do_lower_case=cfg.do_lower_case,
+        )
         self.tokenizer = tokenizer
 
     def _setup_dataloader(self, cfg: DictConfig):

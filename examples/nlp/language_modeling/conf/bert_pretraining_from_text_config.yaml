@@ -29,6 +29,7 @@ model:
   # Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
 
   language_model:
+    model_type: bert
     pretrained_model_name: ${model.pretrained_model_name}
     bert_checkpoint: null
     bert_config:
@@ -46,7 +47,7 @@ model:
     bert_config_file: null # json file, precedence over bert_config
 
   tokenizer:
-    tokenizer_name: nemobert # or sentencepiece
+    tokenizer_name: bert # or sentencepiece
     pretrained_model_name: ${model.pretrained_model_name}
     special_tokens: null
     vocab_file: null # path to vocab file

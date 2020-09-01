@@ -558,6 +558,8 @@ pipeline {
         sh 'cd examples/nlp/token_classification && \
         python punctuation_capitalization.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        model.language_model.model_type=distilbert \
+        model.tokenizer.tokenizer_name=distilbert \
         model.language_model.pretrained_model_name=distilbert-base-uncased \
         model.dataset.use_cache=false \
         trainer.gpus=[0,1] \
@@ -586,7 +588,10 @@ pipeline {
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
-        model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=ddp \
+        model.language_model.model_type=megatron \
+        model.tokenizer.tokenizer_name=megatron \
+        model.language_model.pretrained_model_name=megatron-bert-345m-cased \
+        trainer.distributed_backend=ddp \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
        }
@@ -600,6 +605,8 @@ pipeline {
         trainer.gpus=[1] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
+        model.language_model.model_type=megatron \
+        model.tokenizer.tokenizer_name=megatron \
         model.language_model.pretrained_model_name=megatron-bert-uncased \
         model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
         model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \

@@ -44,18 +44,24 @@ class IntentSlotClassificationModel(ModelPT):
         """ Initializes BERT Joint Intent and Slot model.
         """
 
-        # TODO: All these variables should be initialized before call to super init
         self.data_dir = cfg.data_dir
         self.max_seq_length = cfg.language_model.max_seq_length
 
-        # initialize Tokenizer
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=cfg.language_model.vocab_file,
-            tokenizer_model=cfg.language_model.tokenizer_model,
-            do_lower_case=cfg.language_model.do_lower_case,
-        )
+        if cfg.language_model.bert_config_file is not None:
+            logging.info(
+                (
+                    f"HuggingFace BERT config file found. "
+                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
+                )
+            )
+            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
+        elif cfg.language_model.bert_config and cfg.language_model.bert_config.vocab_size is not None:
+            self.vocab_size = cfg.language_model.bert_config.vocab_size
+        else:
+            self.vocab_size = None
+
+        cfg.tokenizer.vocab_size = self.vocab_size
+        self._setup_tokenizer(cfg.tokenizer)
 
         self.data_desc = IntentSlotDataDesc(
             data_dir=cfg.data_dir, modes=[cfg.train_ds.prefix, cfg.validation_ds.prefix]
@@ -65,10 +71,15 @@ class IntentSlotClassificationModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # initialize Bert model
+
         self.bert_model = get_lm_model(
+            model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.bert_checkpoint_file,
+            config_file=cfg.language_model.bert_config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.bert_config)
+            if cfg.language_model.bert_config
+            else None,
+            checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
         self.hidden_size = self.bert_model.hidden_size
@@ -204,6 +215,20 @@ class IntentSlotClassificationModel(ModelPT):
             'slot_f1': slot_f1,
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            data_file=cfg.data_file,
+            tokenizer_model=cfg.tokenizer_model,
+            sample_size=cfg.sample_size,
+            pretrained_model_name=cfg.pretrained_model_name,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            vocab_file=cfg.vocab_file,
+            vocab_size=cfg.vocab_size,
+            do_lower_case=cfg.do_lower_case,
+        )
+        self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
