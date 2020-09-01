@@ -34,7 +34,7 @@ from hydra.types import ObjectConf
 cs = ConfigStore.instance()
 
 @dataclass
-class MNISTDatasetConfig(Config):
+class MNISTDatasetConfig:
     """
     Structured config for MNISTDataset class.
 
@@ -53,7 +53,7 @@ class MNISTDatasetConfig(Config):
 
 # Register the config.
 cs.store(
-    group="dataset", name="mnist", node=ObjectConf(target="nemo.collections.cv.datasets.MNISTDataset", params=MNISTDatasetConfig()),
+    group="cv.dataset", name="mnist", node=ObjectConf(target="nemo.collections.cv.datasets.MNISTDataset", params=MNISTDatasetConfig()),
 )
 
 class MNISTDataset(Dataset):
