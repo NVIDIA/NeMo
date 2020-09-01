@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from omegaconf import DictConfig
+import hydra
 
 from torch.utils.data import DataLoader
 
@@ -41,14 +43,14 @@ class MNISTLeNet5Config(Config):
 
 class MNISTLeNet5(ModelPT):
     """
-    The LeNet-5 convolutional model.
+    The LeNet-5 model.
     """
 
-    def __init__(self, cfg: MNISTLeNet5Config = MNISTLeNet5Config()):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: MNISTLeNet5Config = MNISTLeNet5Config(), trainer=None):
+        super().__init__(cfg=cfg, trainer=trainer)
 
         # Initialize modules.
-        self.module = LeNet5Module(cfg.module)
+        self.module = LeNet5Module()
         self.loss = NLLLoss()
 
     @property
@@ -72,21 +74,12 @@ class MNISTLeNet5(ModelPT):
         """ Propagates data by calling the module :class:`LeNet5Module` forward. """
         return self.module.forward(images=images)
 
-    def setup_training_data(self, train_ds_config: Optional[Dict] = None):
+    def prepare_data(self):
         """ Creates dataset, wrap it with dataloader and return the latter """
+        #transform = transforms.Compose([hydra.utils.instantiate(trans) for trans in self.data.tf])
+        #self.train_set = hydra.utils.instantiate(self.data.ds, transform=transform, train=True)
         # Instantiate dataset.
-        mnist_ds = MNISTDataset(self._cfg.training.dataset.params)
-        # Configure data loader.
-        train_dataloader = DataLoader(dataset=mnist_ds, **(self._cfg.training.dataloader.params))
-        self._train_dl = train_dataloader
-
-    def setup_validation_data(self, val_ds_config: Optional[Dict] = None):
-        """ Not implemented. """
-        self._val_dl = None
-
-    def setup_test_data(self, test_ds_params: Optional[Dict] = None):
-        """ Not implemented. """
-        self._test_dl = None
+        self._train_set = MNISTDataset(self._cfg.training.dataset.params)
 
     def training_step(self, batch, what_is_this_input):
         """ Training step, calculate loss. """
@@ -101,11 +94,26 @@ class MNISTLeNet5(ModelPT):
 
         # Return it.
         return {"loss": loss}
-        # of course "return loss" doesn't work :]
 
     def train_dataloader(self):
+        """ Return the training dataloader. """
+        return hydra.utils.instantiate(self._cfg.training.dataloader, dataset=self._train_set)
+
+    def configure_optimizers(self):
+        """
+        Sets the optimizer.
+        """
+        optimizer = hydra.utils.instantiate(self._cfg.optim, params=self.parameters())
+        return optimizer
+
+
+    def setup_training_data(self, val_ds_config: Optional[Dict] = None):
         """ Not implemented. """
-        return self._train_dl
+        pass
+
+    def setup_validation_data(self, val_ds_config: Optional[Dict] = None):
+        """ Not implemented. """
+        pass
 
     def save_to(self, save_path: str):
         """ Not implemented. """

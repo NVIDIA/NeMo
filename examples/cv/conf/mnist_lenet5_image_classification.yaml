@@ -1,17 +1,9 @@
-# Overwrite model settings.
-model: 
-  module: # empty
-  training:
-    dataloader:
-      params:
-        batch_size: 64
-  opt:
-    params:
-      lr: 0.02
-    
-
-# Overwrite trainer settings.
-trainer:
-  gpus: 2
-  distributed_backend: "dp"
-
+defaults:
+  # Load default model settings.
+  - cv.dataset@model.training.dataset: mnist
+  - dataloader@model.training.dataloader: dataloader
+  - optim@model.optim: novograd
+  # Load default trainer settings.
+  - trainer: trainer
+  # Overwrite the default settings.
+  - mnist_lenet5_image_classification_overwrites

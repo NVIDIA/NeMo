@@ -1,8 +1,0 @@
-defaults:
-  # Load default model settings.
-  - dataset@model.training.dataset: mnist
-  - dataloader@model.training.dataloader: dataloader
-  - opt@model.opt: novograd
-  # Load default trainer settings.
-  - trainer: trainer
-  - mnist_lenet5_image_classification

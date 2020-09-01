@@ -1,0 +1,21 @@
+# Overwrite model settings.
+model: 
+  training:
+    dataset:
+      params:
+        width: 32
+        height: 32
+    dataloader:
+      params:
+        batch_size: 64
+  optim:
+    params:
+      lr: 0.02
+    
+
+# Overwrite trainer settings.
+#trainer:
+#  gpus: 2
+#  distributed_backend: "dp"
+
+
