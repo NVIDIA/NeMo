@@ -42,7 +42,8 @@ class AppConfig(Config):
 
 #@set_config(config=AppConfig)
 #@hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification")
-@hydra.main(config_path="conf", config_name="mnist_lenet5_image_classification")
+#@hydra.main(config_path="conf", config_name="mnist_lenet5_image_classification")
+@hydra.main(config_path="conf", config_name="defaults")
 def main(cfg: DictConfig):
     # Show configuration - user can modify every parameter from command line!
     logging.info("Application config\n" + cfg.pretty())
