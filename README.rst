@@ -107,6 +107,9 @@ To run tutorials:
    * - NLP
      - Punctuation and Capitialization
      - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+   * - NLP
+     - Question answering with SQuAD
+     - `Question_Answering_Squad.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
 
 Contributing
 ------------
