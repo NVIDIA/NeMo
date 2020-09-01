@@ -28,12 +28,10 @@ from nemo.collections.common.metrics import TopKClassificationAccuracy, compute_
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
-@experimental
 class EncDecClassificationModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
@@ -305,6 +303,5 @@ class EncDecClassificationModel(ASRModel):
             logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
 
 
-@experimental
 class MatchboxNet(EncDecClassificationModel):
     pass
