@@ -53,17 +53,21 @@ class TokenClassificationModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes Token Classification Model."""
 
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=self.register_artifact(
-                config_path='language_model.vocab_file', src=cfg.language_model.vocab_file
-            ),
-            tokenizer_model=self.register_artifact(
-                config_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
-            ),
-            do_lower_case=cfg.language_model.do_lower_case,
-        )
+        if cfg.language_model.bert_config_file is not None:
+            logging.info(
+                (
+                    f"HuggingFace BERT config file found. "
+                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
+                )
+            )
+            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
+        elif cfg.language_model.bert_config and cfg.language_model.bert_config.vocab_size is not None:
+            self.vocab_size = cfg.language_model.bert_config.vocab_size
+        else:
+            self.vocab_size = None
+
+        cfg.tokenizer.vocab_size = self.vocab_size
+        self._setup_tokenizer(cfg.tokenizer)
 
         self._cfg = cfg
         self.data_desc = None
@@ -73,9 +77,13 @@ class TokenClassificationModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
-            pretrained_model_name=self._cfg.language_model.pretrained_model_name,
-            config_file=self._cfg.language_model.bert_config,
-            checkpoint_file=self._cfg.language_model.bert_checkpoint,
+            model_type=cfg.language_model.model_type,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.bert_config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.bert_config)
+            if cfg.language_model.bert_config
+            else None,
+            checkpoint_file=cfg.language_model.bert_checkpoint,
         )
         self.hidden_size = self.bert_model.hidden_size
 
@@ -182,6 +190,22 @@ class TokenClassificationModel(ModelPT):
             'recall': recall,
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            data_file=cfg.data_file,
+            tokenizer_model=self.register_artifact(
+                config_path='language_model.tokenizer_model', src=cfg.tokenizer_model
+            ),
+            sample_size=cfg.sample_size,
+            pretrained_model_name=cfg.pretrained_model_name,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            vocab_file=self.register_artifact(config_path='language_model.vocab_file', src=cfg.vocab_file),
+            vocab_size=cfg.vocab_size,
+            do_lower_case=cfg.do_lower_case,
+        )
+        self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:

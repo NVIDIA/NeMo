@@ -250,7 +250,9 @@ pipeline {
             model.test_ds.batch_size=2 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
-            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.pretrained_model_name=bert-base-uncased \
+            model.language_model.model_type=bert \
+            model.tokenizer.tokenizer_name=bert \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -272,7 +274,9 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.pretrained_model_name=bert-base-uncased \
+            model.language_model.model_type=bert \
+            model.tokenizer.tokenizer_name=bert \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -301,6 +305,7 @@ pipeline {
             model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
             model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
             model.language_model.model_type=megatron \
+            model.tokenizer.tokenizer_name=megatron \
             model.language_model.pretrained_model_name=megatron-bert-345m-cased \
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
@@ -330,7 +335,9 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
+            model.language_model.model_type=megatron \
+            model.pretrained_model_name=megatron-bert-345m-uncased  \
+            model.tokenizer.tokenizer_name=megatron \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
