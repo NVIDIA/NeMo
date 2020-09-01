@@ -539,10 +539,10 @@ def prepare_lr_scheduler(
     schedule = scheduler_cls(optimizer, **scheduler_args)
 
     logging.info(
-        'Scheduler "%s" will be used during training (effective maximum steps = %d) - Parameters : (%s)',
+        'Scheduler "%s" \nwill be used during training (effective maximum steps = %d) - \nParameters : \n(%s)',
         str(schedule),
         max_steps,
-        str(scheduler_args),
+        OmegaConf.to_yaml(OmegaConf.create(scheduler_args)),
     )
 
     # Wrap the schedule in PTL arguments to perform stepwise computation
