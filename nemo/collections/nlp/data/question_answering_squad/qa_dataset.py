@@ -110,7 +110,7 @@ class SquadDataset(Dataset):
         else:
             logging.info(f"Preprocessing data.")
             if num_samples == 0:
-                raise ValueError("num_samples has to be positive", num_samples)
+                raise ValueError(f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}.")
             elif num_samples > 0:
                 self.examples = self.examples[:num_samples]
 
