@@ -21,8 +21,9 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
+from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.waveglow import OperationMode
-from nemo.core.classes import ModelPT, typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     LengthsType,
@@ -32,7 +33,6 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
 @dataclass
@@ -50,14 +50,13 @@ class Preprocessor:
 class WaveglowConfig:
     waveglow: Dict[Any, Any] = MISSING
     preprocessor: Preprocessor = Preprocessor()
+    sigma: int = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models
-class WaveGlowModel(ModelPT):
-    """ Waveglow model used to convert betweeen spectrograms and audio
-    """
+class WaveGlowModel(Vocoder):
+    """Waveglow model used to convert betweeen spectrograms and audio"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
@@ -74,7 +73,7 @@ class WaveGlowModel(ModelPT):
         OmegaConf.merge(cfg, schema)
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
-        self.sigma = 1.0
+        self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.waveglow = instantiate(self._cfg.waveglow)
         self.mode = OperationMode.infer
@@ -112,7 +111,7 @@ class WaveGlowModel(ModelPT):
                 f"WaveGlowModel's mode {self.mode} does not match WaveGlowModule's mode {self.waveglow.mode}"
             )
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-        tensors = self.waveglow(spect=spec, audio=audio, run_inverse=run_inverse)
+        tensors = self.waveglow(spec=spec, audio=audio, run_inverse=run_inverse, sigma=self.sigma)
         if self.mode == OperationMode.training:
             return tensors[:-1]  # z, log_s_list, log_det_W_list
         elif self.mode == OperationMode.validation:
@@ -120,11 +119,25 @@ class WaveGlowModel(ModelPT):
             return z, log_s_list, log_det_W_list, audio_pred, spec, spec_len
         return tensors  # audio_pred
 
+    @typecheck(
+        input_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
+        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+    )
+    def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
+        self.eval()
+        self.mode = OperationMode.infer
+        self.waveglow.mode = OperationMode.infer
+
+        with torch.no_grad():
+            audio = self.waveglow(spec=spec, run_inverse=True, audio=None, sigma=sigma)
+
+        return audio
+
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
         self.waveglow.mode = OperationMode.training
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list = self.forward(audio=audio, audio_len=audio_len)
+        z, log_s_list, log_det_W_list = self(audio=audio, audio_len=audio_len, run_inverse=False)
 
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
         output = {
@@ -138,7 +151,7 @@ class WaveGlowModel(ModelPT):
         self.mode = OperationMode.validation
         self.waveglow.mode = OperationMode.validation
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self.forward(
+        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self(
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)
         )
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
@@ -189,17 +202,18 @@ class WaveGlowModel(ModelPT):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
-    def convert_spectrogram_to_audio(self, spect: torch.Tensor) -> torch.Tensor:
-        self.eval()
-        self.mode = OperationMode.infer
-        self.waveglow.mode = OperationMode.infer
-
-        with torch.no_grad():
-            audio = self.waveglow(spect=spect.unsqueeze(0), run_inverse=True, audio=None)
-
-        return audio.squeeze(0)
-
     @classmethod
-    def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        """TODO: Implement me!"""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="WaveGlow-22050Hz",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/waveglow.nemo",
+            description="The model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder",
+        )
+        list_of_models.append(model)
+        return list_of_models

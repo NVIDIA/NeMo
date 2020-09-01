@@ -317,7 +317,7 @@ class FileIO(ABC):
             raise NotImplementedError()
 
 
-PretrainedModelInfo = namedtuple("PretrainedModelInfo", ("pretrained_model_name", "description", "location"),)
+PretrainedModelInfo = namedtuple("PretrainedModelInfo", ("pretrained_model_name", "description", "location"))
 
 
 class Model(Typing, Serialization, FileIO):
