@@ -17,6 +17,6 @@ from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
-    get_huggingface_lm_models_list,
+    get_huggingface_pretrained_lm_models_list,
 )
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder

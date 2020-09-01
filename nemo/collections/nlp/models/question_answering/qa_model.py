@@ -72,6 +72,7 @@ class QAModel(ModelPT):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.bert_model = get_pretrained_lm_model(
+            model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.bert_config)

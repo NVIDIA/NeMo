@@ -109,6 +109,7 @@ model:
     tokenizer_model: null # only used if tokenizer is sentencepiece
 
   language_model:
+    model_type: bert
     pretrained_model_name: ${model.pretrained_model_name}
     bert_checkpoint: null
     bert_config: null # loads pretrained model. To initialize model from scratch uncomment the following

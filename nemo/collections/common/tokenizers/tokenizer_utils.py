@@ -75,10 +75,10 @@ def get_bert_special_tokens(bert_derivative):
 
 def get_tokenizer(
     tokenizer_name: str,
+    pretrained_model_name: Optional[str] = None,
     data_file: Optional[str] = None,
     tokenizer_model: Optional[str] = None,
     sample_size: Optional[int] = None,
-    pretrained_model_name: Optional[str] = None,
     special_tokens: Optional[List[str]] = None,
     vocab_file: Optional[str] = None,
     vocab_size: Optional[int] = None,
@@ -86,7 +86,7 @@ def get_tokenizer(
 ):
     """
     Args:
-        tokenizer_name: sentencepiece or nemobert
+        tokenizer_name: sentencepiece or lm model name, e.g. bert, albert
         data_file: data file used to build sentencepiece
         tokenizer_model: tokenizer model file of sentencepiece
         sample_size: sample size for building sentencepiece
