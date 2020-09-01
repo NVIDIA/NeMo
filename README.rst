@@ -102,6 +102,9 @@ To run tutorials:
      - Token Classification (Named Entity Recognition)
      - `Token_Classification_Named_Entity_Recognition_tutorial.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition_tutorial.ipynb>`_
    * - NLP
+     - GLUE Benchmark
+     - `GLUE_Benchmark_tutorial.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark_tutorial.ipynb>`_
+   * - NLP
      - Punctuation and Capitialization
      - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
 
