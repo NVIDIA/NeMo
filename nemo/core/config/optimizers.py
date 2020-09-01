@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
+from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
 from omegaconf import OmegaConf
 
 __all__ = [
@@ -32,9 +34,6 @@ __all__ = [
 ]
 
 
-from hydra.core.config_store import ConfigStore
-from hydra.types import ObjectConf
-
 cs = ConfigStore.instance()
 
 
@@ -46,10 +45,12 @@ class AdamConfig:
     weight_decay: float = 0
     amsgrad: bool = False
 
+
 # Register Adam.
 cs.store(
     group="optim", name="adam", node=ObjectConf(target="torch.optim.Adam", params=AdamConfig()),
 )
+
 
 @dataclass
 class SGDConfig:
@@ -58,6 +59,7 @@ class SGDConfig:
     weight_decay: float = 0
     dampening: float = 0
     nesterov: bool = False
+
 
 # Register SGD.
 cs.store(
@@ -84,6 +86,7 @@ class NovogradConfig:
         amsgrad (boolean, optional): whether to use the AMSGrad variant of this
             algorithm from the paper "On the Convergence of Adam and Beyond"
     """
+
     lr: float = 1e-3
     betas: Tuple[float, float] = (0.95, 0.98)
     eps: float = 1e-8
@@ -93,6 +96,7 @@ class NovogradConfig:
     luc: bool = False
     luc_trust: float = 1e-3
     luc_eps: float = 1e-8
+
 
 # Register Novograd.
 cs.store(
@@ -135,6 +139,7 @@ class AdamParams(OptimizerParams):
         For the details on the function/meanings of the arguments, please refer to:
         https://pytorch.org/docs/stable/optim.html?highlight=adam#torch.optim.Adam
     """
+
     # betas: Tuple[float, float] = (0.9, 0.999) # Why betas are commented out??
     eps: float = 1e-08
     weight_decay: float = 0

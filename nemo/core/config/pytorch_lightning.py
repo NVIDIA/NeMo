@@ -13,14 +13,16 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Union, Dict, List, Optional
-
-__all__ = ['TrainerConfig']
+from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.config_store import ConfigStore
 from hydra.types import ObjectConf
 
+__all__ = ['TrainerConfig']
+
+
 cs = ConfigStore.instance()
+
 
 @dataclass
 class TrainerConfig:
@@ -69,7 +71,7 @@ class TrainerConfig:
     distributed_backend: Optional[str] = None
     sync_batchnorm: bool = False
     precision: int = 32
-    weights_summary: Optional[str] = "full" # ModelSummary.MODE_DEFAULT
+    weights_summary: Optional[str] = "full"  # ModelSummary.MODE_DEFAULT
     weights_save_path: Optional[str] = None
     num_sanity_val_steps: int = 2
     truncated_bptt_steps: Optional[int] = None
@@ -91,5 +93,3 @@ class TrainerConfig:
 cs.store(
     group="trainer", name="trainer", node=TrainerConfig,
 )
-
-

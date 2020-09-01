@@ -14,8 +14,8 @@ model:
     
 
 # Overwrite trainer settings.
-#trainer:
-#  gpus: 2
-#  distributed_backend: "dp"
+trainer:
+  gpus: 2
+  distributed_backend: "dp"
 
 
