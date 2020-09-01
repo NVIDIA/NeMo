@@ -219,7 +219,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
         out_embeddings = {}
-        start_idx=0
+        start_idx = 0
         with open(self.test_manifest, 'r') as manifest:
             for idx, line in enumerate(manifest.readlines()):
                 line = line.strip()
@@ -229,7 +229,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
                 if uniq_name in out_embeddings:
                     raise KeyError("Embeddings for label {} already present in emb dictionary".format(uniq_name))
                 num_slices = slices[idx]
-                end_idx = start_idx+num_slices
+                end_idx = start_idx + num_slices
                 out_embeddings[uniq_name] = embs[start_idx:end_idx].mean(axis=0)
                 start_idx = end_idx
 

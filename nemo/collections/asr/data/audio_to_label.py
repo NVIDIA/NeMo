@@ -154,7 +154,7 @@ target_label_n, "offset": offset_in_sec_n}
         tokens_lengths = torch.stack(tokens_lengths)
 
         return audio_signal, audio_lengths, tokens, tokens_lengths
-    
+
     def sliced_seq_collate_fn(self, batch):
         """collate batch of audio sig, audio len, tokens, tokens len
         Args:

@@ -18,7 +18,6 @@ import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
-from nemo.collections.common.callbacks import CallbackManager
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -51,12 +50,6 @@ def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
-
-    callbacks = ['LogEpochTimeCallback()', 'LogTrainValidLossCallback()']
-    callback_mgr = CallbackManager()
-    callbacks = callback_mgr.add_callback(callbacks)
-    trainer.callbacks.extend(callbacks)
-
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)

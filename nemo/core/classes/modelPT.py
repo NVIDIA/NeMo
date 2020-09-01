@@ -27,6 +27,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningModule, Trainer
 
+from nemo.collections.common import callbacks
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler

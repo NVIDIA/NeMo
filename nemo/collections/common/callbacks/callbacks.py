@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
-from typing import List, Union
 
 from pytorch_lightning.callbacks.base import Callback
 from pytorch_lightning.utilities import rank_zero_only
@@ -45,7 +44,7 @@ class LogTrainValidLossCallback(Callback):
         print_freq = trainer.row_log_interval
         total_batches = trainer.num_training_batches
         if 0 < print_freq < 1:
-            print_freq = int(total_batches*print_freq)
+            print_freq = int(total_batches * print_freq)
         if batch_idx % print_freq == 0:
             logging.info(
                 "Epoch: {}/{} batch: {}/{} train_loss: {:.3f} train_acc: {:.2f}".format(
@@ -64,3 +63,9 @@ class LogTrainValidLossCallback(Callback):
                 trainer.current_epoch + 1, trainer.max_epochs, pl_module.val_loss_mean, pl_module.accuracy
             )
         )
+
+
+AVAILABLE_CALLBACKS = {
+    'LogEpochTimeCallback': LogEpochTimeCallback(),
+    'LogTrainValidLossCallback': LogTrainValidLossCallback(),
+}

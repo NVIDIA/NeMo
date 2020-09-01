@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.common.callbacks.callbacks import (
-    CallbackManager,
+    AVAILABLE_CALLBACKS,
     LogEpochTimeCallback,
     LogTrainValidLossCallback,
 )
