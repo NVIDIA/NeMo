@@ -79,7 +79,7 @@ class ModelPT(LightningModule, Model):
 
         self._cfg = config
 
-        #self.save_hyperparameters(self._cfg)
+        self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
