@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass
-from omegaconf import DictConfig
-import hydra
+from typing import Any, Dict, Optional, Union
 
+import hydra
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
@@ -28,7 +28,6 @@ from nemo.core.config import Config, CosineAnnealingParams, DataLoaderConfig, No
 from nemo.core.neural_types import *
 
 
-
 @dataclass
 class MNISTLeNet5Config(Config):
     """
@@ -38,7 +37,7 @@ class MNISTLeNet5Config(Config):
     dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
     dataloader: DataLoaderConfig = DataLoaderConfig(batch_size=64, shuffle=True)
     module: Config = Config()
-    #optim: MNISTOptimizer = MNISTOptimizer()
+    # optim: MNISTOptimizer = MNISTOptimizer()
 
 
 class MNISTLeNet5(ModelPT):
@@ -76,8 +75,8 @@ class MNISTLeNet5(ModelPT):
 
     def prepare_data(self):
         """ Creates dataset, wrap it with dataloader and return the latter """
-        #transform = transforms.Compose([hydra.utils.instantiate(trans) for trans in self.data.tf])
-        #self.train_set = hydra.utils.instantiate(self.data.ds, transform=transform, train=True)
+        # transform = transforms.Compose([hydra.utils.instantiate(trans) for trans in self.data.tf])
+        # self.train_set = hydra.utils.instantiate(self.data.ds, transform=transform, train=True)
         # Instantiate dataset.
         self._train_set = MNISTDataset(self._cfg.training.dataset.params)
 
@@ -105,7 +104,6 @@ class MNISTLeNet5(ModelPT):
         """
         optimizer = hydra.utils.instantiate(self._cfg.optim, params=self.parameters())
         return optimizer
-
 
     def setup_training_data(self, val_ds_config: Optional[Dict] = None):
         """ Not implemented. """

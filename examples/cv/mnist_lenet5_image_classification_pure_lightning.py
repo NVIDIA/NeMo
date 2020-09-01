@@ -13,17 +13,15 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from omegaconf import OmegaConf
-
-import pytorch_lightning as ptl
-from omegaconf import DictConfig, MISSING
-
-from nemo.collections.cv.models import MNISTLeNet5
-from nemo.utils import logging
-from nemo.core.config import hydra_runner
-from nemo.utils.exp_manager import exp_manager
 
 import hydra
+import pytorch_lightning as ptl
+from omegaconf import MISSING, DictConfig, OmegaConf
+
+from nemo.collections.cv.models import MNISTLeNet5
+from nemo.core.config import hydra_runner
+from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification")

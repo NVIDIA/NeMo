@@ -13,14 +13,13 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Union, Dict, List, Optional
-
-__all__ = ['TrainerConfig']
+from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.config_store import ConfigStore
 from hydra.types import ObjectConf
 
-cs = ConfigStore.instance()
+__all__ = ['TrainerConfig']
+
 
 cs = ConfigStore.instance()
 
@@ -91,4 +90,3 @@ class TrainerConfig:
 cs.store(
     group="trainer", name="trainer", node=TrainerConfig,
 )
-

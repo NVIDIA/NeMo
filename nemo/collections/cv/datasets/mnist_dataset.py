@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from os.path import expanduser
 from typing import Optional
 
+from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Resize, ToTensor
 
@@ -27,11 +29,9 @@ from nemo.core.neural_types.elements import ClassificationTarget, Index, Normali
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import add_port_docs, experimental
 
-from hydra.core.config_store import ConfigStore
-from hydra.types import ObjectConf
-
 # Create the config store instance.
 cs = ConfigStore.instance()
+
 
 @dataclass
 class MNISTDatasetConfig:
@@ -45,16 +45,21 @@ class MNISTDatasetConfig:
         train: use train or test splits (DEFAULT: True)
         name: Name of the module (DEFAULT: None)
     """
+
     height: int = 28
     width: int = 28
     data_folder: str = "~/data/mnist"
     train: bool = True
     download: bool = True
 
+
 # Register the config.
 cs.store(
-    group="cv.dataset", name="mnist", node=ObjectConf(target="nemo.collections.cv.datasets.MNISTDataset", params=MNISTDatasetConfig()),
+    group="cv.dataset",
+    name="mnist",
+    node=ObjectConf(target="nemo.collections.cv.datasets.MNISTDataset", params=MNISTDatasetConfig()),
 )
+
 
 class MNISTDataset(Dataset):
     """
