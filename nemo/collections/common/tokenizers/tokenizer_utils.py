@@ -15,11 +15,15 @@
 import os
 from typing import List, Optional
 
-from transformers import AlbertTokenizer, BertTokenizer, DistilBertTokenizerFast, RobertaTokenizer
-
 import nemo
+from nemo.collections.common.tokenizers.huggingface import (
+    AlbertTokenizer,
+    BertTokenizer,
+    DistilBertTokenizer,
+    RobertaTokenizer,
+)
 
-__all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
+__all__ = ['get_tokenizer']
 
 MODEL_SPECIAL_TOKENS = {
     'bert': {
@@ -65,12 +69,8 @@ TOKENIZERS = {
     'bert': BertTokenizer,
     'albert': AlbertTokenizer,
     'roberta': RobertaTokenizer,
-    'distilbert': DistilBertTokenizerFast,
+    'distilbert': DistilBertTokenizer,
 }
-
-
-def get_bert_special_tokens(bert_derivative):
-    return MODEL_SPECIAL_TOKENS[bert_derivative]
 
 
 def get_tokenizer(
@@ -112,15 +112,15 @@ def get_tokenizer(
         vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
             pretrained_model_name
         )
-        tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
-            bert_derivative='bert', vocab_file=vocab_file, do_lower_case=do_lower_case
-        )
-    elif tokenizer_name in ['bert', 'albert', 'roberta', 'distilbert']:
-        tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
-            pretrained_model=pretrained_model_name,
+        tokenizer_name = 'bert'
+        pretrained_model_name = None
+
+    if tokenizer_name in ['bert', 'albert', 'roberta', 'distilbert']:
+        tokenizer = get_huggingface_tokenizer(
+            pretrained_model_name=pretrained_model_name,
             vocab_file=vocab_file,
             do_lower_case=do_lower_case,
-            bert_derivative=tokenizer_name,
+            tokenizer_name=tokenizer_name,
         )
     elif tokenizer_name == 'sentencepiece':
         if not tokenizer_model and not data_file:
@@ -143,3 +143,18 @@ def get_tokenizer(
     else:
         raise ValueError(f'{tokenizer_name} is not supported')
     return tokenizer
+
+
+def get_huggingface_tokenizer(
+    tokenizer_name: str,
+    pretrained_model_name: Optional[str] = None,
+    vocab_file: Optional[str] = None,
+    do_lower_case: Optional[bool] = None,
+):
+
+    tokenizer_cls = TOKENIZERS[tokenizer_name]
+    if pretrained_model_name:
+        tok = tokenizer_cls.from_pretrained(pretrained_model_name)
+    else:
+        tok = tokenizer_cls(vocab_file=vocab_file, do_lower_case=do_lower_case)
+    return tok

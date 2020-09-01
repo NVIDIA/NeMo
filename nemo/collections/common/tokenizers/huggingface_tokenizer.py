@@ -15,11 +15,10 @@
 import re
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
 from nemo.utils import logging
 
 __all__ = [
-    'NemoBertTokenizer',
+    'HuggingFaceTokenizer',
 ]
 
 
@@ -59,63 +58,30 @@ def remove_spaces(text):
     return text
 
 
-class NemoBertTokenizer(TokenizerSpec):
-    def __init__(self, pretrained_model=None, vocab_file=None, bert_derivative='bert', do_lower_case=False):
-        '''
-        The user needs to specify pretrained_model name or vocab file and bert_derivative
+class HuggingFaceTokenizer(TokenizerSpec):
+    def __init__(self):
+        self.never_split = self.all_special_tokens
 
-        pretrained_model (str):name of the pretrained model from the hugging face list,
-            for example: bert-base-cased
-            To see the list of pretrained models, call:
-            huggingface_utils.get_bert_models_list()
-        vocab_file: File containing the vocabulary.
-        bert_derivative: for example: 'bert', 'roberta', 'albert'. Only used when vocab_file specified.
-        '''
-        if pretrained_model:
-            bert_derivative = pretrained_model.split('-')[0]
-            logging.info(f'Deriving bert model type from pretrained model name.')
-        if bert_derivative in TOKENIZERS:
-            tokenizer_cls = TOKENIZERS[bert_derivative]
-            logging.info(f'Using {tokenizer_cls.__name__} tokenizer for {bert_derivative}')
-        else:
-            raise ValueError(
-                f"Bert_derivative value {bert_derivative} is not currently supported"
-                + f" Please choose from the following list: {TOKENIZERS.keys()}"
-            )
-
-        if pretrained_model:
-            self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
-        elif vocab_file:
-            logging.info(f'Using vocab file: {vocab_file}, lower_case: {do_lower_case}')
-            self.tokenizer = tokenizer_cls(vocab_file=vocab_file, do_lower_case=do_lower_case)
-        else:
-            raise ValueError("either 'vocab_file' or 'pretrained_model' has to be specified")
-
-        if hasattr(self.tokenizer, "vocab"):
-            self.vocab_size = len(self.tokenizer.vocab)
-
-        special_tokens = MODEL_SPECIAL_TOKENS[bert_derivative]
-        for k, v in special_tokens.items():
-            setattr(self, k, v)
-        self.never_split = tuple(special_tokens.values())
+        self.eos_token = self.sep_token
+        self.bos_token = self.cls_token
 
     def text_to_tokens(self, text):
-        tokens = self.tokenizer.tokenize(text)
+        tokens = self.tokenize(text)
         return tokens
 
     def tokens_to_text(self, tokens):
-        text = self.tokenizer.convert_tokens_to_string(tokens)
+        text = self.convert_tokens_to_string(tokens)
         return remove_spaces(handle_quotes(text.strip()))
 
     def token_to_id(self, token):
         return self.tokens_to_ids([token])[0]
 
     def tokens_to_ids(self, tokens):
-        ids = self.tokenizer.convert_tokens_to_ids(tokens)
+        ids = self.convert_tokens_to_ids(tokens)
         return ids
 
     def ids_to_tokens(self, ids):
-        tokens = self.tokenizer.convert_ids_to_tokens(ids)
+        tokens = self.convert_ids_to_tokens(ids)
         return tokens
 
     def text_to_ids(self, text):
@@ -128,13 +94,6 @@ class NemoBertTokenizer(TokenizerSpec):
         tokens_clean = [t for t in tokens if t not in self.never_split]
         text = self.tokens_to_text(tokens_clean)
         return text
-
-    def add_special_tokens(self, special_tokens_dict):
-        # TODO: check that input's key is 'additional_special_tokens' or name of one of the previous special tokens
-        # and add them to never split list
-        self.tokenizer.add_special_tokens(special_tokens_dict)
-        # self.never_split.append(special_tokens_dict["additional_special_tokens"])
-        self.vocab_size = len(self.tokenizer)
 
     @property
     def pad_id(self):

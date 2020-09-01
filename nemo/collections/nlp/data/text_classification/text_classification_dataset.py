@@ -78,7 +78,7 @@ class TextClassificationDataset(Dataset):
         self.num_samples = num_samples
         self.shuffle = shuffle
         self.use_cache = use_cache
-        self.vocab_size = self.tokenizer.tokenizer.vocab_size
+        self.vocab_size = self.tokenizer.vocab_size
 
         if use_cache:
             data_dir, filename = os.path.split(input_file)

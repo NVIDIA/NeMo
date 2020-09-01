@@ -70,14 +70,32 @@ model:
     num_samples: -1
     batch_size: 64
 
+  tokenizer:
+    tokenizer_name: bert # or sentencepiece
+    pretrained_model_name: ${model.language_model.pretrained_model_name}
+    vocab_file: null # path to vocab file
+    data_file: null # used to build sentencepiece
+    sample_size: null # for sentencepiece
+    vocab_size: null # vocab size for building sentence piece
+    do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece  
+    tokenizer_model: null # only used if tokenizer is sentencepiece
+    special_tokens: 
+        unk_token: '[UNK]'
+        sep_token: '[SEP]'
+        pad_token: '[PAD]'
+        bos_token: '[CLS]'
+        mask_token: '[MASK]'
+        eos_token: '[SEP]'
+        cls_token: '[CLS]' 
+
   language_model:
+    model_type: bert
     pretrained_model_name: bert-base-uncased
     bert_checkpoint: null
-    bert_config: null
-    tokenizer: nemobert # only used if using custom checkpoint
-    vocab_file: null
-    tokenizer_model: null # only used if tokenizer is sentencepiece
-    do_lower_case: true # true for uncased models, false for cased models
+    bert_config_file: null # json file, precedence over bert_config
+    bert_config: null 
+
+
 
   punct_head:
     punct_num_fc_layers: 1

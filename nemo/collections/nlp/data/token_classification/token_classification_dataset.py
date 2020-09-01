@@ -215,7 +215,7 @@ class BertTokenClassificationDataset(Dataset):
         if not filename.endswith('.txt'):
             raise ValueError("{text_file} should have extension .txt")
 
-        tokenizer_type = type(tokenizer.tokenizer).__name__
+        tokenizer_type = type(tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         features_pkl = os.path.join(
             data_dir,

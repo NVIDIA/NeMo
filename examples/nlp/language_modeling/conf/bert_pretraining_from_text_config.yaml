@@ -30,7 +30,7 @@ model:
 
   language_model:
     model_type: bert
-    pretrained_model_name: ${model.pretrained_model_name}
+    pretrained_model_name: null 
     bert_checkpoint: null
     bert_config:
       attention_probs_dropout_prob: 0.1
@@ -49,13 +49,20 @@ model:
   tokenizer:
     tokenizer_name: bert # or sentencepiece
     pretrained_model_name: ${model.pretrained_model_name}
-    special_tokens: null
     vocab_file: null # path to vocab file
     data_file: null # used to build sentencepiece
     tokenizer_model: null # tokenizer model for sentencepiece
     sample_size: null # for sentencepiece
     vocab_size: ${model.language_model.bert_config.vocab_size} # vocab size for building sentence piece
     do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
+    special_tokens: 
+        unk_token: '[UNK]'
+        sep_token: '[SEP]'
+        pad_token: '[PAD]'
+        bos_token: '[CLS]'
+        mask_token: '[MASK]'
+        eos_token: '[SEP]'
+        cls_token: '[CLS]'
 
   train_ds:
     data_file: null # path to data file

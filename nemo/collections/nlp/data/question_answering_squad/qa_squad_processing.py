@@ -430,7 +430,7 @@ def convert_examples_to_features(
                 all_doc_tokens, tok_start_position, tok_end_position, tokenizer, example.answer_text
             )
 
-        # The -3 accounts for tokenizer.cls_token, tokenizer.sep_token and tokenizer.eos_token
+        # The -3 accounts for tokenizer.cls_token, tokenizer.sep_token and tokenizer.sep_token
         # doc_spans contains all possible contexts options of given length
         max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
         _DocSpan = collections.namedtuple("DocSpan", ["start", "length"])
@@ -451,7 +451,7 @@ def convert_examples_to_features(
             token_to_orig_map = {}
             token_is_max_context = {}
             segment_ids = []
-            tokens.append(tokenizer.bos_token)
+            tokens.append(tokenizer.cls_token)
             segment_ids.append(0)
             for token in query_tokens:
                 tokens.append(token)
@@ -467,7 +467,7 @@ def convert_examples_to_features(
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
                 segment_ids.append(1)
-            tokens.append(tokenizer.eos_token)
+            tokens.append(tokenizer.sep_token)
             segment_ids.append(1)
 
             input_ids = tokenizer.tokens_to_ids(tokens)

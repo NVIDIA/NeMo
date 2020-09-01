@@ -26,6 +26,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_model,
     get_megatron_lm_models_list,
 )
+from nemo.utils import logging
 
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
