@@ -56,14 +56,39 @@ We recommend using NVIDIA's PyTorch container version 20.06-py3 with NeMo's main
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
     stack=67108864 nvcr.io/nvidia/pytorch:20.06-py3
 
+
 Installation
 ~~~~~~~~~~~~
 Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
 
-``pip install nemo_toolkit[all]==version``
-
+* ``pip install nemo_toolkit[all]==version``
 * ``pip install nemo_toolkit[all]`` - latest released version (currently 0.11.0)
+
+Or if you want the latest (or particular) version from GitHub:
+
 * ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[nlp]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo.
+* ``./reinstall.sh`` - from NeMo's git root. This will install the version from current branch.
+
+Examples
+~~~~~~~~
+``<nemo_github_folder>/examples/`` folder contains various example scripts. Many of them look very similar and have the same arguments because
+we used `Facebook's Hydra <https://github.com/facebookresearch/hydra>`_ for configuration.
+
+Here is an example command which trains ASR model (QuartzNet15x5) on LibriSpeech, using 4 GPUs and mixed precision training.
+(It assumes you are inside the container with NeMo installed)
+
+.. code-block:: bash
+
+    root@987b39669a7e:/NeMo# python examples/asr/speech_to_text.py --config-name=quartznet_15x5 \
+    model.train_ds.manifest_filepath=<PATH_TO_DATA>/librispeech-train-all.json \
+    model.validation_ds.manifest_filepath=<PATH_TO_DATA>/librispeech-dev-other.json \
+    trainer.gpus=4 trainer.max_epochs=128 model.train_ds.batch_size=64 \
+    +trainer.precision=16 +trainer.amp_level=O1  \
+    +model.validation_ds.num_workers=16  +model.train_ds.num_workers=16
+
+    #(Optional) Tensorboard:
+    tensorboard --bind_all --logdir nemo_experiments
+
 
 
 Documentation
