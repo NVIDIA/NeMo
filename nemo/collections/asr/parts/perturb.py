@@ -43,6 +43,8 @@ import webdataset as wd
 from omegaconf import DictConfig, OmegaConf
 from scipy import signal
 from torch.utils.data import IterableDataset
+from typing import List, Union
+logging.debug("audio file: %s", file_id)
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
