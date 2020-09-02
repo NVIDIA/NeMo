@@ -14,59 +14,49 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+
 from os.path import expanduser
 from typing import Optional
 
-from hydra.core.config_store import ConfigStore
-from hydra.types import ObjectConf
-from torchvision.datasets import MNIST
+from omegaconf import OmegaConf, MISSING
+from hydra.utils import instantiate
+
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.core.classes import Dataset
-from nemo.core.config import Config
 from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.elements import ClassificationTarget, Index, NormalizedImageValue, StringLabel
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import add_port_docs, experimental
-
-# Create the config store instance.
-cs = ConfigStore.instance()
 
 
 @dataclass
-class MNISTDatasetConfig:
+class xMNISTDatasetConfig:
     """
-    Structured config for MNISTDataset class.
+    Structured config for xMNISTDataset class.
 
     Args:
         height: image height (DEFAULT: 28)
         width: image width (DEFAULT: 28)
         data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/mnist")
         train: use train or test splits (DEFAULT: True)
-        name: Name of the module (DEFAULT: None)
+        labels: Labels of the classes.
     """
-
+    _target_: str = MISSING
     height: int = 28
     width: int = 28
-    data_folder: str = "~/data/mnist"
+    data_folder: str = MISSING
     train: bool = True
     download: bool = True
+    labels: str = MISSING
 
-
-# Register the config.
-cs.store(
-    group="cv.dataset",
-    name="mnist",
-    node=ObjectConf(target="nemo.collections.cv.datasets.MNISTDataset", params=MNISTDatasetConfig()),
-)
-
-
-class MNISTDataset(Dataset):
+class xMNISTDataset(Dataset):
     """
-    A "thin wrapper" around the torchvision's MNIST dataset.
+    A generic "thin wrapper" around the torchvision's various variations of the MNIST dataset.
+    
+    Please analyse the available (x)MNISTDatasetConfig classes.
     """
 
-    def __init__(self, cfg: MNISTDatasetConfig = MNISTDatasetConfig()):
+    def __init__(self, cfg: xMNISTDatasetConfig = xMNISTDatasetConfig()):
         """
         Initializes the MNIST dataset.
 
@@ -81,21 +71,26 @@ class MNISTDataset(Dataset):
         self._height = cfg.height
         self._width = cfg.width
 
-        # Create transformations: up-scale and transform to tensors.
-        mnist_transforms = Compose([Resize((self._height, self._width)), ToTensor()])
+        # Create transformations: scale and transform to tensors.
+        transforms = Compose([Resize((self._height, self._width)), ToTensor()])
 
         # Get absolute path.
         abs_data_folder = expanduser(cfg.data_folder)
 
-        # Create the MNIST dataset object.
-        self._dataset = MNIST(root=abs_data_folder, train=cfg.train, download=cfg.download, transform=mnist_transforms)
+        # Create the config object for a given (x)MNIST.
+        xmnist_config = OmegaConf.create({
+            "_target_": cfg._target_,
+            "root": abs_data_folder,
+            "train": cfg.train,
+            "download": cfg.download
+            })
 
-        # Class names.
-        labels = 'Zero One Two Three Four Five Six Seven Eight Nine'.split(' ')
-        word_to_ix = {labels[i]: i for i in range(10)}
+        # Create the (x)MNIST dataset object.
+        self._dataset = instantiate(xmnist_config, transform=transforms)
 
-        # Reverse mapping.
-        self._ix_to_word = {value: key for (key, value) in word_to_ix.items()}
+        # Create mapping from class id to name.
+        labels = cfg.labels.split(" ")
+        self._ix_to_word = {i: l for i, l in zip(range(len(labels)), labels)}
 
     @property
     def output_types(self):
@@ -113,7 +108,7 @@ class MNISTDataset(Dataset):
                 ),
                 elements_type=NormalizedImageValue(),  # float, <0-1>
             ),
-            "targets": NeuralType(tuple('B'), elements_type=ClassificationTarget()),  # Target are ints!
+            "targets": NeuralType(tuple('B'), elements_type=ClassificationTarget()),  # Targets are ints!
             "labels": NeuralType(tuple('B'), elements_type=StringLabel()),  # Labels is string!
         }
 
