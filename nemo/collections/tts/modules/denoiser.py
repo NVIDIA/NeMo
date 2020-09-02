@@ -28,18 +28,18 @@ class SqueezeWaveDenoiser(torch.nn.Module):
         ).to(model.device)
 
         with torch.no_grad():
-            mel_input = torch.zeros((1, n_mel, 88)).to(model.device)
-            bias_audio = model.convert_spectrogram_to_audio(mel_input, sigma=0.0)
-            bias_spec, _ = self.stft.transform(bias_audio.unsqueeze(0))
-            self.bias_spec = bias_spec[:, :, 0][:, :, None]
+            spect = torch.zeros((1, n_mel, 88)).to(model.device)
+            bias_audio = model.convert_spectrogram_to_audio(spect=spect, sigma=0.0)
+            bias_spect, _ = self.stft.transform(bias_audio)
+            self.bias_spect = bias_spect[:, :, 0][:, :, None]
 
         # Reset mode to validation since `model.convert_spectrogram_to_audio` sets it to infer
         model.mode = OperationMode.validation
         model.squeezewave.mode = OperationMode.validation
 
     def forward(self, audio, strength=0.1):
-        audio_spec, audio_angles = self.stft.transform(audio)
-        audio_spec_denoised = audio_spec - self.bias_spec * strength
-        audio_spec_denoised = torch.clamp(audio_spec_denoised, 0.0)
-        audio_denoised = self.stft.inverse(audio_spec_denoised, audio_angles)
+        audio_spect, audio_angles = self.stft.transform(audio)
+        audio_spect_denoised = audio_spect - self.bias_spect * strength
+        audio_spect_denoised = torch.clamp(audio_spect_denoised, 0.0)
+        audio_denoised = self.stft.inverse(audio_spect_denoised, audio_angles)
         return audio_denoised
