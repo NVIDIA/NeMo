@@ -12,6 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+More details on how to use this script could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
+
+## Model Training
+
+To train PunctuationCapitalizationModel with the default config file, run:
+    python glue_benchmark.py \
+    model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
+    trainer.max_epochs=<NUM_EPOCHS> \
+    trainer.gpus="[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
+"""
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
