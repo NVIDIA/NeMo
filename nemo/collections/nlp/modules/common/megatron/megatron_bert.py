@@ -20,6 +20,7 @@ import torch
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
+from megatron.mpu import get_model_parallel_rank
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
@@ -105,12 +106,39 @@ class MegatronBertEncoder(BertModule):
         return sequence_output
 
     def restore_weights(self, restore_path: str):
-        """Restores module/model's weights"""
-        state_dict = torch.load(restore_path)
+        """Restores module/model's weights.
+           For model parallel checkpoints the directory structure 
+           should be restore_path/mp_rank_0X/model_optim_rng.pt
 
-        # to load from Megatron pretrained checkpoint
-        if 'model' in state_dict:
-            self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
+        Args:
+            restore_path (str): restore_path should a file or a directory if using model parallel
+        """
+        if os.path.isfile(restore_path):
+            logging.info(
+                f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism'
+            )
+            state_dict = torch.load(restore_path)
+            # to load from Megatron pretrained checkpoint
+            if 'model' in state_dict:
+                self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
+            else:
+                self.load_state_dict(state_dict)
+            logging.info(f"weights restored from {restore_path}")
+        elif os.path.isdir(restore_path):
+            model_parallel_size = len(os.listdir(restore_path))
+            logging.info(
+                (
+                    f'restore_path: {restore_path} is a directory. '
+                    f'Assuming megatron model parallelism with '
+                    f'model_parallel_size: {model_parallel_size}'
+                )
+            )
+            # need model parallel groups to restore
+            if torch.distributed.is_initialized() and get_model_parallel_rank():
+                mp_restore_path = f'{restore_path}/mp_rank_{get_model_parallel_rank():02d}/model_optim_rng.pt'
+                logging.info(f'Restoring model parallel checkpoint from: {mp_restore_path}')
+                self.restore_weights(mp_restore_path)
         else:
-            self.load_state_dict(state_dict)
-        logging.info(f"weights restored from {restore_path}")
+            logging.error(f'restore_path: {restore_path} must be a file or directory.')
+
+
