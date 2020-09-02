@@ -29,7 +29,6 @@ from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 
-from nemo.collections.common import callbacks
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging
 from nemo.utils.exceptions import NeMoBaseException
@@ -76,7 +75,6 @@ class ExpManagerConfig:
     create_checkpoint_callback: Optional[bool] = True
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
-    callbacks: Optional[str] = None
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
@@ -195,10 +193,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if is_global_rank_zero():
         if cfg.create_checkpoint_callback:
             configure_checkpointing(trainer, log_dir, checkpoint_name)
-
-        # Add nemo callbacks
-        if cfg.callbacks:
-            add_callbacks(trainer, cfg.callbacks)
 
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
@@ -561,12 +555,3 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
     trainer.configure_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
     trainer.checkpoint_callback = checkpoint_callback
-
-
-def add_callbacks(trainer: 'pytorch_lightning.Trainer', nemo_callbacks: Optional[List[str]]):
-
-    for callback in nemo_callbacks:
-        if callback in callbacks.AVAILABLE_CALLBACKS:
-            trainer.callbacks.append(callbacks.AVAILABLE_CALLBACKS[callback])
-        else:
-            raise NameError(" Request callback is not part of nemo callbacks please check callback name")
