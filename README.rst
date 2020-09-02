@@ -1,5 +1,5 @@
  
-|status| |v0110| |license| |lgtm_grade| |lgtm_alerts| |black| 
+|status| |stable| |license| |lgtm_grade| |lgtm_alerts| |black| 
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
@@ -191,43 +191,60 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 
 **NeMo Documentation**
 
+.. |main| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=main
+  :alt: Documentation Status
+  :scale: 100%
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/
+
 .. |master| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=master
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/master/
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/master/
 
-.. |latest| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=latest
+.. |latest| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=main
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/latest/
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/
 
 .. |stable| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/stable/
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/
+
+.. |v0111| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.11.1
+  :alt: Documentation Status
+  :scale: 100%
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.11.1/
 
 .. |v0110| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.11.0
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/v0.11.0/
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.11.0/
 
 .. |v0101| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.10.1
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/v0.10.1/
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.10.1/
 
 
 +---------+----------+---------------------------------------------------------+
 | Version | Status   | Description                                             |
 +=========+==========+=========================================================+
-| Master  | |master| | Documentation of the `master` branch                    |
+| Latest  | |latest| | Documentation of the latest (i.e. `main`) branch        |
 +---------+----------+---------------------------------------------------------+
-| Latest  | |latest| | Documentation of the latest (i.e. `master`) branch      |
+| Stable  | |stable| | Documentation of the stable (i.e. `0.11.1`) branch      |
++---------+----------+---------------------------------------------------------+
+| Main    | |main|   | Documentation of the `main` branch                      |
++---------+----------+---------------------------------------------------------+
+| Master  | |master| | Documentation of the `master` branch                      |
++---------+----------+---------------------------------------------------------+
+| v0.11.1 | |v0111|  | Documentation of the v0.11.1 release                    |
 +---------+----------+---------------------------------------------------------+
 | v0.11.0 | |v0110|  | Documentation of the v0.11.0 release                    |
 +---------+----------+---------------------------------------------------------+
 | v0.10.1 | |v0101|  | Documentation of the v0.10.1 release                    |
 +---------+----------+---------------------------------------------------------+
+
 
 **NeMo Test Suite**
 
