@@ -1,8 +1,9 @@
-# Overwrite model settings.
+# Overwrite "model" settings.
 model: 
   training:
     dataset:
       params:
+        # LeNet-5 accepts images of size 32x32
         width: 32
         height: 32
     dataloader:
@@ -12,7 +13,7 @@ model:
     params:
       lr: 0.01
 
-# Overwrite trainer settings.
+# Overwrite "trainer" settings: use 2 GPUs.
 trainer:
   gpus: 2
   distributed_backend: "dp"
