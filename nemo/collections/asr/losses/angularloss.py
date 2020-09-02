@@ -22,7 +22,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['AngularSoftmaxLoss']
 
 
-@experimental
 class AngularSoftmaxLoss(Loss, Typing):
     @property
     def input_types(self):

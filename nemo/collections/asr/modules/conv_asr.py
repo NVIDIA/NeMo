@@ -367,6 +367,7 @@ class SpeakerDecoder(NeuralModule):
     ):
         super().__init__()
         self.angular = angular
+        self.emb_id = 2
         if self.angular:
             bias = False
         else:
@@ -411,12 +412,12 @@ class SpeakerDecoder(NeuralModule):
         embs = []
 
         for layer in self.emb_layers:
-            pool, emb = layer(pool), layer[:2](pool)
+            pool, emb = layer(pool), layer[: self.emb_id](pool)
             embs.append(emb)
 
         if self.angular:
             for W in self.final.parameters():
-                W = F.normalize(W, p=2, dim=1)
+                _ = F.normalize(W, p=2, dim=1)
             pool = F.normalize(pool, p=2, dim=1)
 
         out = self.final(pool)
