@@ -21,8 +21,9 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
+from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.squeezewave import OperationMode
-from nemo.core.classes import ModelPT, typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     LengthsType,
@@ -32,7 +33,6 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
 @dataclass
@@ -50,12 +50,12 @@ class Preprocessor:
 class SqueezeWaveConfig:
     squeezewave: Dict[Any, Any] = MISSING
     preprocessor: Preprocessor = Preprocessor()
+    sigma: int = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models, export()
-class SqueezeWaveModel(ModelPT):
+class SqueezeWaveModel(Vocoder):
     """ SqueezeWave model that generates audio conditioned on mel-spectrogram
     """
 
@@ -74,7 +74,7 @@ class SqueezeWaveModel(ModelPT):
         OmegaConf.merge(cfg, schema)
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
-        self.sigma = 1.0
+        self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.squeezewave = instantiate(self._cfg.squeezewave)
         self.mode = OperationMode.infer
@@ -119,6 +119,20 @@ class SqueezeWaveModel(ModelPT):
             z, log_s_list, log_det_W_list, audio_pred = tensors
             return z, log_s_list, log_det_W_list, audio_pred, spect, spect_len
         return tensors  # audio_pred
+
+    @typecheck(
+        input_types={"spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
+        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+    )
+    def convert_spectrogram_to_audio(self, spect: torch.Tensor, sigma: bool = 1.0) -> torch.Tensor:
+        self.eval()
+        self.mode = OperationMode.infer
+        self.squeezewave.mode = OperationMode.infer
+
+        with torch.no_grad():
+            audio = self.squeezewave(spect=spect, run_inverse=True, audio=None, sigma=sigma)
+
+        return audio
 
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
@@ -187,16 +201,6 @@ class SqueezeWaveModel(ModelPT):
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
-
-    def convert_spectrogram_to_audio(self, spect: torch.Tensor, sigma: bool = 1.0) -> torch.Tensor:
-        self.eval()
-        self.mode = OperationMode.infer
-        self.squeezewave.mode = OperationMode.infer
-
-        with torch.no_grad():
-            audio = self.squeezewave(spect=spect.unsqueeze(0), run_inverse=True, audio=None, sigma=sigma)
-
-        return audio.squeeze(0)
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':

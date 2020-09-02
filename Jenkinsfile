@@ -50,8 +50,8 @@ pipeline {
     stage('L0: Unit Tests CPU') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       steps {
@@ -62,8 +62,8 @@ pipeline {
     stage('L0: Computer Vision Integration') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -89,8 +89,8 @@ pipeline {
     // stage('L0: Integration Tests CPU') {
     //   when {
     //     anyOf{
-    //       branch 'candidate'
-    //       changeRequest target: 'candidate'
+    //       branch 'main'
+    //       changeRequest target: 'main'
     //     }
     //   }
     //   steps {
@@ -108,8 +108,8 @@ pipeline {
     // stage('L1: System Tests CPU') {
     //   when {
     //     anyOf{
-    //       branch 'candidate'
-    //       changeRequest target: 'candidate'
+    //       branch 'main'
+    //       changeRequest target: 'main'
     //     }
     //   }
     //   steps {
@@ -120,8 +120,8 @@ pipeline {
     stage('L2: ASR dev run') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -189,8 +189,8 @@ pipeline {
     stage('L2: ASR Multi-dataloader dev run') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -230,8 +230,8 @@ pipeline {
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -244,9 +244,12 @@ pipeline {
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.test_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
+            model.test_ds.batch_size=2 \
             trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
@@ -267,6 +270,7 @@ pipeline {
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=true \
@@ -284,8 +288,8 @@ pipeline {
     stage('L2: Parallel MegaBERT Text Classification / SQUAD v2.0') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -323,6 +327,7 @@ pipeline {
             model.validation_ds.batch_size=4 \
 	    trainer.distributed_backend=ddp \
             trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
             model.dataset.version_2_with_negative=true \
@@ -340,8 +345,8 @@ pipeline {
     stage('L2: Parallel RoBERTa SQUAD v1.1') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -356,6 +361,7 @@ pipeline {
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
@@ -374,8 +380,8 @@ pipeline {
     stage('L2: Parallel NLP Examples 1') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -415,8 +421,8 @@ pipeline {
     stage('L2: Intent and Slot Classification') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -434,8 +440,8 @@ pipeline {
     stage('L2: Parallel GLUE Examples') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -449,7 +455,8 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc'
+            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc \
+            model.output_dir=examples/nlp/glue_benchmark/mrpc'
             sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
           }
         }
@@ -471,8 +478,8 @@ pipeline {
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -534,8 +541,8 @@ pipeline {
    stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -557,8 +564,8 @@ pipeline {
     stage('L2: Parallel NER with Megatron') {
      when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
      }
      failFast true
@@ -599,8 +606,8 @@ pipeline {
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       parallel {
@@ -636,8 +643,8 @@ pipeline {
     stage('L2: TTS Fast dev runs 2') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
 
@@ -674,8 +681,8 @@ pipeline {
     stage('L??: ASR Checkpoints tests') {
       when {
         anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true

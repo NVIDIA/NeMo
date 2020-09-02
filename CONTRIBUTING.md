@@ -12,7 +12,7 @@ We do all of NeMo's development in the open. Contributions from NeMo community a
 5) Make sure all unittests finish successfully before sending PR ``pytest`` or (if yor dev box does not have GPU) ``pytest --cpu`` from NeMo's root folder
 6) Send your PR and request a review
 
-Send your PR to the `master` branch
+Send your PR to the `main` branch
 
 Whom should you ask for review:
 1. For changes to NeMo's core: @okuchaiev, @blisc, @titu1994, @tkornuta-nvidia, or @ericharper

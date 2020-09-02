@@ -19,7 +19,7 @@ from nemo.collections.tts.modules.squeezewave import OperationMode
 
 
 class SqueezeWaveDenoiser(torch.nn.Module):
-    def __init__(self, model, n_mel=80, filter_length=1024, hop_length=512, win_length=1024, window='hann'):
+    def __init__(self, model, n_mel=80, filter_length=1024, hop_length=256, win_length=1024, window='hann'):
         super().__init__()
         assert hasattr(model, 'squeezewave')
 
@@ -28,7 +28,7 @@ class SqueezeWaveDenoiser(torch.nn.Module):
         ).to(model.device)
 
         with torch.no_grad():
-            mel_input = torch.zeros((n_mel, 88)).to(model.device)
+            mel_input = torch.zeros((1, n_mel, 88)).to(model.device)
             bias_audio = model.convert_spectrogram_to_audio(mel_input, sigma=0.0)
             bias_spec, _ = self.stft.transform(bias_audio.unsqueeze(0))
             self.bias_spec = bias_spec[:, :, 0][:, :, None]

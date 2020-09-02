@@ -28,12 +28,10 @@ from nemo.collections.common.metrics import TopKClassificationAccuracy, compute_
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
-@experimental
 class EncDecClassificationModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
@@ -146,6 +144,14 @@ class EncDecClassificationModel(ASRModel):
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v2.nemo",
             description="MatchboxNet model trained on Google Speech Commands dataset (v2, 30 classes) "
             "which obtains 97.29% accuracy on test set.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="MatchboxNet-3x1x64-v2-subset-task",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v2-subset-task.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) "
+            "which obtains 98.4% accuracy on test set.",
         )
         result.append(model)
         return result
@@ -297,6 +303,5 @@ class EncDecClassificationModel(ASRModel):
             logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
 
 
-@experimental
 class MatchboxNet(EncDecClassificationModel):
     pass
