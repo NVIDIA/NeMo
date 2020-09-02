@@ -13,4 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.cv.datasets.xmnist_dataset import xMNISTDataset
-from nemo.collections.cv.datasets.xmnist_configs import MNISTDatasetConfig
+from nemo.collections.cv.datasets.xmnist_configs import MNISTDatasetConfig, FashionMNISTDatasetConfig, KMNISTDatasetConfig
