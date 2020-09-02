@@ -89,6 +89,7 @@ model:
 
 trainer:
   gpus: 1 # number of gpus
+  max_epochs: 10000
   max_steps: 600000
   num_nodes: 1
   distributed_backend: ddp

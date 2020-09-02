@@ -23,7 +23,7 @@ from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.squeezewave import OperationMode
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     LengthsType,

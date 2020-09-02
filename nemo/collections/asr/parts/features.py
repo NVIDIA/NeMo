@@ -39,8 +39,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from librosa.util import pad_center, tiny
-from scipy.signal import get_window
+from librosa.util import tiny
 from torch.autograd import Variable
 from torch_stft import STFT
 
