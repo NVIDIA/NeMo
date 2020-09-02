@@ -41,7 +41,7 @@ import torch
 
 from nemo.collections.tts.modules.squeezewave_submodules import SqueezeWaveNet
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv
-from nemo.core.classes import Exportable, NeuralModule, typecheck
+from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     IntType,
@@ -61,7 +61,7 @@ class OperationMode(Enum):
 
 
 # TODO: Implement save_to() and restore_from()
-class SqueezeWaveModule(NeuralModule, Exportable):
+class SqueezeWaveModule(NeuralModule):
     def __init__(
         self,
         n_mel_channels: int,
