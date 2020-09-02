@@ -8,14 +8,14 @@ Currently, NeMo's TTS collection supports the following models:
 WaveGlow
 --------
 
-WaveGlow :cite:`tts-models-prenger2018waveglow` is a Flow-based generative model that generates audio from mel spectrogram.
+WaveGlow :cite:`tts-models-prenger2018waveglow` is a Flow-based generative model that generates audio from mel spectrograms.
 Comprised of several flow steps, WaveGlow learns an invertible mapping from a simple latent space to audio waveforms.
 
     .. image:: waveglow.png
         :align: center
         :alt: waveglow model
 
-WaveGlow can be instantiated using :class:`WaveGlowModel<nemo.collections.tts.models.WaveGlowModel>` class.
+WaveGlow can be instantiated using the :class:`WaveGlowModel<nemo.collections.tts.models.WaveGlowModel>` class.
 
 
 SqueezeWave
@@ -28,7 +28,7 @@ SqueezeWave also uses larger group sizes, which reduces computation along the te
         :align: center
         :alt: squeezewave vs waveglow wavenet modules
 
-SqueezeWave can be instantiated using :class:`SqueezeWaveModel<nemo.collections.tts.models.SqueezeWaveModel>` class.
+SqueezeWave can be instantiated using the :class:`SqueezeWaveModel<nemo.collections.tts.models.SqueezeWaveModel>` class.
 
 
 References

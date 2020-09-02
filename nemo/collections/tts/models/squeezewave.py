@@ -206,7 +206,3 @@ class SqueezeWaveModel(Vocoder):
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         """TODO: Implement me!"""
         pass
-
-    def export(self):
-        """TODO: Implement me!"""
-        pass

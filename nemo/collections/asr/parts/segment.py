@@ -133,7 +133,7 @@ class AudioSegment(object):
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim)
 
     @classmethod
-    def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False, truncate_to=1):
+    def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False):
         """Grabs n_segments number of samples from audio_file randomly from the
         file as opposed to at a specified offset.
 

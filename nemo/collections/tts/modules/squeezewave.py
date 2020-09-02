@@ -50,7 +50,6 @@ from nemo.core.neural_types.elements import (
     VoidType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import experimental
 
 
 class OperationMode(Enum):
@@ -61,7 +60,7 @@ class OperationMode(Enum):
     infer = 2
 
 
-@experimental  # TODO: Implement save_to() and restore_from()
+# TODO: Implement save_to() and restore_from()
 class SqueezeWaveModule(NeuralModule, Exportable):
     def __init__(
         self,

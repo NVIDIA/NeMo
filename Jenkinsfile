@@ -649,9 +649,9 @@ pipeline {
       }
 
       parallel {
-        stage('GlowTTS') {
+        stage('SqueezeWave') {
           steps {
-            sh 'python examples/tts/glow_tts.py \
+            sh 'python examples/tts/squeezewave.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[1]" \
@@ -662,9 +662,9 @@ pipeline {
             model.validation_ds.batch_size=4'
           }
         }
-        stage('SqueezeWave') {
+        stage('GlowTTS') {
           steps {
-            sh 'python examples/tts/squeezewave.py \
+            sh 'python examples/tts/glow_tts.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[1]" \

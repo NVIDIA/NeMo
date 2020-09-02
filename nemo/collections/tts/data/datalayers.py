@@ -118,7 +118,7 @@ class AudioDataset(Dataset):
         """
         example = self.collection[index]
         features = AudioSegment.segment_from_file(
-            example.audio_file, n_segments=self.n_segments, trim=self.trim, truncate_to=self.truncate_to
+            example.audio_file, n_segments=self.n_segments, trim=self.trim,
         )
         features = torch.tensor(features.samples)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()

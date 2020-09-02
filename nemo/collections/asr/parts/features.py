@@ -354,9 +354,7 @@ class FilterbankFeatures(nn.Module):
             x = x.pow(self.mag_power)
 
         # dot with filterbank energies
-        # disable autocast to get full range of mel values
-        with torch.cuda.amp.autocast(enabled=False):
-            x = torch.matmul(self.fb.to(x.dtype), x)
+        x = torch.matmul(self.fb.to(x.dtype), x)
 
         # log features if required
         if self.log:
