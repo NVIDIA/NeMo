@@ -37,7 +37,6 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 

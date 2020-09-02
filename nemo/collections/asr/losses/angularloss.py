@@ -17,7 +17,6 @@ import torch
 
 from nemo.core.classes import Loss, Typing, typecheck
 from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['AngularSoftmaxLoss']
 
