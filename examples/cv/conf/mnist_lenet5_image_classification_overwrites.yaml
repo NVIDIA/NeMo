@@ -10,12 +10,9 @@ model:
         batch_size: 64
   optim:
     params:
-      lr: 0.02
-    
+      lr: 0.01
 
 # Overwrite trainer settings.
 trainer:
   gpus: 2
   distributed_backend: "dp"
-
-

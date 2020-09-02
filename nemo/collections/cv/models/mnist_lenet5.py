@@ -19,7 +19,7 @@ import hydra
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
+from nemo.collections.cv.datasets import xMNISTDataset, MNISTDatasetConfig
 from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.modules import LeNet5 as LeNet5Module
 from nemo.core.classes import ModelPT
@@ -78,7 +78,7 @@ class MNISTLeNet5(ModelPT):
         # transform = transforms.Compose([hydra.utils.instantiate(trans) for trans in self.data.tf])
         # self.train_set = hydra.utils.instantiate(self.data.ds, transform=transform, train=True)
         # Instantiate dataset.
-        self._train_set = MNISTDataset(self._cfg.training.dataset.params)
+        self._train_set = xMNISTDataset(self._cfg.training.dataset.params)
 
     def training_step(self, batch, what_is_this_input):
         """ Training step, calculate loss. """

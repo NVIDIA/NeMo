@@ -1,8 +1,8 @@
 defaults:
   # Load default model settings.
-  - cv.dataset@model.training.dataset: mnist
+  - nemo.collections.cv.datasets@model.training.dataset: MNIST
   - dataloader@model.training.dataloader: dataloader
-  - optim@model.optim: novograd
+  - optim@model.optim: adam
   # Load default trainer settings.
   - trainer: trainer
   # Overwrite the default settings.
