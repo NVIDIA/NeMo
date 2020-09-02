@@ -32,22 +32,18 @@ from nemo.core.neural_types.neural_type import NeuralType
 @dataclass
 class xMNISTDatasetConfig:
     """
-    Structured config for xMNISTDataset class.
+    The "default" structured config for xMNISTDataset class.
 
     Args:
+        _target_: specification of TorchVision dataset class (DEFAULT: MISSING)
         height: image height (DEFAULT: 28)
         width: image width (DEFAULT: 28)
-        data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/mnist")
+        data_folder: path to the folder with data, can be relative to user (DEFAULT: MISSING)
         train: use train or test splits (DEFAULT: True)
-        labels: Labels of the classes.
+        download: download the data (DEFAULT: True)
+        labels: Labels of the classes (DEFAULT: MISSING)
     """
     _target_: str = MISSING
-    height: int = 28
-    width: int = 28
-    data_folder: str = MISSING
-    train: bool = True
-    download: bool = True
-    labels: str = MISSING
 
 class xMNISTDataset(Dataset):
     """
@@ -89,7 +85,7 @@ class xMNISTDataset(Dataset):
         self._dataset = instantiate(xmnist_config, transform=transforms)
 
         # Create mapping from class id to name.
-        labels = cfg.labels.split(" ")
+        labels = cfg.labels.split(",")
         self._ix_to_word = {i: l for i, l in zip(range(len(labels)), labels)}
 
     @property

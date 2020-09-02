@@ -26,8 +26,8 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification")
 def main(cfg: DictConfig):
-    # Show configuration - user can modify every parameter from command line!
-    logging.info("Application config\n" + OmegaConf.to_yaml(cfg))
+    # Show configuration.
+    logging.info("Application settings\n" + OmegaConf.to_yaml(cfg))
 
     # Create trainer.
     trainer = ptl.Trainer(**(cfg.trainer))
