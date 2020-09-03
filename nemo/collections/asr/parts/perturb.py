@@ -36,6 +36,7 @@ import copy
 import io
 import os
 import random
+from typing import List, Union
 
 import librosa
 import numpy as np
@@ -43,7 +44,6 @@ import webdataset as wd
 from omegaconf import DictConfig, OmegaConf
 from scipy import signal
 from torch.utils.data import IterableDataset
-from typing import List, Union
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment

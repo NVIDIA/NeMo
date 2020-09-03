@@ -31,6 +31,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+
 class RirAndNoisePerturbation(perturb.Perturbation):
     def __init__(
         self,
@@ -88,7 +89,7 @@ class RirAndNoisePerturbation(perturb.Perturbation):
             manifest_path=rir_manifest_path,
             audio_tar_filepaths=rir_tar_filepaths,
             shuffle_n=rir_shuffle_n,
-            shift_impulse=True
+            shift_impulse=True,
         )
         self._fg_noise_perturbers = {}
         self._bg_noise_perturbers = {}
@@ -221,7 +222,6 @@ def get_augmentor_dict():
         transcode_aug=dict(prob=0.5,),
     )
     return audio_augmentations
-
 
 
 @hydra_runner(config_path="../conf", config_name="quartznet_15x5")
