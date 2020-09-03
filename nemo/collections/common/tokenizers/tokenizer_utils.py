@@ -16,106 +16,78 @@ import os
 from typing import List, Optional
 
 import nemo
-from nemo.collections.common.tokenizers import AlbertTokenizer, BertTokenizer, DistilBertTokenizer, RobertaTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_models_list
+from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
+    get_all_huggingface_pretrained_lm_models_list,
+)
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
 
 __all__ = ['get_tokenizer']
 
-MODEL_SPECIAL_TOKENS = {
-    'bert': {
-        'unk_token': '[UNK]',
-        'sep_token': '[SEP]',
-        'pad_token': '[PAD]',
-        'bos_token': '[CLS]',
-        'mask_token': '[MASK]',
-        'eos_token': '[SEP]',
-        'cls_token': '[CLS]',
-    },
-    'distilbert': {
-        'unk_token': '[UNK]',
-        'sep_token': '[SEP]',
-        'pad_token': '[PAD]',
-        'bos_token': '[CLS]',
-        'mask_token': '[MASK]',
-        'eos_token': '[SEP]',
-        'cls_token': '[CLS]',
-    },
-    'roberta': {
-        'unk_token': '<unk>',
-        'sep_token': '</s>',
-        'pad_token': '<pad>',
-        'bos_token': '<s>',
-        'mask_token': '<mask>',
-        'eos_token': '</s>',
-        'cls_token': '<s>',
-    },
-    'albert': {
-        'unk_token': '<unk>',
-        'sep_token': '[SEP]',
-        'pad_token': '<pad>',
-        'bos_token': '[CLS]',
-        'mask_token': '[MASK]',
-        'eos_token': '[SEP]',
-        'cls_token': '[CLS]',
-    },
-}
 
-
-TOKENIZERS = {
-    'bert': BertTokenizer,
-    'albert': AlbertTokenizer,
-    'roberta': RobertaTokenizer,
-    'distilbert': DistilBertTokenizer,
-}
+def get_tokenizer_list() -> List[str]:
+    """
+    Returns all all supported tokenizer names
+    """
+    s = set(get_pretrained_lm_models_list())
+    s.update(set(get_all_huggingface_pretrained_lm_models_list()))
+    return ["sentencepiece"] + list(s)
 
 
 def get_tokenizer(
     tokenizer_name: str,
-    pretrained_model_name: Optional[str] = None,
     data_file: Optional[str] = None,
     tokenizer_model: Optional[str] = None,
     sample_size: Optional[int] = None,
     special_tokens: Optional[List[str]] = None,
     vocab_file: Optional[str] = None,
     vocab_size: Optional[int] = None,
-    do_lower_case: Optional[bool] = False,
+    do_lower_case: Optional[bool] = None,
 ):
     """
     Args:
-        tokenizer_name: sentencepiece or lm model name, e.g. bert, albert
+        tokenizer_name: sentencepiece or pretrained model from the hugging face list,
+            for example: bert-base-cased
+            To see the list of pretrained models, use: nemo_nlp.modules.common.get_all_huggingface_pretrained_lm_models_list()
         data_file: data file used to build sentencepiece
         tokenizer_model: tokenizer model file of sentencepiece
         sample_size: sample size for building sentencepiece
-        pretrained_model_name: name of the pretrained model from the hugging face list,
-            for example: bert-base-cased
-            To see the list of pretrained models, use: nemo_nlp.modules.common.get_pretrained_lm_models_list()
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         vocab_size: vocab size for building sentence piece
         do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with
              sentencepiece
     """
-    pretrained_lm_models_list = nemo.collections.nlp.modules.common.common_utils.get_pretrained_lm_models_list()
-    if pretrained_model_name and pretrained_model_name not in pretrained_lm_models_list:
+    full_huggingface_pretrained_model_list = get_all_huggingface_pretrained_lm_models_list()
+
+    if tokenizer_name not in get_tokenizer_list():
         raise ValueError(
-            f'Provided pretrained_model_name: "{pretrained_model_name}" is not supported, choose from {pretrained_lm_models_list}'
+            f'Provided tokenizer_name: "{tokenizer_name}" is not supported, choose from {get_tokenizer_list()}'
         )
 
-    if tokenizer_name == "megatron":
-        do_lower_case = nemo.collections.nlp.modules.common.megatron.megatron_utils.is_lower_cased_megatron(
-            pretrained_model_name
-        )
-        vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
-            pretrained_model_name
-        )
-        tokenizer_name = 'bert'
-        pretrained_model_name = None
+    if tokenizer_name.split('-') and tokenizer_name.split('-')[0] == "megatron":
+        if do_lower_case is None:
+            do_lower_case = (
+                do_lower_case
+                or nemo.collections.nlp.modules.common.megatron.megatron_utils.is_lower_cased_megatron(tokenizer_name)
+            )
+        if vocab_file is None:
+            vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
+                tokenizer_name
+            )
+        tokenizer_name = get_megatron_tokenizer(tokenizer_name)
 
-    if tokenizer_name in ['bert', 'albert', 'roberta', 'distilbert']:
-        tokenizer = get_huggingface_tokenizer(
-            pretrained_model_name=pretrained_model_name,
+    if tokenizer_name in full_huggingface_pretrained_model_list:
+        if special_tokens is None:
+            special_tokens_dict = {}
+        else:
+            special_tokens_dict = special_tokens
+        tokenizer = AutoTokenizer(
+            pretrained_model_name=tokenizer_name,
             vocab_file=vocab_file,
             do_lower_case=do_lower_case,
-            tokenizer_name=tokenizer_name,
+            **special_tokens_dict,
         )
     elif tokenizer_name == 'sentencepiece':
         if not tokenizer_model and not data_file:
@@ -138,18 +110,3 @@ def get_tokenizer(
     else:
         raise ValueError(f'{tokenizer_name} is not supported')
     return tokenizer
-
-
-def get_huggingface_tokenizer(
-    tokenizer_name: str,
-    pretrained_model_name: Optional[str] = None,
-    vocab_file: Optional[str] = None,
-    do_lower_case: Optional[bool] = None,
-):
-
-    tokenizer_cls = TOKENIZERS[tokenizer_name]
-    if pretrained_model_name:
-        tok = tokenizer_cls.from_pretrained(pretrained_model_name)
-    else:
-        tok = tokenizer_cls(vocab_file=vocab_file, do_lower_case=do_lower_case)
-    return tok

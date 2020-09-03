@@ -222,7 +222,6 @@ class IntentSlotClassificationModel(ModelPT):
             data_file=cfg.data_file,
             tokenizer_model=cfg.tokenizer_model,
             sample_size=cfg.sample_size,
-            pretrained_model_name=cfg.pretrained_model_name,
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
             vocab_file=cfg.vocab_file,
             vocab_size=cfg.vocab_size,

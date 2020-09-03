@@ -67,8 +67,7 @@ model:
     batch_size: 64
 
   tokenizer:
-      tokenizer_name: bert # or sentencepiece
-      pretrained_model_name: ${model.language_model.pretrained_model_name}
+      tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
       vocab_file: null # path to vocab file
       data_file: null # used to build sentencepiece
       sample_size: null # for sentencepiece

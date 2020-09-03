@@ -47,8 +47,7 @@ model:
     bert_config_file: null # json file, precedence over bert_config
 
   tokenizer:
-    tokenizer_name: bert # or sentencepiece
-    pretrained_model_name: ${model.pretrained_model_name}
+    tokenizer_name: ${model.pretrained_model_name} # or sentencepiece
     vocab_file: null # path to vocab file
     data_file: null # used to build sentencepiece
     tokenizer_model: null # tokenizer model for sentencepiece

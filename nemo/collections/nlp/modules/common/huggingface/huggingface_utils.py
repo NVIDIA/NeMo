@@ -16,6 +16,7 @@ from typing import List, Optional
 
 from transformers import (
     ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
     BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
@@ -31,7 +32,14 @@ from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBer
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.utils import logging
 
-__all__ = ['HUGGINGFACE_MODELS', 'get_huggingface_lm_model', 'get_huggingface_pretrained_lm_models_list']
+__all__ = (
+    [
+        'HUGGINGFACE_MODELS',
+        'get_huggingface_lm_model',
+        'get_huggingface_pretrained_lm_models_list',
+        'get_all_huggingface_pretrained_lm_models_list',
+    ],
+)
 
 
 HUGGINGFACE_MODELS = {
@@ -99,3 +107,10 @@ def get_huggingface_pretrained_lm_models_list() -> List[str]:
         model_names = HUGGINGFACE_MODELS[model]['pretrained_model_list']
         huggingface_models.extend(model_names)
     return huggingface_models
+
+
+def get_all_huggingface_pretrained_lm_models_list() -> List[str]:
+    '''
+    Returns the list of all HuggingFace pretrained models
+    '''
+    return list(ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys())

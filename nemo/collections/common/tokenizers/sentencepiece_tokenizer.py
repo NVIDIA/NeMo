@@ -20,7 +20,6 @@ import sentencepiece
 
 from nemo.collections.common.parts.utils import if_exist
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
 from nemo.utils import logging
 
 __all__ = ['SentencePieceTokenizer', 'create_spt_model']
@@ -39,7 +38,6 @@ class SentencePieceTokenizer(TokenizerSpec):
         """
         self.tokenizer = sentencepiece.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
-        # without special tokens
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
         self.special_token_to_id = {}
