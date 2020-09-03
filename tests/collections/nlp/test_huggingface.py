@@ -17,6 +17,7 @@ import tempfile
 from unittest import TestCase
 
 import pytest
+import torch
 
 import nemo.collections.nlp as nemo_nlp
 
@@ -26,7 +27,8 @@ def do_export(model, name: str):
         # Generate filename in the temporary directory.
         tmp_file_name = os.path.join(tmpdir, name + '.onnx')
         # Test export.
-        model = model.cuda()
+        if torch.cuda.is_available():
+            model = model.cuda()
         model.export(tmp_file_name)
 
 

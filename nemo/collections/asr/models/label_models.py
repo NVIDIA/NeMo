@@ -35,7 +35,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 
 
-@experimental
 class EncDecSpeakerLabelModel(ModelPT):
     """Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
