@@ -422,7 +422,7 @@ class AudioLabelDataset(Dataset):
                 offset = 0
 
             features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim,
             )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
