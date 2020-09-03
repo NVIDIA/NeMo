@@ -15,7 +15,11 @@
 # limitations under the License.
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model, get_pretrained_lm_models_list
+from nemo.collections.nlp.modules.common.common_utils import (
+    get_megatron_lm_models_list,
+    get_pretrained_lm_model,
+    get_pretrained_lm_models_list,
+)
 from nemo.collections.nlp.modules.common.huggingface import (
     AlbertEncoder,
     BertEncoder,
