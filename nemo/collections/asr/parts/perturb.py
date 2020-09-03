@@ -331,12 +331,12 @@ class NoisePerturbation(Perturbation):
         rng=None,
         audio_tar_filepaths=None,
         shuffle_n=100,
-        max_freq=16000,
+        orig_sr=16000,
     ):
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
         self._audiodataset = None
         self._tarred_audio = False
-        self._max_freq = max_freq
+        self._orig_sr = orig_sr
         self._data_iterator = None
 
         if audio_tar_filepaths:
@@ -350,8 +350,8 @@ class NoisePerturbation(Perturbation):
         self._max_gain_db = max_gain_db
 
     @property
-    def max_freq(self):
-        return self._max_freq
+    def orig_sr(self):
+        return self._orig_sr
 
     def get_one_noise_sample(self, target_sr):
         return read_one_audiosegment(
@@ -386,7 +386,7 @@ class NoisePerturbation(Perturbation):
         else:
             data._samples += noise._samples
 
-    def perturb_with_point_noise(
+    def perturb_with_foreground_noise(
         self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1,
     ):
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
