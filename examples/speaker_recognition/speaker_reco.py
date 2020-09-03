@@ -25,7 +25,7 @@ from nemo.utils.exp_manager import exp_manager
 """
 Basic run (on CPU for 50 epochs):
 EXP_NAME=sample_run
-python ./speaker_reco.py --config-path='/mnt/ngc_ws/new_configs/' --config-name=$CONFIG_PATH \
+python ./speaker_reco.py --config-path='conf' --config-name='config.yaml' \
     trainer.max_epochs=10  \
     model.train_ds.batch_size=64 model.validation_ds.batch_size=64 \
     trainer.gpus=0 \
@@ -37,9 +37,6 @@ Add PyTorch Lightning Trainer arguments from CLI:
     python speaker_reco.py \
         ... \
         +trainer.fast_dev_run=true
-
-Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
-PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
 
 """
 

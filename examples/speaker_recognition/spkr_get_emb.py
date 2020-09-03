@@ -23,10 +23,11 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 """
-Basic run (on CPU for 50 epochs):
+To extract embeddings
     python examples/speaker_recognition/spkr_get_emb.py \
-        model.train_ds.manifest_filepath="<train_manifest_file>" \
         model.test_ds.manifest_filepath="<validation_manifest_file>" \
+        exp_manager.exp_name="<trained_model_name>"
+        exp_manager.exp_dir="<path to model chckpoint directories>"
         hydra.run.dir="." \
         trainer.gpus=1 
 """
