@@ -17,13 +17,13 @@ from typing import List, Optional
 
 import nemo
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_all_huggingface_pretrained_lm_models_list,
 )
+from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
 
-__all__ = ['get_tokenizer']
+__all__ = ['get_tokenizer', 'get_tokenizer_list']
 
 
 def get_tokenizer_list() -> List[str]:

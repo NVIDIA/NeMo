@@ -20,14 +20,14 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
     BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
