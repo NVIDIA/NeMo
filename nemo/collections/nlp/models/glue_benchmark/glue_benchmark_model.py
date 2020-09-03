@@ -79,8 +79,8 @@ class GLUEModel(ModelPT):
         self.data_dir = cfg.dataset.data_dir
         if not os.path.exists(self.data_dir):
             raise FileNotFoundError(
-                "GLUE datasets not found. Datasets can be "
-                "obtained at https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e"
+                "GLUE datasets not found. For more details on how to get the data, see: "
+                "https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e"
             )
 
         if cfg.task_name not in cfg.supported_tasks:
