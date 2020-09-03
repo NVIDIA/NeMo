@@ -355,12 +355,12 @@ class NoisePerturbation(Perturbation):
 
     def get_one_noise_sample(self, target_sr):
         return read_one_audiosegment(
-            self._manifest, target_sr, self._rng, tarred_audio=self._tarred_audio, audiodata=self._data_iterator
+            self._manifest, target_sr, self._rng, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator
         )
 
     def perturb(self, data):
         noise = read_one_audiosegment(
-            self._manifest, data.sample_rate, self._rng, tarred_audio=self._tarred_audio, audiodata=self._data_iterator
+            self._manifest, data.sample_rate, self._rng, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator
         )
         self.perturb_with_input_noise(data, noise)
 

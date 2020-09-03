@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import os
 import random
 import subprocess
@@ -21,8 +20,7 @@ from tempfile import NamedTemporaryFile
 import numpy as np
 import pytorch_lightning as pl
 import soundfile as sf
-import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.collections.asr.parts import perturb
