@@ -356,13 +356,7 @@ class SpeakerDecoder(NeuralModule):
         )
 
     def __init__(
-        self,
-        feat_in,
-        num_classes,
-        emb_sizes=[1024, 1024],
-        pool_mode='xvector',
-        angular=False,
-        init_mode="xavier_uniform",
+        self, feat_in, num_classes, emb_sizes=None, pool_mode='xvector', angular=False, init_mode="xavier_uniform",
     ):
         super().__init__()
         self.angular = angular
@@ -374,6 +368,8 @@ class SpeakerDecoder(NeuralModule):
 
         if type(emb_sizes) is str:
             emb_sizes = emb_sizes.split(',')
+        elif emb_sizes == None:
+            emb_sizes = [512, 512]
         else:
             emb_sizes = list(emb_sizes)
 
@@ -416,7 +412,7 @@ class SpeakerDecoder(NeuralModule):
 
         if self.angular:
             for W in self.final.parameters():
-                _ = F.normalize(W, p=2, dim=1)
+                W = F.normalize(W, p=2, dim=1)
             pool = F.normalize(pool, p=2, dim=1)
 
         out = self.final(pool)

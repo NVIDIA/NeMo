@@ -167,7 +167,7 @@ target_label_n, "offset": offset_in_sec_n}
         slice_length = self.featurizer.sample_rate * self.time_length
         _, audio_lengths, _, tokens_lengths = zip(*batch)
         slice_length = min(slice_length, max(audio_lengths))
-        shift = 1 * 16000
+        shift = 1 * self.featurizer.sample_rate
         has_audio = audio_lengths[0] is not None
 
         audio_signal, num_slices, tokens, audio_lengths = [], [], [], []

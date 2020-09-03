@@ -31,7 +31,6 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 
@@ -53,9 +52,9 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
         if 'angular' in cfg.decoder.params and cfg.decoder.params['angular']:
             logging.info("Training with Angular Softmax Loss")
-            s = cfg.loss.s
-            m = cfg.loss.m
-            self.loss = AngularSoftmaxLoss(s=s, m=m)
+            scale = cfg.loss.scale
+            margin = cfg.loss.margin
+            self.loss = AngularSoftmaxLoss(scale=scale, margin=margin)
         else:
             logging.info("Training with Softmax-CrossEntropy loss")
             self.loss = CELoss()
@@ -150,7 +149,6 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
-        # import ipdb; ipdb.set_trace()
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         self.loss_value = self.loss(logits=logits, labels=labels)
@@ -185,7 +183,7 @@ class EncDecSpeakerLabelModel(ModelPT):
         total_counts = torch.stack([x['val_total_counts'] for x in outputs])
 
         topk_scores = compute_topk_accuracy(correct_counts, total_counts)
-
+        logging.info("val_loss: {:.3f}".format(self.val_loss_mean))
         tensorboard_log = {'val_loss': self.val_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
