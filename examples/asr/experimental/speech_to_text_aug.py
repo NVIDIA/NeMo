@@ -62,7 +62,11 @@ class RirAndNoisePerturbation(perturb.Perturbation):
         self._rir_prob = rir_prob
         self._rng = random.Random() if rng is None else rng
         self._rir_perturber = perturb.ImpulsePerturbation(
-            manifest_path=rir_manifest_path, rng=rng, audio_tar_filepaths=rir_tar_filepaths, shuffle_n=rir_shuffle_n
+            manifest_path=rir_manifest_path,
+            rng=rng,
+            audio_tar_filepaths=rir_tar_filepaths,
+            shuffle_n=rir_shuffle_n,
+            shift_impulse=True
         )
         self._fg_noise_perturbers = {}
         self._bg_noise_perturbers = {}
@@ -109,10 +113,6 @@ class RirAndNoisePerturbation(perturb.Perturbation):
                     max_freq=max_freq,
                 )
 
-        # self._fg_noise_perturber = NoisePerturbation(manifest_path=noise_manifest_path, min_snr_db=min_snr_db,
-        #                                             max_snr_db=max_snr_db, max_gain_db=max_gain_db, rng=rng,
-        #                                             audio_tar_filepaths=noise_tar_filepaths, shuffle_n=noise_shuffle_n,
-        #                                             max_freq=16000)
         self._apply_noise_rir = apply_noise_rir
 
     def perturb(self, data):
@@ -148,8 +148,12 @@ class TranscodePerturbation(perturb.Perturbation):
         self._codecs = ["g711", "amr-nb"]
 
     def perturb(self, data):
+        att_factor = 0.8
+        max_level = np.max(np.abs(data._samples))
+        norm_factor = att_factor / max_level
+        norm_samples = norm_factor * data._samples
         orig_f = NamedTemporaryFile(suffix=".wav")
-        sf.write(orig_f.name, data._samples.transpose(), 16000)
+        sf.write(orig_f.name, norm_samples.transpose(), 16000)
 
         codec_ind = random.randint(0, len(self._codecs) - 1)
         if self._codecs[codec_ind] == "amr-nb":

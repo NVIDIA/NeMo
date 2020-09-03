@@ -82,9 +82,6 @@ class CharParser:
     def _tokenize(self, text: str) -> List[int]:
         tokens = []
         # Split by word for find special labels.
-        if isinstance(text, float):
-            logging.info(f'boo {text}')
-
         for word_id, word in enumerate(text.split(' ')):
             if word_id != 0:  # Not first word - so we insert space before.
                 tokens.append(self._labels_map.get(' ', self._unk_id))
