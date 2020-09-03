@@ -17,7 +17,6 @@ from typing import List, Optional
 import frozendict
 
 from nemo.collections.asr.parts import cleaners
-from nemo.utils import logging
 
 
 class CharParser:

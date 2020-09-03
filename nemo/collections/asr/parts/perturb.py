@@ -285,7 +285,7 @@ class ImpulsePerturbation(Perturbation):
             data.sample_rate,
             self._rng,
             tarred_audio=self._tarred_audio,
-            audiodata=self._data_iterator,
+            audio_dataset=self._data_iterator,
         )
         if not self._shift_impulse:
             impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
