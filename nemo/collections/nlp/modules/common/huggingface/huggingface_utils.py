@@ -32,7 +32,7 @@ from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBer
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.utils import logging
 
-__all__ = (['HUGGINGFACE_MODELS', 'get_huggingface_lm_model', 'get_huggingface_pretrained_lm_models_list',],)
+__all__ = ['get_huggingface_lm_model', 'get_huggingface_pretrained_lm_models_list']
 
 
 HUGGINGFACE_MODELS = {

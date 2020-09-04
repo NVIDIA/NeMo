@@ -18,7 +18,6 @@ from typing import List, Optional
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
-    HUGGINGFACE_MODELS,
     get_huggingface_lm_model,
     get_huggingface_pretrained_lm_models_list,
 )
