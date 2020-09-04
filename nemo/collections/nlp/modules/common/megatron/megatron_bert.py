@@ -26,6 +26,7 @@ from megatron.mpu import get_model_parallel_group
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 from nemo.utils.decorators import experimental
 
 __all__ = ['MegatronBertEncoder']
@@ -61,12 +62,10 @@ class MegatronBertEncoder(BertModule):
 
         config['onnx_safe'] = True
 
-        # config['hidden_size'] = 1024 
-        # config['num_attention_heads'] = 16 
-        # config['num_layers'] = 24
-        # config['max_position_embeddings'] = 512
+        app_state = AppState()
 
-        os.environ["WORLD_SIZE"] = "2"
+        # must be set for megatron-lm
+        os.environ["WORLD_SIZE"] = str(app_state.world_size)
 
         def _update_model_parallel_arg(parser):
             parser.set_defaults(model_parallel_size=2)
@@ -158,7 +157,6 @@ class MegatronBertEncoder(BertModule):
             # need model parallel groups to restore
             if torch.distributed.is_initialized():
                 model_parallel_rank = torch.distributed.get_rank(group=get_model_parallel_group())
-                #mp_restore_path = f'{restore_path}/mp_rank_{get_model_parallel_rank():02d}/model_optim_rng.pt'
                 mp_restore_path = f'{restore_path}/mp_rank_{model_parallel_rank:02d}/model_optim_rng.pt'
                 logging.info(f'Restoring model parallel checkpoint from: {mp_restore_path}')
                 state_dict = torch.load(mp_restore_path)
