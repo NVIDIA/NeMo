@@ -262,7 +262,7 @@ pipeline {
         model.dataset.use_cache=false \
         model.language_model.model_type=megatron \
         model.language_model.pretrained_model_name=megatron-bert-uncased \
-        model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
+        model.language_model.lm_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
         model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
         trainer.distributed_backend=ddp \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
@@ -575,7 +575,7 @@ pipeline {
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
               model.train_ds.batch_size=8 \
-              model.language_model.bert_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
+              model.language_model.lm_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
               model.optim.lr=0.875e-4 \
               model.optim.weight_decay=0.01 \

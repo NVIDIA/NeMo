@@ -57,7 +57,7 @@ model:
     model_type: bert
     max_seq_length: 50
     pretrained_model_name: bert-base-uncased
-    bert_checkpoint: null
+    lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null 
 

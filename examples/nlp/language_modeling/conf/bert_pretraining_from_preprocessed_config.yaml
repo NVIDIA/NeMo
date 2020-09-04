@@ -25,7 +25,7 @@ model:
   language_model:
     model_type: bert
     pretrained_model_name: null # huggingface model name
-    bert_checkpoint: null
+    lm_checkpoint: null
     config:
       attention_probs_dropout_prob: 0.1
       hidden_act: gelu

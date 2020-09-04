@@ -111,7 +111,7 @@ model:
   language_model:
     model_type: bert
     pretrained_model_name: ${model.pretrained_model_name}
-    bert_checkpoint: null
+    lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null # loads pretrained model. To initialize model from scratch uncomment the following
       # attention_probs_dropout_prob: 0.1

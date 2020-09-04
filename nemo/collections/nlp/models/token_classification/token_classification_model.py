@@ -54,21 +54,6 @@ class TokenClassificationModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes Token Classification Model."""
 
-        if cfg.language_model.config_file is not None:
-            logging.info(
-                (
-                    f"HuggingFace BERT config file found. "
-                    f"LM will be instantiated from: {cfg.language_model.config_file}"
-                )
-            )
-            cf = json.load(open(cfg.language_model.config_file))
-            self.vocab_size = cf.get('vocab_size', None) or cf.get('vocab-size', None)
-        elif cfg.language_model.config and cfg.language_model.config.vocab_size is not None:
-            self.vocab_size = cfg.language_model.config.vocab_size
-        else:
-            self.vocab_size = None
-
-        cfg.tokenizer.vocab_size = self.vocab_size
         self._setup_tokenizer(cfg.tokenizer)
 
         self._cfg = cfg
@@ -82,7 +67,7 @@ class TokenClassificationModel(ModelPT):
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.bert_checkpoint,
+            checkpoint_file=cfg.language_model.lm_checkpoint,
         )
         self.hidden_size = self.bert_model.hidden_size
 
