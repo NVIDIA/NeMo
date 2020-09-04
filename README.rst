@@ -177,16 +177,16 @@ To run tutorials:
      - `01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
     * - NLP
      - Question answering with SQuAD
-     - `02_Question_Answering_Squad.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/02_Question_Answering_Squad.ipynb>`_
+     - `Question_Answering_Squad.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
     * - NLP
      - Token Classification (Named Entity Recognition)
-     - `03_Token_Classification_Named_Entity_Recognition.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/03_Token_Classification_Named_Entity_Recognition.ipynb>`_
+     - `Token_Classification_Named_Entity_Recognition.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
    * - NLP
      - GLUE Benchmark
-     - `04_GLUE_Benchmark.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/04_GLUE_Benchmark.ipynb>`_
+     - `GLUE_Benchmark.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark.ipynb>`_
    * - NLP
      - Punctuation and Capitialization
-     - `05_Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/05_Punctuation_and_Capitalization.ipynb>`_
+     - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - TTS
      - Speech Synthesis
      - `TTS_inference.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_

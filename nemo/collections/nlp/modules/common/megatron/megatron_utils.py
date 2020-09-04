@@ -83,10 +83,10 @@ def get_megatron_lm_model(
     checkpoint_file: Optional[str] = None,
 ) -> Tuple[MegatronBertEncoder, str]:
     """
-    Returns the dict of special tokens associated with the model.
+    Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
 
     Args:
-        pretrained_mode_name: name of the pretrained model from the hugging face list,
+        pretrained_mode_name: name of the pretrained model from the Megatron-LM list,
             for example: bert-base-cased
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
