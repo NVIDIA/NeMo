@@ -18,6 +18,8 @@ from typing import List, Optional
 from transformers import AlbertTokenizer, BertTokenizer, DistilBertTokenizerFast, RobertaTokenizer
 
 import nemo
+from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
+from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 
 __all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
 
@@ -99,6 +101,12 @@ def get_tokenizer(
         do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with
              sentencepiece
     """
+
+    if tokenizer_name == 'word':
+        return WordTokenizer(vocab_file=vocab_file)
+    elif tokenizer_name == 'char':
+        return CharTokenizer(vocab_file=vocab_file)
+
     pretrained_lm_models_list = nemo.collections.nlp.modules.common.common_utils.get_pretrained_lm_models_list()
     if pretrained_model_name not in pretrained_lm_models_list:
         raise ValueError(

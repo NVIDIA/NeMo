@@ -16,21 +16,19 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models.language_modeling import BERTLMModel
+from nemo.collections.nlp.models.language_modeling import TransformerLMModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="bert_pretraining_from_text_config")
+@hydra_runner(config_path="conf", config_name="transformer_lm_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config:\n {cfg.pretty()}')
+    logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    bert_model = BERTLMModel(cfg.model, trainer=trainer)
-    trainer.fit(bert_model)
-    if cfg.model.nemo_path:
-        bert_model.save_to(cfg.model.nemo_path)
+    transformer_lm = TransformerLMModel(cfg.model, trainer=trainer)
+    trainer.fit(transformer_lm)
 
 
 if __name__ == '__main__':
