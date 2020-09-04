@@ -252,7 +252,6 @@ pipeline {
             +trainer.max_steps=1 \
             model.pretrained_model_name=bert-base-uncased \
             model.language_model.model_type=bert \
-            model.tokenizer.tokenizer_name=bert \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -276,7 +275,6 @@ pipeline {
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.pretrained_model_name=bert-base-uncased \
             model.language_model.model_type=bert \
-            model.tokenizer.tokenizer_name=bert \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -305,7 +303,6 @@ pipeline {
             model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
             model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
             model.language_model.model_type=megatron \
-            model.tokenizer.tokenizer_name=megatron \
             model.language_model.pretrained_model_name=megatron-bert-345m-cased \
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
@@ -337,7 +334,6 @@ pipeline {
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.model_type=megatron \
             model.pretrained_model_name=megatron-bert-345m-uncased  \
-            model.tokenizer.tokenizer_name=megatron \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -372,6 +368,7 @@ pipeline {
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.dataset.do_lower_case=false \
+            model.language_model.model_type=roberta \
             model.language_model.pretrained_model_name=roberta-base \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
@@ -559,7 +556,6 @@ pipeline {
         python punctuation_capitalization.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         model.language_model.model_type=distilbert \
-        model.tokenizer.tokenizer_name=distilbert \
         model.language_model.pretrained_model_name=distilbert-base-uncased \
         model.dataset.use_cache=false \
         trainer.gpus=[0,1] \
@@ -589,7 +585,6 @@ pipeline {
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
         model.language_model.model_type=megatron \
-        model.tokenizer.tokenizer_name=megatron \
         model.language_model.pretrained_model_name=megatron-bert-345m-cased \
         trainer.distributed_backend=ddp \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
@@ -606,7 +601,6 @@ pipeline {
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
         model.language_model.model_type=megatron \
-        model.tokenizer.tokenizer_name=megatron \
         model.language_model.pretrained_model_name=megatron-bert-uncased \
         model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
         model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
