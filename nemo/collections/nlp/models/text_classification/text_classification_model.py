@@ -49,17 +49,15 @@ class TextClassificationModel(ModelPT):
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
 
+        self._setup_tokenizer(cfg.tokenizer)
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        self._setup_tokenizer(cfg.tokenizer)
 
         self.data_desc = TextClassificationDataDesc(
             train_file=cfg.train_ds.file_name, val_files=[cfg.validation_ds.file_name]
         )
 
         self.bert_model = get_lm_model(
-            model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,

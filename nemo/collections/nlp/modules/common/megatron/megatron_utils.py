@@ -69,10 +69,7 @@ MEGATRON_CONFIG_MAP = {
 
 
 def get_megatron_lm_model(
-    pretrained_model_name: str,
-    config_dict: Optional[dict] = None,
-    config_file: Optional[str] = None,
-    checkpoint_file: Optional[str] = None,
+    pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None,
 ):
     '''
     Returns the dict of special tokens associated with the model.
@@ -81,7 +78,6 @@ def get_megatron_lm_model(
             for example: bert-base-cased
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
-        checkpoint_file: path to checkpoint file.
     '''
     config = None
     # get default config and checkpoint
@@ -104,8 +100,7 @@ def get_megatron_lm_model(
     if config is None:
         raise ValueError(f'config_file or config_dict is required for {pretrained_model_name}')
 
-    if not checkpoint_file:
-        checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
+    checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
 

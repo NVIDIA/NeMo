@@ -52,7 +52,6 @@ model:
       special_tokens: null # only necessary for adding transformer/bert-specific special tokens to tokenizer if the tokenizer does not already have these inherently.
 
   language_model:
-    model_type: bert
     pretrained_model_name: bert-base-uncased
     lm_checkpoint: null
     config_file: null # json file, precedence over config

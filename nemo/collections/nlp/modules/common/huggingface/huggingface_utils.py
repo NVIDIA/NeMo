@@ -71,15 +71,11 @@ HUGGINGFACE_MODELS = {
 
 
 def get_huggingface_lm_model(
-    model_type: str,
-    pretrained_model_name: Optional[str] = None,
-    config_dict: Optional[dict] = None,
-    config_file: Optional[str] = None,
+    pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None,
 ):
     '''
     Returns lm model instantiated with Huggingface
     Args:
-        model_type: model type. Valid options are the keys in HUGGINGFACE_MODELS
         pretrained_mode_name: specify this to instantiate pretrained model from Huggingface,
             e.g. bert-base-cased. For entire list, see get_huggingface_pretrained_lm_models_list().
         config_dict: model configuration dictionary used to instantiate Huggingface model from scratch
@@ -87,6 +83,7 @@ def get_huggingface_lm_model(
     '''
 
     # assumes that model configuration is correct, otherwise will pass on Huggingface's model instantiation error
+    model_type = pretrained_model_name.split("-")[0]
     model_class = HUGGINGFACE_MODELS[model_type]['class']
     if config_file:
         config_class = HUGGINGFACE_MODELS[model_type]['config']

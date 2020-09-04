@@ -47,7 +47,6 @@ class QAModel(ModelPT):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        super().__init__(cfg=cfg, trainer=trainer)
         self.version_2_with_negative = cfg.dataset.version_2_with_negative
         self.doc_stride = cfg.dataset.doc_stride
         self.max_query_length = cfg.dataset.max_query_length
@@ -55,8 +54,8 @@ class QAModel(ModelPT):
         self.do_lower_case = cfg.tokenizer.do_lower_case
         self.use_cache = cfg.dataset.use_cache
         self._setup_tokenizer(cfg.tokenizer)
+        super().__init__(cfg=cfg, trainer=trainer)
         self.bert_model = get_lm_model(
-            model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,

@@ -38,28 +38,19 @@ def get_pretrained_lm_models_list() -> List[str]:
     return get_megatron_lm_models_list() + get_huggingface_pretrained_lm_models_list()
 
 
-def get_lm_models_list() -> List[str]:
-    """
-    Returns the list of supported models based on the model type
-    """
-    return ["megatron"] + list(HUGGINGFACE_MODELS.keys())
-
-
 def get_lm_model(
-    model_type: str,
-    pretrained_model_name: Optional[str] = None,
+    pretrained_model_name: str,
     config_dict: Optional[dict] = None,
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
 ) -> BertModule:
     """
     Helper function to instantiate a language model encoder, either from scratch or a pretrained model.
-    If only model_type and pretrained_model_name are passed, a pretrained model is returned.
+    If only pretrained_model_name are passed, a pretrained model is returned.
     If a configuration is passed, whether as a file or dictionary, the model is initialized with random weights.
 
     Args:
-        model_type: model type, e.g. bert, megatron, etc. See get_lm_models_list() for full list.
-        pretrained_model_name: pretrained model name, for example, bert-base-uncased or sentencepiece.
+        pretrained_model_name: pretrained model name, for example, bert-base-uncased or megatron-bert-cased.
             See get_pretrained_lm_models_list() for full list.
         config_dict: path to the model configuration dictionary
         config_file: path to the model configuration file
@@ -70,8 +61,10 @@ def get_lm_model(
     """
 
     # check valid model type
-    if model_type not in get_lm_models_list():
-        raise ValueError(f'model_type needs to be from {get_lm_models_list()}, however got {model_type}')
+    if not pretrained_model_name or pretrained_model_name not in get_pretrained_lm_models_list():
+        raise ValueError(
+            f'pretrained_model_name needs to be from {get_pretrained_lm_models_list()}, however got {pretrained_model_name}'
+        )
 
     # warning when user passes both configuration dict and file
     if config_dict and config_file:
@@ -79,25 +72,13 @@ def get_lm_model(
             f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
         )
 
-    # check valid optional pretrained_model_name
-    if pretrained_model_name and pretrained_model_name not in get_pretrained_lm_models_list():
-        raise ValueError(
-            f'pretrained_mode_name needs to be from {get_pretrained_lm_models_list()}, however got {pretrained_mode_name}'
-        )
-
-    if model_type in HUGGINGFACE_MODELS.keys():
+    if pretrained_model_name in get_huggingface_pretrained_lm_models_list():
         model = get_huggingface_lm_model(
-            model_type=model_type,
-            config_dict=config_dict,
-            config_file=config_file,
-            pretrained_model_name=pretrained_model_name,
+            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
         )
-    elif model_type == "megatron":
+    elif "megatron" in pretrained_model_name:
         model, default_checkpoint_file = get_megatron_lm_model(
-            config_dict=config_dict,
-            config_file=config_file,
-            pretrained_model_name=pretrained_model_name,
-            checkpoint_file=checkpoint_file,
+            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name
         )
 
     if checkpoint_file:
