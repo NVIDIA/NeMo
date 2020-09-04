@@ -649,6 +649,19 @@ pipeline {
       }
 
       parallel {
+        stage('SqueezeWave') {
+          steps {
+            sh 'python examples/tts/squeezewave.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[0]" \
+            +trainer.fast_dev_run=True \
+            trainer.distributed_backend=null \
+            trainer.max_epochs=-1 \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4'
+          }
+        }
         stage('GlowTTS') {
           steps {
             sh 'python examples/tts/glow_tts.py \
