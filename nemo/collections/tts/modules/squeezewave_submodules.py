@@ -37,7 +37,52 @@
 
 import torch
 
+from nemo.collections.tts.helpers.helpers import remove
 from nemo.collections.tts.modules.submodules import fused_add_tanh_sigmoid_multiply
+
+
+def fuse_conv_and_bn(conv, bn):
+    fusedconv = torch.nn.Conv1d(
+        conv.in_channels,
+        conv.out_channels,
+        kernel_size=conv.kernel_size,
+        padding=conv.padding,
+        bias=True,
+        groups=conv.groups,
+    )
+    w_conv = conv.weight.clone().view(conv.out_channels, -1)
+    w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps + bn.running_var)))
+    w_bn = w_bn.clone()
+    fusedconv.weight.data = torch.mm(w_bn, w_conv).view(fusedconv.weight.size())
+    if conv.bias is not None:
+        b_conv = conv.bias
+    else:
+        b_conv = torch.zeros(conv.weight.size(0))
+    b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+    b_bn = torch.unsqueeze(b_bn, 1)
+    bn_3 = b_bn.expand(-1, 3)
+    b = torch.matmul(w_conv, torch.transpose(bn_3, 0, 1))[range(b_bn.size()[0]), range(b_bn.size()[0])]
+    fusedconv.bias.data = b_conv + b
+    return fusedconv
+
+
+def remove_batchnorm(conv_list):
+    new_conv_list = torch.nn.ModuleList()
+    for old_conv in conv_list:
+        depthwise = fuse_conv_and_bn(old_conv[1], old_conv[0])
+        pointwise = old_conv[2]
+        new_conv_list.append(torch.nn.Sequential(depthwise, pointwise))
+    return new_conv_list
+
+
+def remove_weightnorm(model):
+    squeezewave = model
+    for wavenet in squeezewave.wavenet:
+        wavenet.start = torch.nn.utils.remove_weight_norm(wavenet.start)
+        wavenet.in_layers = remove_batchnorm(wavenet.in_layers)
+        wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
+        wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
+    return squeezewave
 
 
 class SqueezeWaveNet(torch.nn.Module):

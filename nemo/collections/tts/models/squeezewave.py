@@ -21,7 +21,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
-from nemo.collections.tts.models.base import Vocoder
+from nemo.collections.tts.models.base import PretrainedModelInfo, Vocoder
 from nemo.collections.tts.modules.squeezewave import OperationMode
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import (
@@ -203,6 +203,17 @@ class SqueezeWaveModel(Vocoder):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
     @classmethod
-    def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        """TODO: Implement me!"""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="SqueezeWave-22050Hz",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/squeezewave.nemo",
+            description="The model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder",
+        )
+        list_of_models.append(model)
+        return list_of_models

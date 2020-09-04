@@ -201,17 +201,13 @@ def waveglow_log_to_tb_func(
 
 
 def remove_weightnorm(model):
-    vocoder = model
-    for wavenet in vocoder.wavenet:
+    waveglow = model
+    for wavenet in waveglow.wavenet:
         wavenet.start = torch.nn.utils.remove_weight_norm(wavenet.start)
-        # SqueezeWave doesn't have weight norm in in_layers
-        try:
-            wavenet.in_layers = remove(wavenet.in_layers)
-        except ValueError:
-            pass
+        wavenet.in_layers = remove(wavenet.in_layers)
         wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
         wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
-    return vocoder
+    return waveglow
 
 
 def remove(conv_list):

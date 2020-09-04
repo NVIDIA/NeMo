@@ -152,16 +152,14 @@ class SplicedAudioDataset(Dataset):
         truncate_to: Optional[int] = 1,
     ):
         """
-        Mostly compliant with nemo.collections.asr.data.datalayers.AudioToTextDataset except it only returns Audio
-        without text. Dataset that loads tensors via a json file containing paths to audio files, transcripts, and
-        durations (in seconds). Each new line is a different sample. Note that text is required, but is ignored for
-        AudioDataset. Example below:
-        {"audio_filepath": "/path/to/audio.wav", "text_filepath":
-        "/path/to/audio.txt", "duration": 23.147}
-        ...
-        {"audio_filepath": "/path/to/audio.wav", "text": "the
-        transcription", "offset": 301.75, "duration": 0.82, "utt":
-        "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+        See above AudioDataset for details on dataset and manifest formats.
+
+        Unlike the regular AudioDataset, which samples random segments from each audio array as an example,
+        SplicedAudioDataset concatenates all audio arrays together and indexes segments as examples. This way,
+        the model sees more data (about 9x for LJSpeech) per epoch.
+
+        Note: this class is not recommended to be used in validation.
+
         Args:
             manifest_filepath (str, Path): Path to manifest json as described above. Can be comma-separated paths
                 such as "train_1.json,train_2.json" which is treated as two separate json files.
@@ -176,6 +174,7 @@ class SplicedAudioDataset(Dataset):
             truncate_to (int): Ensures that the audio segment returned is a multiple of truncate_to.
                 Defaults to 1, which does no truncating.
         """
+        assert n_segments > 0
 
         collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
