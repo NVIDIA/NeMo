@@ -98,8 +98,8 @@ class SqueezeWaveModel(Vocoder):
             }
             if self.mode == OperationMode.validation:
                 output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
-                output_dict["spect"] = NeuralType(('B', 'T', 'D'), MelSpectrogramType())
-                output_dict["spect_len"] = NeuralType(('B'), LengthsType())
+                output_dict["spec"] = NeuralType(('B', 'T', 'D'), MelSpectrogramType())
+                output_dict["spec_len"] = NeuralType(('B'), LengthsType())
             return output_dict
         return {
             "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
@@ -111,26 +111,26 @@ class SqueezeWaveModel(Vocoder):
             raise ValueError(
                 f"SqueezeWaveModel's mode {self.mode} does not match SqueezeWaveModule's mode {self.squeezewave.mode}"
             )
-        spect, spect_len = self.audio_to_melspec_precessor(audio, audio_len)
-        tensors = self.squeezewave(spect=spect, audio=audio, run_inverse=run_inverse)
+        spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
+        tensors = self.squeezewave(spec=spec, audio=audio, run_inverse=run_inverse)
         if self.mode == OperationMode.training:
             return tensors[:-1]  # z, log_s_list, log_det_W_list
         elif self.mode == OperationMode.validation:
             z, log_s_list, log_det_W_list, audio_pred = tensors
-            return z, log_s_list, log_det_W_list, audio_pred, spect, spect_len
+            return z, log_s_list, log_det_W_list, audio_pred, spec, spec_len
         return tensors  # audio_pred
 
     @typecheck(
-        input_types={"spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
+        input_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
         output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     )
-    def convert_spectrogram_to_audio(self, spect: torch.Tensor, sigma: bool = 1.0) -> torch.Tensor:
+    def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: bool = 1.0) -> torch.Tensor:
         self.eval()
         self.mode = OperationMode.infer
         self.squeezewave.mode = OperationMode.infer
 
         with torch.no_grad():
-            audio = self.squeezewave(spect=spect, run_inverse=True, audio=None, sigma=sigma)
+            audio = self.squeezewave(spec=spec, run_inverse=True, audio=None, sigma=sigma)
 
         return audio
 
@@ -151,15 +151,15 @@ class SqueezeWaveModel(Vocoder):
         self.mode = OperationMode.validation
         self.squeezewave.mode = OperationMode.validation
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list, audio_pred, spect, spect_len = self.forward(
+        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self.forward(
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)
         )
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
         return {
             "val_loss": loss,
             "audio_pred": audio_pred,
-            "mel_target": spect,
-            "mel_len": spect_len,
+            "mel_target": spec,
+            "mel_len": spec_len,
         }
 
     def validation_epoch_end(self, outputs):
