@@ -435,7 +435,7 @@ class TokenClassificationModel(ModelPT):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="NERModel",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/ner.nemo",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/NamedEntityRecognition_bert-base-uncased.nemo",
             description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and "
             + "achieves 74.61 F1 Macro score.",
         )
