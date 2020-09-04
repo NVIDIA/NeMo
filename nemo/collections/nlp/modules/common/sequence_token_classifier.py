@@ -23,6 +23,7 @@ from nemo.utils.decorators import experimental
 __all__ = ['SequenceTokenClassifier']
 
 
+@experimental
 class SequenceTokenClassifier(Classifier):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:

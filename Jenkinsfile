@@ -227,6 +227,52 @@ pipeline {
       }
     }
 
+    stage('L2: Parallel NER with Megatron') {
+     when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+     }
+     failFast true
+     parallel {
+      stage('L2: NER with cased Megatron') {
+       steps {
+        sh 'cd examples/nlp/token_classification && \
+        python token_classification.py \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        trainer.gpus=[0] \
+        +trainer.fast_dev_run=true \
+        model.dataset.use_cache=false \
+        model.language_model.model_type=megatron \
+        model.language_model.pretrained_model_name=megatron-bert-345m-cased \
+        trainer.distributed_backend=ddp \
+        exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
+        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
+       }
+      }
+
+      stage('L2: NER with uncased Megatron') {
+       steps {
+        sh 'cd examples/nlp/token_classification && \
+        python token_classification.py \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        trainer.gpus=[1] \
+        +trainer.fast_dev_run=true \
+        model.dataset.use_cache=false \
+        model.language_model.model_type=megatron \
+        model.language_model.pretrained_model_name=megatron-bert-uncased \
+        model.language_model.bert_checkpoint_file=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
+        model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
+        trainer.distributed_backend=ddp \
+        exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
+        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
+        }
+       }
+      }
+    }
+
+
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf{
@@ -567,50 +613,6 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel NER with Megatron') {
-     when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-     }
-     failFast true
-     parallel {
-      stage('L2: NER with cased Megatron') {
-       steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        trainer.gpus=[0] \
-        +trainer.fast_dev_run=true \
-        model.dataset.use_cache=false \
-        model.language_model.model_type=megatron \
-        model.language_model.pretrained_model_name=megatron-bert-345m-cased \
-        trainer.distributed_backend=ddp \
-        exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
-        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
-       }
-      }
-
-      stage('L2: NER with uncased Megatron') {
-       steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        trainer.gpus=[1] \
-        +trainer.fast_dev_run=true \
-        model.dataset.use_cache=false \
-        model.language_model.model_type=megatron \
-        model.language_model.pretrained_model_name=megatron-bert-uncased \
-        model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
-        model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
-        trainer.distributed_backend=ddp \
-        exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
-        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
-        }
-       }
-      }
-    }
 
     stage('L2: TTS Fast dev runs 1') {
       when {

@@ -164,10 +164,7 @@ class AutoTokenizer(TokenizerSpec):
 
     @property
     def pad_id(self):
-        try:
-            return self.tokens_to_ids([self.pad_token])[0]
-        except:
-            return -1
+        return self.tokens_to_ids([getattr(self, 'pad_id')])[0]
 
     @property
     def bos_id(self):
