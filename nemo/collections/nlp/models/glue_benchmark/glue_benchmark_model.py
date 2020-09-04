@@ -19,7 +19,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
