@@ -22,7 +22,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import Vocoder
-from nemo.collections.tts.modules.waveglow import OperationMode
+from nemo.collections.tts.modules.squeezewave import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -47,23 +47,24 @@ class Preprocessor:
 
 
 @dataclass
-class WaveglowConfig:
-    waveglow: Dict[Any, Any] = MISSING
+class SqueezeWaveConfig:
+    squeezewave: Dict[Any, Any] = MISSING
     preprocessor: Preprocessor = Preprocessor()
     sigma: float = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-class WaveGlowModel(Vocoder):
-    """Waveglow model used to convert betweeen spectrograms and audio"""
+class SqueezeWaveModel(Vocoder):
+    """ SqueezeWave model that generates audio conditioned on mel-spectrogram
+    """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        schema = OmegaConf.structured(WaveglowConfig)
+        schema = OmegaConf.structured(SqueezeWaveConfig)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
@@ -75,9 +76,9 @@ class WaveGlowModel(Vocoder):
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
-        self.waveglow = instantiate(self._cfg.waveglow)
+        self.squeezewave = instantiate(self._cfg.squeezewave)
         self.mode = OperationMode.infer
-        self.loss = WaveGlowLoss()
+        self.loss = WaveGlowLoss()  # Same loss as WaveGlow
 
     @property
     def input_types(self):
@@ -106,12 +107,12 @@ class WaveGlowModel(Vocoder):
 
     @typecheck()
     def forward(self, *, audio, audio_len, run_inverse=True):
-        if self.mode != self.waveglow.mode:
+        if self.mode != self.squeezewave.mode:
             raise ValueError(
-                f"WaveGlowModel's mode {self.mode} does not match WaveGlowModule's mode {self.waveglow.mode}"
+                f"SqueezeWaveModel's mode {self.mode} does not match SqueezeWaveModule's mode {self.squeezewave.mode}"
             )
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-        tensors = self.waveglow(spec=spec, audio=audio, run_inverse=run_inverse, sigma=self.sigma)
+        tensors = self.squeezewave(spec=spec, audio=audio, run_inverse=run_inverse)
         if self.mode == OperationMode.training:
             return tensors[:-1]  # z, log_s_list, log_det_W_list
         elif self.mode == OperationMode.validation:
@@ -123,35 +124,34 @@ class WaveGlowModel(Vocoder):
         input_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
         output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     )
-    def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
+    def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: bool = 1.0) -> torch.Tensor:
         self.eval()
         self.mode = OperationMode.infer
-        self.waveglow.mode = OperationMode.infer
+        self.squeezewave.mode = OperationMode.infer
 
         with torch.no_grad():
-            audio = self.waveglow(spec=spec, run_inverse=True, audio=None, sigma=sigma)
+            audio = self.squeezewave(spec=spec, run_inverse=True, audio=None, sigma=sigma)
 
         return audio
 
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
-        self.waveglow.mode = OperationMode.training
+        self.squeezewave.mode = OperationMode.training
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list = self(audio=audio, audio_len=audio_len, run_inverse=False)
+        z, log_s_list, log_det_W_list = self.forward(audio=audio, audio_len=audio_len, run_inverse=False)
 
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
-        output = {
+        return {
             'loss': loss,
             'progress_bar': {'training_loss': loss},
             'log': {'loss': loss},
         }
-        return output
 
     def validation_step(self, batch, batch_idx):
         self.mode = OperationMode.validation
-        self.waveglow.mode = OperationMode.validation
+        self.squeezewave.mode = OperationMode.validation
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self(
+        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self.forward(
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)
         )
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
@@ -211,8 +211,8 @@ class WaveGlowModel(Vocoder):
         """
         list_of_models = []
         model = PretrainedModelInfo(
-            pretrained_model_name="WaveGlow-22050Hz",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/waveglow.nemo",
+            pretrained_model_name="SqueezeWave-22050Hz",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/squeezewave.nemo",
             description="The model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder",
         )
         list_of_models.append(model)
