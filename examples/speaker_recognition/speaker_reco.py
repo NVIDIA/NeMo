@@ -55,7 +55,7 @@ def main(cfg):
     speaker_model.save_to(model_path)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        if isinstance(trainer.gpus) is list and len(trainer.gpus) > 1 or int(trainer.gpus) > 1:
+        if isinstance(trainer.gpus, list) and len(trainer.gpus) > 1 or int(trainer.gpus) > 1:
             logging.info("Testing on single GPU to minimize DDP issues")
             trainer.gpus = 1
             trainer.test(speaker_model)
