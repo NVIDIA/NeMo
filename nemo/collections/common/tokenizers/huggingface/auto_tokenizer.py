@@ -71,7 +71,6 @@ class AutoTokenizer(TokenizerSpec):
         self,
         pretrained_model_name: str,
         vocab_file: Optional[str] = None,
-        do_lower_case: Optional[bool] = None,
         mask_token: Optional[str] = None,
         bos_token: Optional[str] = None,
         eos_token: Optional[str] = None,
@@ -88,7 +87,6 @@ class AutoTokenizer(TokenizerSpec):
                 The list of all supported models can be found here: ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
             vocab_file: path to file with vocabulary which consists
                 of characters separated by '\n'.
-            do_lower_case: determines if data should be lower cased before tokenization.
             mask_token: mask token 
             bos_token: the beginning of sequence token
             eos_token: the end of sequence token. Usually equal to sep_token
@@ -103,12 +101,10 @@ class AutoTokenizer(TokenizerSpec):
 
         if vocab_file is not None:
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, do_lower_case=do_lower_case
+                pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file
             )
         else:
-            self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                pretrained_model_name_or_path=pretrained_model_name, do_lower_case=do_lower_case
-            )
+            self.tokenizer = AUTOTOKENIZER.from_pretrained(pretrained_model_name_or_path=pretrained_model_name)
 
         self.tokenizer.eos_token = self.tokenizer.sep_token
         self.tokenizer.bos_token = self.tokenizer.cls_token
