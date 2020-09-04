@@ -25,8 +25,20 @@
 **NVIDIA NeMo**
 ===============
 
-Introduction
-------------
+**Create State of the Art Models**
+----------------------------------
+
+**Installation**
+~~~~~~~~~~~~~~~~~~~
+
+Please Note: we are preparing main branch for release soon, these instructions are for stable version install
+
+* ``pip install nemo_toolkit[all]``
+
+* Docker container installation from NGC: https://ngc.nvidia.com/catalog/containers/nvidia:nemo
+
+**Introduction**
+----------------
 
 NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
@@ -37,6 +49,16 @@ NeMo toolkit makes it possible for researchers to easily compose complex neural 
 The toolkit comes with extendable collections of pre-built modules and ready-to-use models for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS).
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
 
+**Resources** 
+
+* NVIDIA `Developer Blog to learn how to develop speech recognition models for different languages <https://devblogs.nvidia.com/jump-start-training-for-speech-recognition-models-with-nemo/>`_
+
+* NVIDIA `Developer Blog announcing NeMo <https://devblogs.nvidia.com/announcing-nemo-fast-development-of-speech-and-language-models/>`_
+
+* NVIDIA `Developer Blog for example applications <https://devblogs.nvidia.com/how-to-build-domain-specific-automatic-speech-recognition-models-on-gpus/>`_
+
+* NVIDIA `Developer Blog for QuartzNet ASR model <https://devblogs.nvidia.com/develop-smaller-speech-recognition-models-with-nvidias-nemo-framework/>`_
+
 
 Requirements
 ------------
@@ -46,8 +68,8 @@ NeMo's works with:
 1) Python 3.6 or 3.7
 2) Pytorch 1.6 or above
 
-Docker container:
-~~~~~~~~~~~~~~~~~
+Main Branch instructions: Docker container:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 We recommend using NVIDIA's PyTorch container version 20.06-py3 with NeMo's main branch.
 
 .. code-block:: bash
@@ -57,14 +79,11 @@ We recommend using NVIDIA's PyTorch container version 20.06-py3 with NeMo's main
     stack=67108864 nvcr.io/nvidia/pytorch:20.06-py3
 
 
-Installation
-~~~~~~~~~~~~
+Main Branch Installation
+~~~~~~~~~~~~~~~~~~~~~~~~
 Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
 
-* ``pip install nemo_toolkit[all]==version``
-* ``pip install nemo_toolkit[all]`` - latest released version (currently 0.11.0)
-
-Or if you want the latest (or particular) version from GitHub:
+If you want the latest (or particular) version from GitHub:
 
 * ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[nlp]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo.
 * ``./reinstall.sh`` - from NeMo's git root. This will install the version from current branch.
@@ -142,8 +161,8 @@ Documentation
 +---------+----------+---------------------------------------------------------+
 
 
-Tutorials
----------
+Getting Started Tutorials
+-------------------------
 The best way to get started with NeMo is to checkout one of our tutorials.
 
 Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
