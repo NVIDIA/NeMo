@@ -102,7 +102,7 @@ class GLUEDataset(Dataset):
         Args:
             file_name: path to file
             task_name: GLUE task name
-            tokenizer: such as NemoBertTokenizer
+            tokenizer: such as AutoTokenizer
             max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
             use_cache: whether to use data cache
         """

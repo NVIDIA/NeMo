@@ -49,7 +49,7 @@ class SquadDataset(Dataset):
     Creates SQuAD dataset for Question Answering.
     Args:
         data_file (str): train.*.json eval.*.json or test.*.json.
-        tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
+        tokenizer (obj): Tokenizer object, e.g. AutoTokenizer.
         version_2_with_negative (bool): True if training should allow
             unanswerable questions.
         doc_stride (int): When splitting up a long document into chunks,

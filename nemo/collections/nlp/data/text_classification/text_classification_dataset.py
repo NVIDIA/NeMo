@@ -44,7 +44,7 @@ class TextClassificationDataset(Dataset):
         input_file: file to sequence + label.
             the first line is header (sentence [tab] label)
             each line should be [sentence][tab][label]
-        tokenizer: tokenizer object such as NemoBertTokenizer
+        tokenizer: tokenizer object such as AutoTokenizer
         max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
         num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
