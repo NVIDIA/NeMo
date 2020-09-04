@@ -48,16 +48,16 @@ class IntentSlotClassificationModel(ModelPT):
         self.data_dir = cfg.data_dir
         self.max_seq_length = cfg.language_model.max_seq_length
 
-        if cfg.language_model.bert_config_file is not None:
+        if cfg.language_model.config_file is not None:
             logging.info(
                 (
                     f"HuggingFace BERT config file found. "
-                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
+                    f"LM will be instantiated from: {cfg.language_model.config_file}"
                 )
             )
-            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
-        elif cfg.language_model.bert_config and cfg.language_model.bert_config.vocab_size is not None:
-            self.vocab_size = cfg.language_model.bert_config.vocab_size
+            self.vocab_size = json.load(open(cfg.language_model.config_file))['vocab_size']
+        elif cfg.language_model.config and cfg.language_model.config.vocab_size is not None:
+            self.vocab_size = cfg.language_model.config.vocab_size
         else:
             self.vocab_size = None
 
@@ -76,10 +76,8 @@ class IntentSlotClassificationModel(ModelPT):
         self.bert_model = get_lm_model(
             model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config_file,
-            config_dict=OmegaConf.to_container(cfg.language_model.bert_config)
-            if cfg.language_model.bert_config
-            else None,
+            config_file=cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
