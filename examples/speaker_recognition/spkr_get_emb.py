@@ -39,7 +39,7 @@ seed_everything(42)
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    if isinstance(trainer.gpus) is list and len(trainer.gpus) > 1 or int(trainer.gpus) > 1:
+    if isinstance(cfg.trainer.gpus, list) and len(cfg.trainer.gpus) > 1 or int(cfg.trainer.gpus) > 1:
         logging.info("changing gpus to 1 to minimize DDP issues while extracting embeddings")
         cfg.trainer.gpus = 1
         cfg.trainer.distributed_backend = None
