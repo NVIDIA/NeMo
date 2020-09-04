@@ -98,7 +98,7 @@ model:
 
     
   tokenizer:
-    tokenizer_name: ${model.pretrained_model_name} # or sentencepiece
+    tokenizer_name: ${model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec
     vocab_file: null # path to vocab file
     tokenizer_model: null # only used if tokenizer is sentencepiece
     special_tokens: null # expand the following to a dictionary if special tokens need to be added.

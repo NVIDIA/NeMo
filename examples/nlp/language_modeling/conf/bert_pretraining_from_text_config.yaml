@@ -20,7 +20,6 @@ model:
   only_mlm_loss: false # only use masked language model without next sentence prediction
   num_tok_classification_layers: 1 # number of token classification head output layers
   num_seq_classification_layers: 2 # number of sequence classification head output layers
-  pretrained_model_name: bert-base-uncased # huggingface model name
   max_seq_length: 128
   # The maximum total input sequence length after tokenization. Sequences longer than this
   # will be truncated, and sequences shorter than this will be padded.
@@ -47,7 +46,7 @@ model:
     config_file: null # json file, precedence over config
 
   tokenizer:
-    tokenizer_name: ${model.pretrained_model_name} # or sentencepiece
+    tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec 
     vocab_file: null # path to vocab file
     tokenizer_model: null # tokenizer model for sentencepiece
     special_tokens: # only necessary for adding transformer/bert-specific special tokens to tokenizer if the tokenizer does not already have these inherently.
