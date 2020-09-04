@@ -35,8 +35,12 @@
 import math
 
 import librosa
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from librosa.util import tiny
+from torch.autograd import Variable
 from torch_stft import STFT
 
 from nemo.collections.asr.parts.perturb import AudioAugmentor
@@ -146,6 +150,50 @@ class STFTPatch(STFT):
         return super(STFTPatch, self).transform(input_data)[0]
 
 
+# Create helper class for STFT that yields num_frames = num_samples / hop_length
+class STFTExactPad(STFT):
+    """adapted from Prem Seetharaman's https://github.com/pseeth/pytorch-stft"""
+
+    def __init__(self, *params, **kw_params):
+        super(STFTExactPad, self).__init__(*params, **kw_params)
+        self.pad_amount = (self.filter_length - self.hop_length) // 2
+
+    def inverse(self, magnitude, phase):
+        recombine_magnitude_phase = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
+
+        inverse_transform = F.conv_transpose1d(
+            recombine_magnitude_phase,
+            Variable(self.inverse_basis, requires_grad=False),
+            stride=self.hop_length,
+            padding=0,
+        )
+
+        if self.window is not None:
+            window_sum = librosa.filters.window_sumsquare(
+                self.window,
+                magnitude.size(-1),
+                hop_length=self.hop_length,
+                win_length=self.win_length,
+                n_fft=self.filter_length,
+                dtype=np.float32,
+            )
+            # remove modulation effects
+            approx_nonzero_indices = torch.from_numpy(np.where(window_sum > tiny(window_sum))[0])
+            window_sum = torch.autograd.Variable(torch.from_numpy(window_sum), requires_grad=False)
+            inverse_transform[:, :, approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
+
+            # scale by hop ratio
+            inverse_transform *= self.filter_length / self.hop_length
+
+        inverse_transform = inverse_transform[:, :, self.pad_amount :]
+        inverse_transform = inverse_transform[:, :, : -self.pad_amount :]
+
+        return inverse_transform
+
+    def forward(self, input_data):
+        return super(STFTExactPad, self).transform(input_data)[0]
+
+
 class FilterbankFeatures(nn.Module):
     """Featurizer that converts wavs to Mel Spectrograms.
     See AudioToMelSpectrogramPreprocessor for args.
@@ -170,6 +218,7 @@ class FilterbankFeatures(nn.Module):
         pad_to=16,
         max_duration=16.7,
         frame_splicing=1,
+        stft_exact_pad=False,
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
@@ -193,9 +242,14 @@ class FilterbankFeatures(nn.Module):
         self.win_length = n_window_size
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
+        self.stft_exact_pad = stft_exact_pad
         self.stft_conv = stft_conv
 
-        if stft_conv:
+        if stft_exact_pad:
+            logging.info("STFT using exact pad")
+            self.stft = STFTExactPad(self.n_fft, self.hop_length, self.win_length, window)
+
+        elif stft_conv:
             logging.info("STFT using conv")
             self.stft = STFTPatch(self.n_fft, self.hop_length, self.win_length, window)
 
@@ -232,8 +286,6 @@ class FilterbankFeatures(nn.Module):
         filterbanks = torch.tensor(
             librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float,
         ).unsqueeze(0)
-        # self.fb = filterbanks
-        # self.window = window_tensor
         self.register_buffer("fb", filterbanks)
 
         # Calculate maximum sequence length
@@ -253,19 +305,6 @@ class FilterbankFeatures(nn.Module):
             )
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
-
-        # self.log_zero_guard_value = lambda _: log_zero_guard_value
-        # if isinstance(log_zero_guard_value, str):
-        #     if log_zero_guard_value == "tiny":
-        #         self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).tiny
-        #     elif log_zero_guard_value == "eps":
-        #         self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).eps
-        #     else:
-        #         raise ValueError(
-        #             f"{self} received {log_zero_guard_value} for the "
-        #             f"log_zero_guard_type parameter. It must be either a "
-        #             f"number, 'tiny', or 'eps'"
-        #         )
         self.log_zero_guard_type = log_zero_guard_type
 
     def log_zero_guard_value_fn(self, x):
@@ -302,6 +341,7 @@ class FilterbankFeatures(nn.Module):
         if self.preemph is not None:
             x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1)
 
+        # disable autocast to get full range of stft values
         with torch.cuda.amp.autocast(enabled=False):
             x = self.stft(x)
 
@@ -341,8 +381,6 @@ class FilterbankFeatures(nn.Module):
         x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
         del mask
         pad_to = self.pad_to
-        if not self.training:
-            pad_to = 16
         if pad_to == "max":
             x = nn.functional.pad(x, (0, self.max_length - x.size(-1)), value=self.pad_value)
         elif pad_to > 0:
