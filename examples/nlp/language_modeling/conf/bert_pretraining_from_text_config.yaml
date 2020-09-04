@@ -1,4 +1,5 @@
 # BERT Pretraining from Text
+name: &name PretrainingBERTFromText
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
   num_nodes: 1
@@ -96,8 +97,8 @@ model:
 
 
 exp_manager:
-  exp_dir: NeMo_experiments # where to store logs and checkpoints
-  name: PretrainingBERTFromText # name of experiment
+  exp_dir: null # where to store logs and checkpoints
+  name: *name # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 

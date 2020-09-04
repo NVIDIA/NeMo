@@ -31,7 +31,7 @@ def get_tokenizer_list() -> List[str]:
     Returns all all supported tokenizer names
     """
     s = set(get_pretrained_lm_models_list())
-    s.update(set(get_huggingface_pretrained_lm_models_list(external=True)))
+    s.update(set(get_huggingface_pretrained_lm_models_list(include_external=True)))
     return ["sentencepiece", "char", "word"] + list(s)
 
 

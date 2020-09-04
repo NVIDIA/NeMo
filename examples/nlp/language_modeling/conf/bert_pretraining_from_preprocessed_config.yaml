@@ -1,4 +1,5 @@
 # BERT Pretraining from Preprocessed (tokenized) data
+name: &name PretrainingBERTFromPreprocessed
 trainer:
   gpus: 8 # the number of gpus, 0 for CPU, or list with gpu indices
   num_nodes: 1
@@ -39,7 +40,7 @@ model:
       vocab_size: 30522
     config_file: null # json file, precedence over config
 
-  tokenizer: null #
+  tokenizer: null
 
   train_ds:
     data_file: null # path to hdf5 file (or directory)
@@ -65,8 +66,8 @@ model:
 
 
 exp_manager:
-  exp_dir: NeMo_experiments # where to store logs and checkpoints
-  name: PretrainingBERTFromPreprocessed # name of experiment
+  exp_dir: null # where to store logs and checkpoints
+  name: *name # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 
