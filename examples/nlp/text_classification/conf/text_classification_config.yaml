@@ -72,8 +72,8 @@ model:
     model_type: bert
     pretrained_model_name: bert-base-uncased
     bert_checkpoint: null
-    bert_config_file: null # json file, precedence over bert_config
-    bert_config: null 
+    config_file: null # json file, precedence over config
+    config: null 
 
 
   head:

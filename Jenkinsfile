@@ -263,7 +263,7 @@ pipeline {
         model.language_model.model_type=megatron \
         model.language_model.pretrained_model_name=megatron-bert-uncased \
         model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
-        model.language_model.bert_config_file=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
+        model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
         trainer.distributed_backend=ddp \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
@@ -548,7 +548,7 @@ pipeline {
               model.train_ds.batch_size=64 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
               model.validation_ds.batch_size=64 \
-              model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
+              model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
               model.tokenizer.tokenizer_name=sentencepiece \
@@ -576,7 +576,7 @@ pipeline {
               model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
               model.train_ds.batch_size=8 \
               model.language_model.bert_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
-              model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
+              model.language_model.config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
               model.optim.lr=0.875e-4 \
               model.optim.weight_decay=0.01 \
               model.optim.sched.warmup_ratio=0.01 \

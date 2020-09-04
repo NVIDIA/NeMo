@@ -26,7 +26,7 @@ model:
     model_type: bert
     pretrained_model_name: null # huggingface model name
     bert_checkpoint: null
-    bert_config:
+    config:
       attention_probs_dropout_prob: 0.1
       hidden_act: gelu
       hidden_dropout_prob: 0.1
@@ -38,7 +38,7 @@ model:
       num_hidden_layers: 12
       type_vocab_size: 2
       vocab_size: 30522
-    bert_config_file: null # json file, precedence over bert_config
+    config_file: null # json file, precedence over config
 
   tokenizer: null #
 
