@@ -87,7 +87,7 @@ def get_megatron_lm_model(
 
     Args:
         pretrained_mode_name: name of the pretrained model from the Megatron-LM list,
-            for example: bert-base-cased
+            for example: megatron-bert-345m-uncased
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
         checkpoint_file: path to checkpoint file.
