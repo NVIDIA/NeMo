@@ -77,7 +77,6 @@ model:
       special_tokens: null
 
   language_model:
-    model_type: bert
     pretrained_model_name: bert-base-uncased
     lm_checkpoint: null
     config_file: null # json file, precedence over config

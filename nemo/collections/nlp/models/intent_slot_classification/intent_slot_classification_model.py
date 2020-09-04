@@ -52,14 +52,13 @@ class IntentSlotClassificationModel(ModelPT):
             data_dir=cfg.data_dir, modes=[cfg.train_ds.prefix, cfg.validation_ds.prefix]
         )
 
+        self._setup_tokenizer(cfg.tokenizer)
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self._setup_tokenizer(cfg.tokenizer)
         # initialize Bert model
 
         self.bert_model = get_lm_model(
-            model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,

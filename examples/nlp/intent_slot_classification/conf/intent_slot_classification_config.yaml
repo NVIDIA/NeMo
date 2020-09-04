@@ -54,7 +54,6 @@ model:
     special_tokens: null
 
   language_model:
-    model_type: bert
     max_seq_length: 50
     pretrained_model_name: bert-base-uncased
     lm_checkpoint: null

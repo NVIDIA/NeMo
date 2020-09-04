@@ -29,8 +29,7 @@ model:
   # Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
 
   language_model:
-    model_type: bert
-    pretrained_model_name: null 
+    pretrained_model_name: bert-base-uncased 
     lm_checkpoint: null
     config:
       attention_probs_dropout_prob: 0.1
