@@ -15,6 +15,7 @@
 import os
 
 import pytorch_lightning as pl
+from omegaconf.listconfig import ListConfig
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
@@ -53,6 +54,15 @@ def main(cfg):
     trainer.fit(speaker_model)
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
     speaker_model.save_to(model_path)
+
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        if (isinstance(cfg.trainer.gpus, ListConfig) and len(cfg.trainer.gpus) > 1) or (
+            isinstance(cfg.trainer.gpus, (int, str)) and int(cfg.trainer.gpus) > 1
+        ):
+            logging.info("Testing on single GPU to minimize DDP issues")
+            trainer.gpus = 1
+
+        trainer.test(speaker_model)
 
 
 if __name__ == '__main__':
