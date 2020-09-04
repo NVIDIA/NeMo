@@ -41,7 +41,9 @@ class TransformerLMModel(ModelPT):
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
         self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer, vocab_file=cfg.language_model.vocab_file
+            tokenizer_name=cfg.language_model.tokenizer,
+            vocab_file=cfg.language_model.vocab_file,
+            special_tokens=cfg.language_model.special_tokens,
         )
 
         # make vocabulary size divisible by 8 for fast fp16 training

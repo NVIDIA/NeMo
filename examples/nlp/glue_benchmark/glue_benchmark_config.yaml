@@ -49,7 +49,7 @@ model:
       vocab_size: null # vocab size for building sentence piece
       do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece  
       tokenizer_model: null # only used if tokenizer is sentencepiece
-      special_tokens: null
+      special_tokens: null # only necessary for adding transformer/bert-specific special tokens to tokenizer if the tokenizer does not already have these inherently.
 
   language_model:
     model_type: bert

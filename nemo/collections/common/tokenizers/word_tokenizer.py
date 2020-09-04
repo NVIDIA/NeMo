@@ -12,27 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 
 __all__ = ['WordTokenizer']
 
 
 class WordTokenizer(CharTokenizer):
+    "Tokenizes at word boundary"
+
     def __init__(
         self,
         vocab_file: str,
-        bos_token: str = "<BOS>",
-        eos_token: str = "<EOS>",
-        pad_token: str = "<PAD>",
-        unk_token: str = "<UNK>",
+        mask_token: Optional[str] = None,
+        bos_token: Optional[str] = None,
+        eos_token: Optional[str] = None,
+        pad_token: Optional[str] = None,
+        sep_token: Optional[str] = None,
+        cls_token: Optional[str] = None,
+        unk_token: Optional[str] = None,
     ):
         """
         Args:
             vocab_file: path to file with vocabulary which consists
                 of characters separated by \n
+            mask_token: mask token 
             bos_token: the beginning of sequence token
-            eos_token: the end of sequence token
+            eos_token: the end of sequence token. Usually equal to sep_token
             pad_token: token to use for padding
+            sep_token: token used for separating sequences
+            cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
         """
 

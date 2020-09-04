@@ -54,7 +54,7 @@ model:
     sample_size: null # for sentencepiece
     vocab_size: ${model.language_model.config.vocab_size} # vocab size for building sentence piece
     do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
-    special_tokens: 
+    special_tokens: # only necessary for adding transformer/bert-specific special tokens to tokenizer if the tokenizer does not already have these inherently.
         unk_token: '[UNK]'
         sep_token: '[SEP]'
         pad_token: '[PAD]'

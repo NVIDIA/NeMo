@@ -33,14 +33,14 @@ __all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
 def get_pretrained_lm_models_list() -> List[str]:
     """
-    Returns the list of support pretrained models
+    Returns the list of supported pretrained model names
     """
     return get_megatron_lm_models_list() + get_huggingface_pretrained_lm_models_list()
 
 
 def get_lm_models_list() -> List[str]:
     """
-    Returns the list of support models
+    Returns the list of supported models based on the model type
     """
     return ["megatron"] + list(HUGGINGFACE_MODELS.keys())
 
@@ -53,12 +53,14 @@ def get_lm_model(
     checkpoint_file: Optional[str] = None,
 ) -> BertModule:
     """
-    Returns pretrained model
+    Helper function to instantiate a language model encoder, either from scratch or a pretrained model.
+    If only model_type and pretrained_model_name are passed, a pretrained model is returned.
+    If a configuration is passed, whether as a file or dictionary, the model is initialized with random weights.
 
     Args:
-        model_type: model type, e.g. bert, megatron, etc.
-        pretrained_model_name: pretrained model name, for example, bert-base-uncased.
-            See the full list by calling get_pretrained_lm_models_list()
+        model_type: model type, e.g. bert, megatron, etc. See get_lm_models_list() for full list.
+        pretrained_model_name: pretrained model name, for example, bert-base-uncased or sentencepiece.
+            See get_pretrained_lm_models_list() for full list.
         config_dict: path to the model configuration dictionary
         config_file: path to the model configuration file
         checkpoint_file: path to the pretrained model checkpoint

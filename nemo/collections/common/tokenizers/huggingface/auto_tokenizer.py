@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+from typing import Dict, List, Optional
 
 from transformers import ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
 from transformers import AutoTokenizer as AUTOTOKENIZER
@@ -62,19 +63,40 @@ def remove_spaces(text):
 
 
 class AutoTokenizer(TokenizerSpec):
+    '''
+        Wrapper of HuggingFace AutoTokenizer https://huggingface.co/transformers/model_doc/auto.html#autotokenizer.
+    '''
+
     def __init__(
         self,
-        pretrained_model_name,
-        vocab_file=None,
-        do_lower_case=None,
-        mask_token: str = None,
-        bos_token: str = None,
-        eos_token: str = None,
-        pad_token: str = None,
-        sep_token: str = None,
-        cls_token: str = None,
-        unk_token: str = None,
+        pretrained_model_name: str,
+        vocab_file: Optional[str] = None,
+        do_lower_case: Optional[bool] = None,
+        mask_token: Optional[str] = None,
+        bos_token: Optional[str] = None,
+        eos_token: Optional[str] = None,
+        pad_token: Optional[str] = None,
+        sep_token: Optional[str] = None,
+        cls_token: Optional[str] = None,
+        unk_token: Optional[str] = None,
     ):
+
+        """
+        Args:
+            pretrained_model_name: corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input argument. 
+                For more details please refer to https://huggingface.co/transformers/_modules/transformers/tokenization_auto.html#AutoTokenizer.from_pretrained. 
+                The list of all supported models can be found here: ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
+            vocab_file: path to file with vocabulary which consists
+                of characters separated by '\n'.
+            do_lower_case: determines if data should be lower cased before tokenization.
+            mask_token: mask token 
+            bos_token: the beginning of sequence token
+            eos_token: the end of sequence token. Usually equal to sep_token
+            pad_token: token to use for padding
+            sep_token: token used for separating sequences
+            cls_token: class token. Usually equal to bos_token
+            unk_token: token to use for unknown tokens
+        """
 
         if pretrained_model_name not in ALL_PRETRAINED_CONFIG_ARCHIVE_MAP:
             raise ValueError(f"{pretrained_model_name} not a huggingface pretrained model")
