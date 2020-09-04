@@ -23,23 +23,13 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 """
-Basic run (on CPU for 50 epochs):
-    python examples/speaker_recognition/speaker_reco.py \
-        model.train_ds.manifest_filepath="<train_manifest_file>" \
-        model.validation_ds.manifest_filepath="<validation_manifest_file>" \
+To extract embeddings
+    python examples/speaker_recognition/spkr_get_emb.py \
+        model.test_ds.manifest_filepath="<validation_manifest_file>" \
+        exp_manager.exp_name="<trained_model_name>"
+        exp_manager.exp_dir="<path to model chckpoint directories>"
         hydra.run.dir="." \
-        trainer.gpus=0 \
-        trainer.max_epochs=50
-
-
-Add PyTorch Lightning Trainer arguments from CLI:
-    python speaker_reco.py \
-        ... \
-        +trainer.fast_dev_run=true
-
-Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
-PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
-
+        trainer.gpus=1 
 """
 
 seed_everything(42)
@@ -49,12 +39,15 @@ seed_everything(42)
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    trainer = pl.Trainer(logger=False, checkpoint_callback=False)
+    if cfg.trainer.gpus > 1:
+        logging.info("changing gpus to 1 to minimize DDP issues while extracting embeddings")
+        cfg.trainer.gpus = 1
+        cfg.trainer.distributed_backend = None
+    trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
     speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)
     speaker_model.setup_test_data(cfg.model.test_ds)
-
     trainer.test(speaker_model)
 
 
