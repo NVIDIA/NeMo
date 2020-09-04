@@ -39,12 +39,9 @@ def get_tokenizer_list() -> List[str]:
 
 def get_tokenizer(
     tokenizer_name: str,
-    data_file: Optional[str] = None,
     tokenizer_model: Optional[str] = None,
-    sample_size: Optional[int] = None,
-    special_tokens: Optional[List[str]] = None,
     vocab_file: Optional[str] = None,
-    vocab_size: Optional[int] = None,
+    special_tokens: Optional[List[str]] = None,
     do_lower_case: Optional[bool] = None,
 ):
     """
@@ -93,20 +90,8 @@ def get_tokenizer(
             **special_tokens_dict,
         )
     elif tokenizer_name == 'sentencepiece':
-        if not tokenizer_model and not data_file:
-            raise ValueError(f'either tokenizer model or data_file must passed')
-        if not tokenizer_model or not os.path.exists(tokenizer_model):
-            num_special_tokens = 0
-            if special_tokens:
-                num_special_tokens = len(set(special_tokens.values()))
-            tokenizer_model, _ = nemo.collections.common.tokenizers.sentencepiece_tokenizer.create_spt_model(
-                data_file=data_file,
-                vocab_size=vocab_size - num_special_tokens,
-                special_tokens=None,
-                sample_size=sample_size,
-                do_lower_case=do_lower_case,
-                output_dir=os.path.dirname(data_file) + '/spt',
-            )
+        if not tokenizer_model:
+            raise ValueError(f'valid tokenizer_model needs to be passed, but got {tokenizer_model}')
         tokenizer = nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens
         )

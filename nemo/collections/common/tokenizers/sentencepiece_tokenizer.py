@@ -175,8 +175,8 @@ def create_spt_model(
     data_file: str,
     vocab_size: int,
     sample_size: int,
-    special_tokens: Optional[Union[Dict[str, str], List[str]]],
     do_lower_case: bool,
+    tokenizer_type: str = 'unigram',
     output_dir: Optional[str] = None,
 ):
     """
@@ -185,7 +185,6 @@ def create_spt_model(
         data_file: data file
         vocab_size: vocabulary size
         sample_size: maximum size of sentences the trainer loads
-        special_tokens: either list of special tokens or dictionary of token name to token value
         do_lower_case: if text should be lower cased before tokenizer model is created
         output_dir: folder to save created tokenizer model. If not specified will store model at data_file/../spt folder
     """
@@ -193,14 +192,7 @@ def create_spt_model(
     if not data_file or not os.path.exists(data_file):
         raise ValueError(f"data_file must be valid file path, but got {data_file}")
     data_dir = os.path.dirname(data_file)
-    if special_tokens:
-        if isinstance(special_tokens, list):
-            special_tokens = list(set(special_tokens))
-        elif isinstance(special_tokens, dict):
-            special_tokens = list(set(special_tokens.values()))
-        vocab = special_tokens[:]
-    else:
-        vocab = []
+    vocab = []
     if not output_dir:
         output_dir = f'{data_dir}/spt'
     if if_exist(output_dir, ['tokenizer.model']):
@@ -211,8 +203,9 @@ def create_spt_model(
 
     cmd = (
         f"--input={data_file} --model_prefix={output_dir}/tokenizer "
-        f"--vocab_size={vocab_size - len(vocab)} "
+        f"--vocab_size={vocab_size} "
         f"--shuffle_input_sentence=true --hard_vocab_limit=false "
+        f"--model_type={tokenizer_type} "
         f"--bos_id=-1 --eos_id=-1"
     )
     if do_lower_case:

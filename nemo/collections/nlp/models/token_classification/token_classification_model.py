@@ -175,15 +175,11 @@ class TokenClassificationModel(ModelPT):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_tokenizer(self, cfg: DictConfig):
-
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
-            data_file=cfg.data_file,
-            tokenizer_model=self.register_artifact(config_path='tokenizer_model', src=cfg.tokenizer_model),
-            sample_size=cfg.sample_size,
+            tokenizer_model=cfg.tokenizer_model,
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            vocab_file=self.register_artifact(config_path='vocab_file', src=cfg.vocab_file),
-            vocab_size=cfg.vocab_size,
+            vocab_file=cfg.vocab_file,
             do_lower_case=cfg.do_lower_case,
         )
         self.tokenizer = tokenizer
