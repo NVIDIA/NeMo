@@ -115,14 +115,6 @@ class SentencePieceTokenizer(TokenizerSpec):
         text += self.tokenizer.decode_ids(ids[last_i:])
         return text.strip()
 
-    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
-        if isinstance(tokens, str):
-            tokens = [tokens]
-        ids = []
-        for token in tokens:
-            ids.append(self.token_to_id(token))
-        return ids
-
     def token_to_id(self, token):
         if token in self.special_token_to_id:
             return self.special_token_to_id[token]

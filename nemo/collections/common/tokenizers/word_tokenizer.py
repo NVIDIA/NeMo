@@ -46,7 +46,16 @@ class WordTokenizer(CharTokenizer):
             unk_token: token to use for unknown tokens
         """
 
-        super().__init__(vocab_file, bos_token, eos_token, pad_token, unk_token)
+        super().__init__(
+            vocab_file=vocab_file,
+            mask_token=mask_token,
+            bos_token=bos_token,
+            eos_token=eos_token,
+            pad_token=pad_token,
+            unk_token=unk_token,
+            sep_token=sep_token,
+            cls_token=cls_token,
+        )
 
     def text_to_tokens(self, text):
         token_candidates = text.strip().split()

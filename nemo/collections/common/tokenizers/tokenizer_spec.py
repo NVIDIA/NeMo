@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Union
 
 __all__ = ['TokenizerSpec']
 
@@ -32,7 +32,7 @@ class TokenizerSpec(ABC):
         pass
 
     @abstractmethod
-    def tokens_to_ids(self, tokens):
+    def token_to_id(self, token):
         pass
 
     @abstractmethod
@@ -49,3 +49,9 @@ class TokenizerSpec(ABC):
 
     def add_special_tokens(self, special_tokens: List[str]):
         raise NotImplementedError("To be implemented")
+
+    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
+        ids = []
+        for token in tokens:
+            ids.append(self.token_to_id(token))
+        return ids

@@ -205,5 +205,9 @@ class AutoTokenizer(TokenizerSpec):
         return self.tokens_to_ids([getattr(self, 'cls_token')])[0]
 
     @property
-    def cls_id(self):
-        return self.tokens_to_ids([getattr(self, 'cls_token')])[0]
+    def unk_id(self):
+        return self.tokens_to_ids([getattr(self, 'unk_token')])[0]
+
+    @property
+    def mask_id(self):
+        return self.tokens_to_ids([getattr(self, 'mask_token')])[0]

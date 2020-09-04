@@ -107,6 +107,9 @@ class CharTokenizer(TokenizerSpec):
     def tokens_to_ids(self, tokens):
         return [self.vocab[token] for token in tokens]
 
+    def token_to_id(self, token):
+        return self.vocab[token]
+
     def ids_to_tokens(self, ids):
         return [self.inv_vocab[id] for id in ids]
 
@@ -125,3 +128,15 @@ class CharTokenizer(TokenizerSpec):
     @property
     def unk_id(self):
         return self.vocab[self.unk_token]
+
+    @property
+    def mask_id(self):
+        return self.vocab[self.mask_token]
+
+    @property
+    def sep_id(self):
+        return self.vocab[self.sep_token]
+
+    @property
+    def cls_id(self):
+        return self.vocab[self.cls_token]
