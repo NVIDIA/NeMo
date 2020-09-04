@@ -16,7 +16,9 @@ import os
 from typing import List, Optional
 
 import nemo
+from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_all_huggingface_pretrained_lm_models_list,
 )
@@ -32,7 +34,7 @@ def get_tokenizer_list() -> List[str]:
     """
     s = set(get_pretrained_lm_models_list())
     s.update(set(get_all_huggingface_pretrained_lm_models_list()))
-    return ["sentencepiece"] + list(s)
+    return ["sentencepiece", "char", "word"] + list(s)
 
 
 def get_tokenizer(
@@ -66,6 +68,11 @@ def get_tokenizer(
             f'Provided tokenizer_name: "{tokenizer_name}" is not supported, choose from {get_tokenizer_list()}'
         )
 
+    if special_tokens is None:
+        special_tokens_dict = {}
+    else:
+        special_tokens_dict = special_tokens
+
     if tokenizer_name.split('-') and tokenizer_name.split('-')[0] == "megatron":
         if do_lower_case is None:
             do_lower_case = (
@@ -79,10 +86,6 @@ def get_tokenizer(
         tokenizer_name = get_megatron_tokenizer(tokenizer_name)
 
     if tokenizer_name in full_huggingface_pretrained_model_list:
-        if special_tokens is None:
-            special_tokens_dict = {}
-        else:
-            special_tokens_dict = special_tokens
         tokenizer = AutoTokenizer(
             pretrained_model_name=tokenizer_name,
             vocab_file=vocab_file,
@@ -107,6 +110,10 @@ def get_tokenizer(
         tokenizer = nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens
         )
+    elif tokenizer_name == 'word':
+        return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
+    elif tokenizer_name == 'char':
+        return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
     else:
         raise ValueError(f'{tokenizer_name} is not supported')
     return tokenizer

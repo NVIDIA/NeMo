@@ -15,7 +15,7 @@
 import torch
 import torch.nn as nn
 
-__all__ = ['form_attention_mask', 'transformer_weights_init']
+__all__ = ['NEG_INF', 'form_attention_mask', 'transformer_weights_init', 'mask_padded_tokens']
 
 NEG_INF = -10000.0
 
@@ -72,3 +72,8 @@ def transformer_weights_init(module, std_init_range=0.02, xavier=True):
     elif isinstance(module, nn.LayerNorm):
         nn.init.constant_(module.weight, 1.0)
         nn.init.constant_(module.bias, 0.0)
+
+
+def mask_padded_tokens(tokens, pad_id):
+    mask = tokens != pad_id
+    return mask
