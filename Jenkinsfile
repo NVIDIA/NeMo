@@ -643,9 +643,9 @@ pipeline {
               model.tokenizer.vocab_file=/home/TestData/nlp/vocabs/mini_vocab.txt \
               model.mask_prob=0.15 \
               model.short_seq_prob=0.1 \
-              exp_manager.exp_dir=PretrainingBERTFromTextchartok \
+              exp_manager.exp_dir=PretrainingBERTFromTextwordtok \
               '
-              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextchartok'
+              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
             }
         }
       }
