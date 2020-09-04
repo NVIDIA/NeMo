@@ -46,7 +46,6 @@ class CharTokenizer(TokenizerSpec):
             unk_token: token to use for unknown tokens
         """
 
-        ipdb.set_trace()
         vocab_list = open(vocab_file, "r").readlines()
         self.vocab = {vocab_list[i].strip(): i for i in range(len(vocab_list))}
 
