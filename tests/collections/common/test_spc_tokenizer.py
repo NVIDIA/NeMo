@@ -16,18 +16,19 @@ import pytest
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
+MODEL_SPECIAL_TOKENS = {
+    'unk_token': '[UNK]',
+    'sep_token': '[SEP]',
+    'pad_token': '[PAD]',
+    'bos_token': '[CLS]',
+    'mask_token': '[MASK]',
+    'eos_token': '[SEP]',
+    'cls_token': '[CLS]',
+}
+
 
 class TestSentencePieceTokenizer:
     model_name = "/m_common.model"
-    MODEL_SPECIAL_TOKENS = {
-        'unk_token': '[UNK]',
-        'sep_token': '[SEP]',
-        'pad_token': '[PAD]',
-        'bos_token': '[CLS]',
-        'mask_token': '[MASK]',
-        'eos_token': '[SEP]',
-        'cls_token': '[CLS]',
-    }
 
     @pytest.mark.unit
     def test_add_special_tokens(self, test_data_dir):
