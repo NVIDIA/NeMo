@@ -45,7 +45,6 @@ class CharTokenizer(TokenizerSpec):
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
         """
-        import ipdb
 
         ipdb.set_trace()
         vocab_list = open(vocab_file, "r").readlines()
