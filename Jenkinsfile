@@ -262,8 +262,8 @@ pipeline {
         model.dataset.use_cache=false \
         model.language_model.model_type=megatron \
         model.language_model.pretrained_model_name=megatron-bert-uncased \
-        model.language_model.bert_checkpoint_file=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
-        model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
+        model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
+        model.language_model.bert_config_file=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
         trainer.distributed_backend=ddp \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
