@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:20.07-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:20.08-py3
+
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
 # are included first for optimal caching, and useful for building a development
@@ -32,8 +33,8 @@ RUN apt-get update && \
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
-COPY requirements/requirements_docker.txt requirements.txt
-RUN pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+COPY requirements .
+RUN for f in requirements/*.txt; do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
