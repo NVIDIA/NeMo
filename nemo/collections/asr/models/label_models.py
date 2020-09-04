@@ -191,10 +191,26 @@ class EncDecSpeakerLabelModel(ModelPT):
 
         return {'log': tensorboard_log}
 
-    def test_step(self, batch, batch_ix):
+    def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
-        _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        return {'embs': embs, 'labels': labels}
+        logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        self.loss_value = self.loss(logits=logits, labels=labels)
+        correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
+        return {'test_loss': self.loss_value, 'test_correct_counts': correct_counts, 'test_total_counts': total_counts}
+
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        self.val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        correct_counts = torch.stack([x['test_correct_counts'] for x in outputs])
+        total_counts = torch.stack([x['test_total_counts'] for x in outputs])
+
+        topk_scores = compute_topk_accuracy(correct_counts, total_counts)
+        logging.info("test_loss: {:.3f}".format(self.val_loss_mean))
+        tensorboard_log = {'test_loss': self.val_loss_mean}
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
+            self.accuracy = score * 100
+
+        return {'log': tensorboard_log}
 
 
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
