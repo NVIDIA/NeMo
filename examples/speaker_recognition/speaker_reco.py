@@ -58,7 +58,8 @@ def main(cfg):
         if isinstance(trainer.gpus, list) and len(trainer.gpus) > 1 or int(trainer.gpus) > 1:
             logging.info("Testing on single GPU to minimize DDP issues")
             trainer.gpus = 1
-            trainer.test(speaker_model)
+
+        trainer.test(speaker_model)
 
 
 if __name__ == '__main__':
