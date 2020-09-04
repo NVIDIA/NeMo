@@ -658,8 +658,8 @@ pipeline {
             +trainer.fast_dev_run=True \
             trainer.distributed_backend=null \
             trainer.max_epochs=-1 \
-            model.train_ds.batch_size=4 \
-            model.validation_ds.batch_size=4'
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.batch_size=4'
           }
         }
         stage('GlowTTS') {
