@@ -77,10 +77,6 @@ def get_lm_model(
             f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
         )
 
-    # check either config or pretrained_model name is specified, not both
-    if (config_dict or config_file) and pretrained_model_name:
-        raise ValueError(f"Either specify model XOR pretrained_mode_name, but got both")
-
     # check valid optional pretrained_model_name
     if pretrained_model_name and pretrained_model_name not in get_pretrained_lm_models_list():
         raise ValueError(
@@ -95,15 +91,12 @@ def get_lm_model(
             pretrained_model_name=pretrained_model_name,
         )
     elif model_type == "megatron":
-        if pretrained_model_name in get_megatron_lm_models_list():
-            model, default_checkpoint_file = get_megatron_lm_model(
-                config_dict=config_dict,
-                config_file=config_file,
-                pretrained_model_name=pretrained_model_name,
-                checkpoint_file=checkpoint_file,
-            )
-        else:
-            raise ValueError(f'{pretrained_model_name} is not supported')
+        model, default_checkpoint_file = get_megatron_lm_model(
+            config_dict=config_dict,
+            config_file=config_file,
+            pretrained_model_name=pretrained_model_name,
+            checkpoint_file=checkpoint_file,
+        )
 
     if checkpoint_file:
         model.restore_weights(restore_path=checkpoint_file)

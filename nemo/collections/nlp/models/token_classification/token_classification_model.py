@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from typing import Dict, List, Optional, Union
 
@@ -60,7 +61,8 @@ class TokenClassificationModel(ModelPT):
                     f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
                 )
             )
-            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
+            cf = json.load(open(cfg.language_model.bert_config_file))
+            self.vocab_size = cf.get('vocab_size', None) or cf.get('vocab-size', None)
         elif cfg.language_model.bert_config and cfg.language_model.bert_config.vocab_size is not None:
             self.vocab_size = cfg.language_model.bert_config.vocab_size
         else:
@@ -75,7 +77,6 @@ class TokenClassificationModel(ModelPT):
         self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
 
         super().__init__(cfg=cfg, trainer=trainer)
-
         self.bert_model = get_lm_model(
             model_type=cfg.language_model.model_type,
             pretrained_model_name=cfg.language_model.pretrained_model_name,

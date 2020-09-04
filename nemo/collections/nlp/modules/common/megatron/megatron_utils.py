@@ -96,8 +96,11 @@ def get_megatron_lm_model(
             }
     elif config_dict:
         config = config_dict
-    else:
+    elif pretrained_model_name in get_megatron_lm_models_list():
         config = get_megatron_config(pretrained_model_name)
+    else:
+        raise ValueError(f'{pretrained_model_name} is not supported')
+
     if config is None:
         raise ValueError(f'config_file or config_dict is required for {pretrained_model_name}')
 
