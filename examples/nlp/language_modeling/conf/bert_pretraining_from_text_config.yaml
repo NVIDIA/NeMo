@@ -49,7 +49,6 @@ model:
     tokenizer_name: ${model.pretrained_model_name} # or sentencepiece
     vocab_file: null # path to vocab file
     tokenizer_model: null # tokenizer model for sentencepiece
-    do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
     special_tokens: # only necessary for adding transformer/bert-specific special tokens to tokenizer if the tokenizer does not already have these inherently.
         unk_token: '[UNK]'
         sep_token: '[SEP]'

@@ -205,7 +205,6 @@ class IntentSlotClassificationModel(ModelPT):
             tokenizer_model=cfg.tokenizer_model,
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
             vocab_file=cfg.vocab_file,
-            do_lower_case=cfg.do_lower_case,
         )
         self.tokenizer = tokenizer
 

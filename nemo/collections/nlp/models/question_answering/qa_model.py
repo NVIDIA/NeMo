@@ -51,7 +51,7 @@ class QAModel(ModelPT):
         self.doc_stride = cfg.dataset.doc_stride
         self.max_query_length = cfg.dataset.max_query_length
         self.max_seq_length = cfg.dataset.max_seq_length
-        self.do_lower_case = cfg.tokenizer.do_lower_case
+        self.do_lower_case = cfg.dataset.do_lower_case
         self.use_cache = cfg.dataset.use_cache
         self._setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
@@ -231,7 +231,6 @@ class QAModel(ModelPT):
             tokenizer_model=cfg.tokenizer_model,
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
             vocab_file=cfg.vocab_file,
-            do_lower_case=cfg.do_lower_case,
         )
         self.tokenizer = tokenizer
 

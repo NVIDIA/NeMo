@@ -19,9 +19,7 @@ import nemo
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
-from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
-    get_all_huggingface_pretrained_lm_models_list,
-)
+from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
 
@@ -33,7 +31,7 @@ def get_tokenizer_list() -> List[str]:
     Returns all all supported tokenizer names
     """
     s = set(get_pretrained_lm_models_list())
-    s.update(set(get_all_huggingface_pretrained_lm_models_list()))
+    s.update(set(get_huggingface_pretrained_lm_models_list(external=True)))
     return ["sentencepiece", "char", "word"] + list(s)
 
 
@@ -42,23 +40,20 @@ def get_tokenizer(
     tokenizer_model: Optional[str] = None,
     vocab_file: Optional[str] = None,
     special_tokens: Optional[List[str]] = None,
-    do_lower_case: Optional[bool] = None,
 ):
     """
     Args:
         tokenizer_name: sentencepiece or pretrained model from the hugging face list,
             for example: bert-base-cased
-            To see the list of pretrained models, use: nemo_nlp.modules.common.get_all_huggingface_pretrained_lm_models_list()
+            To see the list of all HuggingFace pretrained models, use: nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
         data_file: data file used to build sentencepiece
         tokenizer_model: tokenizer model file of sentencepiece
         sample_size: sample size for building sentencepiece
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         vocab_size: vocab size for building sentence piece
-        do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with
-             sentencepiece
     """
-    full_huggingface_pretrained_model_list = get_all_huggingface_pretrained_lm_models_list()
+    full_huggingface_pretrained_model_list = get_huggingface_pretrained_lm_models_list(include_external=True)
 
     if tokenizer_name not in get_tokenizer_list():
         raise ValueError(
@@ -71,11 +66,6 @@ def get_tokenizer(
         special_tokens_dict = special_tokens
 
     if tokenizer_name.split('-') and tokenizer_name.split('-')[0] == "megatron":
-        if do_lower_case is None:
-            do_lower_case = (
-                do_lower_case
-                or nemo.collections.nlp.modules.common.megatron.megatron_utils.is_lower_cased_megatron(tokenizer_name)
-            )
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
                 tokenizer_name
@@ -83,12 +73,7 @@ def get_tokenizer(
         tokenizer_name = get_megatron_tokenizer(tokenizer_name)
 
     if tokenizer_name in full_huggingface_pretrained_model_list:
-        tokenizer = AutoTokenizer(
-            pretrained_model_name=tokenizer_name,
-            vocab_file=vocab_file,
-            do_lower_case=do_lower_case,
-            **special_tokens_dict,
-        )
+        tokenizer = AutoTokenizer(pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict,)
     elif tokenizer_name == 'sentencepiece':
         if not tokenizer_model:
             raise ValueError(f'valid tokenizer_model needs to be passed, but got {tokenizer_model}')

@@ -348,7 +348,6 @@ pipeline {
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-            model.dataset.do_lower_case=false \
 	    trainer.distributed_backend=ddp \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -366,7 +365,6 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
-            model.dataset.do_lower_case=true \
             model.train_ds.batch_size=3 \
             model.validation_ds.batch_size=4 \
 	    trainer.distributed_backend=ddp \
@@ -407,7 +405,6 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
@@ -440,7 +437,6 @@ pipeline {
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-            model.dataset.do_lower_case=true \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
             exp_manager.exp_dir=exp_bert_base_uncased \

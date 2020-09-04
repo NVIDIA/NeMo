@@ -32,14 +32,7 @@ from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBer
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.utils import logging
 
-__all__ = (
-    [
-        'HUGGINGFACE_MODELS',
-        'get_huggingface_lm_model',
-        'get_huggingface_pretrained_lm_models_list',
-        'get_all_huggingface_pretrained_lm_models_list',
-    ],
-)
+__all__ = (['HUGGINGFACE_MODELS', 'get_huggingface_lm_model', 'get_huggingface_pretrained_lm_models_list',],)
 
 
 HUGGINGFACE_MODELS = {
@@ -95,19 +88,18 @@ def get_huggingface_lm_model(
         return model_class.from_pretrained(pretrained_model_name)
 
 
-def get_huggingface_pretrained_lm_models_list() -> List[str]:
+def get_huggingface_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
     '''
-    Returns the list of supported HuggingFace HUGGINGFACE_MODELS
+    Args:
+        include_external if true includes all HuggingFace model names, not only those supported language models in NeMo.
+    Returns the list of HuggingFace models
     '''
+
     huggingface_models = []
-    for model in HUGGINGFACE_MODELS:
-        model_names = HUGGINGFACE_MODELS[model]['pretrained_model_list']
-        huggingface_models.extend(model_names)
+    if include_external:
+        huggingface_models = list(ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys())
+    else:
+        for model in HUGGINGFACE_MODELS:
+            model_names = HUGGINGFACE_MODELS[model]['pretrained_model_list']
+            huggingface_models.extend(model_names)
     return huggingface_models
-
-
-def get_all_huggingface_pretrained_lm_models_list() -> List[str]:
-    '''
-    Returns the list of all HuggingFace pretrained models
-    '''
-    return list(ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys())
