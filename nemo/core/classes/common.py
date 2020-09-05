@@ -274,16 +274,14 @@ class Serialization(ABC):
 
 
 class FileIO(ABC):
-    @abstractmethod
     def save_to(self, save_path: str):
         """Saves module/model with weights"""
-        pass
+        raise NotImplementedError()
 
     @classmethod
-    @abstractmethod
     def restore_from(cls, restore_path: str, override_config_path: Optional[str] = None):
         """Restores module/model with weights"""
-        pass
+        raise NotImplementedError()
 
     @classmethod
     def from_config_file(cls, path2yaml_file: str):
