@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List
 
 __all__ = ['TokenizerSpec']
 
