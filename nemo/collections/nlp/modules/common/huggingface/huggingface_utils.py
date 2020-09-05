@@ -30,7 +30,6 @@ from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
-from nemo.utils import logging
 
 __all__ = ['get_huggingface_lm_model', 'get_huggingface_pretrained_lm_models_list']
 

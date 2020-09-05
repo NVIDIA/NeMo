@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from typing import Dict, List, Optional
+from typing import Optional
 
 from transformers import ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
 from transformers import AutoTokenizer as AUTOTOKENIZER
