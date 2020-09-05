@@ -21,9 +21,9 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import L2RLanguageModelingDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -41,7 +41,9 @@ class TransformerLMModel(ModelPT):
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
         self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer, vocab_file=cfg.language_model.vocab_file
+            tokenizer_name=cfg.language_model.tokenizer,
+            vocab_file=cfg.language_model.vocab_file,
+            special_tokens=cfg.language_model.special_tokens,
         )
 
         # make vocabulary size divisible by 8 for fast fp16 training

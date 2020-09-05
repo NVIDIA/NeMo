@@ -12,39 +12,58 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = ['CharTokenizer']
 
 
 class CharTokenizer(TokenizerSpec):
+    "Tokenizes each character"
+
     def __init__(
         self,
         vocab_file: str,
-        bos_token: str = "<BOS>",
-        eos_token: str = "<EOS>",
-        pad_token: str = "<PAD>",
-        unk_token: str = "<UNK>",
+        mask_token: Optional[str] = None,
+        bos_token: Optional[str] = None,
+        eos_token: Optional[str] = None,
+        pad_token: Optional[str] = None,
+        sep_token: Optional[str] = None,
+        cls_token: Optional[str] = None,
+        unk_token: Optional[str] = None,
     ):
         """
         Args:
             vocab_file: path to file with vocabulary which consists
                 of characters separated by \n
+            mask_token: mask token 
             bos_token: the beginning of sequence token
-            eos_token: the end of sequence token
+            eos_token: the end of sequence token. Usually equal to sep_token
             pad_token: token to use for padding
+            sep_token: token used for separating sequences
+            cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
         """
 
         vocab_list = open(vocab_file, "r").readlines()
         self.vocab = {vocab_list[i].strip(): i for i in range(len(vocab_list))}
 
-        special_tokens_dict = {
-            "bos_token": bos_token,
-            "eos_token": eos_token,
-            "pad_token": pad_token,
-            "unk_token": unk_token,
-        }
+        special_tokens_dict = {}
+        if unk_token:
+            special_tokens_dict["unk_token"] = unk_token
+        if sep_token:
+            special_tokens_dict["sep_token"] = sep_token
+        if mask_token:
+            special_tokens_dict["mask_token"] = mask_token
+        if bos_token:
+            special_tokens_dict["bos_token"] = bos_token
+        if eos_token:
+            special_tokens_dict["eos_token"] = eos_token
+        if pad_token:
+            special_tokens_dict["pad_token"] = pad_token
+        if cls_token:
+            special_tokens_dict["cls_token"] = cls_token
 
         self.add_special_tokens(special_tokens_dict)
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
@@ -88,6 +107,9 @@ class CharTokenizer(TokenizerSpec):
     def tokens_to_ids(self, tokens):
         return [self.vocab[token] for token in tokens]
 
+    def token_to_id(self, token):
+        return self.vocab[token]
+
     def ids_to_tokens(self, ids):
         return [self.inv_vocab[id] for id in ids]
 
@@ -106,3 +128,15 @@ class CharTokenizer(TokenizerSpec):
     @property
     def unk_id(self):
         return self.vocab[self.unk_token]
+
+    @property
+    def mask_id(self):
+        return self.vocab[self.mask_token]
+
+    @property
+    def sep_id(self):
+        return self.vocab[self.sep_token]
+
+    @property
+    def cls_id(self):
+        return self.vocab[self.cls_token]
