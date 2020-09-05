@@ -21,10 +21,10 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import SpanningLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -51,33 +51,15 @@ class QAModel(ModelPT):
         self.doc_stride = cfg.dataset.doc_stride
         self.max_query_length = cfg.dataset.max_query_length
         self.max_seq_length = cfg.dataset.max_seq_length
-        self.do_lower_case = cfg.tokenizer.do_lower_case
+        self.do_lower_case = cfg.dataset.do_lower_case
         self.use_cache = cfg.dataset.use_cache
-
-        if cfg.language_model.bert_config_file is not None:
-            logging.info(
-                (
-                    f"HuggingFace BERT config file found. "
-                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
-                )
-            )
-            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
-        elif cfg.language_model.bert_config and cfg.language_model.bert_config.vocab_size is not None:
-            self.vocab_size = cfg.language_model.bert_config.vocab_size
-        else:
-            self.vocab_size = None
-
-        cfg.tokenizer.vocab_size = self.vocab_size
         self._setup_tokenizer(cfg.tokenizer)
-
         super().__init__(cfg=cfg, trainer=trainer)
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config_file,
-            config_dict=OmegaConf.to_container(cfg.language_model.bert_config)
-            if cfg.language_model.bert_config
-            else None,
-            checkpoint_file=cfg.language_model.bert_checkpoint,
+            config_file=cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+            checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
         self.hidden_size = self.bert_model.hidden_size
@@ -246,14 +228,9 @@ class QAModel(ModelPT):
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
-            data_file=cfg.data_file,
             tokenizer_model=cfg.tokenizer_model,
-            sample_size=cfg.sample_size,
-            pretrained_model_name=cfg.pretrained_model_name,
-            special_tokens=cfg.special_tokens,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
             vocab_file=cfg.vocab_file,
-            vocab_size=cfg.vocab_size,
-            do_lower_case=cfg.do_lower_case,
         )
         self.tokenizer = tokenizer
 

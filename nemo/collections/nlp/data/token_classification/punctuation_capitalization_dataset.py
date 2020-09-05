@@ -47,7 +47,7 @@ def get_features(
     Args:
         queries: text sequences
         max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer: such as NemoBertTokenizer
+        tokenizer: such as AutoTokenizer
         pad_label: pad value use for labels. By default, it's the neutral label.
         punct_label_ids: dict to map punctuation labels to label ids.
             Starts with pad_label->0 and then increases in alphabetical order.
@@ -197,7 +197,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         text_file: file to sequences, each line should a sentence, no header.
         label_file: file to labels, each line corresponds to word labels for a sentence in the text_file. No header.
         max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer: such as NemoBertTokenizer
+        tokenizer: such as AutoTokenizer
         num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
         pad_label: pad value use for labels.
@@ -426,7 +426,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
     Args:
         queries file to sequences, each line should a sentence, no header.
         max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer: such as NemoBertTokenizer
+        tokenizer: such as AutoTokenizer
     """
 
     @property
