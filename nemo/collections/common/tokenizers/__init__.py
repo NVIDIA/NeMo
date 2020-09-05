@@ -12,15 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
-from nemo.collections.common.tokenizers.gpt2_tokenizer import NemoGPT2Tokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.common.tokenizers.tokenizer_utils import (
-    MODEL_SPECIAL_TOKENS,
-    TOKENIZERS,
-    get_bert_special_tokens,
-    get_tokenizer,
-)
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer

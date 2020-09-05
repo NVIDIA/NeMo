@@ -15,6 +15,7 @@
 import os
 
 import pytorch_lightning as pl
+from omegaconf.listconfig import ListConfig
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import ExtractSpeakerEmbeddingsModel
@@ -39,7 +40,9 @@ seed_everything(42)
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    if cfg.trainer.gpus > 1:
+    if (isinstance(cfg.trainer.gpus, ListConfig) and len(cfg.trainer.gpus) > 1) or (
+        isinstance(cfg.trainer.gpus, (int, str)) and int(cfg.trainer.gpus) > 1
+    ):
         logging.info("changing gpus to 1 to minimize DDP issues while extracting embeddings")
         cfg.trainer.gpus = 1
         cfg.trainer.distributed_backend = None

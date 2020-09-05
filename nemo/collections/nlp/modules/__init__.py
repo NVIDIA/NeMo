@@ -23,7 +23,9 @@ from nemo.collections.nlp.modules.common import (
     SequenceClassifier,
     SequenceRegression,
     SequenceTokenClassifier,
+    get_lm_model,
     get_megatron_lm_models_list,
-    get_pretrained_lm_model,
     get_pretrained_lm_models_list,
+    get_tokenizer,
+    get_tokenizer_list,
 )

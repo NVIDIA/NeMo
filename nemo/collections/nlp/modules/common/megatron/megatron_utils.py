@@ -29,6 +29,7 @@ __all__ = [
     "get_megatron_lm_models_list",
     "get_megatron_checkpoint",
     "is_lower_cased_megatron",
+    "get_megatron_tokenizer",
 ]
 
 
@@ -42,36 +43,42 @@ MEGATRON_CONFIG_MAP = {
         "checkpoint": "https://api.ngc.nvidia.com/v2/models/nvidia/megatron_bert_345m/versions/v0.0/files/release/mp_rank_00/model_optim_rng.pt",
         "vocab": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt",
         "do_lower_case": True,
+        "tokenizer_name": "bert-large-uncased",
     },
     "megatron-bert-345m-cased": {
         "config": CONFIGS["345m"],
         "checkpoint": "https://api.ngc.nvidia.com/v2/models/nvidia/megatron_bert_345m/versions/v0.1_cased/files/release/mp_rank_00/model_optim_rng.pt",
         "vocab": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt",
         "do_lower_case": False,
-    },
-    "biomegatron-bert-345m-uncased": {
-        "config": CONFIGS["345m"],
-        "checkpoint": "https://api.ngc.nvidia.com/v2/models/nvidia/biomegatron345muncased/versions/0/files/MegatronBERT.pt",
-        "vocab": "https://api.ngc.nvidia.com/v2/models/nvidia/biomegatron345muncased/versions/0/files/vocab.txt",
-        "do_lower_case": True,
-    },
-    "biomegatron-bert-345m-cased": {
-        "config": CONFIGS["345m"],
-        "checkpoint": "https://api.ngc.nvidia.com/v2/models/nvidia/biomegatron345mcased/versions/0/files/MegatronBERT.pt",
-        "vocab": "https://api.ngc.nvidia.com/v2/models/nvidia/biomegatron345mcased/versions/0/files/vocab.txt",
-        "do_lower_case": False,
+        "tokenizer_name": "bert-large-cased",
     },
     "megatron-bert-uncased": {
         "config": None,
         "checkpoint": None,
         "vocab": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt",
         "do_lower_case": True,
+        "tokenizer_name": "bert-large-uncased",
     },
     "megatron-bert-cased": {
         "config": None,
         "checkpoint": None,
         "vocab": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt",
         "do_lower_case": False,
+        "tokenizer_name": "bert-large-cased",
+    },
+    "biomegatron-bert-345m-uncased": {
+        "config": CONFIGS["345m"],
+        "checkpoint": "https://api.ngc.nvidia.com/v2/models/nvidia/biomegatron345muncased/versions/0/files/MegatronBERT.pt",
+        "vocab": "https://api.ngc.nvidia.com/v2/models/nvidia/biomegatron345muncased/versions/0/files/vocab.txt",
+        "do_lower_case": True,
+        "tokenizer_name": "bert-large-uncased",
+    },
+    "biomegatron-bert-345m-cased": {
+        "config": CONFIGS["345m"],
+        "checkpoint": "https://api.ngc.nvidia.com/v2/models/nvidia/biomegatron345mcased/versions/0/files/MegatronBERT.pt",
+        "vocab": "https://api.ngc.nvidia.com/v2/models/nvidia/biomegatron345mcased/versions/0/files/vocab.txt",
+        "do_lower_case": False,
+        "tokenizer_name": "bert-large-cased",
     },
 }
 
@@ -86,8 +93,8 @@ def get_megatron_lm_model(
     Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
 
     Args:
-        pretrained_mode_name: name of the pretrained model from the Megatron-LM list,
-            for example: megatron-bert-345m-uncased
+        pretrained_mode_name: model name from MEGATRON_CONFIG_MAP
+            for example: megatron-bert-cased
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
         checkpoint_file: path to checkpoint file.
@@ -109,8 +116,11 @@ def get_megatron_lm_model(
             }
     elif config_dict:
         config = config_dict
-    else:
+    elif pretrained_model_name in get_megatron_lm_models_list():
         config = get_megatron_config(pretrained_model_name)
+    else:
+        raise ValueError(f"{pretrained_model_name} is not supported")
+
     if config is None:
         raise ValueError(f"config_file or config_dict is required for {pretrained_model_name}")
 
@@ -158,7 +168,7 @@ def get_megatron_vocab_file(pretrained_model_name: str) -> str:
 
     # try downloading it with wget
     if path is None:
-        path = os.path.join(MEGATRON_CACHE, pretrained_model_name + '_vocab')
+        path = os.path.join(MEGATRON_CACHE, pretrained_model_name + "_vocab")
         path = _download(path, url)
     return path
 
@@ -179,6 +189,7 @@ def get_megatron_checkpoint(pretrained_model_name: str) -> str:
 def _download(path: str, url: str):
     """
     Gets a file from cache or downloads it
+
     Args:
         path: path to the file in cache
         url: url to the file
@@ -193,7 +204,7 @@ def _download(path: str, url: str):
         if not os.path.exists(path):
             if master_device:
                 os.makedirs(MEGATRON_CACHE, exist_ok=True)
-                logging.info(f'Downloading from {url}')
+                logging.info(f"Downloading from {url}")
                 wget.download(url, path)
             # wait until the master process downloads the file and writes it to the cache dir
             if torch.distributed.is_initialized():
@@ -205,9 +216,23 @@ def _download(path: str, url: str):
 def is_lower_cased_megatron(pretrained_model_name):
     """
     Returns if the megatron is cased or uncased
+
     Args:
         pretrained_model_name (str): pretrained model name
     Returns:
         do_lower_cased (bool): whether the model uses lower cased data
     """
     return MEGATRON_CONFIG_MAP[pretrained_model_name]["do_lower_case"]
+
+
+def get_megatron_tokenizer(pretrained_model_name: str):
+    """
+    Takes a pretrained_model_name for megatron such as "megatron-bert-cased" and returns the according 
+    tokenizer name for tokenizer instantiating.
+
+    Args:
+        pretrained_model_name: pretrained_model_name for megatron such as "megatron-bert-cased"
+    Returns: 
+        tokenizer name for tokenizer instantiating
+    """
+    return MEGATRON_CONFIG_MAP[pretrained_model_name]["tokenizer_name"]
