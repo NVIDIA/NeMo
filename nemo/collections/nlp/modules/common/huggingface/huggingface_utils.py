@@ -32,6 +32,7 @@ from nemo.collections.nlp.modules.common.huggingface.auto import AutoEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
+from nemo.utils import logging
 
 __all__ = ["get_huggingface_lm_model", "get_huggingface_pretrained_lm_models_list"]
 
@@ -96,6 +97,7 @@ def get_huggingface_lm_model(
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:
+        logging.info('Using HuggingFace AutoModel, typing check is not supported')
         return automodel
 
 
