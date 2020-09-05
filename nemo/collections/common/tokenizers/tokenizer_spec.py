@@ -49,9 +49,3 @@ class TokenizerSpec(ABC):
 
     def add_special_tokens(self, special_tokens: List[str]):
         raise NotImplementedError("To be implemented")
-
-    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
-        ids = []
-        for token in tokens:
-            ids.append(self.token_to_id(token))
-        return ids

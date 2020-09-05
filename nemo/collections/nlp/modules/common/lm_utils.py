@@ -76,8 +76,11 @@ def get_lm_model(
             config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
         )
     elif "megatron" in pretrained_model_name:
-        model, default_checkpoint_file = get_megatron_lm_model(
-            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name
+        model, checkpoint_file = get_megatron_lm_model(
+            config_dict=config_dict,
+            config_file=config_file,
+            pretrained_model_name=pretrained_model_name,
+            checkpoint_file=checkpoint_file,
         )
 
     if checkpoint_file:

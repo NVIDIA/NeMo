@@ -45,12 +45,9 @@ def get_tokenizer(
         tokenizer_name: sentencepiece or pretrained model from the hugging face list,
             for example: bert-base-cased
             To see the list of all HuggingFace pretrained models, use: nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
-        data_file: data file used to build sentencepiece
         tokenizer_model: tokenizer model file of sentencepiece
-        sample_size: sample size for building sentencepiece
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
-        vocab_size: vocab size for building sentence piece
     """
     full_huggingface_pretrained_model_list = get_huggingface_pretrained_lm_models_list(include_external=True)
 
@@ -74,8 +71,6 @@ def get_tokenizer(
     if tokenizer_name in full_huggingface_pretrained_model_list:
         tokenizer = AutoTokenizer(pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict,)
     elif tokenizer_name == 'sentencepiece':
-        if not tokenizer_model:
-            raise ValueError(f'valid tokenizer_model needs to be passed, but got {tokenizer_model}')
         tokenizer = nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens
         )
@@ -83,6 +78,5 @@ def get_tokenizer(
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
-    else:
-        raise ValueError(f'{tokenizer_name} is not supported')
+
     return tokenizer

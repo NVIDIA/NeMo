@@ -199,9 +199,9 @@ class PunctuationCapitalizationModel(ModelPT):
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
-            tokenizer_model=cfg.tokenizer_model,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            vocab_file=cfg.vocab_file,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
         )
         self.tokenizer = tokenizer
 

@@ -36,6 +36,8 @@ class SentencePieceTokenizer(TokenizerSpec):
             model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
             special_tokens: either list of special tokens or dictionary of token name to token value
         """
+        if not model_path or not os.path.exists(model_path):
+            raise ValueError(f"model_path: {model_path} is invalid")
         self.tokenizer = sentencepiece.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
         self.original_vocab_size = self.tokenizer.get_piece_size()
@@ -128,6 +130,14 @@ class SentencePieceTokenizer(TokenizerSpec):
             else:
                 tokens.append(self.tokenizer.id_to_piece(id))
         return tokens
+
+    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
+        if isinstance(tokens, str):
+            tokens = [tokens]
+        ids = []
+        for token in tokens:
+            ids.append(self.token_to_id(token))
+        return ids
 
     def add_special_tokens(self, special_tokens):
         if isinstance(special_tokens, list):

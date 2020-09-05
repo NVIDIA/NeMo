@@ -69,15 +69,19 @@ MEGATRON_CONFIG_MAP = {
 
 
 def get_megatron_lm_model(
-    pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None,
+    pretrained_model_name: str,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
+    checkpoint_file: Optional[str] = None,
 ):
     '''
     Returns the dict of special tokens associated with the model.
     Args:
-        pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
-            for example: bert-base-cased
+        pretrained_mode_name: model name from MEGATRON_CONFIG_MAP
+            for example: megatron-bert-cased
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
+        checkpoint_file: path to checkpoint file.
     '''
     config = None
     # get default config and checkpoint
@@ -100,7 +104,8 @@ def get_megatron_lm_model(
     if config is None:
         raise ValueError(f'config_file or config_dict is required for {pretrained_model_name}')
 
-    checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
+    if not checkpoint_file:
+        checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
 
@@ -177,7 +182,7 @@ def is_lower_cased_megatron(pretrained_model_name):
     return MEGATRON_CONFIG_MAP[pretrained_model_name]['do_lower_case']
 
 
-def get_megatron_tokenizer(pretrained_model_name):
+def get_megatron_tokenizer(pretrained_model_name: str):
     '''
     Takes a pretrained_model_name for megatron such as 'megatron-bert-cased' and returns the according 
     tokenizer name for tokenizer instantiating.
