@@ -45,9 +45,11 @@ class TextClassificationModel(ModelPT):
         """Initializes the BERTTextClassifier model.
         """
 
+        # Q: Why there is a separate entity, stored and managed independently of self._cfg
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
 
+        # Q: why tokenizer is initialized before init of parent class?
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
@@ -59,6 +61,8 @@ class TextClassificationModel(ModelPT):
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
+        # Q: What is that? And what with e.g. test files? Should all that be processed externally?
+        # Or maybe in PTL model.prepare_data()?
         self.data_desc = TextClassificationDataDesc(
             train_file=cfg.train_ds.file_name, val_files=[cfg.validation_ds.file_name]
         )
@@ -94,6 +98,9 @@ class TextClassificationModel(ModelPT):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
+        
+        THE ABOVE COMMENT IS NOT TRUE! PTL ASSUMES THIS METHOD IS USED FOR INFERENCE ONLY!
+        So no "if self.train()" etc.
         """
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
@@ -154,10 +161,51 @@ class TextClassificationModel(ModelPT):
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+
+    def test_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the test/evaluation loop with the data from the test dataloader
+        passed in as `batch`.
+        """
+        input_ids, input_type_ids, input_mask, labels = batch
+        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+
+        val_loss = self.loss(logits=logits, labels=labels)
+
+        preds = torch.argmax(logits, axis=-1)
+        tp, fp, fn = self.classification_report(preds, labels)
+
+        tensorboard_logs = {'test_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+
+        return {'test_loss': val_loss, 'log': tensorboard_logs}
+
+    def test_epoch_end(self, outputs):
+        """
+        Called at the end of test/evaluation to aggregate outputs.
+        :param outputs: list of individual outputs of each test step.
+        """
+        # if outputs: # TODO: Check why need this?
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+
+        # calculate metrics and log classification report
+        tp = torch.sum(torch.stack([x['log']['tp'] for x in outputs]), 0)
+        fn = torch.sum(torch.stack([x['log']['fn'] for x in outputs]), 0)
+        fp = torch.sum(torch.stack([x['log']['fp'] for x in outputs]), 0)
+        precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
+
+        tensorboard_logs = {
+            'test_loss': avg_loss,
+            'precision': precision,
+            'recall': recall,
+            'f1': f1,
+        }
+        return {'test_loss': avg_loss, 'log': tensorboard_logs}
+
+
+    def setup_training_data(self, train_data_config: Optional[DictConfig]): # Consistency: training_data vs train_data
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
-    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
+    def setup_validation_data(self, val_data_config: Optional[DictConfig]): # Consistency: validation_data vs val_data
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
@@ -178,8 +226,8 @@ class TextClassificationModel(ModelPT):
         dataset = TextClassificationDataset(
             input_file=input_file,
             tokenizer=self.tokenizer,
-            max_seq_length=self.dataset_cfg.max_seq_length,
-            num_samples=cfg.get('num_samples', -1),
+            max_seq_length=self.dataset_cfg.max_seq_length, # ! Using self.dataset_cfg instead of cfg param !
+            num_samples=cfg.get('num_samples', -1), # ? Lack of default values ?
             shuffle=cfg.shuffle,
             use_cache=self.dataset_cfg.use_cache,
         )
@@ -188,9 +236,9 @@ class TextClassificationModel(ModelPT):
             dataset=dataset,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=self.dataset_cfg.get("num_workers", 2),
-            pin_memory=self.dataset_cfg.get("pin_memory", False),
-            drop_last=self.dataset_cfg.get("drop_last", False),
+            num_workers=self.dataset_cfg.get("num_workers", 2), # ! Using self.dataset_cfg instead of cfg param/default values ?
+            pin_memory=self.dataset_cfg.get("pin_memory", False), # ! Using self.dataset_cfg instead of cfg param/default values ?
+            drop_last=self.dataset_cfg.get("drop_last", False), # ! Using self.dataset_cfg instead of cfg param/default values ?
             collate_fn=dataset.collate_fn,  # it is necessary for type checking to be working even if collate_fn is not used
         )
 
