@@ -32,7 +32,7 @@ class TokenizerSpec(ABC):
         pass
 
     @abstractmethod
-    def token_to_id(self, token):
+    def tokens_to_ids(self, tokens):
         pass
 
     @abstractmethod
