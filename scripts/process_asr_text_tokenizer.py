@@ -45,9 +45,13 @@ group.add_argument("--data_file", default=None, help='data file from which to cr
 parser.add_argument("--data_root", required=True, default=None, type=str, help='Output directory')
 parser.add_argument("--vocab_size", default=1024, type=int, help='Vocabulary size')
 parser.add_argument("--tokenizer", default="wpe", choices=["spe", "wpe"], help='Type of tokenization to perform')
-parser.add_argument("--spe_type", default="bpe", choices=['bpe', 'unigram', 'char', 'word'],
-                    help='Type of the SentencePiece model. Can be `bpe`, `unigram`, `char` or `word`.'
-                         'Used only if --tokenizer == `spe`')
+parser.add_argument(
+    "--spe_type",
+    default="bpe",
+    choices=['bpe', 'unigram', 'char', 'word'],
+    help='Type of the SentencePiece model. Can be `bpe`, `unigram`, `char` or `word`.'
+    'Used only if --tokenizer == `spe`',
+)
 parser.add_argument("--log", action='store_true')
 parser.set_defaults(log=False)
 args = parser.parse_args()
@@ -113,8 +117,12 @@ def __process_data(text_path: str, dst_folder: str, vocab_size: int, tokenizer_t
             os.remove(os.path.join(tokenizer_dir, 'tokenizer.model'))
 
         tokenizer_path, vocab_path = create_spt_model(
-            data_file=text_path, vocab_size=vocab_size, sample_size=-1, do_lower_case=True, output_dir=tokenizer_dir,
-            tokenizer_type=spe_type
+            data_file=text_path,
+            vocab_size=vocab_size,
+            sample_size=-1,
+            do_lower_case=True,
+            output_dir=tokenizer_dir,
+            tokenizer_type=spe_type,
         )
 
     else:
