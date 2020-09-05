@@ -241,7 +241,7 @@ pipeline {
         sh 'cd examples/nlp/token_classification && \
         python token_classification.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        trainer.gpus=[0] \
+        trainer.gpus=[0, 1] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-cased \

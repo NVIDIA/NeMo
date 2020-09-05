@@ -63,7 +63,7 @@ class TextClassificationModel(ModelPT):
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
-        self.hidden_size = self.bert_model.hidden_size
+        self.hidden_size = self.bert_model.config.hidden_size
         self.classifier = SequenceClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.data_desc.num_classes,

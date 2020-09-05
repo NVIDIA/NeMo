@@ -62,7 +62,7 @@ class QAModel(ModelPT):
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
-        self.hidden_size = self.bert_model.hidden_size
+        self.hidden_size = self.bert_model.config.hidden_size
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,

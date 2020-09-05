@@ -129,7 +129,7 @@ def get_megatron_lm_model(
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
 
-    model = MegatronBertEncoder(model_name=pretrained_model_name, config=config, vocab_file=vocab)
+    model = MegatronBertEncoder(config=config, vocab_file=vocab)
     return model, checkpoint_file
 
 
