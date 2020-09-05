@@ -15,6 +15,7 @@
 import os
 
 import pytorch_lightning as pl
+from omegaconf.listconfig import ListConfig
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
@@ -24,21 +25,19 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 Basic run (on CPU for 50 epochs):
-    python examples/speaker_recognition/speaker_reco.py \
-        model.train_ds.manifest_filepath="<train_manifest_file>" \
-        model.validation_ds.manifest_filepath="<validation_manifest_file>" \
-        hydra.run.dir="." \
-        trainer.gpus=0 \
-        trainer.max_epochs=50
-
+EXP_NAME=sample_run
+python ./speaker_reco.py --config-path='conf' --config-name='config.yaml' \
+    trainer.max_epochs=10  \
+    model.train_ds.batch_size=64 model.validation_ds.batch_size=64 \
+    trainer.gpus=0 \
+    model.decoder.params.num_classes=2 \
+    exp_manager.name=$EXP_NAME +exp_manager.use_datetime_version=False \
+    exp_manager.exp_dir='./speaker_exps'
 
 Add PyTorch Lightning Trainer arguments from CLI:
     python speaker_reco.py \
         ... \
         +trainer.fast_dev_run=true
-
-Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
-PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
 
 """
 
@@ -55,6 +54,15 @@ def main(cfg):
     trainer.fit(speaker_model)
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
     speaker_model.save_to(model_path)
+
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        if (isinstance(cfg.trainer.gpus, ListConfig) and len(cfg.trainer.gpus) > 1) or (
+            isinstance(cfg.trainer.gpus, (int, str)) and int(cfg.trainer.gpus) > 1
+        ):
+            logging.info("Testing on single GPU to minimize DDP issues")
+            trainer.gpus = 1
+
+        trainer.test(speaker_model)
 
 
 if __name__ == '__main__':

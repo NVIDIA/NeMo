@@ -5,16 +5,13 @@ The common collection contains things that could be used across all collections.
 
 Tokenizers
 ----------
-.. automodule:: nemo.collections.common.tokenizers.NemoBertTokenizer
-    :special-members: __init__
-.. automodule:: nemo.collections.common.tokenizers.NemoGPT2Tokenizer
+.. automodule:: nemo.collections.common.tokenizers.AutoTokenizer
     :special-members: __init__
 .. automodule:: nemo.collections.common.tokenizers.SentencePieceTokenizer
     :special-members: __init__
 .. automodule:: nemo.collections.common.tokenizers.TokenizerSpec
     :special-members: __init__
 
-.. autofunction::  nemo.collections.common.tokenizers.get_tokenizer
 
 Losses
 ------

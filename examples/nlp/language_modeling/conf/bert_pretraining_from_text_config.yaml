@@ -1,4 +1,5 @@
 # BERT Pretraining from Text
+name: &name PretrainingBERTFromText
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
   num_nodes: 1
@@ -19,7 +20,6 @@ model:
   only_mlm_loss: false # only use masked language model without next sentence prediction
   num_tok_classification_layers: 1 # number of token classification head output layers
   num_seq_classification_layers: 2 # number of sequence classification head output layers
-  pretrained_model_name: bert-base-uncased # huggingface model name
   max_seq_length: 128
   # The maximum total input sequence length after tokenization. Sequences longer than this
   # will be truncated, and sequences shorter than this will be padded.
@@ -29,9 +29,9 @@ model:
   # Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
 
   language_model:
-    pretrained_model_name: ${model.pretrained_model_name}
-    bert_checkpoint: null
-    bert_config:
+    pretrained_model_name: bert-base-uncased 
+    lm_checkpoint: null
+    config:
       attention_probs_dropout_prob: 0.1
       hidden_act: gelu
       hidden_dropout_prob: 0.1
@@ -43,18 +43,20 @@ model:
       num_hidden_layers: 12
       type_vocab_size: 2
       vocab_size: 30522
-    bert_config_file: null # json file, precedence over bert_config
+    config_file: null # json file, precedence over config
 
   tokenizer:
-    tokenizer_name: nemobert # or sentencepiece
-    pretrained_model_name: ${model.pretrained_model_name}
-    special_tokens: null
+    tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec 
     vocab_file: null # path to vocab file
-    data_file: null # used to build sentencepiece
     tokenizer_model: null # tokenizer model for sentencepiece
-    sample_size: null # for sentencepiece
-    vocab_size: ${model.language_model.bert_config.vocab_size} # vocab size for building sentence piece
-    do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
+    special_tokens: # only necessary for adding transformer/bert-specific special tokens to tokenizer if the tokenizer does not already have these inherently.
+        unk_token: '[UNK]'
+        sep_token: '[SEP]'
+        pad_token: '[PAD]'
+        bos_token: '[CLS]'
+        mask_token: '[MASK]'
+        eos_token: '[SEP]'
+        cls_token: '[CLS]'
 
   train_ds:
     data_file: null # path to data file
@@ -94,8 +96,8 @@ model:
 
 
 exp_manager:
-  exp_dir: NeMo_experiments # where to store logs and checkpoints
-  name: PretrainingBERTFromText # name of experiment
+  exp_dir: null # where to store logs and checkpoints
+  name: *name # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 

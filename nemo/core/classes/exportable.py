@@ -51,6 +51,10 @@ class Exportable(ABC):
         output: str,
         input_example=None,
         output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
         onnx_opset_version: int = 12,
         try_script: bool = False,
         set_eval: bool = True,
@@ -132,20 +136,22 @@ class Exportable(ABC):
                             _out_example = self.forward(*_in_example)
                         else:
                             _out_example = self.forward(_in_example)
+
                     torch.onnx.export(
                         jitted_model,
                         _in_example,
                         output,
                         input_names=input_names,
                         output_names=output_names,
-                        verbose=False,
-                        export_params=True,
-                        do_constant_folding=True,
-                        keep_initializers_as_inputs=True,
+                        verbose=verbose,
+                        export_params=export_params,
+                        do_constant_folding=do_constant_folding,
+                        keep_initializers_as_inputs=keep_initializers_as_inputs,
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
                         example_outputs=_out_example,
                     )
+
                     # Verify the model can be read, and is valid
                     onnx_model = onnx.load(output)
                     onnx.checker.check_model(onnx_model, full_check=True)

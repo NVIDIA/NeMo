@@ -28,6 +28,7 @@ __all__ = [
     'get_megatron_lm_models_list',
     'get_megatron_checkpoint',
     'is_lower_cased_megatron',
+    'get_megatron_tokenizer',
 ]
 
 
@@ -41,24 +42,28 @@ MEGATRON_CONFIG_MAP = {
         'checkpoint': 'https://api.ngc.nvidia.com/v2/models/nvidia/megatron_bert_345m/versions/v0.0/files/release/mp_rank_00/model_optim_rng.pt',
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt',
         'do_lower_case': True,
+        'tokenizer_name': 'bert-large-uncased',
     },
     'megatron-bert-345m-cased': {
         'config': CONFIGS['345m'],
         'checkpoint': 'https://api.ngc.nvidia.com/v2/models/nvidia/megatron_bert_345m/versions/v0.1_cased/files/release/mp_rank_00/model_optim_rng.pt',
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt',
         'do_lower_case': False,
+        'tokenizer_name': 'bert-large-cased',
     },
     'megatron-bert-uncased': {
         'config': None,
         'checkpoint': None,
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt',
         'do_lower_case': True,
+        'tokenizer_name': 'bert-large-uncased',
     },
     'megatron-bert-cased': {
         'config': None,
         'checkpoint': None,
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt',
         'do_lower_case': False,
+        'tokenizer_name': 'bert-large-cased',
     },
 }
 
@@ -72,8 +77,8 @@ def get_megatron_lm_model(
     '''
     Returns the dict of special tokens associated with the model.
     Args:
-        pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
-            for example: bert-base-cased
+        pretrained_mode_name: model name from MEGATRON_CONFIG_MAP
+            for example: megatron-bert-cased
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
         checkpoint_file: path to checkpoint file.
@@ -91,8 +96,11 @@ def get_megatron_lm_model(
             }
     elif config_dict:
         config = config_dict
-    else:
+    elif pretrained_model_name in get_megatron_lm_models_list():
         config = get_megatron_config(pretrained_model_name)
+    else:
+        raise ValueError(f'{pretrained_model_name} is not supported')
+
     if config is None:
         raise ValueError(f'config_file or config_dict is required for {pretrained_model_name}')
 
@@ -172,3 +180,15 @@ def is_lower_cased_megatron(pretrained_model_name):
         do_lower_cased (bool): whether the model uses lower cased data
     '''
     return MEGATRON_CONFIG_MAP[pretrained_model_name]['do_lower_case']
+
+
+def get_megatron_tokenizer(pretrained_model_name: str):
+    '''
+    Takes a pretrained_model_name for megatron such as 'megatron-bert-cased' and returns the according 
+    tokenizer name for tokenizer instantiating.
+    Args:
+        pretrained_model_name: pretrained_model_name for megatron such as 'megatron-bert-cased'
+    Returns: 
+        tokenizer name for tokenizer instantiating
+    '''
+    return MEGATRON_CONFIG_MAP[pretrained_model_name]['tokenizer_name']
