@@ -83,7 +83,7 @@ def get_huggingface_lm_model(
 
     # assumes that model configuration is correct, otherwise will pass on Huggingface"s model instantiation error
     automodel = AutoEncoder(pretrained_model_name)
-    # import pdb; pdb.set_trace()
+
     model_type = re.search(r'.modeling_[A-z]*[0-5]?\.', str(automodel.type))[0]
 
     if model_type in HUGGINGFACE_MODELS:
