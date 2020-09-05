@@ -50,7 +50,7 @@ def get_features(
     Processes the data and returns features.
     Args:
         queries: text sequences
-        tokenizer: such as NemoBertTokenizer
+        tokenizer: such as AutoTokenizer
         max_seq_length: max sequence length minus 2 for [CLS] and [SEP], when -1 - use the max len from the data
         pad_label: pad value use for labels. By default, it's the neutral label.
         raw_labels: list of labels for every word in a sequence
@@ -167,7 +167,7 @@ class BertTokenClassificationDataset(Dataset):
         text_file: file to sequences, each line should a sentence, no header.
         label_file: file to labels, each line corresponds to word labels for a sentence in the text_file. No header.
         max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer: such as NemoBertTokenizer
+        tokenizer: such as AutoTokenizer
         num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
         pad_label: pad value use for labels. By default, it's the neutral label.
@@ -215,7 +215,7 @@ class BertTokenClassificationDataset(Dataset):
         if not filename.endswith('.txt'):
             raise ValueError("{text_file} should have extension .txt")
 
-        tokenizer_type = type(tokenizer.tokenizer).__name__
+        tokenizer_type = type(tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         features_pkl = os.path.join(
             data_dir,
@@ -318,7 +318,7 @@ class BertTokenClassificationInferDataset(Dataset):
         Args:
             queries: text sequences
             max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-            tokenizer: such as NemoBertTokenizer
+            tokenizer: such as AutoTokenizer
         """
         features = get_features(queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer)
 
