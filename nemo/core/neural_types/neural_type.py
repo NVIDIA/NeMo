@@ -122,7 +122,7 @@ class NeuralType(object):
         if isinstance(other, NeuralType):
             return self.compare(other)
 
-        return NeuralTypeComparisonResult.INCOMPATIBLE
+        return False
 
     @staticmethod
     def __check_sanity(axes):
