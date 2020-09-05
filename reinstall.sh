@@ -14,7 +14,7 @@ ${PIP} uninstall -y nemo_simple_gan
 
 ${PIP} install -U setuptools
 
-for f in requirements/*.txt; do ${PIP} install ${PIP_FLAGS}--disable-pip-version-check --no-cache-dir -r $f; done 
+for f in $(ls requirements/*.txt); do ${PIP} install ${PIP_FLAGS}--disable-pip-version-check --no-cache-dir -r $f; done 
 
 echo 'Installing stuff'
 ${PIP} install -e ".[all]"
