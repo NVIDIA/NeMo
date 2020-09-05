@@ -227,6 +227,50 @@ pipeline {
       }
     }
 
+    stage('L2: Parallel NER with Megatron') {
+     when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+     }
+     failFast true
+     parallel {
+      stage('L2: NER with cased Megatron') {
+       steps {
+        sh 'cd examples/nlp/token_classification && \
+        python token_classification.py \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        trainer.gpus=[0] \
+        +trainer.fast_dev_run=true \
+        model.dataset.use_cache=false \
+        model.language_model.pretrained_model_name=megatron-bert-345m-cased \
+        trainer.distributed_backend=ddp \
+        exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
+        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
+       }
+      }
+
+      stage('L2: NER with uncased Megatron') {
+       steps {
+        sh 'cd examples/nlp/token_classification && \
+        python token_classification.py \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        trainer.gpus=[1] \
+        +trainer.fast_dev_run=true \
+        model.dataset.use_cache=false \
+        model.language_model.pretrained_model_name=megatron-bert-uncased \
+        model.language_model.lm_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
+        model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
+        trainer.distributed_backend=ddp \
+        exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
+        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
+        }
+       }
+      }
+    }
+
+
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf{
@@ -250,7 +294,7 @@ pipeline {
             model.test_ds.batch_size=2 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
-            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -272,7 +316,7 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -304,7 +348,6 @@ pipeline {
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-            model.dataset.do_lower_case=false \
 	    trainer.distributed_backend=ddp \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -322,14 +365,13 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
-            model.dataset.do_lower_case=true \
             model.train_ds.batch_size=3 \
             model.validation_ds.batch_size=4 \
 	    trainer.distributed_backend=ddp \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
+            model.pretrained_model_name=megatron-bert-345m-uncased  \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -363,7 +405,6 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
@@ -396,7 +437,6 @@ pipeline {
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-            model.dataset.do_lower_case=true \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
             exp_manager.exp_dir=exp_bert_base_uncased \
@@ -497,17 +537,15 @@ pipeline {
               model.train_ds.batch_size=64 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
               model.validation_ds.batch_size=64 \
-              model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
+              model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
               model.tokenizer.tokenizer_name=sentencepiece \
-              model.tokenizer.data_file=/home/TestData/nlp/wikitext-2/train.txt \
-              model.tokenizer.sample_size=10000000 \
+              model.tokenizer.tokenizer_model=/home/TestData/nlp/wikitext-2/tokenizer_bpe_v3193/tokenizer.model \
               model.mask_prob=0.15 \
               model.short_seq_prob=0.1 \
               exp_manager.exp_dir=PretrainingBERTFromText \
               '
-              sh 'rm -rf /home/TestData/nlp/wikitext-2/spt'
               sh 'rm -f /home/TestData/nlp/wikitext-2/*.pkl'
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromText'
               sh 'ls -lha examples/nlp/language_modeling'
@@ -524,8 +562,8 @@ pipeline {
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
               model.train_ds.batch_size=8 \
-              model.language_model.bert_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
-              model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
+              model.language_model.lm_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
+              model.language_model.config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
               model.optim.lr=0.875e-4 \
               model.optim.weight_decay=0.01 \
               model.optim.sched.warmup_ratio=0.01 \
@@ -533,6 +571,68 @@ pipeline {
               '
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed'
               sh 'ls -lha examples/nlp/language_modeling'
+            }
+        }
+      }
+    }
+
+    stage('L2: Parallel Pretraining BERT  using char/word tokenizer') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('L2: Pretraining BERT pretraining from Text with char tokenizer') {
+            steps {
+              sh 'cd examples/nlp/language_modeling && \
+              python bert_pretraining.py \
+              --config-name=bert_pretraining_from_text_config.yaml \
+              trainer.gpus=[0] \
+              trainer.precision=16 \
+              trainer.amp_level=O1 \
+              +trainer.fast_dev_run=true \
+              model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
+              model.train_ds.batch_size=64 \
+              model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
+              model.validation_ds.batch_size=64 \
+              model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
+              model.optim.lr=0.01 \
+              model.optim.sched.warmup_ratio=0.1 \
+              model.tokenizer.tokenizer_name=char \
+              model.tokenizer.vocab_file=/home/TestData/nlp/vocabs/mini_vocab.txt \
+              model.mask_prob=0.15 \
+              model.short_seq_prob=0.1 \
+              exp_manager.exp_dir=PretrainingBERTFromTextchartok \
+              '
+              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextchartok'
+            }
+        }
+        stage('L2: Pretraining BERT pretraining from Text with word tokenizer') {
+            steps {
+              sh 'cd examples/nlp/language_modeling && \
+              python bert_pretraining.py \
+              --config-name=bert_pretraining_from_text_config.yaml \
+              trainer.gpus=[1] \
+              trainer.precision=16 \
+              trainer.amp_level=O1 \
+              +trainer.fast_dev_run=true \
+              model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
+              model.train_ds.batch_size=64 \
+              model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
+              model.validation_ds.batch_size=64 \
+              model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
+              model.optim.lr=0.01 \
+              model.optim.sched.warmup_ratio=0.1 \
+              model.tokenizer.tokenizer_name=word \
+              model.tokenizer.vocab_file=/home/TestData/nlp/vocabs/mini_vocab.txt \
+              model.mask_prob=0.15 \
+              model.short_seq_prob=0.1 \
+              exp_manager.exp_dir=PretrainingBERTFromTextwordtok \
+              '
+              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
             }
         }
       }
@@ -561,47 +661,6 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel NER with Megatron') {
-     when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-     }
-     failFast true
-     parallel {
-      stage('L2: NER with cased Megatron') {
-       steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        trainer.gpus=[0] \
-        +trainer.fast_dev_run=true \
-        model.dataset.use_cache=false \
-        model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=ddp \
-        exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
-        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
-       }
-      }
-
-      stage('L2: NER with uncased Megatron') {
-       steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        trainer.gpus=[1] \
-        +trainer.fast_dev_run=true \
-        model.dataset.use_cache=false \
-        model.language_model.pretrained_model_name=megatron-bert-uncased \
-        model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
-        model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
-        trainer.distributed_backend=ddp \
-        exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
-        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
-        }
-       }
-      }
-    }
 
     stage('L2: TTS Fast dev runs 1') {
       when {

@@ -21,7 +21,6 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
@@ -29,7 +28,8 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -53,17 +53,7 @@ class TokenClassificationModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes Token Classification Model."""
 
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=self.register_artifact(
-                config_path='language_model.vocab_file', src=cfg.language_model.vocab_file
-            ),
-            tokenizer_model=self.register_artifact(
-                config_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
-            ),
-            do_lower_case=cfg.language_model.do_lower_case,
-        )
+        self._setup_tokenizer(cfg.tokenizer)
 
         self._cfg = cfg
         self.data_desc = None
@@ -71,11 +61,11 @@ class TokenClassificationModel(ModelPT):
         self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
 
         super().__init__(cfg=cfg, trainer=trainer)
-
-        self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=self._cfg.language_model.pretrained_model_name,
-            config_file=self._cfg.language_model.bert_config,
-            checkpoint_file=self._cfg.language_model.bert_checkpoint,
+        self.bert_model = get_lm_model(
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+            checkpoint_file=cfg.language_model.lm_checkpoint,
         )
         self.hidden_size = self.bert_model.hidden_size
 
@@ -182,6 +172,15 @@ class TokenClassificationModel(ModelPT):
             'recall': recall,
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
+        )
+        self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:

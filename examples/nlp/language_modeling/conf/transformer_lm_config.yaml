@@ -18,8 +18,14 @@ trainer:
 
 model:
 
+
   language_model:
     tokenizer: word
+    special_tokens:
+        unk_token: '<UNK>'
+        pad_token: '<PAD>'
+        bos_token: '<BOS>'
+        eos_token: '<EOS>'
     vocab_file: ???
     hidden_size: 512
     num_layers: 6
