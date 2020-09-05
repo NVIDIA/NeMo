@@ -69,7 +69,7 @@ class TextClassificationDataset(Dataset):
         tokenizer: Any,
         max_seq_length: int,
         num_samples: int = -1,
-        shuffle: bool = False,
+        shuffle: bool = False, # Q: Why shuffling is here? Shouldn't DataLoader take care of it?
         use_cache: bool = False,
     ):
         self.input_file = input_file
