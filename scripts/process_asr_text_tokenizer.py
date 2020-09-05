@@ -47,7 +47,7 @@ parser.add_argument("--vocab_size", default=1024, type=int, help='Vocabulary siz
 parser.add_argument("--tokenizer", default="wpe", choices=["spe", "wpe"], help='Type of tokenization to perform')
 parser.add_argument("--spe_type", default="bpe", choices=['bpe', 'unigram', 'char', 'word'],
                     help='Type of the SentencePiece model. Can be `bpe`, `unigram`, `char` or `word`.'
-                         'Used only if --tokenizer == `bpe`')
+                         'Used only if --tokenizer == `spe`')
 parser.add_argument("--log", action='store_true')
 parser.set_defaults(log=False)
 args = parser.parse_args()
