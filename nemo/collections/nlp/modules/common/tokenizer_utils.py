@@ -62,7 +62,7 @@ def get_tokenizer(
         tokenizer_name = get_megatron_tokenizer(tokenizer_name)
 
     if tokenizer_name == 'sentencepiece':
-        tokenizer = nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
+        return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens
         )
     elif tokenizer_name == 'word':
