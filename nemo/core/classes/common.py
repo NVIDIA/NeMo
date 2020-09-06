@@ -248,6 +248,9 @@ class Serialization(ABC):
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
+        elif '_target_' in config:
+            # regular hydra-based instantiation
+            instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
             instance = cls(cfg=config)
