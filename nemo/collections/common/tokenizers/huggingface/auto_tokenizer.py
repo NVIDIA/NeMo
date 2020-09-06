@@ -15,7 +15,6 @@
 import re
 from typing import Optional
 
-from transformers import ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
 from transformers import AutoTokenizer as AUTOTOKENIZER
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -95,9 +94,6 @@ class AutoTokenizer(TokenizerSpec):
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
         """
-
-        if pretrained_model_name not in ALL_PRETRAINED_CONFIG_ARCHIVE_MAP:
-            raise ValueError(f"{pretrained_model_name} not a huggingface pretrained model")
 
         if vocab_file is not None:
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
