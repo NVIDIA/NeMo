@@ -23,3 +23,7 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
+from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
+    BertInformationRetrievalDatasetTrain,
+    BertInformationRetrievalDatasetEval,
+)

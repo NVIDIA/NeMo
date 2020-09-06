@@ -30,6 +30,15 @@ __all__ = ["BertInformationRetrievalDatasetTrain",
 
 
 class BaseInformationRetrievalDataset(Dataset):
+    """
+    Base information retrieval dataset on which other datasets are built.
+
+    Args:
+        tokenizer: tokenizer
+        max_query_length: maximum length of query in tokens
+        max_passage_length: maximum length of passage in tokens
+    """
+
     def __init__(self, tokenizer, max_query_length=31, max_passage_length=190):
         self.tokenizer = tokenizer
         self.max_query_length = max_query_length
@@ -61,7 +70,7 @@ class BaseInformationRetrievalDataset(Dataset):
         lines = open(file, "r").readlines()
         with mp.Pool() as pool:
             dataset_dict = pool.map(self.preprocess_line, lines)
-        dataset_dict = {id_: tokens[:max_seq_length] for (id_ tokens) in dataset_dict}
+        dataset_dict = {id_: tokens[:max_seq_length] for (id_, tokens) in dataset_dict}
         return dataset_dict
 
     def preprocess_line(self, line):
@@ -75,6 +84,9 @@ class BaseInformationRetrievalDataset(Dataset):
         sentence1_length = len(bert_input)
         if token_ids2 is not None:
             bert_input = bert_input + token_ids2 + [self.tokenizer.sep_id]
+            
+        bert_input = bert_input[:max_seq_length]
+            
         num_nonpad_tokens = len(bert_input)
 
         input_ids[:num_nonpad_tokens] = bert_input
@@ -100,9 +112,12 @@ class BaseInformationRetrievalDataset(Dataset):
             input_ids.append(inputs[0])
             input_mask.append(inputs[1])
             input_type_ids.append(inputs[2])
+            
+
         input_ids = np.stack(input_ids)
         input_mask = np.stack(input_mask)
         input_type_ids = np.stack(input_type_ids)
+
         return input_ids, input_mask, input_type_ids
 
     def preprocess_dpr(self, query_id, psg_ids):
@@ -151,9 +166,11 @@ class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
         max_passage_length: Optional[int] = 190,
         num_negatives: Optional[int] = 10,
         preprocess_fn: Optional[str] = "preprocess_bert",
-        psg_cache_format: Optional[str] = "pkl",
+        psg_cache_format: Optional[str] = "npz",
     ):
         """
+        Dataset for training information retrieval models.
+        
         Args:
             tokenizer: tokenizer
             passages: path to tsv with [psg_id, psg_text] entries
@@ -168,6 +185,7 @@ class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
                 preprocess_dpr: separate inputs: [CLS] query [SEP], [CLS] passage [SEP]
             psg_cache_format: either pkl or npz
         """
+
         super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_negatives = num_negatives
 
@@ -214,11 +232,13 @@ class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
         query_to_passages: str,
         max_query_length: Optional[int] = 31,
         max_passage_length: Optional[int] = 190,
-        num_negatives: Optional[int] = 10,
+        num_candidates: Optional[int] = 10,
         preprocess_fn: Optional[str] = "preprocess_bert",
         psg_cache_format: Optional[str] = "pkl",
     ):
         """
+        Dataset for evaluating information retrieval models.
+        
         Args:
             tokenizer: tokenizer
             passages: path to tsv with [psg_id, psg_text] entries
@@ -227,12 +247,13 @@ class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
                 [query_id, pos_psg_id, neg_psg_id_1, ..., neg_psg_id_k] entries
             max_query_length: maximum length of query in tokens
             max_passage_length: maximum length of passage in tokens
-            num_negatives: number of negative passages per positive to use for training
+            num_candidates: number of candidates for evaluation
             preprocess_fn: either preprocess_bert or preprocess_dpr
                 preprocess_bert: joint input: [CLS] query [SEP] passage [SEP]
                 preprocess_dpr: separate inputs: [CLS] query [SEP], [CLS] passage [SEP]
             psg_cache_format: either pkl or npz
         """
+
         super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_candidates = num_candidates
 
