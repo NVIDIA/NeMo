@@ -1,9 +1,9 @@
 boto3
 h5py
-matplotlib
+matplotlib==3.2.2
 sentencepiece
 torchtext
-transformers>=2.11.0
+transformers==3.0.2
 unidecode
 youtokentome
 numpy
