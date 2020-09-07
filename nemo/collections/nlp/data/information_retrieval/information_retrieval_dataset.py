@@ -16,17 +16,20 @@
 
 """Pytorch Dataset for training Information Retrieval."""
 
+import multiprocessing as mp
 import os
 import pickle
 import random
-import numpy as np
-import multiprocessing as mp
-from torch.utils.data import Dataset
-from typing import Dict, List, Optional
+from typing import Optional
 
-__all__ = ["BertInformationRetrievalDatasetTrain",
-           "BertInformationRetrievalDatasetEval",
-           "BertDensePassageRetrievalDatasetInfer"]
+import numpy as np
+from torch.utils.data import Dataset
+
+__all__ = [
+    "BertInformationRetrievalDatasetTrain",
+    "BertInformationRetrievalDatasetEval",
+    "BertDensePassageRetrievalDatasetInfer",
+]
 
 
 class BaseInformationRetrievalDataset(Dataset):
@@ -53,7 +56,7 @@ class BaseInformationRetrievalDataset(Dataset):
             dataset_npz = np.zeros((len(dataset_dict), max_seq_length + 1))
             for key in dataset_dict:
                 dataset_npz[key][0] = len(dataset_dict[key])
-                dataset_npz[key][1:len(dataset_dict[key])+1] = dataset_dict[key]
+                dataset_npz[key][1 : len(dataset_dict[key]) + 1] = dataset_dict[key]
             np.savez(cached_collection, data=dataset_npz)
         return dataset_npz
 
@@ -65,7 +68,7 @@ class BaseInformationRetrievalDataset(Dataset):
             dataset_dict = self.tokenize_dataset(file, max_seq_length)
             pickle.dump(dataset_dict, open(cached_collection, "wb"))
         return dataset_dict
-    
+
     def tokenize_dataset(self, file, max_seq_length):
         lines = open(file, "r").readlines()
         with mp.Pool() as pool:
@@ -84,14 +87,14 @@ class BaseInformationRetrievalDataset(Dataset):
         sentence1_length = len(bert_input)
         if token_ids2 is not None:
             bert_input = bert_input + token_ids2 + [self.tokenizer.sep_id]
-            
+
         bert_input = bert_input[:max_seq_length]
-            
+
         num_nonpad_tokens = len(bert_input)
 
         input_ids[:num_nonpad_tokens] = bert_input
         input_ids = np.array(input_ids, dtype=np.long)
-        input_mask = (input_ids != self.tokenizer.pad_id)
+        input_mask = input_ids != self.tokenizer.pad_id
         input_type_ids = np.ones_like(input_ids)
         input_type_ids[:sentence1_length] = 0
 
@@ -107,12 +110,10 @@ class BaseInformationRetrievalDataset(Dataset):
         max_seq_length = self.max_query_length + self.max_passage_length + 3
         input_ids, input_mask, input_type_ids = [], [], []
         for psg_id in psg_ids:
-            inputs = self.construct_input(
-                self.queries[query_id], max_seq_length, self._psgid2tokens(psg_id))
+            inputs = self.construct_input(self.queries[query_id], max_seq_length, self._psgid2tokens(psg_id))
             input_ids.append(inputs[0])
             input_mask.append(inputs[1])
             input_type_ids.append(inputs[2])
-            
 
         input_ids = np.stack(input_ids)
         input_mask = np.stack(input_mask)
@@ -129,28 +130,32 @@ class BaseInformationRetrievalDataset(Dataset):
         2) [CLS] Pi_text [SEP], i = 1, ..., k
         """
 
-        q_input_ids, q_input_mask, q_type_ids = self.construct_input(
-            self.queries[query_id], self.max_query_length+2)
+        q_input_ids, q_input_mask, q_type_ids = self.construct_input(self.queries[query_id], self.max_query_length + 2)
         input_ids, input_mask, input_type_ids = [], [], []
         for psg_id in psg_ids:
-            inputs = self.construct_input(
-                self._psgid2tokens(psg_id), self.max_passage_length+2)
+            inputs = self.construct_input(self._psgid2tokens(psg_id), self.max_passage_length + 2)
             input_ids.append(inputs[0])
             input_mask.append(inputs[1])
             input_type_ids.append(inputs[2])
         input_ids = np.stack(input_ids)
         input_mask = np.stack(input_mask)
         input_type_ids = np.stack(input_type_ids)
-        return q_input_ids[None, ...], q_input_mask[None, ...], q_type_ids[None, ...], \
-            input_ids, input_mask, input_type_ids
-    
+        return (
+            q_input_ids[None, ...],
+            q_input_mask[None, ...],
+            q_type_ids[None, ...],
+            input_ids,
+            input_mask,
+            input_type_ids,
+        )
+
     def _psgid2tokens(self, psg_id):
         pass
 
     def psgid2tokens_npz(self, psg_id):
         seq_len = self.passages[psg_id][0]
-        return self.passages[psg_id][1:seq_len+1].tolist()
-    
+        return self.passages[psg_id][1 : seq_len + 1].tolist()
+
     def psgid2tokens_pkl(self, psg_id):
         return self.passages[psg_id]
 
@@ -189,9 +194,7 @@ class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
         super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_negatives = num_negatives
 
-        self.passages = getattr(self, f"parse_{psg_cache_format}")(
-            passages, max_passage_length
-        )
+        self.passages = getattr(self, f"parse_{psg_cache_format}")(passages, max_passage_length)
         self._psgid2tokens = getattr(self, f"psgid2tokens_{psg_cache_format}")
         self.queries = self.parse_pkl(queries, max_query_length)
         self.idx2psgs = self.parse_query_to_passages(query_to_passages)
@@ -257,9 +260,7 @@ class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
         super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_candidates = num_candidates
 
-        self.passages = getattr(self, f"parse_{psg_cache_format}")(
-            passages, max_passage_length
-        )
+        self.passages = getattr(self, f"parse_{psg_cache_format}")(passages, max_passage_length)
         self._psgid2tokens = getattr(self, f"psgid2tokens_{psg_cache_format}")
         self.queries = self.parse_pkl(queries, max_query_length)
         self.idx2topk = self.parse_topk_list(query_to_passages)
@@ -278,7 +279,7 @@ class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
         idx2topk = {}
         idx = 0
         for line in open(file, "r").readlines():
-            query_and_psgs = [int(id_) for id_ in line.split("\t")][:self.num_candidates+1]
+            query_and_psgs = [int(id_) for id_ in line.split("\t")][: self.num_candidates + 1]
             num_samples = int(np.ceil((len(query_and_psgs) - 1) / self.num_candidates))
             for j in range(num_samples):
                 left = self.num_candidates * j + 1

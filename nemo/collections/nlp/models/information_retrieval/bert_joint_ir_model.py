@@ -16,21 +16,19 @@ import math
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data import BertInformationRetrievalDatasetTrain, BertInformationRetrievalDatasetEval
+from nemo.collections.nlp.data import BertInformationRetrievalDatasetEval, BertInformationRetrievalDatasetTrain
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
-from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 
-__all__ = ['TransformerLMModel']
+__all__ = ['BertJointIRModel']
 
 
 class BertJointIRModel(ModelPT):
@@ -49,33 +47,33 @@ class BertJointIRModel(ModelPT):
         return self.sim_score_regressor.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        
+
         self.dataset_cfg = cfg.dataset
 
         self.tokenizer = get_tokenizer(
-            tokenizer_name="nemobert",
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            tokenizer_name="nemobert", pretrained_model_name=cfg.language_model.pretrained_model_name,
         )
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-        )
+        self.bert_model = get_pretrained_lm_model(pretrained_model_name=cfg.language_model.pretrained_model_name,)
 
         # make vocabulary size divisible by 8 for fast fp16 training
         vocab_size = self.tokenizer.vocab_size
         tokens_to_add = 8 * math.ceil(vocab_size / 8) - vocab_size
-        #device = self.bert_model.embeddings.word_embeddings.weight.get_device()
-        #print (device)
-        zeros = torch.zeros((tokens_to_add, cfg.language_model.hidden_size))#.to(device=device)
+        # device = self.bert_model.embeddings.word_embeddings.weight.get_device()
+        # print (device)
+        zeros = torch.zeros((tokens_to_add, cfg.language_model.hidden_size))  # .to(device=device)
         self.bert_model.embeddings.word_embeddings.weight.data = torch.cat(
             (self.bert_model.embeddings.word_embeddings.weight.data, zeros)
         )
 
         self.sim_score_regressor = SequenceClassifier(
-            hidden_size=cfg.language_model.hidden_size, num_classes=1, num_layers=1,
-            dropout=cfg.language_model.dropout, log_softmax=False
+            hidden_size=cfg.language_model.hidden_size,
+            num_classes=1,
+            num_layers=1,
+            dropout=cfg.language_model.dropout,
+            log_softmax=False,
         )
 
         self.loss = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id)
@@ -101,7 +99,7 @@ class BertJointIRModel(ModelPT):
         # forward pass
         input_ids, input_mask, input_type_ids = batch
         batch_size, num_passages, seq_length = input_ids.size()
-        
+
         scores = self(
             input_ids=input_ids.view(-1, seq_length),
             token_type_ids=input_type_ids.view(-1, seq_length),
@@ -110,11 +108,7 @@ class BertJointIRModel(ModelPT):
         scores = torch.log_softmax(scores, dim=-1)
 
         labels = torch.zeros_like(input_ids[:, :1, 0])
-        train_loss = self.loss(
-            logits=scores,
-            labels=labels,
-            output_mask=torch.ones_like(labels)
-        )
+        train_loss = self.loss(logits=scores, labels=labels, output_mask=torch.ones_like(labels))
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': train_loss, 'log': tensorboard_logs}
@@ -126,7 +120,7 @@ class BertJointIRModel(ModelPT):
         """
         input_ids, input_mask, input_type_ids, query_id, passage_ids = batch
         batch_size, num_passages, seq_length = input_ids.size()
-        
+
         scores = self(
             input_ids=input_ids.view(-1, seq_length),
             token_type_ids=input_type_ids.view(-1, seq_length),
@@ -135,11 +129,7 @@ class BertJointIRModel(ModelPT):
         scores = torch.log_softmax(scores, dim=-1)
 
         labels = torch.zeros_like(input_ids[:, :1, 0])
-        val_loss = self.loss(
-            logits=scores,
-            labels=labels,
-            output_mask=torch.ones_like(labels)
-        )
+        val_loss = self.loss(logits=scores, labels=labels, output_mask=torch.ones_like(labels))
 
         tensorboard_logs = {'val_loss': val_loss}
         return {'val_loss': val_loss, 'log': tensorboard_logs}
@@ -164,7 +154,7 @@ class BertJointIRModel(ModelPT):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="eval")
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode="train"):
-        
+
         dataset_params = {
             "tokenizer": self.tokenizer,
             "passages": cfg.passages,
@@ -173,16 +163,14 @@ class BertJointIRModel(ModelPT):
             "max_query_length": self.dataset_cfg.get("max_query_length", 31),
             "max_passage_length": self.dataset_cfg.get("max_passage_length", 190),
         }
-        
+
         if mode == "train":
             dataset = BertInformationRetrievalDatasetTrain(
-                num_negatives=cfg.get("num_negatives", 10),
-                **dataset_params,
+                num_negatives=cfg.get("num_negatives", 10), **dataset_params,
             )
         elif mode == "eval":
             dataset = BertInformationRetrievalDatasetEval(
-                num_candidates=cfg.get("num_candidates", 10),
-                **dataset_params,
+                num_candidates=cfg.get("num_candidates", 10), **dataset_params,
             )
         else:
             raise ValueError("mode should be either train or eval")

@@ -13,6 +13,10 @@
 # limitations under the License.
 
 from nemo.collections.nlp.data.data_utils import *
+from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
+    BertInformationRetrievalDatasetEval,
+    BertInformationRetrievalDatasetTrain,
+)
 from nemo.collections.nlp.data.language_modeling.l2r_lm_dataset import L2RLanguageModelingDataset
 from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
     BertPretrainingDataset,
@@ -22,8 +26,4 @@ from nemo.collections.nlp.data.question_answering_squad.qa_dataset import SquadD
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
-)
-from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
-    BertInformationRetrievalDatasetTrain,
-    BertInformationRetrievalDatasetEval,
 )
