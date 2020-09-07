@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import tempfile
 
 import numpy as np
 import pytest
-from omegaconf import DictConfig
+import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
 
@@ -131,6 +133,111 @@ class TestFileIO:
 
             assert len(asr_model.decoder.vocabulary) == len(asr_model2.decoder.vocabulary)
             assert asr_model.num_weights == asr_model2.num_weights
+
+            w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert np.array_equal(w1, w2)
+
+    @pytest.mark.unit
+    def test_save_restore_from_nemo_file_with_override(self, asr_model):
+        """" Test makes sure that the second instance created from the same configuration AND checkpoint
+        has the same weights. """
+
+        with tempfile.NamedTemporaryFile() as fp, tempfile.NamedTemporaryFile(mode='a+') as conf_fp:
+            filename = fp.name
+
+            # Save model (with random artifact).
+            with tempfile.NamedTemporaryFile() as artifact:
+                asr_model.register_artifact(config_path=None, src=artifact.name)
+                asr_model.save_to(save_path=filename)
+
+            # Modify config slightly
+            cfg = asr_model.cfg
+            cfg.encoder.params.activation = 'swish'
+            yaml_cfg = OmegaConf.to_yaml(cfg)
+            conf_fp.write(yaml_cfg)
+            conf_fp.seek(0)
+
+            # Restore the model.
+            asr_model2 = EncDecCTCModel.restore_from(restore_path=filename, override_config_path=conf_fp.name)
+
+            assert len(asr_model.decoder.vocabulary) == len(asr_model2.decoder.vocabulary)
+            assert asr_model.num_weights == asr_model2.num_weights
+
+            w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert np.array_equal(w1, w2)
+
+            assert asr_model2.cfg.encoder.params.activation == 'swish'
+
+    @pytest.mark.unit
+    def test_save_model_level_pt_ckpt(self, asr_model):
+        with tempfile.TemporaryDirectory() as ckpt_dir:
+            nemo_file = os.path.join(ckpt_dir, 'asr.nemo')
+            asr_model.save_to(nemo_file)
+
+            # Save model level PT checkpoint
+            asr_model.extract_state_dict_from(nemo_file, ckpt_dir)
+            ckpt_path = os.path.join(ckpt_dir, 'model_weights.ckpt')
+
+            assert os.path.exists(ckpt_path)
+
+            # Restore the model.
+            asr_model2 = EncDecCTCModel.restore_from(restore_path=nemo_file)
+
+            assert len(asr_model.decoder.vocabulary) == len(asr_model2.decoder.vocabulary)
+            assert asr_model.num_weights == asr_model2.num_weights
+
+            # Change weights values
+            asr_model2.encoder.encoder[0].mconv[0].conv.weight.data += 1.0
+
+            w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert not np.array_equal(w1, w2)
+
+            # Restore from checkpoint
+            asr_model2.load_state_dict(torch.load(ckpt_path))
+
+            w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert np.array_equal(w1, w2)
+
+    @pytest.mark.unit
+    def test_save_module_level_pt_ckpt(self, asr_model):
+        with tempfile.TemporaryDirectory() as ckpt_dir:
+            nemo_file = os.path.join(ckpt_dir, 'asr.nemo')
+            asr_model.save_to(nemo_file)
+
+            # Save model level PT checkpoint
+            asr_model.extract_state_dict_from(nemo_file, ckpt_dir, split_by_module=True)
+            encoder_path = os.path.join(ckpt_dir, 'encoder.ckpt')
+            decoder_path = os.path.join(ckpt_dir, 'decoder.ckpt')
+            preprocessor_path = os.path.join(ckpt_dir, 'preprocessor.ckpt')
+
+            assert os.path.exists(encoder_path)
+            assert os.path.exists(decoder_path)
+            assert os.path.exists(preprocessor_path)
+
+            # Restore the model.
+            asr_model2 = EncDecCTCModel.restore_from(restore_path=nemo_file)
+
+            assert len(asr_model.decoder.vocabulary) == len(asr_model2.decoder.vocabulary)
+            assert asr_model.num_weights == asr_model2.num_weights
+
+            # Change weights values
+            asr_model2.encoder.encoder[0].mconv[0].conv.weight.data += 1.0
+
+            w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+            w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            assert not np.array_equal(w1, w2)
+
+            # Restore from checkpoint
+            asr_model2.encoder.load_state_dict(torch.load(encoder_path))
 
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
             w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()

@@ -31,7 +31,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
 
 
-@experimental
 class EncDecCTCModelBPE(EncDecCTCModel):
     """Encoder decoder CTC-based models with Byte Pair Encoding."""
 
@@ -112,7 +111,9 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
             self.vocab_path = self.tokenizer_dir
 
-            self.tokenizer = tokenizers.NemoBertTokenizer(vocab_file=self.tokenizer_dir, **self.tokenizer_cfg)
+            self.tokenizer = tokenizers.AutoTokenizer(
+                pretrained_model_name='bert-base-cased', vocab_file=self.tokenizer_dir, **self.tokenizer_cfg
+            )
         logging.info(
             "Tokenizer {} initialized with {} tokens".format(
                 self.tokenizer.__class__.__name__, self.tokenizer.vocab_size

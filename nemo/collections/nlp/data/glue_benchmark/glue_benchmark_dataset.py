@@ -102,7 +102,7 @@ class GLUEDataset(Dataset):
         Args:
             file_name: path to file
             task_name: GLUE task name
-            tokenizer: such as NemoBertTokenizer
+            tokenizer: such as AutoTokenizer
             max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
             use_cache: whether to use data cache
         """
@@ -121,7 +121,7 @@ class GLUEDataset(Dataset):
 
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
         processor_name = type(processor).__name__
-        tokenizer_type = type(tokenizer.tokenizer).__name__
+        tokenizer_type = type(tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = os.path.join(
             data_dir,

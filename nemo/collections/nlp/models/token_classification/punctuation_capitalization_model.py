@@ -20,14 +20,14 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
     BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -53,25 +53,15 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        self.data_dir = cfg.dataset.data_dir
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=self.register_artifact(
-                config_path='language_model.vocab_file', src=cfg.language_model.vocab_file
-            ),
-            tokenizer_model=self.register_artifact(
-                config_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
-            ),
-            do_lower_case=cfg.language_model.do_lower_case,
-        )
+        self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.bert_checkpoint,
+            config_file=cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+            checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
         self.hidden_size = self.bert_model.hidden_size
@@ -106,6 +96,17 @@ class PunctuationCapitalizationModel(ModelPT):
         self.capit_class_report = ClassificationReport(
             len(self._cfg.capit_label_ids), label_ids=self._cfg.capit_label_ids
         )
+
+    def update_data_dir(self, data_dir: str) -> None:
+        """
+        Update data directory and get data stats with Data Descriptor
+        Weights are later used to setup loss
+
+        Args:
+            data_dir: path to data directory
+        """
+        self._cfg.dataset.data_dir = data_dir
+        logging.info(f'Setting model.dataset.data_dir to {data_dir}')
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids=None):
@@ -204,7 +205,21 @@ class PunctuationCapitalizationModel(ModelPT):
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
+        )
+        self.tokenizer = tokenizer
+
+    def setup_training_data(self, train_data_config: Optional[DictConfig] = None, data_dir=None):
+        if train_data_config is None:
+            train_data_config = self._cfg.train_ds
+        if data_dir:
+            self._cfg.dataset.data_dir = data_dir
+            logging.info(f'Setting model.dataset.data_dir to {data_dir}')
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
@@ -215,10 +230,16 @@ class PunctuationCapitalizationModel(ModelPT):
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
             self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
 
-    def setup_validation_data(self, val_data_config: Optional[Dict]):
+    def setup_validation_data(self, val_data_config: Optional[Dict] = None, ds_item=None):
+        if val_data_config is None:
+            val_data_config = self._cfg.validation_ds
+        if ds_item:
+            self._cfg.validation_ds.ds_item = ds_item
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_config: Optional[Dict]):
+    def setup_test_data(self, test_data_config: Optional[Dict] = None):
+        if test_data_config is None:
+            test_data_config = self._cfg.test_ds
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
@@ -226,7 +247,7 @@ class PunctuationCapitalizationModel(ModelPT):
         if 'ds_item' in cfg and cfg.ds_item is not None:
             data_dir = cfg.ds_item
         else:
-            data_dir = self.data_dir
+            data_dir = self._cfg.dataset.data_dir
 
         text_file = os.path.join(data_dir, cfg.text_file)
         label_file = os.path.join(data_dir, cfg.labels_file)
@@ -257,27 +278,18 @@ class PunctuationCapitalizationModel(ModelPT):
 
     def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
         """
-        Setup function for a temporary data loader which wraps the provided audio file.
+        Setup function for a infer data loader.
 
         Args:
-            config: A python dictionary which contains the following keys:
-            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-                Recommended length per file is between 5 and 25 seconds.
-            batch_size: (int) batch size to use during inference. \
-                Bigger will result in better throughput performance but would use more memory.
-            temp_dir: (str) A temporary directory where the audio manifest is temporarily
-                stored.
+            queries: lower cased text without punctuation
+            batch_size: batch size to use during inference
 
         Returns:
             A pytorch DataLoader.
         """
 
         dataset = BertPunctuationCapitalizationInferDataset(
-            tokenizer=self.tokenizer,
-            queries=queries,
-            max_seq_length=self._cfg.dataset.max_seq_length,
-            ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
-            ignore_start_end=self._cfg.dataset.ignore_start_end,
+            tokenizer=self.tokenizer, queries=queries, max_seq_length=self._cfg.dataset.max_seq_length
         )
 
         return torch.utils.data.DataLoader(
@@ -295,7 +307,7 @@ class PunctuationCapitalizationModel(ModelPT):
         Adds punctuation and capitalization to the queries. Use this method for debugging and prototyping.
         Args:
             queries: lower cased text without punctuation
-            batch_size: batch size to use during inference.
+            batch_size: batch size to use during inference
         Returns:
             result: text with added capitalization and punctuation
         """
@@ -305,15 +317,16 @@ class PunctuationCapitalizationModel(ModelPT):
             batch_size = len(queries)
             logging.info(f'Using batch size {batch_size} for inference')
 
-        # We will store transcriptions here
+        # We will store the output here
         result = []
 
         # Model's mode and device
         mode = self.training
-        device = self._device
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         try:
             # Switch model to evaluation mode
             self.eval()
+            self = self.to(device)
             infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
 
             # store predictions for all queries in a single list

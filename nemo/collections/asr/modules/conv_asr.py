@@ -15,6 +15,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from omegaconf import ListConfig, OmegaConf
 
 from nemo.collections.asr.parts.jasper import (
@@ -36,12 +37,10 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
 
-@experimental
 class ConvASREncoder(NeuralModule, Exportable):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
@@ -187,7 +186,6 @@ class ConvASREncoder(NeuralModule, Exportable):
         return s_input[-1], length
 
 
-@experimental
 class ConvASRDecoder(NeuralModule, Exportable):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
@@ -264,7 +262,6 @@ class ConvASRDecoder(NeuralModule, Exportable):
         return self._num_classes
 
 
-@experimental
 class ConvASRDecoderClassification(NeuralModule):
     """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
 
@@ -359,12 +356,20 @@ class SpeakerDecoder(NeuralModule):
         )
 
     def __init__(
-        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform",
+        self, feat_in, num_classes, emb_sizes=None, pool_mode='xvector', angular=False, init_mode="xavier_uniform",
     ):
         super().__init__()
+        self.angular = angular
+        self.emb_id = 2
+        if self.angular:
+            bias = False
+        else:
+            bias = True
 
         if type(emb_sizes) is str:
             emb_sizes = emb_sizes.split(',')
+        elif emb_sizes == None:
+            emb_sizes = [512, 512]
         else:
             emb_sizes = list(emb_sizes)
 
@@ -383,7 +388,7 @@ class SpeakerDecoder(NeuralModule):
 
         self.emb_layers = nn.ModuleList(emb_layers)
 
-        self.final = nn.Linear(shapes[-1], self._num_classes)
+        self.final = nn.Linear(shapes[-1], self._num_classes, bias=bias)
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
@@ -402,8 +407,13 @@ class SpeakerDecoder(NeuralModule):
         embs = []
 
         for layer in self.emb_layers:
-            pool, emb = layer(pool), layer[:2](pool)
+            pool, emb = layer(pool), layer[: self.emb_id](pool)
             embs.append(emb)
+
+        if self.angular:
+            for W in self.final.parameters():
+                W = F.normalize(W, p=2, dim=1)
+            pool = F.normalize(pool, p=2, dim=1)
 
         out = self.final(pool)
 

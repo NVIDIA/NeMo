@@ -12,6 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+More details on how to use this script could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
+
+## Model Training
+
+To train PunctuationCapitalizationModel with the default config file, run:
+    python glue_benchmark.py \
+    model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
+    trainer.max_epochs=<NUM_EPOCHS> \
+    trainer.gpus="[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
+"""
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
@@ -34,11 +45,12 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
+
     # model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
     # trainer.fit(model)
     # if cfg.model.nemo_path:
     #     model.save_to(cfg.model.nemo_path)
-    #
+
     # # run an inference on a few examples
     # queries = [
     #     'we bought four shirts and one mug from the nvidia gear store in santa clara',
@@ -53,7 +65,7 @@ def main(cfg: DictConfig) -> None:
     #     logging.info(f'Combined: {result.strip()}\n')
 
     pretrained_model = PunctuationCapitalizationModel.restore_from(
-        '/home/ebakhturina/nemo_ckpts/punctuation/ptl/bert_on_tatoeba_v3/1383000/punct_capit_distil.nemo'
+        '/home/ebakhturina/nemo_ckpts/punctuation/CHECKPOINTS/complete/BERT/ptl/punct_capit_bert_complete.nemo'
     )
     # then we need to setup the data dir to get class weights statistics
     pretrained_model.update_data_dir('/home/ebakhturina/tatoeba/sample')
@@ -62,12 +74,12 @@ def main(cfg: DictConfig) -> None:
     pretrained_model.setup_training_data()
     pretrained_model.setup_validation_data()
 
-    # and now we can create a PyTorch Lightning trainer and call `fit` again
-    # for this tutorial we are setting fast_dev_run to True, and the trainer will run 1 training batch and 1 validation batch
-    # for actual model training, disable the flag
-    fast_dev_run = True
-    trainer = pl.Trainer(gpus=[1], fast_dev_run=fast_dev_run)
-    trainer.fit(pretrained_model)
+    # # and now we can create a PyTorch Lightning trainer and call `fit` again
+    # # for this tutorial we are setting fast_dev_run to True, and the trainer will run 1 training batch and 1 validation batch
+    # # for actual model training, disable the flag
+    # fast_dev_run = True
+    # trainer = pl.Trainer(gpus=[1], fast_dev_run=fast_dev_run)
+    # trainer.fit(pretrained_model)
 
 
 if __name__ == '__main__':

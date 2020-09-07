@@ -51,9 +51,15 @@ class Exportable(ABC):
         output: str,
         input_example=None,
         output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
         onnx_opset_version: int = 12,
         try_script: bool = False,
         set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
     ):
         try:
             # Disable typechecks
@@ -92,13 +98,15 @@ class Exportable(ABC):
                 if _name in self.disabled_deployment_input_names:
                     input_names.remove(_name)
                     continue
-                dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
+                if use_dynamic_axes:
+                    dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
             # for output_ports
             for _name, ntype in self.output_types.items():
                 if _name in self.disabled_deployment_output_names:
                     output_names.remove(_name)
                     continue
-                dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
+                if use_dynamic_axes:
+                    dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
 
             if len(dynamic_axes) == 0:
                 dynamic_axes = None
@@ -117,7 +125,7 @@ class Exportable(ABC):
                     _in_example = tuple(_in_example.values())
 
                 if jitted_model is None:
-                    jitted_model = torch.jit.trace(self, _in_example)
+                    jitted_model = torch.jit.trace(self, _in_example, check_trace=check_trace)
 
                 if format == ExportFormat.TORCHSCRIPT:
                     jitted_model.save(output)
@@ -128,20 +136,22 @@ class Exportable(ABC):
                             _out_example = self.forward(*_in_example)
                         else:
                             _out_example = self.forward(_in_example)
+
                     torch.onnx.export(
                         jitted_model,
                         _in_example,
                         output,
                         input_names=input_names,
                         output_names=output_names,
-                        verbose=False,
-                        export_params=True,
-                        do_constant_folding=True,
-                        keep_initializers_as_inputs=True,
+                        verbose=verbose,
+                        export_params=export_params,
+                        do_constant_folding=do_constant_folding,
+                        keep_initializers_as_inputs=keep_initializers_as_inputs,
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
                         example_outputs=_out_example,
                     )
+
                     # Verify the model can be read, and is valid
                     onnx_model = onnx.load(output)
                     onnx.checker.check_model(onnx_model, full_check=True)

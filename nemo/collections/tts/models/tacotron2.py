@@ -18,11 +18,14 @@ from typing import Any, Dict, List, Optional
 import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
+from omegaconf.errors import ConfigAttributeError
 from torch import nn
 
+from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import tacotron2_log_to_tb_func
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
-from nemo.core.classes import ModelPT, typecheck
+from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     EmbeddedTextType,
@@ -33,7 +36,6 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
 @dataclass
@@ -58,10 +60,8 @@ class Tacotron2Config:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models
-class Tacotron2Model(ModelPT):
-    """ Tacotron 2 Model that is used to generate mel spectrograms from text
-    """
+class Tacotron2Model(SpectrogramGenerator):
+    """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
     # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -79,68 +79,138 @@ class Tacotron2Model(ModelPT):
         OmegaConf.merge(cfg, schema)
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
+        self._parser = None
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
         self.encoder = instantiate(self._cfg.encoder)
         self.decoder = instantiate(self._cfg.decoder)
         self.postnet = instantiate(self._cfg.postnet)
         self.loss = Tacotron2Loss()
+        self.calculate_loss = True
+
+    @property
+    def parser(self):
+        if self._parser is not None:
+            return self._parser
+        if self._validation_dl is not None:
+            return self._validation_dl.dataset.parser
+        if self._test_dl is not None:
+            return self._test_dl.dataset.parser
+        if self._train_dl is not None:
+            return self._train_dl.dataset.parser
+
+        # Else construct a parser
+        # Try to get params from validation, test, and then train
+        params = {}
+        try:
+            params = self._cfg.validation_ds.dataset.params
+        except ConfigAttributeError:
+            pass
+        if params == {}:
+            try:
+                params = self._cfg.test_ds.dataset.params
+            except ConfigAttributeError:
+                pass
+        if params == {}:
+            try:
+                params = self._cfg.train_ds.dataset.params
+            except ConfigAttributeError:
+                pass
+
+        name = params.get('parser', None) or params.get('parser', None) or 'en'
+        unk_id = params.get('unk_index', None) or params.get('unk_index', None) or -1
+        blank_id = params.get('blank_index', None) or params.get('blank_index', None) or -1
+        do_normalize = params.get('normalize', None) or params.get('normalize', None) or False
+        self._parser = parsers.make_parser(
+            labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
+        )
+        return self._parser
+
+    def parse(self, str_input: str) -> torch.tensor:
+        tokens = self.parser(str_input)
+        # Parser doesn't add bos and eos ids, so maunally add it
+        tokens = [len(self._cfg.labels)] + tokens + [len(self._cfg.labels) + 1]
+        tokens_tensor = torch.tensor(tokens).unsqueeze_(0).to(self.device)
+
+        return tokens_tensor
 
     @property
     def input_types(self):
-        return {
-            "audio": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_len": NeuralType(('B'), LengthsType()),
-            "tokens": NeuralType(('B', 'T'), EmbeddedTextType()),
-            "token_len": NeuralType(('B'), LengthsType()),
-        }
+        if self.training:
+            return {
+                "tokens": NeuralType(('B', 'T'), EmbeddedTextType()),
+                "token_len": NeuralType(('B'), LengthsType()),
+                "audio": NeuralType(('B', 'T'), AudioSignal()),
+                "audio_len": NeuralType(('B'), LengthsType()),
+            }
+        else:
+            return {
+                "tokens": NeuralType(('B', 'T'), EmbeddedTextType()),
+                "token_len": NeuralType(('B'), LengthsType()),
+                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
+                "audio_len": NeuralType(('B'), LengthsType(), optional=True),
+            }
 
     @property
     def output_types(self):
+        if not self.calculate_loss and not self.training:
+            return {
+                "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "gate_pred": NeuralType(('B', 'T'), LogitsType()),
+                "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            }
         return {
-            "mel_out": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-            "mel_out_postnet": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-            "gate_out": NeuralType(('B', 'T'), LogitsType()),
-            "mel_target": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-            "gate_target": NeuralType(('B', 'T'), LogitsType()),
-            "target_len": NeuralType(('B'), LengthsType()),
+            "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "gate_pred": NeuralType(('B', 'T'), LogitsType()),
+            "spec_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec_target_len": NeuralType(('B'), LengthsType()),
             "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
         }
 
     @typecheck()
-    def forward(self, *, audio, audio_len, tokens, token_len):
-        spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
+    def forward(self, *, tokens, token_len, audio=None, audio_len=None):
+        if audio is not None and audio_len is not None:
+            spec_target, spec_target_len = self.audio_to_melspec_precessor(audio, audio_len)
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
         encoder_embedding = self.encoder(token_embedding=token_embedding, token_len=token_len)
         if self.training:
-            spec_dec, gate, alignments = self.decoder(
-                memory=encoder_embedding, decoder_inputs=spec, memory_lengths=token_len
+            spec_pred_dec, gate_pred, alignments = self.decoder(
+                memory=encoder_embedding, decoder_inputs=spec_target, memory_lengths=token_len
             )
         else:
-            spec_dec, gate, alignments, _ = self.decoder(memory=encoder_embedding, memory_lengths=token_len)
-        spec_postnet = self.postnet(mel_spec=spec_dec)
+            spec_pred_dec, gate_pred, alignments, _ = self.decoder(memory=encoder_embedding, memory_lengths=token_len)
+        spec_pred_postnet = self.postnet(mel_spec=spec_pred_dec)
 
-        max_len = spec.shape[2]
-        gate_padded = torch.zeros(spec_len.shape[0], max_len)
-        gate_padded = gate_padded.type_as(gate)
-        for i, length in enumerate(spec_len):
-            gate_padded[i, length.data - 1 :] = 1
+        if not self.calculate_loss:
+            return spec_pred_dec, spec_pred_postnet, gate_pred, alignments
+        return spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, alignments
 
-        return spec_dec, spec_postnet, gate, spec, gate_padded, spec_len, alignments
+    @typecheck(
+        input_types={"tokens": NeuralType(('B', 'T'), EmbeddedTextType())},
+        output_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType())},
+    )
+    def generate_spectrogram(self, *, tokens):
+        self.eval()
+        self.calculate_loss = False
+        token_len = torch.tensor([len(i) for i in tokens]).to(self.device)
+        tensors = self(tokens=tokens, token_len=token_len)
+        spectrogram_pred = tensors[1]
+        return spectrogram_pred
 
     def training_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch
-        spec_dec, spec_postnet, gate, spec, gate_padded, spec_len, _ = self.forward(
+        spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, _ = self.forward(
             audio=audio, audio_len=audio_len, tokens=tokens, token_len=token_len
         )
 
-        loss = self.loss(
-            mel_out=spec_dec,
-            mel_out_postnet=spec_postnet,
-            gate_out=gate,
-            mel_target=spec,
-            gate_target=gate_padded,
-            target_len=spec_len,
+        loss, _ = self.loss(
+            spec_pred_dec=spec_pred_dec,
+            spec_pred_postnet=spec_pred_postnet,
+            gate_pred=gate_pred,
+            spec_target=spec_target,
+            spec_target_len=spec_target_len,
             pad_value=self.pad_value,
         )
 
@@ -153,25 +223,24 @@ class Tacotron2Model(ModelPT):
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch
-        spec_dec, spec_postnet, gate, spec, gate_padded, spec_len, alignments = self.forward(
+        spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, alignments = self.forward(
             audio=audio, audio_len=audio_len, tokens=tokens, token_len=token_len
         )
 
-        loss = self.loss(
-            mel_out=spec_dec,
-            mel_out_postnet=spec_postnet,
-            gate_out=gate,
-            mel_target=spec,
-            gate_target=gate_padded,
-            target_len=spec_len,
+        loss, gate_target = self.loss(
+            spec_pred_dec=spec_pred_dec,
+            spec_pred_postnet=spec_pred_postnet,
+            gate_pred=gate_pred,
+            spec_target=spec_target,
+            spec_target_len=spec_target_len,
             pad_value=self.pad_value,
         )
         return {
             "loss": loss,
-            "mel_target": spec,
-            "mel_postnet": spec_postnet,
-            "gate": gate,
-            "gate_target": gate_padded,
+            "mel_target": spec_target,
+            "mel_postnet": spec_pred_postnet,
+            "gate": gate_pred,
+            "gate_target": gate_target,
             "alignments": alignments,
         }
 
@@ -219,6 +288,20 @@ class Tacotron2Model(ModelPT):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
     @classmethod
-    def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        """TODO: Implement me!"""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="Tacotron2-22050Hz",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/tacotron2.nemo",
+            description=(
+                "The model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
+                "English voices with an American accent."
+            ),
+        )
+        list_of_models.append(model)
+        return list_of_models
