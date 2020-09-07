@@ -1,6 +1,4 @@
-# =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2018 The Google AI Language Team Authors and The HugginFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,20 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 import copy
 
 import torch
 import torch.nn as nn
 
-from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules import (
-    MultiHeadAttention,
-    PositionWiseFF,
-)
-from nemo.collections.nlp.utils.transformer_utils import form_attention_mask
+from nemo.collections.common.parts import form_attention_mask
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 
-__all__ = []
+__all__ = ["TransformerDecoder"]
 
 
 class TransformerDecoderBlock(nn.Module):

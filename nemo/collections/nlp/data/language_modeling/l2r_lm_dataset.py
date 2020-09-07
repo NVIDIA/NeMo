@@ -1,5 +1,4 @@
-# =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,22 +11,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 """Pytorch Dataset for training left-to-right language models."""
-import os
-import re
+from typing import Optional
 
 import numpy as np
 from torch.utils.data import Dataset
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils import dataset_to_ids
 
 __all__ = ['L2RLanguageModelingDataset']
 
 
 class L2RLanguageModelingDataset(Dataset):
-    def __init__(self, tokenizer, dataset, max_seq_length=512, batch_step=None):
+    """
+    Dataset for training and evaluating left-to-right language models.
+    
+    Args:
+        tokenizer: tokenizer, such as WordTokenizer or CharTokenizer
+        dataset: path to data
+        max_seq_length: maximum sequence length (in tokens) of input tensors
+        batch_step: distance (in tokens) between two successive sequences of
+            the text. By default, it is equal to max_seq_length which corresponds
+            to splitting text into disjoint segments covering full dataset
+    """
+
+    def __init__(
+        self,
+        tokenizer: TokenizerSpec,
+        dataset: str,
+        max_seq_length: Optional[int] = 512,
+        batch_step: Optional[int] = None,
+    ):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
         self.batch_step = batch_step or self.max_seq_length

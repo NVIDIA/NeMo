@@ -21,6 +21,7 @@ from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
 
 
 class TestExportable:
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_ConvASREncoder_export_to_onnx(self):
         encoder_dict = {
@@ -46,7 +47,52 @@ class TestExportable:
             },
         }
         with tempfile.TemporaryDirectory() as tmpdir:
-            encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict))
+            encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict)).cuda()
             assert isinstance(encoder_instance, ConvASREncoder)
             filename = os.path.join(tmpdir, 'qn_encoder.onnx')
             encoder_instance.export(output=filename)
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    def test_ConvASRDecoder_export_to_onnx(self):
+        decoder_params = {
+            'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
+            'params': {
+                'feat_in': 1024,
+                'num_classes': 28,
+                'vocabulary': [
+                    ' ',
+                    'a',
+                    'b',
+                    'c',
+                    'd',
+                    'e',
+                    'f',
+                    'g',
+                    'h',
+                    'i',
+                    'j',
+                    'k',
+                    'l',
+                    'm',
+                    'n',
+                    'o',
+                    'p',
+                    'q',
+                    'r',
+                    's',
+                    't',
+                    'u',
+                    'v',
+                    'w',
+                    'x',
+                    'y',
+                    'z',
+                    "'",
+                ],
+            },
+        }
+        decoder = ConvASRDecoder.from_config_dict(config=DictConfig(decoder_params)).cuda()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'qn_decoder.onnx')
+            decoder.export(output=filename)

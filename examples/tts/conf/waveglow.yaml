@@ -8,6 +8,7 @@ train_dataset: ???
 validation_datasets: ???
 
 model:
+  sigma: 1.0
   train_ds:
     dataset:
       cls: "nemo.collections.tts.data.datalayers.AudioDataset"

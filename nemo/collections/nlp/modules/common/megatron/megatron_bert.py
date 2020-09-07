@@ -54,6 +54,8 @@ class MegatronBertEncoder(BertModule):
 
         config['lazy_mpu_init'] = True
 
+        config['onnx_safe'] = True
+
         # Initialize part of Megatron global state that is needed for its constructor.
         # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
         # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)

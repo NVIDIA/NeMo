@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
 from typing import Dict, Optional
 
@@ -22,14 +21,14 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataloader,
 )
 from nemo.collections.nlp.metrics.perplexity import Perplexity
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -55,32 +54,19 @@ class BERTLMModel(ModelPT):
         return output_types_dict
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        if cfg.language_model.bert_config_file is not None:
-            logging.info(
-                (
-                    f"HuggingFace BERT config file found. "
-                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
-                )
-            )
-            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
-        elif cfg.language_model.bert_config.vocab_size is not None:
-            self.vocab_size = cfg.language_model.bert_config.vocab_size
-        else:
-            self.vocab_size = None
 
         if cfg.tokenizer is not None:
-            cfg.tokenizer.vocab_size = self.vocab_size
             self._setup_tokenizer(cfg.tokenizer)
         else:
             self.tokenizer = None
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config_file,
-            config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
-            checkpoint_file=cfg.language_model.bert_checkpoint,
+            config_file=cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+            checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
         self.hidden_size = self.bert_model.hidden_size
@@ -230,7 +216,12 @@ class BERTLMModel(ModelPT):
         return dl
 
     def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(**cfg)
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            tokenizer_model=cfg.tokenizer_model,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            vocab_file=cfg.vocab_file,
+        )
         self.tokenizer = tokenizer
 
     def _setup_dataloader(self, cfg: DictConfig):

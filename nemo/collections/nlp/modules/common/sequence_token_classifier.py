@@ -44,7 +44,8 @@ class SequenceTokenClassifier(Classifier):
         use_transformer_init: bool = True,
     ):
         """
-        Initializes the SequenceClassifier module.
+        Initializes the SequenceTokenClassifier module, could be used for tasks that train sequence and
+        token classifiers jointly, for example, for intent detection and slot tagging task.
         Args:
             hidden_size: hidden size of the mlp head on the top of the encoder
             num_intents: number of the intents to predict

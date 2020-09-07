@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import torch
 
 from nemo.core.classes import Loss, typecheck
@@ -23,9 +25,10 @@ __all__ = ['AggregatorLoss']
 class AggregatorLoss(Loss):
     """
     Sums several losses into one.
+
     Args:
-        num_inputs (int): number of input losses
-        weights (list of floats): a list of coefficient for merging losses
+        num_inputs: number of input losses
+        weights: a list of coefficient for merging losses
     """
 
     @property
@@ -41,12 +44,10 @@ class AggregatorLoss(Loss):
     @property
     def output_types(self):
         """Returns definitions of module output ports.
-        loss:
-            NeuralType(None)
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_inputs=2, weights=None):
+    def __init__(self, num_inputs: int = 2, weights: List[float] = None):
         super().__init__()
         self._num_losses = num_inputs
         if weights is not None and len(weights) != num_inputs:

@@ -15,7 +15,16 @@
 import pytest
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS
+
+MODEL_SPECIAL_TOKENS = {
+    'unk_token': '[UNK]',
+    'sep_token': '[SEP]',
+    'pad_token': '[PAD]',
+    'bos_token': '[CLS]',
+    'mask_token': '[MASK]',
+    'eos_token': '[SEP]',
+    'cls_token': '[CLS]',
+}
 
 
 class TestSentencePieceTokenizer:
@@ -24,14 +33,14 @@ class TestSentencePieceTokenizer:
     @pytest.mark.unit
     def test_add_special_tokens(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
-        special_tokens = MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = MODEL_SPECIAL_TOKENS
         tokenizer.add_special_tokens(special_tokens)
         assert tokenizer.vocab_size == tokenizer.original_vocab_size + len(set(special_tokens.values()))
 
     @pytest.mark.unit
     def test_text_to_tokens(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
-        special_tokens = MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = MODEL_SPECIAL_TOKENS
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -55,7 +64,7 @@ class TestSentencePieceTokenizer:
     @pytest.mark.unit
     def test_text_to_ids(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
-        special_tokens = MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = MODEL_SPECIAL_TOKENS
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -69,7 +78,7 @@ class TestSentencePieceTokenizer:
     @pytest.mark.unit
     def test_ids_to_text(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
-        special_tokens = MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = MODEL_SPECIAL_TOKENS
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -81,7 +90,7 @@ class TestSentencePieceTokenizer:
     @pytest.mark.unit
     def test_tokens_to_ids(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
-        special_tokens = MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = MODEL_SPECIAL_TOKENS
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
@@ -96,7 +105,7 @@ class TestSentencePieceTokenizer:
     @pytest.mark.unit
     def test_ids_to_tokens(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
-        special_tokens = MODEL_SPECIAL_TOKENS['bert']
+        special_tokens = MODEL_SPECIAL_TOKENS
         tokenizer.add_special_tokens(special_tokens)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"

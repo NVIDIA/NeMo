@@ -12,6 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+## Tasks
+This script works with all GLUE Benchmark tasks, more details about the GLUE Benchmark could be found at
+https://gluebenchmark.com/
+
+More details on how to use this script could be found in tutorials/nlp/GLUE_Benchmark.ipynb
+
+## Model Training
+
+To train GLUEModel with the default config file, run:
+    python glue_benchmark.py \
+    model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
+    model.task_name=TASK_NAME \
+    trainer.max_epochs=<NUM_EPOCHS> \
+    trainer.gpus="[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
+
+Supported task names:
+["cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte", "wnli"]
+Note, MNLI task includes both matched and mismatched dev sets
+"""
+
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 

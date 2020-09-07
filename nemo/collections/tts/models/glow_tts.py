@@ -25,10 +25,12 @@ from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
+from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
-from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types.elements import LengthsType, MelSpectrogramType, TokenIndex
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
 @dataclass
@@ -53,8 +55,7 @@ class GlowTTSConfig:
     test_ds: Optional[Dict[Any, Any]] = None
 
 
-@experimental
-class GlowTTSModel(ModelPT):
+class GlowTTSModel(SpectrogramGenerator):
     """
     GlowTTS model used to generate spectrograms from text
     Consists of a text encoder and an invertible spectrogram decoder
@@ -82,25 +83,29 @@ class GlowTTSModel(ModelPT):
         decoder = instantiate(self._cfg.decoder)
 
         self.glow_tts = GlowTTSModule(encoder, decoder, n_speakers=cfg.n_speakers, gin_channels=cfg.gin_channels)
-
-        self.setup_optimization()
-
         self.loss = GlowTTSLoss()
 
-    def train_dataloader(self):
-        return self._train_dl
+    def parse(self, str_input: str) -> torch.tensor:
+        if str_input[-1] not in [".", "!", "?"]:
+            str_input = str_input + "."
 
-    def val_dataloader(self):
-        return self._val_dl
+        tokens = self.parser(str_input)
 
-    def test_dataloader(self):
-        return self._test_dl
+        x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
+        return x
 
-    def get_parser(self):
-        return self.parser
-
-    def forward(self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.0):
-
+    @typecheck(
+        input_types={
+            "x": NeuralType(('B', 'T'), TokenIndex()),
+            "x_lengths": NeuralType(('B'), LengthsType()),
+            "y": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+            "y_lengths": NeuralType(('B'), LengthsType(), optional=True),
+            "gen": NeuralType(optional=True),
+            "noise_scale": NeuralType(optional=True),
+            "length_scale": NeuralType(optional=True),
+        }
+    )
+    def forward(self, *, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.0):
         if gen:
             return self.glow_tts.generate_spect(
                 text=x, text_lengths=x_lengths, noise_scale=noise_scale, length_scale=length_scale
@@ -109,8 +114,9 @@ class GlowTTSModel(ModelPT):
             return self.glow_tts(text=x, text_lengths=x_lengths, spect=y, spect_lengths=y_lengths)
 
     def step(self, y, y_lengths, x, x_lengths):
-
-        z, y_m, y_logs, logdet, logw, logw_, y_lengths, attn = self(x, x_lengths, y, y_lengths, gen=False)
+        z, y_m, y_logs, logdet, logw, logw_, y_lengths, attn = self(
+            x=x, x_lengths=x_lengths, y=y, y_lengths=y_lengths, gen=False
+        )
 
         l_mle, l_length, logdet = self.loss(
             z=z,
@@ -128,7 +134,6 @@ class GlowTTSModel(ModelPT):
         return l_mle, l_length, logdet, loss, attn
 
     def training_step(self, batch, batch_idx):
-
         y, y_lengths, x, x_lengths = batch
 
         y, y_lengths = self.preprocessor(input_signal=y, length=y_lengths)
@@ -144,14 +149,13 @@ class GlowTTSModel(ModelPT):
         return output
 
     def validation_step(self, batch, batch_idx):
-
         y, y_lengths, x, x_lengths = batch
 
         y, y_lengths = self.preprocessor(input_signal=y, length=y_lengths)
 
         l_mle, l_length, logdet, loss, attn = self.step(y, y_lengths, x, x_lengths)
 
-        y_gen, attn_gen = self(x, x_lengths, gen=True)
+        y_gen, attn_gen = self(x=x, x_lengths=x_lengths, gen=True)
 
         return {
             "loss": loss,
@@ -178,8 +182,7 @@ class GlowTTSModel(ModelPT):
             'val_logdet': avg_logdet,
         }
         if self.logger is not None and self.logger.experiment is not None:
-            parser = self.get_parser()
-            separated_phonemes = "|".join([parser.symbols[c] for c in outputs[0]['x'][0]])
+            separated_phonemes = "|".join([self.parser.symbols[c] for c in outputs[0]['x'][0]])
             self.logger.experiment.add_text("separated phonemes", separated_phonemes, self.global_step)
             self.logger.experiment.add_image(
                 "real_spectrogram",
@@ -247,33 +250,37 @@ class GlowTTSModel(ModelPT):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._val_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def generate_spectrogram(self, text: str, noise_scale: float = 0.0, length_scale: float = 1.0) -> torch.Tensor:
+    def generate_spectrogram(
+        self, tokens: 'torch.tensor', noise_scale: float = 0.0, length_scale: float = 1.0
+    ) -> torch.tensor:
 
         self.eval()
 
-        text_parser = self.get_parser()
+        token_len = torch.tensor([tokens.shape[1]]).to(self.device)
+        spect, _ = self(x=tokens, x_lengths=token_len, gen=True, noise_scale=noise_scale, length_scale=length_scale)
 
-        if text[-1] != ".":
-            text = text + "."
-
-        text_seq = text_parser(text)
-
-        x = torch.Tensor(text_seq).unsqueeze(0).cuda().long()
-        x_lengths = torch.tensor([x.shape[1]]).cuda()
-
-        with torch.no_grad():
-            spect, _ = self(x, x_lengths, gen=True, noise_scale=noise_scale, length_scale=length_scale)
-
-        return spect[0]
+        return spect
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    def export(self, **kwargs):
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="GlowTTS-22050Hz",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/glow_tts.nemo",
+            description=(
+                "The model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
+                "English voices with an American accent."
+            ),
+        )
+        list_of_models.append(model)
+        return list_of_models

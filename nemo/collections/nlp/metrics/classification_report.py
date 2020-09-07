@@ -89,9 +89,9 @@ class ClassificationReport(TensorMetric):
             aggregated precision, recall, f1
         """
         zeros = torch.zeros_like(tp)
-        num_classes = tp.shape[0]
         num_examples_per_class = tp + fn
         total_examples = torch.sum(num_examples_per_class)
+        num_non_empty_classes = torch.nonzero(num_examples_per_class).size(0)
 
         precision = torch.where(tp + fp != zeros, tp / (tp + fp) * 100, zeros)
         recall = torch.where(tp + fn != zeros, tp / (tp + fn) * 100, zeros)
@@ -115,13 +115,15 @@ class ClassificationReport(TensorMetric):
             zeros,
         )
 
-        macro_precision = torch.sum(precision) / num_classes
-        macro_recall = torch.sum(recall) / num_classes
-        macro_f1 = torch.sum(f1) / num_classes
+        macro_precision = torch.sum(precision) / num_non_empty_classes
+        macro_recall = torch.sum(recall) / num_non_empty_classes
+        macro_f1 = torch.sum(f1) / num_non_empty_classes
 
         weighted_precision = torch.sum(precision * num_examples_per_class) / total_examples
         weighted_recall = torch.sum(recall * num_examples_per_class) / total_examples
         weighted_f1 = torch.sum(f1 * num_examples_per_class) / total_examples
+
+        report += "\n-------------------"
 
         report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
             'micro avg', micro_precision[0], micro_recall[0], micro_f1[0], total_examples

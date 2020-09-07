@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import math
-import os
 from typing import Dict, Optional
 
 import torch
@@ -21,32 +20,31 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.common.tokenizers import CharTokenizer, WordTokenizer
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
+from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import L2RLanguageModelingDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.transformer import (
-    TransformerEmbedding,
-    TransformerEncoder,
-    transformer_weights_init,
-)
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.utils.decorators import experimental
 
 __all__ = ['TransformerLMModel']
 
 
-@experimental
 class TransformerLMModel(ModelPT):
+    """
+    Left-to-right Transformer language model.
+    """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """Initializes the BERTTextClassifier model.
-        """
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
-
-        self.tokenizer = globals()[cfg.language_model.tokenizer](vocab_file=cfg.language_model.vocab_file)
+        self.tokenizer = get_tokenizer(
+            tokenizer_name=cfg.language_model.tokenizer,
+            vocab_file=cfg.language_model.vocab_file,
+            special_tokens=cfg.language_model.special_tokens,
+        )
 
         # make vocabulary size divisible by 8 for fast fp16 training
         vocab_size = 8 * math.ceil(self.tokenizer.vocab_size / 8)
@@ -150,15 +148,12 @@ class TransformerLMModel(ModelPT):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        input_file = cfg.file_name
-
         dataset = L2RLanguageModelingDataset(
             tokenizer=self.tokenizer,
             dataset=cfg.file_name,
             max_seq_length=self.dataset_cfg.max_seq_length,
             batch_step=cfg.get("predict_last_k", 0),
         )
-
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg.batch_size,
@@ -169,31 +164,5 @@ class TransformerLMModel(ModelPT):
         )
 
     @classmethod
-    def save_to(cls, save_path: str):
-        """
-        Saves the module to the specified path.
-        Args:
-            :param save_path: Path to where to save the module.
-        """
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """
-        Restores the module from the specified path.
-        Args:
-            :param restore_path: Path to restore the module from.
-        """
-        pass
-
-    @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    @classmethod
-    def export(cls, **kwargs):
         pass
