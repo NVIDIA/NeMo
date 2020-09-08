@@ -96,6 +96,9 @@ def get_megatron_lm_model(
                 if fixed_key == 'max_seq_length':
                     fixed_key = 'max_position_embeddings'
                 fixed_config[fixed_key] = config[key]
+            # 'vocab_size" no longer used.
+            if 'vocab_size' in fixed_config:
+                fixed_config.pop('vocab_size')
             config = fixed_config
     elif config_dict:
         config = config_dict

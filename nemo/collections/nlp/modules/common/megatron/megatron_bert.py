@@ -85,7 +85,9 @@ class MegatronBertEncoder(BertModule):
         # and to return a hook for us to call after PTL has torch.distributed initialized
         # (that would be on our first forward() call).
         self._lazy_init_fn = initialize_megatron(
-            extra_args_provider=extra_args_provider, args_defaults=config, ignore_unknown_args=True
+            extra_args_provider=extra_args_provider,
+            args_defaults=config,
+            ignore_unknown_args=True
         )
 
         # read Megatron arguments back
