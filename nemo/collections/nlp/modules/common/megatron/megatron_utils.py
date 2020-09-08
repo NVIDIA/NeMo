@@ -93,24 +93,19 @@ def get_megatron_lm_model(
             keys_to_pop = []
             for key in config.keys():
                 fixed = False
-                fixed_key = key
-                for i, x in enumerate(key):
-                    if x == '-':
-                        fixed_key[i] = '_'
+                fixed_key = ""
+                for char in key:
+                    if char == '-':
+                        new_char = '_'
+                        fixed_key += new_char
                         fixed = True
+                    else:
+                        fixed_key += char
                 if fixed:
                     config[fixed_key] = config[key]
                     keys_to_pop.append(key)
             for key in keys_to_pop:
                 config.pop(key)
-
-            # configf = json.load(f)
-            # config = {
-            #     "hidden_size": configf['hidden-size'],
-            #     "num_attention_heads": configf['num-attention-heads'],
-            #     "num_layers": configf['num-layers'],
-            #     "max_position_embeddings": configf['max-seq-length'],
-            # }
     elif config_dict:
         config = config_dict
     elif pretrained_model_name in get_megatron_lm_models_list():
