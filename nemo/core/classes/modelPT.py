@@ -505,7 +505,7 @@ class ModelPT(LightningModule, Model):
         # But maybe user forgot to pass it to this function
         lr = optim_config.get('lr', None)
 
-        if 'lr' is None:
+        if lr is None:
             raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
 
         # Check if caller has optimizer kwargs, default to empty dictionary
