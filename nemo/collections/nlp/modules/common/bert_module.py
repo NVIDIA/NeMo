@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
 from typing import Dict, Optional
 
@@ -50,7 +51,12 @@ class BertModule(NeuralModule, Exportable):
 
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
-        logging.info(f"restore from {restore_path}")
+        logging.info(f"Restoring weights from {restore_path}")
+
+        if not os.path.exists(restore_path):
+            logging.warning(f'Path {restore_path} not found')
+            return
+
         pretrained_dict = torch.load(restore_path)
 
         # backward compatibility with NeMo0.11
@@ -64,20 +70,35 @@ class BertModule(NeuralModule, Exportable):
             pretrained_dict = {k[len(prefix) :]: v for k, v in pretrained_dict.items()}
         model_dict = self.state_dict()
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+
+        # starting with transformers 3.1.0, embeddings.position_ids is added to the model's state dict and could be
+        # missing in checkpoints trained with older transformers version
+        if 'embeddings.position_ids' in model_dict and 'embeddings.position_ids' not in pretrained_dict:
+            pretrained_dict['embeddings.position_ids'] = model_dict['embeddings.position_ids']
+
         assert len(pretrained_dict) == len(model_dict)
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
+        logging.info(f"Weights for {type(self).__name__} restored from {restore_path}")
 
-    def _prepare_for_export(self):
+    @property
+    def hidden_size(self):
         """
-        Returns a pair in input, output examples for tracing.
+            Property returning hidden size.
+
+            Returns:
+                Hidden size
+            Default implementation relay to BERT config property..
+        """
+        return self.config.hidden_size
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
         Returns:
-            A pair of (input, output) examples.
+            A tuple of input examples.
         """
-        input_ids = torch.randint(low=0, high=16, size=(2, 16))
-        attention_mask = torch.randint(low=0, high=1, size=(2, 16))
-        ins = tuple([input_ids, attention_mask, attention_mask])
-        output_example = self.forward(
-            input_ids=input_ids, attention_mask=attention_mask, token_type_ids=attention_mask
-        )
-        return ins, output_example
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        attention_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, attention_mask, attention_mask])

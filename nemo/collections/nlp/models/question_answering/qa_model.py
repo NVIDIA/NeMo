@@ -12,18 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import SpanningLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -46,24 +48,16 @@ class QAModel(ModelPT):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.version_2_with_negative = cfg.version_2_with_negative
-        self.doc_stride = cfg.doc_stride
-        self.max_query_length = cfg.max_query_length
-        self.max_seq_length = cfg.max_seq_length
-        self.do_lower_case = cfg.do_lower_case
-        self.tokenizer = get_tokenizer(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, tokenizer_name="nemobert"
-        )
-
+        self._setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.bert_checkpoint,
+            config_file=cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+            checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
@@ -78,6 +72,7 @@ class QAModel(ModelPT):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
+
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
@@ -105,6 +100,16 @@ class QAModel(ModelPT):
             'end_logits': end_logits,
         }
         return {'val_loss': loss, 'eval_tensors': eval_tensors}
+
+    def test_step(self, batch, batch_idx):
+        input_ids, input_type_ids, input_mask, unique_ids = batch
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+
+        test_tensors = {
+            'unique_ids': unique_ids,
+            'logits': logits,
+        }
+        return {'test_tensors': test_tensors}
 
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -137,51 +142,97 @@ class QAModel(ModelPT):
             start_logits = []
             end_logits = []
             for u in all_unique_ids:
-                unique_ids.extend(u.cpu().numpy().tolist())
+                unique_ids.extend(tensor2list(u))
             for u in all_start_logits:
-                start_logits.extend(u.cpu().numpy().tolist())
+                start_logits.extend(tensor2list(u))
             for u in all_end_logits:
-                end_logits.extend(u.cpu().numpy().tolist())
+                end_logits.extend(tensor2list(u))
 
             exact_match, f1, all_predictions, all_nbest = self.validation_dataset.evaluate(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
                 end_logits=end_logits,
-                n_best_size=self.validation_config.n_best_size,
-                max_answer_length=self.validation_config.max_answer_length,
-                version_2_with_negative=self.version_2_with_negative,
-                null_score_diff_threshold=self.validation_config.null_score_diff_threshold,
-                do_lower_case=self.do_lower_case,
+                n_best_size=self._cfg.validation_ds.n_best_size,
+                max_answer_length=self._cfg.validation_ds.max_answer_length,
+                version_2_with_negative=self._cfg.dataset.version_2_with_negative,
+                null_score_diff_threshold=self._cfg.validation_ds.null_score_diff_threshold,
+                do_lower_case=self._cfg.dataset.do_lower_case,
             )
+
+            if self._cfg.validation_ds.output_nbest_file is not None:
+                with open(self._cfg.validation_ds.output_nbest_file, "w") as writer:
+                    writer.write(json.dumps(all_nbest, indent=4) + "\n")
+            if self._cfg.validation_ds.output_prediction_file is not None:
+                with open(self._cfg.validation_ds.output_prediction_file, "w") as writer:
+                    writer.write(json.dumps(all_predictions, indent=4) + "\n")
 
         logging.info(f"exact match {exact_match}")
         logging.info(f"f1 {f1}")
+
         tensorboard_logs = {'val_loss': avg_loss, 'exact_match': exact_match, 'f1': f1}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+    def test_epoch_end(self, outputs):
+        unique_ids = tensor2list(torch.cat([x['test_tensors']['unique_ids'] for x in outputs]))
+        logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
+        s, e = logits.split(dim=-1, split_size=1)
+        start_logits = tensor2list(s.squeeze())
+        end_logits = tensor2list(e.squeeze())
+        (all_predictions, all_nbest, scores_diff) = self.test_dataset.get_predictions(
+            unique_ids=unique_ids,
+            start_logits=start_logits,
+            end_logits=end_logits,
+            n_best_size=self._cfg.test_ds.n_best_size,
+            max_answer_length=self._cfg.test_ds.max_answer_length,
+            version_2_with_negative=self._cfg.dataset.version_2_with_negative,
+            null_score_diff_threshold=self._cfg.test_ds.null_score_diff_threshold,
+            do_lower_case=self._cfg.dataset.do_lower_case,
+        )
+
+        if self._cfg.test_ds.output_nbest_file is not None:
+            with open(self._cfg.test_ds.output_nbest_file, "w") as writer:
+                writer.write(json.dumps(all_nbest, indent=4) + "\n")
+        if self._cfg.test_ds.output_prediction_file is not None:
+            with open(self._cfg.test_ds.output_prediction_file, "w") as writer:
+                writer.write(json.dumps(all_predictions, indent=4) + "\n")
+        return {}
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            tokenizer_model=cfg.tokenizer_model,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            vocab_file=cfg.vocab_file,
+        )
+        self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
-        self.validation_config = val_data_config
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
+        if test_data_config.file is None:
+            return
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.file,
-            doc_stride=self.doc_stride,
-            max_query_length=self.max_query_length,
-            max_seq_length=self.max_seq_length,
-            version_2_with_negative=self.version_2_with_negative,
+            doc_stride=self._cfg.dataset.doc_stride,
+            max_query_length=self._cfg.dataset.max_query_length,
+            max_seq_length=self._cfg.dataset.max_seq_length,
+            version_2_with_negative=self._cfg.dataset.version_2_with_negative,
+            num_samples=cfg.num_samples,
             mode=cfg.mode,
-            use_cache=cfg.use_cache,
+            use_cache=self._cfg.dataset.use_cache,
         )
         if cfg.mode == "eval":
             self.validation_dataset = dataset
+        elif cfg.mode == "test":
+            self.test_dataset = dataset
 
         dl = torch.utils.data.DataLoader(
             dataset=dataset,

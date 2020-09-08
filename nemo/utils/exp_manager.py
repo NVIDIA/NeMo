@@ -18,19 +18,18 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from shutil import copy
-from typing import Dict, List, Optional, Union
+from shutil import copy, move
+from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.logging import WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 
-from nemo.constants import NEMO_ENV_VARNAME_DATETIME
+from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -69,9 +68,9 @@ class ExpManagerConfig:
     resume_ignore_no_checkpoint: Optional[bool] = False
     # Logging parameters
     create_tensorboard_logger: Optional[bool] = True
-    summary_writter_kwargs: Optional[Dict] = None
+    summary_writer_kwargs: Optional[Dict[Any, Any]] = None
     create_wandb_logger: Optional[bool] = False
-    wandb_logger_kwargs: Optional[Dict] = None
+    wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     # Additional exp_manager arguments
@@ -84,8 +83,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
     name, and version from the logger. Otherwise it will use the exp_dir and name arguments to create the logging
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
-    The version will be a datetime string if running single node, and version will be an integer if running
-    on slurm multi-node. Datestime version can be disabled if use_datetime_version is set to False.
+    The version will be a datetime string or an integer. Note, exp_manager does not handle versioning on slurm
+    multi-node runs. Datestime version can be disabled if use_datetime_version is set to False.
     It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning. It copies
     sys.argv, and git information if available to the logging directory. It creates a log file for each process to log
     their output into.
@@ -114,7 +113,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 continue without restoring, by setting resume_ignore_no_checkpoint to True. Defaults to False.
             - create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch
                 lightning trainer. Defaults to True.
-            - summary_writter_kwargs (dict): A dictionary of kwargs that can be passed to lightning's TensorboardLogger
+            - summary_writer_kwargs (dict): A dictionary of kwargs that can be passed to lightning's TensorboardLogger
                 class. Note that log_dir is passed by exp_manager and cannot exist in this dict. Defaults to None.
             - create_wandb_logger (bool): Whether to create a Weights and Baises logger and attach it to the pytorch
                 lightning trainer. Defaults to False.
@@ -158,13 +157,17 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if cfg.resume_if_exists:
         check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
 
-    cfg.name = name
+    checkpoint_name = name
+    # If name returned from get_log_dir is "", use cfg.name for checkpointing
+    if checkpoint_name is None or checkpoint_name == '':
+        checkpoint_name = cfg.name or "default"
+    cfg.name = name  # Used for configure_loggers so that the log_dir is properly set even if name is ""
     cfg.version = version
 
     # Create the logging directory if it does not exist
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
     logging.info(f'Experiments will be logged at {log_dir}')
-    trainer.default_root_dir = log_dir
+    trainer._default_root_dir = log_dir
 
     # Handle Loggers by creating file and handle DEBUG statements
     # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
@@ -173,21 +176,23 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.add_file_handler(log_file)
     logging.rank = global_rank
 
-    if is_global_rank_zero():
-        if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
-            configure_loggers(
-                trainer,
-                exp_dir,
-                cfg.name,
-                cfg.version,
-                cfg.create_tensorboard_logger,
-                cfg.summary_writter_kwargs,
-                cfg.create_wandb_logger,
-                cfg.wandb_logger_kwargs,
-            )
+    # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
+    # not just global rank 0.
+    if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
+        configure_loggers(
+            trainer,
+            exp_dir,
+            cfg.name,
+            cfg.version,
+            cfg.create_tensorboard_logger,
+            cfg.summary_writer_kwargs,
+            cfg.create_wandb_logger,
+            cfg.wandb_logger_kwargs,
+        )
 
+    if is_global_rank_zero():
         if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, log_dir, cfg.name)
+            configure_checkpointing(trainer, log_dir, checkpoint_name)
 
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
@@ -229,8 +234,8 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
     if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger):
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
-            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: {cfg.create_wandb_logger} "
-            "was set to True. These can only be used if trainer does not already have a logger."
+            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: {cfg.create_wandb_logger}"
+            " was set to True. These can only be used if trainer does not already have a logger."
         )
     if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
         logging.error(
@@ -300,20 +305,26 @@ def check_resume(
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
 
-    trainer.resume_from_checkpoint = checkpoint
+    trainer.resume_from_checkpoint = str(checkpoint)
 
     if is_global_rank_zero():
-        # Move old files to a new folder
-        other_run_dirs = checkpoint_dir.glob("run_*")
-        run_count = 0
-        for fold in other_run_dirs:
-            if fold.is_dir():
-                run_count += 1
-        new_run_dir = Path(checkpoint_dir / f"run_{run_count}")
-        new_run_dir.mkdir()
-        for child in checkpoint_dir.iterdir():
+        # Check to see if any files exist that need to be moved
+        files_to_move = []
+        for child in Path(log_dir).iterdir():
             if child.is_file():
-                copy(child, new_run_dir)
+                files_to_move.append(child)
+
+        if len(files_to_move) > 0:
+            # Move old files to a new folder
+            other_run_dirs = Path(log_dir).glob("run_*")
+            run_count = 0
+            for fold in other_run_dirs:
+                if fold.is_dir():
+                    run_count += 1
+            new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
+            new_run_dir.mkdir()
+            for _file in files_to_move:
+                move(str(_file), str(new_run_dir))
 
 
 def check_explicit_log_dir(
@@ -338,11 +349,10 @@ def check_explicit_log_dir(
     if exp_dir or name or version:
         logging.error(
             f"exp_manager received explicit_log_dir: {explicit_log_dir} and at least one of exp_dir: {exp_dir}, "
-            f"name: {name}, or version: {version}. Please note that exp_dir, "
-            "name, and version will be ignored."
+            f"name: {name}, or version: {version}. Please note that exp_dir, name, and version will be ignored."
         )
     if is_global_rank_zero() and Path(explicit_log_dir).exists():
-        logging.warning("Exp_manager is logging to {explicit_log_dir}, but it already exists.")
+        logging.warning(f"Exp_manager is logging to {explicit_log_dir}, but it already exists.")
     return Path(explicit_log_dir), str(explicit_log_dir), "", ""
 
 
@@ -368,7 +378,7 @@ def get_log_dir(
         NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
         ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
-    if explicit_log_dir:  # If explicit log_dir was pass, short circuit
+    if explicit_log_dir:  # If explicit log_dir was passed, short circuit
         return check_explicit_log_dir(trainer, explicit_log_dir, exp_dir, name, version)
 
     # Default exp_dir to ./nemo_experiments if None was passed
@@ -397,20 +407,20 @@ def get_log_dir(
         version = f"version_{trainer.logger.version}"
     # Use user-defined exp_dir, project_name, exp_name, and versioning options
     else:
-        if version is None and use_datetime_version:
-            version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
-            if trainer.is_slurm_managing_tasks:
-                logging.warning("Running on a slurm cluster. Versioning by datetime will not work.")
-            elif is_global_rank_zero():
-                version = time.strftime('%Y-%m-%d_%H-%M-%S')
-                os.environ[NEMO_ENV_VARNAME_DATETIME] = version
-
         name = name or "default"
+        version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
-        # Always create TensorBoardLogger, so we can retrieve version if running on slurm
-        tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
         if version is None:
-            version = f"version_{tensorboard_logger.version}"
+            if trainer.is_slurm_managing_tasks:
+                logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
+                version = ""
+            elif is_global_rank_zero():
+                if use_datetime_version:
+                    version = time.strftime('%Y-%m-%d_%H-%M-%S')
+                else:
+                    tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
+                    version = f"version_{tensorboard_logger.version}"
+                os.environ[NEMO_ENV_VARNAME_VERSION] = version
 
     log_dir = Path(_exp_dir) / Path(str(name)) / Path(str(version))
     return log_dir, str(_exp_dir), name, version
@@ -471,24 +481,24 @@ def configure_loggers(
     name: str,
     version: str,
     create_tensorboard_logger: bool,
-    summary_writter_kwargs: dict,
+    summary_writer_kwargs: dict,
     create_wandb_logger: bool,
     wandb_kwargs: dict,
 ):
     """ Creates TensorboardLogger and/or WandBLogger and attach them to trainer. Raises ValueError if
-    summary_writter_kwargs or wandb_kwargs are misconfigured.
+    summary_writer_kwargs or wandb_kwargs are misconfigured.
     """
     # Potentially create tensorboard logger and/or WandBLogger
     logger_list = []
     if create_tensorboard_logger:
-        if summary_writter_kwargs is None:
-            summary_writter_kwargs = {}
-        elif "log_dir" in summary_writter_kwargs:
+        if summary_writer_kwargs is None:
+            summary_writer_kwargs = {}
+        elif "log_dir" in summary_writer_kwargs:
             raise ValueError(
-                "You cannot pass `log_dir` as part of `summary_writter_kwargs`. `log_dir` is handled by lightning's "
+                "You cannot pass `log_dir` as part of `summary_writer_kwargs`. `log_dir` is handled by lightning's "
                 "TensorBoardLogger logger."
             )
-        tensorboard_logger = TensorBoardLogger(save_dir=exp_dir, name=name, version=version, **summary_writter_kwargs)
+        tensorboard_logger = TensorBoardLogger(save_dir=exp_dir, name=name, version=version, **summary_writer_kwargs)
         logger_list.append(tensorboard_logger)
         logging.info("TensorboardLogger has been set up")
 

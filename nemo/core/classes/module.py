@@ -27,3 +27,12 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
     @property
     def num_weights(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    def input_example(self):
+        """
+        Override this method if random inputs won't work
+        Returns:
+            A tuple sample of valid input data.
+        """
+
+        return

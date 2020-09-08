@@ -151,8 +151,8 @@ model:
       name: CosineAnnealing
 
       # pytorch lightning args
-      # monitor: val_loss
-      # reduce_on_plateau: false
+      monitor: val_loss
+      reduce_on_plateau: false
 
       # Scheduler params
       warmup_steps: null

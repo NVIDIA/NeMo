@@ -135,6 +135,7 @@ class _AudioTextDataset(Dataset):
         load_audio: bool = True,
         add_misc: bool = False,
     ):
+        self.parser = parser
 
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),

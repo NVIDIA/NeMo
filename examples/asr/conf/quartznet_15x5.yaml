@@ -1,12 +1,13 @@
 name: &name "QuartzNet15x5"
-sample_rate: &sample_rate 16000
-repeat: &repeat 5
-dropout: &dropout 0.0
-separable: &separable true
-labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 model:
+  sample_rate: &sample_rate 16000
+  repeat: &repeat 5
+  dropout: &dropout 0.0
+  separable: &separable true
+  labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+                   "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
+
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000

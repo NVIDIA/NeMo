@@ -48,6 +48,27 @@ def griffin_lim(magnitudes, n_iters=50, n_fft=1024):
 
 
 @rank_zero_only
+def log_audio_to_tb(
+    swriter,
+    spect,
+    name,
+    step,
+    griffin_lim_mag_scale=1024,
+    griffin_lim_power=1.2,
+    sr=22050,
+    n_fft=1024,
+    n_mels=80,
+    fmax=8000,
+):
+    filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
+    log_mel = spect.data.cpu().numpy().T
+    mel = np.exp(log_mel)
+    magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
+    audio = griffin_lim(magnitude.T ** griffin_lim_power)
+    swriter.add_audio(name, audio / max(np.abs(audio)), step, sample_rate=sr)
+
+
+@rank_zero_only
 def tacotron2_log_to_tb_func(
     swriter,
     tensors,

@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch import nn
-from torch.nn.functional import pad
+import torch
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.core.classes import Loss, typecheck
@@ -22,18 +21,16 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class Tacotron2Loss(Loss):
-    """ A Loss module that computes loss for Tacotron2
-    """
+    """A Loss module that computes loss for Tacotron2"""
 
     @property
     def input_types(self):
         return {
-            "mel_out": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-            "mel_out_postnet": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-            "gate_out": NeuralType(('B', 'T'), LogitsType()),
-            "mel_target": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-            "gate_target": NeuralType(('B', 'T'), LogitsType()),
-            "target_len": NeuralType(('B'), LengthsType()),
+            "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "gate_pred": NeuralType(('B', 'T'), LogitsType()),
+            "spec_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec_target_len": NeuralType(('B'), LengthsType()),
             "pad_value": NeuralType(),
         }
 
@@ -41,38 +38,47 @@ class Tacotron2Loss(Loss):
     def output_types(self):
         return {
             "loss": NeuralType(elements_type=LossType()),
+            "gate_target": NeuralType(('B', 'T'), LogitsType()),  # Used for evaluation
         }
 
     @typecheck()
-    def forward(self, *, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len, pad_value):
-        mel_target.requires_grad = False
+    def forward(self, *, spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, pad_value):
+        # Make the gate target
+        max_len = spec_target.shape[2]
+        gate_target = torch.zeros(spec_target_len.shape[0], max_len)
+        gate_target = gate_target.type_as(gate_pred)
+        for i, length in enumerate(spec_target_len):
+            gate_target[i, length.data - 1 :] = 1
+
+        spec_target.requires_grad = False
         gate_target.requires_grad = False
         gate_target = gate_target.view(-1, 1)
 
-        max_len = mel_target.shape[2]
+        max_len = spec_target.shape[2]
 
-        if max_len < mel_out.shape[2]:
+        if max_len < spec_pred_dec.shape[2]:
             # Predicted len is larger than reference
             # Need to slice
-            mel_out = mel_out.narrow(2, 0, max_len)
-            mel_out_postnet = mel_out_postnet.narrow(2, 0, max_len)
-            gate_out = gate_out.narrow(1, 0, max_len).contiguous()
-        elif max_len > mel_out.shape[2]:
+            spec_pred_dec = spec_pred_dec.narrow(2, 0, max_len)
+            spec_pred_postnet = spec_pred_postnet.narrow(2, 0, max_len)
+            gate_pred = gate_pred.narrow(1, 0, max_len).contiguous()
+        elif max_len > spec_pred_dec.shape[2]:
             # Need to do padding
-            pad_amount = max_len - mel_out.shape[2]
-            mel_out = pad(mel_out, (0, pad_amount), value=pad_value)
-            mel_out_postnet = pad(mel_out_postnet, (0, pad_amount), value=pad_value)
-            gate_out = pad(gate_out, (0, pad_amount), value=1e3)
-            max_len = mel_out.shape[2]
+            pad_amount = max_len - spec_pred_dec.shape[2]
+            spec_pred_dec = torch.nn.functional.pad(spec_pred_dec, (0, pad_amount), value=pad_value)
+            spec_pred_postnet = torch.nn.functional.pad(spec_pred_postnet, (0, pad_amount), value=pad_value)
+            gate_pred = torch.nn.functional.pad(gate_pred, (0, pad_amount), value=1e3)
+            max_len = spec_pred_dec.shape[2]
 
-        mask = ~get_mask_from_lengths(target_len, max_len=max_len)
-        mask = mask.expand(mel_target.shape[1], mask.size(0), mask.size(1))
+        mask = ~get_mask_from_lengths(spec_target_len, max_len=max_len)
+        mask = mask.expand(spec_target.shape[1], mask.size(0), mask.size(1))
         mask = mask.permute(1, 0, 2)
-        mel_out.data.masked_fill_(mask, pad_value)
-        mel_out_postnet.data.masked_fill_(mask, pad_value)
-        gate_out.data.masked_fill_(mask[:, 0, :], 1e3)
+        spec_pred_dec.data.masked_fill_(mask, pad_value)
+        spec_pred_postnet.data.masked_fill_(mask, pad_value)
+        gate_pred.data.masked_fill_(mask[:, 0, :], 1e3)
 
-        gate_out = gate_out.view(-1, 1)
-        mel_loss = nn.MSELoss()(mel_out, mel_target) + nn.MSELoss()(mel_out_postnet, mel_target)
-        gate_loss = nn.BCEWithLogitsLoss()(gate_out, gate_target)
-        return mel_loss + gate_loss
+        gate_pred = gate_pred.view(-1, 1)
+        rnn_mel_loss = torch.nn.functional.mse_loss(spec_pred_dec, spec_target)
+        postnet_mel_loss = torch.nn.functional.mse_loss(spec_pred_postnet, spec_target)
+        gate_loss = torch.nn.functional.binary_cross_entropy_with_logits(gate_pred, gate_target)
+        return rnn_mel_loss + postnet_mel_loss + gate_loss, gate_target

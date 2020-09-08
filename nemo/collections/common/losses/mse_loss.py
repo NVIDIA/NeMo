@@ -37,8 +37,6 @@ class MSELoss(nn.MSELoss, Serialization, Typing):
     @property
     def output_types(self):
         """Returns definitions of module output ports.
-        loss:
-            NeuralType(None)
         """
         return {"loss": NeuralType(elements_type=LossType())}
 

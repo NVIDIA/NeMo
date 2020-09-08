@@ -22,19 +22,19 @@ import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
-from nemo.utils import logging
 
 __all__ = [
     'get_megatron_lm_model',
     'get_megatron_lm_models_list',
     'get_megatron_checkpoint',
     'is_lower_cased_megatron',
+    'get_megatron_tokenizer',
 ]
 
 
 MEGATRON_CACHE = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), 'megatron')
 
-CONFIGS = {'345m': {"hidden-size": 1024, "num-attention-heads": 16, "num-layers": 24, "max-seq-length": 512}}
+CONFIGS = {'345m': {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 
 MEGATRON_CONFIG_MAP = {
     'megatron-bert-345m-uncased': {
@@ -42,60 +42,75 @@ MEGATRON_CONFIG_MAP = {
         'checkpoint': 'https://api.ngc.nvidia.com/v2/models/nvidia/megatron_bert_345m/versions/v0.0/files/release/mp_rank_00/model_optim_rng.pt',
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt',
         'do_lower_case': True,
+        'tokenizer_name': 'bert-large-uncased',
     },
     'megatron-bert-345m-cased': {
         'config': CONFIGS['345m'],
         'checkpoint': 'https://api.ngc.nvidia.com/v2/models/nvidia/megatron_bert_345m/versions/v0.1_cased/files/release/mp_rank_00/model_optim_rng.pt',
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt',
         'do_lower_case': False,
+        'tokenizer_name': 'bert-large-cased',
     },
     'megatron-bert-uncased': {
         'config': None,
         'checkpoint': None,
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt',
         'do_lower_case': True,
+        'tokenizer_name': 'bert-large-uncased',
     },
     'megatron-bert-cased': {
         'config': None,
+        'checkpoint': None,
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt',
         'do_lower_case': False,
+        'tokenizer_name': 'bert-large-cased',
     },
 }
 
 
-def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str] = None):
+def get_megatron_lm_model(
+    pretrained_model_name: str,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
+    checkpoint_file: Optional[str] = None,
+):
     '''
     Returns the dict of special tokens associated with the model.
     Args:
-        pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
-            for example: bert-base-cased
-        config_file: path to model configuration file.
+        pretrained_mode_name: model name from MEGATRON_CONFIG_MAP
+            for example: megatron-bert-cased
+        config_dict: model configuration parameters
+        config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
+        checkpoint_file: path to checkpoint file.
     '''
-
-    if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
-        if not (config_file):
-            raise ValueError(f'Config file is required for {pretrained_model_name}')
-        default_checkpoint = None
-    else:
-        # get default config and checkpoint
-        default_checkpoint = get_megatron_checkpoint(pretrained_model_name)
-        config = get_megatron_config(pretrained_model_name)
-
+    config = None
+    # get default config and checkpoint
     if config_file:
         with open(config_file) as f:
-            config = json.load(f)
-    logging.info(f'Megatron config: {config}')
+            configf = json.load(f)
+            config = {
+                "hidden_size": configf['hidden-size'],
+                "num_attention_heads": configf['num-attention-heads'],
+                "num_layers": configf['num-layers'],
+                "max_position_embeddings": configf['max-seq-length'],
+            }
+    elif config_dict:
+        config = config_dict
+    elif pretrained_model_name in get_megatron_lm_models_list():
+        config = get_megatron_config(pretrained_model_name)
+    else:
+        raise ValueError(f'{pretrained_model_name} is not supported')
+
+    if config is None:
+        raise ValueError(f'config_file or config_dict is required for {pretrained_model_name}')
+
+    if not checkpoint_file:
+        checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
-    model = MegatronBertEncoder(
-        model_name=pretrained_model_name,
-        vocab_file=vocab,
-        hidden_size=config['hidden-size'],
-        num_attention_heads=config['num-attention-heads'],
-        num_layers=config['num-layers'],
-        max_seq_length=config['max-seq-length'],
-    )
-    return model, default_checkpoint
+
+    model = MegatronBertEncoder(model_name=pretrained_model_name, config=config, vocab_file=vocab)
+    return model, checkpoint_file
 
 
 def get_megatron_lm_models_list() -> List[str]:
@@ -138,6 +153,9 @@ def get_megatron_checkpoint(pretrained_model_name):
         path (str): path to model checkpoint
     '''
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['checkpoint']
+    if url is None:
+        return None
+
     path = os.path.join(MEGATRON_CACHE, pretrained_model_name)
 
     if not os.path.exists(path):
@@ -162,3 +180,15 @@ def is_lower_cased_megatron(pretrained_model_name):
         do_lower_cased (bool): whether the model uses lower cased data
     '''
     return MEGATRON_CONFIG_MAP[pretrained_model_name]['do_lower_case']
+
+
+def get_megatron_tokenizer(pretrained_model_name: str):
+    '''
+    Takes a pretrained_model_name for megatron such as 'megatron-bert-cased' and returns the according 
+    tokenizer name for tokenizer instantiating.
+    Args:
+        pretrained_model_name: pretrained_model_name for megatron such as 'megatron-bert-cased'
+    Returns: 
+        tokenizer name for tokenizer instantiating
+    '''
+    return MEGATRON_CONFIG_MAP[pretrained_model_name]['tokenizer_name']

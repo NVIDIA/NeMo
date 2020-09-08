@@ -60,7 +60,7 @@ def get_features(
             subtokens.extend(word_tokens)
 
             loss_mask.append(1)
-            loss_mask.extend([not ignore_extra_tokens] * (len(word_tokens) - 1))
+            loss_mask.extend([int(not ignore_extra_tokens)] * (len(word_tokens) - 1))
 
             subtokens_mask.append(1)
             subtokens_mask.extend([0] * (len(word_tokens) - 1))
@@ -159,7 +159,7 @@ class IntentSlotClassificationDataset(Dataset):
             'input_mask': NeuralType(('B', 'T'), MaskType()),
             'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'intent_labels': NeuralType(('B', 'T'), LabelsType()),
+            'intent_labels': NeuralType(('B'), LabelsType()),
             'slot_labels': NeuralType(('B', 'T'), LabelsType()),
         }
 
