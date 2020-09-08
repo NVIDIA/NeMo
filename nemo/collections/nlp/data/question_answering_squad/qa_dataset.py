@@ -156,7 +156,7 @@ class SquadDataset(Dataset):
 
     def get_predictions(
         self,
-        unique_ids: List[str],
+        unique_ids: List[int],
         start_logits: List[List[float]],
         end_logits: List[List[float]],
         n_best_size: int,
