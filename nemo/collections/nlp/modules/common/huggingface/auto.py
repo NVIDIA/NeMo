@@ -19,11 +19,11 @@ from transformers import AutoModel, PreTrainedModel
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.utils.decorators import experimental
 
-__all__ = ['AutoEncoder']
+__all__ = ['AutoModelEncoder']
 
 
 @experimental
-class AutoEncoder(PreTrainedModel, BertModule):
+class AutoModelEncoder(PreTrainedModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """

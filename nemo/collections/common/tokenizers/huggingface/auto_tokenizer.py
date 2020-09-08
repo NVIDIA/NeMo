@@ -95,32 +95,45 @@ class AutoTokenizer(TokenizerSpec):
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
         """
-
-        if pretrained_model_name not in ALL_PRETRAINED_CONFIG_ARCHIVE_MAP:
-            raise ValueError(f"{pretrained_model_name} not a huggingface pretrained model")
-
-        if vocab_file is not None:
-            self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file
-            )
-        else:
-            self.tokenizer = AUTOTOKENIZER.from_pretrained(pretrained_model_name_or_path=pretrained_model_name)
+        try:
+            if vocab_file is not None:
+                self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file
+                )
+            else:
+                self.tokenizer = AUTOTOKENIZER.from_pretrained(pretrained_model_name_or_path=pretrained_model_name)
+        except Exception as e:
+            raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
 
         special_tokens_dict = {}
         if self.tokenizer.unk_token is None:
             special_tokens_dict["unk_token"] = unk_token
         if self.tokenizer.sep_token is None:
-            special_tokens_dict["sep_token"] = sep_token
+            if self.tokenizer.eos_token:
+                special_tokens_dict["sep_token"] = self.tokenizer.eos_token
+            else:
+                special_tokens_dict["sep_token"] = sep_token
         if self.tokenizer.mask_token is None:
             special_tokens_dict["mask_token"] = mask_token
         if self.tokenizer.bos_token is None:
-            special_tokens_dict["bos_token"] = bos_token
+            if self.tokenizer.cls_token:
+                special_tokens_dict["bos_token"] = self.tokenizer.cls_token
+            else:
+                special_tokens_dict["bos_token"] = bos_token
         if self.tokenizer.eos_token is None:
-            special_tokens_dict["eos_token"] = eos_token
+            if self.tokenizer.sep_token:
+                special_tokens_dict["eos_token"] = self.tokenizer.sep_token
+            else:
+                special_tokens_dict["eos_token"] = eos_token
         if self.tokenizer.pad_token is None:
             special_tokens_dict["pad_token"] = pad_token
         if self.tokenizer.cls_token is None:
-            special_tokens_dict["cls_token"] = cls_token
+            if self.tokenizer.bos_token:
+                special_tokens_dict["cls_token"] = self.tokenizer.bos_token
+            else:
+                special_tokens_dict["cls_token"] = cls_token
+
+        logging.info(f'Adding special tokens to the tokenizer: {special_tokens_dict}')
         self.add_special_tokens(special_tokens_dict)
 
         self.never_split = self.tokenizer.all_special_tokens
@@ -203,3 +216,7 @@ class AutoTokenizer(TokenizerSpec):
     @property
     def mask_id(self):
         return self.tokens_to_ids([getattr(self, 'mask_token')])[0]
+
+    @property
+    def name(self):
+        return type(self.tokenizer).__name__

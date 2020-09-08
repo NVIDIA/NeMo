@@ -110,14 +110,14 @@ class GLUEModel(ModelPT):
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
-        self.hidden_size = self.bert_model.config.hidden_size
-
         # uses [CLS] token for classification (the first token)
         if self.task_name == "sts-b":
-            self.pooler = SequenceRegression(hidden_size=self.hidden_size)
+            self.pooler = SequenceRegression(hidden_size=self.bert_model.config.hidden_size)
             self.loss = MSELoss()
         else:
-            self.pooler = SequenceClassifier(hidden_size=self.hidden_size, num_classes=num_labels, log_softmax=False)
+            self.pooler = SequenceClassifier(
+                hidden_size=self.bert_model.config.hidden_size, num_classes=num_labels, log_softmax=False
+            )
             self.loss = CrossEntropyLoss()
 
         # Optimizer setup needs to happen after all model weights are ready
