@@ -25,6 +25,7 @@ from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -141,11 +142,11 @@ class QAModel(ModelPT):
             start_logits = []
             end_logits = []
             for u in all_unique_ids:
-                unique_ids.extend(u.cpu().numpy().tolist())
+                unique_ids.extend(tensor2list(u))
             for u in all_start_logits:
-                start_logits.extend(u.cpu().numpy().tolist())
+                start_logits.extend(tensor2list(u))
             for u in all_end_logits:
-                end_logits.extend(u.cpu().numpy().tolist())
+                end_logits.extend(tensor2list(u))
 
             exact_match, f1, all_predictions, all_nbest = self.validation_dataset.evaluate(
                 unique_ids=unique_ids,
@@ -172,11 +173,11 @@ class QAModel(ModelPT):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def test_epoch_end(self, outputs):
-        unique_ids = torch.cat([x['test_tensors']['unique_ids'] for x in outputs]).cpu().numpy().tolist()
+        unique_ids = tensor2list(torch.cat([x['test_tensors']['unique_ids'] for x in outputs]))
         logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
         s, e = logits.split(dim=-1, split_size=1)
-        start_logits = s.squeeze().cpu().numpy().tolist()
-        end_logits = e.squeeze().cpu().numpy().tolist()
+        start_logits = tensor2list(s.squeeze())
+        end_logits = tensor2list(e.squeeze())
         (all_predictions, all_nbest, scores_diff) = self.test_dataset.get_predictions(
             unique_ids=unique_ids,
             start_logits=start_logits,
