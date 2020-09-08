@@ -93,6 +93,8 @@ def get_megatron_lm_model(
             fixed_config = {}
             for key in config.keys():
                 fixed_key = key.replace("-", "_")
+                if fixed_key == 'max_seq_length':
+                    fixed_key = 'max_position_embeddings'
                 fixed_config[fixed_key] = config[key]
             config = fixed_config
     elif config_dict:
