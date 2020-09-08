@@ -470,11 +470,12 @@ pipeline {
       failFast true
 
       parallel {
-        stage('MRPC') {
+        stage('MRPC with RoBERTa') {
           steps {
             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
             model.dataset.use_cache=false \
             model.task_name=mrpc \
+            model.language_model.pretrained_model_name=roberta-base \
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
@@ -491,6 +492,7 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
+            model.language_model.pretrained_model_name=albert-base-v1 \
             exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
             sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
           }
