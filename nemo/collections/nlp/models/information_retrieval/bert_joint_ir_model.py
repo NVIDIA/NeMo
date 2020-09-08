@@ -20,10 +20,10 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import BertInformationRetrievalDatasetEval, BertInformationRetrievalDatasetTrain
 from nemo.collections.nlp.modules.common import SequenceClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -50,13 +50,11 @@ class BertJointIRModel(ModelPT):
 
         self.dataset_cfg = cfg.dataset
 
-        self.tokenizer = get_tokenizer(
-            tokenizer_name="nemobert", pretrained_model_name=cfg.language_model.pretrained_model_name,
-        )
+        self.tokenizer = get_tokenizer(tokenizer_name=cfg.language_model.pretrained_model_name,)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_pretrained_lm_model(pretrained_model_name=cfg.language_model.pretrained_model_name,)
+        self.bert_model = get_lm_model(pretrained_model_name=cfg.language_model.pretrained_model_name,)
 
         # make vocabulary size divisible by 8 for fast fp16 training
         vocab_size = self.tokenizer.vocab_size
