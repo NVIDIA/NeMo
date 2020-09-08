@@ -65,7 +65,7 @@ class TestHuggingFace(TestCase):
         do_export(model, "albert-base-v1")
 
     @pytest.mark.unit
-    def test_get_pretrained_distilbert_model(self):
+    def test_get_pretrained_t5_model(self):
         model_name = 't5-small'
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
         assert isinstance(model, nemo_nlp.modules.BertModule)
@@ -73,7 +73,7 @@ class TestHuggingFace(TestCase):
         assert isinstance(tokenizer, AutoTokenizer)
 
     @pytest.mark.unit
-    def test_get_pretrained_distilbert_model(self):
+    def test_get_pretrained_chinese_bert_wwm_model(self):
         model_name = 'hfl/chinese-bert-wwm'
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
         assert isinstance(model, nemo_nlp.modules.BertModule)
@@ -81,7 +81,7 @@ class TestHuggingFace(TestCase):
         assert isinstance(tokenizer, AutoTokenizer)
 
     @pytest.mark.unit
-    def test_get_pretrained_distilbert_model(self):
+    def test_get_pretrained_arabic_model(self):
         model_name = 'asafaya/bert-base-arabic'
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
         assert isinstance(model, nemo_nlp.modules.BertModule)
