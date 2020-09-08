@@ -30,11 +30,15 @@ from nemo.utils import logging
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
 
-def get_pretrained_lm_models_list() -> List[str]:
+def get_pretrained_lm_models_list(include_external: bool = True) -> List[str]:
     """
     Returns the list of supported pretrained model names
+
+    Args:
+        include_external if true includes all HuggingFace model names, not only those supported language models in NeMo.
+
     """
-    return get_megatron_lm_models_list() + get_huggingface_pretrained_lm_models_list()
+    return get_megatron_lm_models_list() + get_huggingface_pretrained_lm_models_list(include_external=include_external)
 
 
 def get_lm_model(
@@ -59,24 +63,31 @@ def get_lm_model(
         Pretrained BertModule
     """
 
+    # check valid model type
+    if not pretrained_model_name or pretrained_model_name not in get_pretrained_lm_models_list(include_external=True):
+        raise ValueError(
+            f'pretrained_model_name needs to be from {get_pretrained_lm_models_list()}, however got {pretrained_model_name}'
+        )
+
     # warning when user passes both configuration dict and file
     if config_dict and config_file:
         logging.warning(
             f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
         )
 
-    if "megatron" in pretrained_model_name:
+    if pretrained_model_name in get_huggingface_pretrained_lm_models_list(include_external=True):
+        model = get_huggingface_lm_model(
+            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
+        )
+    elif "megatron" in pretrained_model_name:
         model, checkpoint_file = get_megatron_lm_model(
             config_dict=config_dict,
             config_file=config_file,
             pretrained_model_name=pretrained_model_name,
             checkpoint_file=checkpoint_file,
         )
-    else:
-        model = get_huggingface_lm_model(
-            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
-        )
 
     if checkpoint_file:
         model.restore_weights(restore_path=checkpoint_file)
+
     return model

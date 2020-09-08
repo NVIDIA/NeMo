@@ -101,7 +101,7 @@ def get_huggingface_lm_model(
         return automodel
 
 
-def get_huggingface_pretrained_lm_models_list(include_external: bool = True) -> List[str]:
+def get_huggingface_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
     """
     Returns the list of pretrained HuggingFace language models
     

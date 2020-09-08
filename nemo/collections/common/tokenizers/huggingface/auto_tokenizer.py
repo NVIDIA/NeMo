@@ -15,6 +15,7 @@
 import re
 from typing import Optional
 
+from transformers import ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
 from transformers import AutoTokenizer as AUTOTOKENIZER
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -70,13 +71,13 @@ class AutoTokenizer(TokenizerSpec):
         self,
         pretrained_model_name: str,
         vocab_file: Optional[str] = None,
-        mask_token: Optional[str] = None,
-        bos_token: Optional[str] = None,
-        eos_token: Optional[str] = None,
-        pad_token: Optional[str] = None,
-        sep_token: Optional[str] = None,
-        cls_token: Optional[str] = None,
-        unk_token: Optional[str] = None,
+        mask_token: Optional[str] = '[MASK]',
+        bos_token: Optional[str] = '[CLS]',
+        eos_token: Optional[str] = '[SEP]',
+        pad_token: Optional[str] = '[PAD]',
+        sep_token: Optional[str] = '[SEP]',
+        cls_token: Optional[str] = '[CLS]',
+        unk_token: Optional[str] = '[UNK]',
     ):
 
         """
@@ -95,6 +96,9 @@ class AutoTokenizer(TokenizerSpec):
             unk_token: token to use for unknown tokens
         """
 
+        if pretrained_model_name not in ALL_PRETRAINED_CONFIG_ARCHIVE_MAP:
+            raise ValueError(f"{pretrained_model_name} not a huggingface pretrained model")
+
         if vocab_file is not None:
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
                 pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file
@@ -102,28 +106,24 @@ class AutoTokenizer(TokenizerSpec):
         else:
             self.tokenizer = AUTOTOKENIZER.from_pretrained(pretrained_model_name_or_path=pretrained_model_name)
 
-        self.tokenizer.eos_token = self.tokenizer.sep_token
-        self.tokenizer.bos_token = self.tokenizer.cls_token
-
         special_tokens_dict = {}
-        if unk_token:
+        if self.tokenizer.unk_token is None:
             special_tokens_dict["unk_token"] = unk_token
-        if sep_token:
+        if self.tokenizer.sep_token is None:
             special_tokens_dict["sep_token"] = sep_token
-        if mask_token:
+        if self.tokenizer.mask_token is None:
             special_tokens_dict["mask_token"] = mask_token
-        if bos_token:
+        if self.tokenizer.bos_token is None:
             special_tokens_dict["bos_token"] = bos_token
-        if eos_token:
+        if self.tokenizer.eos_token is None:
             special_tokens_dict["eos_token"] = eos_token
-        if pad_token:
+        if self.tokenizer.pad_token is None:
             special_tokens_dict["pad_token"] = pad_token
-        if cls_token:
+        if self.tokenizer.cls_token is None:
             special_tokens_dict["cls_token"] = cls_token
         self.add_special_tokens(special_tokens_dict)
 
         self.never_split = self.tokenizer.all_special_tokens
-
         self.vocab_size = self.tokenizer.vocab_size
 
     def add_special_tokens(self, special_tokens_dict: dict) -> int:
