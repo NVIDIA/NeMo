@@ -89,7 +89,22 @@ def get_megatron_lm_model(
     if config_file:
         with open(config_file) as f:
             config = json.load(f)
-            #configf = json.load(f)
+            # replace dashes with underscores in config keys
+            keys_to_pop = []
+            for key in config.keys():
+                fixed = False
+                fixed_key = key
+                for i, x in enumerate(key):
+                    if x == '-':
+                        fixed_key[i] = '_'
+                        fixed = True
+                if fixed:
+                    config[fixed_key] = config[key]
+                    keys_to_pop.append(key)
+            for key in keys_to_pop:
+                config.pop(key)
+
+            # configf = json.load(f)
             # config = {
             #     "hidden_size": configf['hidden-size'],
             #     "num_attention_heads": configf['num-attention-heads'],

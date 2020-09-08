@@ -71,7 +71,7 @@ class MegatronBertEncoder(BertModule):
 
             # used to set model_parallel_size in megatron-lm argparser
             def _update_model_parallel_arg(parser):
-                parser.set_defaults(model_parallel_size=config['model_parallel_size'])
+                parser.set_defaults(model_parallel_size=self._model_parallel_size)
                 return parser
             extra_args_provider = _update_model_parallel_arg
         else:
