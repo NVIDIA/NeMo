@@ -20,7 +20,8 @@ import torch
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-#from megatron.mpu import get_model_parallel_rank
+
+# from megatron.mpu import get_model_parallel_rank
 from megatron.mpu import get_model_parallel_group
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
@@ -62,7 +63,7 @@ class MegatronBertEncoder(BertModule):
 
         config['onnx_safe'] = True
 
-        #if 'model_parallel_size' in config:
+        # if 'model_parallel_size' in config:
         if self._model_parallel_size is not None:
             app_state = AppState()
 
@@ -73,6 +74,7 @@ class MegatronBertEncoder(BertModule):
             def _update_model_parallel_arg(parser):
                 parser.set_defaults(model_parallel_size=self._model_parallel_size)
                 return parser
+
             extra_args_provider = _update_model_parallel_arg
         else:
             extra_args_provider = None
@@ -140,9 +142,7 @@ class MegatronBertEncoder(BertModule):
         """
         self._restore_path = restore_path
         if os.path.isfile(restore_path):
-            logging.info(
-                f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism'
-            )
+            logging.info(f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism')
             state_dict = torch.load(restore_path)
             # to load from Megatron pretrained checkpoint
             if 'model' in state_dict:
@@ -166,5 +166,3 @@ class MegatronBertEncoder(BertModule):
                 logging.info(f'torch.distributed not initialized yet. Will not restore model parallel checkpoint')
         else:
             logging.error(f'restore_path: {restore_path} must be a file or directory.')
-
-

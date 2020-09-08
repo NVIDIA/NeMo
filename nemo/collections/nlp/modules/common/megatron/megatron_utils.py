@@ -139,12 +139,8 @@ def get_megatron_lm_model(
     else:
         model_parallel_size = None
 
-    
     model = MegatronBertEncoder(
-        model_name=pretrained_model_name,
-        config=config,
-        vocab_file=vocab,
-        model_parallel_size=model_parallel_size
+        model_name=pretrained_model_name, config=config, vocab_file=vocab, model_parallel_size=model_parallel_size
     )
 
     return model, checkpoint_file

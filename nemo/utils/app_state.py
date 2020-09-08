@@ -14,6 +14,7 @@
 
 from nemo.utils.metaclasses import Singleton
 
+
 class AppState(metaclass=Singleton):
     def __init__(self):
 

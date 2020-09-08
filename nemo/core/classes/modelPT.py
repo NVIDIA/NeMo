@@ -91,7 +91,6 @@ class ModelPT(LightningModule, Model):
         app_state = AppState()
         app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
 
-
         if self._cfg is not None and not self.__is_model_being_restored():
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 self.setup_training_data(self._cfg.train_ds)
