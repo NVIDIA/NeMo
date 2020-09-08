@@ -16,6 +16,10 @@ from nemo.utils.metaclasses import Singleton
 
 class AppState(metaclass=Singleton):
     def __init__(self):
+
+        # TODO: should we store global config in hydra_runner?
+        self._app_cfg = None
+
         # World info
         self._local_rank = None
         self._global_rank = None

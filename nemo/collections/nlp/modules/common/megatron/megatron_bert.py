@@ -44,11 +44,11 @@ class MegatronBertEncoder(BertModule):
         tokenizer_type (str): tokenizer type, currently only 'BertWordPieceLowerCase' supported.
     """
 
-    def __init__(self, model_name, config, vocab_file):
+    def __init__(self, model_name, config, vocab_file, model_parallel_size=None):
 
         super().__init__()
 
-        self._model_parallel_size = None
+        self._model_parallel_size = model_parallel_size
         self._restore_path = None
 
         if not os.path.exists(vocab_file):
@@ -62,15 +62,20 @@ class MegatronBertEncoder(BertModule):
 
         config['onnx_safe'] = True
 
-        app_state = AppState()
+        #if 'model_parallel_size' in config:
+        if self._model_parallel_size is not None:
+            app_state = AppState()
 
-        # must be set for megatron-lm
-        os.environ["WORLD_SIZE"] = str(app_state.world_size)
+            # must be set for model parallel megatron-lm
+            os.environ["WORLD_SIZE"] = str(app_state.world_size)
 
-        def _update_model_parallel_arg(parser):
-            parser.set_defaults(model_parallel_size=2)
-            return parser
-        extra_args_provider = _update_model_parallel_arg
+            # used to set model_parallel_size in megatron-lm argparser
+            def _update_model_parallel_arg(parser):
+                parser.set_defaults(model_parallel_size=config['model_parallel_size'])
+                return parser
+            extra_args_provider = _update_model_parallel_arg
+        else:
+            extra_args_provider = None
 
         # Initialize part of Megatron global state that is needed for its constructor.
         # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
@@ -83,6 +88,7 @@ class MegatronBertEncoder(BertModule):
 
         # read Megatron arguments back
         args = get_args()
+        logging.info(f'Megatron-lm argparse args: {args}')
 
         self.language_model, self._language_model_key = get_language_model(
             attention_mask_func=bert_attention_mask_func, num_tokentypes=2, add_pooler=False
@@ -145,16 +151,7 @@ class MegatronBertEncoder(BertModule):
                 self.load_state_dict(state_dict)
             logging.info(f"weights restored from {restore_path}")
         elif os.path.isdir(restore_path):
-            model_parallel_size = len(os.listdir(restore_path))
-            self._model_parallel_size = model_parallel_size
-            logging.info(
-                (
-                    f'restore_path: {restore_path} is a directory. '
-                    f'Assuming megatron model parallelism with '
-                    f'model_parallel_size: {model_parallel_size}'
-                )
-            )
-            # need model parallel groups to restore
+            # need model parallel groups to restore model parallel checkpoints
             if torch.distributed.is_initialized():
                 model_parallel_rank = torch.distributed.get_rank(group=get_model_parallel_group())
                 mp_restore_path = f'{restore_path}/mp_rank_{model_parallel_rank:02d}/model_optim_rng.pt'

@@ -22,6 +22,7 @@ import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
+from nemo.utils import logging
 
 __all__ = [
     'get_megatron_lm_model',
@@ -81,19 +82,20 @@ def get_megatron_lm_model(
             for example: megatron-bert-cased
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
-        checkpoint_file: path to checkpoint file.
+        checkpoint_file: path to checkpoint file or directory if using model parallel.
     '''
     config = None
     # get default config and checkpoint
     if config_file:
         with open(config_file) as f:
-            configf = json.load(f)
-            config = {
-                "hidden_size": configf['hidden-size'],
-                "num_attention_heads": configf['num-attention-heads'],
-                "num_layers": configf['num-layers'],
-                "max_position_embeddings": configf['max-seq-length'],
-            }
+            config = json.load(f)
+            #configf = json.load(f)
+            # config = {
+            #     "hidden_size": configf['hidden-size'],
+            #     "num_attention_heads": configf['num-attention-heads'],
+            #     "num_layers": configf['num-layers'],
+            #     "max_position_embeddings": configf['max-seq-length'],
+            # }
     elif config_dict:
         config = config_dict
     elif pretrained_model_name in get_megatron_lm_models_list():
@@ -109,7 +111,27 @@ def get_megatron_lm_model(
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
 
-    model = MegatronBertEncoder(model_name=pretrained_model_name, config=config, vocab_file=vocab)
+    # if checkpoint path is a directory, then we automatically compute model parallel size
+    if os.path.isdir(checkpoint_file):
+        model_parallel_size = len(os.listdir(checkpoint_file))
+        logging.info(
+            (
+                f'restore_path: {checkpoint_file} is a directory. '
+                f'Assuming megatron model parallelism with '
+                f'model_parallel_size: {model_parallel_size}'
+            )
+        )
+    else:
+        model_parallel_size = None
+
+    
+    model = MegatronBertEncoder(
+        model_name=pretrained_model_name,
+        config=config,
+        vocab_file=vocab,
+        model_parallel_size=model_parallel_size
+    )
+
     return model, checkpoint_file
 
 
