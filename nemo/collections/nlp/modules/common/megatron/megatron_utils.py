@@ -90,22 +90,11 @@ def get_megatron_lm_model(
         with open(config_file) as f:
             config = json.load(f)
             # replace dashes with underscores in config keys
-            keys_to_pop = []
+            fixed_config = {}
             for key in config.keys():
-                fixed = False
-                fixed_key = ""
-                for char in key:
-                    if char == '-':
-                        new_char = '_'
-                        fixed_key += new_char
-                        fixed = True
-                    else:
-                        fixed_key += char
-                if fixed:
-                    config[fixed_key] = config[key]
-                    keys_to_pop.append(key)
-            for key in keys_to_pop:
-                config.pop(key)
+                fixed_key = key.replace("-", "_")
+                fixed_config[fixed_key] = config[key]
+            config = fixed_config
     elif config_dict:
         config = config_dict
     elif pretrained_model_name in get_megatron_lm_models_list():
