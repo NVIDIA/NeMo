@@ -215,12 +215,11 @@ class BertTokenClassificationDataset(Dataset):
         if not filename.endswith('.txt'):
             raise ValueError("{text_file} should have extension .txt")
 
-        tokenizer_type = type(tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         features_pkl = os.path.join(
             data_dir,
             "cached_{}_{}_{}_{}_{}".format(
-                filename, tokenizer_type, str(max_seq_length), str(vocab_size), str(num_samples)
+                filename, tokenizer.name, str(max_seq_length), str(vocab_size), str(num_samples)
             ),
         )
 

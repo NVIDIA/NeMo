@@ -49,29 +49,20 @@ def get_tokenizer(
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
     """
-    full_huggingface_pretrained_model_list = get_huggingface_pretrained_lm_models_list(include_external=True)
-
-    if tokenizer_name not in get_tokenizer_list():
-        raise ValueError(
-            f'Provided tokenizer_name: "{tokenizer_name}" is not supported, choose from {get_tokenizer_list()}'
-        )
-
     if special_tokens is None:
         special_tokens_dict = {}
     else:
         special_tokens_dict = special_tokens
 
-    if tokenizer_name.split('-') and tokenizer_name.split('-')[0] == "megatron":
+    if 'megatron' in tokenizer_name:
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
                 tokenizer_name
             )
         tokenizer_name = get_megatron_tokenizer(tokenizer_name)
 
-    if tokenizer_name in full_huggingface_pretrained_model_list:
-        tokenizer = AutoTokenizer(pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict,)
-    elif tokenizer_name == 'sentencepiece':
-        tokenizer = nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
+    if tokenizer_name == 'sentencepiece':
+        return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens
         )
     elif tokenizer_name == 'word':
@@ -79,4 +70,4 @@ def get_tokenizer(
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
 
-    return tokenizer
+    return AutoTokenizer(pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict,)
