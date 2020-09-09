@@ -281,6 +281,7 @@ class GlowTTSModel(SpectrogramGenerator):
                 "The model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
                 "English voices with an American accent."
             ),
+            class_=cls,
         )
         list_of_models.append(model)
         return list_of_models
