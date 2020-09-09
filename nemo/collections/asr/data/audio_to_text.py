@@ -556,6 +556,19 @@ class _TarredAudioToTextDataset(IterableDataset):
         # Check for distributed and partition shards accordingly
         if world_size > 1:
             if isinstance(audio_tar_filepaths, str):
+                # Replace '(' and '[' with '{'
+                brace_keys_open = ['(', '[']
+                for bkey in brace_keys_open:
+                    if bkey in audio_tar_filepaths:
+                        audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "{")
+
+                # Replace ')' and ']' with '}'
+                brace_keys_close = [')', ']']
+                for bkey in brace_keys_close:
+                    if bkey in audio_tar_filepaths:
+                        audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "}")
+
+                # Finally, brace expand
                 audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
 
             if len(audio_tar_filepaths) % world_size != 0:
