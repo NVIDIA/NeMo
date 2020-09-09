@@ -48,7 +48,7 @@ def main(
         logging.info("Preparing encoder decoder for Speech Label Classification model")
         model = EncDecClassificationModel.restore_from(nemo_file)
     elif model_type == 'speaker':
-        logging.info("Preparing encoder decoder for Speech Label Classification model")
+        logging.info("Preparing encoder decoder for Speaker Recognition model")
         model = EncDecSpeakerLabelModel.restore_from(nemo_file)
     else:
         raise NameError("Available model names are asr, speech_label and speaker ")

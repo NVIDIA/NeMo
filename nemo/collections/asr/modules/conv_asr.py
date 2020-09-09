@@ -262,19 +262,21 @@ class ConvASRDecoder(NeuralModule, Exportable):
         return self._num_classes
 
 
-class ConvASRDecoderClassification(NeuralModule):
+class ConvASRDecoderClassification(NeuralModule, Exportable):
     """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
 
      Based on these papers:
         https://arxiv.org/pdf/2005.04290.pdf
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        input_example = torch.randn(16, self._feat_in, 128).to(next(self.parameters()).device)
+        return tuple([input_example])
 
     @property
     def input_types(self):
