@@ -13,9 +13,9 @@
 # limitations under the License.
 from abc import ABC, abstractmethod
 
+from nemo.collections.tts.models import *  # Avoid circular imports
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.collections.tts.models import *  # Avoid circular imports
 
 
 class SpectrogramGenerator(ModelPT, ABC):

@@ -24,10 +24,9 @@ import torch
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
-from nemo.collections.tts.models.base import Vocoder, SpectrogramGenerator
 from nemo.collections.asr.parts import parsers
+from nemo.collections.tts.models.base import SpectrogramGenerator, Vocoder
 from nemo.utils import logging
-
 
 LIST_OF_TEST_STRINGS = [
     "Hey, this is a test of the speech synthesis system.",

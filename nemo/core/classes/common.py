@@ -15,8 +15,8 @@
 
 """Interfaces common to all Neural Modules and Models."""
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional, Union
 
