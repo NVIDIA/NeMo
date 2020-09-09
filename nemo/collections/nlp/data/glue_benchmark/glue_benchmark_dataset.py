@@ -121,12 +121,12 @@ class GLUEDataset(Dataset):
 
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
         processor_name = type(processor).__name__
-        tokenizer_type = type(tokenizer).__name__
+
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = os.path.join(
             data_dir,
             "cached_{}_{}_{}_{}_{}".format(
-                processor_name, file_name, tokenizer_type, str(max_seq_length), str(vocab_size)
+                processor_name, file_name, tokenizer.name, str(max_seq_length), str(vocab_size)
             ),
         )
 
@@ -140,7 +140,7 @@ class GLUEDataset(Dataset):
                 'eos_token': tokenizer.eos_token,
                 'pad_token': tokenizer.pad_token,
                 'cls_token': tokenizer.cls_token,
-                'sep_token_extra': tokenizer.eos_token if 'roberta' in tokenizer_type.lower() else None,
+                'sep_token_extra': tokenizer.eos_token if 'roberta' in tokenizer.name.lower() else None,
             }
 
             self.features = self.convert_examples_to_features(
