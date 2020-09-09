@@ -16,8 +16,8 @@
 This script is used as a CI test and shows how to chain TTS and ASR models
 """
 
-from math import ceil
 from argparse import ArgumentParser
+from math import ceil
 from pathlib import Path
 
 import librosa
