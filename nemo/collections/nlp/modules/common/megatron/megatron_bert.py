@@ -22,9 +22,13 @@ from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from omegaconf import OmegaConf
 
+# from megatron.mpu import get_model_parallel_rank
+from megatron.mpu import get_model_parallel_group
+
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 from nemo.utils.decorators import experimental
 
 __all__ = ['MegatronBertEncoder']
@@ -42,9 +46,12 @@ class MegatronBertEncoder(BertModule):
         tokenizer_type (str): tokenizer type, currently only 'BertWordPieceLowerCase' supported.
     """
 
-    def __init__(self, config, vocab_file):
+    def __init__(self, model_name, config, vocab_file, model_parallel_size=None):
 
         super().__init__()
+
+        self._model_parallel_size = model_parallel_size
+        self._restore_path = None
 
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
@@ -54,17 +61,34 @@ class MegatronBertEncoder(BertModule):
         config['lazy_mpu_init'] = True
         config['onnx_safe'] = True
 
+        # if 'model_parallel_size' in config:
+        if self._model_parallel_size is not None:
+            app_state = AppState()
+
+            # must be set for model parallel megatron-lm
+            os.environ["WORLD_SIZE"] = str(app_state.world_size)
+
+            # used to set model_parallel_size in megatron-lm argparser
+            def _update_model_parallel_arg(parser):
+                parser.set_defaults(model_parallel_size=self._model_parallel_size)
+                return parser
+
+            extra_args_provider = _update_model_parallel_arg
+        else:
+            extra_args_provider = None
+
         # Initialize part of Megatron global state that is needed for its constructor.
         # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
         # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)
         # and to return a hook for us to call after PTL has torch.distributed initialized
         # (that would be on our first forward() call).
         self._lazy_init_fn = initialize_megatron(
-            extra_args_provider=None, args_defaults=config, ignore_unknown_args=True
+            extra_args_provider=extra_args_provider, args_defaults=config, ignore_unknown_args=True
         )
 
         # read Megatron arguments back
-        get_args()
+        args = get_args()
+        logging.info(f'Megatron-lm argparse args: {args}')
 
         self.language_model, self._language_model_key = get_language_model(
             attention_mask_func=bert_attention_mask_func, num_tokentypes=2, add_pooler=False
@@ -87,7 +111,11 @@ class MegatronBertEncoder(BertModule):
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
         if self._lazy_init_fn is not None:
+            logging.info(f'Finishing megatron mpu init.')
             self._lazy_init_fn()
+            # model parallel checkpoints need to be restored after torch.distributed is initialized
+            if self._model_parallel_size is not None:
+                self.restore_weights(self._restore_path)
             self._lazy_init_fn = None
 
         extended_attention_mask = bert_extended_attention_mask(
@@ -104,12 +132,36 @@ class MegatronBertEncoder(BertModule):
         return sequence_output
 
     def restore_weights(self, restore_path: str):
-        """Restores module/model's weights"""
-        state_dict = torch.load(restore_path)
+        """Restores module/model's weights.
+           For model parallel checkpoints the directory structure 
+           should be restore_path/mp_rank_0X/model_optim_rng.pt
 
-        # to load from Megatron pretrained checkpoint
-        if 'model' in state_dict:
-            self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
+        Args:
+            restore_path (str): restore_path should a file or a directory if using model parallel
+        """
+        self._restore_path = restore_path
+        if os.path.isfile(restore_path):
+            logging.info(f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism')
+            state_dict = torch.load(restore_path)
+            # to load from Megatron pretrained checkpoint
+            if 'model' in state_dict:
+                self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
+            else:
+                self.load_state_dict(state_dict)
+            logging.info(f"weights restored from {restore_path}")
+        elif os.path.isdir(restore_path):
+            # need model parallel groups to restore model parallel checkpoints
+            if torch.distributed.is_initialized():
+                model_parallel_rank = torch.distributed.get_rank(group=get_model_parallel_group())
+                mp_restore_path = f'{restore_path}/mp_rank_{model_parallel_rank:02d}/model_optim_rng.pt'
+                logging.info(f'Restoring model parallel checkpoint from: {mp_restore_path}')
+                state_dict = torch.load(mp_restore_path)
+                # to load from Megatron pretrained checkpoint
+                if 'model' in state_dict:
+                    self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
+                else:
+                    self.load_state_dict(state_dict)
+            else:
+                logging.info(f'torch.distributed not initialized yet. Will not restore model parallel checkpoint')
         else:
-            self.load_state_dict(state_dict)
-        logging.info(f"weights restored from {restore_path}")
+            logging.error(f'restore_path: {restore_path} must be a file or directory.')

@@ -31,6 +31,7 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
+from nemo.utils.app_state import AppState
 
 __all__ = ['ModelPT']
 
@@ -85,6 +86,12 @@ class ModelPT(LightningModule, Model):
         self._optimizer = None
         self._scheduler = None
         self._trainer = trainer
+
+        # Update AppState with world information from trainer
+        app_state = AppState()
+        if isinstance(self._trainer, Trainer):
+            if self._trainer.num_gpus and self._trainer.num_nodes:
+                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
 
         if self._cfg is not None and not self.__is_model_being_restored():
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
