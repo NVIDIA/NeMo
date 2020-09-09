@@ -38,7 +38,7 @@ def get_tokenizer(
     tokenizer_name: str,
     tokenizer_model: Optional[str] = None,
     vocab_file: Optional[str] = None,
-    special_tokens: Optional[Dict[str]] = None,
+    special_tokens: Optional[Dict[str, str]] = None,
 ):
     """
     Args:
