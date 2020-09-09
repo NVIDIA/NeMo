@@ -66,10 +66,8 @@ class PunctuationCapitalizationModel(ModelPT):
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
-        self.hidden_size = self.bert_model.hidden_size
-
         self.punct_classifier = TokenClassifier(
-            hidden_size=self.hidden_size,
+            hidden_size=self.bert_model.config.hidden_size,
             num_classes=len(self._cfg.punct_label_ids),
             activation=cfg.punct_head.activation,
             log_softmax=cfg.punct_head.log_softmax,
@@ -79,7 +77,7 @@ class PunctuationCapitalizationModel(ModelPT):
         )
 
         self.capit_classifier = TokenClassifier(
-            hidden_size=self.hidden_size,
+            hidden_size=self.bert_model.config.hidden_size,
             num_classes=len(self._cfg.capit_label_ids),
             activation=cfg.capit_head.activation,
             log_softmax=cfg.capit_head.log_softmax,

@@ -241,7 +241,7 @@ pipeline {
         sh 'cd examples/nlp/token_classification && \
         python token_classification.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        trainer.gpus=[0] \
+        trainer.gpus=[0,1] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-cased \
@@ -250,23 +250,6 @@ pipeline {
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
        }
       }
-
-      stage('L2: NER with uncased Megatron') {
-       steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        trainer.gpus=[1] \
-        +trainer.fast_dev_run=true \
-        model.dataset.use_cache=false \
-        model.language_model.pretrained_model_name=megatron-bert-uncased \
-        model.language_model.lm_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
-        model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
-        trainer.distributed_backend=ddp \
-        exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
-        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
-        }
-       }
       }
     }
 
@@ -405,7 +388,7 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.language_model.pretrained_model_name=roberta-base \
+            model.pretrained_model_name=roberta-base \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
@@ -487,11 +470,12 @@ pipeline {
       failFast true
 
       parallel {
-        stage('MRPC') {
+        stage('MRPC with RoBERTa') {
           steps {
             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
             model.dataset.use_cache=false \
             model.task_name=mrpc \
+            model.language_model.pretrained_model_name=roberta-base \
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
@@ -504,6 +488,47 @@ pipeline {
           steps {
             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
             model.dataset.use_cache=false \
+            model.task_name=sts-b \
+            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            model.language_model.pretrained_model_name=albert-base-v1 \
+            exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
+            sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
+          }
+        }
+      }
+    }
+
+    stage('L2: Parallel GLUE-AutoEncoder Examples') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+
+      parallel {
+        stage('MRPC TurkuNLP/bert-base-finnish-cased-v1') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name="TurkuNLP/bert-base-finnish-cased-v1" \
+            model.task_name=mrpc \
+            model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc \
+            model.output_dir=examples/nlp/glue_benchmark/mrpc'
+            sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
+          }
+        }
+        stage('STS-b T5-small') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name="t5-small" \
             model.task_name=sts-b \
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
             trainer.gpus=[1] \
