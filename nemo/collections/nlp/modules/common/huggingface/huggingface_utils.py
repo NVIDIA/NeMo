@@ -28,7 +28,7 @@ from transformers import (
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
-from nemo.collections.nlp.modules.common.huggingface.auto import AutoEncoder
+from nemo.collections.nlp.modules.common.huggingface.auto import AutoModelEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
@@ -81,9 +81,11 @@ def get_huggingface_lm_model(
         BertModule
     """
 
-    # assumes that model configuration is correct, otherwise will pass on Huggingface"s model instantiation error
-    automodel = AutoEncoder(pretrained_model_name)
-    # import pdb; pdb.set_trace()
+    try:
+        automodel = AutoModelEncoder(pretrained_model_name_or_path=pretrained_model_name)
+    except Exception as e:
+        raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
+
     model_type = re.search(r'.modeling_[A-z]*[0-5]?\.', str(automodel.type))[0]
 
     if model_type in HUGGINGFACE_MODELS:
@@ -97,11 +99,11 @@ def get_huggingface_lm_model(
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:
-        logging.info('Using HuggingFace AutoModel, typing check is not supported')
+        logging.info('Using HuggingFace AutoModel')
         return automodel
 
 
-def get_huggingface_pretrained_lm_models_list(include_external: bool = True) -> List[str]:
+def get_huggingface_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
     """
     Returns the list of pretrained HuggingFace language models
     
