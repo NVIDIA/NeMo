@@ -19,7 +19,6 @@ trainer:
 
 model:
   nemo_path: null # exported .nemo path
-  pretrained_model_name: bert-base-uncased # BERT-like model name
   dataset:
     version_2_with_negative: false
     # If true, the examples contain some that do not have an answer.
@@ -98,14 +97,14 @@ model:
 
     
   tokenizer:
-    tokenizer_name: ${model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec
+    tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec
     vocab_file: null # path to vocab file
     tokenizer_model: null # only used if tokenizer is sentencepiece
     special_tokens: null # expand the following to a dictionary if special tokens need to be added.
     #  only necessary for adding transformer/bert-specific special tokens to tokenizer if the tokenizer does not already have these inherently.
 
   language_model:
-    pretrained_model_name: ${model.pretrained_model_name}
+    pretrained_model_name: bert-base-uncased # BERT-like model name
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null # if specified initializes model from scratch
