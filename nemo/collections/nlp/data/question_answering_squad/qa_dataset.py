@@ -49,7 +49,7 @@ class SquadDataset(Dataset):
     Creates SQuAD dataset for Question Answering.
     Args:
         data_file (str): train.*.json eval.*.json or test.*.json.
-        tokenizer (obj): Tokenizer object, e.g. NemoBertTokenizer.
+        tokenizer (obj): Tokenizer object, e.g. AutoTokenizer.
         version_2_with_negative (bool): True if training should allow
             unanswerable questions.
         doc_stride (int): When splitting up a long document into chunks,
@@ -87,14 +87,13 @@ class SquadDataset(Dataset):
             raise ValueError(f"mode should be either 'train', 'eval', or 'test' but got {mode}")
         self.examples = self.processor.get_examples()
 
-        tokenizer_type = type(tokenizer.tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = (
             data_file
             + '_cache'
             + '_{}_{}_{}_{}_{}_{}_{}'.format(
                 mode,
-                tokenizer_type,
+                tokenizer.name,
                 str(vocab_size),
                 str(max_seq_length),
                 str(doc_stride),
@@ -156,7 +155,7 @@ class SquadDataset(Dataset):
 
     def get_predictions(
         self,
-        unique_ids: List[str],
+        unique_ids: List[int],
         start_logits: List[List[float]],
         end_logits: List[List[float]],
         n_best_size: int,

@@ -34,7 +34,7 @@ RUN apt-get update && \
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
-RUN for f in requirements/*.txt; do pip install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src

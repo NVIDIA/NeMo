@@ -31,8 +31,8 @@ class BertModule(NeuralModule, Exportable):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), MaskType()),
-            "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
     @property
@@ -80,17 +80,6 @@ class BertModule(NeuralModule, Exportable):
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
         logging.info(f"Weights for {type(self).__name__} restored from {restore_path}")
-
-    @property
-    def hidden_size(self):
-        """
-            Property returning hidden size.
-
-            Returns:
-                Hidden size
-            Default implementation relay to BERT config property..
-        """
-        return self.config.hidden_size
 
     def input_example(self):
         """

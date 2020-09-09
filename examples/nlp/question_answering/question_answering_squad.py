@@ -24,7 +24,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="config")
+@hydra_runner(config_path="conf", config_name="question_answering_squad_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
@@ -38,11 +38,15 @@ def main(cfg: DictConfig) -> None:
 
     question_answering_model = QAModel(cfg.model, trainer=trainer)
     trainer.fit(question_answering_model)
+
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.file is not None:
+        gpu = 1 if cfg.trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu)
+        if question_answering_model.prepare_test(trainer):
+            trainer.test(question_answering_model)
+
     if cfg.model.nemo_path:
         question_answering_model.save_to(cfg.model.nemo_path)
-
-    if cfg.model.test_ds.file is not None:
-        trainer.test(question_answering_model, ckpt_path=None)
 
 
 if __name__ == '__main__':

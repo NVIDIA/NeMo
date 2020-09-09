@@ -49,3 +49,7 @@ class TokenizerSpec(ABC):
 
     def add_special_tokens(self, special_tokens: List[str]):
         raise NotImplementedError("To be implemented")
+
+    @property
+    def name(self):
+        return type(self).__name__
