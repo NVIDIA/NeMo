@@ -30,11 +30,15 @@ from nemo.utils import logging
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
 
-def get_pretrained_lm_models_list() -> List[str]:
+def get_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
     """
     Returns the list of supported pretrained model names
+
+    Args:
+        include_external if true includes all HuggingFace model names, not only those supported language models in NeMo.
+
     """
-    return get_megatron_lm_models_list() + get_huggingface_pretrained_lm_models_list()
+    return get_megatron_lm_models_list() + get_huggingface_pretrained_lm_models_list(include_external=include_external)
 
 
 def get_lm_model(
@@ -60,9 +64,10 @@ def get_lm_model(
     """
 
     # check valid model type
-    if not pretrained_model_name or pretrained_model_name not in get_pretrained_lm_models_list():
-        raise ValueError(
-            f'pretrained_model_name needs to be from {get_pretrained_lm_models_list()}, however got {pretrained_model_name}'
+    if not pretrained_model_name or pretrained_model_name not in get_pretrained_lm_models_list(include_external=False):
+        logging.warning(
+            f'{pretrained_model_name} is not in get_pretrained_lm_models_list(include_external=False), '
+            f'will be using AutoModel from HuggingFace.'
         )
 
     # warning when user passes both configuration dict and file
@@ -71,16 +76,16 @@ def get_lm_model(
             f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
         )
 
-    if pretrained_model_name in get_huggingface_pretrained_lm_models_list():
-        model = get_huggingface_lm_model(
-            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
-        )
-    elif "megatron" in pretrained_model_name:
+    if "megatron" in pretrained_model_name:
         model, checkpoint_file = get_megatron_lm_model(
             config_dict=config_dict,
             config_file=config_file,
             pretrained_model_name=pretrained_model_name,
             checkpoint_file=checkpoint_file,
+        )
+    else:
+        model = get_huggingface_lm_model(
+            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
         )
 
     if checkpoint_file:

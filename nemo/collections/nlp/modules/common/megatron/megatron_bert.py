@@ -20,6 +20,7 @@ import torch
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
+from omegaconf import OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
@@ -41,7 +42,7 @@ class MegatronBertEncoder(BertModule):
         tokenizer_type (str): tokenizer type, currently only 'BertWordPieceLowerCase' supported.
     """
 
-    def __init__(self, model_name, config, vocab_file):
+    def __init__(self, config, vocab_file):
 
         super().__init__()
 
@@ -49,11 +50,8 @@ class MegatronBertEncoder(BertModule):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
         config["vocab_file"] = vocab_file
-
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
-
         config['lazy_mpu_init'] = True
-
         config['onnx_safe'] = True
 
         # Initialize part of Megatron global state that is needed for its constructor.
@@ -66,13 +64,14 @@ class MegatronBertEncoder(BertModule):
         )
 
         # read Megatron arguments back
-        args = get_args()
+        get_args()
 
         self.language_model, self._language_model_key = get_language_model(
             attention_mask_func=bert_attention_mask_func, num_tokentypes=2, add_pooler=False
         )
 
-        # key used for checkpoints.
+        self.config = OmegaConf.create(config)
+        # key used for checkpoints
         self._hidden_size = self.language_model.hidden_size
 
     @property
