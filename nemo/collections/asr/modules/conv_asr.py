@@ -318,7 +318,7 @@ class ConvASRDecoderClassification(NeuralModule):
         return self._num_classes
 
 
-class SpeakerDecoder(NeuralModule):
+class SpeakerDecoder(NeuralModule, Exportable):
     """
     Speaker Decoder creates the final neural layers that maps from the outputs
     of Jasper Encoder to the embedding layer followed by speaker based softmax loss.
@@ -335,12 +335,14 @@ class SpeakerDecoder(NeuralModule):
             Defaults to "xavier_uniform".
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        input_example = torch.randn(16, self.input_feat_in, 256).to(next(self.parameters()).device)
+        return tuple([input_example])
 
     @property
     def input_types(self):
@@ -373,6 +375,7 @@ class SpeakerDecoder(NeuralModule):
         else:
             emb_sizes = list(emb_sizes)
 
+        self.input_feat_in = feat_in
         self._num_classes = num_classes
         self._pooling = StatsPoolLayer(feat_in=feat_in, pool_mode=pool_mode)
         self._feat_in = self._pooling.feat_in
