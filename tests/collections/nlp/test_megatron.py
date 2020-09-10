@@ -53,7 +53,7 @@ class TestMegatron(TestCase):
             # Generate filename in the temporary directory.
             tmp_file_name = os.path.join(model_name + ".onnx")
             # Test export.
-            model.export(tmp_file_name)
+            model.export(tmp_file_name, check_trace=False)
             modelX = onnx.load(tmp_file_name)
             with open(tmp_file_name + '.txt', 'w') as o:
                 o.write('Model :\n\n{}'.format(onnx.helper.printable_graph(modelX.graph)))
