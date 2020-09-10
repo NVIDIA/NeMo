@@ -14,6 +14,7 @@
 
 # Token Classification tasks (for example, Named Entity Recognition) with pretrained BERT models
 
+pretrained_model: null # pretrained TokenClassification model from list_available_models(), for example: NERModel
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU
   num_nodes: 1
@@ -67,10 +68,10 @@ model:
     batch_size: 64
 
   tokenizer:
-      tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
-      vocab_file: null # path to vocab file
-      tokenizer_model: null # only used if tokenizer is sentencepiece
-      special_tokens: null
+    tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
+    vocab_file: null # path to vocab file
+    tokenizer_model: null # only used if tokenizer is sentencepiece
+    special_tokens: null
 
   language_model:
     pretrained_model_name: bert-base-uncased

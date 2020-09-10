@@ -29,7 +29,7 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
@@ -208,7 +208,6 @@ class PunctuationCapitalizationModel(ModelPT):
             train_data_config = self._cfg.train_ds
         if data_dir:
             self._cfg.dataset.data_dir = data_dir
-            logging.info(f'Setting model.dataset.data_dir to {data_dir}')
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
@@ -384,4 +383,25 @@ class PunctuationCapitalizationModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="Punctuation_Capitalization_with_BERT",
+                location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/Punctuation_Capitalization_with_BERT.nemo",
+                description="The model was trained with NeMo BERT base uncased checkpoint.",
+            )
+        )
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="Punctuation_Capitalization_with_DistilBERT",
+                location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/Punctuation_Capitalization_with_DistilBERT.nemo",
+                description="The model was trained with NeMo BERT base uncased checkpoint.",
+            )
+        )
+        return result

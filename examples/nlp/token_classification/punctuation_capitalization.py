@@ -33,8 +33,18 @@ from nemo.utils.exp_manager import exp_manager
 
 
 """
-To run this script, use:
-python punctuation_and_capitalization.py model.dataset.data_dir=PATH_TO_DATA_DIR
+To run this script and train the model from scratch, use:
+python punctuation_and_capitalization.py \
+model.dataset.data_dir=PATH_TO_DATA_DIR
+
+To use one of the pretrained versions of the model, run:
+python punctuation_and_capitalization.py \
+pretrained_model=Punctuation_Capitalization_with_BERT
+
+To use one of the pretrained versions of the model and finetune it, run:
+python punctuation_and_capitalization.py \
+pretrained_model=Punctuation_Capitalization_with_BERT \
+model.dataset.data_dir=PATH_TO_DATA_DIR
 
 More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
 """
@@ -44,26 +54,36 @@ More details on the task and data format could be found in tutorials/nlp/Punctua
 def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-
+    do_training = True
     if not cfg.pretrained_model:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
-        # we can also do finetunining from a pretrained model
-        model = PunctuationCapitalizationModel.restore_from(cfg.pretrained_model)
-        # Optionally, we can setup train and validation Pytorch DataLoaders to use the pretrained model for finetuning
-        model.setup_training_data(data_dir=cfg.model.dataset.data_dir)
-        # evaluation could be done on multiple files, use model.validation_ds.ds_items to specify multiple
-        # data directories if needed
-        model.setup_validation_data(data_dirs=cfg.model.dataset.data_dir)
+        model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
+        try:
+            # we can also do finetunining of the pretrained model but it will require
+            # setting up train and validation Pytorch DataLoaders
+            model.setup_training_data(data_dir=cfg.model.dataset.data_dir)
+            # evaluation could be done on multiple files, use model.validation_ds.ds_items to specify multiple
+            # data directories if needed
+            model.setup_validation_data(data_dirs=cfg.model.dataset.data_dir)
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            do_training = False
+            logging.info(
+                f'Data dir should be specified for training. '
+                f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning. {e}'
+            )
 
-    trainer.fit(model)
-    if cfg.model.nemo_path:
-        model.save_to(cfg.model.nemo_path)
+    if do_training:
+        trainer.fit(model)
+        if cfg.model.nemo_path:
+            model.save_to(cfg.model.nemo_path)
 
     logging.info(
-        'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU'
+        'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU '
         'and no DDP to obtain accurate results'
     )
     gpu = 1 if cfg.trainer.gpus != 0 else 0

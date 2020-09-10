@@ -66,13 +66,39 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
-    model = TokenClassificationModel(cfg.model, trainer=trainer)
-    trainer.fit(model)
-    if cfg.model.nemo_path:
-        model.save_to(cfg.model.nemo_path)
+    do_training = True
+    if not cfg.pretrained_model:
+        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+        model = TokenClassificationModel(cfg.model, trainer=trainer)
+    else:
+        logging.info(f'Loading pretrained model {cfg.pretrained_model}')
+        model = TokenClassificationModel.restore_from(cfg.pretrained_model)
+        try:
+            # we can also do finetunining of the pretrained model but it will require
+            # setting up train and validation Pytorch DataLoaders
+            # setup the data dir to get class weights statistics
+            model.update_data_dir(data_dir=cfg.model.dataset.data_dir)
+            # then we're setting up loss, use model.dataset.class_balancing,
+            # if you want to add class weights to the CrossEntropyLoss
+            model.setup_loss(class_balancing=cfg.model.dataset.class_balancing)
+            # finally, setup train and validation Pytorch DataLoaders
+            model.setup_training_data()
+            model.setup_validation_data()
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            do_training = False
+            logging.info(
+                f'Data dir should be specified for training. '
+                f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning. {e}'
+            )
+
+    if do_training:
+        trainer.fit(model)
+        if cfg.model.nemo_path:
+            model.save_to(cfg.model.nemo_path)
 
     """
     After model training is done, you can use the model for inference.
@@ -82,18 +108,25 @@ def main(cfg: DictConfig) -> None:
     During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU
     and no DDP to obtain accurate results
     """
+    logging.info(
+        'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU '
+        'and no DDP to obtain accurate results'
+    )
     gpu = 1 if cfg.trainer.gpus != 0 else 0
     trainer = pl.Trainer(gpus=gpu)
-    model.set_traner(trainer)
+    model.set_trainer(trainer)
 
-    # run evaluation on a dataset from file
-    model.evaluate_from_file(
-        text_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.text_file),
-        labels_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.labels_file),
-        output_dir=exp_dir,
-        add_confusion_matrix=True,
-        normalize_confusion_matrix=True,
-    )
+    if do_training:
+        # run evaluation on a dataset from file
+        # only possible if model.dataset.data_dir is specified
+        # change the path to the file you want to use for the final evaluation
+        model.evaluate_from_file(
+            text_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.text_file),
+            labels_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.labels_file),
+            output_dir=exp_dir,
+            add_confusion_matrix=True,
+            normalize_confusion_matrix=True,
+        )
 
     # run an inference on a few examples
     queries = [
