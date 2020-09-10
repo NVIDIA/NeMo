@@ -12,6 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
+import pytorch_lightning as pl
+from omegaconf import DictConfig, OmegaConf
+
+from nemo.collections.nlp.models import TokenClassificationModel
+from nemo.core.config import hydra_runner
+from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
+
+
 """
 ## Tasks
 Token Classificatin script supports Named Entity Recognition task and other token level classification tasks,
@@ -62,15 +73,6 @@ To use one of the pretrained versions of the model and finetune it, run:
 More details on how to use this script could be found in
 tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
 """
-import os
-
-import pytorch_lightning as pl
-from omegaconf import DictConfig, OmegaConf
-
-from nemo.collections.nlp.models import TokenClassificationModel
-from nemo.core.config import hydra_runner
-from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="token_classification_config")
