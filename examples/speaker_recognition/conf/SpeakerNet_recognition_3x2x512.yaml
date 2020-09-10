@@ -22,6 +22,15 @@ model:
     shuffle: False
     time_length: 8
 
+  test_ds:
+    manifest_filepath: ???
+    sample_rate: 16000
+    labels: null
+    batch_size: 1
+    shuffle: False
+    time_length: 8
+    embedding_dir: '.'
+
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     params:
