@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -96,17 +96,6 @@ class PunctuationCapitalizationModel(ModelPT):
         self.capit_class_report = ClassificationReport(
             len(self._cfg.capit_label_ids), label_ids=self._cfg.capit_label_ids
         )
-
-    def update_data_dir(self, data_dir: str) -> None:
-        """
-        Update data directory and get data stats with Data Descriptor
-        Weights are later used to setup loss
-
-        Args:
-            data_dir: path to data directory
-        """
-        self._cfg.dataset.data_dir = data_dir
-        logging.info(f'Setting model.dataset.data_dir to {data_dir}')
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids=None):
@@ -230,11 +219,19 @@ class PunctuationCapitalizationModel(ModelPT):
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
             self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
 
-    def setup_validation_data(self, val_data_config: Optional[Dict] = None, ds_item=None):
+    def setup_validation_data(
+        self, val_data_config: Optional[Dict] = None, data_dirs: Optional[Union[List[str], str]] = None
+    ):
+        """
+        Setup validaton data
+
+        val_data_config: validation data config
+        data_dirs: path or paths to validation data dirs, used when setup up data for pretrained model
+        """
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
-        if ds_item:
-            self._cfg.validation_ds.ds_item = ds_item
+        if data_dirs:
+            self._cfg.validation_ds.ds_item = data_dirs
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Dict] = None):

@@ -24,7 +24,7 @@ To train PunctuationCapitalizationModel with the default config file, run:
     trainer.gpus="[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
 """
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.config import hydra_runner
@@ -42,44 +42,45 @@ More details on the task and data format could be found in tutorials/nlp/Punctua
 
 @hydra_runner(config_path="conf", config_name="punctuation_capitalization_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    # model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
-    # trainer.fit(model)
-    # if cfg.model.nemo_path:
-    #     model.save_to(cfg.model.nemo_path)
+    if not cfg.pretrained_model:
+        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+        model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
+    else:
+        logging.info(f'Loading pretrained model {cfg.pretrained_model}')
+        # we can also do finetunining from a pretrained model
+        model = PunctuationCapitalizationModel.restore_from(cfg.pretrained_model)
+        # Optionally, we can setup train and validation Pytorch DataLoaders to use the pretrained model for finetuning
+        model.setup_training_data(data_dir=cfg.model.dataset.data_dir)
+        # evaluation could be done on multiple files, use model.validation_ds.ds_items to specify multiple
+        # data directories if needed
+        model.setup_validation_data(data_dirs=cfg.model.dataset.data_dir)
 
-    # # run an inference on a few examples
-    # queries = [
-    #     'we bought four shirts and one mug from the nvidia gear store in santa clara',
-    #     'what can i do for you today',
-    #     'how are you',
-    #     'how is the weather in',
-    # ]
-    # inference_results = model.add_punctuation_capitalization(queries)
-    #
-    # for query, result in zip(queries, inference_results):
-    #     logging.info(f'Query   : {query}')
-    #     logging.info(f'Combined: {result.strip()}\n')
+    trainer.fit(model)
+    if cfg.model.nemo_path:
+        model.save_to(cfg.model.nemo_path)
 
-    pretrained_model = PunctuationCapitalizationModel.restore_from(
-        '/home/ebakhturina/nemo_ckpts/punctuation/CHECKPOINTS/complete/BERT/ptl/punct_capit_bert_complete.nemo'
+    logging.info(
+        'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU'
+        'and no DDP to obtain accurate results'
     )
-    # then we need to setup the data dir to get class weights statistics
-    pretrained_model.update_data_dir('/home/ebakhturina/tatoeba/sample')
+    gpu = 1 if cfg.trainer.gpus != 0 else 0
+    trainer = pl.Trainer(gpus=gpu)
+    model.set_trainer(trainer)
 
-    # setup train and validation Pytorch DataLoaders
-    pretrained_model.setup_training_data()
-    pretrained_model.setup_validation_data()
+    # run an inference on a few examples
+    queries = [
+        'we bought four shirts one pen and a mug from the nvidia gear store in santa clara',
+        'what can i do for you today',
+        'how are you',
+    ]
+    inference_results = model.add_punctuation_capitalization(queries)
 
-    # # and now we can create a PyTorch Lightning trainer and call `fit` again
-    # # for this tutorial we are setting fast_dev_run to True, and the trainer will run 1 training batch and 1 validation batch
-    # # for actual model training, disable the flag
-    # fast_dev_run = True
-    # trainer = pl.Trainer(gpus=[1], fast_dev_run=fast_dev_run)
-    # trainer.fit(pretrained_model)
+    for query, result in zip(queries, inference_results):
+        logging.info(f'Query   : {query}')
+        logging.info(f'Combined: {result.strip()}\n')
 
 
 if __name__ == '__main__':
