@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import os
 import pickle as pkl
@@ -19,6 +20,7 @@ from typing import Dict, Optional, Union
 
 import torch
 from omegaconf import DictConfig
+from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
@@ -104,6 +106,8 @@ class EncDecSpeakerLabelModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
+        if hasattr(self, 'dataset'):
+            test_data_layer_params['labels'] = self.dataset.labels
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
@@ -211,6 +215,67 @@ class EncDecSpeakerLabelModel(ModelPT):
             self.accuracy = score * 100
 
         return {'log': tensorboard_log}
+
+    def setup_finetune_model(self, model_config: DictConfig):
+        """
+        setup_finetune_model method sets up training data, validation data and test data with new
+        provided config, this checks for the previous labels set up during training from scratch, if None, 
+        it sets up labels for provided finetune data from manifest files
+
+        Args:
+        model_config: cfg which has train_ds, optional validation_ds, optional test_ds and 
+        mandatory encoder and decoder model params
+        make sure you set num_classes correctly for finetune data
+
+        Returns: None
+
+        """
+        if hasattr(self, 'dataset'):
+            scratch_labels = self.dataset.labels
+        else:
+            scratch_labels = None
+
+        logging.info("Setting up data loaders with manifests provided from model_config")
+
+        if 'train_ds' in model_config and model_config.train_ds is not None:
+            self.setup_training_data(model_config.train_ds)
+        else:
+            raise KeyError("train_ds is not found in model_config but you need it for fine tuning")
+
+        if self.dataset.labels is None or len(self.dataset.labels) == 0:
+            raise ValueError(f'New labels must be non-empty list of labels. But I got: {self.dataset.labels}')
+
+        if 'valid_ds' in model_config and model_config.valid_ds is not None:
+            self.setup_multiple_validation_data(model_config.valid_ds)
+
+        if 'test_ds' in model_config and model_config.test_ds is not None:
+            self.setup_multiple_test_data(model_config.test_ds)
+
+        if scratch_labels == self.dataset.labels:  # checking for new finetune dataset labels
+            logging.warning(
+                "Trained dataset labels are same as finetune dataset labels -- continuing change of decoder parameters"
+            )
+        elif scratch_labels is None:
+            logging.warning(
+                "Either you provided a dummy manifest file during training from scratch or you restored from a pretrained nemo file"
+            )
+
+        decoder_config = model_config.decoder
+        new_decoder_config = copy.deepcopy(decoder_config)
+        if new_decoder_config['params']['num_classes'] != len(self.dataset.labels):
+            raise ValueError(
+                "number of classes provided {} is not same as number of different labels in finetuning data: {}".format(
+                    new_decoder_config['params']['num_classes'], len(self.dataset.labels)
+                )
+            )
+
+        del self.decoder
+        self.decoder = EncDecSpeakerLabelModel.from_config_dict(new_decoder_config)
+
+        with open_dict(self._cfg.decoder):
+            self._cfg.decoder = new_decoder_config
+
+        logging.info(f"Changed decoder output to # {self.decoder._num_classes} classes.")
 
 
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
