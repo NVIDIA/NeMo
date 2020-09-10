@@ -105,7 +105,8 @@ class EncDecSpeakerLabelModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
-        test_data_layer_params['labels'] = self.dataset.labels
+        if hasattr(self, 'dataset'):
+            test_data_layer_params['labels'] = self.dataset.labels
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
