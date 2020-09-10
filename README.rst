@@ -173,6 +173,9 @@ To run tutorials:
      - Online Noise Augmentation
      - `05_Online_Noise_Augmentation.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
+     - Exploring NeMo NLP Tokenizers
+     - `02_NLP_Tokenizers.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/02_NLP_Tokenizers.ipynb>`_
+   * - NLP
      - Token Classification (Named Entity Recognition)
      - `Token_Classification_Named_Entity_Recognition.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
    * - NLP
