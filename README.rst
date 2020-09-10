@@ -163,6 +163,9 @@ To run tutorials:
    * - NeMo
      - Exploring NeMo Fundamentals
      - `00_NeMo_Primer.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_
+   * - NeMo Models
+     - Exploring NeMo Model Construction
+     - `01_NeMo_Models.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
      - ASR with NeMo
      - `01_ASR_with_NeMo.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
