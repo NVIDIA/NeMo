@@ -34,17 +34,17 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 To run this script and train the model from scratch, use:
-python punctuation_and_capitalization.py \
-model.dataset.data_dir=PATH_TO_DATA_DIR
+    python punctuation_and_capitalization.py \
+    model.dataset.data_dir=PATH_TO_DATA_DIR
 
 To use one of the pretrained versions of the model, run:
-python punctuation_and_capitalization.py \
-pretrained_model=Punctuation_Capitalization_with_BERT
+    python punctuation_and_capitalization.py \
+    pretrained_model=Punctuation_Capitalization_with_BERT
 
 To use one of the pretrained versions of the model and finetune it, run:
-python punctuation_and_capitalization.py \
-pretrained_model=Punctuation_Capitalization_with_BERT \
-model.dataset.data_dir=PATH_TO_DATA_DIR
+    python punctuation_and_capitalization.py \
+    pretrained_model=Punctuation_Capitalization_with_BERT \
+    model.dataset.data_dir=PATH_TO_DATA_DIR
 
 More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
 """
@@ -99,8 +99,8 @@ def main(cfg: DictConfig) -> None:
     inference_results = model.add_punctuation_capitalization(queries)
 
     for query, result in zip(queries, inference_results):
-        logging.info(f'Query   : {query}')
-        logging.info(f'Combined: {result.strip()}\n')
+        logging.info(f'Query : {query}')
+        logging.info(f'Result: {result.strip()}\n')
 
 
 if __name__ == '__main__':

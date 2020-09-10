@@ -43,12 +43,21 @@ python examples/nlp/token_classification/data/import_from_iob_format.py --data_f
 
 ## Model Training
 
-To train TokenClassification model with the default config file, run:
+To train TokenClassification model from scratch with the default config file, run:
 
     python token_classification.py \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
     trainer.max_epochs=<NUM_EPOCHS> \
     trainer.gpus="[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
+
+To use one of the pretrained versions of the model, run:
+    python token_classification.py \
+    pretrained_model=NERModel
+
+To use one of the pretrained versions of the model and finetune it, run:
+    python token_classification.py \
+    model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
+    pretrained_model=NERModel
 
 More details on how to use this script could be found in
 tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
