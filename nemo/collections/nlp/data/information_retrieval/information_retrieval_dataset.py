@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pytorch Dataset for training information retrieval models."""
-
 import multiprocessing as mp
 import os
 import pickle
@@ -28,7 +26,6 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 __all__ = [
     "BertInformationRetrievalDatasetTrain",
     "BertInformationRetrievalDatasetEval",
-    "BertDensePassageRetrievalDatasetInfer",
 ]
 
 
@@ -43,7 +40,7 @@ class BaseInformationRetrievalDataset(Dataset):
     """
 
     def __init__(
-        tokenizer: TokenizerSpec, max_query_length: Optional[int] = 31, max_passage_length: Optional[int] = 190,
+        self, tokenizer: TokenizerSpec, max_query_length: Optional[int] = 31, max_passage_length: Optional[int] = 190,
     ):
         self.tokenizer = tokenizer
         self.max_query_length = max_query_length
