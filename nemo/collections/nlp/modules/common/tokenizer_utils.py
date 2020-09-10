@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import nemo
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
@@ -38,7 +38,7 @@ def get_tokenizer(
     tokenizer_name: str,
     tokenizer_model: Optional[str] = None,
     vocab_file: Optional[str] = None,
-    special_tokens: Optional[List[str]] = None,
+    special_tokens: Optional[Dict[str, str]] = None,
 ):
     """
     Args:
