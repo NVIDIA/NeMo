@@ -441,6 +441,43 @@ pipeline {
       }
     }
 
+        stage('L2: Parallel NLP Examples 1') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('NER finetuning from pretrained Test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && \
+            python token_classification.py \
+            pretrained_model=NERModel \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            model.train_ds.batch_size=2 \
+            model.dataset.use_cache=false \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
+            exp_manager.exp_dir=ner'
+            sh 'rm -rf examples/nlp/token_classification/ner'
+          }
+        }
+        stage ('Punctuation and capitalization finetuning from pretrained test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && \
+            python punctuation_capitalization.py \
+            pretrained_model=Punctuation_Capitalization_with_BERT \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=true \
+            model.dataset.use_cache=false'
+          }
+        }
+      }
+    }
+
     stage('L2: Intent and Slot Classification') {
       when {
         anyOf{
