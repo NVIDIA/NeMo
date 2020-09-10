@@ -19,7 +19,8 @@ import pickle as pkl
 from typing import Dict, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
+from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
@@ -217,7 +218,7 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     def setup_finetune_model(self, model_config: DictConfig):
         """
-        setup_finetune_model method sets up training data, validation data and training data with new
+        setup_finetune_model method sets up training data, validation data and test data with new
         provided config, this checks for the previous labels set up during training from scratch, if None, 
         it sets up labels for provided finetune data from manifest files
 
@@ -271,9 +272,8 @@ class EncDecSpeakerLabelModel(ModelPT):
         del self.decoder
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(new_decoder_config)
 
-        OmegaConf.set_struct(self._cfg.decoder, False)
-        self._cfg.decoder = new_decoder_config
-        OmegaConf.set_struct(self._cfg.decoder, True)
+        with open_dict(self._cfg.decoder):
+            self._cfg.decoder = new_decoder_config
 
         logging.info(f"Changed decoder output to # {self.decoder._num_classes} classes.")
 
