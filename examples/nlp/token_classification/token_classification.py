@@ -97,6 +97,7 @@ def main(cfg: DictConfig) -> None:
             # finally, setup train and validation Pytorch DataLoaders
             model.setup_training_data()
             model.setup_validation_data()
+            logging.info(f'Using config file of the pretrained model')
         except FileNotFoundError:
             raise
         except Exception as e:

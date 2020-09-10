@@ -57,6 +57,7 @@ def main(cfg: DictConfig) -> None:
             # evaluation could be done on multiple files, use model.validation_ds.ds_items to specify multiple
             # data directories if needed
             model.setup_validation_data(data_dirs=cfg.model.dataset.data_dir)
+            logging.info(f'Using config file of the pretrained model')
         except FileNotFoundError:
             raise
         except Exception as e:
