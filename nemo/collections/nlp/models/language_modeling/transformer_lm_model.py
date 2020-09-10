@@ -81,7 +81,9 @@ class TransformerLMModel(ModelPT):
         self.log_softmax.mlp.layer0.weight = self.embedding_layer.token_embedding.weight
 
         self.training_loss = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id)
-        self.validation_loss = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id, predict_last_k=64)
+        self.validation_loss = SmoothedCrossEntropyLoss(
+            pad_id=self.tokenizer.pad_id, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
+        )
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -142,17 +144,21 @@ class TransformerLMModel(ModelPT):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
+        )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
+        )
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
+    def _setup_dataloader_from_config(self, cfg: DictConfig, predict_last_k=0):
         dataset = L2RLanguageModelingDataset(
             tokenizer=self.tokenizer,
             dataset=cfg.file_name,
             max_seq_length=self.dataset_cfg.max_seq_length,
-            batch_step=cfg.get("predict_last_k", 0),
+            batch_step=predict_last_k,
         )
         return torch.utils.data.DataLoader(
             dataset=dataset,

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pytorch Dataset for training Information Retrieval."""
+"""Pytorch Dataset for training information retrieval models."""
 
 import multiprocessing as mp
 import os
@@ -22,6 +22,8 @@ from typing import Optional
 
 import numpy as np
 from torch.utils.data import Dataset
+
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = [
     "BertInformationRetrievalDatasetTrain",
@@ -40,7 +42,9 @@ class BaseInformationRetrievalDataset(Dataset):
         max_passage_length: maximum length of passage in tokens
     """
 
-    def __init__(self, tokenizer, max_query_length=31, max_passage_length=190):
+    def __init__(
+        tokenizer: TokenizerSpec, max_query_length: Optional[int] = 31, max_passage_length: Optional[int] = 190,
+    ):
         self.tokenizer = tokenizer
         self.max_query_length = max_query_length
         self.max_passage_length = max_passage_length
@@ -161,7 +165,7 @@ class BaseInformationRetrievalDataset(Dataset):
 class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
     def __init__(
         self,
-        tokenizer: object,
+        tokenizer: TokenizerSpec,
         passages: str,
         queries: str,
         query_to_passages: str,
@@ -227,7 +231,7 @@ class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
 class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
     def __init__(
         self,
-        tokenizer: object,
+        tokenizer: TokenizerSpec,
         passages: str,
         queries: str,
         query_to_passages: str,

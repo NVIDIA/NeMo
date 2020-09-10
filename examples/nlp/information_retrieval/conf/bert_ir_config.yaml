@@ -1,11 +1,11 @@
 # Config file for fine-tuning joint BERT model for information retrieval
-name: &name BertJointIR
+name: &name BertIR
 
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU
   num_nodes: 1
-  max_epochs: 2
-  max_steps: 400 # precedence over max_epochs
+  max_epochs: 10
+  max_steps: 40000 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
@@ -13,14 +13,13 @@ trainer:
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   row_log_interval: 1  # Interval of logging.
-  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  val_check_interval: 0.0005  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 model:
 
   language_model:
     pretrained_model_name: bert-base-uncased
-    hidden_size: 768
     dropout: 0.1
 
   dataset:
@@ -41,6 +40,7 @@ model:
     passages: ???
     queries: ???
     query_to_passages: ???
+    qrels: ???
     num_candidates: 50
     batch_size: 1
     shuffle: false

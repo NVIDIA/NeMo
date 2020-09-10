@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.models.information_retrieval.bert_dpr_model import BertDPRModel
 from nemo.collections.nlp.models.information_retrieval.bert_joint_ir_model import BertJointIRModel

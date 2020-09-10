@@ -16,7 +16,7 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models import BertJointIRModel
+from nemo.collections.nlp.models import BertDPRModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -27,7 +27,7 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    bert_joint_ir_model = BertJointIRModel(cfg.model, trainer=trainer)
+    bert_joint_ir_model = BertDPRModel(cfg.model, trainer=trainer)
     trainer.fit(bert_joint_ir_model)
 
 
