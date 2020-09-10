@@ -24,7 +24,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['AudioToSpeechLabelDataSet']
 
 
-@experimental
 class AudioToSpeechLabelDataSet(Dataset):
     """Data Layer for general speech classification.
     Module which reads speech recognition with target label. It accepts comma-separated
