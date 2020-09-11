@@ -262,10 +262,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
             raise ValueError("{text_file} should have extension .txt")
 
         filename = filename[:-4]
-        tokenizer_type = type(tokenizer.tokenizer).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         features_pkl = os.path.join(
-            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer.name, str(max_seq_length), str(vocab_size)),
         )
 
         self.punct_label_ids_file = os.path.join(data_dir, 'punct_label_ids.csv')

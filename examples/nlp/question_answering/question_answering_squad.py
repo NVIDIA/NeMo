@@ -38,11 +38,15 @@ def main(cfg: DictConfig) -> None:
 
     question_answering_model = QAModel(cfg.model, trainer=trainer)
     trainer.fit(question_answering_model)
+
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.file is not None:
+        gpu = 1 if cfg.trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu)
+        if question_answering_model.prepare_test(trainer):
+            trainer.test(question_answering_model)
+
     if cfg.model.nemo_path:
         question_answering_model.save_to(cfg.model.nemo_path)
-
-    if cfg.model.test_ds.file is not None:
-        trainer.test(question_answering_model, ckpt_path=None)
 
 
 if __name__ == '__main__':
