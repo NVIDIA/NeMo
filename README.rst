@@ -173,6 +173,12 @@ To run tutorials:
      - Online Noise Augmentation
      - `05_Online_Noise_Augmentation.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
+     - Using Pretrained Language Models for Downstream Tasks
+     - `01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
+   * - NLP
+     - Question answering with SQuAD
+     - `Question_Answering_Squad.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
+   * - NLP
      - Exploring NeMo NLP Tokenizers
      - `02_NLP_Tokenizers.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/02_NLP_Tokenizers.ipynb>`_
    * - NLP
@@ -184,9 +190,6 @@ To run tutorials:
    * - NLP
      - Punctuation and Capitialization
      - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
-   * - NLP
-     - Question answering with SQuAD
-     - `Question_Answering_Squad.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
    * - TTS
      - Speech Synthesis
      - `TTS_inference.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_
