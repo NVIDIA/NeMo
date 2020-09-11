@@ -78,6 +78,7 @@ class WaveGlowModel(Vocoder):
         self.waveglow = instantiate(self._cfg.waveglow)
         self.mode = OperationMode.infer
         self.loss = WaveGlowLoss()
+        self.removed_weightnorm = False
 
     @property
     def input_types(self):
@@ -124,6 +125,9 @@ class WaveGlowModel(Vocoder):
         output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     )
     def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
+        if not self.removed_weightnorm:
+            self.waveglow.remove_weightnorm()
+            self.removed_weightnorm = True
         self.eval()
         self.mode = OperationMode.infer
         self.waveglow.mode = OperationMode.infer
@@ -214,6 +218,7 @@ class WaveGlowModel(Vocoder):
             pretrained_model_name="WaveGlow-22050Hz",
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/waveglow.nemo",
             description="The model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder",
+            class_=cls,
         )
         list_of_models.append(model)
         return list_of_models

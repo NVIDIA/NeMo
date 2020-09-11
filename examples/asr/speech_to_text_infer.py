@@ -46,7 +46,6 @@ def main():
         "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
-    parser.add_argument("--wer_target", type=float, default=None, help="used by test")
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument(

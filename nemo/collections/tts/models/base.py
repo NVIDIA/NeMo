@@ -13,7 +13,9 @@
 # limitations under the License.
 from abc import ABC, abstractmethod
 
+from nemo.collections.tts.models import *  # Avoid circular imports
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 
 
 class SpectrogramGenerator(ModelPT, ABC):
@@ -39,6 +41,20 @@ class SpectrogramGenerator(ModelPT, ABC):
             sepctrograms
         """
 
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        for subclass in cls.__subclasses__():
+            subclass_models = subclass.list_available_models()
+            if subclass_models is not None and len(subclass_models) > 0:
+                list_of_models.extend(subclass_models)
+        return list_of_models
+
 
 class Vocoder(ModelPT, ABC):
     """ Base class for all TTS models that generate audio conditioned a on spectrogram """
@@ -54,3 +70,17 @@ class Vocoder(ModelPT, ABC):
         Returns:
             audio
         """
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        for subclass in cls.__subclasses__():
+            subclass_models = subclass.list_available_models()
+            if subclass_models is not None and len(subclass_models) > 0:
+                list_of_models.extend(subclass_models)
+        return list_of_models
