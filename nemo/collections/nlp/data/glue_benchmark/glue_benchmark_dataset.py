@@ -121,7 +121,6 @@ class GLUEDataset(Dataset):
 
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
         processor_name = type(processor).__name__
-
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = os.path.join(
             data_dir,
