@@ -26,7 +26,7 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
@@ -244,5 +244,40 @@ class QAModel(ModelPT):
         return dl
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="BERTBaseUncasedSQuADv1.1",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/bert_base_uncased_squadv1.1.nemo",
+            description="Question answering model finetuned from NeMo BERT Base Uncased on SQuAD v1.1 dataset"
+            "which obtains an exact match (EM) score of 82.43% and an F1 score of 89.59%.",
+        )
+        result.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="BERTBaseUncasedSQuADv2.0",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/bert_base_uncased_squadv2.0.nemo",
+            description="Question answering model finetuned from NeMo BERT Base Uncased on SQuAD v2.0 dataset"
+            "which obtains an exact match (EM) score of 73.35% and an F1 score of 76.44%.",
+        )
+        result.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="BERTLargeUncasedSQuADv1.1",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/bert_large_uncased_squadv1.1.nemo",
+            description="Question answering model finetuned from NeMo BERT Large Uncased on SQuAD v1.1 dataset"
+            "which obtains an exact match (EM) score of 85.47% and an F1 score of 92.10%.",
+        )
+        result.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="BERTLargeUncasedSQuADv2.0",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/bert_large_uncased_squadv2.0.nemo",
+            description="Question answering model finetuned from NeMo BERT Large Uncased on SQuAD v2.0 dataset"
+            "which obtains an exact match (EM) score of 78.8% and an F1 score of 81.85%.",
+        )
+        result.append(model)
+        return result
