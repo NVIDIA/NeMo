@@ -50,7 +50,9 @@ class SpectrogramGenerator(ModelPT, ABC):
         """
         list_of_models = []
         for subclass in cls.__subclasses__():
-            list_of_models.extend(subclass.list_available_models())
+            subclass_models = subclass.list_available_models()
+            if subclass_models is not None and len(subclass_models) > 0:
+                list_of_models.extend(subclass_models)
         return list_of_models
 
 
@@ -78,5 +80,7 @@ class Vocoder(ModelPT, ABC):
         """
         list_of_models = []
         for subclass in cls.__subclasses__():
-            list_of_models.extend(subclass.list_available_models())
+            subclass_models = subclass.list_available_models()
+            if subclass_models is not None and len(subclass_models) > 0:
+                list_of_models.extend(subclass_models)
         return list_of_models
