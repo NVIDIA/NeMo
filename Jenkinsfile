@@ -435,7 +435,9 @@ pipeline {
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
             model.dataset.use_cache=false \
+            exp_manager.exp_dir=examples/nlp/token_classification/ner_with_bert \
             '
+            sh 'rm -rf examples/nlp/token_classification/ner_with_bert'
           }
         }
       }
@@ -450,20 +452,20 @@ pipeline {
       }
       failFast true
       parallel {
-//         stage ('NER finetuning from pretrained Test') {
-//           steps {
-//             sh 'cd examples/nlp/token_classification && \
-//             python token_classification.py \
-//             pretrained_model=NERModel \
-//             model.dataset.data_dir=/home/TestData/nlp/ner/ \
-//             model.train_ds.batch_size=2 \
-//             model.dataset.use_cache=false \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=true \
-//             exp_manager.exp_dir=ner'
-//             sh 'rm -rf examples/nlp/token_classification/ner'
-//           }
-//         }
+        stage ('NER finetuning from pretrained Test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && \
+            python token_classification.py \
+            pretrained_model=/home/TestData/nlp/NamedEntityRecognition_bert-base-uncased.nemo \
+            model.dataset.data_dir=/home/TestData/nlp/ner/ \
+            model.train_ds.batch_size=2 \
+            model.dataset.use_cache=false \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
+            exp_manager.exp_dir=examples/nlp/token_classification/ner_from_pretrained'
+            sh 'rm -rf examples/nlp/token_classification/ner_from_pretrained'
+          }
+        }
         stage ('Punctuation and capitalization finetuning from pretrained test') {
           steps {
             sh 'cd examples/nlp/token_classification && \
@@ -472,7 +474,9 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
-            model.dataset.use_cache=false'
+            model.dataset.use_cache=false \
+            exp_manager.exp_dir=examples/nlp/token_classification/pc_from_pretrained'
+            sh 'rm -rf examples/nlp/token_classification/pc_from_pretrained'
           }
         }
       }
