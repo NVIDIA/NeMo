@@ -343,13 +343,15 @@ class Model(Typing, Serialization, FileIO):
         pass
 
     @classmethod
-    def from_pretrained(cls, model_name: str, refresh_cache: bool = False):
+    def from_pretrained(cls, model_name: str, refresh_cache: bool = False, override_config_path: Optional[str] = None):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
         Args:
             model_name: string key which will be used to find the module. Could be path to local .nemo file.
             refresh_cache: If set to True, then when fetching from cloud, this will re-fetch the file
                 from cloud even if it is already found in a cache locally.
+            override_config_path: path to a yaml config that will override the internal
+                config file
         Returns:
             A model instance of a particular model class
         """
@@ -373,7 +375,9 @@ class Model(Typing, Serialization, FileIO):
         logging.info("Instantiating model from pre-trained checkpoint")
         if class_ is None:
             class_ = cls
-        instance = class_.restore_from(restore_path=nemo_model_file_in_cache)
+        instance = class_.restore_from(
+            restore_path=nemo_model_file_in_cache, override_config_path=override_config_path
+        )
         return instance
 
 
