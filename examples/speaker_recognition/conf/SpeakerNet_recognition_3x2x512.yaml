@@ -1,6 +1,6 @@
-name: &name "Voxnet"
+name: &name "SpeakerNet"
 sample_rate: &sample_rate 16000
-repeat: &rep 1
+repeat: &rep 2
 dropout: &drop 0.5
 separable: &separable True
 n_filters: &n_filters 512
@@ -23,16 +23,16 @@ model:
     time_length: 8
 
   test_ds:
-    manifest_filepath: null
+    manifest_filepath: ???
     sample_rate: 16000
     labels: null
-    batch_size: 128
+    batch_size: 1
     shuffle: False
     time_length: 8
-    embedding_dir: './'
+    embedding_dir: '.'
 
   preprocessor:
-    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     params:
       normalize: "per_feature"
       window_size: 0.02
@@ -46,7 +46,7 @@ model:
       stft_conv: false
 
   encoder:
-    cls: nemo.collections.asr.modules.ConvASREncoder
+    _target_: nemo.collections.asr.modules.ConvASREncoder
     params:
       feat_in: *n_mels
       activation: relu
@@ -99,21 +99,26 @@ model:
             separable: *separable
 
   decoder:
-    cls: nemo.collections.asr.modules.SpeakerDecoder
+    _target_: nemo.collections.asr.modules.SpeakerDecoder
     params:
       feat_in: *enc_feat_out
       num_classes: 2
       pool_mode: 'xvector'
       emb_sizes: 512,512
+      angular: False
+
+  loss:
+    scale: 30
+    margin: 0.2
 
   optim:
     name: novograd
-    # cls: nemo.core.optim.optimizers.Novograd
+    # _target_: nemo.core.optim.optimizers.Novograd
     lr: .008
     # optimizer arguments
     args:
       name: auto
-      # cls: nemo.core.config.optimizers.NovogradParams
+      # _target_: nemo.core.config.optimizers.NovogradParams
       params:
         betas: [0.95, 0.5]
         weight_decay: 0.001
@@ -131,7 +136,7 @@ model:
       # scheduler config override
       args:
         name: auto
-        # cls: nemo.core.config.schedulers.CosineAnnealingParams
+        # _target_: nemo.core.config.schedulers.CosineAnnealingParams
         params:
           warmup_steps: null
           warmup_ratio: 0.1
@@ -139,13 +144,14 @@ model:
           last_epoch: -1
 
 trainer:
-  gpus: 2 # number of gpus
-  max_epochs: 100
+  gpus: 1 # number of gpus
+  max_epochs: 5
   max_steps: null # computed at runtime if not set
   num_nodes: 1
   distributed_backend: ddp
   accumulate_grad_batches: 1
-  amp_level: O1
+  amp_level: O0
+  deterministic: True
   checkpoint_callback: False
   logger: False
   row_log_interval: 1  # Interval of logging.
@@ -156,10 +162,3 @@ exp_manager:
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null
