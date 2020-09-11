@@ -57,7 +57,7 @@ class TextClassificationModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.data_desc = TextClassificationDataDesc(
-            train_file=cfg.train_ds.file_path, val_files=[cfg.validation_ds.file_path, cfg.test_ds.file_path]
+            train_file=cfg.train_ds.file_path, val_files=[cfg.validation_ds.file_path]
         )
 
         self.bert_model = get_lm_model(
@@ -126,7 +126,7 @@ class TextClassificationModel(ModelPT):
         preds = torch.argmax(logits, axis=-1)
         tp, fp, fn = self.classification_report(preds, labels)
 
-        tensorboard_logs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        tensorboard_logs = {'val_loss': val_loss, 'val_tp': tp, 'val_fn': fn, 'val_fp': fp}
 
         return {'val_loss': val_loss, 'log': tensorboard_logs}
 
@@ -140,16 +140,16 @@ class TextClassificationModel(ModelPT):
 
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         # calculate metrics and log classification report
-        tp = torch.sum(torch.stack([x['log']['tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log']['fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log']['fp'] for x in outputs]), 0)
+        tp = torch.sum(torch.stack([x['log']['val_tp'] for x in outputs]), 0)
+        fn = torch.sum(torch.stack([x['log']['val_fn'] for x in outputs]), 0)
+        fp = torch.sum(torch.stack([x['log']['val_fp'] for x in outputs]), 0)
         precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
 
         tensorboard_logs = {
             'val_loss': avg_loss,
-            'precision': precision,
-            'recall': recall,
-            'f1': f1,
+            'val_precision': precision,
+            'val_recall': recall,
+            'val_f1': f1,
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
@@ -171,17 +171,11 @@ class TextClassificationModel(ModelPT):
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.file_path:
-            logging.info("Dataloader config or file_path for the validation is missing, so no data loader for train is created!")
-            self._train_dl = None
+            logging.info("Dataloader config or file_path for the validation is missing, so no data loader for validation is created!")
+            self._validation_dl = None
         else:
             self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        if not test_data_config or not test_data_config.file_path:
-            logging.info("Dataloader config or file_path for the test is missing, so no data loader for train is created!")
-            self._test_dl = None
-        else:
-            self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         input_file = cfg.file_path
@@ -196,10 +190,10 @@ class TextClassificationModel(ModelPT):
             )
 
         dataset = TextClassificationDataset(
-            input_file=input_file,
             tokenizer=self.tokenizer,
+            input_file=input_file,
             max_seq_length=self.dataset_cfg.max_seq_length,
-            num_samples=cfg.get('num_samples', -1),
+            num_samples=cfg.num_samples,
             shuffle=cfg.shuffle,
             use_cache=self.dataset_cfg.use_cache,
         )
@@ -208,31 +202,9 @@ class TextClassificationModel(ModelPT):
             dataset=dataset,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=self.dataset_cfg.get("num_workers", 2),
-            pin_memory=self.dataset_cfg.get("pin_memory", False),
-            drop_last=self.dataset_cfg.get("drop_last", False),
-            collate_fn=dataset.collate_fn,
-        )
-
-    def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
-        """
-        Setup function for a infer data loader.
-
-        Args:
-            queries: text
-            batch_size: batch size to use during inference
-
-        Returns:
-            A pytorch DataLoader.
-        """
-        dataset = TextClassificationDataset(tokenizer=self.tokenizer, queries=queries, max_seq_length=-1)
-        return torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=self._cfg.dataset.num_workers,
-            pin_memory=self._cfg.dataset.pin_memory,
-            drop_last=False,
+            num_workers=self.dataset_cfg.num_workers,
+            pin_memory=self.dataset_cfg.pin_memory,
+            drop_last=self.dataset_cfg.drop_last,
             collate_fn=dataset.collate_fn,
         )
 
@@ -266,13 +238,34 @@ class TextClassificationModel(ModelPT):
                     attention_mask=input_mask.to(device),
                 )
 
-                subtokens_mask = subtokens_mask > 0.5
-                preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask])
+                preds = tensor2list(torch.argmax(logits, axis=-1))
                 all_preds.extend(preds)
         finally:
             # set mode back to its original value
             self.train(mode=mode)
         return all_preds
+
+    def _setup_infer_dataloader(self, queries: List[str], batch_size: int, max_seq_length: int = -1) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a infer data loader.
+
+        Args:
+            queries: text
+            batch_size: batch size to use during inference
+            max_seq_length: maximum length of queries, default is -1 for no limit
+        Returns:
+            A pytorch DataLoader.
+        """
+        dataset = TextClassificationDataset(tokenizer=self.tokenizer, queries=queries, max_seq_length=max_seq_length)
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=self._cfg.dataset.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory,
+            drop_last=False,
+            collate_fn=dataset.collate_fn,
+        )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

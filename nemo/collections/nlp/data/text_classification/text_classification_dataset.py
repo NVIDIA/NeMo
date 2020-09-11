@@ -45,7 +45,6 @@ class TextClassificationDataset(Dataset):
             If -1, use all dataset. Useful for testing.
         shuffle: Shuffles the dataset after loading.
         use_cache: Enables caching to use pickle format to store and read data from
-        pad_id: the id to be used for padding
     """
 
     @property
@@ -62,13 +61,12 @@ class TextClassificationDataset(Dataset):
     def __init__(
         self,
         tokenizer: TokenizerSpec,
-        max_seq_length: int,
         input_file: str = None,
         queries: List[str] = None,
+        max_seq_length: int = -1,
         num_samples: int = -1,
         shuffle: bool = False,
         use_cache: bool = False,
-        pad_id: int = 0,
     ):
 
         if not input_file and not queries:
@@ -81,15 +79,15 @@ class TextClassificationDataset(Dataset):
         self.shuffle = shuffle
         self.use_cache = use_cache
         self.vocab_size = self.tokenizer.vocab_size
-        self.pad_id = pad_id
+        self.pad_id = tokenizer.pad_id
 
         if input_file and use_cache:
             data_dir, filename = os.path.split(input_file)
             vocab_size = getattr(tokenizer, "vocab_size", 0)
-            tokenizer_name = tokenizer.tokenizer_name
+            tokenizer_name = tokenizer.name
             cached_features_file = os.path.join(
                 data_dir,
-                f"cached_{filename}_{tokenizer_name}_{max_seq_length}_{vocab_size}_{num_samples}_{pad_id}_{shuffle}.pkl"
+                f"cached_{filename}_{tokenizer_name}_{max_seq_length}_{vocab_size}_{num_samples}_{self.pad_id}_{shuffle}.pkl"
             )
 
         if input_file and use_cache and os.path.exists(cached_features_file):
@@ -104,13 +102,13 @@ class TextClassificationDataset(Dataset):
                     labels, all_sents = [], []
                     lines = f.readlines(num_samples + 1)
                     logging.info(f'Read {len(lines)} examples from {input_file}.')
+
                     if shuffle:
                         random.shuffle(lines)
 
                     for index, line in enumerate(lines):
                         if index % 20000 == 0:
                             logging.debug(f"Processing line {index}/{len(lines)}")
-
                         line_splited = line.strip().split()
                         label = int(line_splited[-1])
                         labels.append(label)
@@ -118,6 +116,7 @@ class TextClassificationDataset(Dataset):
                         all_sents.append(sent_words)
             else:
                 all_sents = queries
+                labels = [-1] * len(queries)
             self.features = self.get_features(all_sents, tokenizer, max_seq_length, labels)
 
         if input_file and use_cache and not os.path.exists(cached_features_file):
@@ -130,7 +129,7 @@ class TextClassificationDataset(Dataset):
     def __getitem__(self, idx):
         return self.features[idx]
 
-    def _collate_fn(self, batch, pad_id=0):
+    def _collate_fn(self, batch):
         """collate batch of input_ids, segment_ids, input_mask, and label
         Args:
             batch:  A list of tuples of (input_ids, segment_ids, input_mask, label).
@@ -147,9 +146,9 @@ class TextClassificationDataset(Dataset):
         for input_ids, segment_ids, input_mask, label in batch:
             if len(input_ids) < max_length:
                 pad_width = max_length - len(input_ids)
-                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_width], constant_values=pad_id))
-                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_width], constant_values=pad_id))
-                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_width], constant_values=pad_id))
+                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
+                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
+                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_width], constant_values=self.pad_id))
             else:
                 padded_input_ids.append(input_ids)
                 padded_segment_ids.append(segment_ids)
@@ -170,7 +169,7 @@ class TextClassificationDataset(Dataset):
                 word_tokens = tokenizer.text_to_tokens(word)
                 sent_subtokens.extend(word_tokens)
 
-            if len(sent_subtokens) + 1 > max_seq_length:
+            if max_seq_length > 0 and len(sent_subtokens) + 1 > max_seq_length:
                 sent_subtokens = sent_subtokens[:max_seq_length]
                 too_long_count += 1
 
