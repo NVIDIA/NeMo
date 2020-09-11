@@ -139,12 +139,33 @@ class AutoTokenizer(TokenizerSpec):
                 new_tokens_in_vocab.append(token)
 
         if len(new_tokens_in_vocab) > 0:
+            """
+            Special tokens that were not previously included in the tokenizer's vocabulary file will be added to 
+            the vocabulary and, as a result, the model should be resized, for example:
+            
+            # define your model
+            pretrained_model_name = 'roberta-base'
+            model = nemo_nlp.modules.get_lm_model(pretrained_model_name=pretrained_model_name)
+            
+            # define pretrained tokenizer
+            tokenizer_default = nemo_nlp.modules.get_tokenizer(tokenizer_name=pretrained_model_name)
+            
+            special_tokens = {'bos_token': '<BOS>',
+                              'cls_token': '<CSL>',
+                              'additional_special_tokens': ['<MY_NER_TOKEN>', '<ANOTHER_TOKEN>']}
+            tokenizer_default.add_special_tokens(special_tokens_dict=special_tokens)
+            
+            # resize your model so that the embeddings for newly added tokens are updated during training/finetuning
+            model.resize_token_embeddings(tokenizer_default.vocab_size)
+            
+            See NLP_Tokenizers.ipynb for more details.
+            """
             logging.warning(
-                f'{new_tokens_in_vocab} \n will be added to the vocabulary.\n' f'Please resize your model accordingly'
+                f'{new_tokens_in_vocab} \n will be added to the vocabulary.\n'
+                f'Please resize your model accordingly, '
+                f'see NLP_Tokenizers.ipynb for more details.'
             )
         self.add_special_tokens(special_tokens_dict)
-
-        self.never_split = self.tokenizer.all_special_tokens
 
     @property
     def vocab_size(self):
@@ -196,7 +217,7 @@ class AutoTokenizer(TokenizerSpec):
 
     def ids_to_text(self, ids):
         tokens = self.ids_to_tokens(ids)
-        tokens_clean = [t for t in tokens if t not in self.never_split]
+        tokens_clean = [t for t in tokens if t not in self.tokenizer.all_special_tokens]
         text = self.tokens_to_text(tokens_clean)
         return text
 
