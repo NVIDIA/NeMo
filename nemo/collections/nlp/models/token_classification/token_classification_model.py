@@ -93,10 +93,12 @@ class TokenClassificationModel(ModelPT):
         modes = ["train", "test", "dev"]
         self._cfg.dataset.data_dir = data_dir
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
-
         if os.path.exists(data_dir):
             self.data_desc = TokenClassificationDataDesc(
-                data_dir=data_dir, modes=modes, pad_label=self._cfg.dataset.pad_label
+                data_dir=data_dir,
+                modes=modes,
+                pad_label=self._cfg.dataset.pad_label,
+                label_ids_dict=self._cfg.label_ids,
             )
 
     def setup_loss(self, class_balancing: str = None):

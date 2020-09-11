@@ -450,20 +450,20 @@ pipeline {
       }
       failFast true
       parallel {
-        stage ('NER finetuning from pretrained Test') {
-          steps {
-            sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
-            pretrained_model=NERModel \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-            model.train_ds.batch_size=2 \
-            model.dataset.use_cache=false \
-            trainer.gpus=[0] \
-            +trainer.fast_dev_run=true \
-            exp_manager.exp_dir=ner'
-            sh 'rm -rf examples/nlp/token_classification/ner'
-          }
-        }
+//         stage ('NER finetuning from pretrained Test') {
+//           steps {
+//             sh 'cd examples/nlp/token_classification && \
+//             python token_classification.py \
+//             pretrained_model=NERModel \
+//             model.dataset.data_dir=/home/TestData/nlp/ner/ \
+//             model.train_ds.batch_size=2 \
+//             model.dataset.use_cache=false \
+//             trainer.gpus=[0] \
+//             +trainer.fast_dev_run=true \
+//             exp_manager.exp_dir=ner'
+//             sh 'rm -rf examples/nlp/token_classification/ner'
+//           }
+//         }
         stage ('Punctuation and capitalization finetuning from pretrained test') {
           steps {
             sh 'cd examples/nlp/token_classification && \

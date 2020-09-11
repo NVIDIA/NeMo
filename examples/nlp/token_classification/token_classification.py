@@ -86,11 +86,13 @@ def main(cfg: DictConfig) -> None:
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
         model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
-        try:
+
+        data_dir = cfg.model.dataset.get('data_dir', None)
+        if data_dir:
             # we can also do finetunining of the pretrained model but it will require
             # setting up train and validation Pytorch DataLoaders
             # setup the data dir to get class weights statistics
-            model.update_data_dir(data_dir=cfg.model.dataset.data_dir)
+            model.update_data_dir(data_dir=data_dir)
             # then we're setting up loss, use model.dataset.class_balancing,
             # if you want to add class weights to the CrossEntropyLoss
             model.setup_loss(class_balancing=cfg.model.dataset.class_balancing)
@@ -98,13 +100,11 @@ def main(cfg: DictConfig) -> None:
             model.setup_training_data()
             model.setup_validation_data()
             logging.info(f'Using config file of the pretrained model')
-        except FileNotFoundError:
-            raise
-        except Exception as e:
+        else:
             do_training = False
             logging.info(
-                f'Data dir should be specified for training. '
-                f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning. {e}'
+                f'Data dir should be specified for finetuning the pretrained model. '
+                f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning.'
             )
 
     if do_training:
@@ -141,16 +141,10 @@ def main(cfg: DictConfig) -> None:
         )
 
     # run an inference on a few examples
-    queries = [
-        'we bought four shirts from the nvidia gear store in santa clara.',
-        'Nvidia is a company.',
-        'The Adventures of Tom Sawyer by Mark Twain is an 1876 novel about a young boy growing '
-        + 'up along the Mississippi River.',
-    ]
+    queries = ['we bought four shirts from the nvidia gear store in santa clara.', 'Nvidia is a company.']
     results = model.add_predictions(queries)
 
     for query, result in zip(queries, results):
-        logging.info('')
         logging.info(f'Query : {query}')
         logging.info(f'Result: {result.strip()}\n')
 

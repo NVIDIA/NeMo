@@ -50,21 +50,20 @@ def main(cfg: DictConfig) -> None:
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
         model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
-        try:
+        data_dir = cfg.model.dataset.get('data_dir', None)
+        if data_dir:
             # we can also do finetunining of the pretrained model but it will require
             # setting up train and validation Pytorch DataLoaders
-            model.setup_training_data(data_dir=cfg.model.dataset.data_dir)
+            model.setup_training_data(data_dir=data_dir)
             # evaluation could be done on multiple files, use model.validation_ds.ds_items to specify multiple
             # data directories if needed
-            model.setup_validation_data(data_dirs=cfg.model.dataset.data_dir)
+            model.setup_validation_data(data_dirs=data_dir)
             logging.info(f'Using config file of the pretrained model')
-        except FileNotFoundError:
-            raise
-        except Exception as e:
+        else:
             do_training = False
             logging.info(
-                f'Data dir should be specified for training. '
-                f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning. {e}'
+                f'Data dir should be specified for training/finetuning. '
+                f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning.'
             )
 
     if do_training:
