@@ -85,7 +85,7 @@ def main(cfg: DictConfig) -> None:
         model = TokenClassificationModel(cfg.model, trainer=trainer)
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
-        model = TokenClassificationModel.restore_from(cfg.pretrained_model)
+        model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
 
         data_dir = cfg.model.dataset.get('data_dir', None)
         if data_dir:

@@ -456,7 +456,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification && \
             python token_classification.py \
-            pretrained_model=/home/TestData/nlp/NamedEntityRecognition_bert-base-uncased.nemo \
+            pretrained_model=NERModel \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.train_ds.batch_size=2 \
             model.dataset.use_cache=false \
