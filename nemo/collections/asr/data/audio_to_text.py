@@ -461,6 +461,12 @@ class _TarredAudioToTextDataset(IterableDataset):
     (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
     (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
 
+    Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
+    This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
+    Supported opening braces - { <=> (, [, < and the special tag _OP_.
+    Supported closing braces - } <=> ), ], > and the special tag _CL_.
+    For SLURM based tasks, we suggest the use of the special tags for ease of use.
+
     See the WebDataset documentation for more information about accepted data and input formats.
 
     If using multiple processes the number of shards should be divisible by the number of workers to ensure an
@@ -555,13 +561,13 @@ class _TarredAudioToTextDataset(IterableDataset):
 
         if isinstance(audio_tar_filepaths, str):
             # Replace '(' and '[' with '{'
-            brace_keys_open = ['(', '[']
+            brace_keys_open = ['(', '[', '<', '_OP_']
             for bkey in brace_keys_open:
                 if bkey in audio_tar_filepaths:
                     audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "{")
 
             # Replace ')' and ']' with '}'
-            brace_keys_close = [')', ']']
+            brace_keys_close = [')', ']', '>', '_CL_']
             for bkey in brace_keys_close:
                 if bkey in audio_tar_filepaths:
                     audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "}")
