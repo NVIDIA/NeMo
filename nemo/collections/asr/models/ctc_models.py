@@ -247,7 +247,7 @@ class EncDecCTCModel(ASRModel):
             if isinstance(self._trainer.limit_train_batches, float):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
-                    * ceil((len(self._train_dl) / self.world_size) / train_data_config['batch_size'])
+                    * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
