@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -29,7 +29,7 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
@@ -53,8 +53,6 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        self.data_dir = cfg.dataset.data_dir
-
         self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
@@ -203,7 +201,11 @@ class PunctuationCapitalizationModel(ModelPT):
         )
         self.tokenizer = tokenizer
 
-    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+    def setup_training_data(self, train_data_config: Optional[DictConfig] = None, data_dir=None):
+        if train_data_config is None:
+            train_data_config = self._cfg.train_ds
+        if data_dir:
+            self._cfg.dataset.data_dir = data_dir
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
@@ -214,10 +216,24 @@ class PunctuationCapitalizationModel(ModelPT):
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
             self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
 
-    def setup_validation_data(self, val_data_config: Optional[Dict]):
+    def setup_validation_data(
+        self, val_data_config: Optional[Dict] = None, data_dirs: Optional[Union[List[str], str]] = None
+    ):
+        """
+        Setup validaton data
+
+        val_data_config: validation data config
+        data_dirs: path or paths to validation data dirs, used when setup up data for pretrained model
+        """
+        if val_data_config is None:
+            val_data_config = self._cfg.validation_ds
+        if data_dirs:
+            self._cfg.validation_ds.ds_item = data_dirs
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_config: Optional[Dict]):
+    def setup_test_data(self, test_data_config: Optional[Dict] = None):
+        if test_data_config is None:
+            test_data_config = self._cfg.test_ds
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
@@ -225,7 +241,7 @@ class PunctuationCapitalizationModel(ModelPT):
         if 'ds_item' in cfg and cfg.ds_item is not None:
             data_dir = cfg.ds_item
         else:
-            data_dir = self.data_dir
+            data_dir = self._cfg.dataset.data_dir
 
         text_file = os.path.join(data_dir, cfg.text_file)
         label_file = os.path.join(data_dir, cfg.labels_file)
@@ -365,4 +381,25 @@ class PunctuationCapitalizationModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="Punctuation_Capitalization_with_BERT",
+                location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/Punctuation_Capitalization_with_BERT.nemo",
+                description="The model was trained with NeMo BERT base uncased checkpoint.",
+            )
+        )
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="Punctuation_Capitalization_with_DistilBERT",
+                location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/Punctuation_Capitalization_with_DistilBERT.nemo",
+                description="The model was trained with NeMo BERT base uncased checkpoint.",
+            )
+        )
+        return result
