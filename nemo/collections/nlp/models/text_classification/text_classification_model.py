@@ -14,11 +14,12 @@
 
 
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from nemo.utils import logging
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
@@ -29,6 +30,8 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
+from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
+
 
 __all__ = ['TextClassificationModel']
 
@@ -54,7 +57,7 @@ class TextClassificationModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.data_desc = TextClassificationDataDesc(
-            train_file=cfg.train_ds.file_name, val_files=[cfg.validation_ds.file_name]
+            train_file=cfg.train_ds.file_path, val_files=[cfg.validation_ds.file_path, cfg.test_ds.file_path]
         )
 
         self.bert_model = get_lm_model(
@@ -63,14 +66,14 @@ class TextClassificationModel(ModelPT):
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
-        self.hidden_size = self.bert_model.hidden_size
+
         self.classifier = SequenceClassifier(
-            hidden_size=self.hidden_size,
+            hidden_size=self.bert_model.hidden_size,
             num_classes=self.data_desc.num_classes,
-            num_layers=cfg.head.num_output_layers,
+            num_layers=cfg.classifier_head.num_output_layers,
             activation='relu',
             log_softmax=False,
-            dropout=cfg.head.fc_dropout,
+            dropout=cfg.classifier_head.fc_dropout,
             use_transformer_init=True,
             idx_conditioned_on=0,
         )
@@ -103,7 +106,7 @@ class TextClassificationModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, labels = batch
-        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         train_loss = self.loss(logits=logits, labels=labels)
 
@@ -116,7 +119,7 @@ class TextClassificationModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, labels = batch
-        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         val_loss = self.loss(logits=logits, labels=labels)
 
@@ -132,9 +135,10 @@ class TextClassificationModel(ModelPT):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        # if outputs: # TODO: Check why need this?
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        if not outputs:
+            return {}
 
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         # calculate metrics and log classification report
         tp = torch.sum(torch.stack([x['log']['tp'] for x in outputs]), 0)
         fn = torch.sum(torch.stack([x['log']['fn'] for x in outputs]), 0)
@@ -159,20 +163,32 @@ class TextClassificationModel(ModelPT):
         self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
+        if not train_data_config or not train_data_config.file_path:
+            logging.info("Dataloader config or file_path for the train is missing, so no data loader for train is created!")
+            self._train_dl = None
+        else:
+            self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        if not val_data_config or not val_data_config.file_path:
+            logging.info("Dataloader config or file_path for the validation is missing, so no data loader for train is created!")
+            self._train_dl = None
+        else:
+            self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        if not test_data_config or not test_data_config.file_path:
+            logging.info("Dataloader config or file_path for the test is missing, so no data loader for train is created!")
+            self._test_dl = None
+        else:
+            self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        input_file = cfg.file_name  # os.path.join(self.dataset_cfg.data_dir, f"{cfg.file_name}")
+        input_file = cfg.file_path
         if not os.path.exists(input_file):
             raise FileNotFoundError(
                 f'{input_file} not found! The data should be be stored in TAB-separated files \n\
-                "validation_ds.file_name" and "train_ds.file_name" for train and evaluation respectively. \n\
+                "validation_ds.file_path" and "train_ds.file_path" for train and evaluation respectively. \n\
                 Each line of the files contains text sequences, where words are separated with spaces. \n\
                 The label of the example is separated with TAB at the end of each line. \n\
                 Each line of the files should follow the format: \n\
@@ -195,8 +211,68 @@ class TextClassificationModel(ModelPT):
             num_workers=self.dataset_cfg.get("num_workers", 2),
             pin_memory=self.dataset_cfg.get("pin_memory", False),
             drop_last=self.dataset_cfg.get("drop_last", False),
-            collate_fn=dataset.collate_fn,  # it is necessary for type checking to be working even if collate_fn is not used
+            collate_fn=dataset.collate_fn,
         )
+
+    def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a infer data loader.
+
+        Args:
+            queries: text
+            batch_size: batch size to use during inference
+
+        Returns:
+            A pytorch DataLoader.
+        """
+        dataset = TextClassificationDataset(tokenizer=self.tokenizer, queries=queries, max_seq_length=-1)
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=self._cfg.dataset.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory,
+            drop_last=False,
+            collate_fn=dataset.collate_fn,
+        )
+
+    def infer(self, queries: List[str], batch_size: int = None, device=None) -> List[int]:
+        """
+        Get prediction for the queries
+        Args:
+            queries: text sequences
+            batch_size: batch size to use during inference.
+            device: device to perform the inference on, eg. cuda or cpu
+        Returns:
+            all_preds: model predictions
+        """
+        if device is None:
+            device = self.device
+        # store predictions for all queries in a single list
+        all_preds = []
+        mode = self.training
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            self.to(device)
+            infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
+
+            for i, batch in enumerate(infer_datalayer):
+                input_ids, input_type_ids, input_mask, subtokens_mask = batch
+
+                logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    token_type_ids=input_type_ids.to(device),
+                    attention_mask=input_mask.to(device),
+                )
+
+                subtokens_mask = subtokens_mask > 0.5
+                preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask])
+                all_preds.extend(preds)
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+        return all_preds
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

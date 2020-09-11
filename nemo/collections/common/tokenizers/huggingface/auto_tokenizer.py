@@ -207,3 +207,7 @@ class AutoTokenizer(TokenizerSpec):
     @property
     def mask_id(self):
         return self.tokens_to_ids([getattr(self, 'mask_token')])[0]
+
+    @property
+    def tokenizer_name(self):
+        return type(self.tokenizer).__name__

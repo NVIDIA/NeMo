@@ -35,22 +35,23 @@ class TextClassificationDataDesc:
         class_weights_dict = None
         max_label_id = 0
         for input_file in [train_file] + val_files:
+            if input_file is None:
+                continue
             if not os.path.exists(input_file):
-                raise FileNotFoundError(f"Could not find {input_file}!")
+                raise FileNotFoundError(f"Could not find data file {input_file}!")
 
             with open(input_file, 'r') as f:
-                input_lines = f.readlines()[1:]  # Skipping headers at index 0
-
-            try:
-                int(input_lines[0].strip().split()[-1])
-            except ValueError:
-                logging.warning(f'No numerical labels found for {input_file}.')
-                raise
+                input_lines = f.readlines()
 
             queries, raw_sentences = [], []
             for input_line in input_lines:
                 parts = input_line.strip().split()
-                label = int(parts[-1])
+                try:
+                    label = int(parts[-1])
+                except ValueError:
+                    logging.warning(
+                        f'No numerical labels found for {input_file}. Labels should be integers and separated by [TAB] at the end of each line.')
+                    raise
                 raw_sentences.append(label)
                 queries.append(' '.join(parts[:-1]))
 
@@ -60,14 +61,10 @@ class TextClassificationDataDesc:
 
             if input_file == train_file:
                 class_weights_dict = get_freq_weights(sent_label_freq)
-                logging.info(f'Class Weights: {class_weights_dict}')
 
             logging.info(f'Total Sentences: {total_sents}')
             logging.info(f'Sentence class frequencies - {sent_label_freq}')
 
-        if class_weights_dict is None:
-            raise FileNotFoundError(f"Could not find any of the data files!")
-
+        logging.info(f'Class Weights: {class_weights_dict}')
         self.class_weights = fill_class_weights(class_weights_dict, max_label_id)
-
         self.num_classes = max_label_id + 1

@@ -128,7 +128,7 @@ def get_label_stats(labels, outfile='stats.tsv'):
     for k, v in label_frequencies:
         out.write(f'{k}\t\t{round(v/total,5)}\t\t{v}\n')
         if i < 3:
-            logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
+            logging.info(f'label: {k}, {v} out of {total} ({(v / total)*100.0:.2f}%).')
         i += 1
         freq_dict[k] = v
 
@@ -299,8 +299,8 @@ def get_stats(lengths):
                  Mean: {np.mean(lengths)} | \
                  Median: {np.median(lengths)}'
     )
-    logging.info(f'75 percentile: {np.percentile(lengths, 75)}')
-    logging.info(f'99 percentile: {np.percentile(lengths, 99)}')
+    logging.info(f'75 percentile: {np.percentile(lengths, 75):.2f}')
+    logging.info(f'99 percentile: {np.percentile(lengths, 99):.2f}')
 
 
 def is_whitespace(c):

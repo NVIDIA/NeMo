@@ -14,19 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: which part is from HF?
-"""
-Utility functions for Token Classification NLP tasks
-Some parts of this code were adapted from the HuggingFace library at
-https://github.com/huggingface/pytorch-pretrained-BERT
-"""
-
 import os
 import random
-from typing import Any, Dict, Optional
+from typing import Dict, Optional, List
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-import h5py
 import numpy as np
+import pickle
+import torch
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
@@ -49,7 +44,8 @@ class TextClassificationDataset(Dataset):
         num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
         shuffle: Shuffles the dataset after loading.
-        use_cache: Enables caching to use HDFS format to store and read data from
+        use_cache: Enables caching to use pickle format to store and read data from
+        pad_id: the id to be used for padding
     """
 
     @property
@@ -60,18 +56,24 @@ class TextClassificationDataset(Dataset):
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'label': NeuralType(('B'), LabelsType()),
+            'label': NeuralType(('B',), LabelsType()),
         }
 
     def __init__(
         self,
-        input_file: str,
-        tokenizer: Any,
+        tokenizer: TokenizerSpec,
         max_seq_length: int,
+        input_file: str = None,
+        queries: List[str] = None,
         num_samples: int = -1,
         shuffle: bool = False,
         use_cache: bool = False,
+        pad_id: int = 0,
     ):
+
+        if not input_file and not queries:
+            raise ValueError("Either input_file or queries should be passed to the text classification dataset.")
+
         self.input_file = input_file
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
@@ -79,175 +81,136 @@ class TextClassificationDataset(Dataset):
         self.shuffle = shuffle
         self.use_cache = use_cache
         self.vocab_size = self.tokenizer.vocab_size
+        self.pad_id = pad_id
 
-        if use_cache:
+        if input_file and use_cache:
             data_dir, filename = os.path.split(input_file)
             vocab_size = getattr(tokenizer, "vocab_size", 0)
-            tokenizer_type = type(tokenizer.tokenizer).__name__
+            tokenizer_name = tokenizer.tokenizer_name
             cached_features_file = os.path.join(
                 data_dir,
-                "cached_{}_{}_{}_{}".format(
-                    filename[:-4], tokenizer_type, str(max_seq_length), str(vocab_size), '.hdf5'
-                ),  # TODO: pylint(too-many-format-args)
+                f"cached_{filename}_{tokenizer_name}_{max_seq_length}_{vocab_size}_{num_samples}_{pad_id}_{shuffle}.pkl"
             )
 
-        if use_cache and os.path.exists(cached_features_file):
-            self.load_cached_features(cached_features_file)
+        if input_file and use_cache and os.path.exists(cached_features_file):
+            logging.warning(f"Reading and processing the data file {input_file} is skipped as caching is enabled and a cache file {cached_features_file} already exists.\nYou may need to delete the cache file if any of the processing parameters (eg. tokenizer) or the data are updated.")
+            self.features = self.load_cached_features(cached_features_file)
         else:
-            with open(input_file, "r") as f:
-                labels, all_sent_subtokens = [], []
-                sent_lengths = []
-                too_long_count = 0
+            if input_file:
+                if not os.path.exists(input_file):
+                    raise FileNotFoundError(f'Data file {input_file} not found!')
 
-                lines = f.readlines()[1:]
-                logging.info(f'{input_file}: {len(lines)}')
+                with open(input_file, "r") as f:
+                    labels, all_sents = [], []
+                    lines = f.readlines(num_samples + 1)
+                    logging.info(f'Read {len(lines)} examples from {input_file}.')
+                    if shuffle:
+                        random.shuffle(lines)
 
-                if shuffle or num_samples > -1:
-                    random.seed(0)
-                    random.shuffle(lines)
-                    if num_samples > 0:
-                        lines = lines[:num_samples]
+                    for index, line in enumerate(lines):
+                        if index % 20000 == 0:
+                            logging.debug(f"Processing line {index}/{len(lines)}")
 
-                for index, line in enumerate(lines):
-                    if index % 20000 == 0:
-                        logging.debug(f"Processing line {index}/{len(lines)}")
+                        line_splited = line.strip().split()
+                        label = int(line_splited[-1])
+                        labels.append(label)
+                        sent_words = line_splited[:-1]
+                        all_sents.append(sent_words)
+            else:
+                all_sents = queries
+            self.features = self.get_features(all_sents, tokenizer, max_seq_length, labels)
 
-                    line_splited = line.strip().split()
-                    label = int(line_splited[-1])
-                    labels.append(label)
-                    sent_words = line_splited[:-1]
-                    sent_subtokens = [tokenizer.cls_token]
-
-                    for word in sent_words:
-                        word_tokens = tokenizer.text_to_tokens(word)
-                        sent_subtokens.extend(word_tokens)
-
-                    sent_subtokens.append(tokenizer.sep_token)
-
-                    all_sent_subtokens.append(sent_subtokens)
-                    sent_lengths.append(len(sent_subtokens))
-            get_stats(sent_lengths)
-
-            for i in range(len(all_sent_subtokens)):
-                if len(all_sent_subtokens[i]) > max_seq_length:
-                    shorten_sent = all_sent_subtokens[i][-max_seq_length + 1 :]
-                    all_sent_subtokens[i] = [tokenizer.cls_token] + shorten_sent
-                    too_long_count += 1
-
-            logging.info(
-                f'{too_long_count} out of {len(sent_lengths)} \
-                        sentences with more than {max_seq_length} subtokens.'
-            )
-
-            self.convert_sequences_to_features(all_sent_subtokens, labels, tokenizer, max_seq_length)
-
-            if self.use_cache:
-                self.cache_features(cached_features_file, self.features)
-
-                # update self.features to use features from hdf5
-                self.load_cached_features(cached_features_file)
+        if input_file and use_cache and not os.path.exists(cached_features_file):
+            logging.warning(f"Processed data read from {input_file} is stored in {cached_features_file} as caching feature is enabled.")
+            self.cache_features(cached_features_file, self.features)
 
     def __len__(self):
-        if self.use_cache:
-            return len(self.features[0])
-        else:
-            return len(self.features)
+        return len(self.features)
 
     def __getitem__(self, idx):
-        if self.use_cache:
-            return (self.features[0][idx], self.features[1][idx], self.features[2][idx], self.features[3][idx])
-        else:
-            feature = self.features[idx]
-            return (
-                np.array(feature.input_ids),
-                np.array(feature.segment_ids),
-                np.array(feature.input_mask, dtype=np.long),
-                feature.label,
-            )
+        return self.features[idx]
 
-    def convert_sequences_to_features(self, all_sent_subtokens, labels, tokenizer, max_seq_length):
-        """Loads a data file into a list of `InputBatch`s.
+    def _collate_fn(self, batch, pad_id=0):
+        """collate batch of input_ids, segment_ids, input_mask, and label
+        Args:
+            batch:  A list of tuples of (input_ids, segment_ids, input_mask, label).
         """
+        max_length = 0
+        for input_ids, segment_ids, input_mask, label in batch:
+            if len(input_ids) > max_length:
+                max_length = len(input_ids)
 
-        self.features = []
-        for sent_id in range(len(all_sent_subtokens)):
-            sent_subtokens = all_sent_subtokens[sent_id]
-            label = labels[sent_id]
+        padded_input_ids = []
+        padded_segment_ids = []
+        padded_input_mask = []
+        labels = []
+        for input_ids, segment_ids, input_mask, label in batch:
+            if len(input_ids) < max_length:
+                pad_width = max_length - len(input_ids)
+                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_width], constant_values=pad_id))
+                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_width], constant_values=pad_id))
+                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_width], constant_values=pad_id))
+            else:
+                padded_input_ids.append(input_ids)
+                padded_segment_ids.append(segment_ids)
+                padded_input_mask.append(input_mask)
+            labels.append(label)
+
+        return torch.LongTensor(padded_input_ids), torch.LongTensor(padded_segment_ids), torch.LongTensor(padded_input_mask), torch.LongTensor(labels)
+
+    @staticmethod
+    def get_features(all_sents, tokenizer, max_seq_length, labels=None):
+        """Encode a list of sentences into a list of tuples of (input_ids, segment_ids, input_mask, label)."""
+        features = []
+        sent_lengths = []
+        too_long_count = 0
+        for sent_id, sent in enumerate(all_sents):
+            sent_subtokens = [tokenizer.cls_token]
+            for word in sent:
+                word_tokens = tokenizer.text_to_tokens(word)
+                sent_subtokens.extend(word_tokens)
+
+            if len(sent_subtokens) + 1 > max_seq_length:
+                sent_subtokens = sent_subtokens[:max_seq_length]
+                too_long_count += 1
+
+            sent_subtokens.append(tokenizer.sep_token)
+            sent_lengths.append(len(sent_subtokens))
 
             input_ids = [tokenizer.tokens_to_ids(t) for t in sent_subtokens]
 
             # The mask has 1 for real tokens and 0 for padding tokens.
             # Only real tokens are attended to.
             input_mask = [1] * len(input_ids)
-
-            # Zero-pad up to the sequence length.
-            while len(input_ids) < max_seq_length:
-                input_ids.append(0)
-                input_mask.append(0)
-            segment_ids = [0] * max_seq_length
-
-            assert len(input_ids) == max_seq_length
-            assert len(input_mask) == max_seq_length
+            segment_ids = [0] * len(input_ids)
 
             if sent_id < 5:
                 logging.info("*** Example ***")
-                logging.info("example_index: %s" % sent_id)
+                logging.info(f"example {sent_id}: {sent}")
                 logging.info("subtokens: %s" % " ".join(sent_subtokens))
-                logging.info("label: %s" % label)
                 logging.info("input_ids: %s" % list2str(input_ids))
+                logging.info("segment_ids: %s" % list2str(segment_ids))
                 logging.info("input_mask: %s" % list2str(input_mask))
+                logging.info("label: %s" % labels[sent_id] if labels else "**Not Provided**")
 
-            self.features.append(
-                InputFeatures(
-                    sent_id=sent_id, label=label, input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
-                )
-            )
+            label = labels[sent_id] if labels else -1
+            features.append([np.asarray(input_ids), np.asarray(segment_ids), np.asarray(input_mask), label])
 
-    def cache_features(self, cached_features_file, features):
-        len_features = len(features)
-        input_ids_array = np.zeros((len_features, self.max_seq_length))
-        segment_ids_array = np.zeros((len_features, self.max_seq_length))
-        input_mask_array = np.zeros((len_features, self.max_seq_length))
-        labels_array = np.zeros((len_features,))
+        logging.info(
+            f'Found {too_long_count} out of {len(all_sents)} sentences with more than {max_seq_length} subtokens. '
+            f'Truncated long sentences from the end.'
+        )
 
-        for idx in range(len_features):
-            input_ids_array[idx] = features[idx].input_ids
-            segment_ids_array[idx] = features[idx].segment_ids
-            input_mask_array[idx] = features[idx].input_mask
-            labels_array[idx] = features[idx].label
+        get_stats(sent_lengths)
+        return features
 
-        f = h5py.File(cached_features_file, mode='w')
-        f.create_dataset('input_ids', data=input_ids_array)
-        f.create_dataset('segment_ids', data=segment_ids_array)
-        f.create_dataset('input_mask', data=input_mask_array)
-        f.create_dataset('label', data=labels_array)
-        f.close()
+    @staticmethod
+    def cache_features(cached_features_file, features):
+        with open(cached_features_file, 'wb') as f:
+            pickle.dump(features, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def load_cached_features(self, cached_features_file):
-        f = h5py.File(cached_features_file, 'r')
-        keys = ['input_ids', 'segment_ids', 'input_mask', 'label']
-        self.features = [np.asarray(f[key], dtype=np.long) for key in keys]
-        f.close()
-        logging.info(f'features restored from {cached_features_file}')
-
-        if self.shuffle:
-            np.random.seed(0)
-            idx = np.arange(len(self))
-            np.random.shuffle(idx)  # shuffle idx in place
-            shuffled_features = [arr[idx] for arr in self.features]
-            self.features = shuffled_features
-
-        if self.num_samples > 0:
-            truncated_features = [arr[0 : self.num_samples] for arr in self.features]
-            self.features = truncated_features
-
-
-class InputFeatures(object):
-    """A single set of features of data."""
-
-    def __init__(self, sent_id, label, input_ids, input_mask, segment_ids):
-        self.sent_ids = sent_id
-        self.label = label
-        self.input_ids = input_ids
-        self.input_mask = input_mask
-        self.segment_ids = segment_ids
+    @staticmethod
+    def load_cached_features(cached_features_file):
+        with open(cached_features_file, "rb") as input_file:
+            features = pickle.load(input_file)
+        return features
