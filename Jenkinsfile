@@ -762,7 +762,7 @@ pipeline {
       }
     }
 
-    stage('L??: ASR Checkpoints tests') {
+    stage('L??: Speech Checkpoints tests') {
       when {
         anyOf{
           branch 'main'
@@ -773,7 +773,12 @@ pipeline {
       parallel {
         stage('QuartzNet15x5Base-En') {
           steps {
-            sh 'python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+            sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+          }
+        }
+        stage('Tacotron2_WaveGlow_Jasper') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES=1 python examples/tts/test_tts_infer.py --wer_tolerance 0.2 --debug --trim'
           }
         }
       }

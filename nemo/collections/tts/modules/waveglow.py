@@ -15,6 +15,7 @@ from enum import Enum
 
 import torch
 
+from nemo.collections.tts.helpers.helpers import remove
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
@@ -223,6 +224,13 @@ class WaveGlowModule(NeuralModule, Exportable):
                 )
                 audio = torch.cat((z, audio), 1)
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
+
+    def remove_weightnorm(self):
+        for wavenet in self.wavenet:
+            wavenet.start = torch.nn.utils.remove_weight_norm(wavenet.start)
+            wavenet.in_layers = remove(wavenet.in_layers)
+            wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
+            wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
 
     def save_to(self, save_path: str):
         # TODO: Implement me!
