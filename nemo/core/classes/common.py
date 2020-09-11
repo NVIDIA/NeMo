@@ -248,6 +248,9 @@ class Serialization(ABC):
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
+        elif '_target_' in config:
+            # regular hydra-based instantiation
+            instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
             instance = cls(cfg=config)
@@ -274,16 +277,14 @@ class Serialization(ABC):
 
 
 class FileIO(ABC):
-    @abstractmethod
     def save_to(self, save_path: str):
         """Saves module/model with weights"""
-        pass
+        raise NotImplementedError()
 
     @classmethod
-    @abstractmethod
     def restore_from(cls, restore_path: str, override_config_path: Optional[str] = None):
         """Restores module/model with weights"""
-        pass
+        raise NotImplementedError()
 
     @classmethod
     def from_config_file(cls, path2yaml_file: str):
@@ -337,13 +338,15 @@ class Model(Typing, Serialization, FileIO):
         pass
 
     @classmethod
-    def from_pretrained(cls, model_name: str, refresh_cache: bool = False):
+    def from_pretrained(cls, model_name: str, refresh_cache: bool = False, override_config_path: Optional[str] = None):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
         Args:
             model_name: string key which will be used to find the module. Could be path to local .nemo file.
             refresh_cache: If set to True, then when fetching from cloud, this will re-fetch the file
                 from cloud even if it is already found in a cache locally.
+            override_config_path: path to a yaml config that will override the internal
+                config file
         Returns:
             A model instance of a particular model class
         """
@@ -364,7 +367,7 @@ class Model(Typing, Serialization, FileIO):
             url=url, filename=filename, subfolder=cache_subfolder, refresh_cache=refresh_cache
         )
         logging.info("Instantiating model from pre-trained checkpoint")
-        instance = cls.restore_from(restore_path=nemo_model_file_in_cache)
+        instance = cls.restore_from(restore_path=nemo_model_file_in_cache, override_config_path=override_config_path)
         return instance
 
 

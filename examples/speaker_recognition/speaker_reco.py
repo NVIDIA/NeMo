@@ -24,12 +24,12 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 """
-Basic run (on CPU for 50 epochs):
+Basic run (on GPU for 10 epochs):
 EXP_NAME=sample_run
-python ./speaker_reco.py --config-path='conf' --config-name='config.yaml' \
+python ./speaker_reco.py --config-path='conf' --config-name='SpeakerNet_recognition_3x2x512.yaml' \
     trainer.max_epochs=10  \
     model.train_ds.batch_size=64 model.validation_ds.batch_size=64 \
-    trainer.gpus=0 \
+    trainer.gpus=1 \
     model.decoder.params.num_classes=2 \
     exp_manager.name=$EXP_NAME +exp_manager.use_datetime_version=False \
     exp_manager.exp_dir='./speaker_exps'
@@ -44,7 +44,7 @@ Add PyTorch Lightning Trainer arguments from CLI:
 seed_everything(42)
 
 
-@hydra_runner(config_path="conf", config_name="config")
+@hydra_runner(config_path="conf", config_name="SpeakerNet_recognition_3x2x512.yaml")
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
