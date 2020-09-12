@@ -12,32 +12,65 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, Optional, List
+
 from dataclasses import dataclass
 
 import hydra
+from hydra.core.config_store import ConfigStore
+
 import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from nemo.collections.cv.models import MNISTLeNet5
-from nemo.core.config import hydra_runner
+from nemo.core.config import Config, hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+from nemo.collections.cv.datasets.configs import MNISTConfig
 
-@hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification")
-def main(cfg: DictConfig):
+
+@dataclass
+class AppConfig:
+    """
+    This is structured config for this application.
+    Args:
+        trainer: configuration of the trainer.
+        model: configuation of the model.
+    """
+
+    dataloader: DataLoaderConfig = DataLoaderConfig()
+    dataset: MNISTConfig = MNISTConfig()
+    transforms: Optional[Any] = None  # List[Any] = field(default_factory=list) ?
+    optim: AdamConfig = AdamConfig()
+    trainer: TrainerConfig = TrainerConfig()
+
+
+# Register schema.
+cs = ConfigStore.instance()
+cs.store(node=AppConfig, name="mnist_lenet5_image_classification_training")
+
+
+@hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification_training")
+# @hydra.main(config_name="config")
+def main(cfg: AppConfig):
     # Show configuration.
     logging.info("Application settings\n" + OmegaConf.to_yaml(cfg))
 
-    # Create trainer.
+    # Instantiate the "model".
+    lenet5 = MNISTLeNet5()
+
+    # Instantiate the dataloader/dataset.
+    train_dl = lenet5.instantiate_dataloader(cfg.dataloader, cfg.dataset, cfg.transforms)
+
+    # Setup the optimization.
+    lenet5.setup_optimization(cfg.optim)
+
+    # Create the trainer.
     trainer = ptl.Trainer(**(cfg.trainer))
-    exp_manager(trainer, cfg.get("exp_manager", None))
 
-    # The "model" - with dataloader/dataset inside of it.
-    lenet5 = MNISTLeNet5(cfg.model, trainer=trainer)
-
-    # Train.
-    trainer.fit(model=lenet5)
+    # Train the model on dataset.
+    trainer.fit(model=lenet5, train_dataloader=train_dl)
 
 
 if __name__ == "__main__":

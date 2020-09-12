@@ -1,9 +1,0 @@
-defaults:
-  # Load default model settings - using the structured configs available in NeMo.
-  - nemo.collections.cv.datasets@model.training.dataset: MNIST
-  - dataloader@model.training.dataloader: dataloader
-  - optim@model.optim: adam
-  # Load default trainer settings - using the structured config available in NeMo.
-  - trainer: trainer
-  # Overwrite the default settings.
-  - lenet5_overwrites

@@ -31,6 +31,7 @@ __all__ = [
     'AdamWParams',
     'RMSpropParams',
     'RpropParams',
+    'AdamConfig',
 ]
 
 
@@ -39,6 +40,7 @@ cs = ConfigStore.instance()
 
 @dataclass
 class AdamConfig:
+    _target_: str = "torch.optim.Adam"
     lr: float = 1e-3
     betas: tuple = (0.9, 0.999)
     eps: float = 1e-8
@@ -48,7 +50,9 @@ class AdamConfig:
 
 # Register Adam.
 cs.store(
-    group="optim", name="adam", node=ObjectConf(target="torch.optim.Adam", params=AdamConfig()),
+    group="optim",
+    name="adam",
+    node=ObjectConf(target="torch.optim.Adam", params=AdamConfig()),
 )
 
 
@@ -63,7 +67,9 @@ class SGDConfig:
 
 # Register SGD.
 cs.store(
-    group="optim", name="sgd", node=ObjectConf(target="torch.optim.SGD", params=SGDConfig()),
+    group="optim",
+    name="sgd",
+    node=ObjectConf(target="torch.optim.SGD", params=SGDConfig()),
 )
 
 
@@ -100,7 +106,9 @@ class NovogradConfig:
 
 # Register Novograd.
 cs.store(
-    group="optim", name="novograd", node=ObjectConf(target="nemo.core.optim.Novograd", params=NovogradConfig()),
+    group="optim",
+    name="novograd",
+    node=ObjectConf(target="nemo.core.optim.Novograd", params=NovogradConfig()),
 )
 
 
