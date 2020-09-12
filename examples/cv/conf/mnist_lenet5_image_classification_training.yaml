@@ -1,0 +1,22 @@
+# Set the required transforms.
+transforms:
+  - 
+    # LeNet-5 accepts images of size 32x32
+    _target_: torchvision.transforms.Resize
+    size: [32, 32] # [H, W]
+  - 
+    _target_: torchvision.transforms.ToTensor
+
+# Overwrite the dataloader settings.
+dataloader:
+  batch_size: 64
+  num_workers: 5
+
+# Overwrite the optimzer settins.
+optim:
+  lr: 0.01
+
+# Overwrite the "trainer" settings: use 2 GPUs.
+trainer:
+  gpus: 2
+  distributed_backend: "dp"

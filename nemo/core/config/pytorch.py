@@ -37,6 +37,7 @@ class DataLoaderConfig:
         https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
     """
 
+    _target_: str = "torch.utils.data.DataLoader"
     batch_size: int = MISSING
     shuffle: bool = False
     sampler: Optional[Any] = None

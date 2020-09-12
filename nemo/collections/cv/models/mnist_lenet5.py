@@ -12,32 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
 
 import hydra
-from omegaconf import DictConfig
-from torch.utils.data import DataLoader
+from omegaconf import OmegaConf, DictConfig
 
-from nemo.collections.cv.datasets import xMNISTDataset, MNISTDatasetConfig
-from nemo.collections.cv.losses import NLLLoss
-from nemo.collections.cv.modules import LeNet5 as LeNet5Module
 from nemo.core.classes import ModelPT
+from nemo.collections.cv.modules import LeNet5 as LeNet5Module
+from nemo.collections.cv.losses import NLLLoss
 from nemo.core.classes.common import typecheck
-from nemo.core.config import Config, CosineAnnealingParams, DataLoaderConfig, NovogradParams
 from nemo.core.neural_types import *
 
-
-@dataclass
-class MNISTLeNet5Config(Config):
-    """
-    Structured config for LeNet-5 model class - that also contains parameters of dataset and dataloader.
-    """
-
-    dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
-    dataloader: DataLoaderConfig = DataLoaderConfig(batch_size=64, shuffle=True)
-    module: Config = Config()
-    # optim: MNISTOptimizer = MNISTOptimizer()
+import torchvision.transforms as transforms
 
 
 class MNISTLeNet5(ModelPT):
@@ -45,8 +31,8 @@ class MNISTLeNet5(ModelPT):
     The LeNet-5 model.
     """
 
-    def __init__(self, cfg: MNISTLeNet5Config = MNISTLeNet5Config(), trainer=None):
-        super().__init__(cfg=cfg, trainer=trainer)
+    def __init__(self):
+        super().__init__(cfg=OmegaConf.create())
 
         # Initialize modules.
         self.module = LeNet5Module()
@@ -73,17 +59,10 @@ class MNISTLeNet5(ModelPT):
         """ Propagates data by calling the module :class:`LeNet5Module` forward. """
         return self.module.forward(images=images)
 
-    def prepare_data(self):
-        """ Creates dataset, wrap it with dataloader and return the latter """
-        # transform = transforms.Compose([hydra.utils.instantiate(trans) for trans in self.data.tf])
-        # self.train_set = hydra.utils.instantiate(self.data.ds, transform=transform, train=True)
-        # Instantiate dataset.
-        self._train_set = xMNISTDataset(self._cfg.training.dataset.params)
-
     def training_step(self, batch, what_is_this_input):
         """ Training step, calculate loss. """
         # "Unpack" the batch.
-        _, images, targets, _ = batch
+        images, targets = batch
 
         # Get predictions.
         predictions = self(images=images)
@@ -94,16 +73,40 @@ class MNISTLeNet5(ModelPT):
         # Return it.
         return {"loss": loss}
 
-    def train_dataloader(self):
-        """ Return the training dataloader. """
-        return hydra.utils.instantiate(self._cfg.training.dataloader, dataset=self._train_set)
+    @classmethod
+    def instantiate_dataloader(
+        cls, dataloader_cfg: DictConfig, dataset_cfg: DictConfig, transform_cfg: DictConfig = None
+    ):
+        """
+        Creates the dataset and dataloader.
+        Additionally, creates a set of transforms and passes them to dataset.
+        """
 
-    def configure_optimizers(self):
+        if transform_cfg is not None:
+            transform = transforms.Compose([hydra.utils.instantiate(trans) for trans in transform_cfg])
+        else:
+            transform = None
+        # Instantiate dataset.
+        ds = hydra.utils.instantiate(dataset_cfg, transform=transform)
+        # Instantiate dataloader.
+        dl = hydra.utils.instantiate(dataloader_cfg, dataset=ds)
+        return dl
+
+    def setup_optimization(self, optim_cfg: DictConfig):
         """
-        Sets the optimizer.
+        Sets up the optimization (optimizers, schedulers etc.).
         """
-        optimizer = hydra.utils.instantiate(self._cfg.optim, params=self.parameters())
-        return optimizer
+        # Instantiate optimizer.
+        self._optim = hydra.utils.instantiate(optim_cfg, params=self.parameters())
+
+        # Test of idea - dynamically add of method returning optimizer.
+        # Goal: keeping the original "PTL safety mechanisms" when one do not create optimizers =>
+        # trainer will act in a standard way.
+        def configure_optimizers_dynamic(self):
+            return self._optim
+
+        # Add it to the class.
+        setattr(self.__class__, 'configure_optimizers', configure_optimizers_dynamic)
 
     def setup_training_data(self, val_ds_config: Optional[Dict] = None):
         """ Not implemented. """

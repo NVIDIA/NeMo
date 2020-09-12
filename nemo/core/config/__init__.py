@@ -26,6 +26,7 @@ from nemo.core.config.optimizers import (
     SGDParams,
     get_optimizer_config,
     register_optimizer_params,
+    AdamConfig,
 )
 from nemo.core.config.pytorch import DataLoaderConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig

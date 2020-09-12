@@ -12,14 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.cv import datasets, losses, models, modules, transforms
-from nemo.package_info import __version__
-
-# Set collection version equal to NeMo version.
-__version = __version__
-
-# Authorship.
-__author__ = "NVIDIA Corporation"
-
-# Set collection name.
-__description__ = "Computer Vision collection"
+from nemo.collections.cv.transforms.configs import ResizeConfig, ToTensorConfig
