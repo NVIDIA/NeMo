@@ -91,7 +91,7 @@ class TextClassificationDataset(Dataset):
             )
 
         if input_file and use_cache and os.path.exists(cached_features_file):
-            logging.warning(f"Reading and processing the data file {input_file} is skipped as caching is enabled and a cache file {cached_features_file} already exists.\nYou may need to delete the cache file if any of the processing parameters (eg. tokenizer) or the data are updated.")
+            logging.warning(f"Reading and processing the data file {input_file} is skipped as caching is enabled and a cache file {cached_features_file} already exists. \nYou may need to delete the cache file if any of the processing parameters (eg. tokenizer) or the data are updated.")
             self.features = self.load_cached_features(cached_features_file)
         else:
             if input_file:
@@ -100,7 +100,7 @@ class TextClassificationDataset(Dataset):
 
                 with open(input_file, "r") as f:
                     labels, all_sents = [], []
-                    lines = f.readlines(num_samples + 1)
+                    lines = f.readlines(num_samples)
                     logging.info(f'Read {len(lines)} examples from {input_file}.')
 
                     if shuffle:
@@ -115,8 +115,10 @@ class TextClassificationDataset(Dataset):
                         sent_words = line_splited[:-1]
                         all_sents.append(sent_words)
             else:
-                all_sents = queries
-                labels = [-1] * len(queries)
+                all_sents = []
+                for query in queries:
+                    all_sents.append(query.strip().split())
+                labels = [-1] * len(all_sents)
             self.features = self.get_features(all_sents, tokenizer, max_seq_length, labels)
 
         if input_file and use_cache and not os.path.exists(cached_features_file):
@@ -183,7 +185,7 @@ class TextClassificationDataset(Dataset):
             input_mask = [1] * len(input_ids)
             segment_ids = [0] * len(input_ids)
 
-            if sent_id < 5:
+            if sent_id < 2:
                 logging.info("*** Example ***")
                 logging.info(f"example {sent_id}: {sent}")
                 logging.info("subtokens: %s" % " ".join(sent_subtokens))

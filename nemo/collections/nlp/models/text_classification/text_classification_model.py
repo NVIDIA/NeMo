@@ -118,6 +118,11 @@ class TextClassificationModel(ModelPT):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
+        if self.testing:
+            prefix = 'test'
+        else:
+            prefix = 'val'
+
         input_ids, input_type_ids, input_mask, labels = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
@@ -126,9 +131,9 @@ class TextClassificationModel(ModelPT):
         preds = torch.argmax(logits, axis=-1)
         tp, fp, fn = self.classification_report(preds, labels)
 
-        tensorboard_logs = {'val_loss': val_loss, 'val_tp': tp, 'val_fn': fn, 'val_fp': fp}
+        tensorboard_logs = {f'{prefix}_loss': val_loss, f'{prefix}_tp': tp, f'{prefix}_fn': fn, f'{prefix}_fp': fp}
 
-        return {'val_loss': val_loss, 'log': tensorboard_logs}
+        return {f'{prefix}_loss': val_loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """
@@ -137,21 +142,52 @@ class TextClassificationModel(ModelPT):
         """
         if not outputs:
             return {}
+        if self.testing:
+            prefix = 'test'
+        else:
+            prefix = 'val'
 
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
         # calculate metrics and log classification report
-        tp = torch.sum(torch.stack([x['log']['val_tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log']['val_fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log']['val_fp'] for x in outputs]), 0)
+        tp = torch.sum(torch.stack([x['log'][f'{prefix}_tp'] for x in outputs]), 0)
+        fn = torch.sum(torch.stack([x['log'][f'{prefix}_fn'] for x in outputs]), 0)
+        fp = torch.sum(torch.stack([x['log'][f'{prefix}_fp'] for x in outputs]), 0)
         precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
 
         tensorboard_logs = {
-            'val_loss': avg_loss,
-            'val_precision': precision,
-            'val_recall': recall,
-            'val_f1': f1,
+            f'{prefix}_loss': avg_loss,
+            f'{prefix}_precision': precision,
+            f'{prefix}_recall': recall,
+            f'{prefix}_f1': f1,
         }
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        return {f'{prefix}_loss': avg_loss, 'log': tensorboard_logs}
+
+    def test_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the test loop with the data from the test dataloader
+        passed in as `batch`.
+        """
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        """
+        Called at the end of test to aggregate outputs.
+        :param outputs: list of individual outputs of each test step.
+        """
+        return self.validation_epoch_end(outputs)
+
+    # @staticmethod
+    # def _replace_val_with_test(outputs):
+    #     # iterates over a nested dictionary of max level 2 and replaces 'val' with 'test' if found in the key names
+    #     # it is used to update the logging names returned by validation_step and validation_epoch_end for testing
+    #     for k1, v1 in outputs.items():
+    #         if isinstance(v1, dict):
+    #             for k2, v2 in v1.items():
+    #                 if 'val' in k2:
+    #                     v1[k2.replace("val", "test")] = v1.pop(k2)
+    #         if 'val' in k1:
+    #             outputs[k1.replace("val", "test")] = outputs.pop(k1)
+    #     return outputs
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
@@ -163,21 +199,18 @@ class TextClassificationModel(ModelPT):
         self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        if not train_data_config or not train_data_config.file_path:
-            logging.info("Dataloader config or file_path for the train is missing, so no data loader for train is created!")
-            self._train_dl = None
-        else:
-            self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
+        self._train_dl = self._create_dataloader_from_config(cfg=train_data_config, mode='train')
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        if not val_data_config or not val_data_config.file_path:
-            logging.info("Dataloader config or file_path for the validation is missing, so no data loader for validation is created!")
-            self._validation_dl = None
-        else:
-            self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._create_dataloader_from_config(cfg=val_data_config, mode='validation')
 
+    def setup_test_data(self, test_data_config: Optional[DictConfig]):
+        self._test_dl = self._create_dataloader_from_config(cfg=test_data_config, mode='test')
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
+    def _create_dataloader_from_config(self, cfg: DictConfig, mode):
+        if not cfg or not cfg.file_path:
+            logging.info(f"Dataloader config or file_path for the {mode} is missing, so no data loader for test is created!")
+            return None
         input_file = cfg.file_path
         if not os.path.exists(input_file):
             raise FileNotFoundError(

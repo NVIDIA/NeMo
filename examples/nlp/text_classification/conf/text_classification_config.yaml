@@ -18,15 +18,16 @@ trainer:
   gpus: 1 # number of gpus (0 for CPU), or list of the GPUs to use e.g. [0, 1]
   num_nodes: 1
   max_epochs: 300
-  max_steps: 4 # precedence over max_epochs
+  max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 0.0
   amp_level: O0 # O1/O2 for mixed precision
-  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  precision: 32 # Should be set to 16 for O1 and O2, ??default is 16 as PT ignores it when am_level is O0?? It is changing in new PT?
   distributed_backend: ddp
   row_log_interval: 1  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
 
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
@@ -67,6 +68,12 @@ model:
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
   validation_ds:
+    file_path: null
+    batch_size: 64
+    shuffle: false
+    num_samples: -1 # number of samples to be considered, -1 means all the dataset
+
+  test_ds:
     file_path: null
     batch_size: 64
     shuffle: false
