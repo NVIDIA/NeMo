@@ -819,7 +819,7 @@ pipeline {
         }
         stage('Tacotron2_WaveGlow_Jasper') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES=1 python examples/tts/test_tts_infer.py --wer_tolerance 0.2 --debug --trim'
+            sh 'CUDA_VISIBLE_DEVICES=1 python examples/tts/test_tts_infer.py --wer_tolerance 0.25 --debug --trim'
           }
         }
       }
