@@ -30,3 +30,7 @@ class LogEpochTimeCallback(Callback):
         curr_time = time.time()
         duration = curr_time - self.epoch_start
         trainer.logger.log_metrics({"epoch_time": duration}, step=trainer.global_step)
+
+        if '_last_lr' in dir(trainer.lr_schedulers[0]['scheduler']):
+            lr = trainer.lr_schedulers[0]['scheduler']._last_lr[0]
+            trainer.logger.log_metrics({"learning_rate": lr}, step=trainer.global_step)

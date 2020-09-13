@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.tts.modules.degli import DegliModule
 from nemo.collections.tts.modules.denoiser import SqueezeWaveDenoiser
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
 from nemo.collections.tts.modules.squeezewave import SqueezeWaveModule
