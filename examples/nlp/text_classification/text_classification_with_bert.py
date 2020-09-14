@@ -30,7 +30,7 @@ def main(cfg: DictConfig) -> None:
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if not cfg.model.train_ds.file_path:
-        raise ValueError("'train_ds.file_path' need to be set for the trianing!")
+        raise ValueError("'train_ds.file_path' need to be set for the training!")
         return -1
     model = TextClassificationModel(cfg.model, trainer=trainer)
     logging.info("================================================================================================")
@@ -86,15 +86,20 @@ def main(cfg: DictConfig) -> None:
     else:
         logging.info("No file_path was set for validation_ds, so final evaluation is skipped!")
 
-    # run inference on a few examples
+    # You may create a model from a saved chechpoint and use the model.infer() method to
+    # perform inference on a list of queries. There is no need of any trainer for inference.
     logging.info("================================================================================================")
     logging.info("Starting the inference on some sample queries...")
     queries = [
-        'we bought four shirts from the Nvidia gear store in santa clara.',
-        'Nvidia is a company.',
-        'The Adventures of Tom Sawyer by Mark Twain is an 1876 novel about a young boy growing up along the Mississippi River.',
+        'by the end of no such thing the audience , like beatrice , has a watchful affection for the monster .',
+        'director rob marshall went out gunning to make a great one .',
+        'uneasy mishmash of styles and genres .',
     ]
-    results = model.infer(queries=queries, batch_size=64)
+
+    # extract the path of the best checkpoint from the training, you may update it to any checkpoint
+    infer_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
+
+    results = infer_model.infer(queries=queries, batch_size=16)
 
     logging.info('The prediction results of some sample queries with the trained model:')
     for query, result in zip(queries, results):
