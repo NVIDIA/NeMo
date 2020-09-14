@@ -55,15 +55,15 @@ class TextClassificationDataDesc:
                 raw_sentences.append(label)
                 queries.append(' '.join(parts[:-1]))
 
-            logging.info(f'Three most popular classes in {input_file} file:')
-            total_sents, sent_label_freq, max_id = get_label_stats(raw_sentences, f'{input_file}_sentence_stats.tsv')
+            logging.info(f'Calculating stats of {input_file}...')
+            total_sents, sent_label_freq, max_id = get_label_stats(raw_sentences, f'{input_file}_sentence_stats.tsv', verbose=False)
             max_label_id = max(max_label_id, max_id)
 
             if input_file == train_file:
                 class_weights_dict = get_freq_weights(sent_label_freq)
 
-            logging.info(f'Total Sentences: {total_sents}')
-            logging.info(f'Sentence class frequencies - {sent_label_freq}')
+            logging.info(f'Total Sentence: {total_sents}')
+            logging.info(f'Sentence class frequencies: {sent_label_freq}')
 
         logging.info(f'Class Weights: {class_weights_dict}')
         self.class_weights = fill_class_weights(class_weights_dict, max_label_id)

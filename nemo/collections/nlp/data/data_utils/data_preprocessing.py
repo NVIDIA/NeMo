@@ -107,7 +107,7 @@ def normalize_answer(s):
     return white_space_fix(remove_articles(remove_punc(lower(s))))
 
 
-def get_label_stats(labels, outfile='stats.tsv'):
+def get_label_stats(labels, outfile='stats.tsv', verbose=True):
     '''
 
     Args:
@@ -127,7 +127,7 @@ def get_label_stats(labels, outfile='stats.tsv'):
     label_frequencies = labels.most_common()
     for k, v in label_frequencies:
         out.write(f'{k}\t\t{round(v/total,5)}\t\t{v}\n')
-        if i < 3:
+        if verbose and i < 3:
             logging.info(f'label: {k}, {v} out of {total} ({(v / total)*100.0:.2f}%).')
         i += 1
         freq_dict[k] = v
@@ -292,6 +292,7 @@ def get_intent_labels(intent_file):
 
 
 def get_stats(lengths):
+    logging.info('Some stats of the lengths of the sequences:')
     lengths = np.asarray(lengths)
     logging.info(
         f'Min: {np.min(lengths)} | \

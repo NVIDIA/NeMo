@@ -51,6 +51,7 @@ model:
     fc_dropout: 0.1
 
   dataset:
+    num_classes: 2 # The number of classes. 0 < Label <num_classes.
     do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
     max_seq_length: 256
     class_balancing: null # choose from [null, weighted_loss]. weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
@@ -62,7 +63,7 @@ model:
     pin_memory: false # enables pin_memory feature of the data loaders
 
   train_ds:
-    file_path: ???
+    file_path: null
     batch_size: 64
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset

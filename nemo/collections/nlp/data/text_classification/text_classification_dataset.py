@@ -23,13 +23,20 @@ import numpy as np
 import pickle
 import torch
 
+
+from nemo.collections.nlp.data.data_utils.data_preprocessing import (
+    fill_class_weights,
+    get_freq_weights,
+    get_label_stats,
+)
+
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
-__all__ = ['TextClassificationDataset']
+__all__ = ['TextClassificationDataset', 'calc_class_weights']
 
 
 class TextClassificationDataset(Dataset):
@@ -80,6 +87,8 @@ class TextClassificationDataset(Dataset):
         self.use_cache = use_cache
         self.vocab_size = self.tokenizer.vocab_size
         self.pad_id = tokenizer.pad_id
+        if queries:
+            self.verbose = True
 
         if input_file and use_cache:
             data_dir, filename = os.path.split(input_file)
@@ -91,15 +100,16 @@ class TextClassificationDataset(Dataset):
             )
 
         if input_file and use_cache and os.path.exists(cached_features_file):
-            logging.warning(f"Reading and processing the data file {input_file} is skipped as caching is enabled and a cache file {cached_features_file} already exists. \nYou may need to delete the cache file if any of the processing parameters (eg. tokenizer) or the data are updated.")
+            logging.warning(f"Processing of {input_file} is skipped as caching is enabled and a cache file {cached_features_file} already exists.")
+            logging.warning(f"You may need to delete the cache file if any of the processing parameters (eg. tokenizer) or the data are updated.")
             self.features = self.load_cached_features(cached_features_file)
         else:
+            labels, all_sents = [], []
             if input_file:
                 if not os.path.exists(input_file):
                     raise FileNotFoundError(f'Data file {input_file} not found!')
 
                 with open(input_file, "r") as f:
-                    labels, all_sents = [], []
                     lines = f.readlines(num_samples)
                     logging.info(f'Read {len(lines)} examples from {input_file}.')
 
@@ -114,12 +124,13 @@ class TextClassificationDataset(Dataset):
                         labels.append(label)
                         sent_words = line_splited[:-1]
                         all_sents.append(sent_words)
+                verbose = True
             else:
-                all_sents = []
                 for query in queries:
                     all_sents.append(query.strip().split())
                 labels = [-1] * len(all_sents)
-            self.features = self.get_features(all_sents, tokenizer, max_seq_length, labels)
+                verbose = False
+            self.features = self.get_features(all_sents=all_sents, tokenizer=tokenizer, max_seq_length=max_seq_length, labels=labels, verbose=verbose)
 
         if input_file and use_cache and not os.path.exists(cached_features_file):
             logging.warning(f"Processed data read from {input_file} is stored in {cached_features_file} as caching feature is enabled.")
@@ -160,7 +171,7 @@ class TextClassificationDataset(Dataset):
         return torch.LongTensor(padded_input_ids), torch.LongTensor(padded_segment_ids), torch.LongTensor(padded_input_mask), torch.LongTensor(labels)
 
     @staticmethod
-    def get_features(all_sents, tokenizer, max_seq_length, labels=None):
+    def get_features(all_sents, tokenizer, max_seq_length, labels=None, verbose=True):
         """Encode a list of sentences into a list of tuples of (input_ids, segment_ids, input_mask, label)."""
         features = []
         sent_lengths = []
@@ -185,7 +196,7 @@ class TextClassificationDataset(Dataset):
             input_mask = [1] * len(input_ids)
             segment_ids = [0] * len(input_ids)
 
-            if sent_id < 2:
+            if verbose and sent_id < 2:
                 logging.info("*** Example ***")
                 logging.info(f"example {sent_id}: {sent}")
                 logging.info("subtokens: %s" % " ".join(sent_subtokens))
@@ -197,12 +208,13 @@ class TextClassificationDataset(Dataset):
             label = labels[sent_id] if labels else -1
             features.append([np.asarray(input_ids), np.asarray(segment_ids), np.asarray(input_mask), label])
 
-        logging.info(
-            f'Found {too_long_count} out of {len(all_sents)} sentences with more than {max_seq_length} subtokens. '
-            f'Truncated long sentences from the end.'
-        )
-
-        get_stats(sent_lengths)
+        if max_seq_length > -1 and too_long_count > 0:
+            logging.warning(
+                f'Found {too_long_count} out of {len(all_sents)} sentences with more than {max_seq_length} subtokens. '
+                f'Truncated long sentences from the end.'
+            )
+        if verbose:
+            get_stats(sent_lengths)
         return features
 
     @staticmethod
@@ -215,3 +227,35 @@ class TextClassificationDataset(Dataset):
         with open(cached_features_file, "rb") as input_file:
             features = pickle.load(input_file)
         return features
+
+
+def calc_class_weights(file_path, num_classes):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Could not find data file {file_path} to calculate the class weights!")
+
+    with open(file_path, 'r') as f:
+        input_lines = f.readlines()
+
+    labels = []
+    for input_line in input_lines:
+        parts = input_line.strip().split()
+        try:
+            label = int(parts[-1])
+        except ValueError:
+            raise ValueError(f'No numerical labels found for {file_path}. Labels should be integers and separated by [TAB] at the end of each line.')
+        labels.append(label)
+
+    logging.info(f'Calculating stats of {file_path}...')
+    total_sents, sent_label_freq, max_id = get_label_stats(labels, f'{file_path}_sentence_stats.tsv', verbose=False)
+    if max_id >= num_classes:
+        raise ValueError(f'Found an invalid label in {file_path}! Labels should be from [0, num_classes-1].')
+
+    class_weights_dict = get_freq_weights(sent_label_freq)
+
+    logging.info(f'Total Sentence: {total_sents}')
+    logging.info(f'Sentence class frequencies: {sent_label_freq}')
+
+    logging.info(f'Class Weights: {class_weights_dict}')
+    class_weights = fill_class_weights(class_weights_dict, num_classes)
+
+    return class_weights

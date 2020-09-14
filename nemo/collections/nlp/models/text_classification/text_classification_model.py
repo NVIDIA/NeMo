@@ -22,7 +22,7 @@ from pytorch_lightning import Trainer
 from nemo.utils import logging
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
+from nemo.collections.nlp.data.text_classification import TextClassificationDataset, calc_class_weights
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -30,7 +30,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 
 
 __all__ = ['TextClassificationModel']
@@ -56,9 +56,9 @@ class TextClassificationModel(ModelPT):
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.data_desc = TextClassificationDataDesc(
-            train_file=cfg.train_ds.file_path, val_files=[cfg.validation_ds.file_path]
-        )
+        # self.data_desc = TextClassificationDataDesc(
+        #     train_file=cfg.train_ds.file_path, val_files=[cfg.validation_ds.file_path]
+        # )
 
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
@@ -69,7 +69,7 @@ class TextClassificationModel(ModelPT):
 
         self.classifier = SequenceClassifier(
             hidden_size=self.bert_model.hidden_size,
-            num_classes=self.data_desc.num_classes,
+            num_classes=cfg.dataset.num_classes,
             num_layers=cfg.classifier_head.num_output_layers,
             activation='relu',
             log_softmax=False,
@@ -78,14 +78,21 @@ class TextClassificationModel(ModelPT):
             idx_conditioned_on=0,
         )
 
+        class_weights = None
         if cfg.dataset.class_balancing == 'weighted_loss':
+            if cfg.train_ds.file_path:
+                class_weights = calc_class_weights(cfg.train_ds.file_path)
+            else:
+                logging.info('Class_balancing feature is enabled but no train file is given. Calculating the class weights is skipped.')
+
+        if class_weights:
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
+            self.loss = CrossEntropyLoss(weight=class_weights)
         else:
             self.loss = CrossEntropyLoss()
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(self.data_desc.num_classes)
+        self.classification_report = ClassificationReport(cfg.dataset.num_classes)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
