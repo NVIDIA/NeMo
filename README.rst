@@ -153,7 +153,7 @@ To run tutorials:
 1. Click on Colab link (see table below)
 3. Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
-.. list-table:: NeMo tutorials
+.. list-table:: *Tutorials*
    :widths: 15 25 25
    :header-rows: 1
 
