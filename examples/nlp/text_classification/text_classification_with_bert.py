@@ -15,6 +15,7 @@
 
 import pytorch_lightning as pl
 from omegaconf import OmegaConf, DictConfig
+import torch
 
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.core.config import hydra_runner
@@ -32,11 +33,11 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("'train_ds.file_path' need to be set for the trianing!")
         return -1
     model = TextClassificationModel(cfg.model, trainer=trainer)
-    logging.info("====================================================================================================")
+    logging.info("================================================================================================")
     logging.info('Starting training...')
     trainer.fit(model)
     logging.info('Training finished!')
-    logging.info("====================================================================================================")
+    logging.info("================================================================================================")
 
     if cfg.model.nemo_path:
         model.save_to(cfg.model.nemo_path)
@@ -73,7 +74,7 @@ def main(cfg: DictConfig) -> None:
         # a new trainer is created to show how to evaluate a checkpoint from an already trained model
         # create a copy of the trainer config and update it to be used for final evaluation
         eval_trainer_cfg = cfg.trainer.copy()
-        eval_trainer_cfg.gpus = 1 # it is safer to perform evaluation on single GPU as PT is buggy with the last batch on multi-GPUs
+        eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0 # it is safer to perform evaluation on single GPU as PT is buggy with the last batch on multi-GPUs
         eval_trainer_cfg.distributed_backend = None # 'ddp' is buggy with test process in the current PT, it looks like it has been fixed in the latest master
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
 
