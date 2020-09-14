@@ -51,14 +51,11 @@ class TextClassificationModel(ModelPT):
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
-
+        # tokenizer needs to get initialized before the super.__init__()
+        # as dataloaders and datasets need it to process the data
         self._setup_tokenizer(cfg.tokenizer)
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        # self.data_desc = TextClassificationDataDesc(
-        #     train_file=cfg.train_ds.file_path, val_files=[cfg.validation_ds.file_path]
-        # )
 
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
