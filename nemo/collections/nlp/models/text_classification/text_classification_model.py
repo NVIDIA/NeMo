@@ -65,7 +65,7 @@ class TextClassificationModel(ModelPT):
         )
 
         self.classifier = SequenceClassifier(
-            hidden_size=self.bert_model.hidden_size,
+            hidden_size=self.bert_model.config.hidden_size,
             num_classes=cfg.dataset.num_classes,
             num_layers=cfg.classifier_head.num_output_layers,
             activation='relu',
