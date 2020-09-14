@@ -256,6 +256,6 @@ def calc_class_weights(file_path, num_classes):
     logging.info(f'Sentence class frequencies: {sent_label_freq}')
 
     logging.info(f'Class Weights: {class_weights_dict}')
-    class_weights = fill_class_weights(class_weights_dict, num_classes)
+    class_weights = fill_class_weights(weights=class_weights_dict, max_id=num_classes-1)
 
     return class_weights

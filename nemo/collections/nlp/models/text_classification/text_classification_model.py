@@ -60,7 +60,7 @@ class TextClassificationModel(ModelPT):
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+            config_dict=cfg.language_model.config,
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
@@ -78,7 +78,7 @@ class TextClassificationModel(ModelPT):
         class_weights = None
         if cfg.dataset.class_balancing == 'weighted_loss':
             if cfg.train_ds.file_path:
-                class_weights = calc_class_weights(cfg.train_ds.file_path)
+                class_weights = calc_class_weights(cfg.train_ds.file_path, cfg.dataset.num_classes)
             else:
                 logging.info('Class_balancing feature is enabled but no train file is given. Calculating the class weights is skipped.')
 
