@@ -435,7 +435,48 @@ pipeline {
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
             model.dataset.use_cache=false \
+            exp_manager.exp_dir=examples/nlp/token_classification/ner_with_bert \
             '
+            sh 'rm -rf examples/nlp/token_classification/ner_with_bert'
+          }
+        }
+      }
+    }
+
+    stage('L2: Parallel NLP Examples 2') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('NER finetuning from pretrained Test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && \
+            python token_classification.py \
+            pretrained_model=NERModel \
+            model.dataset.data_dir=/home/TestData/nlp/ner/ \
+            model.train_ds.batch_size=2 \
+            model.dataset.use_cache=false \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
+            exp_manager.exp_dir=examples/nlp/token_classification/ner_from_pretrained'
+            sh 'rm -rf examples/nlp/token_classification/ner_from_pretrained'
+          }
+        }
+        stage ('Punctuation and capitalization finetuning from pretrained test') {
+          steps {
+            sh 'cd examples/nlp/token_classification && \
+            python punctuation_capitalization.py \
+            pretrained_model=Punctuation_Capitalization_with_BERT \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=true \
+            model.dataset.use_cache=false \
+            exp_manager.exp_dir=examples/nlp/token_classification/pc_from_pretrained'
+            sh 'rm -rf examples/nlp/token_classification/pc_from_pretrained'
           }
         }
       }
@@ -762,7 +803,7 @@ pipeline {
       }
     }
 
-    stage('L??: ASR Checkpoints tests') {
+    stage('L??: Speech Checkpoints tests') {
       when {
         anyOf{
           branch 'main'
@@ -773,7 +814,12 @@ pipeline {
       parallel {
         stage('QuartzNet15x5Base-En') {
           steps {
-            sh 'python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+            sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+          }
+        }
+        stage('Tacotron2_WaveGlow_Jasper') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES=1 python examples/tts/test_tts_infer.py --wer_tolerance 0.25 --debug --trim'
           }
         }
       }

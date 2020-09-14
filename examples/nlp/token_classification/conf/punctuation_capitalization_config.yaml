@@ -14,6 +14,8 @@
 
 # Punctuation and capitalization with pretrained BERT models
 
+pretrained_model: null # pretrained Punctuation and Capitalization model from list_available_models(), for example:
+# Punctuation_Capitalization_with_BERT or Punctuation_Capitalization_with_DistilBERT
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU
   num_nodes: 1

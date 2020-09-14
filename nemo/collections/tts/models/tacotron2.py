@@ -22,7 +22,7 @@ from omegaconf.errors import ConfigAttributeError
 from torch import nn
 
 from nemo.collections.asr.parts import parsers
-from nemo.collections.tts.helpers.helpers import tacotron2_log_to_tb_func
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -159,6 +159,7 @@ class Tacotron2Model(SpectrogramGenerator):
                 "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
                 "gate_pred": NeuralType(('B', 'T'), LogitsType()),
                 "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+                "pred_length": NeuralType(('B'), LengthsType()),
             }
         return {
             "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
@@ -180,11 +181,13 @@ class Tacotron2Model(SpectrogramGenerator):
                 memory=encoder_embedding, decoder_inputs=spec_target, memory_lengths=token_len
             )
         else:
-            spec_pred_dec, gate_pred, alignments, _ = self.decoder(memory=encoder_embedding, memory_lengths=token_len)
+            spec_pred_dec, gate_pred, alignments, pred_length = self.decoder(
+                memory=encoder_embedding, memory_lengths=token_len
+            )
         spec_pred_postnet = self.postnet(mel_spec=spec_pred_dec)
 
         if not self.calculate_loss:
-            return spec_pred_dec, spec_pred_postnet, gate_pred, alignments
+            return spec_pred_dec, spec_pred_postnet, gate_pred, alignments, pred_length
         return spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, alignments
 
     @typecheck(
@@ -197,6 +200,14 @@ class Tacotron2Model(SpectrogramGenerator):
         token_len = torch.tensor([len(i) for i in tokens]).to(self.device)
         tensors = self(tokens=tokens, token_len=token_len)
         spectrogram_pred = tensors[1]
+
+        if spectrogram_pred.shape[0] > 1:
+            # Silence all frames past the predicted end
+            mask = ~get_mask_from_lengths(tensors[-1])
+            mask = mask.expand(spectrogram_pred.shape[1], mask.size(0), mask.size(1))
+            mask = mask.permute(1, 0, 2)
+            spectrogram_pred.data.masked_fill_(mask, self.pad_value)
+
         return spectrogram_pred
 
     def training_step(self, batch, batch_idx):
@@ -302,6 +313,7 @@ class Tacotron2Model(SpectrogramGenerator):
                 "The model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
                 "English voices with an American accent."
             ),
+            class_=cls,
         )
         list_of_models.append(model)
         return list_of_models

@@ -264,7 +264,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
         filename = filename[:-4]
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         features_pkl = os.path.join(
-            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer.name, str(max_seq_length), str(vocab_size)),
+            data_dir,
+            "cached_{}_{}_{}_{}_{}".format(
+                filename, tokenizer.name, str(max_seq_length), str(vocab_size), str(num_samples)
+            ),
         )
 
         self.punct_label_ids_file = os.path.join(data_dir, 'punct_label_ids.csv')
