@@ -153,7 +153,7 @@ To run tutorials:
 1. Click on Colab link (see table below)
 3. Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
-.. list-table:: NeMo tutorials
+.. list-table:: *Tutorials*
    :widths: 15 25 25
    :header-rows: 1
 
@@ -162,40 +162,40 @@ To run tutorials:
      - GitHub URL
    * - NeMo
      - Exploring NeMo Fundamentals
-     - `00_NeMo_Primer.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_
+     - `NeMo_Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_
    * - NeMo Models
      - Exploring NeMo Model Construction
-     - `01_NeMo_Models.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/01_NeMo_Models.ipynb>`_
+     - `NeMo_Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
      - ASR with NeMo
-     - `01_ASR_with_NeMo.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+     - `ASR_with_NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
      - Speech Commands
-     - `02_Speech_Commands.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/02_Speech_Commands.ipynb>`_
+     - `Speech_Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/02_Speech_Commands.ipynb>`_
    * - ASR
      - Online Noise Augmentation
-     - `05_Online_Noise_Augmentation.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+     - `Online_Noise_Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
-     - `01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
+     - `Pretrained_Language_Models_for_Downstream_Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
    * - NLP
      - Question answering with SQuAD
-     - `Question_Answering_Squad.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
+     - `Question_Answering_Squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
    * - NLP
      - Exploring NeMo NLP Tokenizers
-     - `02_NLP_Tokenizers.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/02_NLP_Tokenizers.ipynb>`_
+     - `NLP_Tokenizers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/02_NLP_Tokenizers.ipynb>`_
    * - NLP
      - Token Classification (Named Entity Recognition)
-     - `Token_Classification_Named_Entity_Recognition.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
+     - `Token_Classification_Named_Entity_Recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
    * - NLP
      - GLUE Benchmark
-     - `GLUE_Benchmark.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark.ipynb>`_
+     - `GLUE_Benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark.ipynb>`_
    * - NLP
      - Punctuation and Capitialization
-     - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+     - `Punctuation_and_Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - TTS
      - Speech Synthesis
-     - `TTS_inference.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_
+     - `TTS_inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_
 
 Contributing
 ------------
