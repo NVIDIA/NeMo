@@ -14,6 +14,7 @@
 
 # Token Classification tasks (for example, Named Entity Recognition) with pretrained BERT models
 
+pretrained_model: null # pretrained TokenClassification model from list_available_models(), for example: NERModel
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU
   num_nodes: 1
@@ -66,14 +67,18 @@ model:
     num_samples: -1
     batch_size: 64
 
+  tokenizer:
+    tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
+    vocab_file: null # path to vocab file
+    tokenizer_model: null # only used if tokenizer is sentencepiece
+    special_tokens: null
+
   language_model:
     pretrained_model_name: bert-base-uncased
-    bert_checkpoint: null
-    bert_config: null
-    tokenizer: nemobert # 'nemobert' or 'sentencepiece'
-    vocab_file: null
-    tokenizer_model: null # only used if tokenizer is sentencepiece
-    do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
+    lm_checkpoint: null
+    config_file: null # json file, precedence over config
+    config: null 
+
 
   head:
     num_fc_layers: 2

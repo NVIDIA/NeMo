@@ -15,6 +15,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from omegaconf import ListConfig, OmegaConf
 
 from nemo.collections.asr.parts.jasper import (
@@ -36,7 +37,6 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
@@ -262,19 +262,21 @@ class ConvASRDecoder(NeuralModule, Exportable):
         return self._num_classes
 
 
-class ConvASRDecoderClassification(NeuralModule):
+class ConvASRDecoderClassification(NeuralModule, Exportable):
     """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
 
      Based on these papers:
         https://arxiv.org/pdf/2005.04290.pdf
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        input_example = torch.randn(16, self._feat_in, 128).to(next(self.parameters()).device)
+        return tuple([input_example])
 
     @property
     def input_types(self):
@@ -318,7 +320,7 @@ class ConvASRDecoderClassification(NeuralModule):
         return self._num_classes
 
 
-class SpeakerDecoder(NeuralModule):
+class SpeakerDecoder(NeuralModule, Exportable):
     """
     Speaker Decoder creates the final neural layers that maps from the outputs
     of Jasper Encoder to the embedding layer followed by speaker based softmax loss.
@@ -335,12 +337,14 @@ class SpeakerDecoder(NeuralModule):
             Defaults to "xavier_uniform".
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        input_example = torch.randn(16, self.input_feat_in, 256).to(next(self.parameters()).device)
+        return tuple([input_example])
 
     @property
     def input_types(self):
@@ -356,15 +360,24 @@ class SpeakerDecoder(NeuralModule):
         )
 
     def __init__(
-        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform",
+        self, feat_in, num_classes, emb_sizes=None, pool_mode='xvector', angular=False, init_mode="xavier_uniform",
     ):
         super().__init__()
+        self.angular = angular
+        self.emb_id = 2
+        if self.angular:
+            bias = False
+        else:
+            bias = True
 
         if type(emb_sizes) is str:
             emb_sizes = emb_sizes.split(',')
+        elif emb_sizes == None:
+            emb_sizes = [512, 512]
         else:
             emb_sizes = list(emb_sizes)
 
+        self.input_feat_in = feat_in
         self._num_classes = num_classes
         self._pooling = StatsPoolLayer(feat_in=feat_in, pool_mode=pool_mode)
         self._feat_in = self._pooling.feat_in
@@ -380,7 +393,7 @@ class SpeakerDecoder(NeuralModule):
 
         self.emb_layers = nn.ModuleList(emb_layers)
 
-        self.final = nn.Linear(shapes[-1], self._num_classes)
+        self.final = nn.Linear(shapes[-1], self._num_classes, bias=bias)
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
@@ -399,8 +412,13 @@ class SpeakerDecoder(NeuralModule):
         embs = []
 
         for layer in self.emb_layers:
-            pool, emb = layer(pool), layer[:2](pool)
+            pool, emb = layer(pool), layer[: self.emb_id](pool)
             embs.append(emb)
+
+        if self.angular:
+            for W in self.final.parameters():
+                W = F.normalize(W, p=2, dim=1)
+            pool = F.normalize(pool, p=2, dim=1)
 
         out = self.final(pool)
 

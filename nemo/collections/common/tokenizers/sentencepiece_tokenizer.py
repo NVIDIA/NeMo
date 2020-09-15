@@ -20,7 +20,6 @@ import sentencepiece
 
 from nemo.collections.common.parts.utils import if_exist
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
 from nemo.utils import logging
 
 __all__ = ['SentencePieceTokenizer', 'create_spt_model']
@@ -37,9 +36,10 @@ class SentencePieceTokenizer(TokenizerSpec):
             model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
             special_tokens: either list of special tokens or dictionary of token name to token value
         """
+        if not model_path or not os.path.exists(model_path):
+            raise ValueError(f"model_path: {model_path} is invalid")
         self.tokenizer = sentencepiece.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
-        # without special tokens
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
         self.special_token_to_id = {}
@@ -117,14 +117,6 @@ class SentencePieceTokenizer(TokenizerSpec):
         text += self.tokenizer.decode_ids(ids[last_i:])
         return text.strip()
 
-    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
-        if isinstance(tokens, str):
-            tokens = [tokens]
-        ids = []
-        for token in tokens:
-            ids.append(self.token_to_id(token))
-        return ids
-
     def token_to_id(self, token):
         if token in self.special_token_to_id:
             return self.special_token_to_id[token]
@@ -138,6 +130,14 @@ class SentencePieceTokenizer(TokenizerSpec):
             else:
                 tokens.append(self.tokenizer.id_to_piece(id))
         return tokens
+
+    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
+        if isinstance(tokens, str):
+            tokens = [tokens]
+        ids = []
+        for token in tokens:
+            ids.append(self.token_to_id(token))
+        return ids
 
     def add_special_tokens(self, special_tokens):
         if isinstance(special_tokens, list):
@@ -185,8 +185,8 @@ def create_spt_model(
     data_file: str,
     vocab_size: int,
     sample_size: int,
-    special_tokens: Optional[Union[Dict[str, str], List[str]]],
     do_lower_case: bool,
+    tokenizer_type: str = 'unigram',
     output_dir: Optional[str] = None,
 ):
     """
@@ -195,7 +195,6 @@ def create_spt_model(
         data_file: data file
         vocab_size: vocabulary size
         sample_size: maximum size of sentences the trainer loads
-        special_tokens: either list of special tokens or dictionary of token name to token value
         do_lower_case: if text should be lower cased before tokenizer model is created
         output_dir: folder to save created tokenizer model. If not specified will store model at data_file/../spt folder
     """
@@ -203,14 +202,7 @@ def create_spt_model(
     if not data_file or not os.path.exists(data_file):
         raise ValueError(f"data_file must be valid file path, but got {data_file}")
     data_dir = os.path.dirname(data_file)
-    if special_tokens:
-        if isinstance(special_tokens, list):
-            special_tokens = list(set(special_tokens))
-        elif isinstance(special_tokens, dict):
-            special_tokens = list(set(special_tokens.values()))
-        vocab = special_tokens[:]
-    else:
-        vocab = []
+    vocab = []
     if not output_dir:
         output_dir = f'{data_dir}/spt'
     if if_exist(output_dir, ['tokenizer.model']):
@@ -221,8 +213,9 @@ def create_spt_model(
 
     cmd = (
         f"--input={data_file} --model_prefix={output_dir}/tokenizer "
-        f"--vocab_size={vocab_size - len(vocab)} "
+        f"--vocab_size={vocab_size} "
         f"--shuffle_input_sentence=true --hard_vocab_limit=false "
+        f"--model_type={tokenizer_type} "
         f"--bos_id=-1 --eos_id=-1"
     )
     if do_lower_case:
