@@ -57,13 +57,19 @@ model:
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
+
+  tokenizer:
+      tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
+      vocab_file: null # path to vocab file 
+      tokenizer_model: null # only used if tokenizer is sentencepiece
+      special_tokens: null
+
   language_model:
-    pretrained_model_name: roberta-base
-    tokenizer: nemobert # 'nemobert' or 'sentencepiece'
-    bert_checkpoint_file: null # the path of a checkpoint file of a BERT-like model if a customized checkpoint is supposed to be used
-    bert_config: null
-    vocab_file: null
-    tokenizer_model: null # only used if tokenizer is sentencepiece
+    pretrained_model_name: bert-base-uncased
+    lm_checkpoint: null
+    config_file: null # json file, precedence over config
+    config: null 
+
 
   head:
     num_output_layers: 2

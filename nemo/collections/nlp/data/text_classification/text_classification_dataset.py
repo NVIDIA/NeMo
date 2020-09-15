@@ -44,7 +44,7 @@ class TextClassificationDataset(Dataset):
         input_file: file to sequence + label.
             the first line is header (sentence [tab] label)
             each line should be [sentence][tab][label]
-        tokenizer: tokenizer object such as NemoBertTokenizer
+        tokenizer: tokenizer object such as AutoTokenizer
         max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
         num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
@@ -78,16 +78,15 @@ class TextClassificationDataset(Dataset):
         self.num_samples = num_samples
         self.shuffle = shuffle
         self.use_cache = use_cache
-        self.vocab_size = self.tokenizer.tokenizer.vocab_size
+        self.vocab_size = self.tokenizer.vocab_size
 
         if use_cache:
             data_dir, filename = os.path.split(input_file)
             vocab_size = getattr(tokenizer, "vocab_size", 0)
-            tokenizer_type = type(tokenizer.tokenizer).__name__
             cached_features_file = os.path.join(
                 data_dir,
                 "cached_{}_{}_{}_{}".format(
-                    filename[:-4], tokenizer_type, str(max_seq_length), str(vocab_size), '.hdf5'
+                    filename[:-4], tokenizer.name, str(max_seq_length), str(vocab_size), '.hdf5'
                 ),  # TODO: pylint(too-many-format-args)
             )
 

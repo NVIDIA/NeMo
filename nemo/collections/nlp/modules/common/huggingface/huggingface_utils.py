@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from typing import List, Optional
 
 from transformers import (
     ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
     BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
@@ -26,76 +28,96 @@ from transformers import (
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
+from nemo.collections.nlp.modules.common.huggingface.auto import AutoModelEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.utils import logging
 
-__all__ = ['MODELS', 'get_huggingface_lm_model', 'get_huggingface_lm_models_list']
+__all__ = ["get_huggingface_lm_model", "get_huggingface_pretrained_lm_models_list"]
 
 
-def get_huggingface_lm_model(
-    pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None
-):
-    '''
-    Returns the dict of special tokens associated with the model.
-    Args:
-        pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
-            for example: bert-base-cased
-        config_dict: dict with huggingface config
-        config_file: path to huggingface configuration .json file.
-    '''
-    if config_dict and config_file:
-        logging.warning(f"Both config_dict and config_file were found, config_file: {config_file} will be used.")
-    model_type = pretrained_model_name.split('-')[0]
-    if model_type in MODELS:
-        model_class = MODELS[model_type]['class']
-        if config_file:
-            config_class = MODELS[model_type]['config']
-            return model_class(config_class.from_json_file(config_file))
-        elif config_dict:
-            config_class = MODELS[model_type]['config']
-            return model_class(config=config_class(**config_dict))
-        else:
-            return model_class.from_pretrained(pretrained_model_name)
-    else:
-        raise ValueError(f'{pretrained_model_name} is not supported')
-
-
-MODELS = {
-    'bert': {
-        'default': 'bert-base-uncased',
-        'class': BertEncoder,
-        'config': BertConfig,
-        'model_list': BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+HUGGINGFACE_MODELS = {
+    ".modeling_bert.": {
+        "default": "bert-base-uncased",
+        "class": BertEncoder,
+        "config": BertConfig,
+        "pretrained_model_list": BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
-    'distilbert': {
-        'default': 'distilbert-base-uncased',
-        'class': DistilBertEncoder,
-        'config': DistilBertConfig,
-        'model_list': DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    ".modeling_distilbert.": {
+        "default": "distilbert-base-uncased",
+        "class": DistilBertEncoder,
+        "config": DistilBertConfig,
+        "pretrained_model_list": DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
-    'roberta': {
-        'default': 'roberta-base',
-        'class': RobertaEncoder,
-        'config': RobertaConfig,
-        'model_list': ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+    ".modeling_roberta.": {
+        "default": "roberta-base",
+        "class": RobertaEncoder,
+        "config": RobertaConfig,
+        "pretrained_model_list": ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
-    'albert': {
-        'default': 'albert-base-v2',
-        'class': AlbertEncoder,
-        'config': AlbertConfig,
-        'model_list': ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    ".modeling_albert.": {
+        "default": "albert-base-v2",
+        "class": AlbertEncoder,
+        "config": AlbertConfig,
+        "pretrained_model_list": ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
 }
 
 
-def get_huggingface_lm_models_list() -> List[str]:
-    '''
-    Returns the list of supported HuggingFace models
-    '''
+def get_huggingface_lm_model(
+    pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None,
+):
+    """
+    Returns lm model instantiated with Huggingface
+
+    Args:
+        pretrained_mode_name: specify this to instantiate pretrained model from Huggingface,
+            e.g. bert-base-cased. For entire list, see get_huggingface_pretrained_lm_models_list().
+        config_dict: model configuration dictionary used to instantiate Huggingface model from scratch
+        config_file: path to model configuration file used to instantiate Huggingface model from scratch
+
+    Returns:
+        BertModule
+    """
+
+    try:
+        automodel = AutoModelEncoder(pretrained_model_name_or_path=pretrained_model_name)
+    except Exception as e:
+        raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
+
+    model_type = re.search(r'.modeling_[A-z]*[0-5]?\.', str(automodel.type))[0]
+
+    if model_type in HUGGINGFACE_MODELS:
+        model_class = HUGGINGFACE_MODELS[model_type]["class"]
+        if config_file:
+            config_class = HUGGINGFACE_MODELS[model_type]["config"]
+            return model_class(config_class.from_json_file(config_file))
+        elif config_dict:
+            config_class = HUGGINGFACE_MODELS[model_type]["config"]
+            return model_class(config=config_class(**config_dict))
+        else:
+            return model_class.from_pretrained(pretrained_model_name)
+    else:
+        logging.info('Using HuggingFace AutoModel')
+        return automodel
+
+
+def get_huggingface_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
+    """
+    Returns the list of pretrained HuggingFace language models
+    
+    Args:
+        include_external if true includes all HuggingFace model names, not only those supported language models in NeMo.
+    
+    Returns the list of HuggingFace models
+    """
+
     huggingface_models = []
-    for model in MODELS:
-        model_names = MODELS[model]['model_list']
-        huggingface_models.extend(model_names)
+    if include_external:
+        huggingface_models = list(ALL_PRETRAINED_CONFIG_ARCHIVE_MAP.keys())
+    else:
+        for model in HUGGINGFACE_MODELS:
+            model_names = HUGGINGFACE_MODELS[model]["pretrained_model_list"]
+            huggingface_models.extend(model_names)
     return huggingface_models

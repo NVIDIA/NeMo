@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from typing import Dict, Optional, Union
 
+import numpy as np
+import soundfile as sf
 import torch
-import torch.utils.data
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
@@ -42,6 +42,7 @@ class AudioDataset(Dataset):
         max_duration: Optional[float] = None,
         min_duration: Optional[float] = None,
         trim: Optional[bool] = False,
+        truncate_to: Optional[int] = 1,
     ):
         """
         Mostly compliant with nemo.collections.asr.data.datalayers.AudioToTextDataset except it only returns Audio
@@ -65,6 +66,8 @@ class AudioDataset(Dataset):
             min_duration(float): If audio is less than this length in seconds, it is filtered from the dataset.
                 Defaults to None, which does not filter any audio.
             trim (bool): Whether to use librosa.effects.trim on the audio clip
+            truncate_to (int): Ensures that the audio segment returned is a multiple of truncate_to.
+                Defaults to 1, which does no truncating.
         """
 
         self.collection = collections.ASRAudioText(
@@ -75,6 +78,7 @@ class AudioDataset(Dataset):
         )
         self.trim = trim
         self.n_segments = n_segments
+        self.truncate_to = truncate_to
 
     def _collate_fn(self, batch):
         """
@@ -113,11 +117,93 @@ class AudioDataset(Dataset):
         randomly chosen if the audio is longer than n_segments.
         """
         example = self.collection[index]
-        features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim)
+        features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim,)
         features = torch.tensor(features.samples)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
+
+        truncate = audio_length % self.truncate_to
+        if truncate != 0:
+            audio_length -= truncate.long()
+            audio = audio[:audio_length]
 
         return audio, audio_length
 
     def __len__(self):
         return len(self.collection)
+
+
+class SplicedAudioDataset(Dataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        manifest_filepath: Union[str, 'pathlib.Path'],
+        n_segments: int,
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        trim: Optional[bool] = False,
+        truncate_to: Optional[int] = 1,
+    ):
+        """
+        See above AudioDataset for details on dataset and manifest formats.
+
+        Unlike the regular AudioDataset, which samples random segments from each audio array as an example,
+        SplicedAudioDataset concatenates all audio arrays together and indexes segments as examples. This way,
+        the model sees more data (about 9x for LJSpeech) per epoch.
+
+        Note: this class is not recommended to be used in validation.
+
+        Args:
+            manifest_filepath (str, Path): Path to manifest json as described above. Can be comma-separated paths
+                such as "train_1.json,train_2.json" which is treated as two separate json files.
+            n_segments (int): The length of audio in samples to load. For example, given a sample rate of 16kHz, and
+                n_segments=16000, a random 1 second section of audio from the clip will be loaded. The section will
+                be randomly sampled everytime the audio is batched. Can be set to -1 to load the entire audio.
+            max_duration (float): If audio exceeds this length in seconds, it is filtered from the dataset.
+                Defaults to None, which does not filter any audio.
+            min_duration(float): If audio is less than this length in seconds, it is filtered from the dataset.
+                Defaults to None, which does not filter any audio.
+            trim (bool): Whether to use librosa.effects.trim on the audio clip
+            truncate_to (int): Ensures that the audio segment returned is a multiple of truncate_to.
+                Defaults to 1, which does no truncating.
+        """
+        assert n_segments > 0
+
+        collection = collections.ASRAudioText(
+            manifests_files=manifest_filepath.split(','),
+            parser=parsers.make_parser(),
+            min_duration=min_duration,
+            max_duration=max_duration,
+        )
+        self.trim = trim
+        self.n_segments = n_segments
+        self.truncate_to = truncate_to
+
+        self.samples = []
+        for index in range(len(collection)):
+            example = collection[index]
+            with sf.SoundFile(example.audio_file, 'r') as f:
+                samples = f.read(dtype='float32').transpose()
+                self.samples.append(samples)
+        self.samples = np.concatenate(self.samples, axis=0)
+        self.samples = self.samples[: self.samples.shape[0] - (self.samples.shape[0] % self.n_segments), ...]
+
+    def __getitem__(self, index):
+        """
+        Given a index, returns audio and audio_length of the corresponding element. Audio clips of n_segments are
+        randomly chosen if the audio is longer than n_segments.
+        """
+        audio_index = index * self.n_segments
+        audio = self.samples[audio_index : audio_index + self.n_segments]
+
+        return audio, self.n_segments
+
+    def __len__(self):
+        return self.samples.shape[0] // self.n_segments

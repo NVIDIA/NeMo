@@ -89,7 +89,6 @@ install_requires = req_file("requirements.txt")
 
 extras_require = {
     # User packages
-    'docker': req_file("requirements_docker.txt"),
     'test': req_file("requirements_test.txt"),
     # Collections Packages
     'asr': req_file("requirements_asr.txt"),
