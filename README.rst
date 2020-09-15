@@ -48,20 +48,20 @@ NeMo's works with:
 
 Docker container:
 ~~~~~~~~~~~~~~~~~
-We recommend using NVIDIA's PyTorch container version 20.06-py3 with NeMo's main branch.
+We recommend using NVIDIA's PyTorch container version 20.08-py3 with NeMo's main branch.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 nvcr.io/nvidia/pytorch:20.06-py3
+    stack=67108864 nvcr.io/nvidia/pytorch:20.08-py3
 
 
 Installation
 ~~~~~~~~~~~~
 Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
 
-* ``pip install nemo_toolkit[all]==version``
+* ``pip install nemo_toolkit[all]==1.0.0a1`` (latest stable version)
 * ``pip install nemo_toolkit[all]`` - latest released version (currently 0.11.0)
 
 Or if you want the latest (or particular) version from GitHub:
