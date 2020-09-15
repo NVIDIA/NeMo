@@ -31,7 +31,7 @@ def main(cfg: DictConfig) -> None:
 
     if not cfg.model.train_ds.file_path:
         raise ValueError("'train_ds.file_path' need to be set for the training!")
-        return -1
+
     model = TextClassificationModel(cfg.model, trainer=trainer)
     logging.info("================================================================================================")
     logging.info('Starting training...')
