@@ -21,7 +21,6 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
@@ -29,7 +28,8 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -53,17 +53,7 @@ class TokenClassificationModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes Token Classification Model."""
 
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=self.register_artifact(
-                config_path='language_model.vocab_file', src=cfg.language_model.vocab_file
-            ),
-            tokenizer_model=self.register_artifact(
-                config_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
-            ),
-            do_lower_case=cfg.language_model.do_lower_case,
-        )
+        self._setup_tokenizer(cfg.tokenizer)
 
         self._cfg = cfg
         self.data_desc = None
@@ -71,16 +61,15 @@ class TokenClassificationModel(ModelPT):
         self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
 
         super().__init__(cfg=cfg, trainer=trainer)
-
-        self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=self._cfg.language_model.pretrained_model_name,
-            config_file=self._cfg.language_model.bert_config,
-            checkpoint_file=self._cfg.language_model.bert_checkpoint,
+        self.bert_model = get_lm_model(
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+            checkpoint_file=cfg.language_model.lm_checkpoint,
         )
-        self.hidden_size = self.bert_model.hidden_size
 
         self.classifier = TokenClassifier(
-            hidden_size=self.hidden_size,
+            hidden_size=self.bert_model.config.hidden_size,
             num_classes=len(self._cfg.label_ids),
             num_layers=self._cfg.head.num_fc_layers,
             activation=self._cfg.head.activation,
@@ -104,10 +93,12 @@ class TokenClassificationModel(ModelPT):
         modes = ["train", "test", "dev"]
         self._cfg.dataset.data_dir = data_dir
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
-
         if os.path.exists(data_dir):
             self.data_desc = TokenClassificationDataDesc(
-                data_dir=data_dir, modes=modes, pad_label=self._cfg.dataset.pad_label
+                data_dir=data_dir,
+                modes=modes,
+                pad_label=self._cfg.dataset.pad_label,
+                label_ids_dict=self._cfg.label_ids,
             )
 
     def setup_loss(self, class_balancing: str = None):
@@ -183,6 +174,15 @@ class TokenClassificationModel(ModelPT):
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
+        )
+        self.tokenizer = tokenizer
+
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
@@ -198,7 +198,7 @@ class TokenClassificationModel(ModelPT):
             val_data_config = self._cfg.validation_ds
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_config: Optional[DictConfig]):
+    def setup_test_data(self, test_data_config: Optional[DictConfig] = None):
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
         self._test_dl = self.__setup_dataloader_from_config(cfg=test_data_config)
@@ -402,27 +402,34 @@ class TokenClassificationModel(ModelPT):
         # writing labels and predictions to a file in output_dir is specified in the config
         os.makedirs(output_dir, exist_ok=True)
         filename = os.path.join(output_dir, 'infer_' + os.path.basename(text_file))
-        with open(filename, 'w') as f:
-            if with_labels:
-                f.write('labels\t' + all_labels_str + '\n')
-                logging.info(f'Labels save to {filename}')
+        try:
+            with open(filename, 'w') as f:
+                if with_labels:
+                    f.write('labels\t' + all_labels_str + '\n')
+                    logging.info(f'Labels save to {filename}')
 
-            # convert labels from string label to ids
-            ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
-            all_preds_str = [ids_to_labels[pred] for pred in all_preds]
-            f.write('preds\t' + ' '.join(all_preds_str) + '\n')
-            logging.info(f'Predictions saved to {filename}')
+                # convert labels from string label to ids
+                ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
+                all_preds_str = [ids_to_labels[pred] for pred in all_preds]
+                f.write('preds\t' + ' '.join(all_preds_str) + '\n')
+                logging.info(f'Predictions saved to {filename}')
 
-        if with_labels and add_confusion_matrix:
-            all_labels = all_labels_str.split()
-            # convert labels from string label to ids
-            label_ids = self._cfg.label_ids
-            all_labels = [label_ids[label] for label in all_labels]
-            print(len(all_labels), len(all_preds))
-            plot_confusion_matrix(
-                all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
+            if with_labels and add_confusion_matrix:
+                all_labels = all_labels_str.split()
+                # convert labels from string label to ids
+                label_ids = self._cfg.label_ids
+                all_labels = [label_ids[label] for label in all_labels]
+                print(len(all_labels), len(all_preds))
+                plot_confusion_matrix(
+                    all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
+                )
+                logging.info(get_classification_report(all_labels, all_preds, label_ids))
+        except Exception:
+            logging.error(
+                f'When providing a file with labels, check that all labels in {labels_file} were'
+                f'seen during training.'
             )
-            logging.info(get_classification_report(all_labels, all_preds, label_ids))
+            raise
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -435,7 +442,7 @@ class TokenClassificationModel(ModelPT):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="NERModel",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/ner.nemo",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/NamedEntityRecognition_bert-base-uncased.nemo",
             description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and "
             + "achieves 74.61 F1 Macro score.",
         )

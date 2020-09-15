@@ -61,7 +61,7 @@ class TestASRModulesBasicTests:
             diff = torch.mean(torch.abs(res1 - res2))
             assert diff <= 3e-3
             diff = torch.max(torch.abs(res1 - res2))
-            assert diff <= 2
+            assert diff <= 3
 
     @pytest.mark.unit
     def test_SpectrogramAugmentationr(self):

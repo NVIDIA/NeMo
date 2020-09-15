@@ -13,23 +13,23 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
     BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
@@ -53,31 +53,19 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        self.data_dir = cfg.dataset.data_dir
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=self.register_artifact(
-                config_path='language_model.vocab_file', src=cfg.language_model.vocab_file
-            ),
-            tokenizer_model=self.register_artifact(
-                config_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
-            ),
-            do_lower_case=cfg.language_model.do_lower_case,
-        )
+        self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_pretrained_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.bert_checkpoint,
+            config_file=cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+            checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
-        self.hidden_size = self.bert_model.hidden_size
-
         self.punct_classifier = TokenClassifier(
-            hidden_size=self.hidden_size,
+            hidden_size=self.bert_model.config.hidden_size,
             num_classes=len(self._cfg.punct_label_ids),
             activation=cfg.punct_head.activation,
             log_softmax=cfg.punct_head.log_softmax,
@@ -87,7 +75,7 @@ class PunctuationCapitalizationModel(ModelPT):
         )
 
         self.capit_classifier = TokenClassifier(
-            hidden_size=self.hidden_size,
+            hidden_size=self.bert_model.config.hidden_size,
             num_classes=len(self._cfg.capit_label_ids),
             activation=cfg.capit_head.activation,
             log_softmax=cfg.capit_head.log_softmax,
@@ -204,7 +192,20 @@ class PunctuationCapitalizationModel(ModelPT):
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
+        )
+        self.tokenizer = tokenizer
+
+    def setup_training_data(self, train_data_config: Optional[DictConfig] = None, data_dir=None):
+        if train_data_config is None:
+            train_data_config = self._cfg.train_ds
+        if data_dir:
+            self._cfg.dataset.data_dir = data_dir
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
@@ -215,10 +216,24 @@ class PunctuationCapitalizationModel(ModelPT):
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
             self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
 
-    def setup_validation_data(self, val_data_config: Optional[Dict]):
+    def setup_validation_data(
+        self, val_data_config: Optional[Dict] = None, data_dirs: Optional[Union[List[str], str]] = None
+    ):
+        """
+        Setup validaton data
+
+        val_data_config: validation data config
+        data_dirs: path or paths to validation data dirs, used when setup up data for pretrained model
+        """
+        if val_data_config is None:
+            val_data_config = self._cfg.validation_ds
+        if data_dirs:
+            self._cfg.validation_ds.ds_item = data_dirs
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_config: Optional[Dict]):
+    def setup_test_data(self, test_data_config: Optional[Dict] = None):
+        if test_data_config is None:
+            test_data_config = self._cfg.test_ds
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
@@ -226,7 +241,7 @@ class PunctuationCapitalizationModel(ModelPT):
         if 'ds_item' in cfg and cfg.ds_item is not None:
             data_dir = cfg.ds_item
         else:
-            data_dir = self.data_dir
+            data_dir = self._cfg.dataset.data_dir
 
         text_file = os.path.join(data_dir, cfg.text_file)
         label_file = os.path.join(data_dir, cfg.labels_file)
@@ -366,4 +381,25 @@ class PunctuationCapitalizationModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="Punctuation_Capitalization_with_BERT",
+                location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/Punctuation_Capitalization_with_BERT.nemo",
+                description="The model was trained with NeMo BERT base uncased checkpoint.",
+            )
+        )
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="Punctuation_Capitalization_with_DistilBERT",
+                location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/Punctuation_Capitalization_with_DistilBERT.nemo",
+                description="The model was trained with NeMo BERT base uncased checkpoint.",
+            )
+        )
+        return result

@@ -118,6 +118,12 @@ class NeuralType(object):
                 parent_type_name, port_name, str(self), str(second_object.ntype), type_comatibility
             )
 
+    def __eq__(self, other):
+        if isinstance(other, NeuralType):
+            return self.compare(other)
+
+        return False
+
     @staticmethod
     def __check_sanity(axes):
         # check that list come before any tensor dimension

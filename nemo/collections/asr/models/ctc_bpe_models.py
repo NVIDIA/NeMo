@@ -111,7 +111,9 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
             self.vocab_path = self.tokenizer_dir
 
-            self.tokenizer = tokenizers.NemoBertTokenizer(vocab_file=self.tokenizer_dir, **self.tokenizer_cfg)
+            self.tokenizer = tokenizers.AutoTokenizer(
+                pretrained_model_name='bert-base-cased', vocab_file=self.tokenizer_dir, **self.tokenizer_cfg
+            )
         logging.info(
             "Tokenizer {} initialized with {} tokens".format(
                 self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
@@ -181,6 +183,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
         )
 
     @property
