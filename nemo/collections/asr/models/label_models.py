@@ -90,6 +90,7 @@ class EncDecSpeakerLabelModel(ModelPT):
             drop_last=config.get('drop_last', False),
             shuffle=config['shuffle'],
             num_workers=config.get('num_workers', 2),
+            pin_memory=config.get('pin_memory', False),
         )
 
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
