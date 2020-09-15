@@ -181,19 +181,6 @@ class TextClassificationModel(ModelPT):
         """
         return self.validation_epoch_end(outputs)
 
-    # @staticmethod
-    # def _replace_val_with_test(outputs):
-    #     # iterates over a nested dictionary of max level 2 and replaces 'val' with 'test' if found in the key names
-    #     # it is used to update the logging names returned by validation_step and validation_epoch_end for testing
-    #     for k1, v1 in outputs.items():
-    #         if isinstance(v1, dict):
-    #             for k2, v2 in v1.items():
-    #                 if 'val' in k2:
-    #                     v1[k2.replace("val", "test")] = v1.pop(k2)
-    #         if 'val' in k1:
-    #             outputs[k1.replace("val", "test")] = outputs.pop(k1)
-    #     return outputs
-
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
@@ -204,15 +191,15 @@ class TextClassificationModel(ModelPT):
         self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        self._train_dl = self._create_dataloader_from_config(cfg=train_data_config, mode='train')
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode='train')
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._create_dataloader_from_config(cfg=val_data_config, mode='validation')
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode='validation')
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._create_dataloader_from_config(cfg=test_data_config, mode='test')
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode='test')
 
-    def _create_dataloader_from_config(self, cfg: DictConfig, mode):
+    def _setup_dataloader_from_config(self, cfg: DictConfig, mode):
         if not cfg or not cfg.file_path:
             logging.info(
                 f"Dataloader config or file_path for the {mode} is missing, so no data loader for test is created!"
