@@ -67,7 +67,7 @@ class EncDecCTCModel(ASRModel):
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
+        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
@@ -230,6 +230,7 @@ class EncDecCTCModel(ASRModel):
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
@@ -301,12 +302,20 @@ class EncDecCTCModel(ASRModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'training_batch_wer': wer_num / wer_denom,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+
+        tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+
+        if hasattr(self, '_trainer') and self._trainer is not None:
+            row_log_interval = self._trainer.row_log_interval
+        else:
+            row_log_interval = 1
+
+        if (batch_nb + 1) % row_log_interval == 0:
+            wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
+            tensorboard_logs.update(
+                {'training_batch_wer': wer_num / wer_denom,}
+            )
+
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):

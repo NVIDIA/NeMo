@@ -183,6 +183,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
         )
 
     @property
