@@ -67,10 +67,9 @@ class TokenClassificationModel(ModelPT):
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
-        self.hidden_size = self.bert_model.hidden_size
 
         self.classifier = TokenClassifier(
-            hidden_size=self.hidden_size,
+            hidden_size=self.bert_model.config.hidden_size,
             num_classes=len(self._cfg.label_ids),
             num_layers=self._cfg.head.num_fc_layers,
             activation=self._cfg.head.activation,
@@ -94,10 +93,12 @@ class TokenClassificationModel(ModelPT):
         modes = ["train", "test", "dev"]
         self._cfg.dataset.data_dir = data_dir
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
-
         if os.path.exists(data_dir):
             self.data_desc = TokenClassificationDataDesc(
-                data_dir=data_dir, modes=modes, pad_label=self._cfg.dataset.pad_label
+                data_dir=data_dir,
+                modes=modes,
+                pad_label=self._cfg.dataset.pad_label,
+                label_ids_dict=self._cfg.label_ids,
             )
 
     def setup_loss(self, class_balancing: str = None):
@@ -197,7 +198,7 @@ class TokenClassificationModel(ModelPT):
             val_data_config = self._cfg.validation_ds
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_config: Optional[DictConfig]):
+    def setup_test_data(self, test_data_config: Optional[DictConfig] = None):
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
         self._test_dl = self.__setup_dataloader_from_config(cfg=test_data_config)
@@ -401,27 +402,34 @@ class TokenClassificationModel(ModelPT):
         # writing labels and predictions to a file in output_dir is specified in the config
         os.makedirs(output_dir, exist_ok=True)
         filename = os.path.join(output_dir, 'infer_' + os.path.basename(text_file))
-        with open(filename, 'w') as f:
-            if with_labels:
-                f.write('labels\t' + all_labels_str + '\n')
-                logging.info(f'Labels save to {filename}')
+        try:
+            with open(filename, 'w') as f:
+                if with_labels:
+                    f.write('labels\t' + all_labels_str + '\n')
+                    logging.info(f'Labels save to {filename}')
 
-            # convert labels from string label to ids
-            ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
-            all_preds_str = [ids_to_labels[pred] for pred in all_preds]
-            f.write('preds\t' + ' '.join(all_preds_str) + '\n')
-            logging.info(f'Predictions saved to {filename}')
+                # convert labels from string label to ids
+                ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
+                all_preds_str = [ids_to_labels[pred] for pred in all_preds]
+                f.write('preds\t' + ' '.join(all_preds_str) + '\n')
+                logging.info(f'Predictions saved to {filename}')
 
-        if with_labels and add_confusion_matrix:
-            all_labels = all_labels_str.split()
-            # convert labels from string label to ids
-            label_ids = self._cfg.label_ids
-            all_labels = [label_ids[label] for label in all_labels]
-            print(len(all_labels), len(all_preds))
-            plot_confusion_matrix(
-                all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
+            if with_labels and add_confusion_matrix:
+                all_labels = all_labels_str.split()
+                # convert labels from string label to ids
+                label_ids = self._cfg.label_ids
+                all_labels = [label_ids[label] for label in all_labels]
+                print(len(all_labels), len(all_preds))
+                plot_confusion_matrix(
+                    all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
+                )
+                logging.info(get_classification_report(all_labels, all_preds, label_ids))
+        except Exception:
+            logging.error(
+                f'When providing a file with labels, check that all labels in {labels_file} were'
+                f'seen during training.'
             )
-            logging.info(get_classification_report(all_labels, all_preds, label_ids))
+            raise
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

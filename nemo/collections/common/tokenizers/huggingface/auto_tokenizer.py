@@ -95,40 +95,81 @@ class AutoTokenizer(TokenizerSpec):
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
         """
-
-        if pretrained_model_name not in ALL_PRETRAINED_CONFIG_ARCHIVE_MAP:
-            raise ValueError(f"{pretrained_model_name} not a huggingface pretrained model")
-
-        if vocab_file is not None:
-            self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file
-            )
-        else:
-            self.tokenizer = AUTOTOKENIZER.from_pretrained(pretrained_model_name_or_path=pretrained_model_name)
-
-        self.tokenizer.eos_token = self.tokenizer.sep_token
-        self.tokenizer.bos_token = self.tokenizer.cls_token
+        try:
+            if vocab_file is not None:
+                self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file
+                )
+            else:
+                self.tokenizer = AUTOTOKENIZER.from_pretrained(pretrained_model_name_or_path=pretrained_model_name)
+        except Exception as e:
+            raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
 
         special_tokens_dict = {}
-        if unk_token:
+
+        # # setting special tokens, by default the default model's special tokens will be preserved
+        # # unless passes new values to the special tokens
+        if unk_token is not None:
             special_tokens_dict["unk_token"] = unk_token
-        if sep_token:
-            special_tokens_dict["sep_token"] = sep_token
-        if mask_token:
+        if mask_token is not None:
             special_tokens_dict["mask_token"] = mask_token
-        if bos_token:
-            special_tokens_dict["bos_token"] = bos_token
-        if eos_token:
-            special_tokens_dict["eos_token"] = eos_token
-        if pad_token:
+        if pad_token is not None:
             special_tokens_dict["pad_token"] = pad_token
-        if cls_token:
+
+        if sep_token is not None:
+            special_tokens_dict["sep_token"] = sep_token
+        elif self.tokenizer.sep_token is None and self.tokenizer.eos_token:
+            special_tokens_dict["sep_token"] = self.tokenizer.eos_token
+        if bos_token is not None:
+            special_tokens_dict["bos_token"] = bos_token
+        elif self.tokenizer.bos_token is None and self.tokenizer.cls_token:
+            special_tokens_dict["bos_token"] = self.tokenizer.cls_token
+        if eos_token is not None:
+            special_tokens_dict["eos_token"] = eos_token
+        elif self.tokenizer.eos_token is None and self.tokenizer.sep_token:
+            special_tokens_dict["eos_token"] = self.tokenizer.sep_token
+        if cls_token is not None:
             special_tokens_dict["cls_token"] = cls_token
+        elif self.tokenizer.cls_token is None and self.tokenizer.bos_token:
+            special_tokens_dict["cls_token"] = self.tokenizer.bos_token
+
+        new_tokens_in_vocab = []
+        for token in [mask_token, bos_token, eos_token, pad_token, sep_token, cls_token, unk_token]:
+            if token is not None and token not in self.tokenizer.get_vocab():
+                new_tokens_in_vocab.append(token)
+
+        if len(new_tokens_in_vocab) > 0:
+            """
+            Special tokens that were not previously included in the tokenizer's vocabulary file will be added to 
+            the vocabulary and, as a result, the model should be resized, for example:
+            
+            # define your model
+            pretrained_model_name = 'roberta-base'
+            model = nemo_nlp.modules.get_lm_model(pretrained_model_name=pretrained_model_name)
+            
+            # define pretrained tokenizer
+            tokenizer_default = nemo_nlp.modules.get_tokenizer(tokenizer_name=pretrained_model_name)
+            
+            special_tokens = {'bos_token': '<BOS>',
+                              'cls_token': '<CSL>',
+                              'additional_special_tokens': ['<MY_NER_TOKEN>', '<ANOTHER_TOKEN>']}
+            tokenizer_default.add_special_tokens(special_tokens_dict=special_tokens)
+            
+            # resize your model so that the embeddings for newly added tokens are updated during training/finetuning
+            model.resize_token_embeddings(tokenizer_default.vocab_size)
+            
+            See NLP_Tokenizers.ipynb for more details.
+            """
+            logging.warning(
+                f'{new_tokens_in_vocab} \n will be added to the vocabulary.\n'
+                f'Please resize your model accordingly, '
+                f'see NLP_Tokenizers.ipynb for more details.'
+            )
         self.add_special_tokens(special_tokens_dict)
 
-        self.never_split = self.tokenizer.all_special_tokens
-
-        self.vocab_size = self.tokenizer.vocab_size
+    @property
+    def vocab_size(self):
+        return len(self.tokenizer)
 
     def add_special_tokens(self, special_tokens_dict: dict) -> int:
         """
@@ -176,7 +217,7 @@ class AutoTokenizer(TokenizerSpec):
 
     def ids_to_text(self, ids):
         tokens = self.ids_to_tokens(ids)
-        tokens_clean = [t for t in tokens if t not in self.never_split]
+        tokens_clean = [t for t in tokens if t not in self.tokenizer.all_special_tokens]
         text = self.tokens_to_text(tokens_clean)
         return text
 
@@ -207,3 +248,7 @@ class AutoTokenizer(TokenizerSpec):
     @property
     def mask_id(self):
         return self.tokens_to_ids([getattr(self, 'mask_token')])[0]
+
+    @property
+    def name(self):
+        return type(self.tokenizer).__name__

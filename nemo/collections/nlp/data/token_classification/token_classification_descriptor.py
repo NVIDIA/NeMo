@@ -26,13 +26,14 @@ __all__ = ['TokenClassificationDataDesc']
 
 
 class TokenClassificationDataDesc:
-    def __init__(self, data_dir: str, modes: List[str] = ['train', 'test', 'dev'], pad_label='O'):
+    def __init__(self, data_dir: str, modes: List[str] = ['train', 'test', 'dev'], pad_label='O', label_ids_dict=None):
         """A descriptor class that reads all the data and calculates some stats of the data and also calculates
         the class weights to be used for class balancing
         Args:
             data_dir: the path to the data folder
             modes: list of the modes to read, it can be from ["train", "test", "dev"] by default.
             It is going to look for the data files at {data_dir}/{mode}.txt
+            label_ids_dict: labels to ids mapping from pretrained model
         """
         self.data_dir = data_dir
         self.label_ids = None
@@ -59,8 +60,14 @@ class TokenClassificationDataDesc:
                     label_ids[label] = len(label_ids)
 
                 self.pad_label = pad_label
-                self.label_ids = label_ids
-                logging.info(f'Labels: {label_ids}')
+                if label_ids_dict:
+                    if len(set(label_ids_dict) | set(label_ids)) != len(label_ids_dict):
+                        raise ValueError(
+                            f'Provided labels to ids map: {label_ids_dict} does not match the labels '
+                            f'in the data: {label_ids}'
+                        )
+                self.label_ids = label_ids_dict if label_ids_dict else label_ids
+                logging.info(f'Labels: {self.label_ids}')
                 self.label_ids_filename = os.path.join(data_dir, 'label_ids.csv')
                 out = open(self.label_ids_filename, 'w')
                 labels, _ = zip(*sorted(self.label_ids.items(), key=lambda x: x[1]))

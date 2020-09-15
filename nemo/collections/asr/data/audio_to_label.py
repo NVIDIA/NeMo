@@ -19,12 +19,10 @@ from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['AudioToSpeechLabelDataSet']
 
 
-@experimental
 class AudioToSpeechLabelDataSet(Dataset):
     """Data Layer for general speech classification.
     Module which reads speech recognition with target label. It accepts comma-separated
