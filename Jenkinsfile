@@ -325,6 +325,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
+            model.dataset.num_classes=6 \
             model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
             model.validation_ds.file_path=/home/TestData/nlp/retail_text_classification/dev.tsv \
             model.language_model.pretrained_model_name=megatron-bert-345m-cased \
