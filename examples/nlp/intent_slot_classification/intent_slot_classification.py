@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import IntentSlotClassificationModel
 from nemo.core.config import hydra_runner
@@ -23,12 +23,15 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="intent_slot_classification_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config Params:\n {cfg.pretty()}')
+    logging.info(f'Config Params:\n {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    intent_slot_classification_model = IntentSlotClassificationModel(cfg.model, trainer=trainer)
-    trainer.fit(intent_slot_classification_model)
+    model = IntentSlotClassificationModel(cfg.model, trainer=trainer)
+    trainer.fit(model)
+
+    if cfg.model.nemo_path:
+        model.save_to(cfg.model.nemo_path)
 
 
 if __name__ == '__main__':
