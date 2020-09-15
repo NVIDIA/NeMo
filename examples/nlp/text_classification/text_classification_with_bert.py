@@ -109,6 +109,7 @@ def main(cfg: DictConfig) -> None:
     ]
 
     # extract the path of the best checkpoint from the training, you may update it to any checkpoint
+    checkpoint_path = trainer.checkpoint_callback.best_model_path
     infer_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
 
     results = infer_model.infer(queries=queries, batch_size=16)
