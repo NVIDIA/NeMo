@@ -19,7 +19,6 @@ from typing import Dict, List, Optional
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from nemo.utils import logging
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.text_classification import TextClassificationDataset, calc_class_weights
@@ -27,11 +26,11 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
-
+from nemo.utils import logging
 
 __all__ = ['TextClassificationModel']
 
@@ -80,7 +79,9 @@ class TextClassificationModel(ModelPT):
             if cfg.train_ds.file_path:
                 class_weights = calc_class_weights(cfg.train_ds.file_path, cfg.dataset.num_classes)
             else:
-                logging.info('Class_balancing feature is enabled but no train file is given. Calculating the class weights is skipped.')
+                logging.info(
+                    'Class_balancing feature is enabled but no train file is given. Calculating the class weights is skipped.'
+                )
 
         if class_weights:
             # You may need to increase the number of epochs for convergence when using weighted_loss
@@ -213,7 +214,9 @@ class TextClassificationModel(ModelPT):
 
     def _create_dataloader_from_config(self, cfg: DictConfig, mode):
         if not cfg or not cfg.file_path:
-            logging.info(f"Dataloader config or file_path for the {mode} is missing, so no data loader for test is created!")
+            logging.info(
+                f"Dataloader config or file_path for the {mode} is missing, so no data loader for test is created!"
+            )
             return None
         input_file = cfg.file_path
         if not os.path.exists(input_file):
@@ -282,7 +285,9 @@ class TextClassificationModel(ModelPT):
             self.train(mode=mode)
         return all_preds
 
-    def _setup_infer_dataloader(self, queries: List[str], batch_size: int, max_seq_length: int = -1) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(
+        self, queries: List[str], batch_size: int, max_seq_length: int = -1
+    ) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
 

@@ -13,4 +13,7 @@
 # limitations under the License.
 
 
-from nemo.collections.nlp.data.text_classification.text_classification_dataset import TextClassificationDataset, calc_class_weights
+from nemo.collections.nlp.data.text_classification.text_classification_dataset import (
+    TextClassificationDataset,
+    calc_class_weights,
+)

@@ -15,22 +15,20 @@
 # limitations under the License.
 
 import os
+import pickle
 import random
-from typing import Dict, Optional, List
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from typing import Dict, List, Optional
 
 import numpy as np
-import pickle
 import torch
 
-
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     fill_class_weights,
     get_freq_weights,
     get_label_stats,
+    get_stats,
 )
-
-from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
@@ -96,12 +94,16 @@ class TextClassificationDataset(Dataset):
             tokenizer_name = tokenizer.name
             cached_features_file = os.path.join(
                 data_dir,
-                f"cached_{filename}_{tokenizer_name}_{max_seq_length}_{vocab_size}_{num_samples}_{self.pad_id}_{shuffle}.pkl"
+                f"cached_{filename}_{tokenizer_name}_{max_seq_length}_{vocab_size}_{num_samples}_{self.pad_id}_{shuffle}.pkl",
             )
 
         if input_file and use_cache and os.path.exists(cached_features_file):
-            logging.warning(f"Processing of {input_file} is skipped as caching is enabled and a cache file {cached_features_file} already exists.")
-            logging.warning(f"You may need to delete the cache file if any of the processing parameters (eg. tokenizer) or the data are updated.")
+            logging.warning(
+                f"Processing of {input_file} is skipped as caching is enabled and a cache file {cached_features_file} already exists."
+            )
+            logging.warning(
+                f"You may need to delete the cache file if any of the processing parameters (eg. tokenizer) or the data are updated."
+            )
             self.features = self.load_cached_features(cached_features_file)
         else:
             labels, all_sents = [], []
@@ -130,10 +132,14 @@ class TextClassificationDataset(Dataset):
                     all_sents.append(query.strip().split())
                 labels = [-1] * len(all_sents)
                 verbose = False
-            self.features = self.get_features(all_sents=all_sents, tokenizer=tokenizer, max_seq_length=max_seq_length, labels=labels, verbose=verbose)
+            self.features = self.get_features(
+                all_sents=all_sents, tokenizer=tokenizer, max_seq_length=max_seq_length, labels=labels, verbose=verbose
+            )
 
         if input_file and use_cache and not os.path.exists(cached_features_file):
-            logging.warning(f"Processed data read from {input_file} is stored in {cached_features_file} as caching feature is enabled.")
+            logging.warning(
+                f"Processed data read from {input_file} is stored in {cached_features_file} as caching feature is enabled."
+            )
             self.cache_features(cached_features_file, self.features)
 
     def __len__(self):
@@ -168,7 +174,12 @@ class TextClassificationDataset(Dataset):
                 padded_input_mask.append(input_mask)
             labels.append(label)
 
-        return torch.LongTensor(padded_input_ids), torch.LongTensor(padded_segment_ids), torch.LongTensor(padded_input_mask), torch.LongTensor(labels)
+        return (
+            torch.LongTensor(padded_input_ids),
+            torch.LongTensor(padded_segment_ids),
+            torch.LongTensor(padded_input_mask),
+            torch.LongTensor(labels),
+        )
 
     @staticmethod
     def get_features(all_sents, tokenizer, max_seq_length, labels=None, verbose=True):
@@ -242,7 +253,9 @@ def calc_class_weights(file_path, num_classes):
         try:
             label = int(parts[-1])
         except ValueError:
-            raise ValueError(f'No numerical labels found for {file_path}. Labels should be integers and separated by [TAB] at the end of each line.')
+            raise ValueError(
+                f'No numerical labels found for {file_path}. Labels should be integers and separated by [TAB] at the end of each line.'
+            )
         labels.append(label)
 
     logging.info(f'Calculating stats of {file_path}...')
@@ -256,6 +269,6 @@ def calc_class_weights(file_path, num_classes):
     logging.info(f'Sentence class frequencies: {sent_label_freq}')
 
     logging.info(f'Class Weights: {class_weights_dict}')
-    class_weights = fill_class_weights(weights=class_weights_dict, max_id=num_classes-1)
+    class_weights = fill_class_weights(weights=class_weights_dict, max_id=num_classes - 1)
 
     return class_weights

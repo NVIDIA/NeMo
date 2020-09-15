@@ -538,7 +538,6 @@ def prepare_lr_scheduler(
     # Instantiate the LR schedule
     schedule = scheduler_cls(optimizer, **scheduler_args)
 
-
     logging.info(
         'Scheduler "%s" \nwill be used during training (effective maximum steps = %d) - \nParameters : \n(%s)',
         str(schedule),

@@ -14,8 +14,8 @@
 
 
 import pytorch_lightning as pl
-from omegaconf import OmegaConf, DictConfig
 import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.core.config import hydra_runner
@@ -45,12 +45,16 @@ def main(cfg: DictConfig) -> None:
 
     # We evaluate the trained model on the test set if test_ds is set in the config file
     if cfg.model.test_ds.file_path:
-        logging.info("================================================================================================")
+        logging.info(
+            "================================================================================================"
+        )
         logging.info("Starting the testing of the trained model on test set...")
         # The latest checkpoint would be used, set ckpt_path to 'best' to use the best one
         trainer.test(model=model, ckpt_path=None, verbose=False)
         logging.info("Testing finished!")
-        logging.info("================================================================================================")
+        logging.info(
+            "================================================================================================"
+        )
 
     """
     After model training is done, if you have saved the checkpoints, you can create the model from 
@@ -58,7 +62,9 @@ def main(cfg: DictConfig) -> None:
     You need to set or pass the test dataloader, and also create a trainer for this.
     """
     if cfg.model.validation_ds.file_path:
-        logging.info("================================================================================================")
+        logging.info(
+            "================================================================================================"
+        )
         logging.info("Starting the evaluating the the best checkpoint on a data file (validation set by default)...")
         # extract the path of the best checkpoint from the training, you may update it to any checkpoint
         checkpoint_path = trainer.checkpoint_callback.best_model_path
@@ -67,21 +73,27 @@ def main(cfg: DictConfig) -> None:
 
         # create a dataloader config for evaluation, the same data file provided in validation_ds is used here
         # file_path can get updated with any file
-        eval_config = OmegaConf.create({'file_path': cfg.model.validation_ds.file_path, 'batch_size': 64, 'shuffle': False, 'num_samples': -1})
+        eval_config = OmegaConf.create(
+            {'file_path': cfg.model.validation_ds.file_path, 'batch_size': 64, 'shuffle': False, 'num_samples': -1}
+        )
         eval_model.setup_test_data(test_data_config=eval_config)
-        #eval_dataloader = eval_model._create_dataloader_from_config(cfg=eval_config, mode='test')
+        # eval_dataloader = eval_model._create_dataloader_from_config(cfg=eval_config, mode='test')
 
         # a new trainer is created to show how to evaluate a checkpoint from an already trained model
         # create a copy of the trainer config and update it to be used for final evaluation
         eval_trainer_cfg = cfg.trainer.copy()
-        eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0 # it is safer to perform evaluation on single GPU as PT is buggy with the last batch on multi-GPUs
-        eval_trainer_cfg.distributed_backend = None # 'ddp' is buggy with test process in the current PT, it looks like it has been fixed in the latest master
+        eval_trainer_cfg.gpus = (
+            1 if torch.cuda.is_available() else 0
+        )  # it is safer to perform evaluation on single GPU as PT is buggy with the last batch on multi-GPUs
+        eval_trainer_cfg.distributed_backend = None  # 'ddp' is buggy with test process in the current PT, it looks like it has been fixed in the latest master
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
 
-        eval_trainer.test(model=eval_model, verbose=False) # test_dataloaders=eval_dataloader,
+        eval_trainer.test(model=eval_model, verbose=False)  # test_dataloaders=eval_dataloader,
 
         logging.info("Evaluation the best checkpoint finished!")
-        logging.info("================================================================================================")
+        logging.info(
+            "================================================================================================"
+        )
 
     else:
         logging.info("No file_path was set for validation_ds, so final evaluation is skipped!")
