@@ -240,7 +240,14 @@ class TextClassificationDataset(Dataset):
         return features
 
 
-def calc_class_weights(file_path, num_classes):
+def calc_class_weights(file_path: str, num_classes: int):
+    """
+    iterates over a data file and calculate the weights of each class to be used for class_balancing
+    Args:
+        file_path: path to the data file
+        num_classes: number of classes in the dataset
+    """
+
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Could not find data file {file_path} to calculate the class weights!")
 
