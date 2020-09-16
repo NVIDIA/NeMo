@@ -15,6 +15,7 @@
 
 import pytorch_lightning as pl
 import torch
+import os
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
@@ -56,18 +57,18 @@ def main(cfg: DictConfig) -> None:
             "================================================================================================"
         )
 
+    checkpoint_path = os.path.join(trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.CHECKPOINT_NAME_LAST + trainer.checkpoint_callback.CHECKPOINT_NAME_LAST)
     """
     After model training is done, if you have saved the checkpoints, you can create the model from 
     the checkpoint again and evaluate it on a data file. 
     You need to set or pass the test dataloader, and also create a trainer for this.
     """
-    if cfg.model.validation_ds.file_path:
+    if os.path.exists(checkpoint_path) and cfg.model.validation_ds.file_path:
         logging.info(
             "================================================================================================"
         )
         logging.info("Starting the evaluating the the best checkpoint on a data file (validation set by default)...")
-        # extract the path of the best checkpoint from the training, you may update it to any checkpoint
-        checkpoint_path = trainer.checkpoint_callback.best_model_path
+        # we use the the path of the checkpoint from last epoch from the training, you may update it to any checkpoint
         # Create an evaluation model and load the checkpoint
         eval_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
 
@@ -96,31 +97,41 @@ def main(cfg: DictConfig) -> None:
         )
 
     else:
-        logging.info("No file_path was set for validation_ds, so final evaluation is skipped!")
+        logging.info("No file_path was set for validation_ds or no checkpoint was found, so final evaluation is skipped!")
 
-    # You may create a model from a saved chechpoint and use the model.infer() method to
-    # perform inference on a list of queries. There is no need of any trainer for inference.
-    logging.info("================================================================================================")
-    logging.info("Starting the inference on some sample queries...")
-    queries = [
-        'by the end of no such thing the audience , like beatrice , has a watchful affection for the monster .',
-        'director rob marshall went out gunning to make a great one .',
-        'uneasy mishmash of styles and genres .',
-    ]
+    if os.path.exists(checkpoint_path):
+        # You may create a model from a saved chechpoint and use the model.infer() method to
+        # perform inference on a list of queries. There is no need of any trainer for inference.
+        logging.info("================================================================================================")
+        logging.info("Starting the inference on some sample queries...")
+        queries = [
+            'by the end of no such thing the audience , like beatrice , has a watchful affection for the monster .',
+            'director rob marshall went out gunning to make a great one .',
+            'uneasy mishmash of styles and genres .',
+        ]
 
-    # extract the path of the best checkpoint from the training, you may update it to any checkpoint
-    checkpoint_path = trainer.checkpoint_callback.best_model_path
-    infer_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
+        # extract the path of the best checkpoint from the training, you may update it to any checkpoint
+        checkpoint_path = trainer.checkpoint_callback.best_model_path
+        infer_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
 
-    results = infer_model.infer(queries=queries, batch_size=16)
+        # move the model to the desire device for inference
+        # we move the model to "cuda" if available otherwise "cpu" would be used
+        if torch.cuda.is_available():
+            infer_model.to("cuda")
+        else:
+            infer_model.to("cpu")
 
-    logging.info('The prediction results of some sample queries with the trained model:')
-    for query, result in zip(queries, results):
-        logging.info(f'Query : {query}')
-        logging.info(f'Predicted label: {result}')
+        results = infer_model.classifytext(queries=queries, batch_size=16)
 
-    logging.info("Inference finished!")
-    logging.info("================================================================================================")
+        logging.info('The prediction results of some sample queries with the trained model:')
+        for query, result in zip(queries, results):
+            logging.info(f'Query : {query}')
+            logging.info(f'Predicted label: {result}')
+
+        logging.info("Inference finished!")
+        logging.info("================================================================================================")
+    else:
+        logging.info("Inference is skipped as no checkpoint was found from the training!")
 
 
 if __name__ == '__main__':

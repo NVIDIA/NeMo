@@ -235,7 +235,7 @@ class TextClassificationModel(ModelPT):
             collate_fn=dataset.collate_fn,
         )
 
-    def infer(self, queries: List[str], batch_size: int = None, device=None) -> List[int]:
+    def classifytext(self, queries: List[str], batch_size: int = None) -> List[int]:
         """
         Get prediction for the queries
         Args:
@@ -245,24 +245,21 @@ class TextClassificationModel(ModelPT):
         Returns:
             all_preds: model predictions
         """
-        if device is None:
-            device = self.device
         # store predictions for all queries in a single list
         all_preds = []
         mode = self.training
         try:
             # Switch model to evaluation mode
             self.eval()
-            self.to(device)
             infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
 
             for i, batch in enumerate(infer_datalayer):
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
 
                 logits = self.forward(
-                    input_ids=input_ids.to(device),
-                    token_type_ids=input_type_ids.to(device),
-                    attention_mask=input_mask.to(device),
+                    input_ids=input_ids.to(self.device),
+                    token_type_ids=input_type_ids.to(self.device),
+                    attention_mask=input_mask.to(self.device),
                 )
 
                 preds = tensor2list(torch.argmax(logits, axis=-1))
