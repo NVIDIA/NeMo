@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
+import os
+
 import pytorch_lightning as pl
 import torch
-import os
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
@@ -58,7 +59,9 @@ def main(cfg: DictConfig) -> None:
         )
 
     # retreive the path to the last checkpoint of the training
-    checkpoint_path = os.path.join(trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt")
+    checkpoint_path = os.path.join(
+        trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt"
+    )
     """
     After model training is done, if you have saved the checkpoints, you can create the model from 
     the checkpoint again and evaluate it on a data file. 
@@ -98,12 +101,16 @@ def main(cfg: DictConfig) -> None:
         )
 
     else:
-        logging.info("No file_path was set for validation_ds or no checkpoint was found, so final evaluation is skipped!")
+        logging.info(
+            "No file_path was set for validation_ds or no checkpoint was found, so final evaluation is skipped!"
+        )
 
     if os.path.exists(checkpoint_path):
         # You may create a model from a saved chechpoint and use the model.infer() method to
         # perform inference on a list of queries. There is no need of any trainer for inference.
-        logging.info("================================================================================================")
+        logging.info(
+            "================================================================================================"
+        )
         logging.info("Starting the inference on some sample queries...")
         queries = [
             'by the end of no such thing the audience , like beatrice , has a watchful affection for the monster .',
@@ -129,7 +136,9 @@ def main(cfg: DictConfig) -> None:
             logging.info(f'Predicted label: {result}')
 
         logging.info("Inference finished!")
-        logging.info("================================================================================================")
+        logging.info(
+            "================================================================================================"
+        )
     else:
         logging.info("Inference is skipped as no checkpoint was found from the training!")
 
