@@ -73,7 +73,6 @@ class TextClassificationDataset(Dataset):
         shuffle: bool = False,
         use_cache: bool = False,
     ):
-
         if not input_file and not queries:
             raise ValueError("Either input_file or queries should be passed to the text classification dataset.")
 
@@ -83,6 +82,7 @@ class TextClassificationDataset(Dataset):
                 f'words are separated with spaces and the label separated by [TAB] following this format: '
                 f'[WORD][SPACE][WORD][SPACE][WORD][TAB][LABEL]'
             )
+
         self.input_file = input_file
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
@@ -91,34 +91,29 @@ class TextClassificationDataset(Dataset):
         self.use_cache = use_cache
         self.vocab_size = self.tokenizer.vocab_size
         self.pad_id = tokenizer.pad_id
-        if queries:
-            self.verbose = True
-
-        data_dir, filename = os.path.split(input_file)
-        vocab_size = getattr(tokenizer, "vocab_size", 0)
-        tokenizer_name = tokenizer.name
-        cached_features_file = os.path.join(
-            data_dir,
-            f"cached_{filename}_{tokenizer_name}_{max_seq_length}_{vocab_size}_{num_samples}_{self.pad_id}_{shuffle}.pkl",
-        )
 
         self.features = None
-        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            if use_cache and os.path.exists(cached_features_file):
-                logging.warning(
-                    f"Processing of {input_file} is skipped as caching is enabled and a cache file "
-                    f"{cached_features_file} already exists."
-                )
-                logging.warning(
-                    f"You may need to delete the cache file if any of the processing parameters (eg. tokenizer) or "
-                    f"the data are updated."
-                )
-            else:
-                labels, all_sents = [], []
-                if input_file:
-                    if not os.path.exists(input_file):
-                        raise FileNotFoundError(f'Data file {input_file} not found!')
+        labels, all_sents = [], []
+        if input_file:
+            data_dir, filename = os.path.split(input_file)
+            vocab_size = getattr(tokenizer, "vocab_size", 0)
+            tokenizer_name = tokenizer.name
+            cached_features_file = os.path.join(
+                data_dir,
+                f"cached_{filename}_{tokenizer_name}_{max_seq_length}_{vocab_size}_{num_samples}_{self.pad_id}_{shuffle}.pkl",
+            )
 
+            if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+                if use_cache and os.path.exists(cached_features_file):
+                    logging.warning(
+                        f"Processing of {input_file} is skipped as caching is enabled and a cache file "
+                        f"{cached_features_file} already exists."
+                    )
+                    logging.warning(
+                        f"You may need to delete the cache file if any of the processing parameters (eg. tokenizer) or "
+                        f"the data are updated."
+                    )
+                else:
                     with open(input_file, "r") as f:
                         lines = f.readlines(num_samples)
                         logging.info(f'Read {len(lines)} examples from {input_file}.')
@@ -135,24 +130,28 @@ class TextClassificationDataset(Dataset):
                             sent_words = line_splited[:-1]
                             all_sents.append(sent_words)
                     verbose = True
-                else:
-                    for query in queries:
-                        all_sents.append(query.strip().split())
-                    labels = [-1] * len(all_sents)
-                    verbose = False
 
-                features = self.get_features(
-                    all_sents=all_sents, tokenizer=tokenizer, max_seq_length=max_seq_length, labels=labels, verbose=verbose
-                )
-                with open(cached_features_file, 'wb') as out_file:
-                    pickle.dump(features, out_file, protocol=pickle.HIGHEST_PROTOCOL)
+                    self.features = self.get_features(
+                        all_sents=all_sents, tokenizer=tokenizer, max_seq_length=max_seq_length, labels=labels, verbose=verbose
+                    )
+                    with open(cached_features_file, 'wb') as out_file:
+                        pickle.dump(self.features, out_file, protocol=pickle.HIGHEST_PROTOCOL)
+        else:
+            for query in queries:
+                all_sents.append(query.strip().split())
+            labels = [-1] * len(all_sents)
+            verbose = False
+            self.features = self.get_features(
+                all_sents=all_sents, tokenizer=tokenizer, max_seq_length=max_seq_length, labels=labels, verbose=verbose
+            )
 
         # wait until the master process writes to the processed data files
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
-        with open(cached_features_file, "rb") as input_file:
-            self.features = pickle.load(input_file)
+        if input_file:
+            with open(cached_features_file, "rb") as input_file:
+                self.features = pickle.load(input_file)
 
     def __len__(self):
         return len(self.features)
