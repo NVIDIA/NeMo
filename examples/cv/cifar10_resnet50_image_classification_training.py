@@ -21,12 +21,12 @@ from hydra.core.config_store import ConfigStore
 import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from nemo.collections.cv.models import MNISTLeNet5
-from nemo.core.config import Config, hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
+from nemo.collections.cv.models import ResNet50
 
-from nemo.collections.cv.datasets.configs import MNISTConfig
+from nemo.core.config import hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
+from nemo.collections.cv.datasets.configs import CIFAR10Config
+from nemo.collections.cv.modules import ImageEncoderConfig
 
 
 @dataclass
@@ -39,36 +39,37 @@ class AppConfig:
     """
 
     dataloader: DataLoaderConfig = DataLoaderConfig()
-    dataset: MNISTConfig = MNISTConfig()
-    transforms: Optional[Any] = None  # List[Any] = field(default_factory=list) ?
+    dataset: CIFAR10Config = CIFAR10Config()
+    transforms: Optional[Any] = None
+    model: ImageEncoderConfig = ImageEncoderConfig()
     optim: AdamConfig = AdamConfig()
     trainer: TrainerConfig = TrainerConfig()
 
 
 # Register schema.
 cs = ConfigStore.instance()
-cs.store(node=AppConfig, name="mnist_resnet50_image_classification_training")
+cs.store(node=AppConfig, name="cifar10_resnet50_image_classification_training")
 
 # Load configuration file from "conf" dir using schema for validation/retrieving the default values.
-@hydra_runner(config_path="conf", config_name="mnist_resnet50_image_classification_training")
+@hydra_runner(config_path="conf", config_name="cifar10_resnet50_image_classification_training")
 def main(cfg: AppConfig):
     # Show configuration.
     logging.info("Application settings\n" + OmegaConf.to_yaml(cfg))
 
     # Instantiate the "model".
-    lenet5 = MNISTLeNet5()
+    resnet = ResNet50(cfg.model)
 
     # Instantiate the dataloader/dataset.
-    train_dl = lenet5.instantiate_dataloader(cfg.dataloader, cfg.dataset, cfg.transforms)
+    train_dl = resnet.instantiate_dataloader(cfg.dataloader, cfg.dataset, cfg.transforms)
 
     # Setup the optimization.
-    lenet5.setup_optimization(cfg.optim)
+    resnet.setup_optimization(cfg.optim)
 
     # Create the trainer.
     trainer = ptl.Trainer(**(cfg.trainer))
 
     # Train the model on dataset.
-    trainer.fit(model=lenet5, train_dataloader=train_dl)
+    trainer.fit(model=resnet, train_dataloader=train_dl)
 
 
 if __name__ == "__main__":

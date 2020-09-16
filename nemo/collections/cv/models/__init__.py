@@ -12,5 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.cv.models.lenet5 import LeNet5
 from nemo.collections.cv.models.model import Model
+from nemo.collections.cv.models.lenet5 import LeNet5
+from nemo.collections.cv.models.resnet50 import ResNet50

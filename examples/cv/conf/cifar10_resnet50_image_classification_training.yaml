@@ -1,12 +1,18 @@
 # Set the required transforms.
 transforms:
-  - 
-    # LeNet-5 accepts images of size 32x32
+  -
+    # ResNet50 requires 224 x 224
     _target_: torchvision.transforms.Resize
-    size: [32, 32] # [H, W]
+    size: [224, 224] # [H, W]
   - 
+    # To Tensor
     _target_: torchvision.transforms.ToTensor
-
+  -
+    # Standard ImageNet normalization
+    _target_: torchvision.transforms.REsize
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+      
 # Overwrite the dataloader settings.
 dataloader:
   batch_size: 64
@@ -15,6 +21,13 @@ dataloader:
 # Overwrite the optimzer settins.
 optim:
   lr: 0.01
+
+# Model settings.
+model:
+  backbone_type: "resnet50"
+  output_size: 10
+  pretrained: True
+
 
 # Overwrite the "trainer" settings: use 2 GPUs.
 trainer:
