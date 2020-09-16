@@ -14,5 +14,6 @@
 
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel, ExtractSpeakerEmbeddingsModel
