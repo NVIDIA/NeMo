@@ -1,5 +1,5 @@
 Computer Vision (CV)
-===============================
+====================
 
 The collection contains several datasets, modules and losses useful in computer/machine vision tasks.
 
@@ -13,7 +13,7 @@ Models
 
 
 Datasets
-----------
+--------
 .. automodule:: nemo.collections.cv.datasets.configs
 
 Neural Modules
@@ -23,6 +23,10 @@ Neural Modules
 
 .. automodule:: nemo.collections.cv.modules.image_encoder
     :special-members: __init__
+
+Transforms
+----------
+.. automodule:: nemo.collections.cv.transforms.configs
 
 Losses
 ------
