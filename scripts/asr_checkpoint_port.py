@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""This script converts old Jasper/QuartzNet models from NeMo 0.11.* to NeMo v1.0.0*
+"""
+
 import argparse
 
 import torch
