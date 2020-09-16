@@ -1,6 +1,6 @@
 boto3
 h5py
-matplotlib
+matplotlib>=3.3.2
 sentencepiece
 torchtext
 unidecode

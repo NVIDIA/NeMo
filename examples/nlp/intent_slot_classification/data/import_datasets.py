@@ -237,11 +237,6 @@ if __name__ == "__main__":
         action='store_true',
         help='ignores previous intent while importing datasets in jarvis\'s format',
     )
-    parser.add_argument(
-        "--use_full_dataset",
-        action='store_true',
-        help='using full 25K dataset versus smaller 10K version for assistant\'s dataset',
-    )
 
     args = parser.parse_args()
 
@@ -265,7 +260,6 @@ if __name__ == "__main__":
             ignore_prev_intent=args.ignore_prev_intent,
         )
     elif dataset_name == 'assistant':
-        # TODO: Unexpected keyword argument 'use_full_dataset' in function call
-        process_assistant(infold=source_dir, outfold=target_dir, use_full_dataset=args.use_full_dataset)
+        process_assistant(infold=source_dir, outfold=target_dir)
     else:
         raise ValueError(f'Dataset {dataset_name} is not supported.')
