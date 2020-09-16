@@ -1,10 +1,9 @@
 # Set the required transforms.
 transforms:
-  - 
-    # LeNet-5 accepts images of size 32x32
+  - # LeNet-5 accepts images of size 32x32
     _target_: torchvision.transforms.Resize
     size: [32, 32] # [H, W]
-  - 
+  - # To tensor
     _target_: torchvision.transforms.ToTensor
 
 # Overwrite the dataloader settings.

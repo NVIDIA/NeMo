@@ -23,6 +23,7 @@ from nemo.collections.cv.losses import NLLLoss
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
 
+from torch import nn
 import torchvision.transforms as transforms
 
 
@@ -37,6 +38,7 @@ class ResNet50(Model):
         # Initialize modules.
         self.classifier = ImageEncoder(**cfg)
         self.loss = NLLLoss()
+        self.log_softmax = nn.LogSoftmax(dim=1)
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -64,13 +66,14 @@ class ResNet50(Model):
         # "Unpack" the batch.
         images, targets = batch
 
-        print(images.shape)
+        # Get logigs.
+        logits = self.classifier(inputs=images)
 
-        # Get predictions.
-        predictions = self(images=images)
+        # Apply log softmax on logits.
+        log_sm = self.log_softmax(logits)
 
         # Calculate loss.
-        loss = self.loss(predictions=predictions, targets=targets)
+        loss = self.loss(predictions=log_sm, targets=targets)
 
         # Return it.
         return {"loss": loss}
