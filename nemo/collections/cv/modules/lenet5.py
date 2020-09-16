@@ -37,7 +37,7 @@ class LeNet5(NeuralModule):
         super().__init__()
 
         # Create the LeNet-5 model.
-        self.model = nn.Sequential(
+        self._model = nn.Sequential(
             nn.Conv2d(1, 6, kernel_size=(5, 5)),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(2, 2), stride=2),
@@ -90,7 +90,7 @@ class LeNet5(NeuralModule):
             Batch of predictions.
         """
 
-        predictions = self.model(images)
+        predictions = self._model(images)
         return predictions
 
     def save_to(self, save_path: str):
