@@ -162,43 +162,43 @@ To run tutorials:
      - GitHub URL
    * - NeMo
      - Simple Application with NeMo
-     - `NeMo_Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/NeMo_voice_swap_app.ipynb>`_
+     - `Voice swap app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/NeMo_voice_swap_app.ipynb>`_
    * - NeMo
      - Exploring NeMo Fundamentals
-     - `NeMo_Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_
+     - `NeMo primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_
    * - NeMo Models
      - Exploring NeMo Model Construction
-     - `NeMo_Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/01_NeMo_Models.ipynb>`_
+     - `NeMo models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
      - ASR with NeMo
-     - `ASR_with_NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+     - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
      - Speech Commands
-     - `Speech_Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/02_Speech_Commands.ipynb>`_
+     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/02_Speech_Commands.ipynb>`_
    * - ASR
      - Online Noise Augmentation
-     - `Online_Noise_Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+     - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
-     - `Pretrained_Language_Models_for_Downstream_Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
+     - `Pretrained language models for downstream tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
    * - NLP
      - Question answering with SQuAD
-     - `Question_Answering_Squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
+     - `Question answering squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
    * - NLP
      - Exploring NeMo NLP Tokenizers
-     - `NLP_Tokenizers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/02_NLP_Tokenizers.ipynb>`_
+     - `NLP tokenizers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/02_NLP_Tokenizers.ipynb>`_
    * - NLP
      - Token Classification (Named Entity Recognition)
-     - `Token_Classification_Named_Entity_Recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
+     - `Token classification: named entity recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
    * - NLP
      - GLUE Benchmark
-     - `GLUE_Benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark.ipynb>`_
+     - `GLUE benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark.ipynb>`_
    * - NLP
      - Punctuation and Capitialization
-     - `Punctuation_and_Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+     - `Punctuation and capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - TTS
      - Speech Synthesis
-     - `TTS_inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_
+     - `TTS inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_
 
 Contributing
 ------------
