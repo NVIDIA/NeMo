@@ -132,7 +132,11 @@ class TextClassificationDataset(Dataset):
                     verbose = True
 
                     self.features = self.get_features(
-                        all_sents=all_sents, tokenizer=tokenizer, max_seq_length=max_seq_length, labels=labels, verbose=verbose
+                        all_sents=all_sents,
+                        tokenizer=tokenizer,
+                        max_seq_length=max_seq_length,
+                        labels=labels,
+                        verbose=verbose,
                     )
                     with open(cached_features_file, 'wb') as out_file:
                         pickle.dump(self.features, out_file, protocol=pickle.HIGHEST_PROTOCOL)
