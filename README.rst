@@ -161,6 +161,9 @@ To run tutorials:
      - Title
      - GitHub URL
    * - NeMo
+     - Simple Application with NeMo
+     - `NeMo_Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/NeMo_voice_swap_app.ipynb>`_
+   * - NeMo
      - Exploring NeMo Fundamentals
      - `NeMo_Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_
    * - NeMo Models
