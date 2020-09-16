@@ -57,7 +57,8 @@ def main(cfg: DictConfig) -> None:
             "================================================================================================"
         )
 
-    checkpoint_path = os.path.join(trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.CHECKPOINT_NAME_LAST + trainer.checkpoint_callback.CHECKPOINT_NAME_LAST)
+    # retreive the path to the last checkpoint of the training
+    checkpoint_path = os.path.join(trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt")
     """
     After model training is done, if you have saved the checkpoints, you can create the model from 
     the checkpoint again and evaluate it on a data file. 
@@ -110,8 +111,7 @@ def main(cfg: DictConfig) -> None:
             'uneasy mishmash of styles and genres .',
         ]
 
-        # extract the path of the best checkpoint from the training, you may update it to any checkpoint
-        checkpoint_path = trainer.checkpoint_callback.best_model_path
+        # use the path of the last checkpoint from the training, you may update it to any other checkpoints
         infer_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
 
         # move the model to the desire device for inference
