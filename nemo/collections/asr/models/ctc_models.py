@@ -30,7 +30,6 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
@@ -50,7 +49,28 @@ class EncDecCTCModel(ASRModel):
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/QuartzNet15x5Base-En.nemo",
-            description="The model is trained on ~3300 hours of publicly available data and achieves a WER of 3.91% on LibriSpeech dev-clean, and a WER of 10.58% on dev-other.",
+            description="This is QuartzNet15x5 model. It was trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5Base-Zh",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/QuartzNet15x5-Zh-Base.nemo",
+            description="This is QuartzNet15x5 model. It was trained on ai-shell2 Mandarin Chinese dataset.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet5x5LS-En",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/QuartzNet5x5_LS.nemo",
+            description="This is QuartzNet5x5 model. It was trained on LibriSpeech dataset only. The model achieves a WER of 5.37% on LibriSpeech dev-clean, and a WER of 15.69% on dev-other.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="Jasper10x5Dr-En",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/JasperNet10x5-En-Base.nemo",
+            description="This is JasperNet10x5Dr model. It was trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1. The model achieves a WER of 3.37% on LibriSpeech dev-clean, 9.81% on dev-other.",
         )
         result.append(model)
         return result
