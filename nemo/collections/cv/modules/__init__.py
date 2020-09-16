@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.cv.modules.lenet5 import LeNet5
+from nemo.collections.cv.modules.image_encoder import ImageEncoder, ImageEncoderConfig

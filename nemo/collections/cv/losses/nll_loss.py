@@ -18,10 +18,8 @@ from torch.nn import NLLLoss as torch_NLLLoss
 
 from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import ClassificationTarget, LogprobsType, LossType, NeuralType
-from nemo.utils.decorators import experimental
 
 
-@experimental
 class NLLLoss(torch_NLLLoss, Serialization, Typing):
     """ Class representing a simple NLL loss. """
 

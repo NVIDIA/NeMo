@@ -21,11 +21,10 @@ from hydra.core.config_store import ConfigStore
 import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from nemo.collections.cv.models import LeNet5
-from nemo.core.config import Config, hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
+from nemo.collections.cv.models import LeNet5
 
+from nemo.core.config import Config, hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.collections.cv.datasets.configs import MNISTConfig
 
 

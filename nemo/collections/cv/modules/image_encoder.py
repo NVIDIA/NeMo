@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-# -*- coding: utf-8 -*-
-#
 # Copyright (C) IBM Corporation 2019
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +25,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 __author__ = "Tomasz Kornuta"
 
@@ -37,6 +34,10 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/ima
 """
 
 from typing import Optional
+from dataclasses import dataclass
+
+from hydra.types import ObjectConf
+from hydra.core.config_store import ConfigStore
 
 import torch
 import torchvision.models as models
@@ -46,12 +47,30 @@ from nemo.core.neural_types import AxisKind, AxisType, ImageFeatureValue, ImageV
 from nemo.utils.configuration_parsing import get_value_from_dictionary
 from nemo.utils.configuration_error import ConfigurationError
 
-__all__ = ['ImageEncoder']
+
+# Create the config store instance.
+cs = ConfigStore.instance()
+
+
+@dataclass
+class ImageEncoderConfig:
+    backbone_type: str = "resnet50"
+    output_size: Optional[int] = None
+    return_feature_maps: bool = False
+    pretrained: bool = False
+
+
+# Register the config.
+cs.store(
+    group="nemo.collections.cv.modules",
+    name="ImageEncoder",
+    node=ObjectConf(target="nemo.collections.cv.modules.ImageEncoder", params=ImageEncoderConfig()),
+)
 
 
 class ImageEncoder(NeuralModule):
     """
-    Neural Module implementing a general-usage image encoderds.
+    Neural Module implementing a general-usage image encoder.
     It encapsulates several models from TorchVision (VGG16, ResNet152 and DensNet121, naming a few).
     Offers two operation modes and can return: image embeddings vs feature maps.
     """
@@ -62,7 +81,6 @@ class ImageEncoder(NeuralModule):
         output_size: Optional[int] = None,
         return_feature_maps: bool = False,
         pretrained: bool = False,
-        name: Optional[str] = None,
     ):
         """
         Initializes the ``ImageEncoder`` model, creates the required "backbone".
@@ -72,7 +90,6 @@ class ImageEncoder(NeuralModule):
             output_size: Size of the output layer (Optional, Default: None)
             return_feature_maps: Return mode: image embeddings vs feature maps (Default: False)
             pretrained: Loads pretrained model (Default: False)
-            name: Name of the module (DEFAULT: None)
         """
         super().__init__()
 
@@ -216,3 +233,20 @@ class ImageEncoder(NeuralModule):
 
         # Add outputs to datadict.
         return outputs
+
+    def save_to(self, save_path: str):
+        """Not implemented yet.
+           Serialize model.
+        Args:
+            save_path (str): path to save serialization.
+        """
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """Not implemented yet.
+            Restore module from serialization.
+        Args:
+            restore_path (str): path to serialization
+        """
+        pass

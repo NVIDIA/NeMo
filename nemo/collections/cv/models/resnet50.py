@@ -18,7 +18,7 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 
 from nemo.collections.cv.models.model import Model
-from nemo.collections.cv.modules import ImageEncoder
+from nemo.collections.cv.modules import ImageEncoder, ImageEncoderConfig
 from nemo.collections.cv.losses import NLLLoss
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
@@ -31,11 +31,11 @@ class ResNet50(Model):
     The LeNet-5 model.
     """
 
-    def __init__(self):
+    def __init__(self, cfg: ImageEncoderConfig):
         super().__init__(cfg=OmegaConf.create())
 
         # Initialize modules.
-        self.classifier = ImageEncoder()
+        self.classifier = ImageEncoder(**cfg)
         self.loss = NLLLoss()
 
     @property
@@ -57,7 +57,7 @@ class ResNet50(Model):
     @typecheck()
     def forward(self, images):
         """ Propagates data by calling the module :class:`LeNet5Module` forward. """
-        return self.module.forward(images=images)
+        return self.classifier.forward(images=images)
 
     def training_step(self, batch, what_is_this_input):
         """ Training step, calculate loss. """
