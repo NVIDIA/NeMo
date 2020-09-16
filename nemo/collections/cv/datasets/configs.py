@@ -73,7 +73,7 @@ class CIFAR10Config:
     """
 
     # Dataset target class name.
-    _target_: str = "torchvision.datasets.MNIST"
+    _target_: str = "torchvision.datasets.CIFAR10"
     # MNIST params
     root: str = "~/data/cifar10"
     train: bool = True
