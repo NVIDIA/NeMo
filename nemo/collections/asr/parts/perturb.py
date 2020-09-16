@@ -36,17 +36,17 @@ import copy
 import io
 import os
 import random
+import subprocess
+from tempfile import NamedTemporaryFile
 from typing import List, Union
 
 import librosa
 import numpy as np
+import soundfile as sf
 import webdataset as wd
 from omegaconf import DictConfig, OmegaConf
 from scipy import signal
 from torch.utils.data import IterableDataset
-import soundfile as sf
-import subprocess
-from tempfile import NamedTemporaryFile
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
@@ -588,6 +588,7 @@ class TranscodePerturbation(Perturbation):
         new_data = AudioSegment.from_file(transcoded_f.name, target_sr=16000)
         data._samples = new_data._samples[0 : data._samples.shape[0]]
         return
+
 
 perturbation_types = {
     "speed": SpeedPerturbation,
