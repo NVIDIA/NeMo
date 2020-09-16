@@ -62,6 +62,8 @@ except (ImportError, ModuleNotFoundError):
 
 def read_one_audiosegment(manifest, target_sr, rng, tarred_audio=False, audio_dataset=None):
     if tarred_audio:
+        if audio_dataset is None:
+            raise TypeError("Expected augmentation dataset but gor None")
         audio_file, file_id = next(audio_dataset)
         manifest_idx = manifest.mapping[file_id]
         manifest_entry = manifest[manifest_idx]
@@ -768,11 +770,31 @@ class AugmentationDataset(IterableDataset):
         (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
         (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
 
+        Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
+        This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
+        Supported opening braces - { <=> (, [, < and the special tag _OP_.
+        Supported closing braces - } <=> ), ], > and the special tag _CL_.
+        For SLURM based tasks, we suggest the use of the special tags for ease of use.
+
         See the WebDataset documentation for more information about accepted data and input formats.
     """
 
     def __init__(self, manifest_path: str, tar_filepaths: Union[str, List[str]], shuffle_n: int = 128):
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
+
+        if isinstance(tar_filepaths, str):
+            # Replace '(' and '[' with '{'
+            brace_keys_open = ['(', '[', '<', '_OP_']
+            for bkey in brace_keys_open:
+                if bkey in tar_filepaths:
+                    tar_filepaths = tar_filepaths.replace(bkey, "{")
+
+            # Replace ')' and ']' with '}'
+            brace_keys_close = [')', ']', '>', '_CL_']
+            for bkey in brace_keys_close:
+                if bkey in tar_filepaths:
+                    tar_filepaths = tar_filepaths.replace(bkey, "}")
+
         self.audio_dataset = (
             wd.Dataset(tar_filepaths).shuffle(shuffle_n).rename(audio='wav', key='__key__').to_tuple('audio', 'key')
         )
