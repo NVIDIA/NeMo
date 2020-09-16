@@ -168,7 +168,7 @@ class ImageEncoder(NeuralModule):
                 self._model.fc = torch.nn.Linear(2048, self._output_size)
 
     @property
-    def input_ports(self):
+    def input_types(self):
         """
         Returns definitions of module input ports.
         """
@@ -187,7 +187,7 @@ class ImageEncoder(NeuralModule):
         }
 
     @property
-    def output_ports(self):
+    def output_types(self):
         """
         Returns definitions of module output ports.
         """
@@ -227,7 +227,7 @@ class ImageEncoder(NeuralModule):
             outpus: added stream containing outputs [BATCH_SIZE x OUTPUT_SIZE]
                 OR [BATCH_SIZE x OUTPUT_DEPTH x OUTPUT_HEIGHT x OUTPUT_WIDTH]
         """
-        # print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
+        print("({}): input shape: {}, device: {}\n".format(self._backbone_type, inputs.shape, inputs.device))
 
         outputs = self._model(inputs)
 

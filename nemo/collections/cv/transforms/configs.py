@@ -26,6 +26,7 @@ cs = ConfigStore.instance()
 class ResizeConfig:
     # Target class name.
     _target_: str = "torchvision.transforms.Resize"
+    interpolation: int = 2
     # size: List[int] = MISSING
     # size: Any = MISSING
 
@@ -51,4 +52,21 @@ cs.store(
     group="nemo.collections.cv.transforms",
     name="ToTensor",
     node=ObjectConf(target="torchvision.transforms.ToTensor", params=ToTensorConfig()),
+)
+
+
+@dataclass
+class NormalizeConfig:
+    # Target class name.
+    _target_: str = "torchvision.transforms.Normalize"
+    inplace: bool = False
+    # mean: List[int] = MISSING
+    # std: List[int] = MISSING
+
+
+# Register the config.
+cs.store(
+    group="nemo.collections.cv.transforms",
+    name="ToTensor",
+    node=ObjectConf(target="torchvision.transforms.Normalize", params=NormalizeConfig()),
 )
