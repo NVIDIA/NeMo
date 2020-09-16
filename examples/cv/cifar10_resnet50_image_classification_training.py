@@ -62,25 +62,16 @@ def main(cfg: AppConfig):
     resnet = ResNet50(cfg.model)
 
     # Instantiate the dataloader/dataset.
-    train_dl = resnet.instantiate_dataloader(cfg.dataloader, cfg.dataset)  # , cfg.transforms)
-
-    sample = next(iter(train_dl.dataset))
-    print(sample[0].size)
-
-    sample[0].show()
-
-    # batch = next(iter(train_dl))
-
-    # print(batch[0].shape)
+    train_dl = resnet.instantiate_dataloader(cfg.dataloader, cfg.dataset, cfg.transforms)
 
     # Setup the optimization.
-    # resnet.setup_optimization(cfg.optim)
+    resnet.setup_optimization(cfg.optim)
 
     # Create the trainer.
-    # trainer = ptl.Trainer(**(cfg.trainer))
+    trainer = ptl.Trainer(**(cfg.trainer))
 
     # Train the model on dataset.
-    # trainer.fit(model=resnet, train_dataloader=train_dl)
+    trainer.fit(model=resnet, train_dataloader=train_dl)
 
 
 if __name__ == "__main__":

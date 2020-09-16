@@ -1,17 +1,14 @@
 # Set the required transforms.
 transforms:
-  #-
-  #  # ResNet50 requires 3 x 224 x 224
-  #  _target_: torchvision.transforms.Resize
-  #  size: [3, 224, 224] # [H, W]
-  - 
-    # To Tensor
+  - # ResNet50 requires 3 x 224 x 224
+    _target_: torchvision.transforms.Resize
+    size: [224, 224] # [H, W]
+  - # To Tensor
     _target_: torchvision.transforms.ToTensor
-  #-
-    # Standard ImageNet normalization
-    #_target_: torchvision.transforms.Normalize
-    #mean: [0.485, 0.456, 0.406]
-    #std: [0.229, 0.224, 0.225]
+  - # Standard ImageNet normalization
+    _target_: torchvision.transforms.Normalize
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
       
 # Overwrite the dataloader settings.
 dataloader:
@@ -20,7 +17,7 @@ dataloader:
 
 # Overwrite the optimzer settins.
 optim:
-  lr: 0.01
+  lr: 0.001
 
 # Model settings.
 model:

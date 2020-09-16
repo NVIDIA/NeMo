@@ -227,7 +227,7 @@ class ImageEncoder(NeuralModule):
             outpus: added stream containing outputs [BATCH_SIZE x OUTPUT_SIZE]
                 OR [BATCH_SIZE x OUTPUT_DEPTH x OUTPUT_HEIGHT x OUTPUT_WIDTH]
         """
-        print("({}): input shape: {}, device: {}\n".format(self._backbone_type, inputs.shape, inputs.device))
+        # print("({}): input shape: {}, device: {}\n".format(self._backbone_type, inputs.shape, inputs.device))
 
         outputs = self._model(inputs)
 
