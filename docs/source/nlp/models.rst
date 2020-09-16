@@ -5,7 +5,7 @@ NeMo's NLP collection supports the following models:
 
 * BERT pretraining
 * GLUE Benchmark
-* Intent Detection and Slot Filling
+* Joint Intent and Slot Classification
 * Text Classification
 * Name Entity Recognition (NER)
 * Punctuation and Capitalization

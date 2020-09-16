@@ -85,6 +85,7 @@ class EncDecClassificationModel(ASRModel):
             drop_last=config.get('drop_last', False),
             shuffle=config['shuffle'],
             num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
@@ -107,7 +108,7 @@ class EncDecClassificationModel(ASRModel):
             return self._test_dl
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
@@ -149,9 +150,26 @@ class EncDecClassificationModel(ASRModel):
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x1x64-v2-subset-task",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x1x64-v2-subset-task.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) "
+            "which obtains 98.2% accuracy on test set.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="MatchboxNet-3x2x64-v2-subset-task",
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v2-subset-task.nemo",
             description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) "
             "which obtains 98.4% accuracy on test set.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="MatchboxNet-VAD-3x2",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet_VAD_3x2.nemo",
+            description="MatchboxNet VAD model trained on google speech command (v2) and freesound background data, "
+            "which obtains 0.992 accuracy on testset from same source and 0.852 TPR for FPR=0.315 "
+            "on testset (ALL) of AVA movie data",
         )
         result.append(model)
         return result
