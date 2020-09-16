@@ -39,7 +39,7 @@ class MNISTConfig:
 
     # Dataset target class name.
     _target_: str = "torchvision.datasets.MNIST"
-    # Original MNIST params
+    # MNIST params
     root: str = "~/data/mnist"
     train: bool = True
     download: bool = True

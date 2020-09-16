@@ -17,6 +17,7 @@ from nemo.utils.app_state import AppState
 from nemo.utils.nemo_logging import Logger as _Logger
 from nemo.utils.nemo_logging import LogMode as logging_mode
 from nemo.utils.lightning_logger_patch import add_memory_handlers_to_pl_logger
+from nemo.utils.configuration_error import ConfigurationError
 
 logging = _Logger()
 add_memory_handlers_to_pl_logger()
