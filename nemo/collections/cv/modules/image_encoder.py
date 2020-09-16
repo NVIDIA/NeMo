@@ -235,8 +235,9 @@ class ImageEncoder(NeuralModule):
         return outputs
 
     def save_to(self, save_path: str):
-        """Not implemented yet.
-           Serialize model.
+        """
+        Not implemented.
+
         Args:
             save_path (str): path to save serialization.
         """
@@ -244,8 +245,9 @@ class ImageEncoder(NeuralModule):
 
     @classmethod
     def restore_from(cls, restore_path: str):
-        """Not implemented yet.
-            Restore module from serialization.
+        """
+        Not implemented.
+
         Args:
             restore_path (str): path to serialization
         """
