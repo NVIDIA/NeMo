@@ -17,6 +17,7 @@ trainer:
   logger: false  # Provided by exp_manager
 
 model:
+  nemo_path: null # filename to save the model and associated artifacts to .nemo file
   data_dir: ??? # /path/to/data
   class_balancing: null # or weighted_loss
   intent_loss_weight: 0.6 # relation of intent to slot loss in total loss (between 0 to 1)
