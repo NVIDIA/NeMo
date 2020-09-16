@@ -42,7 +42,7 @@ class ResNet50(Model):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         """
         Returns:
-            :class:`LeNet5Module` input types.
+            :class:`ImageEncoder` input types.
         """
         return self.classifier.input_types
 
@@ -50,13 +50,13 @@ class ResNet50(Model):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """
         Returns:
-            :class:`LeNet5Module` output types.
+            :class:`ImageEncoder` output types.
         """
         return self.classifier.output_types
 
     @typecheck()
     def forward(self, images):
-        """ Propagates data by calling the module :class:`LeNet5Module` forward. """
+        """ Propagates data by calling the module :class:`ResNet50` forward, calculates and returns loss. """
         return self.classifier.forward(images=images)
 
     def training_step(self, batch, what_is_this_input):

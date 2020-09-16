@@ -56,7 +56,7 @@ class LeNet5(Model):
 
     @typecheck()
     def forward(self, images):
-        """ Propagates data by calling the module :class:`LeNet5Module` forward. """
+        """ Propagates data by calling the module :class:`LeNet5Module` forward, calculates and returns loss. """
         return self.module.forward(images=images)
 
     def training_step(self, batch, what_is_this_input):
