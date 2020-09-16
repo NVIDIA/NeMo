@@ -192,20 +192,33 @@ class TextClassificationModel(ModelPT):
         return self.validation_epoch_end(outputs)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode='train')
+        if not train_data_config or not train_data_config.file_path:
+            logging.info(
+                f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
+            )
+            self._test_dl = None
+            return
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode='validation')
+        if not val_data_config or not val_data_config.file_path:
+            logging.info(
+                f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
+            )
+            self._test_dl = None
+            return
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode='test')
-
-    def _setup_dataloader_from_config(self, cfg: DictConfig, mode):
-        if not cfg or not cfg.file_path:
+        if not test_data_config or not test_data_config.file_path:
             logging.info(
-                f"Dataloader config or file_path for the {mode} is missing, so no data loader for test is created!"
+                f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
             )
-            return None
+            self._test_dl = None
+            return
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+
+    def _setup_dataloader_from_config(self, cfg: DictConfig):
         input_file = cfg.file_path
         if not os.path.exists(input_file):
             raise FileNotFoundError(
