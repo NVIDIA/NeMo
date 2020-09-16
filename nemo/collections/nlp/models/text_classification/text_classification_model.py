@@ -53,6 +53,7 @@ class TextClassificationModel(ModelPT):
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
         self._setup_tokenizer(cfg.tokenizer)
+
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -91,6 +92,15 @@ class TextClassificationModel(ModelPT):
 
         # setup to track metrics
         self.classification_report = ClassificationReport(cfg.dataset.num_classes)
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
+        )
+        self.tokenizer = tokenizer
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -181,15 +191,6 @@ class TextClassificationModel(ModelPT):
         """
         return self.validation_epoch_end(outputs)
 
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            tokenizer_model=cfg.tokenizer_model,
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            vocab_file=cfg.vocab_file,
-        )
-        self.tokenizer = tokenizer
-
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode='train')
 
@@ -251,7 +252,7 @@ class TextClassificationModel(ModelPT):
         try:
             # Switch model to evaluation mode
             self.eval()
-            infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
+            infer_datalayer = self._create_infer_dataloader(queries, batch_size)
 
             for i, batch in enumerate(infer_datalayer):
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
@@ -269,7 +270,7 @@ class TextClassificationModel(ModelPT):
             self.train(mode=mode)
         return all_preds
 
-    def _setup_infer_dataloader(
+    def _create_infer_dataloader(
         self, queries: List[str], batch_size: int, max_seq_length: int = -1
     ) -> 'torch.utils.data.DataLoader':
         """

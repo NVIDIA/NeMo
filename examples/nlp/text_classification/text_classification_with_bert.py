@@ -12,7 +12,66 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script contains an example on how to train, evaluate and perform inference with the TextClassificationModel.
+TextClassificationModel in NeMo supports text classification problems such as sentiment analysis or
+domain/intent detection for dialogue systems, as long as the data follows the format specified below.
 
+***Data format***
+TextClassificationModel requires the data to be stored in TAB separated files (.tsv) with two columns of sentence and
+label. Each line of the data file contains text sequences, where words are separated with spaces and label separated
+with [TAB], i.e.:
+
+[WORD][SPACE][WORD][SPACE][WORD][TAB][LABEL]
+
+For example:
+
+hide new secretions from the parental units[TAB]0
+that loves its characters and communicates something rather beautiful about human nature[TAB]1
+...
+
+If your dataset is stored in another format, you need to convert it to this format to use the TextClassificationModel.
+
+
+***Setting the configs***
+The model and the PT trainer are defined in a config file which declares multiple important sections. The most important ones are:
+    model: All arguments that are related to the Model - language model, tokenizer, head classifier, optimizer,
+            schedulers, and datasets/data loaders.
+    trainer: Any argument to be passed to PyTorch Lightning incuding number of epochs, number of GPUs, precision level, etc.
+
+This script uses the `/examples/nlp/text_classification/conf/text_classification_config.yaml` default config file
+by default. You may update the config file from the file directly or by using the command line arguments.
+Other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
+
+You first need to set the num_classes in the config file which specifies the number of classes in the dataset.
+Notice that some config lines, including `model.dataset.classes_num`, have `???` as their value, this means that values
+for these fields are required to be specified by the user. We need to specify and set the `model.train_ds.file_name`,
+`model.validation_ds.file_name`, and `model.test_ds.file_name` in the config file to the paths of the train, validation,
+ and test files if they exist. We may do it by updating the config file or by setting them from the command line.
+
+
+***How to run the script?***
+For example the following would train a model for 50 epochs in 2 GPUs on a classification task with 2 classes:
+
+# python text_classification_with_bert.py
+        model.dataset.num_classes=2
+        model.train_ds=PATH_TO_TRAIN_FILE
+        model.validation_ds=PATH_TO_VAL_FILE
+        trainer.max_epochs=50
+        trainer.gpus=2
+
+This script would also reload the best checkpoint after the training is done and does evaluation on the dev set. Then perform inference on some sample queries.
+
+By default, this script uses examples/nlp/text_classification/conf/text_classifciation_config.py config file, and you may update all the params in the config file from the command line. You may also use another config file like this:
+
+# python text_classification_with_bert.py --config-name==PATH_TO_CONFIG_FILE
+        model.dataset.num_classes=2
+        model.train_ds=PATH_TO_TRAIN_FILE
+        model.validation_ds=PATH_TO_VAL_FILE
+        trainer.max_epochs=50
+        trainer.gpus=2
+
+"""
 import os
 
 import pytorch_lightning as pl
@@ -82,7 +141,6 @@ def main(cfg: DictConfig) -> None:
             {'file_path': cfg.model.validation_ds.file_path, 'batch_size': 64, 'shuffle': False, 'num_samples': -1}
         )
         eval_model.setup_test_data(test_data_config=eval_config)
-        # eval_dataloader = eval_model._create_dataloader_from_config(cfg=eval_config, mode='test')
 
         # a new trainer is created to show how to evaluate a checkpoint from an already trained model
         # create a copy of the trainer config and update it to be used for final evaluation
