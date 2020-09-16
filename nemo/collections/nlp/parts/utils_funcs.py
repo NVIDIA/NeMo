@@ -77,8 +77,9 @@ def plot_confusion_matrix(
         ax = fig.add_subplot(111)
 
         cax = ax.matshow(cm)
-        ax.set_xticks(np.arange(-1, len(classes) + 1))
-        ax.set_yticks(np.arange(-1, len(classes) + 1))
+
+        ax.set_xticks(np.arange(-1, len(classes)))
+        ax.set_yticks(np.arange(-1, len(classes)))
         ax.set_xticklabels([''] + classes, rotation=90)
         ax.set_yticklabels([''] + classes)
         ax.set_ylabel('True')
