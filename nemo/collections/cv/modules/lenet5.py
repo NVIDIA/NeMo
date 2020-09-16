@@ -18,26 +18,23 @@ from typing import Optional
 from torch import nn
 
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.config import Config
 from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
-from nemo.utils.decorators import experimental
 
 
-@experimental
 class LeNet5(NeuralModule):
     """
     Classical LeNet-5 model for MNIST image classification.
     """
 
-    def __init__(self, cfg: Config = Config()):
+    def __init__(self):
         """
-        Creates the LeNet-5 model.
+        Creates the LeNet-5 module.
 
         Args:
             cfg: Default NeMo config containing name.
         """
         # Call the base class constructor.
-        super().__init__()  # name=name)
+        super().__init__()
 
         # Create the LeNet-5 model.
         self.model = nn.Sequential(
@@ -107,7 +104,7 @@ class LeNet5(NeuralModule):
 
     @classmethod
     def restore_from(cls, restore_path: str):
-        """ Not implemented yet.
+        """Not implemented yet.
             Restore module from serialization.
 
         Args:

@@ -16,13 +16,12 @@ from typing import Any, Optional, List
 
 from dataclasses import dataclass
 
-import hydra
 from hydra.core.config_store import ConfigStore
 
 import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from nemo.collections.cv.models import MNISTLeNet5
+from nemo.collections.cv.models import LeNet5
 from nemo.core.config import Config, hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -50,15 +49,14 @@ class AppConfig:
 cs = ConfigStore.instance()
 cs.store(node=AppConfig, name="mnist_lenet5_image_classification_training")
 
-
+# Load configuration file from "conf" dir using schema for validation/retrieving the default values.
 @hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification_training")
-# @hydra.main(config_name="config")
 def main(cfg: AppConfig):
     # Show configuration.
     logging.info("Application settings\n" + OmegaConf.to_yaml(cfg))
 
     # Instantiate the "model".
-    lenet5 = MNISTLeNet5()
+    lenet5 = LeNet5()
 
     # Instantiate the dataloader/dataset.
     train_dl = lenet5.instantiate_dataloader(cfg.dataloader, cfg.dataset, cfg.transforms)
