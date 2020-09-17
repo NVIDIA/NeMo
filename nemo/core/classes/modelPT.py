@@ -179,13 +179,17 @@ class ModelPT(LightningModule, Model):
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @classmethod
-    def restore_from(cls, restore_path: str, override_config_path: Optional[str] = None):
+    def restore_from(
+        cls, restore_path: str, override_config_path: Optional[str] = None, map_location: Optional[torch.device] = None
+    ):
         """
         Restores model instance (weights and configuration) into .nemo file
         Args:
             restore_path: path to .nemo file from which model should be instantiated
             override_config_path: path to a yaml config that will override the internal
                 config file
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
 
             Example:
                 ```
@@ -200,6 +204,12 @@ class ModelPT(LightningModule, Model):
             raise FileExistsError(f"Can't find {restore_path}")
 
         cwd = os.getcwd()
+
+        if map_location is None:
+            if torch.cuda.is_available():
+                map_location = torch.device('cuda')
+            else:
+                map_location = torch.device('cpu')
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
@@ -221,7 +231,8 @@ class ModelPT(LightningModule, Model):
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 OmegaConf.set_struct(conf, True)
                 instance = cls.from_config_dict(config=conf)
-                instance.load_state_dict(torch.load(model_weights))
+                instance = instance.to(map_location)
+                instance.load_state_dict(torch.load(model_weights, map_location=map_location))
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
