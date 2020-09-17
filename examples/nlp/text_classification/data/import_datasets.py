@@ -49,7 +49,6 @@ def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
     outfiles = {}
     for mode in modes:
         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
-        outfiles[mode].write('sentence\tlabel\n')
         for sent in ['neg', 'pos']:
             if sent == 'neg':
                 label = 0
@@ -91,7 +90,6 @@ def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'd
     out_label_mapping = open(os.path.join(target_dir, 'label_mapping.tsv'), 'w')
     for mode in modes:
         outfiles[mode] = open(os.path.join(target_dir, mode + '.tsv'), 'w')
-        outfiles[mode].write('sentence\tlabel\n')
         input_file = os.path.join(source_dir, naming_map[mode])
         lines = _read_tsv(input_file)
         for line in lines:
@@ -124,7 +122,6 @@ def process_thucnews(infold, outfold):
     outfiles = {}
     for mode in modes:
         outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'a+', encoding='utf-8')
-        outfiles[mode].write('sentence\tlabel\n')
     categories = ['体育', '娱乐', '家居', '彩票', '房产', '教育', '时尚', '时政', '星座', '游戏', '社会', '科技', '股票', '财经']
     for category in categories:
         label = categories.index(category)
@@ -157,10 +154,7 @@ if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(description="Process and convert datasets into NeMo\'s format.")
     parser.add_argument(
-        "--dataset_name",
-        required=True,
-        type=str,
-        choices=['sst-2', 'imdb', 'thucnews', 'nlu-chat', 'nlu-ubuntu', 'nlu-web', 'chemprot'],
+        "--dataset_name", required=True, type=str, choices=['imdb', 'thucnews', 'chemprot'],
     )
     parser.add_argument(
         "--source_data_dir", required=True, type=str, help='The path to the folder containing the dataset files.'
@@ -177,9 +171,7 @@ if __name__ == "__main__":
     if not exists(source_dir):
         raise FileNotFoundError(f"{source_dir} does not exist.")
 
-    if dataset_name == 'sst-2':
-        logging.info("sst-2 is compatible with NeMo's format and no need for conversion.")
-    elif dataset_name == 'imdb':
+    if dataset_name == 'imdb':
         process_imdb(source_dir, target_dir, do_lower_case)
     elif dataset_name == 'thucnews':
         process_thucnews(source_dir, target_dir)
