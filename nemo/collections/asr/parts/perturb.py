@@ -445,14 +445,14 @@ class RirAndNoisePerturbation(Perturbation):
         rir_shuffle_n=100,
         noise_tar_filepaths=None,
         apply_noise_rir=False,
-        orig_sampling_rate=None,
+        orig_sample_rate=None,
         max_additions=5,
         max_duration=2.0,
         bg_noise_manifest_paths=None,
         bg_min_snr_db=10,
         bg_max_snr_db=50,
         bg_noise_tar_filepaths=None,
-        bg_orig_sampling_rate=None,
+        bg_orig_sample_rate=None,
     ):
         """
         RIR augmentation with additive foreground and background noise.
@@ -473,14 +473,14 @@ class RirAndNoisePerturbation(Perturbation):
             max_snr_db: max SNR for background noise,
             noise_tar_filepaths: tar files, if noise files are tarred
             apply_noise_rir: whether to convolve foreground noise with a a random RIR
-            orig_sampling_rate: original sampling rate of foreground noise audio
+            orig_sample_rate: original sampling rate of foreground noise audio
             max_additions: max number of times foreground noise is added to an utterance,
             max_duration: max duration of foreground noise
             bg_noise_manifest_paths: background noise manifest path
             bg_min_snr_db: min SNR for background noise
             bg_max_snr_db: max SNR for background noise
             bg_noise_tar_filepaths: tar files, if noise files are tarred
-            bg_orig_sampling_rate: original sampling rate of background noise audio
+            bg_orig_sample_rate: original sampling rate of background noise audio
 
         """
         logging.info("Called Rir aug init")
@@ -496,10 +496,10 @@ class RirAndNoisePerturbation(Perturbation):
         self._bg_noise_perturbers = {}
         if noise_manifest_paths:
             for i in range(len(noise_manifest_paths)):
-                if orig_sampling_rate is None:
+                if orig_sample_rate is None:
                     orig_sr = 16000
                 else:
-                    orig_sr = orig_sampling_rate[i]
+                    orig_sr = orig_sample_rate[i]
                 self._fg_noise_perturbers[orig_sr] = NoisePerturbation(
                     manifest_path=noise_manifest_paths[i],
                     min_snr_db=min_snr_db[i],
@@ -511,10 +511,10 @@ class RirAndNoisePerturbation(Perturbation):
         self._max_duration = max_duration
         if bg_noise_manifest_paths:
             for i in range(len(bg_noise_manifest_paths)):
-                if bg_orig_sampling_rate is None:
+                if bg_orig_sample_rate is None:
                     orig_sr = 16000
                 else:
-                    orig_sr = bg_orig_sampling_rate[i]
+                    orig_sr = bg_orig_sample_rate[i]
                 self._bg_noise_perturbers[orig_sr] = NoisePerturbation(
                     manifest_path=bg_noise_manifest_paths[i],
                     min_snr_db=bg_min_snr_db[i],
