@@ -24,79 +24,76 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    params:
-      normalize: "per_feature"
-      window_size: 0.02
-      sample_rate: *sample_rate
-      window_stride: 0.01
-      window: "hann"
-      features: &n_mels 64
-      n_fft: 512
-      frame_splicing: 1
-      dither: 0.00001
-      stft_conv: false
+    normalize: "per_feature"
+    window_size: 0.02
+    sample_rate: *sample_rate
+    window_stride: 0.01
+    window: "hann"
+    features: &n_mels 64
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+    stft_conv: false
 
   encoder:
     _target_: nemo.collections.asr.modules.ConvASREncoder
-    params:
-      feat_in: *n_mels
-      activation: relu
-      conv_mask: true
+    feat_in: *n_mels
+    activation: relu
+    conv_mask: true
 
-      jasper:
-        -   filters: *n_filters
-            repeat: 1
-            kernel: [3]
-            stride: [1]
-            dilation: [1]
-            dropout: *drop
-            residual: true
-            separable: *separable
+    jasper:
+      -   filters: *n_filters
+          repeat: 1
+          kernel: [3]
+          stride: [1]
+          dilation: [1]
+          dropout: *drop
+          residual: true
+          separable: *separable
 
-        -   filters: *n_filters
-            repeat: *rep
-            kernel: [7]
-            stride: [1]
-            dilation: [1]
-            dropout: *drop
-            residual: true
-            separable: *separable
+      -   filters: *n_filters
+          repeat: *rep
+          kernel: [7]
+          stride: [1]
+          dilation: [1]
+          dropout: *drop
+          residual: true
+          separable: *separable
 
-        -   filters: *n_filters
-            repeat: *rep
-            kernel: [11]
-            stride: [1]
-            dilation: [1]
-            dropout: *drop
-            residual: true
-            separable: *separable
+      -   filters: *n_filters
+          repeat: *rep
+          kernel: [11]
+          stride: [1]
+          dilation: [1]
+          dropout: *drop
+          residual: true
+          separable: *separable
 
-        -   filters: *n_filters
-            repeat: *rep
-            kernel: [15]
-            stride: [1]
-            dilation: [1]
-            dropout: *drop
-            residual: true
-            separable: *separable
+      -   filters: *n_filters
+          repeat: *rep
+          kernel: [15]
+          stride: [1]
+          dilation: [1]
+          dropout: *drop
+          residual: true
+          separable: *separable
 
-        -   filters: &enc_feat_out 1500
-            repeat: 1
-            kernel: [1]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: false
-            separable: *separable
+      -   filters: &enc_feat_out 1500
+          repeat: 1
+          kernel: [1]
+          stride: [1]
+          dilation: [1]
+          dropout: 0.0
+          residual: false
+          separable: *separable
 
   decoder:
     _target_: nemo.collections.asr.modules.SpeakerDecoder
-    params:
-      feat_in: *enc_feat_out
-      num_classes: 2
-      pool_mode: 'xvector'
-      emb_sizes: 512,512
-      angular: True
+    feat_in: *enc_feat_out
+    num_classes: 7205
+    pool_mode: 'xvector'
+    emb_sizes: 512,512
+    angular: True
 
   loss:
     scale: 30
@@ -105,14 +102,13 @@ model:
   optim:
     name: novograd
     # _target_: nemo.core.optim.optimizers.Novograd
-    lr: .006
+    lr: .06
     # optimizer arguments
     args:
       name: auto
       # _target_: nemo.core.config.optimizers.NovogradParams
-      params:
-        betas: [0.95, 0.5]
-        weight_decay: 0.001
+      betas: [0.95, 0.5]
+      weight_decay: 0.001
 
     # scheduler setup
     sched:
@@ -128,11 +124,10 @@ model:
       args:
         name: auto
         # _target_: nemo.core.config.schedulers.CosineAnnealingParams
-        params:
-          warmup_steps: null
-          warmup_ratio: 0.1
-          min_lr: 0.0
-          last_epoch: -1
+        warmup_steps: null
+        warmup_ratio: 0.1
+        min_lr: 0.0
+        last_epoch: -1
 
 trainer:
   gpus: 1 # number of gpus
