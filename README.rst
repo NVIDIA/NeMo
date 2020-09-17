@@ -174,7 +174,7 @@ To run tutorials:
      - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
      - Speech Commands
-     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/02_Speech_Commands.ipynb>`_
+     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/03_Speech_Commands.ipynb>`_
    * - ASR
      - Speaker Recognition and Verification
      - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
