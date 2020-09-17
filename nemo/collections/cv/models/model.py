@@ -68,7 +68,7 @@ class Model(ModelPT):
         self._optim = hydra.utils.instantiate(optim_cfg, params=self.parameters())
 
         # Test of idea - dynamically add of method returning optimizer.
-        # Goal: keeping the original "PTL safety mechanisms" when one do not create optimizers =>
+        # Goal: keeping the original "PTL safety mechanisms" when one does not create optimizers =>
         # trainer will act in a standard way.
         def configure_optimizers_dynamic(self):
             return self._optim

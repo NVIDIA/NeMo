@@ -35,7 +35,7 @@ class MNISTConfig:
         _target_: specification of TorchVision dataset class
         root: path to the folder with data, can be relative to user (DEFAULT: "~/data/mnist")
         train: use train or test splits (DEFAULT: True)
-        download: download the data (DEFAULT: True)
+        download: downloads the data if not present (DEFAULT: True)
     """
 
     # Dataset target class name.
@@ -69,7 +69,7 @@ class CIFAR10Config:
         _target_: specification of TorchVision dataset class
         root: path to the folder with data, can be relative to user (DEFAULT: "~/data/cifar10")
         train: use train or test splits (DEFAULT: True)
-        download: download the data (DEFAULT: True)
+        download: downloads the data if not present (DEFAULT: True)
     """
 
     # Dataset target class name.
