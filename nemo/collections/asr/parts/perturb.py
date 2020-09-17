@@ -63,7 +63,7 @@ except (ImportError, ModuleNotFoundError):
 def read_one_audiosegment(manifest, target_sr, rng, tarred_audio=False, audio_dataset=None):
     if tarred_audio:
         if audio_dataset is None:
-            raise TypeError("Expected augmentation dataset but gor None")
+            raise TypeError("Expected augmentation dataset but got None")
         audio_file, file_id = next(audio_dataset)
         manifest_idx = manifest.mapping[file_id]
         manifest_entry = manifest[manifest_idx]
