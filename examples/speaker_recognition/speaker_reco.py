@@ -24,21 +24,19 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 """
-Basic run (on GPU for 10 epochs):
+Basic run (on GPU for 10 epochs for 2 class training):
 EXP_NAME=sample_run
 python ./speaker_reco.py --config-path='conf' --config-name='SpeakerNet_recognition_3x2x512.yaml' \
     trainer.max_epochs=10  \
     model.train_ds.batch_size=64 model.validation_ds.batch_size=64 \
+    model.train_ds.manifest_filepath="<train_manifest>" model.validation_ds.manifest_filepath="<dev_manifest>" \
+    model.test_ds.manifest_filepath="<test_manifest>" \
     trainer.gpus=1 \
     model.decoder.params.num_classes=2 \
     exp_manager.name=$EXP_NAME +exp_manager.use_datetime_version=False \
     exp_manager.exp_dir='./speaker_exps'
 
-Add PyTorch Lightning Trainer arguments from CLI:
-    python speaker_reco.py \
-        ... \
-        +trainer.fast_dev_run=true
-
+See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb for notebook tutorial
 """
 
 seed_everything(42)
@@ -56,13 +54,10 @@ def main(cfg):
     speaker_model.save_to(model_path)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        if (isinstance(cfg.trainer.gpus, ListConfig) and len(cfg.trainer.gpus) > 1) or (
-            isinstance(cfg.trainer.gpus, (int, str)) and int(cfg.trainer.gpus) > 1
-        ):
-            logging.info("Testing on single GPU to minimize DDP issues")
-            trainer.gpus = 1
-
-        trainer.test(speaker_model)
+        gpu = 1 if cfg.trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu)
+        if speaker_model.prepare_test(trainer):
+            trainer.test(speaker_model)
 
 
 if __name__ == '__main__':
