@@ -196,6 +196,13 @@ To run tutorials:
    * - NLP
      - Punctuation and Capitialization
      - `Punctuation and capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+   * - NLP
+     - Named Entity Recognition - BioMegatron
+     - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
+   * - NLP
+     - Relation Extraction - BioMegatron
+     - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
+
    * - TTS
      - Speech Synthesis
      - `TTS inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_
