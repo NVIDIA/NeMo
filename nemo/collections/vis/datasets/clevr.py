@@ -28,10 +28,8 @@
 
 __author__ = "Tomasz Kornuta"
 
-"""
-This file contains code artifacts adapted from the original implementation:
-https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/tasks/image_text_to_class/clevr.py
-"""
+# This file contains code artifacts adapted from the original implementation:
+# https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/tasks/image_text_to_class/clevr.py
 
 from os import makedirs
 from os.path import expanduser, join, exists
@@ -72,7 +70,8 @@ class CLEVRConfig:
     Args:
         _target_: Specification of dataset class
         root: Folder where task will store data (DEFAULT: "~/data/clevr")
-        split: Defines the set (split) that will be used (Options: training | validation | test | cogent_a_training | cogent_a_validation | cogent_b_validation) (DEFAULT: training)
+        split: Defines the set (split) that will be used (Options: training | validation | test | cogent_a_training |
+            cogent_a_validation | cogent_b_validation) (DEFAULT: training)
         stream_images: Flag indicating whether the task will load and return images (DEFAULT: True)
         transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
         download: downloads the data if not present (DEFAULT: True)
@@ -100,6 +99,7 @@ class CLEVR(Dataset):
     Class fetching data from the CLEVR (Compositional Language andElementary Visual Reasoning) diagnostics dataset.
 
     The CLEVR dataset consists of three splits:
+
         - A training set of 70,000 images and 699,989 questions
         - A validation set of 15,000 images and 149,991 questions
         - A test set of 15,000 images and 14,988 questions
@@ -111,6 +111,7 @@ class CLEVR(Dataset):
 
     CLEVR contains a total of 90 question families, eachwith a single program template and an average of four texttemplates.
     Those are further aggregated into 13 Question Types:
+
         - Querying attributes (Size, Color, Material, Shape)
         - Comparing attributes (Size, Color, Material, Shape)
         - Existence
@@ -516,7 +517,6 @@ class CLEVR(Dataset):
 
         Returns:
             Batch of: indices, images, images_ids,questions, answers, category_ids, image_sizes
-
         """
         # Collate indices.
         indices = [sample[0] for sample in batch]

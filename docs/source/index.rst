@@ -9,6 +9,7 @@ NVIDIA NeMo Developer Guide
    core
    asr/intro
    cv/intro
+   vis/intro
    nlp/intro
    tts/intro
    common/intro
