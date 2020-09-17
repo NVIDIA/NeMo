@@ -185,6 +185,9 @@ To run tutorials:
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained language models for downstream tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
    * - NLP
+     - Text Classification (Sentiment Analysis) with BERT
+     - `Text Classification (Sentiment Analysis) <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`_
+   * - NLP
      - Question answering with SQuAD
      - `Question answering squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
    * - NLP
