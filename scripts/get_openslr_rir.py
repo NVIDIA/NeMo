@@ -18,14 +18,14 @@
 # a json file that can be used as in input to NeMo is created
 
 import argparse
+import glob
 import json
 import logging
 import os
 import subprocess
 import urllib.request
+from shutil import copy, move
 from zipfile import ZipFile
-from shutil import copy,move
-import glob
 
 parser = argparse.ArgumentParser(description='OpenSLR RIR Data download and process')
 parser.add_argument("--data_root", required=True, default=None, type=str)
@@ -34,6 +34,7 @@ args = parser.parse_args()
 URLS = {
     'SLR28': ("http://www.openslr.org/resources/28/rirs_noises.zip"),
 }
+
 
 def __maybe_download_file(destination: str, source: str):
     """
@@ -75,11 +76,11 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
     if not os.path.exists(dst_folder):
         os.makedirs(dst_folder)
 
-    real_rir_list = os.path.join(data_folder,"RIRS_NOISES","real_rirs_isotropic_noises","rir_list")
+    real_rir_list = os.path.join(data_folder, "RIRS_NOISES", "real_rirs_isotropic_noises", "rir_list")
     rirfiles = []
     with open(real_rir_list, "r") as rir_f:
         for line in rir_f:
-            rirfiles.append(os.path.join(data_folder,line.rstrip().split(" ")[4]))
+            rirfiles.append(os.path.join(data_folder, line.rstrip().split(" ")[4]))
 
     real_rir_folder = os.path.join(dst_folder, "real_rirs")
     if not os.path.exists(real_rir_folder):
@@ -90,28 +91,29 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
         if n_chans == 1:
             copy(rir_f, real_rir_folder)
         else:
-            for chan in range(1,n_chans+1):
-                chan_file_name = os.path.join(real_rir_folder,
-                                    os.path.splitext(os.path.basename(rir_f))[0] + "-" + str(chan) + ".wav")
+            for chan in range(1, n_chans + 1):
+                chan_file_name = os.path.join(
+                    real_rir_folder, os.path.splitext(os.path.basename(rir_f))[0] + "-" + str(chan) + ".wav"
+                )
                 _ = subprocess.check_output(f"sox {rir_f} {chan_file_name} remix {chan}", shell=True)
 
     # move simulated rirs to processed
-    move(os.path.join(data_folder,"RIRS_NOISES","simulated_rirs"), dst_folder)
+    move(os.path.join(data_folder, "RIRS_NOISES", "simulated_rirs"), dst_folder)
 
     os.chdir(dst_folder)
     all_rirs = glob.glob("**/*.wav", recursive=True)
     with open(manifest_file, 'w') as man_f:
-        entry={}
-        for rir in all_rirs[0:100]:
+        entry = {}
+        for rir in all_rirs:
             rir_file = os.path.join(dst_folder, rir)
-            duration = subprocess.check_output(
-                "soxi -D {0}".format(rir_file), shell=True)
+            duration = subprocess.check_output("soxi -D {0}".format(rir_file), shell=True)
             entry['audio_filepath'] = rir_file
             entry['duration'] = float(duration)
             entry['offset'] = 0
             man_f.write(json.dumps(entry) + "\n")
 
     print('Done!')
+
 
 def main():
     data_root = args.data_root
