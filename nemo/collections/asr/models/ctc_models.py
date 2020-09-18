@@ -338,11 +338,8 @@ class EncDecCTCModel(ASRModel):
 
         if (batch_nb + 1) % row_log_interval == 0:
             wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
-            tensorboard_logs.update(
-                {'training_batch_wer': wer_num / wer_denom,}
-            )
+            tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
 
-        if (batch_nb + 1) % (row_log_interval * 10) == 0:
             pred_text = self._wer.ctc_decoder_predictions_tensor(predictions[:1])
             ref_text = self._wer.ctc_decoder_predictions_tensor(transcript[:1])
             logging.info(f"Predicted: {pred_text[0]}")
