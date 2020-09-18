@@ -170,6 +170,8 @@ class EncDecCTCModel(ASRModel):
             new_decoder_config['params']['num_classes'] = len(new_vocabulary)
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
+            del self.loss
+            self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
             self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
             # Update config
