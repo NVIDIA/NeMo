@@ -397,13 +397,14 @@ class ModelPT(LightningModule, Model):
         self._validation_names = None
         self._validation_dl = None  # type: torch.utils.data.DataLoader
 
-        if val_data_config is not None:
-            if isinstance(val_data_config, dict):
-                val_data_config = DictConfig(val_data_config)
+        # preserve config
+        self._update_dataset_config(dataset_name='validation', config=val_data_config)
 
-            self._cfg.validation_ds = val_data_config
-
-        model_utils.resolve_validation_dataloaders(model=self)
+        try:
+            self._multi_dataset_mode = True
+            model_utils.resolve_validation_dataloaders(model=self)
+        finally:
+            self._multi_dataset_mode = False
 
         if self._validation_names is None:
             if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
@@ -421,13 +422,14 @@ class ModelPT(LightningModule, Model):
         self._test_names = None
         self._test_dl = None  # type: torch.utils.data.DataLoader
 
-        if test_data_config is not None:
-            if isinstance(test_data_config, dict):
-                test_data_config = DictConfig(test_data_config)
+        # preserve config
+        self._update_dataset_config(dataset_name='test', config=test_data_config)
 
-            self._cfg.test_ds = test_data_config
-
-        model_utils.resolve_test_dataloaders(model=self)
+        try:
+            self._multi_dataset_mode = True
+            model_utils.resolve_test_dataloaders(model=self)
+        finally:
+            self._multi_dataset_mode = False
 
         if self._test_names is None:
             if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
@@ -887,6 +889,38 @@ class ModelPT(LightningModule, Model):
             trainer: PyTorch Lightning Trainer object.
         """
         self._trainer = trainer
+
+    def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
+        """
+        Update the config (if not None) of the dataset by given name.
+        Preserves said config after updating.
+
+        Args:
+            dataset_name: str name of the dataset whose config is being updated.
+                Can be one of `train`, `validation` and `test`.
+            config: Optional DictConfig or dict. If None is passed, this method simply returns.
+                If dict is passed, it is cast into a DictConfig.
+                The internal config is updated with the passed config.
+        """
+        if hasattr(self, '_multi_dataset_mode') and self._multi_dataset_mode is True:
+            return
+
+        if config is not None:
+            if not isinstance(config, DictConfig):
+                config = OmegaConf.create(config)
+
+            if dataset_name in ['train', 'validation', 'test']:
+                OmegaConf.set_struct(self.cfg, False)
+
+                key_name = dataset_name + "_ds"
+                self.cfg[key_name] = config
+
+                OmegaConf.set_struct(self.cfg, True)
+
+                # Update hyper parameters by calling property setter
+                self.cfg = self._cfg
+            else:
+                raise ValueError("`dataset_name` when updating config must be one of [train, validation, test]")
 
     @property
     def num_weights(self):

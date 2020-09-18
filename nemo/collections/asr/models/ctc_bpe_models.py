@@ -20,6 +20,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
+from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -295,6 +296,8 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
+        del self.loss
+        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
         self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
         # Update config
