@@ -18,6 +18,8 @@ import editdistance
 import torch
 from pytorch_lightning.metrics import TensorMetric
 
+from nemo.utils import logging
+
 __all__ = ['word_error_rate', 'WER']
 
 
@@ -81,23 +83,25 @@ class WER(TensorMetric):
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
-        vocabulary:
-        batch_dim_index:
-        use_cer:
-        ctc_decode:
+        vocabulary: List of strings that describes the vocabulary of the dataset.
+        batch_dim_index: Index of the batch dimension.
+        use_cer: Whether to use Character Error Rate isntead of Word Error Rate.
+        ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
+        log_prediction: Whether to log a single decoded sample per call.
 
     Returns:
         res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
         text word error rate, compute wer=wer_numerator/wer_denominator
     """
 
-    def __init__(self, vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True):
+    def __init__(self, vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True, log_prediction=True):
         super(WER, self).__init__(name="WER")
         self.batch_dim_index = batch_dim_index
         self.blank_id = len(vocabulary)
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
         self.use_cer = use_cer
         self.ctc_decode = ctc_decode
+        self.log_prediction = log_prediction
 
     def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
         """
@@ -139,6 +143,11 @@ class WER(TensorMetric):
                 hypotheses = self.ctc_decoder_predictions_tensor(predictions)
             else:
                 raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
+
+        if self.log_prediction:
+            logging.info(f"\n")
+            logging.info(f"reference:{references[0]}")
+            logging.info(f"decoded  :{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:
