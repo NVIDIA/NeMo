@@ -102,7 +102,7 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.model.nemo_path:
         model.save_to(cfg.model.nemo_path)
-        logging.info('Model is saved into `.nemo` file: cfg.model.nemo_path')
+        logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
 
     # We evaluate the trained model on the test set if test_ds is set in the config file
     if cfg.model.test_ds.file_path:
@@ -117,7 +117,7 @@ def main(cfg: DictConfig) -> None:
             "================================================================================================"
         )
 
-    # retreive the path to the last checkpoint of the training
+    # retrieve the path to the last checkpoint of the training
     checkpoint_path = os.path.join(
         trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt"
     )

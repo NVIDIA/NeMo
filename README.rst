@@ -174,13 +174,19 @@ To run tutorials:
      - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
      - Speech Commands
-     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/02_Speech_Commands.ipynb>`_
+     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/03_Speech_Commands.ipynb>`_
+   * - ASR
+     - Speaker Recognition and Verification
+     - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
    * - ASR
      - Online Noise Augmentation
      - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained language models for downstream tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
+   * - NLP
+     - Text Classification (Sentiment Analysis) with BERT
+     - `Text Classification (Sentiment Analysis) <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`_
    * - NLP
      - Question answering with SQuAD
      - `Question answering squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
@@ -196,6 +202,13 @@ To run tutorials:
    * - NLP
      - Punctuation and Capitialization
      - `Punctuation and capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+   * - NLP
+     - Named Entity Recognition - BioMegatron
+     - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
+   * - NLP
+     - Relation Extraction - BioMegatron
+     - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
+
    * - TTS
      - Speech Synthesis
      - `TTS inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_

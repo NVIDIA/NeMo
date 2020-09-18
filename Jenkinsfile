@@ -312,7 +312,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel MegaBERT Text Classification / SQUAD v2.0') {
+    stage('L2: Parallel MegaBERT Token Classification / SQUAD v2.0') {
       when {
         anyOf{
           branch 'main'
@@ -321,18 +321,16 @@ pipeline {
       }
       failFast true
       parallel {
-        stage ('Text Classification with MegaBERT') {
+        stage ('Token Classification with MegaBERT') {
           steps {
-            sh 'cd examples/nlp/text_classification && \
-            python text_classification_with_bert.py \
-            model.dataset.num_classes=6 \
-            model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
-            model.validation_ds.file_path=/home/TestData/nlp/retail_text_classification/dev.tsv \
-            model.language_model.pretrained_model_name=bert-base-uncased \
+            sh 'cd examples/nlp/token_classification && \
+            python token_classification.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-	    trainer.distributed_backend=ddp \
+    	    trainer.distributed_backend=ddp \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
