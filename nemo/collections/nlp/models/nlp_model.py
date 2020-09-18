@@ -37,12 +37,14 @@ class NLPModel(ModelPT, ABC):
             logging.info("Configuring model parallel DDP.")
             # with model parallelism, multiple GPUs form a large "logical GPU"
             # this means that data parallel groups span multiple GPUs
-            # TODO: get device_id
-            i = app_state.device_id
+
+            # in PTL device_id is trainer.root_gpu
+            # TODO: add device_id/root_gpu to AppState?
+            device_id = self._trainer.root_gpu
             model = LightningDistributedDataParallel(
                 model,
-                device_ids=[i],
-                output_device=i,
+                device_ids=[device_id],
+                output_device=device_id,
                 process_group=app_state.get_data_parallel_group()
             )
             return model
