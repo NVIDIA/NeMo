@@ -19,6 +19,7 @@ import torch
 from pytorch_lightning.metrics import TensorMetric
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.utils import logging
 
 
 class WERBPE(TensorMetric):
@@ -49,19 +50,23 @@ class WERBPE(TensorMetric):
        batch_dim_index: Index of the batch dimension.
        use_cer: Whether to compute word-error-rate or character-error-rate.
        ctc_decode: Whether to perform CTC decode.
+       log_prediction: Whether to log a single decoded sample per call.
 
     Returns:
        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominators]. To correctly compute average
        text word error rate, compute wer=wer_numerator/wer_denominators
     """
 
-    def __init__(self, tokenizer: TokenizerSpec, batch_dim_index=0, use_cer=False, ctc_decode=True):
+    def __init__(
+        self, tokenizer: TokenizerSpec, batch_dim_index=0, use_cer=False, ctc_decode=True, log_prediction=True
+    ):
         super().__init__(name="WER_BPE")
         self.tokenizer = tokenizer
         self.batch_dim_index = batch_dim_index
         self.blank_id = tokenizer.tokenizer.vocab_size
         self.use_cer = use_cer
         self.ctc_decode = ctc_decode
+        self.log_prediction = log_prediction
 
     def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
         """
@@ -103,6 +108,11 @@ class WERBPE(TensorMetric):
                 hypotheses = self.ctc_decoder_predictions_tensor(predictions)
             else:
                 raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
+
+        if self.log_prediction:
+            logging.info(f"\n")
+            logging.info(f"reference:{references[0]}")
+            logging.info(f"decoded  :{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:

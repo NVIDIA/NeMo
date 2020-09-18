@@ -348,11 +348,6 @@ class EncDecCTCModel(ASRModel):
             wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
             tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
 
-            pred_text = self._wer.ctc_decoder_predictions_tensor(predictions[:1])
-            ref_text = self._wer.ctc_decoder_predictions_tensor(transcript[:1])
-            logging.info(f"Predicted: {pred_text[0]}")
-            logging.info(f"Reference: {ref_text[0]}")
-
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
