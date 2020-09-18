@@ -71,7 +71,6 @@ class QAModel(ModelPT):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
