@@ -20,19 +20,37 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
+from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
 
 
 class EncDecCTCModelBPE(EncDecCTCModel):
     """Encoder decoder CTC-based models with Byte Pair Encoding."""
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="ContextNet-192-WPE-1024-8x-Stride",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/ContextNet-192-WPE-1024-8x-Stride.nemo",
+            description="The model is trained on the Librispeech corpus and achieves a WER of 10.09% on test-other and 10.11% on dev-other.",
+        )
+        result.append(model)
+        return result
 
     def __init__(self, cfg: DictConfig, trainer=None):
         if 'tokenizer' not in cfg:
@@ -183,6 +201,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
         )
 
     @property
@@ -277,6 +296,8 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
+        del self.loss
+        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
         self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
         # Update config
@@ -287,11 +308,9 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         logging.info(f"Changed tokenizer to {self.decoder.vocabulary} vocabulary.")
 
 
-@experimental
 class JasperNetBPE(EncDecCTCModelBPE):
     pass
 
 
-@experimental
 class QuartzNetBPE(EncDecCTCModelBPE):
     pass

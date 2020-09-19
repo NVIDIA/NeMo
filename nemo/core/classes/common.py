@@ -15,8 +15,8 @@
 
 """Interfaces common to all Neural Modules and Models."""
 from abc import ABC, abstractmethod
-from collections import namedtuple
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional, Union
 
@@ -282,7 +282,12 @@ class FileIO(ABC):
         raise NotImplementedError()
 
     @classmethod
-    def restore_from(cls, restore_path: str, override_config_path: Optional[str] = None):
+    def restore_from(
+        cls,
+        restore_path: str,
+        override_config_path: Optional[str] = None,
+        map_location: Optional['torch.device'] = None,
+    ):
         """Restores module/model with weights"""
         raise NotImplementedError()
 
@@ -318,7 +323,12 @@ class FileIO(ABC):
             raise NotImplementedError()
 
 
-PretrainedModelInfo = namedtuple("PretrainedModelInfo", ("pretrained_model_name", "description", "location"))
+@dataclass
+class PretrainedModelInfo:
+    pretrained_model_name: str
+    description: str
+    location: str
+    class_: 'Model' = None
 
 
 class Model(Typing, Serialization, FileIO):
@@ -338,7 +348,13 @@ class Model(Typing, Serialization, FileIO):
         pass
 
     @classmethod
-    def from_pretrained(cls, model_name: str, refresh_cache: bool = False, override_config_path: Optional[str] = None):
+    def from_pretrained(
+        cls,
+        model_name: str,
+        refresh_cache: bool = False,
+        override_config_path: Optional[str] = None,
+        map_location: Optional['torch.device'] = None,
+    ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
         Args:
@@ -347,6 +363,8 @@ class Model(Typing, Serialization, FileIO):
                 from cloud even if it is already found in a cache locally.
             override_config_path: path to a yaml config that will override the internal
                 config file
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
         Returns:
             A model instance of a particular model class
         """
@@ -355,6 +373,7 @@ class Model(Typing, Serialization, FileIO):
             for pretrained_model_info in cls.list_available_models():
                 if pretrained_model_info.pretrained_model_name == model_name:
                     location_in_the_cloud = pretrained_model_info.location
+                    class_ = pretrained_model_info.class_
         if location_in_the_cloud is None:
             raise FileNotFoundError(
                 f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models."
@@ -367,7 +386,11 @@ class Model(Typing, Serialization, FileIO):
             url=url, filename=filename, subfolder=cache_subfolder, refresh_cache=refresh_cache
         )
         logging.info("Instantiating model from pre-trained checkpoint")
-        instance = cls.restore_from(restore_path=nemo_model_file_in_cache, override_config_path=override_config_path)
+        if class_ is None:
+            class_ = cls
+        instance = class_.restore_from(
+            restore_path=nemo_model_file_in_cache, override_config_path=override_config_path, map_location=map_location
+        )
         return instance
 
 
