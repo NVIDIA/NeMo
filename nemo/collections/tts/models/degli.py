@@ -174,7 +174,7 @@ class DegliModel(Vocoder):
     #     output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     # )
 
-    def convert_spectrogram_to_audio(self, spec: torch.Tensor, repeats: int = 32) -> torch.Tensor:
+    def convert_spectrogram_to_audio(self, spec: torch.Tensor, Ts=None, repeats: int = 32) -> torch.Tensor:
         self.eval()
         self.mode = OperationMode.infer
         self.degli.mode = OperationMode.infer
@@ -184,17 +184,18 @@ class DegliModel(Vocoder):
         with torch.no_grad():
             y = self.degli(x=x, mag=spec, max_length=length, repeat=repeats)
 
+        if Ts is None:
+            Ts = [y.shape[3]] * y.shape[0]
         if y.shape[0] == 1:
-            y = self.postprocess(y, y.shape[1], 0)
+            y = self.postprocess(y, Ts, 0)
             audio = reconstruct_wave(y, kwargs_istft=self.kwargs_istft, n_sample=(y.shape[1] - 1) * self.l_hop)
             return audio
         else:
             audios = []
             for i in range(y.shape[0]):
-                y_i = self.postprocess(y, y.shape[1], i)
+                y_i = self.postprocess(y, Ts, i)
                 audio = reconstruct_wave(y_i, kwargs_istft=self.kwargs_istft, n_sample=(y_i.shape[1] - 1) * self.l_hop)
                 audios.append(audio)
-
             return audios
 
     def calc_loss(self, out_blocks: Tensor, y: Tensor, T_ys: Sequence[int]) -> Tensor:
@@ -323,9 +324,9 @@ class DegliModel(Vocoder):
 
         return None
         model = PretrainedModelInfo(
-            pretrained_model_name="WaveGlow-22050Hz",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/waveglow.nemo",
-            description="The model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder",
+            pretrained_model_name="DeepGriffinLim-fft_1024-22050Hz",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/DeepGriffinLim-fft_1024.nemo",  ##FIXME
+            description="The model is trained on LJSpeech sampled at 22050Hz, n_fft=1024, with 6 layers and a widening factor of 16. Can be used as a trained alternative for GriffinLim",
         )
         list_of_models.append(model)
         return list_of_models
