@@ -1,7 +1,8 @@
-Visual Reasoning (CV)
+Visual Reasoning (CV+NLP)
 =====================
 
-The collection contains several datasets, modules and losses useful in tasks combining language and vision.
+The collection contains several datasets, modules and losses useful in tasks 
+combining Computer Vision (CV) with Natural Language Processing (NLP).
 
 Models
 ------
