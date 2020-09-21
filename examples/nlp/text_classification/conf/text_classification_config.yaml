@@ -51,7 +51,7 @@ model:
     fc_dropout: 0.1
 
   dataset:
-    num_classes: 2 # The number of classes. 0 < Label <num_classes.
+    num_classes: ??? # The number of classes. 0 < Label <num_classes.
     do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
     max_seq_length: 256
     class_balancing: null # choose from [null, weighted_loss]. weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
