@@ -125,7 +125,11 @@ class TextClassificationDataset(Dataset):
                             if index % 20000 == 0:
                                 logging.debug(f"Processing line {index}/{len(lines)}")
                             line_splited = line.strip().split()
-                            label = int(line_splited[-1])
+                            try:
+                                label = int(line_splited[-1])
+                            except ValueError:
+                                logging.debug(f"Skipping line {line}")
+                                continue
                             labels.append(label)
                             sent_words = line_splited[:-1]
                             all_sents.append(sent_words)
@@ -203,6 +207,8 @@ class TextClassificationDataset(Dataset):
         sent_lengths = []
         too_long_count = 0
         for sent_id, sent in enumerate(all_sents):
+            if sent_id % 1000 == 0:
+                logging.debug(f"Encoding sentence {sent_id}/{len(all_sents)}")
             sent_subtokens = [tokenizer.cls_token]
             for word in sent:
                 word_tokens = tokenizer.text_to_tokens(word)
