@@ -384,7 +384,7 @@ class Model(Typing, Serialization, FileIO):
             )
         filename = location_in_the_cloud.split("/")[-1]
         url = location_in_the_cloud.replace(filename, "")
-        cache_dir = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}')
+        cache_dir = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}/{filename[:-5]}')
         # If either description and location in the cloud changes, this will force re-download
         cache_subfolder = hashlib.md5((location_in_the_cloud + description).encode('utf-8')).hexdigest()
         # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
