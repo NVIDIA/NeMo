@@ -112,6 +112,7 @@ def get_features(
 
     logging.info(f'{too_long_count} are longer than {max_seq_length}')
 
+    ''' # May be useful for debugging    
     logging.info("*** Some Examples of Processed Data***")
     for i in range(min(len(all_input_ids), 5)):
         logging.info("i: %s" % (i))
@@ -121,6 +122,7 @@ def get_features(
         logging.info("subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
         if with_label:
             logging.info("slots_label: %s" % " ".join(list(map(str, all_slots[i]))))
+    '''
 
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
 

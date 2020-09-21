@@ -29,10 +29,25 @@ def main(cfg: DictConfig) -> None:
 
     model = IntentSlotClassificationModel(cfg.model, trainer=trainer)
     trainer.fit(model)
+    logging.info('Training finished!')
+    logging.info("================================================================================================")
 
     if cfg.model.nemo_path:
         model.save_to(cfg.model.nemo_path)
+        logging.info(f'The model is saved into the `.nemo` file: {cfg.model.nemo_path}')
 
+    # We evaluate the trained model on the test set if test_ds is set in the config file
+    if cfg.model.test_ds.file_path:
+        logging.info(
+            "================================================================================================"
+        )
+        logging.info("Starting the testing of the trained model on test set...")
+        # The latest checkpoint would be used, set ckpt_path to 'best' to use the best one
+        trainer.test(model=model, ckpt_path=None, verbose=False)
+        logging.info("Testing finished!")
+        logging.info(
+            "================================================================================================"
+        )
 
 if __name__ == '__main__':
     main()
