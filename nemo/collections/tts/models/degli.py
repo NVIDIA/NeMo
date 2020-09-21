@@ -14,7 +14,7 @@
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence
 
 import librosa
 import numpy as np
@@ -30,14 +30,7 @@ from torch import Tensor, nn
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.degli import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    AudioSignal,
-    IntType,
-    LengthsType,
-    NormalDistributionSamplesType,
-    SpectrogramType,
-    VoidType,
-)
+from nemo.core.neural_types.elements import IntType, LengthsType, SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 

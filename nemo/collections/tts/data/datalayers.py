@@ -17,7 +17,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, TypeVar, Union
+from typing import Any, List, Optional, Union
 
 import librosa
 import numpy as np
@@ -26,7 +26,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
-from nemo.collections.asr.parts import collections, manifest, parsers
+from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.core.classes import Dataset
 from nemo.core.neural_types.elements import *
@@ -327,8 +327,6 @@ class NoisySpecsDataset(Dataset):
         path_speech = result['path_speech']
         return x, mag, max_length, y, T_ys, length, path_speech
 
-        return result
-
     @staticmethod
     @torch.no_grad()
     def decollate_padded(batch: DataDict, idx: int) -> DataDict:
@@ -398,7 +396,6 @@ def setup(files_list, num_snr, kwargs_stft, dest, desc):
 
 def DegliProprocssing(valid_filelist, train_filelist, n_fft, hop_length, num_snr, destination):
     kwargs_stft = dict(hop_length=hop_length, window='hann', center=True, n_fft=n_fft, dtype=np.complex64)
-    num_snr = num_snr
 
     tar_dir = "%s/degli_data_%d_%dx%d/" % (destination, n_fft, hop_length, num_snr)
     if not os.path.isdir(tar_dir):
