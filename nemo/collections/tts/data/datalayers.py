@@ -17,7 +17,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import librosa
 import numpy as np
