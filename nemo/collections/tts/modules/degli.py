@@ -26,6 +26,7 @@ from nemo.utils.decorators import experimental
 
 
 def str2act(txt):
+    """Translates text to neural network activation"""
     return {
         "sigmoid": nn.Sigmoid(),
         "relu": nn.ReLU(),
@@ -36,6 +37,12 @@ def str2act(txt):
 
 
 def replace_magnitude(x, mag):
+    """
+    Extract the phase from x and apply it on mag
+    x [B,2,F,T] : A tensor, where [:,0,:,:] is real and [:,1,:,:] is imaginary
+    mag [B,1,F,T] : A tensor containing the absolute magnitude.
+    """
+
     phase = torch.atan2(x[:, 1:], x[:, :1])  # imag, real
     return torch.cat([mag * torch.cos(phase), mag * torch.sin(phase)], dim=1)
 
@@ -50,6 +57,7 @@ class OperationMode(Enum):
 
 def overlap_add(x, hop_length, eye=None):
     """
+    component which is used for STFT
     x: B, W, T
     eye: identity matrix of size (W, W)
     return: B, W + hop_length * (T - 1)
@@ -64,6 +72,10 @@ def overlap_add(x, hop_length, eye=None):
 
 
 class InverseSTFT(nn.Module):
+    """
+    An STFT implementation for pytorch.
+    """
+
     def __init__(self, n_fft, hop_length=None, win_length=None, window=None):
         super().__init__()
 
@@ -166,6 +178,10 @@ class InverseSTFT(nn.Module):
 
 
 class ConvGLU(nn.Module):
+    """
+    A convGlu operation, used by the Degli paper's model.
+    """
+
     def __init__(self, in_ch, out_ch, kernel_size=(7, 7), padding=None, batchnorm=False, act="sigmoid", stride=None):
         super().__init__()
         if not padding:
@@ -189,6 +205,13 @@ class ConvGLU(nn.Module):
 
 
 class DeGLI_DNN(nn.Module):
+    """
+    The tiny model, which was used by the paper.
+    Very efficient in terms of memory (~400KB),
+    but utilizes 11x11 /7x7 convolutions which results slow execution. 
+    Inferece costs about the same at 5-32 ED model, with lower quality.
+    """
+
     def __init__(self):
         super().__init__()
 
@@ -223,21 +246,42 @@ class DeGLI_DNN(nn.Module):
 
 
 class DeGLI_ED(nn.Module):
+
+    """
+    This is the default model.
+    ED - Encoder-Decoder
+
+    Arguments:
+        layers: Number of encoder/deooders layers,
+        k_x: conv kernels size in time domain,
+        k_y: conv kernels size in frequency domain,
+        s_x: conv stride in time domain ,
+        s_y: conv stride in frequency domain domain,
+        widening: a factor for expanding the number of channels during encoding phase,
+        use_bn: use batch norm after encoders/decoders,
+        linear_finalizer: apply fully connected after the final decoder.
+        convGlu: use GLU after conv (recommended with sigmoid),
+        act: string mapped by str2act() to the post encoder activation,
+        act2: string mapped by str2act() to the post decoder activation,
+        glu_bn: use batchnorm with the GLU operation, if enabled,
+        use_weight_norm: use weigh-normalization,
+    """
+
     def __init__(self, n_freq, config):
         super().__init__()
 
         self.parse(**config)
 
         layer_specs = [
-            6,  # encoder_1: [batch, 128, 128, 1] => [batch, 128, 128, ngf]
-            self.widening,  # encoder_1: [batch, 128, 128, 1] => [batch, 128, 128, ngf]
-            self.widening * 2,  # encoder_2: [batch, 128, 128, ngf] => [batch, 64, 64, ngf * 2]
-            self.widening * 4,  # encoder_3: [batch, 64, 64, ngf * 2] => [batch, 32, 32, ngf * 4]
-            self.widening * 8,  # encoder_4: [batch, 32, 32, ngf * 4] => [batch, 16, 16, ngf * 8]
-            self.widening * 8,  # encoder_5: [batch, 16, 16, ngf * 8] => [batch, 8, 8, ngf * 8]
-            self.widening * 8,  # encoder_6: [batch, 8, 8, ngf * 8] => [batch, 4, 4, ngf * 8]
-            self.widening * 8,  # encoder_7: [batch, 4, 4, ngf * 8] => [batch, 2, 2, ngf * 8]
-            self.widening * 8,  # encoder_8: [batch, 2, 2, ngf * 8] => [batch, 1, 1, ngf * 8]
+            6,
+            self.widening,
+            self.widening * 2,
+            self.widening * 4,
+            self.widening * 8,
+            self.widening * 8,
+            self.widening * 8,
+            self.widening * 8,
+            self.widening * 8,
         ]
 
         layer_specs = layer_specs[0 : self.n_layers + 1]
@@ -251,16 +295,18 @@ class DeGLI_ED(nn.Module):
             rounding_needed=True,
             use_weight_norm=self.use_weight_norm,
         )
+
+        # Encoder 0
         self.encoders.append(nn.Sequential(pad, conv))
 
         last_ch = layer_specs[1]
         self.lamb = 0
-
+        # Rest of the encoders
         for i, ch_out in enumerate(layer_specs[2:]):
             d = OrderedDict()
             d['act'] = str2act(self.act)
             gain = math.sqrt(2.0 / (1.0 + self.lamb ** 2))
-            gain = gain / math.sqrt(2)  ## for naive signal propagation with residual w/o bn
+            gain = gain / math.sqrt(2)  # for naive signal propagation with residual w/o bn
 
             conv, pad = self._gen_conv(
                 last_ch,
@@ -283,7 +329,8 @@ class DeGLI_ED(nn.Module):
 
         layer_specs.reverse()
         self.decoders = nn.ModuleList()
-        kernel_size = 4
+        kernel_size = 4  # needed to match size of encoders inputs/outputs.
+        # Decoders
         for i, ch_out in enumerate(layer_specs[1:]):
 
             d = OrderedDict()
@@ -296,9 +343,6 @@ class DeGLI_ED(nn.Module):
                 ch_out = 2
             conv = self._gen_deconv(last_ch, ch_out, gain=gain, k=kernel_size, use_weight_norm=self.use_weight_norm)
             d['conv'] = conv
-
-            # if i < self.num_dropout and self.droprate > 0.0:
-            #     d['dropout'] = nn.Dropout(self.droprate)
 
             if self.use_batchnorm and i < self.n_layers - 1:
                 d['bn'] = nn.BatchNorm2d(ch_out)
@@ -327,6 +371,7 @@ class DeGLI_ED(nn.Module):
         glu_bn: bool,
         use_weight_norm: bool,
     ):
+
         self.n_layers = layers
         self.k_xy = (k_y, k_x)
         self.s_xy = (s_y, s_x)
@@ -438,7 +483,10 @@ class DegliModule(NeuralModule, Exportable):
         Args:
             n_fft (int): STFT argument.
             hop_length (int): STFT argument.
-
+            depth (int): depth > 1 will cause the NN to repeat, which new trainable weights.
+            out_all_block (bool) output all blocks, not just the final output.
+            tiny (bool) override all model hyperparameters and use the paper's small model.
+            kwargs: to be passed for the dnn.
         """
         super().__init__()
         n_freq = n_fft // 2 + 1
@@ -461,6 +509,22 @@ class DegliModule(NeuralModule, Exportable):
     @typecheck()
     def forward(self, x, mag, max_length=None, repeat=2):
 
+        """
+
+        Args:
+            x: the tensor containing the phase [B,2,F,T]. Could be random for first iteration
+            mag: the tensor containing the magnitude [B,1,F,T]
+            max_length: maximum length of the audio in the batch
+            repeat: how many iterations to apply using this network
+        Returns:
+            training/ validation: 
+                out_repeats: output of all blocks: [B, repeats, 2, F, T]
+                final_out: output of the final block: [B, 2, F, T]
+                residual: output of the final dnn: [B, 2, F, T]
+            inference: the output of the final block
+                final_out: output of the final block: [B, 2, F, T]
+        """
+
         if self.training and self.mode != OperationMode.training:
             raise ValueError(f"{self} has self.training set to True but self.OperationMode was not set to training")
         if not self.training and self.mode == OperationMode.training:
@@ -481,9 +545,7 @@ class DegliModule(NeuralModule, Exportable):
 
                 # B, 2, F, T
                 consistent = consistent.permute(0, 3, 1, 2)
-                # if self.use_fp16:
-                #     residual = dnn(x.half() , mag_replaced.half(), consistent.half(), train_step = train_step).float()
-                # else:
+
                 residual = dnn(x, mag_replaced, consistent)
 
                 x = consistent - residual
@@ -524,13 +586,9 @@ class DegliModule(NeuralModule, Exportable):
                 "final_out": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             }
 
-    def input_example(self):  ##fix
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        return None
+    def input_example(self):
+        # TODO: Implement me!
+        pass
 
     def save_to(self, save_path: str):
         # TODO: Implement me!

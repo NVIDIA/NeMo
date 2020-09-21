@@ -43,20 +43,35 @@ from nemo.utils import logging
 
 
 def EvalModule(clean, denoised, fs):
+    """
+    Evaluate the quality of the output audio in comparison with the real audio.
+    Args:
+        clean: the real audio
+        denoised: the output audio
+        fs: sampling rate. For PESQ, we use 16,000 as per the library limitation.
+    Returns:
+        STOI score computed with pystoi lib
+        PESQ score computer with pesq lib
+    """
+
     stoi_score = stoi(clean, denoised, fs, extended=False)
-    pesq_score = pesq(fs, np.asarray(clean), denoised, 'wb')
+    pesq_score = pesq(16000, np.asarray(clean), denoised, 'wb')
     return stoi_score, pesq_score
 
 
 def calc_using_eval_module(
-    y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,), sampling_rate=16000
+    y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,), sampling_rate=22050
 ) -> Dict[str, float]:
-    """ calculate metric using EvalModule. y can be a batch.
+    """
+    calculate metric using EvalModule. y can be a batch.
+    Args:
+        y_clean: real audio
+        y_est: estimated audio
+        T_ys: length of the non-zero parts of the histograms
+        sampling_rate: The used Sampling rate.
 
-    :param y_clean:
-    :param y_est:
-    :param T_ys:
-    :return:
+    Returns:
+        A dictionary mapping scoring systems (string) to numerical scores.
     """
 
     if y_clean.ndim == 1:
@@ -80,12 +95,14 @@ class DegliConfig:
 
 
 def reconstruct_wave(*args: ndarray, kwargs_istft, n_sample=-1) -> ndarray:
-    """ reconstruct time-domain wave from spectrogram
-
-    :param args: can be (mag_spectrogram, phase_spectrogram) or (complex_spectrogram,)
-    :param n_iter: no. of iteration of griffin-lim. 0 for not using griffin-lim.
-    :param n_sample: number of samples of output wave
-    :return:
+    """
+    construct time-domain wave from complex spectrogram
+    Args:
+        *args: the complex spectrogram.
+        kwargs_istft: arguments of Inverse STFT.
+        n_sample: expected audio length.
+    Returns:
+        audio (numpy)
     """
 
     if len(args) == 1:
@@ -110,10 +127,9 @@ def reconstruct_wave(*args: ndarray, kwargs_istft, n_sample=-1) -> ndarray:
 
 
 class DegliModel(Vocoder):
-    """Deep Griffin Lim model used to convert betweeen spectrograms and audio"""
+    """Deep Griffin Lim model used to convert between spectrograms and audio"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
@@ -129,7 +145,7 @@ class DegliModel(Vocoder):
 
         self.degli = instantiate(self._cfg.degli)
         self.mode = OperationMode.infer
-        self.criterion = nn.L1Loss(reduction='none')  ## maybe should be loss subclass?
+        self.criterion = nn.L1Loss(reduction='none')  # maybe should be loss subclass?
         self.l_hop = self._cfg.degli.hop_length
         self.n_fft = self._cfg.degli.n_fft
         self.kwargs_stft = dict(hop_length=self.l_hop, window='hann', center=True, n_fft=self.n_fft, dtype=np.float32)
@@ -169,11 +185,6 @@ class DegliModel(Vocoder):
         tensors = self.degli(x=x, mag=mag, max_length=max_length, repeat=repeats)
         return tensors  # audio_pred
 
-    # @typecheck(
-    #     input_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
-    #     output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
-    # )
-
     def convert_spectrogram_to_audio(self, spec: torch.Tensor, Ts=None, repeats: int = 32) -> torch.Tensor:
         self.eval()
         self.mode = OperationMode.infer
@@ -200,8 +211,14 @@ class DegliModel(Vocoder):
 
     def calc_loss(self, out_blocks: Tensor, y: Tensor, T_ys: Sequence[int]) -> Tensor:
         """
-        out_blocks: B, depth, C, F, T
-        y: B, C, F, T
+        calculate L1 loss (criterion) between the real spectrogram and the outputs.
+
+        Args:
+            out_blocks: output for the Degli model, may include several concatrated outputs.
+            y: desired output.
+            T_ys: lengths (time domain) of non-zero parts of the histrograms, for each sample in the batch.
+        Returns:
+            a loss score.
         """
 
         with warnings.catch_warnings():
@@ -220,7 +237,6 @@ class DegliModel(Vocoder):
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
         self.degli.mode = OperationMode.training
-
         x, mag, max_length, y, T_ys, _, _ = batch
         output_loss, _, _ = self(x=x, mag=mag, max_length=max_length, repeats=self._cfg.train_params.repeat_training)
         loss = self.calc_loss(output_loss, y, T_ys)
@@ -240,6 +256,11 @@ class DegliModel(Vocoder):
         return one
 
     def validation_step(self, batch, batch_idx):
+        """
+        A validation step that also calculates the STOI/PESQ scores,
+        and the scored for high repetition count (repeat_validation argument)
+        """
+
         self.mode = OperationMode.validation
         self.degli.mode = OperationMode.validation
         val_repeats = self._cfg.train_params.repeat_validation
@@ -273,9 +294,6 @@ class DegliModel(Vocoder):
             "pesq": pesq,
             "stoi_x%d" % val_repeats: stoi_x,
             "pesq_x%d" % val_repeats: pesq_x,
-            # "audio_pred": audio_pred,
-            # "mel_target": spec,
-            # "mel_len": spec_len,
         }
 
     def validation_epoch_end(self, outputs):
@@ -322,7 +340,6 @@ class DegliModel(Vocoder):
         """
         list_of_models = []
 
-        return None
         model = PretrainedModelInfo(
             pretrained_model_name="DeepGriffinLim-fft_1024-22050Hz",
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/DeepGriffinLim-fft_1024.nemo",  ##FIXME
