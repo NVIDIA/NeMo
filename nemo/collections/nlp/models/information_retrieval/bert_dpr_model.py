@@ -23,7 +23,6 @@ from nemo.collections.nlp.data import BertInformationRetrievalDataset
 from nemo.collections.nlp.models.information_retrieval.base_ir_model import BaseIRModel
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
 
 __all__ = ['BertDPRModel']

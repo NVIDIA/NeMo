@@ -147,21 +147,21 @@ class BaseIRModel(ModelPT):
                 passage_ids = all_passage_ids[i].detach().cpu().numpy()
                 scores = all_scores[i].detach().cpu().numpy()
 
-                for i, query_id in enumerate(query_ids):
+                for j, query_id in enumerate(query_ids):
 
                     if query_id not in processed_queries:
                         processed_queries.add(query_id)
                         query2passages[query_id] = {
-                            "psg_ids": passage_ids[i],
-                            "scores": scores[i],
+                            "psg_ids": passage_ids[j],
+                            "scores": scores[j],
                         }
-                        query2rels[query_id] = [passage_ids[i][0]]
+                        query2rels[query_id] = [passage_ids[j][0]]
                     else:
                         query2passages[query_id]["psg_ids"] = np.concatenate(
-                            (query2passages[query_id]["psg_ids"], passage_ids[i][1:])
+                            (query2passages[query_id]["psg_ids"], passage_ids[j][1:])
                         )
                         query2passages[query_id]["scores"] = np.concatenate(
-                            (query2passages[query_id]["scores"], scores[i][1:])
+                            (query2passages[query_id]["scores"], scores[j][1:])
                         )
 
             val_mrr = self.calculate_mean_reciprocal_rank(query2passages, query2rels)
