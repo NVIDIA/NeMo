@@ -12,7 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
-    BertInformationRetrievalDatasetEval,
-    BertInformationRetrievalDatasetTrain,
-)
+from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import BertInformationRetrievalDataset
