@@ -222,7 +222,7 @@ class TokenClassificationModel(ModelPT):
 
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
-                f'{text_file} or {labels_file} not found. The data should be splitted into 2 files: text.txt and \
+                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and \
                 labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
                 spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
                 separated with spaces. Each line of the files should follow the format:  \

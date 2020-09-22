@@ -392,14 +392,18 @@ class PunctuationCapitalizationModel(ModelPT):
             PretrainedModelInfo(
                 pretrained_model_name="Punctuation_Capitalization_with_BERT",
                 location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/Punctuation_Capitalization_with_BERT.nemo",
-                description="The model was trained with NeMo BERT base uncased checkpoint.",
+                description="The model was trained with NeMo BERT base uncased checkpoint on "
+                "a subset of data from the following sources: Tatoeba sentences, "
+                "books from Project Gutenberg, Fisher transcripts.",
             )
         )
         result.append(
             PretrainedModelInfo(
                 pretrained_model_name="Punctuation_Capitalization_with_DistilBERT",
                 location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/Punctuation_Capitalization_with_DistilBERT.nemo",
-                description="The model was trained with NeMo BERT base uncased checkpoint.",
+                description="The model was trained with DiltilBERT base uncased checkpoint from HuggingFace on "
+                "a subset of data from the following sources: Tatoeba sentences, "
+                "books from Project Gutenberg, Fisher transcripts.",
             )
         )
         return result
