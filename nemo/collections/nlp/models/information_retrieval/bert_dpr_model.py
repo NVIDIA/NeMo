@@ -102,12 +102,10 @@ class BertDPRModel(BaseIRModel):
 
         labels = torch.arange(batch_size)[:, None].long().to(normalized_scores.device)
         loss = self.loss(logits=normalized_scores, labels=labels, output_mask=torch.ones_like(labels))
-        
+
         scores = scores[:, 0]
-        scores = torch.cat((torch.diag(scores)[:, None], scores[:, batch_size:]),
-            dim=1,
-        )
-        
+        scores = torch.cat((torch.diag(scores)[:, None], scores[:, batch_size:]), dim=1,)
+
         return scores, loss
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):

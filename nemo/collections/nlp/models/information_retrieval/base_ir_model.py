@@ -43,10 +43,10 @@ class BaseIRModel(ModelPT):
     @typecheck()
     def forward(self, *args):
         pass
-    
+
     def compute_scores_and_loss(self, inputs):
         pass
-    
+
     @staticmethod
     def get_lm_model_with_padded_embedding(cfg: DictConfig):
         """
@@ -62,9 +62,7 @@ class BaseIRModel(ModelPT):
         vocab_size, hidden_size = model.config.vocab_size, model.config.hidden_size
         tokens_to_add = 8 * math.ceil(vocab_size / 8) - vocab_size
         zeros = torch.zeros((tokens_to_add, hidden_size))
-        model.embeddings.word_embeddings.weight.data = torch.cat(
-            (model.embeddings.word_embeddings.weight.data, zeros)
-        )
+        model.embeddings.word_embeddings.weight.data = torch.cat((model.embeddings.word_embeddings.weight.data, zeros))
         return model
 
     @staticmethod
@@ -122,7 +120,7 @@ class BaseIRModel(ModelPT):
         query_ids = torch.cat([x["query_ids"] for x in outputs])
         passage_ids = torch.cat([x["passage_ids"] for x in outputs])
         scores = torch.cat([x["scores"] for x in outputs])
-        
+
         all_query_ids, all_passage_ids, all_scores = [], [], []
         if torch.distributed.is_initialized():
             world_size = torch.distributed.get_world_size()

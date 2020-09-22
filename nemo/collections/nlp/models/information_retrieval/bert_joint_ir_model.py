@@ -46,7 +46,7 @@ class BertJointIRModel(BaseIRModel):
         return self.sim_score_regressor.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        
+
         model_name = cfg.language_model.pretrained_model_name
         self.tokenizer = get_tokenizer(tokenizer_name=model_name)
 
@@ -82,6 +82,5 @@ class BertJointIRModel(BaseIRModel):
 
         labels = torch.zeros_like(input_ids[:, :1, 0])
         loss = self.loss(logits=scores, labels=labels, output_mask=torch.ones_like(labels))
-        
+
         return unnormalized_scores[:, 0], loss
- 
