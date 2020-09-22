@@ -413,7 +413,7 @@ def prepare_lr_scheduler(
 
     # Test to see if config follows above schema
 
-    addMaxArgsFlag = True
+    add_max_args_flag = True
     interval = 'step'
     if scheduler_config is not None:
         if 'args' in scheduler_config:
@@ -425,7 +425,7 @@ def prepare_lr_scheduler(
             # Assume all other parameters are to be passed into scheduler constructor
 
             if 'name' in scheduler_args and scheduler_args['name'] == 'ReduceLROnPlateau':
-                addMaxArgsFlag = False
+                add_max_args_flag = False
                 interval = 'epoch'
 
             scheduler_args.pop('name', None)
@@ -538,7 +538,7 @@ def prepare_lr_scheduler(
         return None
 
     # Inject max_steps (effective or provided) into the scheduler config
-    if addMaxArgsFlag:
+    if add_max_args_flag:
         scheduler_args['max_steps'] = max_steps
 
     # Get the scheduler class from the config

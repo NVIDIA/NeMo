@@ -204,7 +204,7 @@ class ConvGLU(nn.Module):
         return x
 
 
-class DeGLI_DNN(nn.Module):
+class DegliDNN(nn.Module):
     """
     The tiny model, which was used by the paper.
     Very efficient in terms of memory (~400KB),
@@ -245,7 +245,7 @@ class DeGLI_DNN(nn.Module):
         return (k_x1, k_y1, k_x2, k_y2)
 
 
-class DeGLI_ED(nn.Module):
+class DegliED(nn.Module):
 
     """
     This is the default model.
@@ -473,7 +473,6 @@ class DeGLI_ED(nn.Module):
         return conv
 
 
-@experimental
 class DegliModule(NeuralModule, Exportable):
     def __init__(self, n_fft: int, hop_length: int, depth: int, out_all_block: bool, tiny: bool, **kwargs):
 
@@ -497,9 +496,9 @@ class DegliModule(NeuralModule, Exportable):
         self.istft = InverseSTFT(n_fft, hop_length=hop_length, window=self.window.data)
 
         if tiny:
-            self.dnns = nn.ModuleList([DeGLI_DNN() for _ in range(depth)])
+            self.dnns = nn.ModuleList([DegliDNN() for _ in range(depth)])
         else:
-            self.dnns = nn.ModuleList([DeGLI_ED(n_freq, kwargs) for _ in range(depth)])
+            self.dnns = nn.ModuleList([DegliED(n_freq, kwargs) for _ in range(depth)])
 
         self.mode = OperationMode.infer
 
@@ -587,14 +586,5 @@ class DegliModule(NeuralModule, Exportable):
             }
 
     def input_example(self):
-        # TODO: Implement me!
-        pass
-
-    def save_to(self, save_path: str):
-        # TODO: Implement me!
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         # TODO: Implement me!
         pass

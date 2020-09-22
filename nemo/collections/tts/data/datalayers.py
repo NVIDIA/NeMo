@@ -230,10 +230,10 @@ class NoisySpecsDataset(Dataset):
         """Returns definitions of module output ports.
                """
         return {
-            'x': NeuralType(('B', 'C', 'F', 'T'), SpectrogramType()),
-            'mag': NeuralType(('B', 'any', 'F', 'T'), SpectrogramType()),
+            'x': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            'mag': NeuralType(('B', 'any', 'D', 'T'), SpectrogramType()),
             'max_length': NeuralType(None, LengthsType()),
-            'y': NeuralType(('B', 'C', 'F', 'T'), SpectrogramType()),
+            'y': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             'T_ys': NeuralType(tuple('B'), LengthsType()),
             'length': NeuralType(tuple('B'), LengthsType()),
             'path_speech': NeuralType(tuple('B'), StringType()),
@@ -280,7 +280,7 @@ class NoisySpecsDataset(Dataset):
         return len(self._all_files)
 
     @torch.no_grad()
-    def collate_fn(self, batch):
+    def _collate_fn(self, batch):
         """ return data with zero-padding
 
         Important data like x, y are all converted to Tensor(cpu).
@@ -356,7 +356,7 @@ class NoisySpecsDataset(Dataset):
         return result
 
 
-def setup(files_list, num_snr, kwargs_stft, dest, desc):
+def setup_noise_augmented_dataset(files_list, num_snr, kwargs_stft, dest, desc):
 
     os.makedirs(dest)
     with open(files_list, 'r') as list_file:
@@ -394,7 +394,7 @@ def setup(files_list, num_snr, kwargs_stft, dest, desc):
     return i_speech
 
 
-def DegliProprocssing(valid_filelist, train_filelist, n_fft, hop_length, num_snr, destination):
+def DegliPreprocssing(valid_filelist, train_filelist, n_fft, hop_length, num_snr, destination):
     kwargs_stft = dict(hop_length=hop_length, window='hann', center=True, n_fft=n_fft, dtype=np.complex64)
 
     tar_dir = "%s/degli_data_%d_%dx%d/" % (destination, n_fft, hop_length, num_snr)
@@ -411,10 +411,10 @@ def DegliProprocssing(valid_filelist, train_filelist, n_fft, hop_length, num_snr
         n_train = 0
         n_valid = 0
         try:
-            n_train = setup(
+            n_train = setup_noise_augmented_dataset(
                 train_filelist, num_snr, kwargs_stft, tar_dir + "train/", desc="Initializing Train Dataset"
             )
-            n_valid = setup(
+            n_valid = setup_noise_augmented_dataset(
                 valid_filelist, num_snr, kwargs_stft, tar_dir + "valid/", desc="Initializing Validation Dataset"
             )
         except FileNotFoundError as err:
