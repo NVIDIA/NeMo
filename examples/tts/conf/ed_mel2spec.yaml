@@ -1,4 +1,4 @@
-name: &name "DeepGriffinLim"
+name: &name "EncoderDecoderMelToSpec"
 sample_rate: &sr 22050
 n_fft: &n_fft 1024
 hop_length: &hop_length 256
@@ -42,39 +42,35 @@ model:
     num_snr: 1
     destination: ${destination}
 
-  degli:
-    _target_: nemo.collections.tts.modules.degli.DegliModule
+  mel2spec:
+    _target_: nemo.collections.tts.modules.ed_mel2spec.EDMel2SpecModule
     n_fft: ${n_fft}
     hop_length: ${hop_length}
-    depth: 1
-    out_all_block: True
-    tiny: False # overrides all below configurations if true.
-    layers: 6
-    k_x: 3
-    k_y: 3
-    s_x: 1
-    s_y: 2
+    mel_fmin: 0
+    mel_fmax: 8000
+    mel_freq: 80
+    layers: 8
+    sampling_rate: ${sample_rate}
     widening: 16 
-    use_bn: False
-    linear_finalizer: True
-    convGlu: False
-    act: relu
-    act2: selu
-    glu_bn: True
-    use_weight_norm: True
-
+    use_batchnorm: True
+    droprate: 0.2
+    num_dropout: 3
+    pre_final_lin: True
+    act1: lrelu
+    act2: relu
+    use_weight_norm: False
 
   optim:
-    name: novograd
-    lr: 0.01
+    name: adam
+    lr: 0.0005
     weight_decay: 0.001
     
     sched:
       name: ReduceLROnPlateau
       mode: min
-      factor: 0.6
-      patience: 5
-      verbose: True
+      factor: 0.75
+      patience: 20
+      verbose: False
       threshold: 0.01
       threshold_mode: 'rel'
       cooldown: 0
@@ -82,9 +78,8 @@ model:
       eps: 1.e-08
 
   train_params:
-    repeat_training: 2
-    repeat_validation: 32
-    sampling_rate: *sr
+    lreg_factor: 1.0
+    loss_mode: 3
 
 trainer:
   gpus: 1 # number of gpus

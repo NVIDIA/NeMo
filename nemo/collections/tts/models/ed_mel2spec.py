@@ -20,13 +20,13 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
+import torch.nn.functional as F
 from hydra.utils import instantiate
 from numpy import ndarray
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pesq import pesq
 from pystoi import stoi
 from torch import Tensor, nn
-import torch.nn.functional as F
 
 from nemo.collections.tts.models.base import MelToSpec
 from nemo.collections.tts.modules.ed_mel2spec import OperationMode
@@ -38,7 +38,7 @@ from nemo.utils import logging
 
 @dataclass
 class EDMel2SpecConfig:
-    degli: Dict[Any, Any] = MISSING
+    mel2spec: Dict[Any, Any] = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
     train_params: Optional[Dict[Any, Any]] = None
@@ -46,9 +46,10 @@ class EDMel2SpecConfig:
 
 
 def gen_filter(k):
-    K=  torch.ones(1,1,k,1 )
-    K.requires_grad= False
+    K = torch.ones(1, 1, k, 1)
+    K.requires_grad = False
     return K
+
 
 class EDMel2SpecModel(MelToSpec):
     """A model that convert mel spectrograms to linear spectrograms"""
@@ -67,35 +68,32 @@ class EDMel2SpecModel(MelToSpec):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.ed_mel2spec = instantiate(self._cfg.ed_mel2spec)
+        self.ed_mel2spec = instantiate(self._cfg.mel2spec)
         self.mode = OperationMode.infer
 
-
-
-        
         self.criterion = nn.L1Loss(reduction='none')  # maybe should be loss subclass?
-        loss_mode =  self._cfg.train_params.loss_mode
+        loss_mode = self._cfg.train_params.loss_mode
         self.lreg_factor = self._cfg.train_params.lreg_factor
 
-        self.f_specs=  {0: [(5, 2),(15,5)],
-                    1: [(5, 2)],
-                    2: [(3 ,1)],
-                    3: [(3 ,1),(5, 2 )],
-                    4: [(3 ,1),(5, 2 ), ( 7,3 )  ],
-                    5: [(15 ,5)],
-                    6: [(3 ,1),(5, 2 ), ( 7,3 ), (15,5), (25,10)],
-                    7: [(1 ,1)],
-                    8: [(1 ,1), (3 ,1), (5, 2 ),(15 ,5),  ( 7,3 ),  (25,10), (9,4), (20,5), (5,3)] ,
-                    9: [(6 ,2),(10, 4 )],
-                    }[loss_mode]
-                        
-        self.filters = [gen_filter(k) for  k,s in self.f_specs]
+        self.f_specs = {
+            0: [(5, 2), (15, 5)],
+            1: [(5, 2)],
+            2: [(3, 1)],
+            3: [(3, 1), (5, 2)],
+            4: [(3, 1), (5, 2), (7, 3)],
+            5: [(15, 5)],
+            6: [(3, 1), (5, 2), (7, 3), (15, 5), (25, 10)],
+            7: [(1, 1)],
+            8: [(1, 1), (3, 1), (5, 2), (15, 5), (7, 3), (25, 10), (9, 4), (20, 5), (5, 3)],
+            9: [(6, 2), (10, 4)],
+        }[loss_mode]
+
+        self.filters = [gen_filter(k) for k, s in self.f_specs]
 
         # self.l_hop = self._cfg.ed_mel2spec.hop_length
         # self.n_fft = self._cfg.ed_mel2spec.n_fft
         # self.kwargs_stft = dict(hop_length=self.l_hop, window='hann', center=True, n_fft=self.n_fft, dtype=np.float32)
         # self.kwargs_istft = dict(hop_length=self.l_hop, window='hann', center=True, dtype=np.float32)
-
 
     @property
     def input_types(self):
@@ -112,7 +110,9 @@ class EDMel2SpecModel(MelToSpec):
     @typecheck()
     def forward(self, *, mel):
         if self.mode != self.ed_mel2spec.mode:
-            raise ValueError(f"Encoder-Decoder Mel-to-Spec's mode {self.mode} does not match EDMel2SpecModule's mode {self.ed_mel2spec.mode}")
+            raise ValueError(
+                f"Encoder-Decoder Mel-to-Spec's mode {self.mode} does not match EDMel2SpecModule's mode {self.ed_mel2spec.mode}"
+            )
 
         spec = self.ed_mel2spec(mel=mel)
         return spec  # audio_pred
@@ -120,11 +120,10 @@ class EDMel2SpecModel(MelToSpec):
     def convert_mel_spectrogram_to_linear(self, mel: torch.Tensor) -> torch.Tensor:
         self.eval()
         self.mode = OperationMode.infer
-        self.degli.mode = OperationMode.infer
+        self.ed_mel2spec.mode = OperationMode.infer
 
         return None
 
-        
     def calc_loss(self, x: Tensor, y: Tensor, T_ys: Sequence[int], crit) -> Tensor:
         """
         x: B, C, F, T
@@ -136,7 +135,7 @@ class EDMel2SpecModel(MelToSpec):
 
         loss_blocks = torch.zeros(x.shape[1], device=y.device)
 
-        tot =0 
+        tot = 0
         for T, loss_batch in zip(T_ys, loss_no_red):
             tot += T
             loss_blocks += torch.sum(loss_batch[..., :T])
@@ -146,16 +145,18 @@ class EDMel2SpecModel(MelToSpec):
 
         return loss
 
-    def calc_loss_smooth(self, _x: Tensor, _y: Tensor, T_ys: Sequence[int], kern: int , stride: int ,pad: int = 0) -> Tensor:
+    def calc_loss_smooth(
+        self, _x: Tensor, _y: Tensor, T_ys: Sequence[int], kern: int, stride: int, pad: int = 0
+    ) -> Tensor:
         """
         out_blocks: B, depth, C, F, T
         y: B, C, F, T
         """
 
-        crit = self.criterion 
+        crit = self.criterion
 
-        x = F.max_pool2d(_x, (kern, 1), stride = stride ) 
-        y = F.max_pool2d(_y, (kern, 1), stride = stride ) 
+        x = F.max_pool2d(_x, (kern, 1), stride=stride)
+        y = F.max_pool2d(_y, (kern, 1), stride=stride)
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
@@ -163,7 +164,7 @@ class EDMel2SpecModel(MelToSpec):
 
         loss_blocks = torch.zeros(x.shape[1], device=y.device)
 
-        tot =0 
+        tot = 0
         for T, loss_batch in zip(T_ys, loss_no_red):
             tot += T
             loss_blocks += torch.sum(loss_batch[..., :T])
@@ -174,8 +175,8 @@ class EDMel2SpecModel(MelToSpec):
         else:
             loss1 = loss_blocks @ self.loss_weight
 
-        x = F.max_pool2d(-1*_x, (kern, 1), stride = stride ) 
-        y = F.max_pool2d(-1*_y, (kern, 1), stride = stride ) 
+        x = F.max_pool2d(-1 * _x, (kern, 1), stride=stride)
+        y = F.max_pool2d(-1 * _y, (kern, 1), stride=stride)
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
@@ -183,7 +184,7 @@ class EDMel2SpecModel(MelToSpec):
 
         loss_blocks = torch.zeros(x.shape[1], device=y.device)
 
-        tot =0 
+        tot = 0
         for T, loss_batch in zip(T_ys, loss_no_red):
             tot += T
             loss_blocks += torch.sum(loss_batch[..., :T])
@@ -197,26 +198,23 @@ class EDMel2SpecModel(MelToSpec):
         loss = loss1 + loss2
         return loss
 
-
-
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
         self.ed_mel2spec.mode = OperationMode.training
         _, y_spec, _, _, T_ys, _, _ = batch
 
-        x_mel = self.ed_mel2spec.spec_to_mel(y_spec) 
+        x_mel = self.ed_mel2spec.spec_to_mel(y_spec)
 
-        x_spec =  self.ed_mel2spec(x_mel) 
-        z_mel = self.ed_mel2spec.spec_to_mel(x_spec)  
-
+        x_spec = self(mel=x_mel)
+        z_mel = self.ed_mel2spec.spec_to_mel(x_spec)
 
         loss_L1 = self.calc_loss(x_spec, y_spec, T_ys, self.criterion)
         loss_reg = self.calc_loss(x_mel, z_mel, T_ys, self.criterion)
 
-        loss = loss_L1+ self.lreg_factor*loss_reg
-            
-        for (k,s) in self.f_specs:
-            loss = loss + self.calc_loss_smooth(x_spec,y_spec,T_ys,k, s )
+        loss = loss_L1 + self.lreg_factor * loss_reg
+
+        for (k, s) in self.f_specs:
+            loss = loss + self.calc_loss_smooth(x_spec, y_spec, T_ys, k, s)
 
         output = {
             'loss': loss,
@@ -226,25 +224,20 @@ class EDMel2SpecModel(MelToSpec):
         return output
 
     def validation_step(self, batch, batch_idx):
-        """
-        A validation step that also calculates the STOI/PESQ scores,
-        and the scored for high repetition count (repeat_validation argument)
-        """
 
         self.mode = OperationMode.validation
-        self.degli.mode = OperationMode.validation
+        self.ed_mel2spec.mode = OperationMode.validation
         _, y_spec, _, _, T_ys, _, _ = batch
 
-        x_mel = self.ed_mel2spec.spec_to_mel(y_spec) 
+        x_mel = self.ed_mel2spec.spec_to_mel(y_spec)
 
-        x_spec =  self.ed_mel2spec(x_mel) 
-        z_mel = self.ed_mel2spec.spec_to_mel(x_spec)  
-
+        x_spec = self(mel=x_mel)
+        z_mel = self.ed_mel2spec.spec_to_mel(x_spec)
 
         loss_L1 = self.calc_loss(x_spec, y_spec, T_ys, self.criterion)
         loss_reg = self.calc_loss(x_mel, z_mel, T_ys, self.criterion)
 
-        loss = loss_L1+ self.lreg_factor*loss_reg
+        loss = loss_L1 + self.lreg_factor * loss_reg
 
         output = {
             'val_loss': loss,
@@ -252,8 +245,8 @@ class EDMel2SpecModel(MelToSpec):
             'loss_reg': loss_reg,
         }
 
-        for (k,s) in self.f_specs:
-            new_loss =  self.calc_loss_smooth(x_spec,y_spec,T_ys,k, s )
+        for (k, s) in self.f_specs:
+            new_loss = self.calc_loss_smooth(x_spec, y_spec, T_ys, k, s)
             output[f'loss_{k}_{s}'] = new_loss
             loss = loss + new_loss
 

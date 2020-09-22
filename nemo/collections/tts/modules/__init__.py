@@ -14,6 +14,7 @@
 
 from nemo.collections.tts.modules.degli import DegliModule
 from nemo.collections.tts.modules.denoiser import SqueezeWaveDenoiser
+from nemo.collections.tts.modules.ed_mel2spec import EDMel2SpecModule
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
 from nemo.collections.tts.modules.squeezewave import SqueezeWaveModule
 from nemo.collections.tts.modules.tacotron2 import Decoder as Taco2Decoder
