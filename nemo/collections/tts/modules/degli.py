@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+import random
 from collections import OrderedDict
 from enum import Enum
 
@@ -586,5 +587,17 @@ class DegliModule(NeuralModule, Exportable):
             }
 
     def input_example(self):
-        # TODO: Implement me!
-        pass
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.parameters())
+        n_freq = self.n_fft // 2 + 1
+        T = 500
+        x = torch.randn((1, 2, n_freq, T), device=par.device, dtype=par.dtype)
+        mag = torch.randn((1, 1, n_freq, T), device=par.device, dtype=par.dtype)
+        max_length = torch.tensor((T - 1) * self.hop_length)
+        repeat = torch.tensor(8)
+        out = tuple([x, mag, max_length, repeat])
+        return out
