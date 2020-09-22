@@ -157,7 +157,6 @@ def main(cfg: DictConfig) -> None:
         logging.info(
             "================================================================================================"
         )
-
     else:
         logging.info(
             "No file_path was set for validation_ds or no checkpoint was found, so final evaluation is skipped!"
