@@ -20,9 +20,13 @@ import torch
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
+from megatron.mpu import (
+    get_model_parallel_rank,
+    get_data_parallel_rank,
+    get_model_parallel_group,
+    get_data_parallel_group
+)
 
-# from megatron.mpu import get_model_parallel_rank
-from megatron.mpu import get_model_parallel_group
 from omegaconf import OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
@@ -52,6 +56,7 @@ class MegatronBertEncoder(BertModule):
 
         self._model_parallel_size = model_parallel_size
         self._restore_path = None
+        self._app_state = None
 
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
@@ -64,6 +69,7 @@ class MegatronBertEncoder(BertModule):
         # if 'model_parallel_size' in config:
         if self._model_parallel_size is not None:
             app_state = AppState()
+            self._app_state = app_state
 
             # must be set for model parallel megatron-lm
             os.environ["WORLD_SIZE"] = str(app_state.world_size)
@@ -116,11 +122,34 @@ class MegatronBertEncoder(BertModule):
             # model parallel checkpoints need to be restored after torch.distributed is initialized
             if self._model_parallel_size is not None:
                 self.restore_weights(self._restore_path)
+                # update app_state after model parallel init from mpu
+                self._app_state.model_parallel_group = get_model_parallel_group()
+                self._app_state.data_parallel_group = get_data_parallel_group()
+                self._app_state.model_parallel_rank = torch.distributed.get_rank(
+                    group=self._app_state.model_parallel_group
+                )
+                self._app_state.data_parallel_rank = torch.distributed.get_rank(
+                    group= self._app_state.data_parallel_group
+                )
+                device_id = torch.cuda.current_device()
+                logging.info(f'device_id: {device_id}')
+                logging.info(f'mp_rank: {self._app_state.model_parallel_rank}')
+                logging.info(f'dp_rank: {self._app_state.data_parallel_rank}')
+                #logging.info(f'mp_group: {self._app_state.model_parallel_group}')
+                #logging.info(f'dp_group: {self._app_state.data_parallel_group}')
+                # from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
+                # self = LightningDistributedDataParallel(
+                #     self,
+                #     device_ids=[device_id],
+                #     output_device=device_id,
+                #     process_group=self._app_state.data_parallel_group
+                # )
             self._lazy_init_fn = None
 
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
         )
+        logging.info(f'input_ids.device: {input_ids.device}')
         position_ids = bert_position_ids(input_ids)
 
         sequence_output = self.language_model(

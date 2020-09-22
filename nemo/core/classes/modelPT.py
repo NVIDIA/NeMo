@@ -92,6 +92,8 @@ class ModelPT(LightningModule, Model):
         if isinstance(self._trainer, Trainer):
             if self._trainer.num_gpus and self._trainer.num_nodes:
                 app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
+            if torch.cuda.current_device() is not None:
+                app_state.device_id = torch.cuda.current_device()
 
         if self._cfg is not None and not self.__is_model_being_restored():
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:

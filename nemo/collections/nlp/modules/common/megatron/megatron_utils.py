@@ -22,7 +22,7 @@ import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
-from nemo.utils import logging
+from nemo.utils import logging, AppState
 
 __all__ = [
     "get_megatron_lm_model",
@@ -137,6 +137,7 @@ def get_megatron_lm_model(
     # if checkpoint path is a directory, then we automatically compute model parallel size
     if os.path.isdir(checkpoint_file):
         model_parallel_size = len(os.listdir(checkpoint_file))
+        AppState.model_parallel_size = model_parallel_size
         logging.info(
             (
                 f'restore_path: {checkpoint_file} is a directory. '

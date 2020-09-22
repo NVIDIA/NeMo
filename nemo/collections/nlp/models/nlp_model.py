@@ -31,21 +31,23 @@ class NLPModel(ModelPT, ABC):
     def configure_ddp(self, model, device_ids):
         """ Override LightingModule ddp if using model parallel. """
 
+        logging.info(f'device_ids: {device_ids}')
+
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
-            logging.info("Configuring model parallel DDP.")
+            logging.info("Configuring DDP for model parallelism.")
+            logging.info(f"data_parallel_group: {app_state.data_parallel_group}")
             # with model parallelism, multiple GPUs form a large "logical GPU"
             # this means that data parallel groups span multiple GPUs
 
-            # in PTL device_id is trainer.root_gpu
-            # TODO: add device_id/root_gpu to AppState?
-            device_id = self._trainer.root_gpu
+
+            device_id = app_state.device_id
             model = LightningDistributedDataParallel(
                 model,
                 device_ids=[device_id],
                 output_device=device_id,
-                process_group=app_state.get_data_parallel_group()
+                process_group=app_state.data_parallel_group
             )
             return model
 
