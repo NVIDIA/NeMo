@@ -24,15 +24,22 @@ from nemo.core.config import Config
 
 
 def hydra_runner(
-    config_path: Optional[str] = None, config_name: Optional[str] = None
+    config_path: Optional[str] = None, config_name: Optional[str] = None, schema: Optional[Any] = None
 ) -> Callable[[TaskFunction], Any]:
     """
     Decorator used for passing the Config paths to main function.
+    Optionally registers a schema used for validation/providing default values.
 
     Args:
-        config_path: path to the directory where the config exists.
-        config_name: name of the config file.
+        config_path: Path to the directory where the config exists.
+        config_name: Name of the config file.
+        schema: Structured config  type representing the schema used for validation/providing default values.
     """
+    if schema is not None:
+        # Create config store.
+        cs = ConfigStore.instance()
+        # Register the configuration as a node under a given name.
+        cs.store(name=config_name, node=schema)
 
     def decorator(task_function: TaskFunction) -> Callable[[], None]:
         @functools.wraps(task_function)
@@ -70,44 +77,6 @@ def hydra_runner(
                     task_function=task_function,
                     config_path=config_path,
                     config_name=config_name,
-                    strict=None,
-                )
-
-        return wrapper
-
-    return decorator
-
-
-def set_config(config: Config) -> Callable[[TaskFunction], Any]:
-    """
-    Decorator used for passing the Structured Configs to main function.
-
-    Args:
-        config: config class derived from Config.
-    """
-    # Get class name. Not sure how important this is, but coudn't get name by accessing type().__name__.
-    class_name = str(config)
-    # Create config store.
-    cs = ConfigStore.instance()
-    # Register the configuration as a node under a given name.
-    cs.store(name=class_name, node=config)
-
-    def decorator(task_function: TaskFunction) -> Callable[[], None]:
-        @functools.wraps(task_function)
-        def wrapper(cfg_passthrough: Optional[DictConfig] = None) -> Any:
-            # Check it config was passed.
-            if cfg_passthrough is not None:
-                return task_function(cfg_passthrough)
-            else:
-                args = get_args_parser()
-
-                # no return value from run_hydra() as it may sometime actually run the task_function
-                # multiple times (--multirun)
-                _run_hydra(
-                    args_parser=args,
-                    task_function=task_function,
-                    config_path=None,
-                    config_name=class_name,
                     strict=None,
                 )
 

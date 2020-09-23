@@ -48,12 +48,8 @@ class AppConfig:
     trainer: TrainerConfig = TrainerConfig()
 
 
-# Register schema.
-cs = ConfigStore.instance()
-cs.store(node=AppConfig, name="cifar10_resnet50_image_classification_training")
-
 # Load configuration file from "conf" dir using schema for validation/retrieving the default values.
-@hydra_runner(config_path="conf", config_name="cifar10_resnet50_image_classification_training")
+@hydra_runner(config_path="conf", config_name="cifar10_resnet50_image_classification_training", schema=AppConfig)
 def main(cfg: AppConfig):
     # Show configuration.
     logging.info("Application settings\n" + OmegaConf.to_yaml(cfg))

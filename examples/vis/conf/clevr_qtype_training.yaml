@@ -6,7 +6,7 @@ dataloader:
 train_dataset:
   # Significantly fastens data fetching - useful for text-only based models.
   stream_images: False
-  split: "train"
+  split: "validation"
   download: False # Got the proper data - turning this off, as md5 validation is slow.
 
 # Set the required transforms.

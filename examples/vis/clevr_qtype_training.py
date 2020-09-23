@@ -16,15 +16,13 @@ from typing import Any, Optional, List
 
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
-
 import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from nemo.utils import logging
 from nemo.collections.vis.models import QType, QTypeConfig
 
-from nemo.core.config import Config, hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
+from nemo.core.config import hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.collections.vis.datasets import CLEVRConfig
 
 
@@ -45,12 +43,8 @@ class AppConfig:
     trainer: TrainerConfig = TrainerConfig()
 
 
-# Register schema.
-cs = ConfigStore.instance()
-cs.store(node=AppConfig, name="clevr_qtype_training")
-
 # Load configuration file from "conf" dir using schema for validation/retrieving the default values.
-@hydra_runner(config_path="conf", config_name="clevr_qtype_training")
+@hydra_runner(config_path="conf", config_name="clevr_qtype_training", schema=AppConfig)
 def main(cfg: AppConfig):
     # Show configuration.
     logging.info("Application settings\n" + OmegaConf.to_yaml(cfg))
@@ -60,7 +54,7 @@ def main(cfg: AppConfig):
     model(["Ala ma,  kota.", "kot ma pałę"])
 
     # Instantiate the dataloader/dataset.
-    # train_dl = lenet5.instantiate_dataloader(cfg.dataloader, cfg.train_dataset, cfg.transforms)
+    train_dl = model.instantiate_dataloader(cfg.dataloader, cfg.train_dataset)
 
 
 if __name__ == "__main__":
