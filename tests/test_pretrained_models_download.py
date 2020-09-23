@@ -21,7 +21,7 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.tts as nemo_tts
 
-for refresh_cache in [True, False]:
+for refresh_cache in [False]:
     # Test ASR collection
     print(nemo_asr.models.EncDecCTCModel.list_available_models())
     for model_name in [
@@ -57,12 +57,12 @@ for refresh_cache in [True, False]:
     # Test NLP collection
     print(nemo_nlp.models.TokenClassificationModel.list_available_models())
     for model_name in ['NERModel']:
-        model = nemo_asr.models.TokenClassificationModel.from_pretrained(
+        model = nemo_nlp.models.TokenClassificationModel.from_pretrained(
             model_name=model_name, refresh_cache=refresh_cache
         )
     print(nemo_nlp.models.PunctuationCapitalizationModel.list_available_models())
     for model_name in ['Punctuation_Capitalization_with_BERT', 'Punctuation_Capitalization_with_DistilBERT']:
-        model = nemo_asr.models.PunctuationCapitalizationModel.from_pretrained(
+        model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(
             model_name=model_name, refresh_cache=refresh_cache
         )
     print(nemo_nlp.models.QAModel.list_available_models())
@@ -72,10 +72,10 @@ for refresh_cache in [True, False]:
         'BERTLargeUncasedSQuADv1.1',
         'BERTLargeUncasedSQuADv2.0',
     ]:
-        model = nemo_asr.models.QAModel.from_pretrained(model_name=model_name, refresh_cache=refresh_cache)
+        model = nemo_nlp.models.QAModel.from_pretrained(model_name=model_name, refresh_cache=refresh_cache)
     print(nemo_nlp.models.IntentSlotClassificationModel.list_available_models())
     for model_name in ['Joint_Intent_Slot_Assistant']:
-        model = nemo_asr.models.IntentSlotClassificationModel.from_pretrained(
+        model = nemo_nlp.models.IntentSlotClassificationModel.from_pretrained(
             model_name=model_name, refresh_cache=refresh_cache
         )
 
