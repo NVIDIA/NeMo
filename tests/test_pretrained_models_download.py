@@ -73,8 +73,8 @@ for refresh_cache in [True, False]:
         'BERTLargeUncasedSQuADv2.0',
     ]:
         model = nemo_nlp.models.QAModel.from_pretrained(model_name=model_name, refresh_cache=refresh_cache)
-    #print(nemo_nlp.models.IntentSlotClassificationModel.list_available_models())
-    #for model_name in ['Joint_Intent_Slot_Assistant']:
+    # print(nemo_nlp.models.IntentSlotClassificationModel.list_available_models())
+    # for model_name in ['Joint_Intent_Slot_Assistant']:
     #    model = nemo_nlp.models.IntentSlotClassificationModel.from_pretrained(
     #        model_name=model_name, refresh_cache=refresh_cache
     #    )
