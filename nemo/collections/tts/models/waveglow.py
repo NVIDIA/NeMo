@@ -216,8 +216,8 @@ class WaveGlowModel(Vocoder):
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="WaveGlow-22050Hz",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/waveglow.nemo",
-            description="The model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemottsmodels/versions/1.0.0a5/files/WaveGlow-22050Hz.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder.",
             class_=cls,
         )
         list_of_models.append(model)
