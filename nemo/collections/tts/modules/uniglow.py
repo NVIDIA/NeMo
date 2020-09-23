@@ -21,11 +21,9 @@ from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
-    IntType,
     MelSpectrogramType,
     NormalDistributionSamplesType,
     VoidType,
-    LengthsType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
@@ -146,7 +144,7 @@ class UniGlowModule(NeuralModule, Exportable):
         if spec.size(2) != audio.size(2):
             spec = F.interpolate(spec, size=audio.size(2))
 
-        for k in range(self.n_flows):
+        for _ in range(self.n_flows):
             audio, log_det_W = self.conv(audio)
             logdet += log_det_W
 
@@ -170,7 +168,7 @@ class UniGlowModule(NeuralModule, Exportable):
         spec = F.interpolate(spec, size=audio_len)
         audio = sigma * torch.randn(spec.size(0), self.n_group, audio_len, device=spec.device).to(spec.dtype)
 
-        for k in reversed(range(self.n_flows)):
+        for _ in reversed(range(self.n_flows)):
             n_half = int(audio.size(1)/2)
             audio_0 = audio[:,:n_half,:]
             audio_1 = audio[:,n_half:,:]
@@ -193,10 +191,3 @@ class UniGlowModule(NeuralModule, Exportable):
             wavenet.in_layers = remove(wavenet.in_layers)
             wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
             wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass

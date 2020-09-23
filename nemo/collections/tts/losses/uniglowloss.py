@@ -14,6 +14,8 @@
 
 # The following STFT-loss implementation is taken from:
 # https://github.com/kan-bayashi/ParallelWaveGAN/blob/master/parallel_wavegan/losses/stft_loss.py
+# Copyright 2019 Tomoki Hayashi
+#  MIT License (https://opensource.org/licenses/MIT)
 
 import torch
 import torch.nn.functional as F
@@ -23,7 +25,7 @@ import torch
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types.elements import LossType, NormalDistributionSamplesType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.neural_types.elements import IntType, AudioSignal
+from nemo.core.neural_types.elements import AudioSignal
 
 
 def stft(x, fft_size, hop_size, win_length, window):

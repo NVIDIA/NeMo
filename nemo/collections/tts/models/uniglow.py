@@ -33,7 +33,6 @@ from nemo.core.neural_types.elements import (
     NormalDistributionSamplesType,
     VoidType,
     LogDeterminantType,
-    LossType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
@@ -104,7 +103,7 @@ class UniGlowModel(Vocoder):
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             output_dict = {
                 "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
-                "logdet": NeuralType(elements_type=VoidType()),
+                "logdet": NeuralType(elements_type=LogDeterminantType()),
                 "predicted_audio": NeuralType(('B', 'T'), AudioSignal()),
             }
             if self.mode == OperationMode.validation:

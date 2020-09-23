@@ -54,7 +54,7 @@ model:
       mag_power: 1.0
       n_fft: *n_fft
 
-      # Waveglow is currently hardcoded to these values for window size and stride
+      # UniGlow is currently hardcoded to these values for window size and stride
       # Changing these parameters are not recommended
       n_window_size: 1024
       n_window_stride: 256
