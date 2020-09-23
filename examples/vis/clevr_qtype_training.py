@@ -22,7 +22,7 @@ import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 
 from nemo.utils import logging
-from nemo.collections.cv.models import LeNet5
+from nemo.collections.vis.models import QType, QTypeConfig
 
 from nemo.core.config import Config, hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.collections.vis.datasets import CLEVRConfig
@@ -37,8 +37,9 @@ class AppConfig:
         model: configuation of the model.
     """
 
+    model: QTypeConfig = QTypeConfig()
     dataloader: DataLoaderConfig = DataLoaderConfig()
-    transforms: Optional[Any] = None  # List[Any] = field(default_factory=list) ?
+    # text_transforms: Optional[Any] = None  # List[Any] = field(default_factory=list) ?
     train_dataset: CLEVRConfig = CLEVRConfig()
     optim: AdamConfig = AdamConfig()
     trainer: TrainerConfig = TrainerConfig()
@@ -55,10 +56,11 @@ def main(cfg: AppConfig):
     logging.info("Application settings\n" + OmegaConf.to_yaml(cfg))
 
     # Instantiate the "model".
-    lenet5 = LeNet5()
+    model = QType(cfg.model)
+    model(["Ala ma,  kota.", "kot ma pałę"])
 
     # Instantiate the dataloader/dataset.
-    train_dl = lenet5.instantiate_dataloader(cfg.dataloader, cfg.train_dataset, cfg.transforms)
+    # train_dl = lenet5.instantiate_dataloader(cfg.dataloader, cfg.train_dataset, cfg.transforms)
 
 
 if __name__ == "__main__":
