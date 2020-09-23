@@ -17,8 +17,8 @@ import pytorch_lightning as pl
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import UniGlowModel
 from nemo.core.config import hydra_runner
-from nemo.utils.exp_manager import exp_manager
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="uniglow")
