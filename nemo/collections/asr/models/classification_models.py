@@ -118,58 +118,50 @@ class EncDecClassificationModel(ASRModel):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x1x64-v1",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x1x64-v1.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) "
-            "which obtains 97.32% accuracy on test set.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x1x64-v1.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) which obtains 97.32% accuracy on test set.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x2x64-v1",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v1.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) "
-            "which obtains 97.68% accuracy on test set.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x2x64-v1.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) which obtains 97.68% accuracy on test set.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x1x64-v2",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x1x64-v2.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 35 classes) "
-            "which obtains 97.12% accuracy on test set.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x1x64-v2.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 35 classes) which obtains 97.12% accuracy on test set.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x1x64-v2",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v2.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 30 classes) "
-            "which obtains 97.29% accuracy on test set.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x1x64-v2.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 30 classes) which obtains 97.29% accuracy on test set.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x1x64-v2-subset-task",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x1x64-v2-subset-task.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) "
-            "which obtains 98.2% accuracy on test set.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x1x64-v2-subset-task.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) which obtains 98.2% accuracy on test set.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-3x2x64-v2-subset-task",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet-3x2x64-v2-subset-task.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) "
-            "which obtains 98.4% accuracy on test set.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x2x64-v2-subset-task.nemo",
+            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) which obtains 98.4% accuracy on test set.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-VAD-3x2",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/MatchboxNet_VAD_3x2.nemo",
-            description="MatchboxNet VAD model trained on google speech command (v2) and freesound background data, "
-            "which obtains 0.992 accuracy on testset from same source and 0.852 TPR for FPR=0.315 "
-            "on testset (ALL) of AVA movie data",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet_VAD_3x2.nemo",
+            description="Voice Activity Detection MatchboxNet model trained on google speech command (v2) and freesound background data, which obtains 0.992 accuracy on testset from same source and 0.852 TPR for FPR=0.315 on testset (ALL) of AVA movie data",
         )
         result.append(model)
         return result
