@@ -27,6 +27,7 @@ from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 
@@ -246,5 +247,18 @@ class IntentSlotClassificationModel(ModelPT):
         )
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="Joint_Intent_Slot_Assistant",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemonlpmodels/versions/1.0.0a5/files/Joint_Intent_Slot_Assistant.nemo",
+            description="This models is trained on this https://github.com/xliuhw/NLU-Evaluation-Data dataset which includes 64 various intents and 55 slots. Final Intent accuracy is about 87%, Slot accuracy is about 89%.",
+        )
+        result.append(model)
+        return result

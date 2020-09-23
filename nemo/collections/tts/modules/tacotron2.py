@@ -28,7 +28,6 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 _NATIVE_AMP = False
 try:
@@ -39,7 +38,6 @@ except ImportError:
     pass
 
 
-@experimental  # TODO: Implement save_to() and restore_from()
 class Encoder(NeuralModule):
     def __init__(
         self, encoder_n_convolutions: int, encoder_embedding_dim: int, encoder_kernel_size: int,
@@ -122,7 +120,6 @@ class Encoder(NeuralModule):
         pass
 
 
-@experimental  # TODO: Implement save_to() and restore_from()
 class Decoder(NeuralModule):
     def __init__(
         self,
@@ -394,7 +391,6 @@ class Decoder(NeuralModule):
         pass
 
 
-@experimental  # TODO: Implement save_to() and restore_from()
 class Postnet(NeuralModule):
     def __init__(
         self,
