@@ -28,6 +28,7 @@ from pesq import pesq
 from pystoi import stoi
 from torch import Tensor, nn
 
+from nemo.collections.tts.helpers.helpers import griffin_lim
 from nemo.collections.tts.models.base import MelToSpec
 from nemo.collections.tts.modules.ed_mel2spec import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -49,6 +50,49 @@ def gen_filter(k):
     K = torch.ones(1, 1, k, 1)
     K.requires_grad = False
     return K
+
+
+def EvalModule(clean, denoised, fs):
+    """
+    Evaluate the quality of the output audio in comparison with the real audio.
+    Args:
+        clean: the real audio
+        denoised: the output audio
+        fs: sampling rate. For PESQ, we use 16,000 as per the library limitation.
+    Returns:
+        STOI score computed with pystoi lib
+        PESQ score computer with pesq lib
+    """
+
+    stoi_score = stoi(clean, denoised, fs, extended=False)
+    pesq_score = pesq(16000, np.asarray(clean), denoised, 'wb')
+    return stoi_score, pesq_score
+
+
+def calc_using_eval_module(
+    y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,), sampling_rate=22050
+) -> Dict[str, float]:
+    """
+    calculate metric using EvalModule. y can be a batch.
+    Args:
+        y_clean: real audio
+        y_est: estimated audio
+        T_ys: length of the non-zero parts of the histograms
+        sampling_rate: The used Sampling rate.
+
+    Returns:
+        A dictionary mapping scoring systems (string) to numerical scores.
+    """
+
+    if y_clean.ndim == 1:
+        y_clean = y_clean[np.newaxis, ...]
+        y_est = y_est[np.newaxis, ...]
+    if T_ys == (0,):
+        T_ys = (y_clean.shape[1],) * y_clean.shape[0]
+
+    stoi_result, pesq_results = EvalModule(y_clean[0, : T_ys[0]], y_est[0, : T_ys[0]], sampling_rate)
+
+    return {'STOI': stoi_result, 'PESQ': pesq_results}
 
 
 class EDMel2SpecModel(MelToSpec):
@@ -170,10 +214,7 @@ class EDMel2SpecModel(MelToSpec):
             loss_blocks += torch.sum(loss_batch[..., :T])
         loss_blocks = loss_blocks / tot
 
-        if len(loss_blocks) == 1:
-            loss1 = loss_blocks.squeeze()
-        else:
-            loss1 = loss_blocks @ self.loss_weight
+        loss1 = loss_blocks.squeeze()
 
         x = F.max_pool2d(-1 * _x, (kern, 1), stride=stride)
         y = F.max_pool2d(-1 * _y, (kern, 1), stride=stride)
@@ -190,10 +231,7 @@ class EDMel2SpecModel(MelToSpec):
             loss_blocks += torch.sum(loss_batch[..., :T])
         loss_blocks = loss_blocks / tot
 
-        if len(loss_blocks) == 1:
-            loss2 = loss_blocks.squeeze()
-        else:
-            loss2 = loss_blocks @ self.loss_weight
+        loss2 = loss_blocks.squeeze()
 
         loss = loss1 + loss2
         return loss
@@ -227,7 +265,7 @@ class EDMel2SpecModel(MelToSpec):
 
         self.mode = OperationMode.validation
         self.ed_mel2spec.mode = OperationMode.validation
-        _, y_spec, _, _, T_ys, _, _ = batch
+        _, y_spec, _, _, T_ys, _, path_speech = batch
 
         x_mel = self.ed_mel2spec.spec_to_mel(y_spec)
 
@@ -244,6 +282,42 @@ class EDMel2SpecModel(MelToSpec):
             'loss_L1': loss_L1,
             'loss_reg': loss_reg,
         }
+
+        if self._cfg.train_params.validate_scores:
+            '''
+                For validaiton, estimate the wave using standard griffin lim, 
+                comparing the real wave with the griffin lim counterpart.
+            '''
+
+            cnt = x_spec.shape[0]
+            np_x = x_spec.to('cpu').numpy()
+            np_y = y_spec.to('cpu').numpy()
+            stoi_real, pesq_real, stoi_est, pesq_est = (0.0, 0.0, 0.0, 0.0)
+
+            for p in range(cnt):
+                y_wav_path = path_speech[p]
+                wav = sf.read(y_wav_path)[0].astype(np.float32)
+
+                y_est_wav = griffin_lim(np_y[p, 0, :, :])
+                x_est_wav = griffin_lim(np_x[p, 0, :, :])
+
+                min_size = min(wav.shape[0], x_est_wav.shape[0], y_est_wav.shape[0])
+                wav = wav[0:min_size, ...]
+                y_est_wav = y_est_wav[0:min_size, ...]
+                x_est_wav = x_est_wav[0:min_size, ...]
+
+                measure = calc_using_eval_module(x_est_wav, wav)
+                stoi_real += torch.tensor(measure['STOI'])
+                pesq_real += torch.tensor(measure['PESQ'])
+
+                measure = calc_using_eval_module(x_est_wav, y_est_wav)
+                stoi_est += torch.tensor(measure['STOI'])
+                pesq_est += torch.tensor(measure['PESQ'])
+
+            output['stoi_real'] = stoi_real / cnt
+            output['pesq_real'] = pesq_real / cnt
+            output['stoi_est'] = stoi_est / cnt
+            output['pesq_est'] = pesq_est / cnt
 
         for (k, s) in self.f_specs:
             new_loss = self.calc_loss_smooth(x_spec, y_spec, T_ys, k, s)

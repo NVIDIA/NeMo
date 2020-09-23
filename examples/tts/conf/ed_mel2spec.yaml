@@ -62,24 +62,25 @@ model:
 
   optim:
     name: adam
-    lr: 0.0005
-    weight_decay: 0.001
+    lr: 5.e-4
+    weight_decay: 1.e-3
     
     sched:
       name: ReduceLROnPlateau
       mode: min
-      factor: 0.75
-      patience: 20
-      verbose: False
+      factor: 0.8
+      patience: 5
+      verbose: True
       threshold: 0.01
       threshold_mode: 'rel'
       cooldown: 0
-      min_lr: 0.00001
+      min_lr: 5.e-5
       eps: 1.e-08
 
   train_params:
     lreg_factor: 1.0
     loss_mode: 3
+    validate_scores: True # Slow!
 
 trainer:
   gpus: 1 # number of gpus
@@ -91,7 +92,7 @@ trainer:
   logger: False  # Provided by exp_manager
   log_save_interval: 2000
   row_log_interval: 200
-  check_val_every_n_epoch: 5
+  check_val_every_n_epoch: 10
   precision: 32
   gradient_clip_val: 4.0
 

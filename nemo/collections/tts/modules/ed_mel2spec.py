@@ -93,7 +93,7 @@ class EDMel2SpecModule(NeuralModule, Exportable):
         self.act2 = act2
         self.use_weight_norm = use_weight_norm
 
-        meltrans = create_mel_filterbank(sampling_rate, n_fft, mel_fmin, mel_fmax, mel_freq)
+        meltrans = librosa.filters.mel(sr=sampling_rate, n_fft=n_fft, fmin=mel_fmin, fmax=mel_fmax, n_mels=mel_freq)
 
         self.meltrans = nn.Parameter(
             torch.transpose(torch.tensor(meltrans, dtype=torch.float), 0, 1), requires_grad=False

@@ -264,6 +264,8 @@ class DegliModel(Vocoder):
 
         loss = self.calc_loss(output_loss, y, T_ys)
         cnt = x.shape[0]
+
+        stoi, pesq, stoi_x, pesq_x = (0.0, 0.0, 0.0, 0.0)
         for p in range(cnt):
             y_wav_path = path_speech[p]
             y_wav = sf.read(y_wav_path)[0].astype(np.float32)
@@ -272,21 +274,21 @@ class DegliModel(Vocoder):
             out = self.postprocess(output, T_ys, p)
             out_wav = reconstruct_wave(out, kwargs_istft=self.kwargs_istft, n_sample=n_sample)
             measure = calc_using_eval_module(y_wav, out_wav)
-            stoi = torch.tensor(measure['STOI'])
-            pesq = torch.tensor(measure['PESQ'])
+            stoi += torch.tensor(measure['STOI'])
+            pesq += torch.tensor(measure['PESQ'])
 
             out = self.postprocess(output_x, T_ys, p)
             out_wav = reconstruct_wave(out, kwargs_istft=self.kwargs_istft, n_sample=n_sample)
             measure = calc_using_eval_module(y_wav, out_wav)
-            stoi_x = torch.tensor(measure['STOI'])
-            pesq_x = torch.tensor(measure['PESQ'])
+            stoi_x += torch.tensor(measure['STOI'])
+            pesq_x += torch.tensor(measure['PESQ'])
 
         return {
             "val_loss": loss,
-            "stoi": stoi,
-            "pesq": pesq,
-            "stoi_x%d" % val_repeats: stoi_x,
-            "pesq_x%d" % val_repeats: pesq_x,
+            "stoi": stoi / cnt,
+            "pesq": pesq / cnt,
+            "stoi_x%d" % val_repeats: stoi_x / cnt,
+            "pesq_x%d" % val_repeats: pesq_x / cnt,
         }
 
     def validation_epoch_end(self, outputs):
