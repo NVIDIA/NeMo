@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vis import datasets, transforms, models
-
-from nemo.package_info import __version__
-
-# Set collection version equal to NeMo version.
-__version = __version__
-
-# Authorship.
-__author__ = "NVIDIA Corporation"
-
-# Set collection name.
-__description__ = "Visual Reasoning collection"
+from nemo.collections.vis.transforms.text_transforms import (
+    Compose,
+    RemoveCharacters,
+    RemoveCharactersConfig,
+    RemovePunctuation,
+    RemovePunctuationConfig,
+    Tokenizer,
+    TokenizerConfig,
+)
