@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 from typing import List, Optional
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
@@ -88,7 +88,7 @@ def get_lm_model(
             config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
         )
 
-    if checkpoint_file:
+    if checkpoint_file and os.path.exists(checkpoint_file):
         model.restore_weights(restore_path=checkpoint_file)
 
     return model
