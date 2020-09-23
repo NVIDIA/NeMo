@@ -276,11 +276,8 @@ class GlowTTSModel(SpectrogramGenerator):
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="GlowTTS-22050Hz",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/glow_tts.nemo",
-            description=(
-                "The model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
-                "English voices with an American accent."
-            ),
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemottsmodels/versions/1.0.0a5/files/GlowTTS-22050Hz.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)
