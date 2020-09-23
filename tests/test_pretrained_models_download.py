@@ -21,38 +21,38 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.tts as nemo_tts
 
-for refresh_cache in [False]:
-    # # Test ASR collection
-    # print(nemo_asr.models.EncDecCTCModel.list_available_models())
-    # for model_name in [
-    #     'QuartzNet15x5Base-En',
-    #     'QuartzNet15x5Base-Zh',
-    #     'QuartzNet5x5LS-En',
-    #     'QuartzNet15x5NR-En',
-    #     'Jasper10x5Dr-En',
-    # ]:
-    #     model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name=model_name, refresh_cache=refresh_cache)
-    # print(nemo_asr.models.EncDecCTCModelBPE.list_available_models())
-    # for model_name in ['ContextNet-192-WPE-1024-8x-Stride']:
-    #     model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=model_name, refresh_cache=refresh_cache)
-    # print(nemo_asr.models.EncDecClassificationModel.list_available_models())
-    # for model_name in [
-    #     'MatchboxNet-3x1x64-v1',
-    #     'MatchboxNet-3x2x64-v1',
-    #     'MatchboxNet-3x1x64-v2',
-    #     'MatchboxNet-3x1x64-v2',
-    #     'MatchboxNet-3x1x64-v2-subset-task',
-    #     'MatchboxNet-3x2x64-v2-subset-task',
-    #     'MatchboxNet-VAD-3x2',
-    # ]:
-    #     model = nemo_asr.models.EncDecClassificationModel.from_pretrained(
-    #         model_name=model_name, refresh_cache=refresh_cache
-    #     )
-    # print(nemo_asr.models.EncDecSpeakerLabelModel.list_available_models())
-    # for model_name in ['SpeakerNet_recognition', 'SpeakerNet_verification']:
-    #     model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
-    #         model_name=model_name, refresh_cache=refresh_cache
-    #     )
+for refresh_cache in [True, False]:
+    # Test ASR collection
+    print(nemo_asr.models.EncDecCTCModel.list_available_models())
+    for model_name in [
+        'QuartzNet15x5Base-En',
+        'QuartzNet15x5Base-Zh',
+        'QuartzNet5x5LS-En',
+        'QuartzNet15x5NR-En',
+        'Jasper10x5Dr-En',
+    ]:
+        model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name=model_name, refresh_cache=refresh_cache)
+    print(nemo_asr.models.EncDecCTCModelBPE.list_available_models())
+    for model_name in ['ContextNet-192-WPE-1024-8x-Stride']:
+        model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=model_name, refresh_cache=refresh_cache)
+    print(nemo_asr.models.EncDecClassificationModel.list_available_models())
+    for model_name in [
+        'MatchboxNet-3x1x64-v1',
+        'MatchboxNet-3x2x64-v1',
+        'MatchboxNet-3x1x64-v2',
+        'MatchboxNet-3x1x64-v2',
+        'MatchboxNet-3x1x64-v2-subset-task',
+        'MatchboxNet-3x2x64-v2-subset-task',
+        'MatchboxNet-VAD-3x2',
+    ]:
+        model = nemo_asr.models.EncDecClassificationModel.from_pretrained(
+            model_name=model_name, refresh_cache=refresh_cache
+        )
+    print(nemo_asr.models.EncDecSpeakerLabelModel.list_available_models())
+    for model_name in ['SpeakerNet_recognition', 'SpeakerNet_verification']:
+        model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
+            model_name=model_name, refresh_cache=refresh_cache
+        )
 
     # Test NLP collection
     print(nemo_nlp.models.TokenClassificationModel.list_available_models())
@@ -73,11 +73,11 @@ for refresh_cache in [False]:
         'BERTLargeUncasedSQuADv2.0',
     ]:
         model = nemo_nlp.models.QAModel.from_pretrained(model_name=model_name, refresh_cache=refresh_cache)
-    print(nemo_nlp.models.IntentSlotClassificationModel.list_available_models())
-    for model_name in ['Joint_Intent_Slot_Assistant']:
-        model = nemo_nlp.models.IntentSlotClassificationModel.from_pretrained(
-            model_name=model_name, refresh_cache=refresh_cache
-        )
+    #print(nemo_nlp.models.IntentSlotClassificationModel.list_available_models())
+    #for model_name in ['Joint_Intent_Slot_Assistant']:
+    #    model = nemo_nlp.models.IntentSlotClassificationModel.from_pretrained(
+    #        model_name=model_name, refresh_cache=refresh_cache
+    #    )
 
     # Test TTS collection
     print(nemo_tts.models.Tacotron2Model.list_available_models())

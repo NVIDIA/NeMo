@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+import os
 from typing import List, Optional
 
 from transformers import (
@@ -90,7 +91,7 @@ def get_huggingface_lm_model(
 
     if model_type in HUGGINGFACE_MODELS:
         model_class = HUGGINGFACE_MODELS[model_type]["class"]
-        if config_file:
+        if config_file and os.path.exists(config_file):
             config_class = HUGGINGFACE_MODELS[model_type]["config"]
             return model_class(config_class.from_json_file(config_file))
         elif config_dict:
