@@ -298,14 +298,14 @@ class EncDecClassificationModel(ASRModel):
             if new_labels is None or len(new_labels) == 0:
                 raise ValueError(f'New labels must be non-empty list of labels. But I got: {new_labels}')
 
+            # Update config
+            self._cfg.labels = new_labels
+
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
             self._update_decoder_config(new_decoder_config)
             del self.decoder
             self.decoder = EncDecClassificationModel.from_config_dict(new_decoder_config)
-
-            # Update config
-            self._cfg.labels = new_labels
 
             OmegaConf.set_struct(self._cfg.decoder, False)
             self._cfg.decoder = new_decoder_config
