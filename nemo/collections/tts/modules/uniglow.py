@@ -19,12 +19,7 @@ import torch.nn.functional as F
 from nemo.collections.tts.helpers.helpers import remove
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
-from nemo.core.neural_types.elements import (
-    AudioSignal,
-    MelSpectrogramType,
-    NormalDistributionSamplesType,
-    VoidType,
-)
+from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, NormalDistributionSamplesType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
 
@@ -63,10 +58,10 @@ class UniGlowModule(NeuralModule, Exportable):
         """
         super().__init__()
 
-        assert(n_group % 2 == 0)
+        assert n_group % 2 == 0
         self.n_flows = n_flows
         self.n_group = n_group
-        n_half = int(n_group/2)
+        n_half = int(n_group / 2)
 
         self.conv = Invertible1x1Conv(n_group)
         self.wn = WaveNet(n_half, n_mel_channels, n_wn_layers, n_wn_channels, wn_kernel_size)
@@ -83,10 +78,10 @@ class UniGlowModule(NeuralModule, Exportable):
             training/validation:
                 z: latent variable
                 lodget: the sum of log-determinants
-                audio_pred: time-domain signal predicted from (spec,z') where 
+                audio_pred: time-domain signal predicted from (spec,z') where
                     z' is a latent variable sampled from a N(0,sigma)
             inference:
-                audio_pred: time-domain signal predicted from (spec,z') where 
+                audio_pred: time-domain signal predicted from (spec,z') where
                     z' is a latent variable sampled from a N(0,sigma)
         """
         if self.training and self.mode != OperationMode.training:
@@ -148,17 +143,17 @@ class UniGlowModule(NeuralModule, Exportable):
             audio, log_det_W = self.conv(audio)
             logdet += log_det_W
 
-            n_half = int(audio.size(1)/2)
-            audio_0 = audio[:,:n_half,:]
-            audio_1 = audio[:,n_half:,:]
+            n_half = int(audio.size(1) / 2)
+            audio_0 = audio[:, :n_half, :]
+            audio_1 = audio[:, n_half:, :]
 
             output = self.wn((audio_0, spec))
             log_s = output[:, n_half:, :]
             b = output[:, :n_half, :]
-            audio_1 = torch.exp(log_s)*audio_1 + b
+            audio_1 = torch.exp(log_s) * audio_1 + b
             logdet += torch.sum(log_s)
 
-            audio = torch.cat([audio_0, audio_1],1)
+            audio = torch.cat([audio_0, audio_1], 1)
 
         return audio, logdet
 
@@ -169,20 +164,20 @@ class UniGlowModule(NeuralModule, Exportable):
         audio = sigma * torch.randn(spec.size(0), self.n_group, audio_len, device=spec.device).to(spec.dtype)
 
         for _ in reversed(range(self.n_flows)):
-            n_half = int(audio.size(1)/2)
-            audio_0 = audio[:,:n_half,:]
-            audio_1 = audio[:,n_half:,:]
+            n_half = int(audio.size(1) / 2)
+            audio_0 = audio[:, :n_half, :]
+            audio_1 = audio[:, n_half:, :]
 
             output = self.wn((audio_0, spec))
 
             s = output[:, n_half:, :]
             b = output[:, :n_half, :]
-            audio_1 = (audio_1 - b)/torch.exp(s)
-            audio = torch.cat([audio_0, audio_1],1)
+            audio_1 = (audio_1 - b) / torch.exp(s)
+            audio = torch.cat([audio_0, audio_1], 1)
 
             audio = self.conv(audio, reverse=True)
 
-        audio = audio.permute(0,2,1).contiguous().view(audio.size(0), -1)
+        audio = audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
         return audio
 
     def remove_weightnorm(self):

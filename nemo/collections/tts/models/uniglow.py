@@ -31,7 +31,6 @@ from nemo.core.neural_types.elements import (
     LengthsType,
     MelSpectrogramType,
     NormalDistributionSamplesType,
-    VoidType,
     LogDeterminantType,
 )
 from nemo.core.neural_types.neural_type import NeuralType

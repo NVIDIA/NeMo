@@ -20,12 +20,9 @@
 import torch
 import torch.nn.functional as F
 
-import torch
-
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types.elements import LossType, NormalDistributionSamplesType, VoidType
+from nemo.core.neural_types.elements import AudioSignal, LossType, NormalDistributionSamplesType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.neural_types.elements import AudioSignal
 
 
 def stft(x, fft_size, hop_size, win_length, window):
@@ -116,11 +113,9 @@ class STFTLoss(torch.nn.Module):
 class MultiResolutionSTFTLoss(torch.nn.Module):
     """Multi resolution STFT loss module."""
 
-    def __init__(self,
-                 fft_sizes=[1024, 2048, 512],
-                 hop_sizes=[120, 240, 50],
-                 win_lengths=[600, 1200, 240],
-                 window="hann_window"):
+    def __init__(
+        self, fft_sizes=[1024, 2048, 512], hop_sizes=[120, 240, 50], win_lengths=[600, 1200, 240], window="hann_window"
+    ):
         """Initialize Multi resolution STFT loss module.
         Args:
             fft_sizes (list): List of FFT sizes.
@@ -156,8 +151,8 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
 
 
 class UniGlowLoss(Loss):
-    """ A Loss module that computes loss for UniGlow
-    """
+    """A Loss module that computes loss for UniGlow"""
+
     def __init__(self, stft_loss_coef):
         super(UniGlowLoss, self).__init__()
         self.stft_loss = MultiResolutionSTFTLoss()
