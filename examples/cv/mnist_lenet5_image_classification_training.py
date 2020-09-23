@@ -16,8 +16,6 @@ from typing import Any, Optional, List
 
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
-
 import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 
@@ -44,12 +42,8 @@ class AppConfig:
     trainer: TrainerConfig = TrainerConfig()
 
 
-# Register schema.
-cs = ConfigStore.instance()
-cs.store(node=AppConfig, name="mnist_lenet5_image_classification_training")
-
 # Load configuration file from "conf" dir using schema for validation/retrieving the default values.
-@hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification_training")
+@hydra_runner(config_path="conf", config_name="mnist_lenet5_image_classification_training", schema=AppConfig)
 def main(cfg: AppConfig):
     # Show configuration.
     logging.info("Application settings\n" + OmegaConf.to_yaml(cfg))
