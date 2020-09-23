@@ -157,7 +157,6 @@ def main(cfg: DictConfig) -> None:
         logging.info(
             "================================================================================================"
         )
-
     else:
         logging.info(
             "No file_path was set for validation_ds or no checkpoint was found, so final evaluation is skipped!"
@@ -179,7 +178,7 @@ def main(cfg: DictConfig) -> None:
         # use the path of the last checkpoint from the training, you may update it to any other checkpoints
         infer_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
 
-        # move the model to the desire device for inference
+        # move the model to the desired device for inference
         # we move the model to "cuda" if available otherwise "cpu" would be used
         if torch.cuda.is_available():
             infer_model.to("cuda")
