@@ -53,6 +53,7 @@ parser.add_argument(
     action='store_true',
     help="Whether or not to randomly shuffle the samples in the manifest before tarring/sharding.",
 )
+parser.add_argument("--shuffle_seed", type=int, help="Random seed for use if shuffling is enabled.")
 args = parser.parse_args()
 
 
@@ -87,6 +88,7 @@ def main():
     num_shards = args.num_shards
     max_duration = args.max_duration
     shuffle = args.shuffle
+    seed = args.shuffle_seed
 
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
@@ -106,17 +108,20 @@ def main():
         print(f"Filtered {filtered_entries} files with maximum duration > {max_duration} seconds.")
 
     if shuffle:
+        random.seed(seed)
         print("Shuffling...")
         random.shuffle(entries)
 
     # Create shards and updated manifest entries
     new_entries = []
+    print(f"Remainder: {len(entries) % num_shards}")
     for i in range(num_shards):
         start_idx = (len(entries) // num_shards) * i
         end_idx = start_idx + (len(entries) // num_shards)
+        print(f"Shard {i} has entries {start_idx} ~ {end_idx}")
         if i == num_shards - 1:
-            end_idx = len(entries)  # Last shard gets the leftovers.
-        print(f"Shard {i} will have {end_idx - start_idx} entries.")
+            # We discard in order to have the same number of entries per shard.
+            print(f"Have {len(entries) - end_idx} entries left over that will be discarded.")
 
         create_shard(entries[start_idx:end_idx], target_dir, new_entries, i)
 
