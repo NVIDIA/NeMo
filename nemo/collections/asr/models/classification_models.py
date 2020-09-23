@@ -160,7 +160,7 @@ class EncDecClassificationModel(ASRModel):
 
         model = PretrainedModelInfo(
             pretrained_model_name="MatchboxNet-VAD-3x2",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-VAD-3x2.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet_VAD_3x2.nemo",
             description="Voice Activity Detection MatchboxNet model trained on google speech command (v2) and freesound background data, which obtains 0.992 accuracy on testset from same source and 0.852 TPR for FPR=0.315 on testset (ALL) of AVA movie data",
         )
         result.append(model)
