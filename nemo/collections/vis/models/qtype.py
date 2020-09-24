@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List
 from dataclasses import dataclass, field, MISSING
 
 import hydra
@@ -24,6 +24,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
 
 from nemo.collections.vis.transforms import Compose
+from nemo.collections.vis.modules import SentenceEmbeddings, SentenceEmbeddingsConfig
 
 
 @dataclass
@@ -38,10 +39,15 @@ class QTypeConfig:
         _target_: Specification of target class
     """
 
+    text_transforms: List[Any] = field(default_factory=list)
+    embeddings: SentenceEmbeddingsConfig = SentenceEmbeddingsConfig(
+        word_mappings_filepath="word_mappings.csv",
+        embeddings_size=50,
+        additional_tokens=['<PAD>'],
+        skip_unknown_words=True,
+    )  # , pretrained_embeddings="glove.6B.50d.txt")
     # Target class name.
     _target_: str = "nemo.collections.vis.models.QType"
-    # text_transforms: List[TextTransforms]
-    text_transforms: Optional[Any] = None  # List[Any] = field(default_factory=list) ?
 
 
 class QType(Model):
@@ -49,30 +55,44 @@ class QType(Model):
     The LeNet-5 model.
     """
 
-    def __init__(self, cfg: QTypeConfig = QTypeConfig()):
+    def __init__(self, cfg: QTypeConfig):
         super().__init__(cfg=cfg)
 
         # Check transforms configuration.
         if cfg.text_transforms is not None:
-            self.transforms = Compose([hydra.utils.instantiate(trans) for trans in cfg.text_transforms])
+            self._transforms = Compose([hydra.utils.instantiate(trans) for trans in cfg.text_transforms])
         else:
-            self.transforms = None
+            self._transforms = None
 
-    def forward(self, sentences):
+        self._se = hydra.utils.instantiate(cfg.embeddings)
+
+    def forward(self, questions):
         """ Propagates data throught the model. """
 
-        if self.transforms is not None:
-            sentences = self.transforms(sentences)
+        # Process sentences using provided transformations.
+        if self._transforms is not None:
+            questions = self._transforms(questions)
 
-        return sentences
+        # Embedding words.
+        embs = self._se(questions)
+
+        # Produce question embeddings.
+
+        # Classify question.
+
+        return embs
 
     def training_step(self, batch, what_is_this_input):
         """ Training step, calculate loss. """
         # "Unpack" the batch.
-        # sentence, targets = batch
+        indices, img_ids, imgs, questions, answers, question_type_ids, question_type_names = batch
+
+        print(questions)
 
         # Get predictions.
-        # predictions = self(images=images)
+        predictions = self(questions=questions)
+
+        print(predictions)
 
         # Calculate loss.
         # loss = self.loss(predictions=predictions, targets=targets)

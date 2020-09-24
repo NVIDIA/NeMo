@@ -43,7 +43,7 @@ class DataLoaderConfig:
     sampler: Optional[Any] = None
     batch_sampler: Optional[Any] = None
     num_workers: int = 0
-    collate_fn: Optional[Any] = None
+    # collate_fn: Optional[Any] = None
     pin_memory: bool = False
     drop_last: bool = False
     timeout: int = 0

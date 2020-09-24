@@ -1,7 +1,7 @@
 # Overwrite the dataloader settings.
 dataloader:
-  batch_size: 64
-  num_workers: 5
+  batch_size: 2
+  num_workers: 0
 
 train_dataset:
   # Significantly fastens data fetching - useful for text-only based models.
@@ -27,5 +27,5 @@ optim:
 
 # Overwrite the "trainer" settings: use 2 GPUs.
 trainer:
-  gpus: 2
+  gpus: 0
   distributed_backend: "dp"

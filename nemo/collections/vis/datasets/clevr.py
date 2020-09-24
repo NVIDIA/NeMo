@@ -334,17 +334,17 @@ class CLEVR(Dataset):
         if self._split == 'training':
             # Training split folder and file with data question.
             data_file = join(self._root, "CLEVR_v1.0", "questions", 'CLEVR_train_questions.json')
-            self.split_image_folder = join(self._root, "images", "train")
+            self.split_image_folder = join(self._root, "CLEVR_v1.0", "images", "train")
 
         elif self._split == 'validation':
             # Validation split folder and file with data question.
             data_file = join(self._root, "CLEVR_v1.0", "questions", 'CLEVR_val_questions.json')
-            self.split_image_folder = join(self._root, "images", "val")
+            self.split_image_folder = join(self._root, "CLEVR_v1.0", "images", "val")
 
         elif self._split == 'test':
             # Test split folder and file with data question.
             data_file = join(self._root, "CLEVR_v1.0", "questions", 'CLEVR_test_questions.json')
-            self.split_image_folder = join(self._root, "images", "test")
+            self.split_image_folder = join(self._root, "CLEVR_v1.0", "images", "test")
 
         else:  # cogent
             raise ConfigurationError("Split `{}` not supported yet".format(self._split))

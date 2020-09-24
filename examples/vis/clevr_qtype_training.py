@@ -25,8 +25,6 @@ from nemo.collections.vis.models import QType, QTypeConfig
 from nemo.core.config import hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.collections.vis.datasets import CLEVRConfig
 
-# from nemo.collections.vis.modules import SentenceEmbeddings
-
 
 @dataclass
 class AppConfig:
@@ -53,16 +51,26 @@ def main(cfg: AppConfig):
 
     # Instantiate the "model".
     model = QType(cfg.model)
-    tokens = model(["Ala ma,  kota.", "kot ma pałę"])
-    print(tokens)
 
-    # se = SentenceEmbeddings(word_mappings_filepath="word_mappings.csv", embeddings_size=50)
-    # , pretrained_embeddings="glove.6B.50d.txt")
-    # embs = se(tokens)
-    # print(embs)
+    # tokens = model(["Ala ma,  kota.", "kot ma pałę"])
+    # tokens = model(['Are there any other things that are the same shape as the big metallic object?', 'Is there a big brown object of the same shape as the green thing?'])
+    # print(tokens)
 
     # Instantiate the dataloader/dataset.
-    # train_dl = model.instantiate_dataloader(cfg.dataloader, cfg.train_dataset)
+    train_dl = model.instantiate_dataloader(cfg.dataloader, cfg.train_dataset)
+    # batch = next(iter(train_dl))
+    # print(batch)
+    # tokens = model(batch[3])
+    # print(tokens)
+
+    # Setup the optimization.
+    model.setup_optimization(cfg.optim)
+
+    # Create the trainer.
+    trainer = ptl.Trainer(**(cfg.trainer))
+
+    # Train the model on dataset.
+    trainer.fit(model=model, train_dataloader=train_dl)
 
 
 if __name__ == "__main__":
