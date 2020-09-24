@@ -1,0 +1,18 @@
+# Overwrite the dataloader settings.
+dataloader:
+  batch_size: 64
+  num_workers: 5
+
+training_dataset:
+  download: False # Got the proper data - turning this off, as md5 validation is slow.
+
+validation_dataset:
+  download: False # Got the proper data - turning this off, as md5 validation is slow.
+    
+question_text_transforms:
+  - # Remove punctuation
+    _target_: nemo.collections.vis.transforms.RemovePunctuation
+  - # Lowercase
+    _target_: nemo.collections.vis.transforms.LowerCase
+  - # Tokenize
+    _target_: nemo.collections.vis.transforms.Tokenizer
