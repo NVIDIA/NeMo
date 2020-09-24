@@ -77,7 +77,7 @@ class NLPModel(ModelPT, ABC):
             device_id = app_state.device_id
             model = LightningDistributedDataParallel(
                 model,
-                device_ids=[device_id],
+                device_ids,
                 output_device=device_id,
                 process_group=app_state.data_parallel_group
             )
