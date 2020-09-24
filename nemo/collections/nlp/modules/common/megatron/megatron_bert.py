@@ -123,18 +123,18 @@ class MegatronBertEncoder(BertModule):
             if self._model_parallel_size is not None:
                 self.restore_weights(self._restore_path)
                 # update app_state after model parallel init from mpu
-                self._app_state.model_parallel_group = get_model_parallel_group()
-                self._app_state.data_parallel_group = get_data_parallel_group()
-                self._app_state.model_parallel_rank = torch.distributed.get_rank(
-                    group=self._app_state.model_parallel_group
-                )
-                self._app_state.data_parallel_rank = torch.distributed.get_rank(
-                    group= self._app_state.data_parallel_group
-                )
-                device_id = torch.cuda.current_device()
-                logging.info(f'device_id: {device_id}')
-                logging.info(f'mp_rank: {self._app_state.model_parallel_rank}')
-                logging.info(f'dp_rank: {self._app_state.data_parallel_rank}')
+                # self._app_state.model_parallel_group = get_model_parallel_group()
+                # self._app_state.data_parallel_group = get_data_parallel_group()
+                # self._app_state.model_parallel_rank = torch.distributed.get_rank(
+                #     group=self._app_state.model_parallel_group
+                # )
+                # self._app_state.data_parallel_rank = torch.distributed.get_rank(
+                #     group= self._app_state.data_parallel_group
+                # )
+                # device_id = torch.cuda.current_device()
+                # logging.info(f'device_id: {device_id}')
+                # logging.info(f'mp_rank: {self._app_state.model_parallel_rank}')
+                # logging.info(f'dp_rank: {self._app_state.data_parallel_rank}')
                 #logging.info(f'mp_group: {self._app_state.model_parallel_group}')
                 #logging.info(f'dp_group: {self._app_state.data_parallel_group}')
                 # from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel

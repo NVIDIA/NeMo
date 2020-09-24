@@ -20,16 +20,48 @@ import torch
 from nemo.core.classes import ModelPT
 from nemo.utils import logging, AppState
 
+#from megatron import get_args, initialize_megatron
+from megatron import mpu
+
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 
 __all__ = ['NLPModel']
 
-
 class NLPModel(ModelPT, ABC):
 
+    # def __init__(self):
+    #     super.__init__()
+    #     self._app_state = AppState()
+
+    def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
+        """ Override LightningModule DDP initialization """
+        app_state = AppState()
+
+        if app_state.model_parallel_size is not None:
+            # args = get_args()
+            # initialize_megatron()
+            LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
+            if app_state.model_parallel_group is None:
+                mpu.initialize_model_parallel(app_state.model_parallel_size)
+                app_state.model_parallel_group = mpu.get_model_parallel_group()
+                app_state.data_parallel_group = mpu.get_data_parallel_group()
+                app_state.model_parallel_rank = torch.distributed.get_rank(
+                    group=app_state.model_parallel_group
+                )
+                app_state.data_parallel_rank = torch.distributed.get_rank(
+                    group=app_state.data_parallel_group
+                )
+                device_id = torch.cuda.current_device()
+                logging.info(f'device_id: {device_id}')
+                logging.info(f'mp_rank: {app_state.model_parallel_rank}')
+                logging.info(f'dp_rank: {app_state.data_parallel_rank}')
+
+        else:
+            return LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
+
     def configure_ddp(self, model, device_ids):
-        """ Override LightingModule ddp if using model parallel. """
+        """ Override LightningModule ddp if using model parallel. """
 
         logging.info(f'device_ids: {device_ids}')
 
@@ -54,4 +86,5 @@ class NLPModel(ModelPT, ABC):
         else:
             logging.info("Did not detect model parallel using LightningModule.configure_ddp")
             return LightningModule.configure_ddp(self, model, device_ids)
+    
 
