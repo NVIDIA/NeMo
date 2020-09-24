@@ -24,15 +24,13 @@ import torch.nn.functional as F
 from hydra.utils import instantiate
 from numpy import ndarray
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
-from pesq import pesq
-from pystoi import stoi
 from torch import Tensor, nn
 
-from nemo.collections.tts.helpers.helpers import griffin_lim
+from nemo.collections.tts.helpers.helpers import eval_tts_scores, griffin_lim
 from nemo.collections.tts.models.base import MelToSpec
 from nemo.collections.tts.modules.ed_mel2spec import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import IntType, LengthsType, SpectrogramType
+from nemo.core.neural_types.elements import IntType, LengthsType, MelSpectrogramType, SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
@@ -50,49 +48,6 @@ def gen_filter(k):
     K = torch.ones(1, 1, k, 1)
     K.requires_grad = False
     return K
-
-
-def EvalModule(clean, denoised, fs):
-    """
-    Evaluate the quality of the output audio in comparison with the real audio.
-    Args:
-        clean: the real audio
-        denoised: the output audio
-        fs: sampling rate. For PESQ, we use 16,000 as per the library limitation.
-    Returns:
-        STOI score computed with pystoi lib
-        PESQ score computer with pesq lib
-    """
-
-    stoi_score = stoi(clean, denoised, fs, extended=False)
-    pesq_score = pesq(16000, np.asarray(clean), denoised, 'wb')
-    return stoi_score, pesq_score
-
-
-def calc_using_eval_module(
-    y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,), sampling_rate=22050
-) -> Dict[str, float]:
-    """
-    calculate metric using EvalModule. y can be a batch.
-    Args:
-        y_clean: real audio
-        y_est: estimated audio
-        T_ys: length of the non-zero parts of the histograms
-        sampling_rate: The used Sampling rate.
-
-    Returns:
-        A dictionary mapping scoring systems (string) to numerical scores.
-    """
-
-    if y_clean.ndim == 1:
-        y_clean = y_clean[np.newaxis, ...]
-        y_est = y_est[np.newaxis, ...]
-    if T_ys == (0,):
-        T_ys = (y_clean.shape[1],) * y_clean.shape[0]
-
-    stoi_result, pesq_results = EvalModule(y_clean[0, : T_ys[0]], y_est[0, : T_ys[0]], sampling_rate)
-
-    return {'STOI': stoi_result, 'PESQ': pesq_results}
 
 
 class EDMel2SpecModel(MelToSpec):
@@ -134,15 +89,16 @@ class EDMel2SpecModel(MelToSpec):
 
         self.filters = [gen_filter(k) for k, s in self.f_specs]
 
-        # self.l_hop = self._cfg.ed_mel2spec.hop_length
-        # self.n_fft = self._cfg.ed_mel2spec.n_fft
-        # self.kwargs_stft = dict(hop_length=self.l_hop, window='hann', center=True, n_fft=self.n_fft, dtype=np.float32)
-        # self.kwargs_istft = dict(hop_length=self.l_hop, window='hann', center=True, dtype=np.float32)
+    def set_operation_mode(self, new_mode):
+        if not new_mode == OperationMode.training:
+            self.eval()
+        self.mode = new_mode
+        self.ed_mel2spec.mode = new_mode
 
     @property
     def input_types(self):
         return {
-            "mel": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "mel": NeuralType(('B', 'C', 'D', 'T'), MelSpectrogramType()),
         }
 
     @property
@@ -162,11 +118,12 @@ class EDMel2SpecModel(MelToSpec):
         return spec  # audio_pred
 
     def convert_mel_spectrogram_to_linear(self, mel: torch.Tensor) -> torch.Tensor:
-        self.eval()
-        self.mode = OperationMode.infer
-        self.ed_mel2spec.mode = OperationMode.infer
+        self.set_operation_mode(OperationMode.infer)
+        if len(mel.shape) == 3:
+            mel = mel.unsqueeze(1)
 
-        return None
+        spec = self(mel=mel)
+        return spec.squeeze(1)
 
     def calc_loss(self, x: Tensor, y: Tensor, T_ys: Sequence[int], crit) -> Tensor:
         """
@@ -237,8 +194,8 @@ class EDMel2SpecModel(MelToSpec):
         return loss
 
     def training_step(self, batch, batch_idx):
-        self.mode = OperationMode.training
-        self.ed_mel2spec.mode = OperationMode.training
+        self.set_operation_mode(OperationMode.training)
+
         _, y_spec, _, _, T_ys, _, _ = batch
 
         x_mel = self.ed_mel2spec.spec_to_mel(y_spec)
@@ -262,9 +219,8 @@ class EDMel2SpecModel(MelToSpec):
         return output
 
     def validation_step(self, batch, batch_idx):
+        self.set_operation_mode(OperationMode.validation)
 
-        self.mode = OperationMode.validation
-        self.ed_mel2spec.mode = OperationMode.validation
         _, y_spec, _, _, T_ys, _, path_speech = batch
 
         x_mel = self.ed_mel2spec.spec_to_mel(y_spec)
@@ -306,11 +262,11 @@ class EDMel2SpecModel(MelToSpec):
                 y_est_wav = y_est_wav[0:min_size, ...]
                 x_est_wav = x_est_wav[0:min_size, ...]
 
-                measure = calc_using_eval_module(x_est_wav, wav)
+                measure = eval_tts_scores(x_est_wav, wav)
                 stoi_real += torch.tensor(measure['STOI'])
                 pesq_real += torch.tensor(measure['PESQ'])
 
-                measure = calc_using_eval_module(x_est_wav, y_est_wav)
+                measure = eval_tts_scores(x_est_wav, y_est_wav)
                 stoi_est += torch.tensor(measure['STOI'])
                 pesq_est += torch.tensor(measure['PESQ'])
 

@@ -95,10 +95,10 @@ class LinVocoder(ModelPT, ABC):
         Accepts a batch of linear spectrograms and returns a batch of audio
 
         Args:
-            spec: A torch tensor representing the spectrograms to be vocoded
+            spec: A torch tensor representing the spectrograms to be vocoded ['B', 'n_freqs', 'T']
 
         Returns:
-            audio
+            audio 
         """
 
     @classmethod
@@ -125,10 +125,10 @@ class MelToSpec(ModelPT, ABC):
         Accepts a batch of spectrograms and returns a batch of audio
 
         Args:
-            mel: A torch tensor representing the mel encoded spectrograms
+            mel: A torch tensor representing the mel encoded spectrograms ['B', 'mel_freqs', 'T']
 
         Returns:
-            spec: A torch tensor representing the linears spectrograms
+            spec: A torch tensor representing the linears spectrograms ['B', 'n_freqs', 'T']
         """
 
     @classmethod

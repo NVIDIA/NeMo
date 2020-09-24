@@ -12,6 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# MIT License
+
+# Copyright (c) 2019 Jeongmin Liu
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Sequence
@@ -23,59 +45,15 @@ import torch
 from hydra.utils import instantiate
 from numpy import ndarray
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
-from pesq import pesq
-from pystoi import stoi
 from torch import Tensor, nn
 
-from nemo.collections.tts.models.base import Vocoder
+from nemo.collections.tts.helpers.helpers import eval_tts_scores
+from nemo.collections.tts.models.base import LinVocoder
 from nemo.collections.tts.modules.degli import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import IntType, LengthsType, SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-
-
-def EvalModule(clean, denoised, fs):
-    """
-    Evaluate the quality of the output audio in comparison with the real audio.
-    Args:
-        clean: the real audio
-        denoised: the output audio
-        fs: sampling rate. For PESQ, we use 16,000 as per the library limitation.
-    Returns:
-        STOI score computed with pystoi lib
-        PESQ score computer with pesq lib
-    """
-
-    stoi_score = stoi(clean, denoised, fs, extended=False)
-    pesq_score = pesq(16000, np.asarray(clean), denoised, 'wb')
-    return stoi_score, pesq_score
-
-
-def calc_using_eval_module(
-    y_clean: ndarray, y_est: ndarray, T_ys: Sequence[int] = (0,), sampling_rate=22050
-) -> Dict[str, float]:
-    """
-    calculate metric using EvalModule. y can be a batch.
-    Args:
-        y_clean: real audio
-        y_est: estimated audio
-        T_ys: length of the non-zero parts of the histograms
-        sampling_rate: The used Sampling rate.
-
-    Returns:
-        A dictionary mapping scoring systems (string) to numerical scores.
-    """
-
-    if y_clean.ndim == 1:
-        y_clean = y_clean[np.newaxis, ...]
-        y_est = y_est[np.newaxis, ...]
-    if T_ys == (0,):
-        T_ys = (y_clean.shape[1],) * y_clean.shape[0]
-
-    stoi_result, pesq_results = EvalModule(y_clean[0, : T_ys[0]], y_est[0, : T_ys[0]], sampling_rate)
-
-    return {'STOI': stoi_result, 'PESQ': pesq_results}
 
 
 @dataclass
@@ -119,7 +97,7 @@ def reconstruct_wave(*args: ndarray, kwargs_istft, n_sample=-1) -> ndarray:
     return wave
 
 
-class DegliModel(Vocoder):
+class DegliModel(LinVocoder):
     """Deep Griffin Lim model used to convert between spectrograms and audio"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -147,6 +125,12 @@ class DegliModel(Vocoder):
         len_weight = self._cfg.train_params.repeat_training
         self.loss_weight = nn.Parameter(torch.tensor([1.0 / i for i in range(len_weight, 0, -1)]), requires_grad=False)
         self.loss_weight /= self.loss_weight.sum()
+
+    def set_operation_mode(self, new_mode):
+        if not new_mode == OperationMode.training:
+            self.eval()
+        self.mode = new_mode
+        self.degli.mode = new_mode
 
     @property
     def input_types(self):
@@ -178,10 +162,11 @@ class DegliModel(Vocoder):
         tensors = self.degli(x=x, mag=mag, max_length=max_length, repeat=repeats)
         return tensors  # audio_pred
 
-    def convert_spectrogram_to_audio(self, spec: torch.Tensor, Ts=None, repeats: int = 32) -> torch.Tensor:
-        self.eval()
-        self.mode = OperationMode.infer
-        self.degli.mode = OperationMode.infer
+    def convert_linear_spectrogram_to_audio(self, spec: torch.Tensor, Ts=None, repeats: int = 32) -> torch.Tensor:
+        self.set_operation_mode(OperationMode.infer)
+
+        if len(spec.shape) == 3:
+            spec = spec.unsqueeze(1)
 
         x = torch.normal(0, 1, [spec.shape[0], 2, spec.shape[2], spec.shape[3]]).to(self.device)
         length = (spec.shape[3] - 1) * self.l_hop
@@ -190,17 +175,19 @@ class DegliModel(Vocoder):
 
         if Ts is None:
             Ts = [y.shape[3]] * y.shape[0]
-        if y.shape[0] == 1:
-            y = self.postprocess(y, Ts, 0)
-            audio = reconstruct_wave(y, kwargs_istft=self.kwargs_istft, n_sample=(y.shape[1] - 1) * self.l_hop)
-            return audio
-        else:
-            audios = []
-            for i in range(y.shape[0]):
-                y_i = self.postprocess(y, Ts, i)
-                audio = reconstruct_wave(y_i, kwargs_istft=self.kwargs_istft, n_sample=(y_i.shape[1] - 1) * self.l_hop)
-                audios.append(audio)
-            return audios
+
+        batch_size = y.shape[0]
+        max_size = (max(Ts) - 1) * self.l_hop
+
+        audios = torch.zeros(batch_size, max_size)
+
+        for i in range(batch_size):
+            y_i = self.postprocess(y, Ts, i)
+            my_len = (Ts[i] - 1) * self.l_hop
+            audio = reconstruct_wave(y_i, kwargs_istft=self.kwargs_istft, n_sample=my_len)
+            audios[i, 0:my_len] = torch.from_numpy(audio)
+
+        return audios
 
     def calc_loss(self, out_blocks: Tensor, y: Tensor, T_ys: Sequence[int]) -> Tensor:
         """
@@ -228,8 +215,8 @@ class DegliModel(Vocoder):
         return loss
 
     def training_step(self, batch, batch_idx):
-        self.mode = OperationMode.training
-        self.degli.mode = OperationMode.training
+        self.set_operation_mode(OperationMode.training)
+
         x, mag, max_length, y, T_ys, _, _ = batch
         output_loss, _, _ = self(x=x, mag=mag, max_length=max_length, repeats=self._cfg.train_params.repeat_training)
         loss = self.calc_loss(output_loss, y, T_ys)
@@ -253,9 +240,7 @@ class DegliModel(Vocoder):
         A validation step that also calculates the STOI/PESQ scores,
         and the scored for high repetition count (repeat_validation argument)
         """
-
-        self.mode = OperationMode.validation
-        self.degli.mode = OperationMode.validation
+        self.set_operation_mode(OperationMode.validation)
         val_repeats = self._cfg.train_params.repeat_validation
 
         x, mag, max_length, y, T_ys, length, path_speech = batch
@@ -273,13 +258,13 @@ class DegliModel(Vocoder):
             n_sample = length[p]
             out = self.postprocess(output, T_ys, p)
             out_wav = reconstruct_wave(out, kwargs_istft=self.kwargs_istft, n_sample=n_sample)
-            measure = calc_using_eval_module(y_wav, out_wav)
+            measure = eval_tts_scores(y_wav, out_wav)
             stoi += torch.tensor(measure['STOI'])
             pesq += torch.tensor(measure['PESQ'])
 
             out = self.postprocess(output_x, T_ys, p)
             out_wav = reconstruct_wave(out, kwargs_istft=self.kwargs_istft, n_sample=n_sample)
-            measure = calc_using_eval_module(y_wav, out_wav)
+            measure = eval_tts_scores(y_wav, out_wav)
             stoi_x += torch.tensor(measure['STOI'])
             pesq_x += torch.tensor(measure['PESQ'])
 
