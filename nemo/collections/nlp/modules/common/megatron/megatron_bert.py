@@ -149,7 +149,7 @@ class MegatronBertEncoder(BertModule):
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
         )
-        logging.info(f'input_ids.device: {input_ids.device}')
+        #logging.info(f'input_ids.device: {input_ids.device}')
         position_ids = bert_position_ids(input_ids)
 
         sequence_output = self.language_model(
