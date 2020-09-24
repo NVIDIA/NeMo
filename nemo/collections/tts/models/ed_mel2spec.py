@@ -16,13 +16,11 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Sequence
 
-import librosa
 import numpy as np
 import soundfile as sf
 import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
-from numpy import ndarray
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from torch import Tensor, nn
 
@@ -30,7 +28,7 @@ from nemo.collections.tts.helpers.helpers import eval_tts_scores, griffin_lim
 from nemo.collections.tts.models.base import MelToSpec
 from nemo.collections.tts.modules.ed_mel2spec import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import IntType, LengthsType, MelSpectrogramType, SpectrogramType
+from nemo.core.neural_types.elements import MelSpectrogramType, SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 

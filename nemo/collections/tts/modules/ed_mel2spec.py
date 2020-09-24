@@ -18,11 +18,10 @@ from enum import Enum
 import librosa
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from numpy.linalg import pinv
 
 from nemo.core.classes import Exportable, NeuralModule, typecheck
-from nemo.core.neural_types.elements import IntType, LengthsType, SpectrogramType
+from nemo.core.neural_types.elements import SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
 

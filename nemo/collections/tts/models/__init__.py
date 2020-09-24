@@ -26,7 +26,7 @@ __all__ = [
     "Tacotron2Model",
     "WaveGlowModel",
     "DegliModel",
-    "EDMel2Spec",
+    "EDMel2SpecModel",
     "TwoStagesModel",
     "GriffinLimModel",
     "MelPsuedoInverseModel",

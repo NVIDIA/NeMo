@@ -14,17 +14,16 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import librosa
-import numpy as np
 import torch
 from hydra.utils import instantiate
-from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
+from omegaconf import MISSING, DictConfig, OmegaConf
 
 from nemo.collections.tts.helpers.helpers import griffin_lim
 from nemo.collections.tts.models.base import LinVocoder, MelToSpec, Vocoder
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types.elements import (
     AudioSignal,
     LengthsType,
