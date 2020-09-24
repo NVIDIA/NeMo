@@ -143,7 +143,6 @@ model:
     cls: nemo.collections.asr.modules.ConvASRDecoderClassification
     params:
       feat_in: *enc_final_filters
-      num_classes: 30
       return_logits: true
       pooling_type: 'avg'
 
