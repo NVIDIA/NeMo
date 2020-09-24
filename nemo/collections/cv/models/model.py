@@ -46,7 +46,7 @@ class Model(ModelPT):
             dataset_cfg: Configuration of the dataset
             transform_cfg: Configuration of transforms (Optional, Default: None)
         """
-        # Check transforms configuration.s
+        # Check transforms configuration.
         if transform_cfg is not None:
             transform = transforms.Compose([hydra.utils.instantiate(trans) for trans in transform_cfg])
         else:

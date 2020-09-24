@@ -12,13 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vis.transforms.transforms import Compose
-
-from nemo.collections.vis.transforms.text_transforms import (
-    RemoveCharacters,
-    RemoveCharactersConfig,
-    RemovePunctuation,
-    RemovePunctuationConfig,
-    Tokenizer,
-    TokenizerConfig,
-)
+from nemo.collections.vis.modules.sentence_embeddings import SentenceEmbeddings

@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from abc import abstractmethod, ABC
-from typing import Optional, Any, List
+from typing import List, Union
 from dataclasses import dataclass, field, MISSING
+
+from nemo.collections.vis.transforms.transforms import Transform
 
 from hydra.types import ObjectConf
 from hydra.core.config_store import ConfigStore
@@ -30,58 +32,37 @@ nltk.download('punkt')
 cs = ConfigStore.instance()
 
 
-class TextTransform(ABC):
-    """ Abstract class defining the text transform interface. """
-
-    @abstractmethod
-    def __call__(self, batch):
-        pass
-
-
-class Compose:
-    """ Class for composing text transforms. """
-
-    def __init__(self, transforms: List[TextTransform]):
-        self.transforms = transforms
-
-    def __call__(self, batch):
-        """ Processes the input batch by transforms - one by one. """
-        for t in self.transforms:
-            batch = t(batch)
-        return batch
-
-
-class StringTransform(TextTransform):
+class TextTransform(Transform):
     """ Abstract class defining the string transform interface. """
 
-    def __call__(self, input_batch):
+    def __call__(self, input_batch: Union[str, List[str], List[List[str]]]):
         output_batch = []
         if type(input_batch) is list:
             for sentence in input_batch:
                 # Process sentence as list of words.
                 if type(sentence) is list:
-                    output_sentence = [self.process_string(word) for word in sentence]
+                    output_sentence = [self.process_text(word) for word in sentence]
                 # Process sentence as a single string.
                 else:
-                    output_sentence = self.process_string(sentence)
+                    output_sentence = self.process_text(sentence)
                 output_batch.append(output_sentence)
             return output_batch
         # Process batch as a single string.
         else:
-            return self.process_string(input_batch)
+            return self.process_text(input_batch)
 
     @abstractmethod
-    def process_string(self, sample: str):
+    def process_text(self, sample: str):
         pass
 
 
-class RemoveCharacters(StringTransform):
+class RemoveCharacters(TextTransform):
     """ Transform responsible for removing the characters. """
 
-    def __init__(self, characters_to_remove):
+    def __init__(self, characters_to_remove: List[str]):
         self.characters_to_remove = characters_to_remove
 
-    def process_string(self, sample: str) -> str:
+    def process_text(self, sample: str) -> str:
         # Remove characters.
         for char in self.characters_to_remove:
             sample = sample.replace(char, ' ')
@@ -103,13 +84,13 @@ cs.store(
 )
 
 
-class RemovePunctuation(StringTransform):
+class RemovePunctuation(TextTransform):
     """ Transform responsible for removing punctuation. """
 
     def __init__(self):
         self.translator = str.maketrans('', '', string.punctuation)
 
-    def process_string(self, sample: str) -> str:
+    def process_text(self, sample: str) -> str:
         # Remove characters.
         return sample.translate(self.translator)
 
@@ -128,14 +109,14 @@ cs.store(
 )
 
 
-class Tokenizer(StringTransform):
+class Tokenizer(TextTransform):
     """ Transform responsible for tokenization. """
 
     def __init__(self):
         # Tokenizer.
         self.tokenizer = nltk.tokenize.WhitespaceTokenizer()
 
-    def process_string(self, sample: str) -> List[str]:
+    def process_text(self, sample: str) -> List[str]:
         # Tokenize.
         return self.tokenizer.tokenize(sample)
 

@@ -64,8 +64,6 @@ class QType(Model):
         if self.transforms is not None:
             sentences = self.transforms(sentences)
 
-        print(sentences)
-
         return sentences
 
     def training_step(self, batch, what_is_this_input):
