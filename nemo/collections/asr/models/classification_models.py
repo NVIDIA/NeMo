@@ -37,6 +37,8 @@ class EncDecClassificationModel(ASRModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
+        self._update_decoder_config(self.cfg.decoder)
+
         self.preprocessor = EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecClassificationModel.from_config_dict(self._cfg.encoder)
         self.decoder = EncDecClassificationModel.from_config_dict(self._cfg.decoder)
@@ -288,14 +290,14 @@ class EncDecClassificationModel(ASRModel):
             if new_labels is None or len(new_labels) == 0:
                 raise ValueError(f'New labels must be non-empty list of labels. But I got: {new_labels}')
 
-            decoder_config = self.decoder.to_config_dict()
-            new_decoder_config = copy.deepcopy(decoder_config)
-            new_decoder_config['params']['num_classes'] = len(new_labels)
-            del self.decoder
-            self.decoder = EncDecClassificationModel.from_config_dict(new_decoder_config)
-
             # Update config
             self._cfg.labels = new_labels
+
+            decoder_config = self.decoder.to_config_dict()
+            new_decoder_config = copy.deepcopy(decoder_config)
+            self._update_decoder_config(new_decoder_config)
+            del self.decoder
+            self.decoder = EncDecClassificationModel.from_config_dict(new_decoder_config)
 
             OmegaConf.set_struct(self._cfg.decoder, False)
             self._cfg.decoder = new_decoder_config
@@ -311,6 +313,24 @@ class EncDecClassificationModel(ASRModel):
                 self._cfg.test_ds.labels = new_labels
 
             logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
+
+    def _update_decoder_config(self, cfg):
+        """
+        Update the number of classes in the decoder based on labels provided.
+
+        Args:
+            cfg: The config of the decoder which will be updated.
+        """
+        OmegaConf.set_struct(cfg, False)
+
+        labels = self.cfg.labels
+
+        if 'params' in cfg:
+            cfg.params.num_classes = len(labels)
+        else:
+            cfg.num_classes = len(labels)
+
+        OmegaConf.set_struct(cfg, True)
 
 
 class MatchboxNet(EncDecClassificationModel):
