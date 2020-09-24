@@ -56,6 +56,27 @@ class TextTransform(Transform):
         pass
 
 
+class LowerCase(TextTransform):
+    """ Transform responsible for turning text to lowercase. """
+
+    def process_text(self, sample: str) -> str:
+        return sample.lower()
+
+
+@dataclass
+class LowerCaseConfig:
+    # Target class name.
+    _target_: str = "nemo.collections.vis.transforms.LowerCase"
+
+
+# Register the config.
+cs.store(
+    group="nemo.collections.vis.transforms",
+    name="LowerCase",
+    node=ObjectConf(target="nemo.collections.vis.transforms.LowerCase", params=LowerCaseConfig()),
+)
+
+
 class RemoveCharacters(TextTransform):
     """ Transform responsible for removing the characters. """
 

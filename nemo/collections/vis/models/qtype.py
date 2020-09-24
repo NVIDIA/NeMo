@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional, Union, List
 from dataclasses import dataclass, field, MISSING
 
 import hydra
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import OmegaConf
 
 from nemo.collections.cv.models.model import Model
 from nemo.collections.cv.losses import NLLLoss
