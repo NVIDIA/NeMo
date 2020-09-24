@@ -32,6 +32,7 @@ __author__ = "Tomasz Kornuta"
 # https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/language/sentence_embeddings.py
 
 from typing import Optional, List
+from dataclasses import dataclass, field, MISSING
 
 import torch
 import numpy as np
@@ -46,6 +47,18 @@ from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
 from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils import logging
+
+
+@dataclass
+class SentenceEmbeddingsConfig:
+    word_mappings_filepath: str = MISSING
+    embeddings_size: int = MISSING
+    additional_tokens: List[str] = field(default_factory=list)
+    eos_token: bool = False
+    fixed_padding_length: int = -1
+    pretrained_embeddings: str = ''
+    skip_unknown_words: bool = False
+    _target_: str = "nemo.collections.vis.modules.SentenceEmbeddings"
 
 
 class SentenceEmbeddings(NeuralModule):
@@ -65,6 +78,7 @@ class SentenceEmbeddings(NeuralModule):
         eos_token: bool = False,
         fixed_padding_length: int = -1,
         pretrained_embeddings: str = '',
+        skip_unknown_words: bool = False,
     ):
         """
         Creates the module.
@@ -89,6 +103,8 @@ class SentenceEmbeddings(NeuralModule):
                 Options:
                 '' | glove.6B.50d.txt | glove.6B.100d.txt | glove.6B.200d.txt | glove.6B.300d.txt |
                 glove.42B.300d.txt | glove.840B.300d.txt | glove.twitter.27B.txt | mimic.fastText.no_clean.300d.pickled
+
+            skip_unknown_words: Skips words out of dictionary (DEFAULT: False)
         """
         # Call the base class constructor.
         super().__init__()
@@ -124,6 +140,9 @@ class SentenceEmbeddings(NeuralModule):
         # Forces padding to a fixed length.
         self._fixed_padding_length = fixed_padding_length
 
+        # Skips words out of dictionary.
+        self._skip_unknown_words = skip_unknown_words
+
         # Load the embeddings first.
         if pretrained_embeddings != '':
             emb_vectors = self.load_pretrained_embeddings(pretrained_embeddings)
@@ -158,7 +177,10 @@ class SentenceEmbeddings(NeuralModule):
             if has_header:
                 next(reader)
             # Read the remaining rows.
-            word_to_ix = {rows[0]: int(rows[1]) for rows in reader}
+            word_to_ix = {}
+            for row in reader:
+                if len(row) == 2:
+                    word_to_ix[row[0]] = int(row[1])
 
         logging.info("Loaded mappings of size {}".format(len(word_to_ix)))
         return word_to_ix
@@ -307,11 +329,6 @@ class SentenceEmbeddings(NeuralModule):
             Batch of embeddings.
         """
 
-        import pdb
-
-        pdb.set_trace()
-        print(next(self._embeddings.parameters()).is_cuda)
-
         indices_list = []
         # Process samples 1 by one.
         for sample in batch:
@@ -320,6 +337,9 @@ class SentenceEmbeddings(NeuralModule):
             output_sample = []
             # Encode sample (list of words)
             for token in sample:
+                # Skip if word is unknown.
+                if self._skip_unknown_words and token not in self._word_to_ix:
+                    continue
                 # Get index.
                 output_index = self._word_to_ix[token]
                 # Add index to outputs.
@@ -334,6 +354,7 @@ class SentenceEmbeddings(NeuralModule):
             # Move to cuda if required.
             if next(self._embeddings.parameters()).is_cuda:
                 tensor = tensor.cuda()
+            # Add tensor to list.
             indices_list.append(tensor)
 
         # Padd indices using pad index retrieved from vocabulary.
