@@ -19,6 +19,8 @@ from nemo.collections.vis.transforms.text_transforms import (
     RemoveCharactersConfig,
     RemovePunctuation,
     RemovePunctuationConfig,
+    LowerCase,
+    LowerCaseConfig,
     Tokenizer,
     TokenizerConfig,
 )

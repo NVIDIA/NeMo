@@ -24,14 +24,11 @@ cs = ConfigStore.instance()
 
 @dataclass
 class ResizeConfig:
-    # Target class name.
-    _target_: str = "torchvision.transforms.Resize"
     interpolation: int = 2
     # size: List[int] = MISSING
-    # size: Any = MISSING
+    # Target class name.
+    _target_: str = "torchvision.transforms.Resize"
 
-
-# TypeError: non-default argument 'size' follows default argument
 
 # Register the config.
 cs.store(
@@ -57,11 +54,11 @@ cs.store(
 
 @dataclass
 class NormalizeConfig:
-    # Target class name.
-    _target_: str = "torchvision.transforms.Normalize"
     inplace: bool = False
     # mean: List[int] = MISSING
     # std: List[int] = MISSING
+    # Target class name.
+    _target_: str = "torchvision.transforms.Normalize"
 
 
 # Register the config.

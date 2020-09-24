@@ -14,9 +14,8 @@ model:
   text_transforms:
     - # Remove punctuation
       _target_: nemo.collections.vis.transforms.RemovePunctuation
-    - # Remove characters
-      _target_: nemo.collections.vis.transforms.RemoveCharacters
-      characters_to_remove: ["ą","ę"]
+    - # Lowercase
+      _target_: nemo.collections.vis.transforms.LowerCase
     - # Tokenize
       _target_: nemo.collections.vis.transforms.Tokenizer
 
