@@ -28,10 +28,8 @@
 
 __author__ = "Tomasz Kornuta"
 
-"""
-This file contains code artifacts adapted from the original implementation:
-https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/image_encoder.py
-"""
+# This file contains code artifacts adapted from the original implementation:
+# https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/image_encoder.py
 
 from typing import Optional
 from dataclasses import dataclass

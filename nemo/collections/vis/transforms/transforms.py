@@ -12,13 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vis.transforms.transforms import Compose
+from abc import abstractmethod, ABC
+from typing import List, Any
 
-from nemo.collections.vis.transforms.text_transforms import (
-    RemoveCharacters,
-    RemoveCharactersConfig,
-    RemovePunctuation,
-    RemovePunctuationConfig,
-    Tokenizer,
-    TokenizerConfig,
-)
+
+class Transform(ABC):
+    """ Abstract class defining the transform interface. """
+
+    @abstractmethod
+    def __call__(self, batch: Any) -> Any:
+        pass
+
+
+class Compose:
+    """ Class for composing transforms. """
+
+    def __init__(self, transforms: List[Transform]):
+        self.transforms = transforms
+
+    def __call__(self, batch: Any) -> Any:
+        """ Processes the input batch by transforms - one by one. """
+        for t in self.transforms:
+            batch = t(batch)
+        return batch

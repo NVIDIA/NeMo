@@ -16,8 +16,6 @@ from typing import Any, Optional, List
 
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
-
 import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 

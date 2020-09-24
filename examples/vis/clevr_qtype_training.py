@@ -25,6 +25,8 @@ from nemo.collections.vis.models import QType, QTypeConfig
 from nemo.core.config import hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.collections.vis.datasets import CLEVRConfig
 
+# from nemo.collections.vis.modules import SentenceEmbeddings
+
 
 @dataclass
 class AppConfig:
@@ -51,10 +53,16 @@ def main(cfg: AppConfig):
 
     # Instantiate the "model".
     model = QType(cfg.model)
-    model(["Ala ma,  kota.", "kot ma pałę"])
+    tokens = model(["Ala ma,  kota.", "kot ma pałę"])
+    print(tokens)
+
+    # se = SentenceEmbeddings(word_mappings_filepath="word_mappings.csv", embeddings_size=50)
+    # , pretrained_embeddings="glove.6B.50d.txt")
+    # embs = se(tokens)
+    # print(embs)
 
     # Instantiate the dataloader/dataset.
-    train_dl = model.instantiate_dataloader(cfg.dataloader, cfg.train_dataset)
+    # train_dl = model.instantiate_dataloader(cfg.dataloader, cfg.train_dataset)
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from nemo.utils import logging
 from nemo.collections.cv.models import LeNet5
 
-from nemo.core.config import Config, hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
+from nemo.core.config import hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.collections.cv.datasets.configs import MNISTConfig
 
 
