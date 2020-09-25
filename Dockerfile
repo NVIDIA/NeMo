@@ -31,6 +31,13 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
+# build torchaudio
+WORKDIR /tmp/torchaudio_build
+RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.git && \
+    cd audio && \
+    BUILD_SOX=1 python setup.py install && \
+    cd .. && rm -r audio
+
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
