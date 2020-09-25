@@ -52,8 +52,8 @@ class NLPModel(ModelPT, ABC):
                 app_state.data_parallel_rank = torch.distributed.get_rank(
                     group=app_state.data_parallel_group
                 )
-                device_id = torch.cuda.current_device()
-                logging.info(f'device_id: {device_id}')
+                # device_id = torch.cuda.current_device()
+                # logging.info(f'device_id: {device_id}')
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
@@ -73,12 +73,10 @@ class NLPModel(ModelPT, ABC):
             # with model parallelism, multiple GPUs form a large "logical GPU"
             # this means that data parallel groups span multiple GPUs
 
-
-            device_id = app_state.device_id
             model = LightningDistributedDataParallel(
                 model,
                 device_ids,
-                output_device=device_id,
+                output_device=device_ids[0],
                 process_group=app_state.data_parallel_group
             )
             return model
@@ -87,4 +85,19 @@ class NLPModel(ModelPT, ABC):
             logging.info("Did not detect model parallel using LightningModule.configure_ddp")
             return LightningModule.configure_ddp(self, model, device_ids)
     
+    def setup(self, stage):
+
+        if stage == 'fit':
+
+            app_state = AppState()
+
+            if app_state.model_parallel_size is not None:
+                logging.info("replacing sampler with model parallel sampler")
+                mp_sampler = torch.utils.data.distributed.DistributedSampler(
+                    self._train_dl.dataset,
+                    num_replicas=app_state.model_parallel_size,
+                    rank=app_state.data_parallel_rank
+                )
+                mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
+                self._train_dl = mp_dl
 

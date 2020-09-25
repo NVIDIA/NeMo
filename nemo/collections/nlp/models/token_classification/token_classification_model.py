@@ -242,7 +242,29 @@ class TokenClassificationModel(NLPModel):
             ignore_start_end=dataset_cfg.ignore_start_end,
             use_cache=dataset_cfg.use_cache,
         )
+        # from nemo.utils import AppState
 
+        # app_state = AppState()
+        
+        # if app_state.model_parallel_size is not None:
+        #     logging.info("Adding model parallel distributed sampler.")
+        #     sampler = torch.utils.data.distributed.DistributedSampler(
+        #         dataset,
+        #         num_replicas=app_state.model_parallel_size,
+        #         rank=app_state.data_parallel_rank
+        #     )
+        #     return DataLoader(
+        #         dataset=dataset,
+        #         collate_fn=dataset.collate_fn,
+        #         batch_size=cfg.batch_size,
+        #         shuffle=cfg.shuffle,
+        #         num_workers=dataset_cfg.num_workers,
+        #         pin_memory=dataset_cfg.pin_memory,
+        #         drop_last=dataset_cfg.drop_last,
+        #         sampler=sampler
+        #     )
+
+        # else:
         return DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
