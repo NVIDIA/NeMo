@@ -5,9 +5,11 @@ dataloader:
 
 training_dataset:
   download: False # Got the proper data - turning this off, as md5 validation is slow.
+  stream_images: False
 
 validation_dataset:
   download: False # Got the proper data - turning this off, as md5 validation is slow.
+  stream_images: False
     
 question_text_transforms:
   - # Remove punctuation
@@ -16,3 +18,6 @@ question_text_transforms:
     _target_: nemo.collections.vis.transforms.LowerCase
   - # Tokenize
     _target_: nemo.collections.vis.transforms.Tokenizer
+
+question_word_mappings_filepath: "~/data/clevr/questions_word_mappings.csv"
+answers_word_mappings_filepath: "~/data/clevr/answers_word_mappings.csv"

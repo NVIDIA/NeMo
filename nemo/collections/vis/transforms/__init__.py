@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vis.transforms.transforms import Compose
+from nemo.collections.vis.transforms.transforms import Compose, ToTensor, ToTensorConfig
 
 from nemo.collections.vis.transforms.text_transforms import (
     RemoveCharacters,
@@ -23,4 +23,6 @@ from nemo.collections.vis.transforms.text_transforms import (
     LowerCaseConfig,
     Tokenizer,
     TokenizerConfig,
+    WordToIndex,
+    WordToIndexConfig,
 )

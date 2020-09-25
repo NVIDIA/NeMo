@@ -15,7 +15,7 @@
 from typing import Any, List
 from dataclasses import dataclass, field
 
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, MISSING
 import hydra
 
 from os.path import expanduser
@@ -39,8 +39,8 @@ class AppConfig:
     training_dataset: CLEVRConfig = CLEVRConfig(split="training", stream_images=False)
     validation_dataset: CLEVRConfig = CLEVRConfig(split="validation", stream_images=False)
     question_text_transforms: List[Any] = field(default_factory=list)
-    question_word_mappings_filepath: str = "~/data/clevr/question_word_mappings.csv"
-    answers_word_mappings_filepath: str = "~/data/clevr/answers_word_mappings.csv"
+    question_word_mappings_filepath: str = MISSING
+    answers_word_mappings_filepath: str = MISSING
 
 
 # Load configuration file from "conf" dir using schema for validation/retrieving the default values.
@@ -102,13 +102,13 @@ def main(cfg: AppConfig):
     # 3.1 Store question word mappings.
     with open(expanduser(cfg.question_word_mappings_filepath), 'w') as out_file:
         for id, word in enumerate(q_vocab):
-            out_file.write("{}:{}\n".format(word, id))
+            out_file.write("{},{}\n".format(word, id))
     logging.info("Question word mappings stored to `{}`".format(expanduser(cfg.question_word_mappings_filepath)))
 
     # 3.2 Store answer word mappings.
     with open(expanduser(cfg.answers_word_mappings_filepath), 'w') as out_file:
         for id, word in enumerate(a_vocab):
-            out_file.write("{}:{}\n".format(word, id))
+            out_file.write("{},{}\n".format(word, id))
     logging.info("Answer word mappings stored to `{}`".format(expanduser(cfg.answers_word_mappings_filepath)))
 
 
