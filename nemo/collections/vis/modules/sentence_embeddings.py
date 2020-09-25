@@ -37,7 +37,7 @@ from dataclasses import dataclass, field, MISSING
 import torch
 import numpy as np
 
-from os.path import dirname, exists, join
+from os.path import dirname, exists, join, expanduser
 import csv
 import zipfile
 import tqdm
@@ -153,7 +153,7 @@ class SentenceEmbeddings(NeuralModule):
         """
         Loads (word:index) mappings from csv file.
         .. warning::
-                There is an assumption that file will contain key:value pairs (no content checking for now!)
+                There is an assumption that file will contain key,value pairs (no content checking for now!)
 
         Args:
             filepath: Path an name of file with encodings (absolute path + filename).
@@ -161,13 +161,15 @@ class SentenceEmbeddings(NeuralModule):
         Returns:
             Dictionary with word:index.
         """
+        filepath = expanduser(filepath)
 
         if not exists(filepath):
-            logging.warning("Cannot load word mappings from '{}' because the file does not exist".format(filepath))
+            logging.error("Cannot load word mappings from '{}' because the file does not exist".format(filepath))
 
+        word_to_ix = {}
+        sniffer = csv.Sniffer()
         with open(filepath, mode='rt') as csvfile:
             # Check the presence of the header.
-            sniffer = csv.Sniffer()
             first_bytes = str(csvfile.read(256))
             has_header = sniffer.has_header(first_bytes)
             # Rewind.
@@ -177,7 +179,6 @@ class SentenceEmbeddings(NeuralModule):
             if has_header:
                 next(reader)
             # Read the remaining rows.
-            word_to_ix = {}
             for row in reader:
                 if len(row) == 2:
                     word_to_ix[row[0]] = int(row[1])

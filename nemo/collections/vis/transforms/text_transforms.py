@@ -16,13 +16,18 @@ from abc import abstractmethod, ABC
 from typing import List, Union
 from dataclasses import dataclass, field, MISSING
 
+from os.path import exists, expanduser
+
 from nemo.collections.vis.transforms.transforms import Transform
+from nemo.utils import logging
 
 from hydra.types import ObjectConf
 from hydra.core.config_store import ConfigStore
 
 import string
 import nltk
+import csv
+
 
 # from nemo.utils.configuration_parsing import get_value_list_from_dictionary
 
@@ -154,3 +159,62 @@ cs.store(
     name="Tokenizer",
     node=ObjectConf(target="nemo.collections.vis.transforms.Tokenizer", params=TokenizerConfig()),
 )
+
+
+class WordToIndex(TextTransform):
+    """ Transform responsible for turning text index using the provided word mappings. """
+
+    def __init__(self, word_mappings_filepath: str):
+        """
+        Loads (word:index) mappings from csv file.
+        .. warning::
+                There is an assumption that file will contain key,value pairs (no content checking for now!)
+
+        Args:
+            filepath: Path an name of file with encodings (absolute path + filename).
+
+        Returns:
+            Dictionary with word:index.
+        """
+        self.word_to_ix = {}
+
+        filepath = expanduser(word_mappings_filepath)
+
+        if not exists(filepath):
+            logging.error("Cannot load word mappings from '{}' because the file does not exist".format(filepath))
+
+        sniffer = csv.Sniffer()
+        with open(filepath, mode='rt') as csvfile:
+            # Check the presence of the header.
+            first_bytes = str(csvfile.read(256))
+            has_header = sniffer.has_header(first_bytes)
+            # Rewind.
+            csvfile.seek(0)
+            reader = csv.reader(csvfile)
+            # Skip the header row.
+            if has_header:
+                next(reader)
+            # Read the remaining rows.
+            for row in reader:
+                if len(row) == 2:
+                    self.word_to_ix[row[0]] = int(row[1])
+
+        logging.info("Loaded mappings of size {}".format(len(self.word_to_ix)))
+
+    def process_text(self, sample: str) -> int:
+        return self.word_to_ix[sample]
+
+
+@dataclass
+class WordToIndexConfig:
+    word_mappings_filepath: str = MISSING
+    # Target class name.
+    _target_: str = "nemo.collections.vis.transforms.WordToIndex"
+
+
+# Register the config.
+# cs.store(
+#    group="nemo.collections.vis.transforms",
+#    name="WordToIndex",
+#    node=ObjectConf(target="nemo.collections.vis.transforms.WordToIndex", params=WordToIndexConfig()),
+# ) # Problem: MISSING must be set.

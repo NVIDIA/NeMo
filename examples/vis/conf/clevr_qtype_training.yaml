@@ -11,14 +11,26 @@ train_dataset:
 
 # Set the required transforms.
 model:
-  text_transforms:
+  question_transforms:
     - # Remove punctuation
       _target_: nemo.collections.vis.transforms.RemovePunctuation
     - # Lowercase
       _target_: nemo.collections.vis.transforms.LowerCase
     - # Tokenize
       _target_: nemo.collections.vis.transforms.Tokenizer
-
+  answer_transforms:
+    - # To index
+      _target_: nemo.collections.vis.transforms.WordToIndex
+      word_mappings_filepath: "~/data/clevr/answers_word_mappings.csv"
+    - # To tensor
+      _target_: nemo.collections.vis.transforms.ToTensor
+  
+  embeddings:
+    word_mappings_filepath: "~/data/clevr/questions_word_mappings.csv"
+    embeddings_size: 50
+    additional_tokens: ['<PAD>']
+    #pretrained_embeddings: "glove.6B.50d.txt"
+    
 
 # Overwrite the optimzer settins.
 optim:

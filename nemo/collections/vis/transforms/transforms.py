@@ -14,6 +14,15 @@
 
 from abc import abstractmethod, ABC
 from typing import List, Any
+from dataclasses import dataclass, field, MISSING
+
+import torch
+
+from hydra.types import ObjectConf
+from hydra.core.config_store import ConfigStore
+
+# Create the config store instance.
+cs = ConfigStore.instance()
 
 
 class Transform(ABC):
@@ -35,3 +44,25 @@ class Compose:
         for t in self.transforms:
             batch = t(batch)
         return batch
+
+
+class ToTensor(Transform):
+    """ Transform responsible for tokenization. """
+
+    def __call__(self, batch: List[int]) -> torch.Tensor:
+        # Change to torch tensor.
+        return torch.tensor(batch)
+
+
+@dataclass
+class ToTensorConfig:
+    # Target class name.
+    _target_: str = "nemo.collections.vis.transforms.ToTensor"
+
+
+# Register the config.
+cs.store(
+    group="nemo.collections.vis.transforms",
+    name="ToTensor",
+    node=ObjectConf(target="nemo.collections.vis.transforms.ToTensor", params=ToTensorConfig()),
+)
