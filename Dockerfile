@@ -31,7 +31,7 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# build torchaudio
+# build torchaudio (change latest release version to match pytorch)
 WORKDIR /tmp/torchaudio_build
 RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.git && \
     cd audio && \
@@ -49,7 +49,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.0.0beta
+ARG NEMO_VERSION=1.0.0b1
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
