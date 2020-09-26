@@ -86,7 +86,8 @@ class MegatronBertEncoder(BertModule):
         # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
         # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)
         # and to return a hook for us to call after PTL has torch.distributed initialized.
-        # We call this hook using the PTL hook .setup()
+        # We call this hook during .forward
+        # TODO: can we call this hook using the PTL hook .setup()
         self._lazy_init_fn = initialize_megatron(
             extra_args_provider=extra_args_provider, args_defaults=config, ignore_unknown_args=True
         )
@@ -115,6 +116,9 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
+        if self._lazy_init_fn is not None:
+            self._lazy_init_fn()
+            self._lazy_init_fn = None
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
         )
