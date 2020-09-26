@@ -97,5 +97,3 @@ class NLPModel(ModelPT, ABC):
                     # all other seeds are set by PTL
                     # TODO: get seed from model or trainer?
                     mpu.model_parallel_cuda_manual_seed(1234)
-
-                    
