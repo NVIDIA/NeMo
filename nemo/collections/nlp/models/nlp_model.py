@@ -35,12 +35,12 @@ class NLPModel(ModelPT, ABC):
     #     self._app_state = AppState()
 
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
-        """ Override LightningModule DDP initialization """
+        """ Override LightningModule DDP initialization if using model parallel"""
         app_state = AppState()
 
+        # we are able initialize megatron-lm model parallel and data parallel groups
+        # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
-            # args = get_args()
-            # initialize_megatron()
             LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
             if app_state.model_parallel_group is None:
                 mpu.initialize_model_parallel(app_state.model_parallel_size)
@@ -52,8 +52,6 @@ class NLPModel(ModelPT, ABC):
                 app_state.data_parallel_rank = torch.distributed.get_rank(
                     group=app_state.data_parallel_group
                 )
-                # device_id = torch.cuda.current_device()
-                # logging.info(f'device_id: {device_id}')
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
@@ -72,6 +70,7 @@ class NLPModel(ModelPT, ABC):
             logging.info(f"data_parallel_group: {app_state.data_parallel_group}")
             # with model parallelism, multiple GPUs form a large "logical GPU"
             # this means that data parallel groups span multiple GPUs
+            # and are non-trivial
 
             model = LightningDistributedDataParallel(
                 model,
@@ -86,6 +85,7 @@ class NLPModel(ModelPT, ABC):
             return LightningModule.configure_ddp(self, model, device_ids)
     
     def setup(self, stage):
+        """ PTL hook that is called after DDP is initialized """
 
         if stage == 'fit':
 
