@@ -20,7 +20,6 @@ import torch
 from nemo.core.classes import ModelPT
 from nemo.utils import logging, AppState
 
-#from megatron import get_args, initialize_megatron
 from megatron import mpu
 
 from pytorch_lightning.core.lightning import LightningModule
