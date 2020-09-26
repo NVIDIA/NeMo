@@ -245,7 +245,7 @@ class TokenClassificationModel(NLPModel):
         # from nemo.utils import AppState
 
         # app_state = AppState()
-        
+
         # if app_state.model_parallel_size is not None:
         #     logging.info("Adding model parallel distributed sampler.")
         #     sampler = torch.utils.data.distributed.DistributedSampler(

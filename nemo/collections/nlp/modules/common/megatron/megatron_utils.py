@@ -22,7 +22,7 @@ import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
-from nemo.utils import logging, AppState
+from nemo.utils import AppState, logging
 
 __all__ = [
     "get_megatron_lm_model",

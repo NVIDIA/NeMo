@@ -1,4 +1,3 @@
-
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -8,28 +7,28 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABC, abstractmethod
+
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 from typing import Dict, List
 
 import torch
-
-from nemo.core.classes import ModelPT
-from nemo.utils import logging, AppState
-
 from megatron import mpu
-
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 
+from nemo.core.classes import ModelPT
+from nemo.utils import AppState, logging
+
 __all__ = ['NLPModel']
 
+
 class NLPModel(ModelPT, ABC):
-
-
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
         """ Override LightningModule DDP initialization if using model parallel"""
         app_state = AppState()
@@ -42,12 +41,8 @@ class NLPModel(ModelPT, ABC):
                 mpu.initialize_model_parallel(app_state.model_parallel_size)
                 app_state.model_parallel_group = mpu.get_model_parallel_group()
                 app_state.data_parallel_group = mpu.get_data_parallel_group()
-                app_state.model_parallel_rank = torch.distributed.get_rank(
-                    group=app_state.model_parallel_group
-                )
-                app_state.data_parallel_rank = torch.distributed.get_rank(
-                    group=app_state.data_parallel_group
-                )
+                app_state.model_parallel_rank = torch.distributed.get_rank(group=app_state.model_parallel_group)
+                app_state.data_parallel_rank = torch.distributed.get_rank(group=app_state.data_parallel_group)
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
@@ -69,17 +64,14 @@ class NLPModel(ModelPT, ABC):
             # and are non-trivial
 
             model = LightningDistributedDataParallel(
-                model,
-                device_ids,
-                output_device=device_ids[0],
-                process_group=app_state.data_parallel_group
+                model, device_ids, output_device=device_ids[0], process_group=app_state.data_parallel_group
             )
             return model
 
         else:
             logging.info("Did not detect model parallel using LightningModule.configure_ddp")
             return LightningModule.configure_ddp(self, model, device_ids)
-    
+
     def setup(self, stage):
         """ PTL hook that is called after DDP is initialized """
 
@@ -92,7 +84,7 @@ class NLPModel(ModelPT, ABC):
                 mp_sampler = torch.utils.data.distributed.DistributedSampler(
                     self._train_dl.dataset,
                     num_replicas=app_state.model_parallel_size,
-                    rank=app_state.data_parallel_rank
+                    rank=app_state.data_parallel_rank,
                 )
                 mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
                 self._train_dl = mp_dl
@@ -103,4 +95,3 @@ class NLPModel(ModelPT, ABC):
                     self._lazy_init_fn = None
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
                     self.bert_model.restore_weights(self.bert_model._restore_path)
-
