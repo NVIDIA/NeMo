@@ -86,8 +86,8 @@ class MegatronBertEncoder(BertModule):
         # Initialize part of Megatron global state that is needed for its constructor.
         # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
         # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)
-        # and to return a hook for us to call after PTL has torch.distributed initialized
-        # (that would be on our first forward() call).
+        # and to return a hook for us to call after PTL has torch.distributed initialized.
+        # We call this hook using the PTL hook .setup()
         self._lazy_init_fn = initialize_megatron(
             extra_args_provider=extra_args_provider, args_defaults=config, ignore_unknown_args=True
         )
@@ -116,36 +116,6 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        if self._lazy_init_fn is not None:
-            logging.info(f'Finishing megatron mpu init.')
-            self._lazy_init_fn()
-            # model parallel checkpoints need to be restored after torch.distributed is initialized
-            if self._model_parallel_size is not None:
-                self.restore_weights(self._restore_path)
-                # update app_state after model parallel init from mpu
-                # self._app_state.model_parallel_group = get_model_parallel_group()
-                # self._app_state.data_parallel_group = get_data_parallel_group()
-                # self._app_state.model_parallel_rank = torch.distributed.get_rank(
-                #     group=self._app_state.model_parallel_group
-                # )
-                # self._app_state.data_parallel_rank = torch.distributed.get_rank(
-                #     group= self._app_state.data_parallel_group
-                # )
-                # device_id = torch.cuda.current_device()
-                # logging.info(f'device_id: {device_id}')
-                # logging.info(f'mp_rank: {self._app_state.model_parallel_rank}')
-                # logging.info(f'dp_rank: {self._app_state.data_parallel_rank}')
-                #logging.info(f'mp_group: {self._app_state.model_parallel_group}')
-                #logging.info(f'dp_group: {self._app_state.data_parallel_group}')
-                # from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
-                # self = LightningDistributedDataParallel(
-                #     self,
-                #     device_ids=[device_id],
-                #     output_device=device_id,
-                #     process_group=self._app_state.data_parallel_group
-                # )
-            self._lazy_init_fn = None
-
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
         )

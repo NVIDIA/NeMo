@@ -101,3 +101,10 @@ class NLPModel(ModelPT, ABC):
                 mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
                 self._train_dl = mp_dl
 
+                if self.bert_model._lazy_init_fn is not None:
+                    logging.info(f'Finishing megatron mpu init.')
+                    self.bert_model._lazy_init_fn()
+                    self._lazy_init_fn = None
+                    # model parallel checkpoints need to be restored after torch.distributed is initialized
+                    self.bert_model.restore_weights(self.bert_model._restore_path)
+
