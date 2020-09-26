@@ -97,6 +97,6 @@ class NLPModel(ModelPT, ABC):
                     # all other seeds are set by PTL
 
             # TODO: get seed from model or trainer?
-            #from megatron.initialize import _set_random_seed
-            #_set_random_seed(1234)
-            #mpu.model_parallel_cuda_manual_seed(1234)
+            # from megatron.initialize import _set_random_seed
+            # _set_random_seed(1234)
+            # mpu.model_parallel_cuda_manual_seed(1234)
