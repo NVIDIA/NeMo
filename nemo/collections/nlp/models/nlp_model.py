@@ -88,7 +88,14 @@ class NLPModel(ModelPT, ABC):
 
                 if self.bert_model._lazy_init_fn is not None:
                     logging.info(f'Finishing megatron mpu init.')
-                    self.bert_model._lazy_init_fn()
-                    self._lazy_init_fn = None
+                    # TODO: clean up
+                    #self.bert_model._lazy_init_fn()
+                    #self._lazy_init_fn = None
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
                     self.bert_model.restore_weights(self.bert_model._restore_path)
+                    # need to set model parallel random seed
+                    # all other seeds are set by PTL
+                    # TODO: get seed from model or trainer?
+                    mpu.model_parallel_cuda_manual_seed(1234)
+
+                    
