@@ -95,5 +95,6 @@ class NLPModel(ModelPT, ABC):
                     self.bert_model.restore_weights(self.bert_model._restore_path)
                     # need to set model parallel random seed
                     # all other seeds are set by PTL
-                    # TODO: get seed from model or trainer?
-                    mpu.model_parallel_cuda_manual_seed(1234)
+
+            # TODO: get seed from model or trainer?
+            mpu.model_parallel_cuda_manual_seed(1234)
