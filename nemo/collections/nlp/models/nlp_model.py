@@ -29,9 +29,6 @@ __all__ = ['NLPModel']
 
 class NLPModel(ModelPT, ABC):
 
-    # def __init__(self):
-    #     super.__init__()
-    #     self._app_state = AppState()
 
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
         """ Override LightningModule DDP initialization if using model parallel"""
