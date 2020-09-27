@@ -49,8 +49,6 @@ class NLPModel(ModelPT, ABC):
     def configure_ddp(self, model, device_ids):
         """ Override LightningModule ddp if using model parallel. """
 
-        logging.info(f'device_ids: {device_ids}')
-
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
@@ -86,17 +84,6 @@ class NLPModel(ModelPT, ABC):
                 mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
                 self._train_dl = mp_dl
 
-                if self.bert_model._lazy_init_fn is not None:
-                    logging.info(f'Finishing megatron mpu init.')
-                    # TODO: clean up
-                    # self.bert_model._lazy_init_fn()
-                    # self._lazy_init_fn = None
-                    # model parallel checkpoints need to be restored after torch.distributed is initialized
-                    self.bert_model.restore_weights(self.bert_model._restore_path)
-                    # need to set model parallel random seed
-                    # all other seeds are set by PTL
-
-            # TODO: get seed from model or trainer?
-            # from megatron.initialize import _set_random_seed
-            # _set_random_seed(1234)
-            # mpu.model_parallel_cuda_manual_seed(1234)
+                logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
+                # model parallel checkpoints need to be restored after torch.distributed is initialized
+                self.bert_model.restore_weights(self.bert_model._restore_path)
