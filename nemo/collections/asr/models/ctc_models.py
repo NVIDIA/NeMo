@@ -48,29 +48,36 @@ class EncDecCTCModel(ASRModel):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/QuartzNet15x5Base-En.nemo",
-            description="This is QuartzNet15x5 model. It was trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo",
+            description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-Zh",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/QuartzNet15x5-Zh-Base.nemo",
-            description="This is QuartzNet15x5 model. It was trained on ai-shell2 Mandarin Chinese dataset.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-Zh.nemo",
+            description="QuartzNet15x5 model trained on ai-shell2 Mandarin Chinese dataset.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet5x5LS-En",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/QuartzNet5x5_LS.nemo",
-            description="This is QuartzNet5x5 model. It was trained on LibriSpeech dataset only. The model achieves a WER of 5.37% on LibriSpeech dev-clean, and a WER of 15.69% on dev-other.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet5x5LS-En.nemo",
+            description="QuartzNet5x5 model trained on LibriSpeech dataset only. The model achieves a WER of 5.37% on LibriSpeech dev-clean, and a WER of 15.69% on dev-other.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5NR-En",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5NR-En.nemo",
+            description="QuartzNet15x5Base-En was finetuned with RIR and noise augmentation to make it more robust to noise. This model should be preferred for noisy speech transcription. This model achieves a WER of 3.96% on LibriSpeech dev-clean and a WER of 10.14% on dev-other.",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="Jasper10x5Dr-En",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/JasperNet10x5-En-Base.nemo",
-            description="This is JasperNet10x5Dr model. It was trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1. The model achieves a WER of 3.37% on LibriSpeech dev-clean, 9.81% on dev-other.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/Jasper10x5Dr-En.nemo",
+            description="JasperNet10x5Dr model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1. The model achieves a WER of 3.37% on LibriSpeech dev-clean, 9.81% on dev-other.",
         )
         result.append(model)
         return result

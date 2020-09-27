@@ -61,7 +61,7 @@ Installation
 ~~~~~~~~~~~~
 Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
 
-* ``pip install nemo_toolkit[all]==1.0.0a1`` (latest stable version)
+* ``pip install nemo_toolkit[all]==1.0.0a4`` (latest stable version)
 * ``pip install nemo_toolkit[all]`` - latest released version (currently 0.11.0)
 
 Or if you want the latest (or particular) version from GitHub:

@@ -58,15 +58,15 @@ class EncDecSpeakerLabelModel(ModelPT):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="SpeakerNet_recognition",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/SpeakerNet_recognition.nemo",
-            description="SpeakerNet_recognition model is trained end-to-end for speaker recognition purposes with cross_entropy loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Recognition model achieves 2.65% EER on voxceleb-O cleaned trial file",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/SpeakerNet_recognition.nemo",
+            description="SpeakerNet_recognition model trained end-to-end for speaker recognition purposes with cross_entropy loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Recognition model achieves 2.65% EER on voxceleb-O cleaned trial file",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="SpeakerNet_verification",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/SpeakerNet_verification.nemo",
-            description="SpeakerNet_verification model is trained end-to-end for speaker verification purposes with arcface angular softmax loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Verification model achieves 2.12% EER on voxceleb-O cleaned trial file",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/SpeakerNet_verification.nemo",
+            description="SpeakerNet_verification model trained end-to-end for speaker verification purposes with arcface angular softmax loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Verification model achieves 2.12% EER on voxceleb-O cleaned trial file",
         )
         result.append(model)
 
@@ -137,17 +137,6 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
-
-    @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def export(self, **kwargs):
-        pass
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:

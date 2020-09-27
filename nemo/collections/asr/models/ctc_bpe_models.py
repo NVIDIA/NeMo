@@ -46,8 +46,8 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="ContextNet-192-WPE-1024-8x-Stride",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/ContextNet-192-WPE-1024-8x-Stride.nemo",
-            description="The model is trained on the Librispeech corpus and achieves a WER of 10.09% on test-other and 10.11% on dev-other.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/ContextNet-192-WPE-1024-8x-Stride.nemo",
+            description="ContextNet initial implementation with CTC loss model trained on the Librispeech corpus and achieves a WER of 10.09% on test-other and 10.11% on dev-other.",
         )
         result.append(model)
         return result
