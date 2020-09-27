@@ -29,7 +29,6 @@ from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 
 
