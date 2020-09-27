@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
 )
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.models import NLPModel
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
