@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.text_classification import TextClassificationDataset, calc_class_weights
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.model.nlp_model import NLPModel
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
