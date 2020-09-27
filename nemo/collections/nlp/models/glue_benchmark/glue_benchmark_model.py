@@ -24,8 +24,8 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUE_TASKS_NUM_LABELS, GLUEDataset
-from nemo.collections.nlp.models.glue_benchmark.metrics_for_glue import compute_metrics
 from nemo.collections.nlp.models import NLPModel
+from nemo.collections.nlp.models.glue_benchmark.metrics_for_glue import compute_metrics
 from nemo.collections.nlp.modules.common import SequenceClassifier, SequenceRegression
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
