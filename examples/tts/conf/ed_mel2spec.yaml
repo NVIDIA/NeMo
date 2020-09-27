@@ -47,7 +47,7 @@ model:
     n_fft: ${n_fft}
     hop_length: ${hop_length}
     mel_fmin: 0
-    mel_fmax: 8000
+    mel_fmax: null
     mel_freq: 80
     layers: 8
     sampling_rate: ${sample_rate}

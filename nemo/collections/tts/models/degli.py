@@ -165,18 +165,18 @@ class DegliModel(LinVocoder):
     def convert_linear_spectrogram_to_audio(self, spec: torch.Tensor, Ts=None, repeats: int = 32) -> torch.Tensor:
         self.set_operation_mode(OperationMode.infer)
 
+        batch_size = spec.shape[0]
         if len(spec.shape) == 3:
             spec = spec.unsqueeze(1)
 
-        x = torch.normal(0, 1, [spec.shape[0], 2, spec.shape[2], spec.shape[3]]).to(self.device)
+        x = torch.normal(0, 1, [batch_size, 2, spec.shape[2], spec.shape[3]]).to(self.device)
         length = (spec.shape[3] - 1) * self.l_hop
         with torch.no_grad():
             y = self.degli(x=x, mag=spec, max_length=length, repeat=repeats)
 
         if Ts is None:
-            Ts = [y.shape[3]] * y.shape[0]
+            Ts = [y.shape[3]] * batch_size
 
-        batch_size = y.shape[0]
         max_size = (max(Ts) - 1) * self.l_hop
 
         audios = torch.zeros(batch_size, max_size)
@@ -320,10 +320,4 @@ class DegliModel(LinVocoder):
         """
         list_of_models = []
 
-        model = PretrainedModelInfo(
-            pretrained_model_name="DeepGriffinLim-fft_1024-22050Hz",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/DeepGriffinLim-fft_1024.nemo",  ##FIXME
-            description="The model is trained on LJSpeech sampled at 22050Hz, n_fft=1024, with 6 layers and a widening factor of 16. Can be used as a trained alternative for GriffinLim",
-        )
-        list_of_models.append(model)
         return list_of_models

@@ -49,7 +49,7 @@ def gen_filter(k):
 
 
 class EDMel2SpecModel(MelToSpec):
-    """A model that convert mel spectrograms to linear spectrograms"""
+    """A model that convert mel spectrograms to linear spectrograms, using an encoder- decoder like model"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
@@ -121,6 +121,7 @@ class EDMel2SpecModel(MelToSpec):
             mel = mel.unsqueeze(1)
 
         spec = self(mel=mel)
+        spec = torch.clamp(spec, min=1e-5)
         return spec.squeeze(1)
 
     def calc_loss(self, x: Tensor, y: Tensor, T_ys: Sequence[int], crit) -> Tensor:
@@ -325,11 +326,4 @@ class EDMel2SpecModel(MelToSpec):
             List of available pre-trained models.
         """
         list_of_models = []
-
-        # model = PretrainedModelInfo(
-        #     pretrained_model_name="DeepGriffinLim-fft_1024-22050Hz",
-        #     location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/DeepGriffinLim-fft_1024.nemo",  ##FIXME
-        #     description="The model is trained on LJSpeech sampled at 22050Hz, n_fft=1024, with 6 layers and a widening factor of 16. Can be used as a trained alternative for GriffinLim",
-        # )
-        # list_of_models.append(model)
         return list_of_models

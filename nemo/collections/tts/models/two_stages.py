@@ -24,10 +24,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from nemo.collections.tts.helpers.helpers import griffin_lim
 from nemo.collections.tts.models.base import LinVocoder, MelToSpec, Vocoder
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types.elements import (
-    AudioSignal,
-    MelSpectrogramType,
-)
+from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 
 
@@ -93,7 +90,7 @@ class GriffinLimModel(LinVocoder):
         audios = torch.zeros(batch_size, max_size)
         # Lazy GL implementation. Could be improved by moving to pytorch.
         for i in range(batch_size):
-            audio = griffin_lim(spec[i, :, 0 : Ts[i]].cpu().numpy() ** 1.2, n_iters=self.n_iters, n_fft=self.n_fft)
+            audio = griffin_lim(spec[i, :, 0 : Ts[i]].cpu().numpy(), n_iters=self.n_iters, n_fft=self.n_fft)
             my_len = audio.shape[0]
             audios[i, 0:my_len] = torch.from_numpy(audio)
 
@@ -210,11 +207,4 @@ class TwoStagesModel(Vocoder):
             List of available pre-trained models.
         """
         list_of_models = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="WaveGlow-22050Hz",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/waveglow.nemo",
-            description="The model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder",
-            class_=cls,
-        )
-        list_of_models.append(model)
         return list_of_models

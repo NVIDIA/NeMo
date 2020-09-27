@@ -251,14 +251,4 @@ class EDMel2SpecModule(NeuralModule, Exportable):
         }
 
     def input_example(self):
-        # TODO: Implement me!
-        pass
-
-    def save_to(self, save_path: str):
-        # TODO: Implement me!
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        # TODO: Implement me!
         pass
