@@ -70,9 +70,27 @@ class EDMel2SpecModule(NeuralModule, Exportable):
         use_weight_norm: bool,
     ):
         """
-        Encoder Decoder module trained to transfrom Mel encoded spectrograms to normal spectrograms
+        Encoder Decoder module trained to transfrom Mel encoded spectrograms to normal spectrograms.
+        The module relies on convolutions (encoders) and transposed convolutions (decoders),
+        which does not affect the time-dimension length, and thus applicable to any input length.
 
         Args:
+
+            n_fft: STFT parameter.
+            hop_length: STFT parameter.
+            mel_fmin: Mel minimum frequency.
+            mel_fmax: Mel maximum frequency.
+            mel_freq: Number of Mel frequencies.
+            layers: Number of layers in the model.
+            sampling_rate: audio property.
+            widening: factor for extending the number of encoders' channels.
+            use_batchnorm: should use batchnorm after encoders/decoders.
+            droprate: droprate used on decoders ouytput.
+            num_dropout: number of decoders to use dropout on.
+            pre_final_lin: adds a fully connected layer after the second to last decoder.
+            act1: string describing the activation function after the encoders.
+            act2: string describing the activation function after the decoders.
+            use_weight_norm: use weight norm.
 
         """
 

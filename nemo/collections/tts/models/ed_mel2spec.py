@@ -49,7 +49,11 @@ def gen_filter(k):
 
 
 class EDMel2SpecModel(MelToSpec):
-    """A model that convert mel spectrograms to linear spectrograms, using an encoder- decoder like model"""
+    """
+        A model that convert mel spectrograms to linear spectrograms, using an encoder- decoder like model
+        The module relies on convolutions (encoders) and transposed convolutions (decoders),
+        which does not affect the time-dimension length, and thus applicable to any input length.
+    """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):

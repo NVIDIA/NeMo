@@ -226,6 +226,8 @@ def eval_tts_scores(
 
     Returns:
         A dictionary mapping scoring systems (string) to numerical scores.
+        1st entry: 'STOI'
+        2nd entry: 'PESQ'
     """
 
     if y_clean.ndim == 1:
@@ -238,5 +240,6 @@ def eval_tts_scores(
     estimated = y_est[0, : T_ys[0]]
     stoi_score = stoi(clean, estimated, sampling_rate, extended=False)
     pesq_score = pesq(16000, np.asarray(clean), estimated, 'wb')
+    ## fs was set 16,000, as pesq lib doesnt currently support felxible fs.
 
     return {'STOI': stoi_score, 'PESQ': pesq_score}
