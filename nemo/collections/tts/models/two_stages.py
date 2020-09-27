@@ -26,14 +26,9 @@ from nemo.collections.tts.models.base import LinVocoder, MelToSpec, Vocoder
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types.elements import (
     AudioSignal,
-    LengthsType,
     MelSpectrogramType,
-    NormalDistributionSamplesType,
-    SpectrogramType,
-    VoidType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils import logging
 
 
 class OperationMode(Enum):

@@ -15,7 +15,7 @@
 import argparse
 import sys
 
-from nemo.collections.tts.data.datalayers import DegliPreprocssing
+from nemo.collections.tts.data.datalayers import preprocess_linear_specs_dataset
 
 sys.path.insert(0, '../')
 
@@ -61,7 +61,7 @@ def main():
 
     args = parser.parse_args()
 
-    DegliPreprocssing(
+    preprocess_linear_specs_dataset(
         args.valid_filelist, args.train_filelist, args.n_fft, args.hop_length, args.num_snr, args.destination
     )
 

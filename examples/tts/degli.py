@@ -15,7 +15,7 @@
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.data.datalayers import DegliPreprocssing
+from nemo.collections.tts.data.datalayers import preprocess_linear_specs_dataset
 from nemo.collections.tts.models import DegliModel
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
@@ -23,7 +23,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="degli")
 def main(cfg):
-    DegliPreprocssing(**cfg.model.preprocessor)
+    preprocess_linear_specs_dataset(**cfg.model.preprocessor)
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = DegliModel(cfg=cfg.model, trainer=trainer)
