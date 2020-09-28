@@ -109,14 +109,7 @@ class Phonemes(Base):
     # fmt: on
 
     def __init__(
-        self,
-        punct=True,
-        stresses=False,
-        spaces=True,
-        *,
-        space=' ',
-        silence=None,
-        oov=Base.OOV,
+        self, punct=True, stresses=False, spaces=True, *, space=' ', silence=None, oov=Base.OOV,
     ):
         labels = []
         self.space, labels = len(labels), labels + [space]  # Space
