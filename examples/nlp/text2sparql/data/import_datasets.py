@@ -1,5 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright (c) 2020, MeetKai Inc.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,8 +22,13 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import MODE_EXISTS_
 from nemo.utils import logging
 
 
-def download_text2sparql(infold):
-    base_url = "http://m.meetkai.com/public_datasets/knowledge/"
+def download_text2sparql(infold: str):
+    """Downloads text2sparql train, test_easy, and test_hard data
+
+    Args:
+        infold: save directory path
+    """
+    base_url = "https://m.meetkai.com/public_datasets/knowledge/"
     download_urls = {
         base_url + "train_queries_v3.tsv": "train.tsv",
         base_url + "test_easy_queries_v3.tsv": "test_easy.tsv",
@@ -44,22 +49,20 @@ def download_text2sparql(infold):
                 handle.write(urlopen(req, timeout=20).read())
 
 
-def process_text2sparql(infold, outfold, do_lower_case):
+def process_text2sparql(infold: str, outfold: str, do_lower_case: bool):
     """ Process and convert MeetKai's text2sparql datasets to NeMo's neural machine translation format.
-    https://github.com/MeetKai/txt-2-sparql-gen/blob/master/out
+
+    Args:
+        infold: directory path to raw text2sparql data containing
+            train.tsv, test_easy.tsv, test_hard.tsv
+        outfold: output directory path to save formatted data for NeuralMachineTranslationDataset
+            the first line is header (sentence [tab] label)
+            each line should be [sentence][tab][label]
+        do_lower_case: if true, convert all sentences and labels to lower
     """
     logging.info(f"Processing Text2Sparql dataset and storing at: {outfold}")
 
     os.makedirs(outfold, exist_ok=True)
-
-    def _read_tsv(input_file, quotechar=None):
-        """Reads a tab separated value file."""
-        with open(input_file, "r") as f:
-            reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
-            lines = []
-            for line in reader:
-                lines.append(line)
-            return lines
 
     dataset_name = "Text2Sparql"
     modes = ["train", "test_easy", "test_hard"]
@@ -74,16 +77,23 @@ def process_text2sparql(infold, outfold, do_lower_case):
             logging.info(f"** {mode} mode of {dataset_name}" f" is skipped as it was not found")
             continue
 
-        lines = _read_tsv(input_file=os.path.join(infold, mode_file_name))
-        with open(os.path.join(outfold, mode_file_name), "w") as outfile:
-            outfile.write("sentence\tlabel\n")
-            for line in lines[1:]:  # skip header
-                sentence = line[0]
-                label = line[1]
-                if do_lower_case:
-                    sentence = sentence.lower()
-                    label = label.lower()
-                outfile.write(f"{sentence}\t{label}\n")
+        input_file = os.path.join(infold, mode_file_name)
+        output_file = os.path.join(outfold, mode_file_name)
+        with open(input_file, "r") as in_file:
+            with open(output_file, "w") as out_file:
+                reader = csv.reader(in_file, delimiter="\t")
+
+                # replace headers
+                out_file.write("sentence\tlabel\n")
+                next(reader)
+
+                for line in reader:
+                    sentence = line[0]
+                    label = line[1]
+                    if do_lower_case:
+                        sentence = sentence.lower()
+                        label = label.lower()
+                    out_file.write(f"{sentence}\t{label}\n")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright (c) 2020, MeetKai Inc.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 # limitations under the License.
 
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -115,7 +115,13 @@ class NeuralMachineTranslationModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
     @typecheck()
-    def forward(self, input_ids, attention_mask=None, decoder_input_ids=None, labels=None):
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor = None,
+        decoder_input_ids: torch.Tensor = None,
+        labels: torch.Tensor = None,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
@@ -126,7 +132,7 @@ class NeuralMachineTranslationModel(ModelPT):
         return outputs
 
     @typecheck.disable_checks()
-    def generate(self, input_ids):
+    def generate(self, input_ids: Union[torch.Tensor, torch.LongTensor]) -> torch.Tensor:
         """Wraps huggingface EncoderDecoder.generate()."""
         outputs = self.model.generate(
             input_ids=input_ids,
@@ -138,7 +144,7 @@ class NeuralMachineTranslationModel(ModelPT):
         )
         return outputs
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch: Tuple, batch_idx: int) -> Dict:
         """
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`. Loss calculation from HuggingFace's BartForConditionalGeneration.
@@ -152,7 +158,7 @@ class NeuralMachineTranslationModel(ModelPT):
 
         return {"loss": loss, "log": tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch: Tuple, batch_idx: int) -> Dict:
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`. Loss calculation from HuggingFace's BartForConditionalGeneration.
@@ -168,7 +174,7 @@ class NeuralMachineTranslationModel(ModelPT):
 
         return {"val_loss": loss, "log": tensorboard_logs}
 
-    def validation_epoch_end(self, outputs):
+    def validation_epoch_end(self, outputs: List[Dict]) -> Dict:
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
@@ -180,16 +186,15 @@ class NeuralMachineTranslationModel(ModelPT):
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     @typecheck.disable_checks()
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch: Tuple, batch_idx: int) -> torch.Tensor:
         """Lightning calls this inside the test loop with data from the test dataloader."""
         input_ids, input_mask, decoder_input_ids, labels = batch
         sequences = self.generate(input_ids=input_ids)
         return sequences
 
     @typecheck.disable_checks()
-    def test_epoch_end(self, outputs):
-        """Called at the end of test to aggregate outputs and decode them.
-        """
+    def test_epoch_end(self, outputs: List[torch.Tensor]) -> Dict[str, List[str]]:
+        """Called at the end of test to aggregate outputs and decode them."""
         texts = [self.encoder_tokenizer.ids_to_text(seq) for batch in outputs for seq in batch]
         return {"texts": texts}
 
@@ -221,7 +226,6 @@ class NeuralMachineTranslationModel(ModelPT):
             max_seq_length=self.cfg.max_seq_length,
             num_samples=cfg.get("num_samples", -1),
             convert_labels=self.cfg.convert_labels,
-            shuffle=cfg.shuffle,
         )
 
         return torch.utils.data.DataLoader(

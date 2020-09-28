@@ -1,5 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright (c) 2020, MeetKai Inc.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 
 
 import os
-import random
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -28,16 +27,18 @@ __all__ = ["NeuralMachineTranslationDataset"]
 
 
 class NeuralMachineTranslationDataset(Dataset):
-    """A dataset class that converts from raw data to
-    a dataset that can be used by DataLayerNM.
+    """A dataset class that converts raw data to a dataset that can be used by NeuralMachineTranslationModel.
+
     Args:
-        filepath: file to sequence + label.
+        filepath: .tsv file to sequence + label.
             the first line is header (sentence [tab] label)
             each line should be [sentence][tab][label]
-        tokenizer: tokenizer object such as AutoTokenizer
-        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        encoder_tokenizer: encoder tokenizer object such as AutoTokenizer
+        decoder_tokenizer: decoder tokenizer object. If using BART or end to end model, set this to encoder_tokenizer
+        max_seq_length: max sequence length including bos and eos tokens
         num_samples: number of samples you want to use for the dataset. If -1, use all dataset. Useful for testing.
-        shuffle: Shuffles the dataset after loading.
+        convert_labels: if true, converts labels for masked lm and updates pad_id to -100
+            for hf masked loss
     """
 
     @property
@@ -61,7 +62,6 @@ class NeuralMachineTranslationDataset(Dataset):
         max_seq_length: int,
         num_samples: int = -1,
         convert_labels: bool = False,
-        shuffle: bool = False,
     ):
         self.filepath = filepath
         self.encoder_tokenizer = encoder_tokenizer
@@ -71,7 +71,6 @@ class NeuralMachineTranslationDataset(Dataset):
         self.max_seq_length = max_seq_length
         self.num_samples = num_samples
         self.convert_labels = convert_labels
-        self.shuffle = shuffle
 
         if num_samples == 0:
             raise ValueError("num_samples has to be positive.", num_samples)
@@ -86,10 +85,6 @@ class NeuralMachineTranslationDataset(Dataset):
 
         with open(filepath) as f:
             lines = f.readlines()[1:]
-
-        if shuffle:
-            random.seed(42)
-            random.shuffle(lines)
 
         if num_samples > 0:
             lines = lines[:num_samples]
@@ -136,7 +131,7 @@ class NeuralMachineTranslationDataset(Dataset):
     def __len__(self):
         return len(self.input_ids)
 
-    def convert_label_ids(self, label_ids):
+    def convert_label_ids(self, label_ids: List[int]) -> Tuple[List[int], List[int]]:
         decoder_input_ids = label_ids[:-1]
         lm_labels = label_ids[1:].copy()
         lm_labels[label_ids[1:] == self.decoder_tokenizer.pad_id] = -100  # for huggingface masked lm loss
