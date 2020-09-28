@@ -1,0 +1,237 @@
+name: &name TalkNetDurs
+sample_rate: &sr 22050
+
+train_dataset: ???
+validation_datasets: ???
+durs_path: ???
+
+model:
+  d_char: &d_char 128
+  n_mels: &n_mels 80
+  dropout: &dropout 0.1
+  separable: &separable true
+
+  train_ds:
+    dataset:
+      cls: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      params:
+        manifest_filepath: ${train_dataset}
+        max_duration: null
+        min_duration: 0.1
+        int_values: false
+        load_audio: true
+        normalize: false
+        sample_rate: *sr
+        trim: false
+        vocab_notation: phonemes
+        vocab_punct: true
+        vocab_spaces: true
+        vocab_stresses: false
+        durs_path: ${durs_path}
+        rep: true
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 64
+      num_workers: 4
+
+
+  validation_ds:
+    dataset:
+      cls: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      params:
+        manifest_filepath: ${validation_datasets}
+        max_duration: null
+        min_duration: 0.1
+        int_values: false
+        load_audio: true
+        normalize: false
+        sample_rate: *sr
+        trim: false
+        vocab_notation: phonemes
+        vocab_punct: true
+        vocab_spaces: true
+        vocab_stresses: false
+        durs_path: ${durs_path}
+        rep: true
+    dataloader_params:
+      drop_last: false
+      shuffle: false
+      batch_size: 64
+      num_workers: 8
+
+  preprocessor:
+    cls: "nemo.collections.asr.parts.features.FilterbankFeatures"
+    params:
+      dither: 0.0
+      nfilt: *n_mels
+      frame_splicing: 1
+      highfreq: 8000
+      log: true
+      log_zero_guard_type: clamp
+      log_zero_guard_value: 1e-05
+      lowfreq: 0
+      mag_power: 1.0
+      n_fft: 1024
+      n_window_size: 1024
+      n_window_stride: 256
+      normalize: null
+      pad_to: 1
+      pad_value: -11.52
+      preemph: null
+      sample_rate: *sr
+      stft_conv: true
+      window: hann
+
+  model:
+    cls: "nemo.collections.asr.modules.ConvASREncoder"
+    params:
+      feat_in: *d_char
+      activation: relu
+      conv_mask: true
+
+      jasper:
+      - filters: 256
+        repeat: 3
+        kernel: [3]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+
+      - filters: 256
+        repeat: 5
+        kernel: [5]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 256
+        repeat: 5
+        kernel: [7]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 256
+        repeat: 5
+        kernel: [9]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 256
+        repeat: 5
+        kernel: [13]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 256
+        repeat: 5
+        kernel: [15]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 256
+        repeat: 5
+        kernel: [17]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 512
+        repeat: 5
+        kernel: [21]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 512
+        repeat: 5
+        kernel: [23]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 512
+        repeat: 5
+        kernel: [25]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_reduction_ratio: 8
+
+      - filters: 1024
+        repeat: 1
+        kernel: [1]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true  # Non-residual works a bit worse.
+
+  optim:
+    name: adam
+    lr: 1e-3
+    weight_decay: 1e-6
+
+    sched:
+      name: CosineAnnealing
+      min_lr: 1e-5
+
+
+trainer:
+  gpus: 1
+  max_epochs: ???
+  num_nodes: 1
+  distributed_backend: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False
+  logger: False
+  gradient_clip_val: 1.0
+  log_save_interval: 1000
+  row_log_interval: 200
+  check_val_every_n_epoch: 25
+
+exp_manager:
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
