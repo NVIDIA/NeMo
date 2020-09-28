@@ -359,8 +359,9 @@ class Model(Typing, Serialization, FileIO):
     ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
+        Use restore_from() to instantiate from a local .nemo file.
         Args:
-            model_name: string key which will be used to find the module. Could be path to local .nemo file.
+            model_name: string key which will be used to find the module.
             refresh_cache: If set to True, then when fetching from cloud, this will re-fetch the file
                 from cloud even if it is already found in a cache locally.
             override_config_path: path to a yaml config that will override the internal
