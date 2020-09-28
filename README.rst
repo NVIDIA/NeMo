@@ -61,8 +61,7 @@ Installation
 ~~~~~~~~~~~~
 Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
 
-* ``pip install nemo_toolkit[all]==1.0.0a4`` (latest stable version)
-* ``pip install nemo_toolkit[all]`` - latest released version (currently 0.11.0)
+* ``pip install nemo_toolkit[all]==1.0.0b1`` (latest stable version)
 
 Or if you want the latest (or particular) version from GitHub:
 
@@ -84,7 +83,9 @@ Here is an example command which trains ASR model (QuartzNet15x5) on LibriSpeech
     model.validation_ds.manifest_filepath=<PATH_TO_DATA>/librispeech-dev-other.json \
     trainer.gpus=4 trainer.max_epochs=128 model.train_ds.batch_size=64 \
     +trainer.precision=16 +trainer.amp_level=O1  \
-    +model.validation_ds.num_workers=16  +model.train_ds.num_workers=16
+    +model.validation_ds.num_workers=16  \
+    +model.train_ds.num_workers=16 \
+    +model.train_ds.pin_memory=True
 
     #(Optional) Tensorboard:
     tensorboard --bind_all --logdir nemo_experiments
@@ -119,10 +120,6 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.11.0/
 
-.. |v0101| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.10.1
-  :alt: Documentation Status
-  :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.10.1/
 
 
 +---------+----------+---------------------------------------------------------+
@@ -138,8 +135,6 @@ Documentation
 +---------+----------+---------------------------------------------------------+
 | v0.11.0 | |v0110|  | Documentation of the v0.11.0 release                    |
 +---------+----------+---------------------------------------------------------+
-| v0.10.1 | |v0101|  | Documentation of the v0.10.1 release                    |
-+---------+----------+---------------------------------------------------------+
 
 
 Tutorials
@@ -150,8 +145,8 @@ Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google
 
 To run tutorials:
 
-1. Click on Colab link (see table below)
-3. Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
+* Click on Colab link (see table below)
+* Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
 .. list-table:: *Tutorials*
    :widths: 15 25 25
