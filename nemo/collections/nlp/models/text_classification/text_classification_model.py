@@ -234,7 +234,7 @@ class TextClassificationModel(ModelPT):
             tokenizer=self.tokenizer,
             input_file=input_file,
             max_seq_length=self.dataset_cfg.max_seq_length,
-            num_samples=cfg.num_samples,
+            num_samples=cfg.get("num_samples", -1),
             shuffle=cfg.shuffle,
             use_cache=self.dataset_cfg.use_cache,
         )
@@ -243,9 +243,9 @@ class TextClassificationModel(ModelPT):
             dataset=dataset,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=self.dataset_cfg.num_workers,
-            pin_memory=self.dataset_cfg.pin_memory,
-            drop_last=self.dataset_cfg.drop_last,
+            num_workers=cfg.get("num_workers", 0),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False),
             collate_fn=dataset.collate_fn,
         )
 
