@@ -22,6 +22,7 @@ from megatron import mpu
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 
+from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.core.classes import ModelPT
 from nemo.utils import AppState, logging
 
@@ -31,6 +32,28 @@ __all__ = ['NLPModel']
 class NLPModel(ModelPT, ABC):
     """Base class for NLP Models.
     """
+
+    def __init__(self):
+        super.__init__(ModelPT)
+        self._bert_model = None
+    
+    @property
+    def bert_model(self) -> BertModule:
+        """ Pretrained BERT encoder to be finetuned on downstream task.
+
+        Returns:
+            BertModule: Either HuggingFace or Megatron-LM BERT based encoders.
+        """        
+        return self._bert_model
+    
+    @bert_model.setter
+    def bert_model(self, model) -> None:
+        """ Sets the pretrained BERT encoder.
+
+        Args:
+            model (BertModule): Either HuggingFace or Megatron-LM BERT based encoders.
+        """        
+        self._bert_model = model
 
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
         """ Override for LightningModule DDP initialization.
@@ -100,15 +123,19 @@ class NLPModel(ModelPT, ABC):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-                logging.info("replacing sampler with model parallel sampler")
-                mp_sampler = torch.utils.data.distributed.DistributedSampler(
-                    self._train_dl.dataset,
-                    num_replicas=app_state.model_parallel_size,
-                    rank=app_state.data_parallel_rank,
-                )
-                mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
-                self._train_dl = mp_dl
+                if isinstance(self.bert_model, MegatronBertEncoder):
+                    logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
+                    # model parallel checkpoints need to be restored after torch.distributed is initialized
+                    self.bert_model.restore_weights(self.bert_model._restore_path)
 
-                logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
-                # model parallel checkpoints need to be restored after torch.distributed is initialized
-                self.bert_model.restore_weights(self.bert_model._restore_path)
+                    logging.info("replacing sampler with model parallel sampler")
+                    mp_sampler = torch.utils.data.distributed.DistributedSampler(
+                        self._train_dl.dataset,
+                        num_replicas=app_state.model_parallel_size,
+                        rank=app_state.data_parallel_rank,
+                    )
+                    mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
+                    self._train_dl = mp_dl
+                else:
+                    logging.warning(f'The BERT encoder: {self.bert_model} does not support model parallelism.')
+
