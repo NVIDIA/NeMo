@@ -33,19 +33,21 @@ class NLPModel(ModelPT, ABC):
     """
 
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
-        """ Override LightningModule DDP initialization if using model parallel
+        """ Override for LightningModule DDP initialization.
+            Initializes Megatron-LM model parallel if using model parallelism.
 
         Args:
             global_rank (int): the global process index.
             world_size (int): the total number of GPUs, num_nodes * num_gpus
             is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
         """        
+        LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
+
         app_state = AppState()
 
-        # we are able to initialize megatron-lm model parallel and data parallel groups
+        # we initialize megatron-lm model parallel and data parallel groups
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
-            LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
             if app_state.model_parallel_group is None:
                 mpu.initialize_model_parallel(app_state.model_parallel_size)
                 app_state.model_parallel_group = mpu.get_model_parallel_group()
@@ -55,8 +57,6 @@ class NLPModel(ModelPT, ABC):
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
-        else:
-            return LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
 
     def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
         """ Override LightningModule ddp if using model parallel.
