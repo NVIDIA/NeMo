@@ -896,7 +896,7 @@ class ModelPT(LightningModule, Model):
         """
         self._trainer = trainer
         self.set_world_size(self._trainer)
-    
+
     def set_world_size(self, trainer: Trainer):
         """
         Determines the world size from the PyTorch Lightning Trainer.
@@ -904,7 +904,7 @@ class ModelPT(LightningModule, Model):
 
         Args:
             trainer (Trainer): PyTorch Lightning Trainer object
-        """        
+        """
         # Update AppState with world information from trainer
         if isinstance(trainer, Trainer):
             app_state = AppState()

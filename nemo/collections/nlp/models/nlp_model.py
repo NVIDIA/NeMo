@@ -15,15 +15,13 @@
 from abc import ABC
 from typing import List
 
-from omegaconf import DictConfig
-
 import torch
-from torch.nn.parallel import DistributedDataParallel
-
 from megatron import mpu
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
+from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.core.classes import ModelPT
@@ -40,28 +38,27 @@ class NLPModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
         self._bert_model = None
         self.set_world_size(trainer)
-    
+
     @property
     def bert_model(self):
         """ Pretrained BERT encoder to be finetuned on downstream task.
 
         Returns:
             BertModule: Either HuggingFace or Megatron-LM BERT based encoders.
-        """        
+        """
         return self._bert_model
-    
+
     def set_bert_model(self, model):
         self._bert_model = model
-    
+
     # @bert_model.setter
     # def bert_model(self, model):
     #     """ Set pretrained BERT encoder.
 
     #     Args:
     #         model (BertModule): Either HuggingFace or Megatron-LM BERT based encoders.
-    #     """        
+    #     """
     #     self._bert_model = model
-    
 
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
         """ Override for LightningModule DDP initialization.
@@ -71,7 +68,7 @@ class NLPModel(ModelPT):
             global_rank (int): the global process index.
             world_size (int): the total number of GPUs, num_nodes * num_gpus
             is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
-        """        
+        """
         LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
 
         app_state = AppState()
@@ -88,7 +85,6 @@ class NLPModel(ModelPT):
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
-
     def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
         """ Override LightningModule ddp if using model parallel.
 
@@ -98,7 +94,7 @@ class NLPModel(ModelPT):
 
         Returns:
             DistributedDataParallel: DDP wrapped model
-        """        
+        """
 
         app_state = AppState()
 
@@ -124,7 +120,7 @@ class NLPModel(ModelPT):
 
         Args:
             stage (str): either 'fit' or 'test'
-        """        
+        """
 
         if stage == 'fit':
 
@@ -146,4 +142,3 @@ class NLPModel(ModelPT):
                     self._train_dl = mp_dl
                 else:
                     logging.warning(f'The BERT encoder: {self.bert_model} does not support model parallelism.')
-
