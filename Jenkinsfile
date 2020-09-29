@@ -498,6 +498,7 @@ pipeline {
         python intent_slot_classification.py \
         model.data_dir=/home/TestData/nlp/retail \
         model.validation_ds.prefix=dev \
+        model.test_ds.prefix=dev \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true'
       }
