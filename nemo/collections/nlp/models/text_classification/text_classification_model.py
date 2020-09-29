@@ -243,9 +243,9 @@ class TextClassificationModel(ModelPT):
             dataset=dataset,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=self.dataset_cfg.num_workers,
-            pin_memory=self.dataset_cfg.pin_memory,
-            drop_last=self.dataset_cfg.drop_last,
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
+            drop_last=cfg.drop_last,
             collate_fn=dataset.collate_fn,
         )
 
