@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
@@ -36,18 +37,26 @@ def main(cfg: DictConfig) -> None:
         model.save_to(cfg.model.nemo_path)
         logging.info(f'The model is saved into the `.nemo` file: {cfg.model.nemo_path}')
 
-    # We evaluate the trained model on the test set if test_ds is set in the config file
-    if cfg.model.test_ds.file_path:
-        logging.info(
-            "================================================================================================"
-        )
-        logging.info("Starting the testing of the trained model on test set...")
-        # The latest checkpoint would be used, set ckpt_path to 'best' to use the best one
-        trainer.test(model=model, ckpt_path=None, verbose=False)
-        logging.info("Testing finished!")
-        logging.info(
-            "================================================================================================"
-        )
+    # after model training is done, if you have saved the checkpoints, you can create the model from
+    # the checkpoint again and evaluate it on a data file.
+    logging.info("================================================================================================")
+    logging.info("Starting the testing of the trained model on test set...")
+    logging.info("We will load the latest model saved checkpoint from the training...")
+
+    # retrieve the path to the last checkpoint of the training
+    # the latest checkpoint would be used, change to 'best.ckpt' to use the best one instead
+    checkpoint_path = os.path.join(
+        trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt"
+    )
+    eval_model = IntentSlotClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
+
+    # we will setup testing data reusing the same config (test section)
+    eval_model.setup_test_data(test_data_config=cfg.model.test_ds)
+
+    trainer.test(model=model, ckpt_path=None, verbose=False)
+    logging.info("Testing finished!")
+    logging.info("================================================================================================")
+
 
 if __name__ == '__main__':
     main()
