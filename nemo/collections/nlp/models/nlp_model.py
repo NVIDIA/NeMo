@@ -35,21 +35,18 @@ class NLPModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        super().__init__(cfg=cfg, trainer=trainer)
-        self._bert_model = None
+        super().__init__(cfg, trainer)
+        self.bert_model = None # Pretrained BERT encoder
         self.set_world_size(trainer)
 
-    @property
-    def bert_model(self):
-        """ Pretrained BERT encoder to be finetuned on downstream task.
+    # @property
+    # def bert_model(self):
+    #     """ Pretrained BERT encoder to be finetuned on downstream task.
 
-        Returns:
-            BertModule: Either HuggingFace or Megatron-LM BERT based encoders.
-        """
-        return self._bert_model
-
-    def set_bert_model(self, model):
-        self._bert_model = model
+    #     Returns:
+    #         BertModule: Either HuggingFace or Megatron-LM BERT based encoders.
+    #     """
+    #     return self._bert_model
 
     # @bert_model.setter
     # def bert_model(self, model):
@@ -58,6 +55,7 @@ class NLPModel(ModelPT):
     #     Args:
     #         model (BertModule): Either HuggingFace or Megatron-LM BERT based encoders.
     #     """
+    #     logging.info(f"model: {model}")
     #     self._bert_model = model
 
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:

@@ -61,14 +61,12 @@ class TokenClassificationModel(NLPModel):
         self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
 
         super().__init__(cfg=cfg, trainer=trainer)
-        bert_model = get_lm_model(
+        self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
-
-        self.set_bert_model(bert_model)
 
         self.classifier = TokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
