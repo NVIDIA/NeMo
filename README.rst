@@ -54,15 +54,14 @@ We recommend using NVIDIA's PyTorch container version 20.08-py3 with NeMo's main
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 nvcr.io/nvidia/pytorch:20.08-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.08-py3
 
 
 Installation
 ~~~~~~~~~~~~
 Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
 
-* ``pip install nemo_toolkit[all]==1.0.0a1`` (latest stable version)
-* ``pip install nemo_toolkit[all]`` - latest released version (currently 0.11.0)
+* ``pip install nemo_toolkit[all]==1.0.0b1`` (latest stable version)
 
 Or if you want the latest (or particular) version from GitHub:
 
@@ -84,7 +83,9 @@ Here is an example command which trains ASR model (QuartzNet15x5) on LibriSpeech
     model.validation_ds.manifest_filepath=<PATH_TO_DATA>/librispeech-dev-other.json \
     trainer.gpus=4 trainer.max_epochs=128 model.train_ds.batch_size=64 \
     +trainer.precision=16 +trainer.amp_level=O1  \
-    +model.validation_ds.num_workers=16  +model.train_ds.num_workers=16
+    +model.validation_ds.num_workers=16  \
+    +model.train_ds.num_workers=16 \
+    +model.train_ds.pin_memory=True
 
     #(Optional) Tensorboard:
     tensorboard --bind_all --logdir nemo_experiments
@@ -119,10 +120,6 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.11.0/
 
-.. |v0101| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.10.1
-  :alt: Documentation Status
-  :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.10.1/
 
 
 +---------+----------+---------------------------------------------------------+
@@ -138,8 +135,6 @@ Documentation
 +---------+----------+---------------------------------------------------------+
 | v0.11.0 | |v0110|  | Documentation of the v0.11.0 release                    |
 +---------+----------+---------------------------------------------------------+
-| v0.10.1 | |v0101|  | Documentation of the v0.10.1 release                    |
-+---------+----------+---------------------------------------------------------+
 
 
 Tutorials
@@ -150,8 +145,8 @@ Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google
 
 To run tutorials:
 
-1. Click on Colab link (see table below)
-3. Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
+* Click on Colab link (see table below)
+* Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
 .. list-table:: *Tutorials*
    :widths: 15 25 25
@@ -174,7 +169,10 @@ To run tutorials:
      - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
      - Speech Commands
-     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/02_Speech_Commands.ipynb>`_
+     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/03_Speech_Commands.ipynb>`_
+   * - ASR
+     - Speaker Recognition and Verification
+     - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
    * - ASR
      - Online Noise Augmentation
      - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
@@ -182,11 +180,14 @@ To run tutorials:
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained language models for downstream tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
    * - NLP
-     - Question answering with SQuAD
-     - `Question answering squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
-   * - NLP
      - Exploring NeMo NLP Tokenizers
-     - `NLP tokenizers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/02_NLP_Tokenizers.ipynb>`_
+     - `NLP tokenizers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/02_NLP_Tokenizers.ipynb>`_
+   * - NLP
+     - Text Classification (Sentiment Analysis) with BERT
+     - `Text Classification (Sentiment Analysis) <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`_
+   * - NLP
+     - Question answering with SQuAD
+     - `Question answering Squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`_
    * - NLP
      - Token Classification (Named Entity Recognition)
      - `Token classification: named entity recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
@@ -199,6 +200,13 @@ To run tutorials:
    * - NLP
      - Punctuation and Capitialization
      - `Punctuation and capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+   * - NLP
+     - Named Entity Recognition - BioMegatron
+     - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
+   * - NLP
+     - Relation Extraction - BioMegatron
+     - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
+
    * - TTS
      - Speech Synthesis
      - `TTS inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tts/1_TTS_inference.ipynb>`_

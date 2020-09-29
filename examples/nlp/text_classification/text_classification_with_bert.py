@@ -102,7 +102,7 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.model.nemo_path:
         model.save_to(cfg.model.nemo_path)
-        logging.info('Model is saved into `.nemo` file: cfg.model.nemo_path')
+        logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
 
     # We evaluate the trained model on the test set if test_ds is set in the config file
     if cfg.model.test_ds.file_path:
@@ -117,7 +117,7 @@ def main(cfg: DictConfig) -> None:
             "================================================================================================"
         )
 
-    # retreive the path to the last checkpoint of the training
+    # retrieve the path to the last checkpoint of the training
     checkpoint_path = os.path.join(
         trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt"
     )
@@ -138,7 +138,7 @@ def main(cfg: DictConfig) -> None:
         # create a dataloader config for evaluation, the same data file provided in validation_ds is used here
         # file_path can get updated with any file
         eval_config = OmegaConf.create(
-            {'file_path': cfg.model.validation_ds.file_path, 'batch_size': 64, 'shuffle': False, 'num_samples': -1}
+            {'file_path': cfg.model.validation_ds.file_path, 'batch_size': 64, 'shuffle': False}
         )
         eval_model.setup_test_data(test_data_config=eval_config)
 
@@ -157,7 +157,6 @@ def main(cfg: DictConfig) -> None:
         logging.info(
             "================================================================================================"
         )
-
     else:
         logging.info(
             "No file_path was set for validation_ds or no checkpoint was found, so final evaluation is skipped!"
@@ -179,7 +178,7 @@ def main(cfg: DictConfig) -> None:
         # use the path of the last checkpoint from the training, you may update it to any other checkpoints
         infer_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
 
-        # move the model to the desire device for inference
+        # move the model to the desired device for inference
         # we move the model to "cuda" if available otherwise "cpu" would be used
         if torch.cuda.is_available():
             infer_model.to("cuda")
