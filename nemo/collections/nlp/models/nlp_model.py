@@ -15,10 +15,13 @@
 from abc import ABC
 from typing import List
 
+from omegaconf import DictConfig
+
 import torch
 from torch.nn.parallel import DistributedDataParallel
 
 from megatron import mpu
+from pytorch_lightning import Trainer
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 
@@ -29,16 +32,17 @@ from nemo.utils import AppState, logging
 __all__ = ['NLPModel']
 
 
-class NLPModel(ModelPT, ABC):
+class NLPModel(ModelPT):
     """Base class for NLP Models.
     """
 
-    def __init__(self):
-        super.__init__(ModelPT)
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        super().__init__(cfg=cfg, trainer=trainer)
         self._bert_model = None
+        self.set_world_size(trainer)
     
     @property
-    def bert_model(self) -> BertModule:
+    def bert_model(self):
         """ Pretrained BERT encoder to be finetuned on downstream task.
 
         Returns:
@@ -46,14 +50,18 @@ class NLPModel(ModelPT, ABC):
         """        
         return self._bert_model
     
-    @bert_model.setter
-    def bert_model(self, model) -> None:
-        """ Sets the pretrained BERT encoder.
-
-        Args:
-            model (BertModule): Either HuggingFace or Megatron-LM BERT based encoders.
-        """        
+    def set_bert_model(self, model):
         self._bert_model = model
+    
+    # @bert_model.setter
+    # def bert_model(self, model):
+    #     """ Set pretrained BERT encoder.
+
+    #     Args:
+    #         model (BertModule): Either HuggingFace or Megatron-LM BERT based encoders.
+    #     """        
+    #     self._bert_model = model
+    
 
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
         """ Override for LightningModule DDP initialization.
