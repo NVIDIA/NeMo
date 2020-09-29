@@ -39,25 +39,6 @@ class NLPModel(ModelPT):
         self.bert_model = None # Pretrained BERT encoder
         self.set_world_size(trainer)
 
-    # @property
-    # def bert_model(self):
-    #     """ Pretrained BERT encoder to be finetuned on downstream task.
-
-    #     Returns:
-    #         BertModule: Either HuggingFace or Megatron-LM BERT based encoders.
-    #     """
-    #     return self._bert_model
-
-    # @bert_model.setter
-    # def bert_model(self, model):
-    #     """ Set pretrained BERT encoder.
-
-    #     Args:
-    #         model (BertModule): Either HuggingFace or Megatron-LM BERT based encoders.
-    #     """
-    #     logging.info(f"model: {model}")
-    #     self._bert_model = model
-
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
         """ Override for LightningModule DDP initialization.
             Initializes Megatron-LM model parallel if using model parallelism.
