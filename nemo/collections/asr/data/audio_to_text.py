@@ -367,7 +367,7 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
 
     def __getitem__(self, item):
         sample = self.collection[item]
-        audio, audio_len, _, _ = super().__getitem__(item)
+        audio, audio_len, _, _ = super().__getitem__(item)  # noqa
         text = self.vocab.encode(sample.text_raw)
         text, text_len = torch.tensor(text).long(), torch.tensor(len(text)).long()
         blanks_durs, graphemes_durs = self.durs[item]
