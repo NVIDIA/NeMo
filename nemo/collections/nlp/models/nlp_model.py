@@ -42,7 +42,7 @@ class NLPModel(ModelPT, ABC):
         """        
         app_state = AppState()
 
-        # we are able initialize megatron-lm model parallel and data parallel groups
+        # we are able to initialize megatron-lm model parallel and data parallel groups
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
             LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
