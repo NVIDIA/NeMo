@@ -13,8 +13,11 @@
 # limitations under the License.
 
 from abc import ABC
+from typing import List
 
 import torch
+from torch.nn.parallel import DistributedDataParallel
+
 from megatron import mpu
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
@@ -26,8 +29,17 @@ __all__ = ['NLPModel']
 
 
 class NLPModel(ModelPT, ABC):
+    """Base class for NLP Models.
+    """
+
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
-        """ Override LightningModule DDP initialization if using model parallel"""
+        """ Override LightningModule DDP initialization if using model parallel
+
+        Args:
+            global_rank (int): the global process index.
+            world_size (int): the total number of GPUs, num_nodes * num_gpus
+            is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
+        """        
         app_state = AppState()
 
         # we are able initialize megatron-lm model parallel and data parallel groups
@@ -46,8 +58,16 @@ class NLPModel(ModelPT, ABC):
         else:
             return LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
 
-    def configure_ddp(self, model, device_ids):
-        """ Override LightningModule ddp if using model parallel. """
+    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
+        """ Override LightningModule ddp if using model parallel.
+
+        Args:
+            model (LightningModule): the LightningModule currently being optimized
+            device_ids (List[int]): the list of GPU ids.
+
+        Returns:
+            DistributedDataParallel: DDP wrapped model
+        """        
 
         app_state = AppState()
 
@@ -67,8 +87,13 @@ class NLPModel(ModelPT, ABC):
             logging.info("Did not detect model parallel using LightningModule.configure_ddp")
             return LightningModule.configure_ddp(self, model, device_ids)
 
-    def setup(self, stage):
-        """ PTL hook that is called after DDP is initialized """
+    def setup(self, stage: str) -> None:
+        """ PTL hook that is called after DDP is initialized.
+            Called at the beginning of fit and test. 
+
+        Args:
+            stage (str): either 'fit' or 'test'
+        """        
 
         if stage == 'fit':
 
