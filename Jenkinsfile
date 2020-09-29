@@ -496,7 +496,7 @@ pipeline {
       steps {
         sh 'cd examples/nlp/intent_slot_classification && \
         python intent_slot_classification.py \
-        model.data_dir=/home/TestData/nlp/retail/ \
+        model.data_dir=/home/TestData/nlp/retail \
         model.validation_ds.prefix=dev \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true'
