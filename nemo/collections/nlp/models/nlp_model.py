@@ -36,7 +36,7 @@ class NLPModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
-        self.bert_model = None # Pretrained BERT encoder
+        self.bert_model = None  # Pretrained BERT encoder
         self.set_world_size(trainer)
 
     def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
