@@ -23,16 +23,16 @@ from torch.utils.data import DataLoader
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.nlp.data.intent_slot_classification import IntentSlotClassificationDataset, IntentSlotDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 
 
-class IntentSlotClassificationModel(ModelPT):
+class IntentSlotClassificationModel(NLPModel):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types

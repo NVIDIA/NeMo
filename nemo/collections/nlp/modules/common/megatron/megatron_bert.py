@@ -20,8 +20,6 @@ import torch
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-
-# from megatron.mpu import get_model_parallel_rank
 from megatron.mpu import get_model_parallel_group
 from omegaconf import OmegaConf
 
@@ -52,6 +50,7 @@ class MegatronBertEncoder(BertModule):
 
         self._model_parallel_size = model_parallel_size
         self._restore_path = None
+        self._app_state = None
 
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
@@ -64,6 +63,7 @@ class MegatronBertEncoder(BertModule):
         # if 'model_parallel_size' in config:
         if self._model_parallel_size is not None:
             app_state = AppState()
+            self._app_state = app_state
 
             # must be set for model parallel megatron-lm
             os.environ["WORLD_SIZE"] = str(app_state.world_size)
@@ -80,8 +80,9 @@ class MegatronBertEncoder(BertModule):
         # Initialize part of Megatron global state that is needed for its constructor.
         # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
         # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)
-        # and to return a hook for us to call after PTL has torch.distributed initialized
-        # (that would be on our first forward() call).
+        # and to return a hook for us to call after PTL has torch.distributed initialized.
+        # We call this hook during .forward
+        # TODO: can we call this hook using the PTL hook .setup()
         self._lazy_init_fn = initialize_megatron(
             extra_args_provider=extra_args_provider, args_defaults=config, ignore_unknown_args=True
         )
@@ -111,13 +112,8 @@ class MegatronBertEncoder(BertModule):
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
         if self._lazy_init_fn is not None:
-            logging.info(f'Finishing megatron mpu init.')
             self._lazy_init_fn()
-            # model parallel checkpoints need to be restored after torch.distributed is initialized
-            if self._model_parallel_size is not None:
-                self.restore_weights(self._restore_path)
             self._lazy_init_fn = None
-
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
         )

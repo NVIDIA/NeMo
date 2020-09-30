@@ -22,6 +22,7 @@ class AppState(metaclass=Singleton):
         self._app_cfg = None
 
         # World info
+        self._device_id = None
         self._local_rank = None
         self._global_rank = None
         self._model_parallel_rank = None
@@ -34,6 +35,22 @@ class AppState(metaclass=Singleton):
         self._data_parallel_group = None
 
         self._random_seed = None
+
+    @property
+    def device_id(self):
+        """ Property returns the device_id
+            Returns:
+                device_id
+        """
+        return self._device_id
+
+    @device_id.setter
+    def device_id(self, id):
+        """ Property sets the device_id.
+            Args:
+                size (int): The device id. 
+        """
+        self._device_id = id
 
     @property
     def world_size(self):

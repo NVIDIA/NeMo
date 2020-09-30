@@ -87,11 +87,10 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self._trainer = trainer
 
-        # Update AppState with world information from trainer
-        app_state = AppState()
-        if isinstance(self._trainer, Trainer):
-            if self._trainer.num_gpus and self._trainer.num_nodes:
-                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
+        # Set device_id in AppState
+        if torch.cuda.current_device() is not None:
+            app_state = AppState()
+            app_state.device_id = torch.cuda.current_device()
 
         if self._cfg is not None and not self.__is_model_being_restored():
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
@@ -888,7 +887,7 @@ class ModelPT(LightningModule, Model):
         self.set_trainer(trainer)
         return True
 
-    def set_trainer(self, trainer: 'Trainer'):
+    def set_trainer(self, trainer: Trainer):
         """
         Set an instance of Trainer object.
 
@@ -896,6 +895,23 @@ class ModelPT(LightningModule, Model):
             trainer: PyTorch Lightning Trainer object.
         """
         self._trainer = trainer
+        self.set_world_size(self._trainer)
+
+    def set_world_size(self, trainer: Trainer):
+        """
+        Determines the world size from the PyTorch Lightning Trainer.
+        And then updates AppState.
+
+        Args:
+            trainer (Trainer): PyTorch Lightning Trainer object
+        """
+        # Update AppState with world information from trainer
+        if isinstance(trainer, Trainer):
+            app_state = AppState()
+            if self._trainer.num_gpus and self._trainer.num_nodes:
+                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
+        else:
+            logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """
