@@ -36,7 +36,7 @@ def download_text2sparql(infold: str):
     Args:
         infold: save directory path
     """
-    os.makedirs(source_dir, exist_ok=True)
+    os.makedirs(infold, exist_ok=True)
 
     for prefix in prefix_map:
         url = base_url + prefix
