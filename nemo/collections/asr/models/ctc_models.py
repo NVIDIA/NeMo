@@ -103,14 +103,16 @@ class EncDecCTCModel(ASRModel):
         # Setup metric objects
         self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
+    @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
 
-            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-        Recommended length per file is between 5 and 25 seconds.
+            paths2audio_files: (a list) of paths to audio files. \
+        Recommended length per file is between 5 and 25 seconds. \
+        But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference. \
         Bigger will result in better throughput performance but would use more memory.
 
@@ -128,6 +130,8 @@ class EncDecCTCModel(ASRModel):
         try:
             # Switch model to evaluation mode
             self.eval()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
@@ -147,6 +151,7 @@ class EncDecCTCModel(ASRModel):
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            logging.set_verbosity(logging_level)
         return hypotheses
 
     def change_vocabulary(self, new_vocabulary: List[str]):

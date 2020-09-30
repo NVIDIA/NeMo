@@ -43,6 +43,14 @@ model:
     drop_last: false
     pin_memory: false
 
+  test_ds:
+    prefix: test
+    batch_size: 32
+    shuffle: false
+    num_samples: -1
+    num_workers: 2
+    drop_last: false
+    pin_memory: false
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
@@ -55,7 +63,7 @@ model:
     pretrained_model_name: bert-base-uncased
     lm_checkpoint: null
     config_file: null # json file, precedence over config
-    config: null 
+    config: null
 
   head:
     num_output_layers: 2

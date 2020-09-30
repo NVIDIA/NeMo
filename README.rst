@@ -54,7 +54,7 @@ We recommend using NVIDIA's PyTorch container version 20.08-py3 with NeMo's main
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 nvcr.io/nvidia/pytorch:20.08-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.08-py3
 
 
 Installation
@@ -191,6 +191,9 @@ To run tutorials:
    * - NLP
      - Token Classification (Named Entity Recognition)
      - `Token classification: named entity recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
+   * - NLP
+     - Joint Intent and Slot Classification
+     - `Joint Intent and Slot Classification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb>`_
    * - NLP
      - GLUE Benchmark
      - `GLUE benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark.ipynb>`_
