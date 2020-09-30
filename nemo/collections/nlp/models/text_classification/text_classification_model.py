@@ -289,7 +289,9 @@ class TextClassificationModel(ModelPT):
             logging.set_verbosity(logging_level)
         return all_preds
 
-    def _setup_infer_dataloader(self, cfg: Dict, queries: List[str], max_seq_length: int = -1) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(
+        self, cfg: Dict, queries: List[str], max_seq_length: int = -1
+    ) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
 
