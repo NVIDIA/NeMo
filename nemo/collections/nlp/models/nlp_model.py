@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC
 from typing import List
 
 import torch
@@ -23,7 +22,7 @@ from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
+from nemo.collections.nlp.modules import MegatronBertEncoder
 from nemo.core.classes import ModelPT
 from nemo.utils import AppState, logging
 
