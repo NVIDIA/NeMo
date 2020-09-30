@@ -120,4 +120,6 @@ class NLPModel(ModelPT):
                     mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
                     self._train_dl = mp_dl
                 else:
-                    raise NotImplementedError(f'The BERT encoder: {self.bert_model} does not support model parallelism yet.')
+                    raise NotImplementedError(
+                        f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
+                    )
