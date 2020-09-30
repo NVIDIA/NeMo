@@ -22,30 +22,31 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import MODE_EXISTS_
 from nemo.utils import logging
 
 
+base_url = "https://m.meetkai.com/public_datasets/knowledge/"
+prefix_map = {
+    "train_queries_v3.tsv": "train.tsv",
+    "test_easy_queries_v3.tsv": "test_easy.tsv",
+    "test_hard_queries_v3.tsv": "test_hard.tsv",
+}
+
+
 def download_text2sparql(infold: str):
     """Downloads text2sparql train, test_easy, and test_hard data
 
     Args:
         infold: save directory path
     """
-    base_url = "https://m.meetkai.com/public_datasets/knowledge/"
-    download_urls = {
-        base_url + "train_queries_v3.tsv": "train.tsv",
-        base_url + "test_easy_queries_v3.tsv": "test_easy.tsv",
-        base_url + "test_hard_queries_v3.tsv": "test_hard.tsv",
-    }
-
     os.makedirs(source_dir, exist_ok=True)
 
-    for url in download_urls:
-        file = download_urls[url]
+    for prefix in prefix_map:
+        url = base_url + prefix
 
         logging.info(f"Downloading: {url}")
-        if if_exist(infold, [file]):
+        if if_exist(infold, [prefix]):
             logging.info("** Download file already exists, skipping download")
         else:
             req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with open(os.path.join(infold, file), "wb") as handle:
+            with open(os.path.join(infold, prefix), "wb") as handle:
                 handle.write(urlopen(req, timeout=20).read())
 
 
@@ -65,20 +66,19 @@ def process_text2sparql(infold: str, outfold: str, do_lower_case: bool):
     os.makedirs(outfold, exist_ok=True)
 
     dataset_name = "Text2Sparql"
-    modes = ["train", "test_easy", "test_hard"]
-    for mode in modes:
-        mode_file_name = f"{mode}.tsv"
+    for prefix in prefix_map:
+        input_file = os.path.join(infold, prefix)
+        output_file = os.path.join(outfold, prefix_map[prefix])
 
-        if if_exist(outfold, [mode_file_name]):
-            logging.info(f"** {MODE_EXISTS_TMP.format(mode, dataset_name, os.path.join(outfold, mode_file_name))}")
+        if if_exist(outfold, [prefix_map[prefix]]):
+            logging.info(f"** {MODE_EXISTS_TMP.format(prefix_map[prefix], dataset_name, output_file)}")
             continue
 
-        if not if_exist(infold, [mode_file_name]):
-            logging.info(f"** {mode} mode of {dataset_name}" f" is skipped as it was not found")
+        if not if_exist(infold, [prefix]):
+            logging.info(f"** {prefix} of {dataset_name}" f" is skipped as it was not found")
             continue
 
-        input_file = os.path.join(infold, mode_file_name)
-        output_file = os.path.join(outfold, mode_file_name)
+        assert input_file != output_file, "input file cannot equal output file"
         with open(input_file, "r") as in_file:
             with open(output_file, "w") as out_file:
                 reader = csv.reader(in_file, delimiter="\t")
