@@ -16,7 +16,7 @@ import copy
 import json
 import os
 import pickle as pkl
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
@@ -30,7 +30,7 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy, compute_topk_accuracy
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
@@ -47,12 +47,37 @@ class EncDecSpeakerLabelModel(ModelPT):
     * Speaker Decoder 
     """
 
+    @classmethod
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="SpeakerNet_recognition",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/SpeakerNet_recognition.nemo",
+            description="SpeakerNet_recognition model trained end-to-end for speaker recognition purposes with cross_entropy loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Recognition model achieves 2.65% EER on voxceleb-O cleaned trial file",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="SpeakerNet_verification",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/SpeakerNet_verification.nemo",
+            description="SpeakerNet_verification model trained end-to-end for speaker verification purposes with arcface angular softmax loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Verification model achieves 2.12% EER on voxceleb-O cleaned trial file",
+        )
+        result.append(model)
+
+        return result
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
-        if 'angular' in cfg.decoder.params and cfg.decoder.params['angular']:
+        if 'angular' in cfg.decoder and cfg.decoder['angular']:
             logging.info("Training with Angular Softmax Loss")
             scale = cfg.loss.scale
             margin = cfg.loss.margin
@@ -112,17 +137,6 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
-
-    @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def export(self, **kwargs):
-        pass
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -263,10 +277,10 @@ class EncDecSpeakerLabelModel(ModelPT):
 
         decoder_config = model_config.decoder
         new_decoder_config = copy.deepcopy(decoder_config)
-        if new_decoder_config['params']['num_classes'] != len(self.dataset.labels):
+        if new_decoder_config['num_classes'] != len(self.dataset.labels):
             raise ValueError(
                 "number of classes provided {} is not same as number of different labels in finetuning data: {}".format(
-                    new_decoder_config['params']['num_classes'], len(self.dataset.labels)
+                    new_decoder_config['num_classes'], len(self.dataset.labels)
                 )
             )
 

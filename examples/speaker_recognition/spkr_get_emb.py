@@ -25,12 +25,19 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 To extract embeddings
-    python examples/speaker_recognition/spkr_get_emb.py \
-        model.test_ds.manifest_filepath="<validation_manifest_file>" \
-        exp_manager.exp_name="<trained_model_name>"
-        exp_manager.exp_dir="<path to model chckpoint directories>"
-        hydra.run.dir="." \
+Place pretrained model in ${EXP_DIR}/${EXP_NAME} with spkr.nemo
+    python spkr_get_emb.py --config-path='conf' --config-name='SpeakerNet_verification_3x2x512.yaml' \
+        +model.test_ds.manifest_filepath="<test_manifest_file>" \
+        +model.test_ds.sample_rate=16000 \
+        +model.test_ds.labels=null \
+        +model.test_ds.batch_size=1 \
+        +model.test_ds.shuffle=False \
+        +model.test_ds.time_length=8 \
+        exp_manager.exp_name=${EXP_NAME} \
+        exp_manager.exp_dir=${EXP_DIR} \
         trainer.gpus=1 
+
+See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb for notebook tutorial
 """
 
 seed_everything(42)

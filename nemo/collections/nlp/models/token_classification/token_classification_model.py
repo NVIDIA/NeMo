@@ -222,7 +222,7 @@ class TokenClassificationModel(ModelPT):
 
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
-                f'{text_file} or {labels_file} not found. The data should be splitted into 2 files: text.txt and \
+                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and \
                 labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
                 spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
                 separated with spaces. Each line of the files should follow the format:  \
@@ -442,9 +442,8 @@ class TokenClassificationModel(ModelPT):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="NERModel",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/NamedEntityRecognition_bert-base-uncased.nemo",
-            description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and "
-            + "achieves 74.61 F1 Macro score.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemonlpmodels/versions/1.0.0a5/files/NERModel.nemo",
+            description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and achieves 74.61 F1 Macro score.",
         )
         result.append(model)
         return result

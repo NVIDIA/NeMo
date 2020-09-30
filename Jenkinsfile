@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-            image 'nvcr.io/nvidia/pytorch:20.07-py3'
+            image 'nvcr.io/nvidia/pytorch:20.08-py3'
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -50,8 +50,8 @@ pipeline {
     stage('L0: Unit Tests CPU') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       steps {
@@ -62,8 +62,8 @@ pipeline {
     stage('L0: Computer Vision Integration') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -89,8 +89,8 @@ pipeline {
     // stage('L0: Integration Tests CPU') {
     //   when {
     //     anyOf{
-    //       branch 'main'
-    //       changeRequest target: 'main'
+    //       branch 'dev'
+    //       changeRequest target: 'dev'
     //     }
     //   }
     //   steps {
@@ -108,8 +108,8 @@ pipeline {
     // stage('L1: System Tests CPU') {
     //   when {
     //     anyOf{
-    //       branch 'main'
-    //       changeRequest target: 'main'
+    //       branch 'dev
+    //       changeRequest target: 'dev'
     //     }
     //   }
     //   steps {
@@ -120,8 +120,8 @@ pipeline {
     stage('L2: ASR dev run') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -189,8 +189,8 @@ pipeline {
     stage('L2: ASR Multi-dataloader dev run') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -230,8 +230,8 @@ pipeline {
     stage('L2: Parallel NER with Megatron') {
      when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
      }
      failFast true
@@ -257,8 +257,8 @@ pipeline {
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -312,26 +312,25 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel MegaBERT Text Classification / SQUAD v2.0') {
+    stage('L2: Parallel MegaBERT Token Classification / SQUAD v2.0') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
       parallel {
-        stage ('Text Classification with MegaBERT') {
+        stage ('Token Classification with MegaBERT') {
           steps {
-            sh 'cd examples/nlp/text_classification && \
-            python text_classification_with_bert.py \
-            model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
-            model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
-            model.language_model.pretrained_model_name=megatron-bert-345m-cased \
+            sh 'cd examples/nlp/token_classification && \
+            python token_classification.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-	    trainer.distributed_backend=ddp \
+    	    trainer.distributed_backend=ddp \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
@@ -370,8 +369,8 @@ pipeline {
     stage('L2: Parallel RoBERTa SQUAD v1.1') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -404,8 +403,8 @@ pipeline {
     stage('L2: Parallel NLP Examples 1') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -414,8 +413,9 @@ pipeline {
           steps {
             sh 'cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
-            model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
-            model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
+            model.dataset.num_classes=6 \
+            model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
+            model.validation_ds.file_path=/home/TestData/nlp/retail_text_classification/dev.tsv \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
@@ -485,8 +485,8 @@ pipeline {
     stage('L2: Intent and Slot Classification') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -504,8 +504,8 @@ pipeline {
     stage('L2: Parallel GLUE Examples') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -544,8 +544,8 @@ pipeline {
     stage('L2: Parallel GLUE-AutoEncoder Examples') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -584,8 +584,8 @@ pipeline {
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -645,8 +645,8 @@ pipeline {
     stage('L2: Parallel Pretraining BERT  using char/word tokenizer') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -707,8 +707,8 @@ pipeline {
    stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
@@ -731,8 +731,8 @@ pipeline {
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       parallel {
@@ -768,8 +768,8 @@ pipeline {
     stage('L2: TTS Fast dev runs 2') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
 
@@ -806,8 +806,8 @@ pipeline {
     stage('L??: Speech Checkpoints tests') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true

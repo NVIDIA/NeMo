@@ -2,3 +2,4 @@ matplotlib
 pypinyin
 attrdict
 pystoi
+pesq

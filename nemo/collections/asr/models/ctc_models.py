@@ -30,7 +30,6 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
@@ -49,8 +48,36 @@ class EncDecCTCModel(ASRModel):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
-            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/QuartzNet15x5Base-En.nemo",
-            description="The model is trained on ~3300 hours of publicly available data and achieves a WER of 3.91% on LibriSpeech dev-clean, and a WER of 10.58% on dev-other.",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo",
+            description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5Base-Zh",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-Zh.nemo",
+            description="QuartzNet15x5 model trained on ai-shell2 Mandarin Chinese dataset.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet5x5LS-En",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet5x5LS-En.nemo",
+            description="QuartzNet5x5 model trained on LibriSpeech dataset only. The model achieves a WER of 5.37% on LibriSpeech dev-clean, and a WER of 15.69% on dev-other.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5NR-En",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5NR-En.nemo",
+            description="QuartzNet15x5Base-En was finetuned with RIR and noise augmentation to make it more robust to noise. This model should be preferred for noisy speech transcription. This model achieves a WER of 3.96% on LibriSpeech dev-clean and a WER of 10.14% on dev-other.",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="Jasper10x5Dr-En",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/Jasper10x5Dr-En.nemo",
+            description="JasperNet10x5Dr model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1. The model achieves a WER of 3.37% on LibriSpeech dev-clean, 9.81% on dev-other.",
         )
         result.append(model)
         return result
@@ -150,6 +177,8 @@ class EncDecCTCModel(ASRModel):
             new_decoder_config['params']['num_classes'] = len(new_vocabulary)
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
+            del self.loss
+            self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
             self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
             # Update config
@@ -236,6 +265,10 @@ class EncDecCTCModel(ASRModel):
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
+
+        # preserve config
+        self._update_dataset_config(dataset_name='train', config=train_data_config)
+
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
@@ -254,11 +287,19 @@ class EncDecCTCModel(ASRModel):
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='test', config=test_data_config)
+
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
 
     @property
@@ -312,9 +353,7 @@ class EncDecCTCModel(ASRModel):
 
         if (batch_nb + 1) % row_log_interval == 0:
             wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
-            tensorboard_logs.update(
-                {'training_batch_wer': wer_num / wer_denom,}
-            )
+            tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
