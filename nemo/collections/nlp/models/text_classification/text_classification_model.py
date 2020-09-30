@@ -315,11 +315,9 @@ class TextClassificationModel(ModelPT, Exportable):
     def from_pretrained(cls, name: str):
         pass
 
-    @classmethod
     def _prepare_for_export(self):
         return self.bert_model._prepare_for_export()
 
-    @classmethod
     def export(
         self,
         output: str,
