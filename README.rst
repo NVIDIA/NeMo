@@ -192,6 +192,9 @@ To run tutorials:
      - Token Classification (Named Entity Recognition)
      - `Token classification: named entity recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
    * - NLP
+     - Joint Intent and Slot Classification
+     - `Joint Intent and Slot Classification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb>`_
+   * - NLP
      - GLUE Benchmark
      - `GLUE benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark.ipynb>`_
    * - NLP
