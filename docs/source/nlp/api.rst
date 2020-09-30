@@ -57,6 +57,8 @@ Modules
     :show-inheritance:
     :members:
 
-.. autofunction::  nemo.collections.nlp.modules.get_pretrained_lm_model
+.. autofunction::  nemo.collections.nlp.modules.get_lm_model
 
 .. autofunction::  nemo.collections.nlp.modules.get_pretrained_lm_models_list
+
+.. autofunction::  nemo.collections.nlp.modules.get_megatron_lm_models_list
