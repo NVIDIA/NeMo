@@ -18,6 +18,7 @@ from nemo.collections.tts.models.glow_tts import GlowTTSModel
 from nemo.collections.tts.models.squeezewave import SqueezeWaveModel
 from nemo.collections.tts.models.tacotron2 import Tacotron2Model
 from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
+from nemo.collections.tts.models.uniglow import UniGlowModel
 from nemo.collections.tts.models.waveglow import WaveGlowModel
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "TwoStagesModel",
     "GriffinLimModel",
     "MelPsuedoInverseModel",
+    "UniGlowModel",
 ]
