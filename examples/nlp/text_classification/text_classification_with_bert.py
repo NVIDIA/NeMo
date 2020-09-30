@@ -185,7 +185,8 @@ def main(cfg: DictConfig) -> None:
         else:
             infer_model.to("cpu")
 
-        results = infer_model.classifytext(queries=queries, batch_size=16)
+        # max_seq_length=512 is the maximum length BERT supports.
+        results = infer_model.classifytext(queries=queries, batch_size=16, max_seq_length=512)
 
         logging.info('The prediction results of some sample queries with the trained model:')
         for query, result in zip(queries, results):

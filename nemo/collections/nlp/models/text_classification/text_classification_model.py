@@ -218,7 +218,7 @@ class TextClassificationModel(ModelPT):
             return
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
+    def _setup_dataloader_from_config(self, cfg: Dict) -> 'torch.utils.data.DataLoader':
         input_file = cfg.file_path
         if not os.path.exists(input_file):
             raise FileNotFoundError(
@@ -249,31 +249,36 @@ class TextClassificationModel(ModelPT):
             collate_fn=dataset.collate_fn,
         )
 
-    def classifytext(self, queries: List[str], batch_size: int = None) -> List[int]:
+    @torch.no_grad()
+    def classifytext(self, queries: List[str], batch_size: int = 1, max_seq_length: int = -1) -> List[int]:
         """
         Get prediction for the queries
         Args:
             queries: text sequences
-            batch_size: batch size to use during inference.
-            device: device to perform the inference on, eg. cuda or cpu
+            batch_size: batch size to use during inference
+            max_seq_length: sequences longer than max_seq_length will get truncated. default -1 disables truncation.
         Returns:
             all_preds: model predictions
         """
         # store predictions for all queries in a single list
         all_preds = []
         mode = self.training
+        device = next(self.parameters()).device
         try:
             # Switch model to evaluation mode
             self.eval()
-            infer_datalayer = self._create_infer_dataloader(queries, batch_size)
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
+            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, max_seq_length)
 
             for i, batch in enumerate(infer_datalayer):
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
 
                 logits = self.forward(
-                    input_ids=input_ids.to(self.device),
-                    token_type_ids=input_type_ids.to(self.device),
-                    attention_mask=input_mask.to(self.device),
+                    input_ids=input_ids.to(device),
+                    token_type_ids=input_type_ids.to(device),
+                    attention_mask=input_mask.to(device),
                 )
 
                 preds = tensor2list(torch.argmax(logits, axis=-1))
@@ -281,17 +286,18 @@ class TextClassificationModel(ModelPT):
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            logging.set_verbosity(logging_level)
         return all_preds
 
-    def _create_infer_dataloader(
-        self, queries: List[str], batch_size: int, max_seq_length: int = -1
+    def _setup_infer_dataloader(
+        self, cfg: Dict, queries: List[str], max_seq_length: int = -1
     ) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
 
         Args:
+            cfg: config dictionary containing data loader params like batch_size, num_workers and pin_memory
             queries: text
-            batch_size: batch size to use during inference
             max_seq_length: maximum length of queries, default is -1 for no limit
         Returns:
             A pytorch DataLoader.
@@ -299,10 +305,10 @@ class TextClassificationModel(ModelPT):
         dataset = TextClassificationDataset(tokenizer=self.tokenizer, queries=queries, max_seq_length=max_seq_length)
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=batch_size,
+            batch_size=cfg["batch_size"],
             shuffle=False,
-            num_workers=self._cfg.dataset.num_workers,
-            pin_memory=self._cfg.dataset.pin_memory,
+            num_workers=cfg.get("num_workers", 0),
+            pin_memory=cfg.get("pin_memory", False),
             drop_last=False,
             collate_fn=dataset.collate_fn,
         )
