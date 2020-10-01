@@ -37,11 +37,7 @@ try:
             return None
 
         dev = next(n.parameters()).device
-        mod = nn.LayerNorm(
-            n.normalized_shape,
-            eps=n.eps,
-            elementwise_affine=n.elementwise_affine,
-        ).to(dev)
+        mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
 
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
