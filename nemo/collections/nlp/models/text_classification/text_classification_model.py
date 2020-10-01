@@ -16,6 +16,7 @@
 import os
 from typing import Dict, List, Optional
 
+import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -32,6 +33,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['TextClassificationModel']
 
@@ -46,8 +48,7 @@ class TextClassificationModel(NLPModel, Exportable):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """Initializes the BERTTextClassifier model.
-        """
+        """Initializes the BERTTextClassifier model."""
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
@@ -334,8 +335,8 @@ class TextClassificationModel(NLPModel, Exportable):
         check_trace: bool = True,
         use_dynamic_axes: bool = True,
     ):
-        return self.bert_model.export(
-            output,
+        bert_model_onnx = self.bert_model.export(
+            'bert_' + output,
             input_example,
             output_example,
             verbose,
@@ -348,3 +349,21 @@ class TextClassificationModel(NLPModel, Exportable):
             check_trace,
             use_dynamic_axes,
         )
+
+        classifier_onnx = self.classifier.export(
+            'classifier_' + output,
+            input_example,
+            output_example,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "CL")
+        onnx.save(output_model, output)
