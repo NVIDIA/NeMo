@@ -59,14 +59,19 @@ We recommend using NVIDIA's PyTorch container version 20.08-py3 with NeMo's main
 
 Installation
 ~~~~~~~~~~~~
-Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
+If you are not inside the NVIDIA docker container, please install Cython first. If you wish to either use the ASR or TTS collection, please install libsndfile1 and ffmpeg as well.
 
-* ``pip install nemo_toolkit[all]==1.0.0b1`` (latest stable version)
+* ``pip install Cython``
+* ``apt-get update && apt-get install -y libsndfile1 ffmpeg`` (If you want to install the TTS or ASR collections)
+
+Once requirements are satisfied, simply install using pip:
+
+* ``pip install nemo_toolkit[all]==1.0.0b1`` (latest version)
 
 Or if you want the latest (or particular) version from GitHub:
 
-* ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[nlp]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo.
-* ``./reinstall.sh`` - from NeMo's git root. This will install the version from current branch.
+* ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo.
+* ``./reinstall.sh`` - from NeMo's git root. This will install the version from current branch in developement mode.
 
 Examples
 ~~~~~~~~
