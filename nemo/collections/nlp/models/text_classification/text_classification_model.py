@@ -335,10 +335,17 @@ class TextClassificationModel(NLPModel, Exportable):
         check_trace: bool = True,
         use_dynamic_axes: bool = True,
     ):
+        if input_example is not None or output_example is not None:
+            logging.warning(
+                "Passed input and output examples will be ignored and recomputed since"
+                " TextClassificationModel consists of two separate models with different"
+                " inputs and outputs."
+            )
+
         bert_model_onnx = self.bert_model.export(
             'bert_' + output,
-            input_example,
-            output_example,
+            None,  # computed by input_example()
+            None,
             verbose,
             export_params,
             do_constant_folding,
@@ -352,8 +359,8 @@ class TextClassificationModel(NLPModel, Exportable):
 
         classifier_onnx = self.classifier.export(
             'classifier_' + output,
-            input_example,
-            output_example,
+            None,  # computed by input_example()
+            None,
             verbose,
             export_params,
             do_constant_folding,
