@@ -57,7 +57,7 @@ class QTypeConfig:
 
 class QType(Model):
     """
-    The LeNet-5 model.
+    The VQA model providing answers by relying only questions.
     """
 
     def __init__(self, cfg: QTypeConfig):
