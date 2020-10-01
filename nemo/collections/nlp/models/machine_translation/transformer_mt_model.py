@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 
-__all__ = ['TransformerLMModel']
+__all__ = ['TransformerMTModel']
 
 
 class TransformerMTModel(ModelPT):
