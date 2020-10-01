@@ -3,6 +3,21 @@ Models
 
 Currently, NeMo's TTS collection supports the following models:
 
+Tacotron 2
+----------
+
+Tacotron 2 :cite:`tts-models-shen2018natural` is an autoregressive rnn-based Encoder-Attention-Decoder model that
+generates mel spectrograms.
+
+Tacotron 2 can be instantiated using the :class:`Tacotron2Model<nemo.collections.tts.models.Tacotron2Model>` class.
+
+Glow-TTS
+--------
+
+Glow-TTS :cite:`tts-models-kim2020glow` is a Flow-based generative model that mel spectrograms.
+
+Glow-TTS can be instantiated using the :class:`GlowTTSModel<nemo.collections.tts.models.GlowTTSModel>` class.
+
 .. _WaveGlow_Model:
 
 WaveGlow

@@ -94,7 +94,6 @@ extras_require = {
     'asr': req_file("requirements_asr.txt"),
     'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
-    'simple_gan': req_file("requirements_simple_gan.txt"),
     'tts': req_file("requirements_tts.txt"),
 }
 
