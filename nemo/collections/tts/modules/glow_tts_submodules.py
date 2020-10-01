@@ -61,13 +61,15 @@ def sequence_mask(length, max_length=None):
     return x.unsqueeze(0) < length.unsqueeze(1)
 
 
-def maximum_path(value, mask, max_neg_val=-np.inf):
+def maximum_path(value, mask, max_neg_val=None):
     """
     Monotonic alignment search algorithm
     Numpy-friendly version. It's about 4 times faster than torch version.
     value: [b, t_x, t_y]
     mask: [b, t_x, t_y]
     """
+    if max_neg_val is None:
+        max_neg_val = -np.inf  # Patch for Sphinx complaint
     value = value * mask
 
     device = value.device
