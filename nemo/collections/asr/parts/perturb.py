@@ -61,6 +61,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 def read_one_audiosegment(manifest, target_sr, rng, tarred_audio=False, audio_dataset=None):
+    duration = 0
     if tarred_audio:
         if audio_dataset is None:
             raise TypeError("Expected augmentation dataset but got None")
@@ -75,8 +76,9 @@ def read_one_audiosegment(manifest, target_sr, rng, tarred_audio=False, audio_da
         audio_record = rng.sample(manifest.data, 1)[0]
         audio_file = audio_record.audio_file
         offset = audio_record.offset
+        duration = audio_record.duration
 
-    return AudioSegment.from_file(audio_file, target_sr=target_sr, offset=offset)
+    return AudioSegment.from_file(audio_file, target_sr=target_sr, offset=offset, duration=duration)
 
 
 class Perturbation(object):
