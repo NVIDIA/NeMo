@@ -2,3 +2,4 @@ latexcodec
 sphinx_rtd_theme
 sphinxcontrib-bibtex
 wrapt
+megatron-lm==1.1.4
