@@ -34,7 +34,12 @@ NeMo toolkit makes it possible for researchers to easily compose complex neural 
 **Neural Modules** are conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 
 
-The toolkit comes with extendable collections of pre-built modules and ready-to-use models for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS).
+The toolkit comes with extendable collections of pre-built modules and ready-to-use models for:
+
+* `Automatic Speech Recognition (ASR) <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_
+* `Natural Language Processing (NLP) <https://ngc.nvidia.com/catalog/models/nvidia:nemonlpmodels>`_
+* `Speech synthesis, or Text-To-Speech (TTS) <https://ngc.nvidia.com/catalog/models/nvidia:nemottsmodels>`_
+
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
 
 
@@ -46,9 +51,20 @@ NeMo's works with:
 1) Python 3.6 or 3.7
 2) Pytorch 1.6 or above
 
-Docker container:
-~~~~~~~~~~~~~~~~~
-We recommend using NVIDIA's PyTorch container version 20.08-py3 with NeMo's main branch.
+Docker containers:
+~~~~~~~~~~~~~~~~~~
+The easiest way to start training with NeMo is by using `NeMo's container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_.
+
+It has all requirements and NeMo 1.0.0b1 already installed.
+
+.. code-block:: bash
+
+    docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
+    -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:v1.0.0b1
+
+
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 20.08-py3.
 
 .. code-block:: bash
 
