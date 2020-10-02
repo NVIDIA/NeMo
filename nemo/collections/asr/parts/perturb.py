@@ -76,7 +76,7 @@ def read_one_audiosegment(manifest, target_sr, rng, tarred_audio=False, audio_da
         audio_record = rng.sample(manifest.data, 1)[0]
         audio_file = audio_record.audio_file
         offset = 0 if audio_record.offset is None else audio_record.offset
-        duration = audio_record.duration
+        duration = 0 if audio_record.duration is None else audio_record.duration
 
     return AudioSegment.from_file(audio_file, target_sr=target_sr, offset=offset, duration=duration)
 
