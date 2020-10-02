@@ -61,7 +61,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 def read_one_audiosegment(manifest, target_sr, rng, tarred_audio=False, audio_dataset=None):
-    duration = 0
+
     if tarred_audio:
         if audio_dataset is None:
             raise TypeError("Expected augmentation dataset but got None")
@@ -69,9 +69,9 @@ def read_one_audiosegment(manifest, target_sr, rng, tarred_audio=False, audio_da
         manifest_idx = manifest.mapping[file_id]
         manifest_entry = manifest[manifest_idx]
 
-        offset = manifest_entry.offset
-        if offset is None:
-            offset = 0
+        offset = 0 if manifest_entry.offset is None else manifest_entry.offset
+        duration = 0 if manifest_entry.duration is None else manifest_entry.duration
+
     else:
         audio_record = rng.sample(manifest.data, 1)[0]
         audio_file = audio_record.audio_file
