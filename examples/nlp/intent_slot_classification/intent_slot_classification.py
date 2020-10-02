@@ -55,7 +55,7 @@ def main(cfg: DictConfig) -> None:
         # we will setup testing data reusing the same config (test section)
         eval_model.setup_test_data(test_data_config=cfg.model.test_ds)
 
-        # we will reinitialize the trainer with a single GPU and no distributed backend for evaluation
+        # we will reinitialize the trainer with a single GPU and no distributed backend for the evaluation
         # we need to call the next line also to overcome an issue with a trainer reinitialization in PT
         os.environ['PL_TRAINER_GPUS'] = "0"
         cfg.trainer.gpus = 1 if cfg.trainer.gpus != 0 else 0
@@ -63,7 +63,7 @@ def main(cfg: DictConfig) -> None:
         eval_trainer = pl.Trainer(**cfg.trainer)
 
         eval_trainer.test(model=eval_model, ckpt_path=None, verbose=False)
-        # trainer.test(model=eval_model, ckpt_path=None, verbose=False)
+
         logging.info("Testing finished!")
         logging.info(
             "================================================================================================"
