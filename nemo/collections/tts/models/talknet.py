@@ -31,6 +31,7 @@ from nemo.core.neural_types.elements import (
     SpectrogramType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import talknet_utils
 
 
 class TalkNetDursLoss(Loss):
@@ -269,7 +270,19 @@ class TalkNetSpectModel(SpectrogramGenerator):
     def parse(self, text: str, **kwargs) -> torch.Tensor:
         return torch.tensor(self.vocab.encode(text)).long()
 
-    def generate_spectrogram(self, text: torch.Tensor, **kwargs) -> torch.Tensor:
-        text, text_len = text.unsqueeze(0), torch.tensor(len(text)).unsqueeze(0)
-        mel = self(text=text, text_len=text_len)[0]
+    def load_durs_predictor(self, checkpoint_path):
+        self.dn = TalkNetDursModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
+
+
+    def generate_spectrogram(self, tokens: torch.Tensor, **kwargs) -> torch.Tensor:
+        text, text_len = tokens.unsqueeze(0), torch.tensor(len(tokens)).unsqueeze(0)
+
+        tokens_with_blanks, tokens_len = talknet_utils.interleave(text, text_len, self.dn.vocab)
+
+        durs_log = self.dn.forward(text=tokens_with_blanks, text_len=torch.tensor([1]))
+        durs = (durs_log.exp() + 1).long()
+
+        tokens_expanded, tokens_len = talknet_utils.repeat_interleave(tokens_with_blanks, durs)
+
+        mel = self(text=tokens_expanded, text_len=tokens_len)[0]
         return mel
