@@ -151,7 +151,6 @@ def main(cfg: DictConfig) -> None:
         # the same script, and it can be a problem with multi-GPU training.
         # We also need to reset the environment variable PL_TRAINER_GPUS to prevent PT from initializing ddp.
         # When evaluation and training scripts are in separate files, no need for this resetting.
-        os.environ.pop('PL_TRAINER_GPUS')
         eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
         eval_trainer_cfg.distributed_backend = None
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
