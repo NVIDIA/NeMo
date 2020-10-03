@@ -845,6 +845,24 @@ class ModelPT(LightningModule, Model):
         """
         return self._test_names[dataloader_idx]
 
+    def teardown(self, stage: str):
+        """
+        Called at the end of fit and test.
+
+        Args:
+            stage: either 'fit' or 'test'
+        """
+        if stage == 'fit':
+            # Update env variable to bypass multi gpu issue after training
+            # This fix affects usage of trainer.test() after trainer.train()
+            # If trainer.train() was done on multiple GPUs, then trainer.test()
+            # will try to do ddp, even if its a new Trainer object with just 1 GPU.
+            # Temporary patch to fix that
+            if 'PL_TRAINER_GPUS' in os.environ:
+                os.environ.pop('PL_TRAINER_GPUS')
+
+        super().teardown(stage)
+
     def prepare_test(self, trainer: 'Trainer') -> bool:
         """
         Helper method to check whether the model can safely be tested
