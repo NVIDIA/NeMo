@@ -372,10 +372,10 @@ class SpeakerDecoder(NeuralModule, Exportable):
 
         if type(emb_sizes) is str:
             emb_sizes = emb_sizes.split(',')
-        elif emb_sizes == None:
-            emb_sizes = [512, 512]
+        elif type(emb_sizes) is int:
+            emb_sizes = [emb_sizes]
         else:
-            emb_sizes = list(emb_sizes)
+            emb_sizes = [512, 512]
 
         self.input_feat_in = feat_in
         self._num_classes = num_classes
