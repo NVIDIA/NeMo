@@ -442,6 +442,34 @@ pipeline {
         }
       }
     }
+    stage('L2: Text Classification with Model Parallel Size 2 Megatron BERT') {
+      when {
+        anyOf{
+          branch 'dev'
+          changeRequest target: 'dev'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/text_classification && \
+        python text_classification_with_bert.py \
+        exp_manager.create_checkpoint_callback=false \
+        exp_manager.exp_dir=exp_mp_2_megatron_bert \
+        trainer.gpus=[0,1] \
+        trainer.num_nodes=1 \
+        ~trainer.amp_level \
+        +trainer.replace_sampler_ddp=false \
+        +trainer.fast_dev_run=true \
+        model.dataset.num_classes=6 \
+        model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
+        model.train_ds.batch_size=4 \
+        model.language_model.pretrained_model_name=megatron-bert-uncased \
+        model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
+        model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
+        '
+        sh 'rm -rf examples/nlp/text_classification/exp_mp_2_megatron_bert'
+      }
+    }
 
     stage('L2: Parallel NLP Examples 2') {
       when {
@@ -728,32 +756,6 @@ pipeline {
       }
     }
 
-    stage('L2: Model Parallel Size 2 Megatron BERT') {
-      when {
-        anyOf{
-          branch 'dev'
-          changeRequest target: 'dev'
-        }
-      }
-      failFast true
-      steps{
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        exp_manager.create_checkpoint_callback=false \
-        exp_manager.exp_dir=exp_mp_2_megatron_bert \
-        trainer.gpus=[0,1] \
-        trainer.num_nodes=1 \
-        ~trainer.amp_level \
-        +trainer.replace_sampler_ddp=false \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        model.train_ds.batch_size=4 \
-        model.language_model.pretrained_model_name=megatron-bert-uncased \
-        model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
-        model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
-        '
-        sh 'rm -rf examples/nlp/token_classification/exp_mp_2_megatron_bert'
-      }
-    }
 
 
     stage('L2: TTS Fast dev runs 1') {
