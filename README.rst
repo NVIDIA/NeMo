@@ -42,6 +42,8 @@ The toolkit comes with extendable collections of pre-built modules and ready-to-
 
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
 
+Introductory video : https://youtu.be/wBgpMf_KQVw
+
 
 Requirements
 ------------
