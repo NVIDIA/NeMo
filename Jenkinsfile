@@ -475,8 +475,8 @@ pipeline {
     stage('L2: Parallel NLP Examples 2') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'dev'
+          changeRequest target: 'dev'
         }
       }
       failFast true
