@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import torch
-from torch import nn
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
@@ -47,15 +46,20 @@ class RNNTLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, reduction=None):
         super(RNNTLoss, self).__init__()
-        self._blank = num_classes
 
         if not WARP_RNNT_AVAILABLE:
-            raise ImportError("Could not import `warprnnt_pytorch`.\n"
-                              "Please visit https://github.com/SeanNaren/warp-ctc and follow the steps in the readme "
-                              "to build and install the pytorch bindings for RNNT Loss, or use the provided docker "
-                              "container that supports RNN-T loss.")
+            raise ImportError(
+                "Could not import `warprnnt_pytorch`.\n"
+                "Please visit https://github.com/HawkAaron/warp-transducer \n"
+                "and follow the steps in the readme to build and install the "
+                "pytorch bindings for RNNT Loss, or use the provided docker "
+                "container that supports RNN-T loss."
+            )
+
+        self._blank = num_classes
+        self._loss = warprnnt.RNNTLoss(blank=self._blank, reduction=reduction)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -66,8 +70,11 @@ class RNNTLoss(Loss):
         targets = targets.long()
         # here we transpose because we expect [B, T, D] while PyTorch assumes [T, B, D]
         log_probs = log_probs.transpose(1, 0)
-        loss = super().forward(
-            log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
-        )
+
+        # force cast to float32
+        if log_probs.dtype != torch.float32:
+            log_probs = log_probs.float()
+
+        loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
         loss = torch.mean(loss)
         return loss
