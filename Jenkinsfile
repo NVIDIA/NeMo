@@ -740,6 +740,7 @@ pipeline {
         sh 'cd examples/nlp/token_classification && \
         python token_classification.py \
         exp_manager.create_checkpoint_callback=false \
+        exp_manager.exp_dir=exp_mp_2_megatron_bert \
         trainer.gpus=[0,1] \
         trainer.num_nodes=1 \
         ~trainer.amp_level \
@@ -750,6 +751,7 @@ pipeline {
         model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
         model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
         '
+        sh 'rm -rf examples/nlp/token_classification/exp_mp_2_megatron_bert'
       }
     }
 
