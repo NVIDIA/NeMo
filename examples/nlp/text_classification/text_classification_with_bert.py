@@ -131,7 +131,9 @@ def main(cfg: DictConfig) -> None:
             logging.info(
                 "================================================================================================"
             )
-            logging.info("Starting the evaluating the the best checkpoint on a data file (validation set by default)...")
+            logging.info(
+                "Starting the evaluating the the best checkpoint on a data file (validation set by default)..."
+            )
             # we use the the path of the checkpoint from last epoch from the training, you may update it to any checkpoint
             # Create an evaluation model and load the checkpoint
             eval_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
