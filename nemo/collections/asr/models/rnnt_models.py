@@ -171,9 +171,9 @@ class EncDecRNNTModel(ASRModel):
             self._wer = WER(vocabulary=self.joint.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
             # Update config
-            OmegaConf.set_struct(self._cfg.joint, False)
-            self._cfg.joint = new_joint_config
-            OmegaConf.set_struct(self._cfg.joint, True)
+            OmegaConf.set_struct(self.cfg.joint, False)
+            self.cfg.joint = new_joint_config
+            OmegaConf.set_struct(self.cfg.joint, True)
 
             logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
@@ -365,10 +365,6 @@ class EncDecRNNTModel(ASRModel):
             'test_wer_denom': logs['val_wer_denom'],
         }
         return test_logs
-
-    def test_dataloader(self):
-        if self._test_dl is not None:
-            return self._test_dl
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
