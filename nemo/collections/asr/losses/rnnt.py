@@ -52,7 +52,7 @@ class RNNTLoss(Loss):
         if not WARP_RNNT_AVAILABLE:
             raise ImportError(
                 "Could not import `warprnnt_pytorch`.\n"
-                "Please visit https://github.com/HawkAaron/warp-transducer \n"
+                "Please visit https://github.com/HawkAaron/warp-transducer "
                 "and follow the steps in the readme to build and install the "
                 "pytorch bindings for RNNT Loss, or use the provided docker "
                 "container that supports RNN-T loss."
