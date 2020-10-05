@@ -38,6 +38,27 @@ RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.gi
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
+# build RNN-T loss
+WORKDIR /tmp/rnnt
+RUN COMMIT_SHA=e2609d83b4de81c7c9c4804de490d1084655d3d9 && \
+    git clone -b $COMMIT_SHA https://github.com/SeanNaren/warp-ctc.git && \
+    cd warp-ctc && mkdir build && cd build && \
+    # set env flags
+    export CUDA_HOME="/usr/local/cuda" && \
+    export WARP_RNNT_PATH=`pwd` && \
+    export CUDA_TOOLKIT_ROOT_DIR=$CUDA_HOME && \
+    export LD_LIBRARY_PATH="$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH" && \
+    export LIBRARY_PATH=$CUDA_HOME/lib64:$LIBRARY_PATH && \
+    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH && \
+    export CFLAGS="-I$CUDA_HOME/include $CFLAGS" && \
+    # build
+    cmake .. && \
+    make VERBOSE=1 && \
+    # install pytorch binding
+    cd ../pytorch_binding && \
+    pip install .
+
+
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
