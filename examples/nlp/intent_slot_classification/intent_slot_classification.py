@@ -44,12 +44,14 @@ def main(cfg: DictConfig) -> None:
     logging.info("Starting the testing of the trained model on test set...")
     logging.info("We will load the latest model saved checkpoint from the training...")
 
-    # retrieve the path to the last checkpoint of the training (you can use the best checkpoint instead)
-    checkpoint_path = os.path.join(
-        trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt"
-    )
+    # run this only on the master thread in case of multi-gpu training, for single gpu no difference
+    if trainer.checkpoint_callback is not None:
+        # retrieve the path to the last checkpoint of the training (you can use the best checkpoint instead)
+        checkpoint_path = os.path.join(
+            trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt"
+        )
 
-    if os.path.exists(checkpoint_path):
+        # load a model from the checkpoint
         eval_model = IntentSlotClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
 
         # we will setup testing data reusing the same config (test section)
