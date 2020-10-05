@@ -114,9 +114,7 @@ class MegatronBertEncoder(BertModule):
         if self._lazy_init_fn is not None:
             self._lazy_init_fn()
             self._lazy_init_fn = None
-        extended_attention_mask = bert_extended_attention_mask(
-            attention_mask, next(self.language_model.parameters()).dtype
-        )
+        extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
 
         sequence_output = self.language_model(
