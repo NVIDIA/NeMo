@@ -40,9 +40,17 @@ RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.gi
 
 # build RNN-T loss
 WORKDIR /tmp/rnnt
-RUN COMMIT_SHA=e2609d83b4de81c7c9c4804de490d1084655d3d9 && \
-    git clone -b $COMMIT_SHA https://github.com/SeanNaren/warp-ctc.git && \
-    cd warp-ctc && mkdir build && cd build && \
+RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
+    git clone https://github.com/HawkAaron/warp-transducer && \
+    cd warp-transducer && \
+    git checkout $COMMIT_SHA && \
+    sed -i 's/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30 -O2")/#set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30 -O2")/g' CMakeLists.txt && \
+    sed -i 's/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")/g' CMakeLists.txt && \
+    # build
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make VERBOSE=1 && \
     # set env flags
     export CUDA_HOME="/usr/local/cuda" && \
     export WARP_RNNT_PATH=`pwd` && \
@@ -51,9 +59,6 @@ RUN COMMIT_SHA=e2609d83b4de81c7c9c4804de490d1084655d3d9 && \
     export LIBRARY_PATH=$CUDA_HOME/lib64:$LIBRARY_PATH && \
     export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH && \
     export CFLAGS="-I$CUDA_HOME/include $CFLAGS" && \
-    # build
-    cmake .. && \
-    make VERBOSE=1 && \
     # install pytorch binding
     cd ../pytorch_binding && \
     pip install .
