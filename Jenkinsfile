@@ -457,6 +457,7 @@ pipeline {
         exp_manager.exp_dir=exp_mp_2_megatron_bert \
         trainer.gpus=[0,1] \
         trainer.num_nodes=1 \
+        trainer.precision=16 \
         ~trainer.amp_level \
         +trainer.replace_sampler_ddp=false \
         +trainer.fast_dev_run=true \
