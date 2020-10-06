@@ -215,10 +215,15 @@ class RNNTJoint(NeuralModule):
         }
 
     def __init__(
-        self, joint: Dict[str, Any], num_classes: int, log_softmax: bool = True, preserve_memory: bool = False
+        self,
+        joint: Dict[str, Any],
+        num_classes: int,
+        log_softmax: Optional[bool] = None,
+        preserve_memory: bool = False,
     ):
         super().__init__()
 
+        # Log softmax should be applied explicitly only for CPU
         self.log_softmax = log_softmax
         self.preserve_memory = preserve_memory
 
@@ -275,8 +280,13 @@ class RNNTJoint(NeuralModule):
         if self.preserve_memory:
             torch.cuda.empty_cache()
 
-        if self.log_softmax:
-            res = res.log_softmax(dim=-1)
+        # If log_softmax is automatic
+        if self.log_softmax is None:
+            if not res.is_cuda:  # Use log softmax only if on CPU
+                res = res.log_softmax(dim=-1)
+        else:
+            if self.log_softmax:
+                res = res.log_softmax(dim=-1)
 
         return res
 
@@ -285,8 +295,7 @@ class RNNTJoint(NeuralModule):
         enc = torch.nn.Linear(enc_n_hidden, joint_n_hidden)
 
         if activation not in ['relu', 'sigmoid', 'tanh']:
-            raise ValueError("Unsupported activation for joint step - please pass one of "
-                             "[relu, sigmoid, tanh]")
+            raise ValueError("Unsupported activation for joint step - please pass one of " "[relu, sigmoid, tanh]")
 
         activation = activation.lower()
 
