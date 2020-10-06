@@ -42,6 +42,7 @@ autodoc_mock_imports = [
     'pytorch_lightning',
     'h5py',
     'kaldi_io',
+    'transformers',
     'apex',
     'ruamel',
     'frozendict',
@@ -70,7 +71,6 @@ autodoc_mock_imports = [
     'megatron',
     'pesq',
     'pystoi',
-    'os.path',
 ]
 
 # -- General configuration ------------------------------------------------
