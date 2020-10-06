@@ -5,7 +5,7 @@ NeMo NLP collection API
 Model Classes
 -------------
 
-.. autoclass:: nemo.collections.nlp.models.GLUEModel
+.. autoclass:: nemo.collections.nlp.models.glue_benchmark.glue_benchmark_model.GLUEModel
     :show-inheritance:
     :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
 
