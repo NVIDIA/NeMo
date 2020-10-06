@@ -43,7 +43,6 @@ autodoc_mock_imports = [
     'h5py',
     'kaldi_io',
     'transformers',
-    'transformers.tokenization_bert',
     'apex',
     'ruamel',
     'frozendict',
@@ -72,7 +71,6 @@ autodoc_mock_imports = [
     'megatron',
     'pesq',
     'pystoi',
-    'transformers.AlbertModel',
 ]
 
 # -- General configuration ------------------------------------------------
