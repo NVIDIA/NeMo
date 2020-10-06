@@ -92,6 +92,7 @@ class SmoothedCrossEntropyLoss(Loss):
         batch_size, seq_len, vocab_size = logits.size()
         smoothing = vocab_size * self._label_smoothing / (vocab_size - 1)
         target_logits = logits.gather(2, labels.unsqueeze(2)).squeeze(2)
+
         smoothing_logits = logits.mean(dim=-1)
         neg_log_likelihood = (1.0 - smoothing) * target_logits + smoothing * smoothing_logits
         neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k :]

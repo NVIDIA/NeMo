@@ -18,7 +18,6 @@ trainer:
 
 model:
 
-
   language_model:
     tokenizer: word
     special_tokens:
@@ -42,6 +41,7 @@ model:
     num_workers: 2 # number of workers for data loaders
     drop_last: false # drops the last last batch if it is smaller than the batch size
     pin_memory: false # enables pin_memory feature of the data loaders
+    predict_last_k: 64 # number of last tokens to predict on evaluation
 
   train_ds:
     file_name: ??? # path to file with training data
@@ -54,7 +54,6 @@ model:
     batch_size: 32
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
-    predict_last_k: 64
 
   optim:
     name: adam
