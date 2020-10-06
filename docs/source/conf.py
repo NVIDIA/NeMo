@@ -71,6 +71,7 @@ autodoc_mock_imports = [
     'pesq',
     'pystoi',
     'os',
+    'os.fspath',
 ]
 
 # -- General configuration ------------------------------------------------
