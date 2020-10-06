@@ -2,8 +2,9 @@ NeMo NLP collection API
 =======================
 
 
-Model Classes
--------------
+Modules
+-------
 
-.. automodule:: nemo.collections.nlp.models.glue_benchmark.glue_benchmark_model
+.. autoclass:: nemo.collections.nlp.modules.BertModule
     :show-inheritance:
+    :members:
