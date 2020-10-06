@@ -5,6 +5,6 @@ NeMo NLP collection API
 Modules
 -------
 
-.. autoclass:: from nemo.collections.nlp.modules.common.huggingface.BertEncoder
+.. autoclass:: nemo.collections.nlp.modules.common.huggingface.bert.BertEncoder
     :show-inheritance:
     :members:
