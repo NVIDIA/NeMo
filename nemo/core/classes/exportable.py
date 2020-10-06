@@ -155,7 +155,7 @@ class Exportable(ABC):
                     # Verify the model can be read, and is valid
                     onnx_model = onnx.load(output)
                     onnx.checker.check_model(onnx_model, full_check=True)
-
+                    return onnx_model
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:
@@ -202,7 +202,7 @@ class Exportable(ABC):
 
     def _prepare_for_export(self):
         """
-        Override this method to prepare module for export. This is in-place operation. 
-        Base version does common necessary module replacements (Apex etc) 
+        Override this method to prepare module for export. This is in-place operation.
+        Base version does common necessary module replacements (Apex etc)
         """
         replace_for_export(self)

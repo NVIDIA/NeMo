@@ -84,3 +84,63 @@ class Vocoder(ModelPT, ABC):
             if subclass_models is not None and len(subclass_models) > 0:
                 list_of_models.extend(subclass_models)
         return list_of_models
+
+
+class LinVocoder(ModelPT, ABC):
+    """ Base class for all TTS models that generate audio conditioned a on spectrogram """
+
+    @abstractmethod
+    def convert_linear_spectrogram_to_audio(self, spec: 'torch.tensor', **kwargs) -> 'torch.tensor':
+        """
+        Accepts a batch of linear spectrograms and returns a batch of audio
+
+        Args:
+            spec: A torch tensor representing the spectrograms to be vocoded ['B', 'n_freqs', 'T']
+
+        Returns:
+            audio 
+        """
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        for subclass in cls.__subclasses__():
+            subclass_models = subclass.list_available_models()
+            if subclass_models is not None and len(subclass_models) > 0:
+                list_of_models.extend(subclass_models)
+        return list_of_models
+
+
+class MelToSpec(ModelPT, ABC):
+    """ Base class for all TTS models that generate audio conditioned a on spectrogram """
+
+    @abstractmethod
+    def convert_mel_spectrogram_to_linear(self, mel: 'torch.tensor', **kwargs) -> 'torch.tensor':
+        """
+        Accepts a batch of spectrograms and returns a batch of audio
+
+        Args:
+            mel: A torch tensor representing the mel encoded spectrograms ['B', 'mel_freqs', 'T']
+
+        Returns:
+            spec: A torch tensor representing the linears spectrograms ['B', 'n_freqs', 'T']
+        """
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        for subclass in cls.__subclasses__():
+            subclass_models = subclass.list_available_models()
+            if subclass_models is not None and len(subclass_models) > 0:
+                list_of_models.extend(subclass_models)
+        return list_of_models

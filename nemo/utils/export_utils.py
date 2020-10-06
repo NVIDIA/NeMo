@@ -14,6 +14,7 @@
 
 from typing import Callable, Dict, Optional, Type
 
+import onnx
 import torch
 import torch.nn as nn
 
@@ -106,7 +107,7 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
     """
     Generic function generator to replace BaseT module with DestT. BaseT and DestT should have same atrributes. No weights are copied.
     Args:
-        BaseT : module type to replace 
+        BaseT : module type to replace
         DestT : destination module type
     Returns:
         swap function to replace BaseT module with DestT
@@ -186,3 +187,39 @@ def replace_for_export(model: nn.Module, replace_1D_2D: bool = False) -> nn.Modu
     if replace_1D_2D:
         # TODO: add squeeze/unsqueeze
         replace_modules(model, default_Apex_replacements)
+
+
+def attach_onnx_to_onnx(model1: onnx.ModelProto, model2: onnx.ModelProto, prefix2: str):
+
+    if len(model1.graph.output) < 1 or len(model1.graph.output) != len(model2.graph.output):
+        raise ValueError(
+            'Incompatible input/output dimensions: {} != {}'.format(len(model1.graph.output), len(model2.graph.output))
+        )
+    for i in range(len(model2.graph.initializer)):
+        model2.graph.initializer[i].name = prefix2 + model2.graph.initializer[i].name
+
+    for o in range(len(model1.graph.output)):
+        for i in range(len(model2.graph.node)):
+            for j in range(len(model2.graph.node[i].input)):
+                if model2.graph.node[i].input[j] == model2.graph.input[o].name:
+                    model2.graph.node[i].input[j] = model1.graph.output[o].name
+                else:
+                    model2.graph.node[i].input[j] = prefix2 + model2.graph.node[i].input[j]
+            for j in range(len(model2.graph.node[i].output)):
+                if model2.graph.node[i].output[j] != model2.graph.output[o].name:
+                    model2.graph.node[i].output[j] = prefix2 + model2.graph.node[i].output[j]
+
+    graph = onnx.GraphProto()
+    graph.node.extend(model1.graph.node)
+    graph.node.extend(model2.graph.node)
+    graph.name = model1.graph.name + " + " + model2.graph.name
+    graph.input.extend(model1.graph.input)
+    graph.output.extend(model2.graph.output)
+    graph.initializer.extend(model1.graph.initializer)
+    graph.initializer.extend(model2.graph.initializer)
+    graph.value_info.extend(model2.graph.value_info)
+    if model1.graph.doc_string:
+        graph.doc_string = model1.graph.doc_string
+    output_model = onnx.helper.make_model(graph)
+    onnx.checker.check_model(output_model, full_check=True)
+    return output_model
