@@ -24,6 +24,12 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
     Abstract class offering interface shared between all PyTorch Neural Modules.
     """
 
+    def __init__(self) -> None:
+        Module.__init__(self)
+        Typing.__init__(self)
+        Serialization.__init__(self)
+        FileIO.__init__(self)
+
     @property
     def num_weights(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)

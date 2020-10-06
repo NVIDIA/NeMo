@@ -16,19 +16,20 @@
 
 from transformers import AlbertModel
 
-# from nemo.collections.nlp.modules.common.bert_module import BertModule
+from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 
 __all__ = ['AlbertEncoder']
 
 
-class AlbertEncoder(AlbertModel):
+class AlbertEncoder(AlbertModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
 
     def __init__(self) -> None:
-        AlbertModel.__init__()
+        AlbertModel.__init__(self)
+        BertModule.__init__(self)
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
