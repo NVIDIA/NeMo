@@ -28,8 +28,8 @@ class AlbertEncoder(AlbertModel, BertModule):
     """
 
     def __init__(self) -> None:
-        BertModule.__init__()
         AlbertModel.__init__()
+        BertModule.__init__()
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):

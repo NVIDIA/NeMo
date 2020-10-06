@@ -28,7 +28,8 @@ __all__ = ['BertModule']
 
 class BertModule(NeuralModule, Exportable):
     def __init__(self) -> None:
-        super().__init__()
+        NeuralModule.__init__()
+        Exportable.__init__()
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
