@@ -72,7 +72,7 @@ autodoc_mock_imports = [
     'megatron',
     'pesq',
     'pystoi',
-    'AlbertModel',
+    'transformers.AlbertModel',
 ]
 
 # -- General configuration ------------------------------------------------
