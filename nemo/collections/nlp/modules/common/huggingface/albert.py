@@ -27,6 +27,9 @@ class AlbertEncoder(AlbertModel, BertModule):
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
         res = super().forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)[0]
