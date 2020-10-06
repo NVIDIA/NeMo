@@ -12,22 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
-import nemo
 from nemo.collections.asr.parts.rnn import label_collate
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
 
-class _GreedyRNNTDecoderInfer(NeuralModule):
+class _GreedyRNNTInfer(Typing):
     """A greedy transducer decoder.
         Args:
             blank_symbol: See `Decoder`.
@@ -55,11 +51,11 @@ class _GreedyRNNTDecoderInfer(NeuralModule):
         return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
 
     def __init__(
-            self,
-            decoder_model: 'RNNTDecoder',
-            joint_model: 'RNNTJoint',
-            blank_index: int,
-            max_symbols_per_step: int,
+        self,
+        decoder_model: 'AbstractRNNTDecoder',
+        joint_model: 'AbstractRNNTJoint',
+        blank_index: int,
+        max_symbols_per_step: Optional[int] = None,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -74,8 +70,15 @@ class _GreedyRNNTDecoderInfer(NeuralModule):
 
         self.max_symbols = max_symbols_per_step
 
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
     def _pred_step(
-        self, label: Union[torch.Tensor, int], hidden: Optional[torch.Tensor], batch_size: Optional[int] = None,
+        self,
+        label: Union[torch.Tensor, int],
+        hidden: Optional[torch.Tensor],
+        add_sos: bool = False,
+        batch_size: Optional[int] = None,
     ) -> (torch.Tensor, torch.Tensor):
         """
         Args:
@@ -97,7 +100,7 @@ class _GreedyRNNTDecoderInfer(NeuralModule):
         else:
             # Label is an integer
             if label == self._SOS:
-                return self.decoder.predict(None, hidden, add_sos=False, batch_size=batch_size)
+                return self.decoder.predict(None, hidden, add_sos=add_sos, batch_size=batch_size)
 
             if label > self._blank_index:
                 label -= 1
@@ -105,7 +108,7 @@ class _GreedyRNNTDecoderInfer(NeuralModule):
             label = label_collate([[label]], device=self.decoder.device)
 
         # output: [B, 1, K]
-        return self.decoder.predict(label, hidden, add_sos=False, batch_size=batch_size)
+        return self.decoder.predict(label, hidden, add_sos=add_sos, batch_size=batch_size)
 
     def _joint_step(self, enc, pred, log_normalize: Optional[bool] = None):
         """
@@ -128,7 +131,7 @@ class _GreedyRNNTDecoderInfer(NeuralModule):
         return logits
 
 
-class GreedyRNNTDecoderInfer(_GreedyRNNTDecoderInfer):
+class GreedyRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
     Args:
         blank_symbol: See `Decoder`.
@@ -142,16 +145,16 @@ class GreedyRNNTDecoderInfer(_GreedyRNNTDecoderInfer):
 
     def __init__(
         self,
-        decoder_model: 'RNNTDecoder',
-        joint_model: 'RNNTJoint',
+        decoder_model: 'AbstractRNNTDecoder',
+        joint_model: 'AbstractRNNTJoint',
         blank_index: int,
-        max_symbols_per_step: int,
+        max_symbols_per_step: Optional[int] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
-            max_symbols_per_step=max_symbols_per_step
+            max_symbols_per_step=max_symbols_per_step,
         )
 
     @typecheck()
@@ -235,7 +238,7 @@ class GreedyRNNTDecoderInfer(_GreedyRNNTDecoderInfer):
         return label
 
 
-class GreedyBatchedRNNTDecoderInfer(_GreedyRNNTDecoderInfer):
+class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
     Args:
         blank_symbol: See `Decoder`.
@@ -249,16 +252,16 @@ class GreedyBatchedRNNTDecoderInfer(_GreedyRNNTDecoderInfer):
 
     def __init__(
         self,
-        decoder_model: 'RNNTDecoder',
-        joint_model: 'RNNTJoint',
+        decoder_model: 'AbstractRNNTDecoder',
+        joint_model: 'AbstractRNNTJoint',
         blank_index: int,
-        max_symbols_per_step: int,
+        max_symbols_per_step: Optional[int] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
-            max_symbols_per_step=max_symbols_per_step
+            max_symbols_per_step=max_symbols_per_step,
         )
 
     @typecheck()
@@ -324,7 +327,7 @@ class GreedyBatchedRNNTDecoderInfer(_GreedyRNNTDecoderInfer):
 
         max_out_len = out_len.max()
         for time_idx in range(max_out_len):
-            f = x[:, time_idx: time_idx+1, :]  # [B, 1, D]
+            f = x[:, time_idx : time_idx + 1, :]  # [B, 1, D]
 
             not_blank = True
             symbols_added = 0
@@ -333,7 +336,7 @@ class GreedyBatchedRNNTDecoderInfer(_GreedyRNNTDecoderInfer):
             blank_mask *= reset
 
             # Update blank mask with time mask
-            time_mask = (time_idx >= out_len)
+            time_mask = time_idx >= out_len
             blank_mask.bitwise_or_(time_mask)
 
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
@@ -348,7 +351,7 @@ class GreedyBatchedRNNTDecoderInfer(_GreedyRNNTDecoderInfer):
                 v, k = logp.max(1)
 
                 # Update blank mask with current predicted blanks
-                k_is_blank = (k == self._blank_index)
+                k_is_blank = k == self._blank_index
                 blank_mask.bitwise_or_(k_is_blank)
 
                 # If all samples predict / have predicted prior blanks, exit loop early
