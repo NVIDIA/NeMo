@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
 
 import torch
 
@@ -29,7 +30,31 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class RNNTDecoder(NeuralModule):
+class AbstractRNNTDecoder(NeuralModule, ABC):
+
+    @abstractmethod
+    def predict(
+        self,
+        y: Optional[torch.Tensor] = None,
+        state: Optional[torch.Tensor] = None,
+        add_sos: bool = False,
+        batch_size: Optional[int] = None,
+    ) -> (torch.Tensor, List[torch.Tensor]):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
+        raise NotImplementedError()
+
+
+class AbstractRNNTJoint(NeuralModule, ABC):
+
+    @abstractmethod
+    def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()
+
+
+class RNNTDecoder(AbstractRNNTDecoder):
     """A Recurrent Neural Network Transducer (RNN-T).
     Args:
         in_features: Number of input features per step per batch.
@@ -104,11 +129,11 @@ class RNNTDecoder(NeuralModule):
 
     def predict(
         self,
-        y: Optional[torch.Tensor],
+        y: Optional[torch.Tensor] = None,
         state: Optional[torch.Tensor] = None,
-        add_sos: bool = True,
-        batch_size: int = None,
-    ):
+        add_sos: bool = False,
+        batch_size: Optional[int] = None,
+    ) -> (torch.Tensor, List[torch.Tensor]):
         """
         B - batch size
         U - label length
@@ -147,11 +172,7 @@ class RNNTDecoder(NeuralModule):
 
         if state is None:
             if self.random_state_sampling and self.training:
-                batch = y.size(0)
-                state = (
-                    torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-                    torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-                )
+                state = self.initialize_state(y)
 
         y = y.transpose(0, 1)  # (U + 1, B, H)
         g, hid = self.prediction["dec_rnn"](y, state)
@@ -178,8 +199,24 @@ class RNNTDecoder(NeuralModule):
         )
         return layers
 
+    def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
+        batch = y.size(0)
 
-class RNNTJoint(NeuralModule):
+        if self.random_state_sampling and self.training:
+            state = (
+                torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
+                torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
+            )
+
+        else:
+            state = (
+                torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
+                torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
+            )
+        return state
+
+
+class RNNTJoint(AbstractRNNTJoint):
     """A Recurrent Neural Network Transducer (RNN-T).
     Args:
         in_features: Number of input features per step per batch.
@@ -258,7 +295,7 @@ class RNNTJoint(NeuralModule):
         # decoder_outputs.transpose_(1, 2)  # (B, D, U + 1)
         return out
 
-    def joint(self, f: torch.Tensor, g: torch.Tensor):
+    def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """
         f should be shape (B, T, H)
         g should be shape (B, U + 1, H)
