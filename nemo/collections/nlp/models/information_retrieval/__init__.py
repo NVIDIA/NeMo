@@ -12,11 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo.utils.app_state import AppState
-from nemo.utils.nemo_logging import Logger as _Logger
-from nemo.utils.nemo_logging import LogMode as logging_mode
-from nemo.utils.lightning_logger_patch import add_memory_handlers_to_pl_logger
-
-logging = _Logger()
-add_memory_handlers_to_pl_logger()
+from nemo.collections.nlp.models.information_retrieval.bert_dpr_model import BertDPRModel
+from nemo.collections.nlp.models.information_retrieval.bert_joint_ir_model import BertJointIRModel

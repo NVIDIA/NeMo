@@ -27,19 +27,19 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
 )
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 __all__ = ['TokenClassificationModel']
 
 
-class TokenClassificationModel(ModelPT):
+class TokenClassificationModel(NLPModel):
     """Token Classification Model with BERT, applicable for tasks such as Named Entity Recognition"""
 
     @property
@@ -241,7 +241,6 @@ class TokenClassificationModel(ModelPT):
             ignore_start_end=dataset_cfg.ignore_start_end,
             use_cache=dataset_cfg.use_cache,
         )
-
         return DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
