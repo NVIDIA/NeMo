@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.nlp.modules.common.bert_module import BertEncoder
-from nemo.collections.nlp.modules.common.bert_module import BertModule
+from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 
 # from nemo.collections.nlp.modules.common import (
 #    AlbertEncoder,
