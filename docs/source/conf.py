@@ -70,8 +70,7 @@ autodoc_mock_imports = [
     'megatron',
     'pesq',
     'pystoi',
-    'os',
-    'os.fspath',
+    'os.path',
 ]
 
 # -- General configuration ------------------------------------------------
