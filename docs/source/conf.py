@@ -43,6 +43,7 @@ autodoc_mock_imports = [
     'h5py',
     'kaldi_io',
     'transformers',
+    'transformers.tokenization_bert',
     'apex',
     'ruamel',
     'frozendict',
