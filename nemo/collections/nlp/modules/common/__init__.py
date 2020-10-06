@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.modules.common.huggingface import BertEncoder
+
 # from nemo.collections.nlp.modules.common.bert_module import BertModule
 # from nemo.collections.nlp.modules.common.huggingface import (
 #    AlbertEncoder,
