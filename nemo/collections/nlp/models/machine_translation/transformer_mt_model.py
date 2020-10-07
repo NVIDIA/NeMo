@@ -16,15 +16,17 @@ import math
 from typing import Dict, Optional
 
 import torch
+import torch.utils.data as pt_data
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.nlp.data import L2RLanguageModelingDataset
+from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerDecoder, \
+    TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 
@@ -40,48 +42,69 @@ class TransformerMTModel(ModelPT):
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            vocab_file=cfg.language_model.vocab_file,
-            special_tokens=cfg.language_model.special_tokens,
-        )
+        self.src_tokenizer = get_tokenizer(tokenizer_name=cfg.machine_translation.src_tokenizer)
+        self.tgt_tokenizer = get_tokenizer(tokenizer_name=cfg.machine_translation.tgt_tokenizer)
 
         # make vocabulary size divisible by 8 for fast fp16 training
-        vocab_size = 8 * math.ceil(self.tokenizer.vocab_size / 8)
+        src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
+        tgt_vocab_size = 8 * math.ceil(self.tgt_tokenizer.vocab_size / 8)
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.embedding_layer = TransformerEmbedding(
-            vocab_size=vocab_size,
-            hidden_size=cfg.language_model.hidden_size,
-            max_sequence_length=cfg.language_model.max_seq_length,
-            embedding_dropout=cfg.language_model.get("embedding_dropout", 0.0),
+            vocab_size=src_vocab_size,
+            hidden_size=cfg.machine_translation.hidden_size,
+            max_sequence_length=cfg.machine_translation.max_seq_length,
+            embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
             learn_positional_encodings=False,
         )
         self.encoder = TransformerEncoder(
-            num_layers=cfg.language_model.num_layers,
-            hidden_size=cfg.language_model.hidden_size,
-            mask_future=True,
-            num_attention_heads=cfg.language_model.num_attn_heads,
-            inner_size=cfg.language_model.inner_size,
-            ffn_dropout=cfg.language_model.get("ffn_dropout", 0.0),
-            hidden_act=cfg.language_model.get("inner_activation", "relu"),
-            attn_score_dropout=cfg.language_model.get("attn_score_dropout", 0.0),
-            attn_layer_dropout=cfg.language_model.get("attn_layer_dropout", 0.0),
+            hidden_size=cfg.hidden_size,
+            d_inner=cfg.d_inner,
+            num_layers=cfg.num_layers,
+            embedding_dropout=cfg.embedding_dropout,
+            num_attn_heads=cfg.num_attn_heads,
+            ffn_dropout=cfg.ffn_dropout,
+            vocab_size=self.src_tokenizer.vocab_size,
+            attn_score_dropout=cfg.attn_score_dropout,
+            attn_layer_dropout=cfg.attn_layer_dropout,
+            max_seq_length=cfg.max_seq_length,
+        )
+        self.decoder = TransformerDecoder(
+            hidden_size=cfg.hidden_size,
+            d_inner=cfg.d_inner,
+            num_layers=cfg.num_layers,
+            embedding_dropout=cfg.embedding_dropout,
+            num_attn_heads=cfg.num_attn_heads,
+            ffn_dropout=cfg.ffn_dropout,
+            vocab_size=self.tgt_tokenizer.vocab_size,
+            attn_score_dropout=cfg.attn_score_dropout,
+            attn_layer_dropout=cfg.attn_layer_dropout,
+            max_seq_length=cfg.max_seq_length,
         )
         self.log_softmax = TokenClassifier(
-            hidden_size=cfg.language_model.hidden_size, num_classes=vocab_size, log_softmax=True,
+            hidden_size=cfg.machine_translation.hidden_size, num_classes=tgt_vocab_size, log_softmax=True,
+        )
+        self.beam_search = BeamSearchSequenceGenerator(
+            embedding=self.embedding_layer,
+            decoder=self.decoder,
+            log_softmax=self.log_softmax,
+            max_seq_length=cfg.machine_translation.max_seq_length,
+            beam_size=cfg.machine_translation.beam_size,
+            bos_token=self.tgt_tokenizer.bos_id,
+            pad_token=self.tgt_tokenizer.pad_id,
+            eos_token=self.tgt_tokenizer.eos_id,
         )
 
-        std_init_range = 1 / math.sqrt(cfg.language_model.hidden_size)
+        std_init_range = 1 / math.sqrt(cfg.machine_translation.hidden_size)
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.embedding_layer.token_embedding.weight
 
-        self.training_loss = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id)
-        self.validation_loss = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id, predict_last_k=64)
+        self.loss_fn = SmoothedCrossEntropyLoss(
+            pad_id=self.tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing)
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -94,7 +117,8 @@ class TransformerMTModel(ModelPT):
         """
         token_embeddings = self.embedding_layer(input_ids)
         hidden_states = self.encoder(token_embeddings, attention_mask)
-        log_probs = self.log_softmax(hidden_states=hidden_states)
+        decoder_hidden_states = self.decoder(hidden_states)
+        log_probs = self.log_softmax(hidden_states=decoder_hidden_states)
 
         return log_probs
 
@@ -107,7 +131,7 @@ class TransformerMTModel(ModelPT):
         input_ids, input_mask, labels = batch
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        train_loss = self.training_loss(logits=log_probs, labels=labels)
+        train_loss = self.loss_fn(logits=log_probs, labels=labels)
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': train_loss, 'log': tensorboard_logs}
@@ -120,7 +144,7 @@ class TransformerMTModel(ModelPT):
         input_ids, input_mask, labels = batch
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        val_loss = self.validation_loss(logits=log_probs, labels=labels)
+        val_loss = self.loss_fn(logits=log_probs, labels=labels)
 
         tensorboard_logs = {
             'val_loss': val_loss,
@@ -148,16 +172,18 @@ class TransformerMTModel(ModelPT):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        dataset = L2RLanguageModelingDataset(
-            tokenizer=self.tokenizer,
-            dataset=cfg.file_name,
-            max_seq_length=self.dataset_cfg.max_seq_length,
-            batch_step=cfg.get("predict_last_k", 0),
+        dataset = TranslationDataset(
+            tokenizer_src=self.src_tokenizer,
+            tokenizer_tgt=self.tgt_tokenizer,
+            dataset_src=cfg.src_file_name,
+            dataset_tgt=cfg.tgt_file_name,
+            tokens_in_batch=cfg.tokens_in_batch,
         )
+        sampler = pt_data.distributed.DistributedSampler(dataset, shuffle=cfg.shuffle)
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=cfg.batch_size,
-            shuffle=cfg.shuffle,
+            batch_size=1,
+            sampler=sampler,
             num_workers=self.dataset_cfg.get("num_workers", 2),
             pin_memory=self.dataset_cfg.get("pin_memory", False),
             drop_last=self.dataset_cfg.get("drop_last", False),

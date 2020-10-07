@@ -20,13 +20,15 @@ model:
 
 
   machine_translation:
-    tokenizer: yttm
-    special_tokens:
-        unk_token: '<UNK>'
-        pad_token: '<PAD>'
-        bos_token: '<BOS>'
-        eos_token: '<EOS>'
-    vocab_file: ???
+    src_tokenizer: yttm
+    tgt_tokenizer: yttm
+    #special_tokens:
+    #    unk_token: '<UNK>'
+    #    pad_token: '<PAD>'
+    #    bos_token: '<BOS>'
+    #    eos_token: '<EOS>'
+    src_tokenizer_model:
+    tgt_tokenizer_model:
     hidden_size: 512
     num_layers: 6
     num_attn_heads: 8
@@ -36,6 +38,8 @@ model:
     ffn_dropout: 0
     attn_score_dropout: 0
     attn_layer_dropout: 0
+    beam_size: 4
+    label_smoothing: 0.1
 
   dataset:
     max_seq_length: 256
@@ -44,8 +48,9 @@ model:
     pin_memory: false # enables pin_memory feature of the data loaders
 
   train_ds:
-    file_name: ??? # path to file with training data
-    batch_size: 32
+    src_file_name: ???
+    tgt_file_name: ???
+    tokens_in_batch: 4096
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
