@@ -20,7 +20,8 @@ from transformers import BertModel
 from nemo.core.classes import typecheck
 
 from nemo.core.classes import NeuralModule
-from torch.nn import Module
+import transformers
+import torch
 import abc
 
 __all__ = ['BertEncoder']
@@ -32,13 +33,14 @@ class Base:
         pass
 
 
-class BertEncoder(BertModel, Base):
+class BertEncoder(transformers.BertModel, torch.nn.Module):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
 
     def __init__(self) -> None:
-        BertModel.__init__(self)
+        torch.nn.Module.__init__(self)
+        transformers.BertModel.__init__(self)
         # BertModule.__init__(self)
 
     @typecheck()
