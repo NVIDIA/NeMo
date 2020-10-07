@@ -12,22 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.bert_module import BertModule
-from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 
-# from nemo.collections.nlp.modules.common import (
-#    AlbertEncoder,
-#    BertEncoder,
-#    BertModule,
-#    DistilBertEncoder,
-#    MegatronBertEncoder,
-#    RobertaEncoder,
-#    SequenceClassifier,
-#    SequenceRegression,
-#    SequenceTokenClassifier,
-#    get_lm_model,
-#    get_megatron_lm_models_list,
-#    get_pretrained_lm_models_list,
-#    get_tokenizer,
-#    get_tokenizer_list,
-# )
+from nemo.collections.nlp.modules.common import (
+    AlbertEncoder,
+    BertEncoder,
+    BertModule,
+    DistilBertEncoder,
+    MegatronBertEncoder,
+    RobertaEncoder,
+    SequenceClassifier,
+    SequenceRegression,
+    SequenceTokenClassifier,
+    get_lm_model,
+    get_megatron_lm_models_list,
+    get_pretrained_lm_models_list,
+    get_tokenizer,
+    get_tokenizer_list,
+)

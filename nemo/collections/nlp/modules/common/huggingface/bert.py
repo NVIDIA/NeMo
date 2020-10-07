@@ -16,30 +16,16 @@
 
 from transformers import BertModel
 
-# from nemo.collections.nlp.modules.common.bert_module import BertModule
+from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
-
-from nemo.core.classes import NeuralModule
-import transformers
-import torch
-import abc
 
 __all__ = ['BertEncoder']
 
 
-class DerivedFromMockedClass(torch.nn.Module):
-    pass
-
-
-class BertEncoder(transformers.BertModel, DerivedFromMockedClass):
+class BertEncoder(BertModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
-
-    def __init__(self) -> None:
-        torch.nn.Module.__init__(self)
-        DerivedFromMockedClass.__init__(self)
-        # BertModule.__init__(self)
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
