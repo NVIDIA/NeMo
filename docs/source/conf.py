@@ -73,7 +73,8 @@ autodoc_mock_imports = [
     'pesq',
     'pystoi',
     '_MockObject',
-    'BertModule',
+    'nemo.collections.nlp.modules.common.bert_module.BertModule',
+    'transformers.BertModel',
 ]
 
 # -- General configuration ------------------------------------------------
