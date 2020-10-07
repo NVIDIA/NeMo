@@ -44,6 +44,7 @@ autodoc_mock_imports = [
     'kaldi_io',
     'transformers',
     'transformers.tokenization_bert',
+    'transformers.BertModel',
     'apex',
     'ruamel',
     'frozendict',
