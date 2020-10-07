@@ -21,11 +21,18 @@ from nemo.core.classes import typecheck
 
 from nemo.core.classes import NeuralModule
 from torch.nn import Module
+import abc
 
 __all__ = ['BertEncoder']
 
 
-class BertEncoder(BertModel, Module):
+class Base:
+    @abc.abstractmethod
+    def __init__(self):
+        pass
+
+
+class BertEncoder(BertModel, Base):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
