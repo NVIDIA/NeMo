@@ -27,19 +27,7 @@ __all__ = ['TranslationDataset']
 
 
 class TranslationDataset(Dataset):
-    def __init__(
-            self,
-            tokenizer_src,
-            tokenizer_tgt,
-            dataset_src,
-            dataset_tgt,
-            tokens_in_batch=1024,
-            clean=False,
-            max_seq_length=512,
-            min_seq_length=1,
-            max_seq_length_diff=512,
-            max_seq_length_ratio=512,
-    ):
+    def __init__(self, tokenizer_src, tokenizer_tgt, dataset_src, dataset_tgt, tokens_in_batch=1024, clean=False):
 
         self.src_tokenizer = tokenizer_src
         self.tgt_tokenizer = tokenizer_tgt
@@ -48,15 +36,7 @@ class TranslationDataset(Dataset):
         src_ids = dataset_to_ids(dataset_src, tokenizer_src)
         tgt_ids = dataset_to_ids(dataset_tgt, tokenizer_tgt)
         if clean:
-            src_ids, tgt_ids = self.clean_src_and_target(
-                src_ids,
-                tgt_ids,
-                max_tokens=max_seq_length,
-                min_tokens=min_seq_length,
-                max_tokens_diff=max_seq_length_diff,
-                max_tokens_ratio=max_seq_length_ratio
-
-            )
+            src_ids, tgt_ids = self.clean_src_and_target(src_ids, tgt_ids)
         self.batch_indices = self.pack_data_into_batches(src_ids, tgt_ids)
         self.batches = self.pad_batches(src_ids, tgt_ids, self.batch_indices)
 
@@ -70,7 +50,7 @@ class TranslationDataset(Dataset):
         tgt_ids = tgt[:, :-1]
         src_mask = (src_ids != self.src_tokenizer.pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_tokenizer.pad_id).astype(np.int32)
-        sent_ids = np.array(self.batch_indices[idx])
+        sent_ids = self.batch_indices[idx]
         return src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids
 
     def pad_batches(self, src_ids, tgt_ids, batch_indices):
@@ -177,14 +157,7 @@ class TranslationDataset(Dataset):
         return batches
 
     def clean_src_and_target(
-            self,
-            src_ids,
-            tgt_ids,
-            max_tokens=None,
-            min_tokens=None,
-            max_tokens_diff=None,
-            max_tokens_ratio=None,
-            filter_equal_src_and_dest=False
+        self, src_ids, tgt_ids, max_tokens=128, min_tokens=3, max_tokens_diff=25, max_tokens_ratio=2.5
     ):
         """
         Cleans source and target sentences to get rid of noisy data.
@@ -202,16 +175,17 @@ class TranslationDataset(Dataset):
         for i in range(len(src_ids)):
             src_len, tgt_len = len(src_ids[i]), len(tgt_ids[i])
             if (
-                    max_tokens is not None and (src_len > max_tokens or tgt_len > max_tokens)
-                    or min_tokens is not None and (src_len < min_tokens or tgt_len < min_tokens)
-                    or filter_equal_src_and_dest and src_ids[i] == tgt_ids[i]
-                    or max_tokens_diff is not None and np.abs(src_len - tgt_len) > max_tokens_diff
+                src_len > max_tokens
+                or tgt_len > max_tokens
+                or src_len < min_tokens
+                or tgt_len < min_tokens
+                or (src_ids[i] == tgt_ids[i])
+                or np.abs(src_len - tgt_len) > max_tokens_diff
             ):
                 continue
-            if max_tokens_ratio is not None:
-                ratio = max(src_len - 2, 1) / max(tgt_len - 2, 1)
-                if ratio > max_tokens_ratio or ratio < (1 / max_tokens_ratio):
-                    continue
+            ratio = max(src_len - 2, 1) / max(tgt_len - 2, 1)
+            if ratio > max_tokens_ratio or ratio < (1 / max_tokens_ratio):
+                continue
             src_ids_.append(src_ids[i])
             tgt_ids_.append(tgt_ids[i])
         return src_ids_, tgt_ids_
