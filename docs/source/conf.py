@@ -72,9 +72,6 @@ autodoc_mock_imports = [
     'megatron',
     'pesq',
     'pystoi',
-    '_MockObject',
-    'nemo.collections.nlp.modules.common.bert_module.BertModule',
-    'transformers.BertModel',
 ]
 
 # -- General configuration ------------------------------------------------
