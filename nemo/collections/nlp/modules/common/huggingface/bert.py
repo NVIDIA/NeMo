@@ -28,8 +28,8 @@ class BertEncoder(BertModel, BertModule):
     """
 
     def __init__(self) -> None:
-        BertModule.__init__(self)
         BertModel.__init__(self)
+        BertModule.__init__(self)
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
