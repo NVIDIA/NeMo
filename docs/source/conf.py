@@ -72,6 +72,8 @@ autodoc_mock_imports = [
     'megatron',
     'pesq',
     'pystoi',
+    '_MockObject',
+    'BertModule',
 ]
 
 # -- General configuration ------------------------------------------------
