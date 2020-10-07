@@ -19,10 +19,12 @@ from transformers import BertModel
 # from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 
+from nemo.core.classes import NeuralModule
+
 __all__ = ['BertEncoder']
 
 
-class BertEncoder(BertModel, object):
+class BertEncoder(BertModel, NeuralModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
