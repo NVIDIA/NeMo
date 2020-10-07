@@ -70,6 +70,7 @@ autodoc_mock_imports = [
     'megatron',
     'pesq',
     'pystoi',
+    'os',
 ]
 
 # -- General configuration ------------------------------------------------
