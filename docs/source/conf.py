@@ -70,7 +70,8 @@ autodoc_mock_imports = [
     'megatron',
     'pesq',
     'pystoi',
-    'os',
+    'transformers.ALL_PRETRAINED_CONFIG_ARCHIVE_MAP',
+    'transformers.AutoTokenizer',
 ]
 
 # -- General configuration ------------------------------------------------
