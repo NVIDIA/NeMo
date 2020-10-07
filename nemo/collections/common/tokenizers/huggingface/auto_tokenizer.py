@@ -15,7 +15,7 @@
 import re
 from typing import Optional
 
-from transformers import ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
+# from transformers import ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
 from transformers import AutoTokenizer as AUTOTOKENIZER
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
