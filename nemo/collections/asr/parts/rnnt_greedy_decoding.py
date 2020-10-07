@@ -66,9 +66,6 @@ class _GreedyRNNTInfer(Typing):
 
         self._SOS = blank_index  # Start of single index
 
-        if max_symbols_per_step is None:
-            max_symbols_per_step = -1
-
         self.max_symbols = max_symbols_per_step
 
     def __call__(self, *args, **kwargs):
