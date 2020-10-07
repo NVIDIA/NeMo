@@ -45,6 +45,7 @@ autodoc_mock_imports = [
     'transformers',
     'transformers.tokenization_bert',
     'transformers.BertModel',
+    'nemo.collections.nlp.modules.common.bert_module.BertModule',
     'apex',
     'ruamel',
     'frozendict',
