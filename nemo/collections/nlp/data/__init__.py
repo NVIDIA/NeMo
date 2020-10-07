@@ -21,6 +21,7 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataloader,
 )
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
 from nemo.collections.nlp.data.question_answering_squad.qa_dataset import SquadDataset
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
     BertTokenClassificationDataset,
