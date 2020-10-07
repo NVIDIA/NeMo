@@ -55,7 +55,7 @@ class _BeamRNNTInfer(Typing):
         self.joint = joint_model
 
         self.blank = decoder_model.blank_idx
-        self.hidden_size = decoder_model.hidden_size
+        # self.hidden_size = decoder_model.hidden_size
         self.vocab_size = decoder_model.vocab_size
 
         if beam_size < 1:
@@ -216,7 +216,7 @@ class _BeamRNNTInfer(Typing):
         """
         beam = min(self.beam_size, self.vocab_size)
 
-        beam_state = self.decoder.initialize_state(torch.zeros((beam, self.hidden_size)))  # [L, B, H]
+        beam_state = self.decoder.initialize_state(torch.zeros(beam, device=h.device, dtype=h.dtype))  # [L, B, H]
 
         B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=beam_state[:, :1, :],)]
         cache = {}
@@ -286,7 +286,7 @@ class _BeamRNNTInfer(Typing):
         u_max = min(self.alsd_max_symmetric_expansion, (h_length - 1))
 
         init_tensor = h
-        beam_state = self.decoder.init_state(torch.zeros((beam, self.hidden_size)))  # [L, B, H]
+        beam_state = self.decoder.init_state(torch.zeros((beam,), device=h.device, dtype=h.dtype))  # [L, B, H]
 
         B = [
             Hypothesis(

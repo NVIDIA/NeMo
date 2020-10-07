@@ -63,9 +63,7 @@ class _GreedyRNNTInfer(Typing):
         self.joint = joint_model
 
         self._blank_index = blank_index
-
         self._SOS = blank_index  # Start of single index
-
         self.max_symbols = max_symbols_per_step
 
     def __call__(self, *args, **kwargs):

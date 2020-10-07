@@ -74,7 +74,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         self.pred_rnn_layers = prednet["pred_rnn_layers"]
 
         # Initialize the model (blank token increases vocab size by 1)
-        super().__init__(vocab_size=vocab_size + 1, rnn_hidden_size=self.pred_hidden)
+        super().__init__(vocab_size=vocab_size + 1)
 
         # Optional arguments
         forget_gate_bias = prednet.get('forget_gate_bias', 1.0)
