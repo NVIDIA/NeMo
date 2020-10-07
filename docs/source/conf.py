@@ -42,7 +42,6 @@ autodoc_mock_imports = [
     'pytorch_lightning',
     'h5py',
     'kaldi_io',
-    'transformers',
     'apex',
     'ruamel',
     'frozendict',
