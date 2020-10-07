@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import torch
 
+from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import *
@@ -52,8 +53,8 @@ class _GreedyRNNTInfer(Typing):
 
     def __init__(
         self,
-        decoder_model: 'AbstractRNNTDecoder',
-        joint_model: 'AbstractRNNTJoint',
+        decoder_model: rnnt_utils.AbstractRNNTDecoder,
+        joint_model: rnnt_utils.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
     ):
@@ -145,8 +146,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
     def __init__(
         self,
-        decoder_model: 'AbstractRNNTDecoder',
-        joint_model: 'AbstractRNNTJoint',
+        decoder_model: rnnt_utils.AbstractRNNTDecoder,
+        joint_model: rnnt_utils.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
     ):
@@ -252,8 +253,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
     def __init__(
         self,
-        decoder_model: 'AbstractRNNTDecoder',
-        joint_model: 'AbstractRNNTJoint',
+        decoder_model: rnnt_utils.AbstractRNNTDecoder,
+        joint_model: rnnt_utils.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
     ):

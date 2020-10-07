@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 
-from nemo.collections.asr.parts import rnn
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.collections.asr.parts import rnn, rnnt_utils
+from nemo.core.classes import typecheck
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     EmbeddedTextType,
@@ -30,31 +29,7 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class AbstractRNNTDecoder(NeuralModule, ABC):
-
-    @abstractmethod
-    def predict(
-        self,
-        y: Optional[torch.Tensor] = None,
-        state: Optional[torch.Tensor] = None,
-        add_sos: bool = False,
-        batch_size: Optional[int] = None,
-    ) -> (torch.Tensor, List[torch.Tensor]):
-        raise NotImplementedError()
-
-    @abstractmethod
-    def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
-        raise NotImplementedError()
-
-
-class AbstractRNNTJoint(NeuralModule, ABC):
-
-    @abstractmethod
-    def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError()
-
-
-class RNNTDecoder(AbstractRNNTDecoder):
+class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
     """A Recurrent Neural Network Transducer (RNN-T).
     Args:
         in_features: Number of input features per step per batch.
@@ -90,25 +65,25 @@ class RNNTDecoder(AbstractRNNTDecoder):
     def __init__(
         self,
         prednet: Dict[str, Any],
-        num_classes: int,
+        vocab_size: int,
         normalization_mode: Optional[str] = None,
         random_state_sampling: bool = False,
     ):
-        super().__init__()
-
-        self.random_state_sampling = random_state_sampling
-
         # Required arguments
         self.pred_hidden = prednet['pred_hidden']
         self.pred_rnn_layers = prednet["pred_rnn_layers"]
+
+        # Initialize the model (blank token increases vocab size by 1)
+        super().__init__(vocab_size=vocab_size + 1, rnn_hidden_size=self.pred_hidden)
 
         # Optional arguments
         forget_gate_bias = prednet.get('forget_gate_bias', 1.0)
         t_max = prednet.get('t_max', None)
         dropout = prednet.get('dropout', 0.0)
+        self.random_state_sampling = random_state_sampling
 
         self.prediction = self._predict(
-            vocab_size=num_classes + 1,  # add 1 for blank symbol
+            vocab_size=vocab_size + 1,  # add 1 for blank symbol
             pred_n_hidden=self.pred_hidden,
             pred_rnn_layers=self.pred_rnn_layers,
             forget_gate_bias=forget_gate_bias,
@@ -122,7 +97,7 @@ class RNNTDecoder(AbstractRNNTDecoder):
         # y: (B, U)
         y = rnn.label_collate(targets)
 
-        g, _ = self.predict(y, state=None, device=y.device)  # (B, U + 1, D)
+        g, _ = self.predict(y, state=None)  # (B, U + 1, D)
         g = g.transpose(1, 2)  # (B, D, U + 1)
 
         return g, target_length
@@ -130,7 +105,7 @@ class RNNTDecoder(AbstractRNNTDecoder):
     def predict(
         self,
         y: Optional[torch.Tensor] = None,
-        state: Optional[torch.Tensor] = None,
+        state: Optional[List[torch.Tensor]] = None,
         add_sos: bool = False,
         batch_size: Optional[int] = None,
     ) -> (torch.Tensor, List[torch.Tensor]):
@@ -201,7 +176,6 @@ class RNNTDecoder(AbstractRNNTDecoder):
 
     def initialize_state(self, y: torch.Tensor) -> List[torch.Tensor]:
         batch = y.size(0)
-
         if self.random_state_sampling and self.training:
             state = (
                 torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
@@ -215,8 +189,106 @@ class RNNTDecoder(AbstractRNNTDecoder):
             )
         return state
 
+    def score_hypothesis(
+        self, hypothesis: rnnt_utils.Hypothesis, cache: Dict[Tuple[int], Any]
+    ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
+        """
 
-class RNNTJoint(AbstractRNNTJoint):
+        Args:
+            hypothesis:
+            cache:
+
+        Returns:
+
+        """
+        device = hypothesis.dec_state[0].device
+        dtype = hypothesis.dec_state[0].dtype
+
+        target = torch.Tensor(hypothesis.y_sequence, device=device, dtype=dtype).unsqueeze(0)
+        lm_token = target[:, -1]  # [1]
+        sequence = tuple(hypothesis.y_sequence)
+
+        if sequence in cache:
+            y, new_state = cache[sequence]
+        else:
+            y, new_state = self.predict(
+                target, state=hypothesis.dec_state, add_sos=False, batch_size=1
+            )  # [1, U + 1, H]
+
+            y = y[:, -1, :]  # U[1, H]
+            cache[sequence] = (y, new_state)
+
+        return y, new_state, lm_token
+
+    def batch_score_hypothesis(
+        self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any],
+    ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
+        """
+
+        Args:
+            hypotheses:
+            cache:
+
+        Returns:
+
+        """
+        final_batch = len(hypotheses)
+
+        tokens = []
+        process = []
+        done = [None for _ in range(final_batch)]
+
+        for i, hyp in enumerate(hypotheses):
+            sequence = tuple(hyp.y_sequence)
+
+            if sequence in cache:
+                done[i] = (*cache[sequence], hyp.y_sequence)
+            else:
+                tokens.append(hyp.y_sequence)
+                process.append((sequence, hyp.dec_state, hyp.y_sequence))
+
+        if process:
+            batch = len(tokens)
+            device = hypotheses[0].dec_state.device
+
+            # pad tokens
+            token_lens = [len(seq) for seq in tokens]
+            max_seq_len = max(token_lens)
+            for i in range(batch):
+                if token_lens[i] < max_seq_len:
+                    diff = max_seq_len - token_lens[i]
+                    pad = [self.blank_idx] * diff
+                    tokens[i].extend(pad)
+
+            b_tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
+            dec_states = self.initialize_state(b_tokens)
+
+            b_y, new_states = self.predict(
+                b_tokens, state=dec_states, add_sos=False, batch_size=batch
+            )  # [B, U + 1, H], List([L, B, H])
+
+            tgt = b_y[:, -1, :]  # [B, H]
+
+        j = 0
+        for i in range(final_batch):
+            if done[i] is None:
+                new_state = (new_states[0][:, j : j + 1, :], new_states[1][:, j : j + 1, :])
+
+                done[i] = (tgt[j], new_state, process[j][2])
+                cache[process[j][0]] = (tgt[j], new_state)
+                j += 1
+
+        batch_states = [d[1] for d in done]
+        batch_y = torch.stack([d[0] for d in done]).to(device)
+
+        lm_tokens = torch.tensor([h.y_sequence[-1] for h in hypotheses], device=device, dtype=torch.long).view(
+            final_batch
+        )
+
+        return batch_y, batch_states, lm_tokens
+
+
+class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
     """A Recurrent Neural Network Transducer (RNN-T).
     Args:
         in_features: Number of input features per step per batch.
