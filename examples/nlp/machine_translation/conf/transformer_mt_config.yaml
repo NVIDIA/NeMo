@@ -25,8 +25,8 @@ model:
     #    pad_token: '<PAD>'
     #    bos_token: '<BOS>'
     #    eos_token: '<EOS>'
-    src_tokenizer_model: ~/data/wmt14_en_de_train_on_test/bpe_32k_ende_yttm.model
-    tgt_tokenizer_model: ~/data/wmt14_en_de_train_on_test/bpe_32k_ende_yttm.model
+    src_tokenizer_model: ~/data/wmt14_en_de2/bpe_32k_ende_yttm.model
+    tgt_tokenizer_model: ~/data/wmt14_en_de2/bpe_32k_ende_yttm.model
     hidden_size: 512
     num_layers: 6
     num_attn_heads: 8
@@ -46,8 +46,8 @@ model:
     pin_memory: false # enables pin_memory feature of the data loaders
 
   train_ds:
-    src_file_name: ~/data/wmt14_en_de_train_on_test/train.en
-    tgt_file_name: ~/data/wmt14_en_de_train_on_test/train.de
+    src_file_name: ~/data/wmt14_en_de2/train.en
+    tgt_file_name: ~/data/wmt14_en_de2/train.de
     tokens_in_batch: 4096
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
