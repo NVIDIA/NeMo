@@ -17,8 +17,6 @@ trainer:
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 model:
-
-
   machine_translation:
     src_tokenizer: yttm
     tgt_tokenizer: yttm
