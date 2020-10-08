@@ -172,4 +172,5 @@ examples/neural_graphs/*.yml
 
 *.swp
 ngc_results/
+.hydra/
 nemo_experiments/
