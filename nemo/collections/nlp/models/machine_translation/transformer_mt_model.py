@@ -70,7 +70,6 @@ class TransformerMTModel(ModelPT):
             hidden_size=cfg.machine_translation.hidden_size,
             inner_size=cfg.machine_translation.inner_size,
             num_layers=cfg.machine_translation.num_layers,
-            embedding_dropout=cfg.machine_translation.embedding_dropout,
             num_attn_heads=cfg.machine_translation.num_attn_heads,
             ffn_dropout=cfg.machine_translation.ffn_dropout,
             vocab_size=self.src_tokenizer.vocab_size,
