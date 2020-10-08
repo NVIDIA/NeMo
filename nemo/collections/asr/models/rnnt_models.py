@@ -20,7 +20,7 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
@@ -75,6 +75,17 @@ class EncDecRNNTModel(ASRModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecRNNTModel.from_config_dict(self.cfg.preprocessor)
         self.encoder = EncDecRNNTModel.from_config_dict(self.cfg.encoder)
+
+        # Update config values
+        with open_dict(self.cfg.decoder):
+            self.cfg.decoder.vocab_size = len(self.cfg.labels)
+
+        with open_dict(self.cfg.joint):
+            self.cfg.joint.num_classes = len(self.cfg.labels)
+            self.cfg.joint.vocabulary = self.cfg.labels
+            self.cfg.joint.jointnet.encoder_hidden = self.cfg.model_defaults.enc_hidden
+            self.cfg.joint.jointnet.pred_hidden = self.cfg.model_defaults.pred_hidden
+
         self.decoder = EncDecRNNTModel.from_config_dict(self.cfg.decoder)
         self.joint = EncDecRNNTModel.from_config_dict(self.cfg.joint)
         self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
@@ -88,7 +99,7 @@ class EncDecRNNTModel(ASRModel):
             decoding_cfg=self.cfg.decoding,
             decoder=self.decoder,
             joint=self.joint,
-            vocabulary=self.decoder.vocabulary,
+            vocabulary=self.joint.vocabulary,
             batch_dim_index=0,
         )
 
@@ -161,8 +172,8 @@ class EncDecRNNTModel(ASRModel):
         Returns: None
 
         """
-        if self.decoder.vocabulary == new_vocabulary:
-            logging.warning(f"Old {self.decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
+        if self.joint.vocabulary == new_vocabulary:
+            logging.warning(f"Old {self.joint.vocabulary} and new {new_vocabulary} match. Not changing anything.")
         else:
             if new_vocabulary is None or len(new_vocabulary) == 0:
                 raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
@@ -412,7 +423,7 @@ class EncDecRNNTModel(ASRModel):
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
-            'labels': self.decoder.vocabulary,
+            'labels': self.joint.vocabulary,
             'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
             'trim_silence': True,
             'shuffle': False,

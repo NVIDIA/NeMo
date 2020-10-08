@@ -325,7 +325,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
 
     def __init__(
         self,
-        joint: Dict[str, Any],
+        jointnet: Dict[str, Any],
         num_classes: int,
         vocabulary: Optional[List] = None,
         log_softmax: Optional[bool] = None,
@@ -343,13 +343,13 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         self.preserve_memory = preserve_memory
 
         # Required arguments
-        encoder_hidden = joint['encoder_hidden']
-        pred_hidden = joint['pred_hidden']
-        joint_hidden = joint['joint_hidden']
-        activation = joint['activation']
+        encoder_hidden = jointnet['encoder_hidden']
+        pred_hidden = jointnet['pred_hidden']
+        joint_hidden = jointnet['joint_hidden']
+        activation = jointnet['activation']
 
         # Optional arguments
-        dropout = joint.get('dropout', 0.0)
+        dropout = jointnet.get('dropout', 0.0)
 
         self.pred, self.enc, self.joint_net = self._joint_net(
             num_classes=self._num_classes,  # add 1 for blank symbol

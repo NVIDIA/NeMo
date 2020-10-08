@@ -3,6 +3,8 @@ name: &name "CitriNet-192-8x-Stride"
 model:
   sample_rate: &sample_rate 16000
 
+
+
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000

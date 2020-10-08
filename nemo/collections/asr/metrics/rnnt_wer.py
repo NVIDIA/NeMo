@@ -108,7 +108,7 @@ class RNNTWER(TensorMetric):
                 beam_size=self.cfg.beam.beam_size,
                 search_type='alsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
-                alsd_max_symmetric_expansion=self.cfg.beam.get('max_sym_expand', 2),
+                alsd_max_symmetric_expansion=self.cfg.beam.get('alsd_max_sym_expand', 2),
             )
 
     def rnnt_decoder_predictions_tensor(

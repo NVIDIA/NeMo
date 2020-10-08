@@ -1,0 +1,416 @@
+name: &name "ContextNet-192-8x-Stride"
+
+model:
+  sample_rate: &sample_rate 16000
+  compute_eval_loss: false
+
+  labels: [ " ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+           "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'" ]
+
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: 16000
+    batch_size: 32
+    trim_silence: true
+    max_duration: 16.7
+    shuffle: true
+    is_tarred: false
+    tarred_audio_filepaths: null
+
+  validation_ds:
+    manifest_filepath: ???
+    sample_rate: 16000
+    batch_size: 32
+    shuffle: false
+
+  test_ds:
+    manifest_filepath: null
+    sample_rate: 16000
+    batch_size: 32
+    shuffle: false
+
+  model_defaults:
+    repeat: 5
+    dropout: 0.0
+    separable: true
+    se: true
+    se_context_size: -1
+    # encoder / decoder values
+    enc_hidden: 480
+    pred_hidden: 320
+
+  preprocessor:
+    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    params:
+      sample_rate: *sample_rate
+      normalize: "per_feature"
+      window_size: 0.025
+      window_stride: 0.01
+      window: "hann"
+      features: &n_mels 80
+      n_fft: 512
+      frame_splicing: 1
+      dither: 0.00001
+      pad_to: 16
+      stft_conv: false
+
+  spec_augment:
+    cls: nemo.collections.asr.modules.SpectrogramAugmentation
+    params:
+      freq_masks: 2
+      time_masks: 2
+      freq_width: 27
+      time_width: 0.05
+
+  encoder:
+    _target_: nemo.collections.asr.modules.ConvASREncoder
+
+    feat_in: *n_mels
+    activation: relu
+    conv_mask: true
+
+    jasper:
+      - filters: 192
+        repeat: 1
+        kernel: [5]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: false
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [11]
+        stride: [2]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [13]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [15]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [17]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [19]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [21]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [13]
+        stride: [2]  # *stride
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [15]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [17]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 192
+        repeat: ${model.model_defaults.repeat}
+        kernel: [19]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [21]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [23]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [25]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [25]
+        stride: [2]  # stride
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [27]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [29]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [31]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [33]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [35]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [37]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: 384
+        repeat: ${model.model_defaults.repeat}
+        kernel: [39]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      - filters: ${model.model_defaults.enc_hidden}
+        repeat: 1
+        kernel: [41]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: false
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+  decoder:
+    _target_: nemo.collections.asr.modules.RNNTDecoder
+    normalization_mode: null
+    random_state_sampling: false
+
+    prednet:
+      pred_hidden: ${model.model_defaults.pred_hidden}
+      pred_rnn_layers: 1
+      t_max: null
+      dropout: 0.0
+
+  joint:
+    _target_: nemo.collections.asr.modules.RNNTJoint
+    log_softmax: null  # sets it according to cpu/gpu device
+    preserve_memory: false
+
+    jointnet:
+      joint_hidden: 320
+      activation: "relu"
+      dropout: 0.0
+
+  decoding:
+    strategy: "greedy"
+    use_cer: false
+
+    # greedy strategy config
+    greedy:
+      max_symbols: 30
+
+    # beam strategy config
+    beam:
+      beam_size: 1
+      score_norm: true
+      tsd_max_symbols: 50  # for Time Synchronous Decoding
+      alsd_max_sym_expand: 2  # for Alignment-Length Synchronous Decoding
+
+  optim:
+    name: novograd
+    lr: 0.05
+
+    # optimizer arguments
+    betas: [0.8, 0.25]
+    weight_decay: 0.001
+
+    # scheduler setup
+    sched:
+      name: CosineAnnealing
+
+      # scheduler config override
+      warmup_steps: 1000
+      warmup_ratio: null
+      min_lr: 1e-9
+      last_epoch: -1
+
+trainer:
+  gpus: 0 # number of gpus
+  max_epochs: 100
+  max_steps: null # computed at runtime if not set
+  num_nodes: 1
+  distributed_backend: ddp
+  accumulate_grad_batches: 1
+  precision: 16
+  checkpoint_callback: false  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
+  row_log_interval: 1  # Interval of logging.
+  val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+
+exp_manager:
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
