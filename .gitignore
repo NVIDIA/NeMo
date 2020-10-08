@@ -171,3 +171,5 @@ examples/neural_graphs/*.chkpt
 examples/neural_graphs/*.yml
 
 *.swp
+.hydra/
+nemo_experiments/
