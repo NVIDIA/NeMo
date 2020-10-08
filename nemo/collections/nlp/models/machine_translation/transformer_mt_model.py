@@ -70,7 +70,7 @@ class TransformerMTModel(ModelPT):
             hidden_size=cfg.machine_translation.hidden_size,
             inner_size=cfg.machine_translation.inner_size,
             num_layers=cfg.machine_translation.num_layers,
-            num_attn_heads=cfg.machine_translation.num_attn_heads,
+            num_attention_heads=cfg.machine_translation.num_attn_heads,
             ffn_dropout=cfg.machine_translation.ffn_dropout,
             vocab_size=self.src_tokenizer.vocab_size,
             attn_score_dropout=cfg.machine_translation.attn_score_dropout,
