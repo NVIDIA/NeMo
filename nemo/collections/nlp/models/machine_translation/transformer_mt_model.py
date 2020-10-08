@@ -186,11 +186,13 @@ class TransformerMTModel(ModelPT):
             dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
             tokens_in_batch=cfg.tokens_in_batch,
         )
-        sampler = pt_data.RandomSampler(dataset)
+        if cfg.shuffle:
+            sampler = pt_data.RandomSampler(dataset)
+        else:
+            sampler = pt_data.SequentialSampler(dataset)
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
-            shuffle=cfg.shuffle,
             sampler=sampler,
             num_workers=self.dataset_cfg.get("num_workers", 2),
             pin_memory=self.dataset_cfg.get("pin_memory", False),
