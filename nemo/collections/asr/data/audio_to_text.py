@@ -291,7 +291,6 @@ class AudioToCharDataset(_AudioTextDataset):
         )
 
 
-@experimental
 class AudioToCharWithDursDataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -308,12 +307,9 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
 
     Args:
         **kwargs: Passed to AudioToCharDataset constructor.
-        vocab_notation: Vocabulary to be used for text preprocessing.
-        vocab_punct: True if use punctuation for vocab.
-        vocab_spaces: True if use spaces for vocab.
-        vocab_stresses: True if use stresses for vocab.
-        durs_path: String path to pickled durations location.
-        rep: True if repeat text according to durs.
+        durs_path (str): String path to pickled list of '[(tag, durs)]' durations location.
+        rep (bool): True if repeat text graphemes according to durs.
+        vocab: Vocabulary config (parser + set of graphemes to use).
     """
 
     @property
@@ -333,11 +329,7 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
         }
 
     @staticmethod
-    def make_vocab(**kwargs):
-        notation = kwargs.get('vocab_notation', 'chars')
-        punct = kwargs.get('vocab_punct', True)
-        spaces = kwargs.get('vocab_spaces', False)
-        stresses = kwargs.get('vocab_stresses', False)
+    def make_vocab(notation='chars', punct=True, spaces=False, stresses=False):
         if notation == 'chars':
             vocab = vocabs.Chars(punct=punct, spaces=spaces)
         elif notation == 'phonemes':
@@ -347,11 +339,9 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
         return vocab
 
     def __init__(self, **kwargs):
-        self.vocab = self.make_vocab(**kwargs)
-        for k in ['vocab_notation', 'vocab_punct', 'vocab_spaces', 'vocab_stresses']:
-            kwargs.pop(k, None)
         durs_path = kwargs.pop('durs_path')
         rep = kwargs.pop('rep', False)
+        self.vocab = self.make_vocab(**kwargs.pop('vocab', {}))
         kwargs.setdefault('labels', [])
 
         super().__init__(**kwargs)

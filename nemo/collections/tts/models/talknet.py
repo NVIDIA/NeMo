@@ -34,10 +34,10 @@ class TalkNetDursModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         cfg = self._cfg
-        self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.params)
+        self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.vocab)
         self.emb = nn.Embedding(len(self.vocab.labels), cfg.d_char)
         self.model = instantiate(cfg.model)
-        self.rz = nn.Conv1d(cfg.model.params.jasper[-1].filters, 1, kernel_size=1)
+        self.rz = nn.Conv1d(cfg.model.jasper[-1].filters, 1, kernel_size=1)
 
     @property
     def input_types(self):
@@ -133,11 +133,11 @@ class TalkNetSpectModel(SpectrogramGenerator):
         super().__init__(cfg=cfg, trainer=trainer)
 
         cfg = self._cfg
-        self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.params)
+        self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.vocab)
         self.preprocessor = instantiate(cfg.preprocessor)
         self.emb = nn.Embedding(len(self.vocab.labels), cfg.d_char)
         self.model = instantiate(cfg.model)
-        self.rz = nn.Conv1d(cfg.model.params.jasper[-1].filters, cfg.n_mels, kernel_size=1)
+        self.rz = nn.Conv1d(cfg.model.jasper[-1].filters, cfg.n_mels, kernel_size=1)
 
     @property
     def input_types(self):

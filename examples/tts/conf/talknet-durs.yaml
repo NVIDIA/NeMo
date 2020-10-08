@@ -12,47 +12,46 @@ model:
 
   train_ds:
     dataset:
-      cls: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
-      params:
-        manifest_filepath: ${train_dataset}
-        max_duration: null
-        min_duration: 0.1
-        int_values: false
-        load_audio: false
-        normalize: false
-        sample_rate: *sr
-        trim: false
-        vocab_notation: phonemes
-        vocab_punct: true
-        vocab_spaces: true
-        vocab_stresses: false
-        durs_path: ${durs_path}
-        rep: false
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      manifest_filepath: ${train_dataset}
+      max_duration: null
+      min_duration: 0.1
+      int_values: false
+      load_audio: false
+      normalize: false
+      sample_rate: *sr
+      trim: false
+      durs_path: ${durs_path}
+      rep: false
+      vocab:
+        notation: phonemes
+        punct: true
+        spaces: true
+        stresses: false
     dataloader_params:
       drop_last: false
       shuffle: true
       batch_size: 64
       num_workers: 4
 
-
   validation_ds:
     dataset:
-      cls: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
-      params:
-        manifest_filepath: ${validation_datasets}
-        max_duration: null
-        min_duration: 0.1
-        int_values: false
-        load_audio: false
-        normalize: false
-        sample_rate: *sr
-        trim: false
-        vocab_notation: phonemes
-        vocab_punct: true
-        vocab_spaces: true
-        vocab_stresses: false
-        durs_path: ${durs_path}
-        rep: false
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      manifest_filepath: ${validation_datasets}
+      max_duration: null
+      min_duration: 0.1
+      int_values: false
+      load_audio: false
+      normalize: false
+      sample_rate: *sr
+      trim: false
+      durs_path: ${durs_path}
+      rep: false
+      vocab:
+        notation: phonemes
+        punct: true
+        spaces: true
+        stresses: false
     dataloader_params:
       drop_last: false
       shuffle: false
@@ -60,74 +59,73 @@ model:
       num_workers: 8
 
   model:
-    cls: "nemo.collections.asr.modules.ConvASREncoder"
-    params:
-      feat_in: *d_char
-      activation: relu
-      conv_mask: true
+    _target_: "nemo.collections.asr.modules.ConvASREncoder"
+    feat_in: *d_char
+    activation: relu
+    conv_mask: true
 
-      jasper:
-      - filters: 256
-        repeat: 1
-        kernel: [3]
-        stride: [1]
-        dilation: [1]
-        dropout: *dropout
-        residual: true
-        separable: *separable
+    jasper:
+    - filters: 256
+      repeat: 1
+      kernel: [3]
+      stride: [1]
+      dilation: [1]
+      dropout: *dropout
+      residual: true
+      separable: *separable
 
-      - filters: 256
-        repeat: 5
-        kernel: [5]
-        stride: [1]
-        dilation: [1]
-        dropout: *dropout
-        residual: true
-        separable: *separable
+    - filters: 256
+      repeat: 5
+      kernel: [5]
+      stride: [1]
+      dilation: [1]
+      dropout: *dropout
+      residual: true
+      separable: *separable
 
-      - filters: 256
-        repeat: 5
-        kernel: [7]
-        stride: [1]
-        dilation: [1]
-        dropout: *dropout
-        residual: true
-        separable: *separable
+    - filters: 256
+      repeat: 5
+      kernel: [7]
+      stride: [1]
+      dilation: [1]
+      dropout: *dropout
+      residual: true
+      separable: *separable
 
-      - filters: 256
-        repeat: 5
-        kernel: [9]
-        stride: [1]
-        dilation: [1]
-        dropout: *dropout
-        residual: true
-        separable: *separable
+    - filters: 256
+      repeat: 5
+      kernel: [9]
+      stride: [1]
+      dilation: [1]
+      dropout: *dropout
+      residual: true
+      separable: *separable
 
-      - filters: 256
-        repeat: 5
-        kernel: [11]
-        stride: [1]
-        dilation: [1]
-        dropout: *dropout
-        residual: true
-        separable: *separable
+    - filters: 256
+      repeat: 5
+      kernel: [11]
+      stride: [1]
+      dilation: [1]
+      dropout: *dropout
+      residual: true
+      separable: *separable
 
-      - filters: 256
-        repeat: 5
-        kernel: [13]
-        stride: [1]
-        dilation: [1]
-        dropout: *dropout
-        residual: true
-        separable: *separable
+    - filters: 256
+      repeat: 5
+      kernel: [13]
+      stride: [1]
+      dilation: [1]
+      dropout: *dropout
+      residual: true
+      separable: *separable
 
-      - filters: 512
-        repeat: 1
-        kernel: [1]
-        stride: [1]
-        dilation: [1]
-        dropout: *dropout
-        residual: true
+    - filters: 512
+      repeat: 1
+      kernel: [1]
+      stride: [1]
+      dilation: [1]
+      dropout: *dropout
+      residual: true
 
   optim:
     name: adam
@@ -137,7 +135,6 @@ model:
     sched:
       name: CosineAnnealing
       min_lr: 1e-5
-
 
 trainer:
   gpus: 1
