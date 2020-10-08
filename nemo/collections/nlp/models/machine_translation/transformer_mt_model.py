@@ -186,7 +186,7 @@ class TransformerMTModel(ModelPT):
             dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
             tokens_in_batch=cfg.tokens_in_batch,
         )
-        sampler = pt_data.distributed.DistributedSampler(dataset, shuffle=cfg.shuffle)
+        sampler = pt_data.RandomSampler(dataset, shuffle=cfg.shuffle)
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
