@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+from pathlib import Path
 from typing import Dict, Optional
 
 import torch
@@ -44,10 +45,12 @@ class TransformerMTModel(ModelPT):
         self.dataset_cfg = cfg.dataset
         self.src_tokenizer = get_tokenizer(
             tokenizer_name=cfg.machine_translation.src_tokenizer,
-            tokenizer_model=cfg.machine_translation.src_tokenizer_model)
+            tokenizer_model=Path(cfg.machine_translation.src_tokenizer_model).expanduser()
+        )
         self.tgt_tokenizer = get_tokenizer(
             tokenizer_name=cfg.machine_translation.tgt_tokenizer,
-            tokenizer_model=cfg.machine_translation.tgt_tokenizer_model)
+            tokenizer_model=Path(cfg.machine_translation.tgt_tokenizer_model).expanduser()
+        )
 
         # make vocabulary size divisible by 8 for fast fp16 training
         src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
