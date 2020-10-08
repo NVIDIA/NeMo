@@ -327,10 +327,13 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         self,
         joint: Dict[str, Any],
         num_classes: int,
+        vocabulary: Optional[List] = None,
         log_softmax: Optional[bool] = None,
         preserve_memory: bool = False,
     ):
         super().__init__()
+
+        self.vocabulary = vocabulary
 
         self._vocab_size = num_classes
         self._num_classes = num_classes + 1  # add 1 for blank symbol

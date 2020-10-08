@@ -144,7 +144,7 @@ class EncDecRNNTModel(ASRModel):
         # return hypotheses
         pass
 
-    def change_vocabulary(self, new_vocabulary: List[str]):
+    def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
         """
         Changes vocabulary used during CTC decoding process. Use this method when fine-tuning on from pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
@@ -174,7 +174,18 @@ class EncDecRNNTModel(ASRModel):
             self.joint = EncDecRNNTModel.from_config_dict(new_joint_config)
             del self.loss
             self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
-            self.decoding = WER(vocabulary=self.joint.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+
+            if decoding_cfg is None:
+                # Assume same decoding config as before
+                decoding_cfg = self.cfg.decoding
+
+            self.decoding = RNNTWER(
+                decoding_cfg=decoding_cfg,
+                decoder=self.decoder,
+                joint=self.joint,
+                vocabulary=self.joint.vocabulary,
+                batch_dim_index=0,
+            )
 
             # Update config
             OmegaConf.set_struct(self.cfg.joint, False)
