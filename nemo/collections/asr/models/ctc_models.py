@@ -103,20 +103,23 @@ class EncDecCTCModel(ASRModel):
         # Setup metric objects
         self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+    @torch.no_grad()
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
 
-            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-        Recommended length per file is between 5 and 25 seconds.
+            paths2audio_files: (a list) of paths to audio files. \
+        Recommended length per file is between 5 and 25 seconds. \
+        But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference. \
         Bigger will result in better throughput performance but would use more memory.
+            logprobs: (bool) pass True to get log probabilities instead of transcripts.
 
         Returns:
 
-            A list of transcriptions in the same order as paths2audio_files
+            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
@@ -128,6 +131,8 @@ class EncDecCTCModel(ASRModel):
         try:
             # Switch model to evaluation mode
             self.eval()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
@@ -139,14 +144,20 @@ class EncDecCTCModel(ASRModel):
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in temporary_datalayer:
-                    _, _, greedy_predictions = self.forward(
+                    logits, logits_len, greedy_predictions = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
+                    if logprobs:
+                        # dump log probs per file
+                        for idx in range(logits.shape[0]):
+                            hypotheses.append(logits[idx][: logits_len[idx]])
+                    else:
+                        hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
                     del test_batch
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            logging.set_verbosity(logging_level)
         return hypotheses
 
     def change_vocabulary(self, new_vocabulary: List[str]):

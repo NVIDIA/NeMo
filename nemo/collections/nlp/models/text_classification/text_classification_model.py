@@ -16,6 +16,7 @@
 import os
 from typing import Dict, List, Optional
 
+import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -23,19 +24,21 @@ from pytorch_lightning import Trainer
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.text_classification import TextClassificationDataset, calc_class_weights
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.modelPT import ModelPT
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['TextClassificationModel']
 
 
-class TextClassificationModel(ModelPT):
+class TextClassificationModel(NLPModel, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -45,8 +48,7 @@ class TextClassificationModel(ModelPT):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """Initializes the BERTTextClassifier model.
-        """
+        """Initializes the BERTTextClassifier model."""
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
@@ -218,7 +220,7 @@ class TextClassificationModel(ModelPT):
             return
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
+    def _setup_dataloader_from_config(self, cfg: Dict) -> 'torch.utils.data.DataLoader':
         input_file = cfg.file_path
         if not os.path.exists(input_file):
             raise FileNotFoundError(
@@ -234,7 +236,7 @@ class TextClassificationModel(ModelPT):
             tokenizer=self.tokenizer,
             input_file=input_file,
             max_seq_length=self.dataset_cfg.max_seq_length,
-            num_samples=cfg.num_samples,
+            num_samples=cfg.get("num_samples", -1),
             shuffle=cfg.shuffle,
             use_cache=self.dataset_cfg.use_cache,
         )
@@ -243,37 +245,42 @@ class TextClassificationModel(ModelPT):
             dataset=dataset,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=self.dataset_cfg.num_workers,
-            pin_memory=self.dataset_cfg.pin_memory,
-            drop_last=self.dataset_cfg.drop_last,
+            num_workers=cfg.get("num_workers", 0),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False),
             collate_fn=dataset.collate_fn,
         )
 
-    def classifytext(self, queries: List[str], batch_size: int = None) -> List[int]:
+    @torch.no_grad()
+    def classifytext(self, queries: List[str], batch_size: int = 1, max_seq_length: int = -1) -> List[int]:
         """
         Get prediction for the queries
         Args:
             queries: text sequences
-            batch_size: batch size to use during inference.
-            device: device to perform the inference on, eg. cuda or cpu
+            batch_size: batch size to use during inference
+            max_seq_length: sequences longer than max_seq_length will get truncated. default -1 disables truncation.
         Returns:
             all_preds: model predictions
         """
         # store predictions for all queries in a single list
         all_preds = []
         mode = self.training
+        device = next(self.parameters()).device
         try:
             # Switch model to evaluation mode
             self.eval()
-            infer_datalayer = self._create_infer_dataloader(queries, batch_size)
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
+            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, max_seq_length)
 
             for i, batch in enumerate(infer_datalayer):
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
 
                 logits = self.forward(
-                    input_ids=input_ids.to(self.device),
-                    token_type_ids=input_type_ids.to(self.device),
-                    attention_mask=input_mask.to(self.device),
+                    input_ids=input_ids.to(device),
+                    token_type_ids=input_type_ids.to(device),
+                    attention_mask=input_mask.to(device),
                 )
 
                 preds = tensor2list(torch.argmax(logits, axis=-1))
@@ -281,17 +288,18 @@ class TextClassificationModel(ModelPT):
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            logging.set_verbosity(logging_level)
         return all_preds
 
-    def _create_infer_dataloader(
-        self, queries: List[str], batch_size: int, max_seq_length: int = -1
+    def _setup_infer_dataloader(
+        self, cfg: Dict, queries: List[str], max_seq_length: int = -1
     ) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
 
         Args:
+            cfg: config dictionary containing data loader params like batch_size, num_workers and pin_memory
             queries: text
-            batch_size: batch size to use during inference
             max_seq_length: maximum length of queries, default is -1 for no limit
         Returns:
             A pytorch DataLoader.
@@ -299,10 +307,10 @@ class TextClassificationModel(ModelPT):
         dataset = TextClassificationDataset(tokenizer=self.tokenizer, queries=queries, max_seq_length=max_seq_length)
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=batch_size,
+            batch_size=cfg["batch_size"],
             shuffle=False,
-            num_workers=self._cfg.dataset.num_workers,
-            pin_memory=self._cfg.dataset.pin_memory,
+            num_workers=cfg.get("num_workers", 0),
+            pin_memory=cfg.get("pin_memory", False),
             drop_last=False,
             collate_fn=dataset.collate_fn,
         )
@@ -314,3 +322,61 @@ class TextClassificationModel(ModelPT):
     @classmethod
     def from_pretrained(cls, name: str):
         pass
+
+    def _prepare_for_export(self):
+        return self.bert_model._prepare_for_export()
+
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+    ):
+        if input_example is not None or output_example is not None:
+            logging.warning(
+                "Passed input and output examples will be ignored and recomputed since"
+                " TextClassificationModel consists of two separate models with different"
+                " inputs and outputs."
+            )
+
+        bert_model_onnx = self.bert_model.export(
+            'bert_' + output,
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        classifier_onnx = self.classifier.export(
+            'classifier_' + output,
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "CL")
+        onnx.save(output_model, output)

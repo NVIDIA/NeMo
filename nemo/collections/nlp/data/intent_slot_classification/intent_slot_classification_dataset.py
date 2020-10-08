@@ -112,15 +112,16 @@ def get_features(
 
     logging.info(f'{too_long_count} are longer than {max_seq_length}')
 
-    logging.info("*** Some Examples of Processed Data***")
+    # May be useful for debugging
+    logging.debug("*** Some Examples of Processed Data ***")
     for i in range(min(len(all_input_ids), 5)):
-        logging.info("i: %s" % (i))
-        logging.info("subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
-        logging.info("loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
-        logging.info("input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
-        logging.info("subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
+        logging.debug("i: %s" % (i))
+        logging.debug("subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
+        logging.debug("loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
+        logging.debug("input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
+        logging.debug("subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
         if with_label:
-            logging.info("slots_label: %s" % " ".join(list(map(str, all_slots[i]))))
+            logging.debug("slots_label: %s" % " ".join(list(map(str, all_slots[i]))))
 
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
 

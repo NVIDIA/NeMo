@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pytorch Dataset for training left-to-right language models."""
 from typing import Optional
 
 import numpy as np

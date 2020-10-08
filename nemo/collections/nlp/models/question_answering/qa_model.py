@@ -22,19 +22,19 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.nlp.data import SquadDataset
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 __all__ = ['QAModel']
 
 
-class QAModel(ModelPT):
+class QAModel(NLPModel):
     """
     BERT encoder with QA head training.
     """

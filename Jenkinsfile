@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-            image 'nvcr.io/nvidia/pytorch:20.08-py3'
+            image 'nvcr.io/nvidia/pytorch:20.09-py3'
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -108,7 +108,7 @@ pipeline {
     // stage('L1: System Tests CPU') {
     //   when {
     //     anyOf{
-    //       branch 'main'
+    //       branch 'dev
     //       changeRequest target: 'main'
     //     }
     //   }
@@ -442,6 +442,35 @@ pipeline {
         }
       }
     }
+    stage('L2: Text Classification with Model Parallel Size 2 Megatron BERT') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/text_classification && \
+        python text_classification_with_bert.py \
+        exp_manager.create_checkpoint_callback=false \
+        exp_manager.exp_dir=exp_mp_2_megatron_bert \
+        trainer.gpus=[0,1] \
+        trainer.num_nodes=1 \
+        trainer.precision=16 \
+        ~trainer.amp_level \
+        +trainer.replace_sampler_ddp=false \
+        +trainer.fast_dev_run=true \
+        model.dataset.num_classes=6 \
+        model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
+        model.train_ds.batch_size=4 \
+        model.language_model.pretrained_model_name=megatron-bert-uncased \
+        model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
+        model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
+        '
+        sh 'rm -rf examples/nlp/text_classification/exp_mp_2_megatron_bert'
+      }
+    }
 
     stage('L2: Parallel NLP Examples 2') {
       when {
@@ -494,8 +523,9 @@ pipeline {
       steps {
         sh 'cd examples/nlp/intent_slot_classification && \
         python intent_slot_classification.py \
-        model.data_dir=/home/TestData/nlp/retail/ \
+        model.data_dir=/home/TestData/nlp/retail \
         model.validation_ds.prefix=dev \
+        model.test_ds.prefix=dev \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true'
       }
@@ -726,6 +756,7 @@ pipeline {
         sh 'rm -rf examples/nlp/token_classification/exp_distilbert_base_uncased'
       }
     }
+
 
 
     stage('L2: TTS Fast dev runs 1') {

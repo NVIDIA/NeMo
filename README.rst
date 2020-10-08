@@ -34,8 +34,23 @@ NeMo toolkit makes it possible for researchers to easily compose complex neural 
 **Neural Modules** are conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 
 
-The toolkit comes with extendable collections of pre-built modules and ready-to-use models for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS).
+The toolkit comes with extendable collections of pre-built modules and ready-to-use models for:
+
+* `Automatic Speech Recognition (ASR) <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_
+* `Natural Language Processing (NLP) <https://ngc.nvidia.com/catalog/models/nvidia:nemonlpmodels>`_
+* `Speech synthesis, or Text-To-Speech (TTS) <https://ngc.nvidia.com/catalog/models/nvidia:nemottsmodels>`_
+
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
+
+`NeMo product page. <https://developer.nvidia.com/nvidia-nemo>`_
+
+`Introductory video. <https://www.youtube.com/embed/wBgpMf_KQVw>`_
+
+.. raw:: html
+
+    <div style="position: relative; padding-bottom: 3%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/wBgpMf_KQVw" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    </div>
 
 
 Requirements
@@ -46,27 +61,43 @@ NeMo's works with:
 1) Python 3.6 or 3.7
 2) Pytorch 1.6 or above
 
-Docker container:
-~~~~~~~~~~~~~~~~~
-We recommend using NVIDIA's PyTorch container version 20.08-py3 with NeMo's main branch.
+Docker containers:
+~~~~~~~~~~~~~~~~~~
+The easiest way to start training with NeMo is by using `NeMo's container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_.
+
+It has all requirements and NeMo 1.0.0b1 already installed.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 nvcr.io/nvidia/pytorch:20.08-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:v1.0.0b1
+
+
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 20.09-py3.
+
+.. code-block:: bash
+
+    docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
+    -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.09-py3
 
 
 Installation
 ~~~~~~~~~~~~
-Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
+If you are not inside the NVIDIA docker container, please install Cython first. If you wish to either use the ASR or TTS collection, please install libsndfile1 and ffmpeg as well.
 
-* ``pip install nemo_toolkit[all]==1.0.0b1`` (latest stable version)
+* ``pip install Cython``
+* ``apt-get update && apt-get install -y libsndfile1 ffmpeg`` (If you want to install the TTS or ASR collections)
+
+Once requirements are satisfied, simply install using pip:
+
+* ``pip install nemo_toolkit[all]==1.0.0b1`` (latest version)
 
 Or if you want the latest (or particular) version from GitHub:
 
-* ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[nlp]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo.
-* ``./reinstall.sh`` - from NeMo's git root. This will install the version from current branch.
+* ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo.
+* ``./reinstall.sh`` - from NeMo's git root. This will install the version from current branch in developement mode.
 
 Examples
 ~~~~~~~~
@@ -191,6 +222,9 @@ To run tutorials:
    * - NLP
      - Token Classification (Named Entity Recognition)
      - `Token classification: named entity recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
+   * - NLP
+     - Joint Intent Classification and Slot Filling
+     - `Joint Intent and Slot Classification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb>`_
    * - NLP
      - GLUE Benchmark
      - `GLUE benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/GLUE_Benchmark.ipynb>`_

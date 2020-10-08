@@ -31,6 +31,7 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
+from nemo.utils.app_state import AppState
 
 __all__ = ['ModelPT']
 
@@ -85,6 +86,11 @@ class ModelPT(LightningModule, Model):
         self._optimizer = None
         self._scheduler = None
         self._trainer = trainer
+
+        # Set device_id in AppState
+        if torch.cuda.current_device() is not None:
+            app_state = AppState()
+            app_state.device_id = torch.cuda.current_device()
 
         if self._cfg is not None and not self.__is_model_being_restored():
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
@@ -845,6 +851,24 @@ class ModelPT(LightningModule, Model):
         """
         return self._test_names[dataloader_idx]
 
+    def teardown(self, stage: str):
+        """
+        Called at the end of fit and test.
+
+        Args:
+            stage: either 'fit' or 'test'
+        """
+        if stage == 'fit':
+            # Update env variable to bypass multi gpu issue after training
+            # This fix affects usage of trainer.test() after trainer.train()
+            # If trainer.train() was done on multiple GPUs, then trainer.test()
+            # will try to do ddp, even if its a new Trainer object with just 1 GPU.
+            # Temporary patch to fix that
+            if 'PL_TRAINER_GPUS' in os.environ:
+                os.environ.pop('PL_TRAINER_GPUS')
+
+        super().teardown(stage)
+
     def prepare_test(self, trainer: 'Trainer') -> bool:
         """
         Helper method to check whether the model can safely be tested
@@ -881,7 +905,7 @@ class ModelPT(LightningModule, Model):
         self.set_trainer(trainer)
         return True
 
-    def set_trainer(self, trainer: 'Trainer'):
+    def set_trainer(self, trainer: Trainer):
         """
         Set an instance of Trainer object.
 
@@ -889,6 +913,23 @@ class ModelPT(LightningModule, Model):
             trainer: PyTorch Lightning Trainer object.
         """
         self._trainer = trainer
+        self.set_world_size(self._trainer)
+
+    def set_world_size(self, trainer: Trainer):
+        """
+        Determines the world size from the PyTorch Lightning Trainer.
+        And then updates AppState.
+
+        Args:
+            trainer (Trainer): PyTorch Lightning Trainer object
+        """
+        # Update AppState with world information from trainer
+        if isinstance(trainer, Trainer):
+            app_state = AppState()
+            if self._trainer.num_gpus and self._trainer.num_nodes:
+                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
+        else:
+            logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """
