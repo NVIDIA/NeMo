@@ -23,7 +23,7 @@ __all__ = ['YouTokenToMeTokenizer']
 
 class YouTokenToMeTokenizer(TokenizerSpec):
     def __init__(self, model_path):
-        self.tokenizer = yttm.BPE(model=model_path)
+        self.tokenizer = yttm.BPE(model=str(model_path))
         self.vocab_size = len(self.tokenizer.vocab())
         self.special_tokens = self.tokens_to_ids(["<PAD>", "<UNK>", "<BOS>", "<EOS>"])
 
