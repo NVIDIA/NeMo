@@ -182,8 +182,8 @@ class TransformerMTModel(ModelPT):
         dataset = TranslationDataset(
             tokenizer_src=self.src_tokenizer,
             tokenizer_tgt=self.tgt_tokenizer,
-            dataset_src=Path(cfg.src_file_name).expanduser(),
-            dataset_tgt=Path(cfg.tgt_file_name).expanduser(),
+            dataset_src=str(Path(cfg.src_file_name).expanduser()),
+            dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
             tokens_in_batch=cfg.tokens_in_batch,
         )
         sampler = pt_data.distributed.DistributedSampler(dataset, shuffle=cfg.shuffle)
