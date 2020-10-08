@@ -26,7 +26,7 @@ class Hypothesis:
     """Hypothesis class for beam search algorithms."""
 
     score: float
-    y_sequence: List[int]
+    y_sequence: Union[List[int], torch.Tensor]
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     y: List[torch.tensor] = None
     lm_state: Union[Dict[str, Any], List[Any]] = None

@@ -20,10 +20,11 @@ from nemo.collections.asr.parts import rnn, rnnt_utils
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
+    ElementType,
     EmbeddedTextType,
     LabelsType,
     LengthsType,
-    LogitsType,
+    LogprobsType,
     NeuralType,
 )
 from nemo.utils import logging
@@ -51,6 +52,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
+            "states": NeuralType(('D', 'B', 'D'), ElementType(), optional=True)
         }
 
     @property
@@ -93,11 +95,12 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         )
 
     @typecheck()
-    def forward(self, targets, target_length):
+    def forward(self, targets, target_length, states=None):
         # y: (B, U)
         y = rnn.label_collate(targets)
 
-        g, _ = self.predict(y, state=None)  # (B, U + 1, D)
+        print("Y (B, U) shape ", y.shape)
+        g, _ = self.predict(y, state=states)  # (B, U + 1, D)
         g = g.transpose(1, 2)  # (B, D, U + 1)
 
         return g, target_length
@@ -106,7 +109,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         self,
         y: Optional[torch.Tensor] = None,
         state: Optional[List[torch.Tensor]] = None,
-        add_sos: bool = False,
+        add_sos: bool = True,
         batch_size: Optional[int] = None,
     ) -> (torch.Tensor, List[torch.Tensor]):
         """
@@ -325,7 +328,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         """Returns definitions of module output ports.
         """
         return {
-            "outputs": NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
+            "outputs": NeuralType(('B', 'T', 'D', 'D'), LogprobsType()),
         }
 
     def __init__(

@@ -200,7 +200,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
-        return packed_result
+        return (packed_result,)
 
     @torch.no_grad()
     def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor):
@@ -288,7 +288,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             hypotheses_lens = [len(hyp) for hyp in hypotheses]
             max_len = max(hypotheses_lens)
 
-            packed_result = [rnnt_utils.Hypothesis(y_sequence=sent, score=-1.0)
+            packed_result = [rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
                              for sent in hypotheses]
 
             # packed_result = torch.full(
@@ -307,7 +307,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
-        return packed_result
+        return (packed_result,)
 
     @torch.no_grad()
     def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):

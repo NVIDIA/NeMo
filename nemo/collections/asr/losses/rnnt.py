@@ -32,7 +32,7 @@ class RNNTLoss(Loss):
         """Input types definitions for CTCLoss.
         """
         return {
-            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "log_probs": NeuralType(('B', 'T', 'D', 'D'), LogprobsType()),
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "input_lengths": NeuralType(tuple('B'), LengthsType()),
             "target_lengths": NeuralType(tuple('B'), LengthsType()),
@@ -46,7 +46,7 @@ class RNNTLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction=None):
+    def __init__(self, num_classes, reduction=None, zero_infinity: bool = False):
         super(RNNTLoss, self).__init__()
 
         if not WARP_RNNT_AVAILABLE:
@@ -59,22 +59,42 @@ class RNNTLoss(Loss):
             )
 
         self._blank = num_classes
+        self._zero_infinity = zero_infinity
         self._loss = warprnnt.RNNTLoss(blank=self._blank, reduction=reduction)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
         # override forward implementation
         # custom logic, if necessary
-        input_lengths = input_lengths.long()
-        target_lengths = target_lengths.long()
-        targets = targets.long()
-        # here we transpose because we expect [B, T, D] while PyTorch assumes [T, B, D]
-        log_probs = log_probs.transpose(1, 0)
+        input_lengths = input_lengths.int()
+        target_lengths = target_lengths.int()
+        targets = targets.int()
+
+        max_logit_len = input_lengths.max()
 
         # force cast to float32
         if log_probs.dtype != torch.float32:
+            logits_orig = log_probs
             log_probs = log_probs.float()
+            del logits_orig  # save memory *before* computing the loss
+            # torch.cuda.empty_cache()
+
+        # Ensure that shape mismatch does not occur due to padding
+        print("log probs shape :", log_probs.shape)
+        print("max logits len :", max_logit_len)
+        print("max target len", target_lengths.max())
+        log_probs = log_probs[:, :max_logit_len, :, :].contiguous()
 
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
+
+        if self._zero_infinity:
+            mask = torch.isnan(loss)
+            mask |= torch.isinf(loss)
+            loss[mask] = 0
+
         loss = torch.mean(loss)
+
+        # del new variables that may have been created due to float/int/cuda()
+        del log_probs, targets, input_lengths, target_lengths,
+
         return loss

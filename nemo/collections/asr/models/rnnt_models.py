@@ -88,7 +88,7 @@ class EncDecRNNTModel(ASRModel):
 
         self.decoder = EncDecRNNTModel.from_config_dict(self.cfg.decoder)
         self.joint = EncDecRNNTModel.from_config_dict(self.cfg.joint)
-        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
+        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1, zero_infinity=True)
         if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecRNNTModel.from_config_dict(self.cfg.spec_augment)
         else:
@@ -102,6 +102,11 @@ class EncDecRNNTModel(ASRModel):
             vocabulary=self.joint.vocabulary,
             batch_dim_index=0,
         )
+
+        if 'compute_eval_loss' in self.cfg:
+            self.compute_eval_loss = self.cfg.compute_eval_loss
+        else:
+            self.compute_eval_loss = False
 
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
@@ -379,7 +384,7 @@ class EncDecRNNTModel(ASRModel):
 
         tensorboard_logs = {}
 
-        if 'compute_eval_loss' in self.cfg and self.cfg.compute_eval_loss:
+        if self.compute_eval_loss:
             decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
             joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
 
@@ -403,6 +408,28 @@ class EncDecRNNTModel(ASRModel):
         if 'val_loss' in test_logs:
             test_logs['test_loss'] = logs['val_loss']
         return test_logs
+
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        if self.compute_eval_loss:
+            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+            val_loss_log = {'val_loss': val_loss_mean}
+        else:
+            val_loss_log = {}
+        wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
+        wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+        tensorboard_logs = {**val_loss_log, 'validation_wer': wer_num / wer_denom}
+        return {**val_loss_log, 'log': tensorboard_logs}
+
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        if self.compute_eval_loss:
+            test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+            test_loss_log = {'test_loss': test_loss_mean}
+        else:
+            test_loss_log = {}
+        wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
+        wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
+        tensorboard_logs = {**test_loss_log, 'test_wer': wer_num / wer_denom}
+        return {**test_loss_log, 'log': tensorboard_logs}
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """

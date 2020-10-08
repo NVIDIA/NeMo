@@ -122,13 +122,16 @@ class RNNTWER(TensorMetric):
         with torch.no_grad():
             hypotheses_list = self.decoding(
                 encoder_output=encoder_output, encoded_lengths=encoded_lengths
-            )  # type: List[Hypothesis]
+            )  # type: [List[Hypothesis]]
+
+            # extract the hypotheses
+            hypotheses_list = hypotheses_list[0]  # type: List[Hypothesis]
 
         # Drop predictions to CPU
-        prediction_cpu_tensor = hypotheses_list
+        prediction_list = hypotheses_list
         # iterate over batch
-        for ind in range(len(prediction_cpu_tensor)):
-            prediction = prediction_cpu_tensor[ind].y_sequence
+        for ind in range(len(prediction_list)):
+            prediction = prediction_list[ind].y_sequence.to(device='cpu', dtype=torch.long).numpy()
             # CTC decoding procedure
             decoded_prediction = []
             previous = self.blank_id
@@ -136,7 +139,7 @@ class RNNTWER(TensorMetric):
                 if (p != previous or previous == self.blank_id) and p != self.blank_id:
                     decoded_prediction.append(p)
                 previous = p
-            hypothesis = ''.join([self.labels_map[c] for c in decoded_prediction])
+            hypothesis = ''.join([self.labels_map[c] for c in decoded_prediction if c != self.blank_id])
             hypotheses.append(hypothesis)
         return hypotheses
 
@@ -159,7 +162,7 @@ class RNNTWER(TensorMetric):
             for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
-                reference = ''.join([self.labels_map[c] for c in target])
+                reference = ''.join([self.labels_map[c] for c in target if c != self.blank_id])
                 references.append(reference)
 
             hypotheses = self.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
