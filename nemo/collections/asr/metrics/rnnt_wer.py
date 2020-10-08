@@ -161,10 +161,8 @@ class RNNTWER(TensorMetric):
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = ''.join([self.labels_map[c] for c in target])
                 references.append(reference)
-            if self.ctc_decode:
-                hypotheses = self.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
-            else:
-                raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
+
+            hypotheses = self.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
 
         if self.log_prediction:
             logging.info(f"\n")

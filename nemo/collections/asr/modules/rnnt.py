@@ -124,17 +124,22 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
                         h (tensor), shape (L, B, H)
                         c (tensor), shape (L, B, H)
         """
+        # Get device and dtype of current module
+        _p = next(self.parameters())
+        device = _p.device
+        dtype = _p.dtype
+
         if y is not None:
             # (B, U) -> (B, U, H)
+            if y.device != device:
+                y = y.to(device)
+
             y = self.prediction["embed"](y)
         else:
             if batch_size is None:
                 B = 1 if state is None else state[0].size(1)
             else:
                 B = batch_size
-
-            device = self.prediction['dec_rnn'].device
-            dtype = self.prediction['dec_rnn'].dtype
             y = torch.zeros((B, 1, self.pred_hidden), device=device, dtype=dtype)
 
         # prepend blank "start of sequence" symbol

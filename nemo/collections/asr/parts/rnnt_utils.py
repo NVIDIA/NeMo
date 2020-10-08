@@ -83,7 +83,6 @@ class AbstractRNNTJoint(NeuralModule, ABC):
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()
 
-    @abstractmethod
     @property
     def num_classes_with_blank(self):
         raise NotImplementedError()

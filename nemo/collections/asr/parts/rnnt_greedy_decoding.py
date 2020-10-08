@@ -98,10 +98,7 @@ class _GreedyRNNTInfer(Typing):
             if label == self._SOS:
                 return self.decoder.predict(None, hidden, add_sos=add_sos, batch_size=batch_size)
 
-            if label > self._blank_index:
-                label -= 1
-
-            label = label_collate([[label]], device=self.decoder.device)
+            label = label_collate([[label]])
 
         # output: [B, 1, K]
         return self.decoder.predict(label, hidden, add_sos=add_sos, batch_size=batch_size)
@@ -339,11 +336,15 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Update blank mask with time mask
             time_mask = time_idx >= out_len
-            blank_mask.bitwise_or_(time_mask)
+            blank_mask = blank_mask.bitwise_or(time_mask)
 
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
                 # Batch prediction and joint network steps
-                g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
+                if symbols_added == 0:
+                    g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
+                else:
+                    g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
+
                 logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
 
                 if logp.dtype != torch.float32:
@@ -354,7 +355,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # Update blank mask with current predicted blanks
                 k_is_blank = k == self._blank_index
-                blank_mask.bitwise_or_(k_is_blank)
+                blank_mask = blank_mask.bitwise_or(k_is_blank)
 
                 # If all samples predict / have predicted prior blanks, exit loop early
                 if blank_mask.all():

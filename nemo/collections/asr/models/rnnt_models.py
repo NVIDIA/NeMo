@@ -29,7 +29,7 @@ from nemo.collections.asr.metrics.rnnt_wer import RNNTWER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
+from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
 try:
@@ -333,7 +333,7 @@ class EncDecRNNTModel(ASRModel):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
