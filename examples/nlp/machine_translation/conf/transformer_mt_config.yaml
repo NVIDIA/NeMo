@@ -51,8 +51,8 @@ model:
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
   validation_ds:
-    src_file_name: ~/data/wmt14_en_de/valid.en # path to file with validation data
-    tgt_file_name: ~/data/wmt14_en_de/valid.de
+    src_file_name: ~/data/wmt14_en_de2 /valid.en # path to file with validation data
+    tgt_file_name: ~/data/wmt14_en_de2/valid.de
     batch_size: 32
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
