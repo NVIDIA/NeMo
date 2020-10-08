@@ -20,13 +20,15 @@ model:
 
 
   machine_translation:
-    tokenizer: yttm
-    special_tokens:
-        unk_token: '<UNK>'
-        pad_token: '<PAD>'
-        bos_token: '<BOS>'
-        eos_token: '<EOS>'
-    vocab_file: ???
+    src_tokenizer: yttm
+    tgt_tokenizer: yttm
+    #special_tokens:
+    #    unk_token: '<UNK>'
+    #    pad_token: '<PAD>'
+    #    bos_token: '<BOS>'
+    #    eos_token: '<EOS>'
+    src_tokenizer_model: ~/data/wmt14_en_de/bpe_32k_ende_yttm.model
+    tgt_tokenizer_model: ~/data/wmt14_en_de/bpe_32k_ende_yttm.model
     hidden_size: 512
     num_layers: 6
     num_attn_heads: 8
