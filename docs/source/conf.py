@@ -70,6 +70,8 @@ autodoc_mock_imports = [
     'onnx',
     'editdistance',
     'megatron',
+    'pesq',
+    'pystoi',
 ]
 
 # -- General configuration ------------------------------------------------
