@@ -73,7 +73,7 @@ class UniGlowModel(Vocoder):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.pad_value = self._cfg.preprocessor.params.pad_value
+        self.pad_value = self._cfg.preprocessor.pad_value
         self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.model = UniGlowModule(
@@ -166,7 +166,7 @@ class UniGlowModel(Vocoder):
 
         # compute average stoi score for batch
         stoi_score = 0
-        sr = self._cfg.preprocessor.params.sample_rate
+        sr = self._cfg.preprocessor.sample_rate
         for audio_i, audio_recon_i in zip(audio.cpu(), predicted_audio.cpu()):
             stoi_score += stoi(audio_i, audio_recon_i, sr)
         stoi_score /= audio.shape[0]
@@ -244,7 +244,7 @@ class UniGlowModel(Vocoder):
         Returns:
             An integer representing the upsampling factor
         """
-        audio = torch.ones(1, self._cfg.train_ds.dataset.params.n_segments)
+        audio = torch.ones(1, self._cfg.train_ds.dataset.n_segments)
         spec, spec_len = self.audio_to_melspec_precessor(audio, torch.FloatTensor([len(audio)]))
         spec = spec[:, :, :-1]
         audio = audio.unfold(1, self._cfg.uniglow.n_group, self._cfg.uniglow.n_group).permute(0, 2, 1)

@@ -22,3 +22,7 @@ Model Classes
 .. autoclass:: nemo.collections.tts.models.SqueezeWaveModel
     :show-inheritance:
     :members:
+
+.. autoclass:: nemo.collections.tts.models.UniGlowModel
+    :show-inheritance:
+    :members:

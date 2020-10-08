@@ -46,6 +46,20 @@ SqueezeWave also uses larger group sizes, which reduces computation along the te
 SqueezeWave can be instantiated using the :class:`SqueezeWaveModel<nemo.collections.tts.models.SqueezeWaveModel>` class.
 
 
+UniGlow
+-------
+
+UniGlow is a version of WaveGlow :cite:`tts-models-prenger2018waveglow` that compresses the model by sharing the parameters of all its layers.
+Also, UniGlow uses the Multi-resolution STFT-loss :cite:`tts-models-yamamoto2020parallel` to accelarate training and enhance audio quality.
+UniGlow can be fine-tuned to different depths for trade-off between inference speed and audio quality.
+
+    .. image:: uniglow.png
+        :align: center
+        :alt: UniGlow model
+
+UniGlow can be instantiated using the :class:`UniGlowModel<nemo.collections.tts.models.UniGlowModel>` class.
+
+
 References
 ----------
 
