@@ -68,7 +68,7 @@ class TransformerMTModel(ModelPT):
         )
         self.encoder = TransformerEncoder(
             hidden_size=cfg.machine_translation.hidden_size,
-            d_inner=cfg.machine_translation.d_inner,
+            inner_size=cfg.machine_translation.inner_size,
             num_layers=cfg.machine_translation.num_layers,
             embedding_dropout=cfg.machine_translation.embedding_dropout,
             num_attn_heads=cfg.machine_translation.num_attn_heads,
@@ -80,7 +80,7 @@ class TransformerMTModel(ModelPT):
         )
         self.decoder = TransformerDecoder(
             hidden_size=cfg.machine_translation.hidden_size,
-            d_inner=cfg.machine_translation.d_inner,
+            inner_size=cfg.machine_translation.inner_size,
             num_layers=cfg.machine_translation.num_layers,
             embedding_dropout=cfg.machine_translation.embedding_dropout,
             num_attn_heads=cfg.machine_translation.num_attn_heads,
