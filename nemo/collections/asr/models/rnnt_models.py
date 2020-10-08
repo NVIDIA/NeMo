@@ -25,7 +25,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics.rnnt_wer import RNNTWER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -83,8 +83,14 @@ class EncDecRNNTModel(ASRModel):
         else:
             self.spec_augmentation = None
 
-        # Setup metric objects
-        self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        # Setup decoding objects
+        self.decoding = RNNTWER(
+            decoding_cfg=self.cfg.decoding,
+            decoder=self.decoder,
+            joint=self.joint,
+            vocabulary=self.decoder.vocabulary,
+            batch_dim_index=0,
+        )
 
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
@@ -168,7 +174,7 @@ class EncDecRNNTModel(ASRModel):
             self.joint = EncDecRNNTModel.from_config_dict(new_joint_config)
             del self.loss
             self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
-            self._wer = WER(vocabulary=self.joint.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+            self.decoding = WER(vocabulary=self.joint.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
             # Update config
             OmegaConf.set_struct(self.cfg.joint, False)
@@ -307,7 +313,6 @@ class EncDecRNNTModel(ASRModel):
         return {
             "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-            "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
     @typecheck()
@@ -318,19 +323,19 @@ class EncDecRNNTModel(ASRModel):
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal)
+
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
-        log_probs = self.decoder(encoder_output=encoded)
-        greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-        return log_probs, encoded_len, greedy_predictions
+        return encoded, encoded_len
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
-        log_probs, encoded_len, predictions = self.forward(
-            input_signal=audio_signal, input_signal_length=audio_signal_len
-        )
+        encoded, encoded_len = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
+        joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
+
         loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+            log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
         )
 
         tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
@@ -341,29 +346,40 @@ class EncDecRNNTModel(ASRModel):
             row_log_interval = 1
 
         if (batch_nb + 1) % row_log_interval == 0:
-            wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
+            wer_num, wer_denom = self.decoding(encoded, encoded_len, transcript, transcript_len)
             tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
-        log_probs, encoded_len, predictions = self.forward(
-            input_signal=audio_signal, input_signal_length=audio_signal_len
-        )
-        loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
-        )
-        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
-        return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+        encoded, encoded_len = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+
+        tensorboard_logs = {}
+
+        if 'compute_eval_loss' in self.cfg and self.cfg.compute_eval_loss:
+            decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
+            joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
+
+            loss_value = self.loss(
+                log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
+            )
+
+            tensorboard_logs['val_loss'] = loss_value
+
+        wer_num, wer_denom = self.decoding(encoded, encoded_len, transcript, transcript_len)
+        tensorboard_logs['val_wer_num'] = wer_num
+        tensorboard_logs['val_wer_denom'] = wer_denom
+        return tensorboard_logs
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
         test_logs = {
-            'test_loss': logs['val_loss'],
             'test_wer_num': logs['val_wer_num'],
             'test_wer_denom': logs['val_wer_denom'],
         }
+        if 'val_loss' in test_logs:
+            test_logs['test_loss'] = logs['val_loss']
         return test_logs
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':

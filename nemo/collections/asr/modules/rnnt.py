@@ -332,6 +332,9 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
     ):
         super().__init__()
 
+        self._vocab_size = num_classes
+        self._num_classes = num_classes + 1  # add 1 for blank symbol
+
         # Log softmax should be applied explicitly only for CPU
         self.log_softmax = log_softmax
         self.preserve_memory = preserve_memory
@@ -346,7 +349,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         dropout = joint.get('dropout', 0.0)
 
         self.pred, self.enc, self.joint_net = self._joint_net(
-            vocab_size=num_classes + 1,  # add 1 for blank symbol
+            num_classes=self._num_classes,  # add 1 for blank symbol
             pred_n_hidden=pred_hidden,
             enc_n_hidden=encoder_hidden,
             joint_n_hidden=joint_hidden,
@@ -399,7 +402,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
 
         return res
 
-    def _joint_net(self, vocab_size, pred_n_hidden, enc_n_hidden, joint_n_hidden, activation, dropout):
+    def _joint_net(self, num_classes, pred_n_hidden, enc_n_hidden, joint_n_hidden, activation, dropout):
         pred = torch.nn.Linear(pred_n_hidden, joint_n_hidden)
         enc = torch.nn.Linear(enc_n_hidden, joint_n_hidden)
 
@@ -418,6 +421,10 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         layers = (
             [activation]
             + ([torch.nn.Dropout(p=dropout)] if dropout else [])
-            + [torch.nn.Linear(joint_n_hidden, vocab_size)]
+            + [torch.nn.Linear(joint_n_hidden, num_classes)]
         )
         return pred, enc, torch.nn.Sequential(*layers)
+
+    @property
+    def num_classes_with_blank(self):
+        return self._num_classes

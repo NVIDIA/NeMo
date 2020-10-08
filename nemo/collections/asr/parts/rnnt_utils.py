@@ -27,7 +27,7 @@ class Hypothesis:
 
     score: float
     y_sequence: List[int]
-    dec_state: Union[List[List[torch.Tensor]], List[torch.Tensor]]
+    dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     y: List[torch.tensor] = None
     lm_state: Union[Dict[str, Any], List[Any]] = None
     lm_scores: torch.Tensor = None
@@ -81,4 +81,9 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
 class AbstractRNNTJoint(NeuralModule, ABC):
     @abstractmethod
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError()
+
+    @abstractmethod
+    @property
+    def num_classes_with_blank(self):
         raise NotImplementedError()

@@ -38,7 +38,7 @@ from nemo.core.neural_types import *
 from nemo.utils import logging
 
 
-class _BeamRNNTInfer(Typing):
+class BeamRNNTInfer(Typing):
     def __init__(
         self,
         decoder_model: rnnt_utils.AbstractRNNTDecoder,
@@ -89,14 +89,16 @@ class _BeamRNNTInfer(Typing):
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
         self.nsc_prefix_alpha = nsc_prefix_alpha
 
-    def __call__(self, h: torch.Tensor) -> List[Hypothesis]:
+    @typecheck()
+    def __call__(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
         """Perform beam search.
         Args:
-            h: Encoded speech features (T_max, D_enc)
+            encoder_output: Encoded speech features (B, T_max, D_enc)
+            encoded_lengths: Lengths of the encoder outputs
         Returns:
             nbest_hyps: N-best decoding results
         """
-        nbest_hyps = self.search_algorithm(h)
+        nbest_hyps = self.search_algorithm(encoder_output, encoded_lengths)
         return nbest_hyps
 
     def sort_nbest(self, hyps: List[Hypothesis]) -> List[Hypothesis]:
@@ -139,7 +141,7 @@ class _BeamRNNTInfer(Typing):
 
         return [hyp]
 
-    def default_beam_search(self, h: torch.Tensor) -> List[Hypothesis]:
+    def default_beam_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
         """Beam search implementation.
         Args:
             x: Encoded speech features (1, T_max, D_enc)
@@ -206,7 +208,7 @@ class _BeamRNNTInfer(Typing):
 
         return self.sort_nbest(kept_hyps)
 
-    def time_sync_decoding(self, h: torch.Tensor) -> List[Hypothesis]:
+    def time_sync_decoding(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
         """Time synchronous beam search implementation.
         Based on https://ieeexplore.ieee.org/document/9053040
         Args:
@@ -271,7 +273,7 @@ class _BeamRNNTInfer(Typing):
 
         return self.sort_nbest(B)
 
-    def align_length_sync_decoding(self, h: torch.Tensor) -> List[Hypothesis]:
+    def align_length_sync_decoding(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
         """Alignment-length synchronous beam search implementation.
         Based on https://ieeexplore.ieee.org/document/9053040
         Args:
@@ -288,13 +290,7 @@ class _BeamRNNTInfer(Typing):
         init_tensor = h
         beam_state = self.decoder.init_state(torch.zeros((beam,), device=h.device, dtype=h.dtype))  # [L, B, H]
 
-        B = [
-            Hypothesis(
-                y_sequence=[self.blank],
-                score=0.0,
-                dec_state=beam_state[:, :1, :],
-            )
-        ]
+        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=beam_state[:, :1, :],)]
 
         final = []
         cache = {}
@@ -315,15 +311,11 @@ class _BeamRNNTInfer(Typing):
                 h_states.append((t, h[t]))
 
             if B_:
-                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(
-                    B_, cache
-                )
+                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(B_, cache)
 
                 h_enc = torch.stack([h[1] for h in h_states])
 
-                beam_logp = torch.log_softmax(
-                    self.joint.joint(h_enc, beam_y), dim=-1
-                )
+                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y), dim=-1)
                 beam_topk = beam_logp[:, 1:].topk(beam, dim=-1)
 
                 for i, hyp in enumerate(B_):

@@ -49,7 +49,7 @@ class _GreedyRNNTInfer(Typing):
     def output_types(self):
         """Returns definitions of module output ports.
         """
-        return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
+        return {"predictions": NeuralType(elements_type=HypothesisType())}
 
     def __init__(
         self,
@@ -184,18 +184,21 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             hypotheses_lens = [len(hyp) for hyp in hypotheses]
             max_len = max(hypotheses_lens)
 
-            packed_result = torch.full(
-                size=[encoder_output.size(0), max_len],
-                fill_value=self._blank_index,
-                dtype=torch.long,
-                device=encoder_output.device,
-            )
+            packed_result = [rnnt_utils.Hypothesis(y_sequence=sent, score=-1.0)
+                             for sent in hypotheses]
 
-            for h_idx, hyp in enumerate(hypotheses):
-                len_h = hypotheses_lens[h_idx]
-                hyp_t = torch.tensor(hyp, dtype=torch.long, device=packed_result.device)
-
-                packed_result[h_idx, :len_h] = hyp_t
+            # packed_result = torch.full(
+            #     size=[encoder_output.size(0), max_len],
+            #     fill_value=self._blank_index,
+            #     dtype=torch.long,
+            #     device=encoder_output.device,
+            # )
+            #
+            # for h_idx, hyp in enumerate(hypotheses):
+            #     len_h = hypotheses_lens[h_idx]
+            #     hyp_t = torch.tensor(hyp, dtype=torch.long, device=packed_result.device)
+            #
+            #     packed_result[h_idx, :len_h] = hyp_t
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -288,18 +291,21 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             hypotheses_lens = [len(hyp) for hyp in hypotheses]
             max_len = max(hypotheses_lens)
 
-            packed_result = torch.full(
-                size=[encoder_output.size(0), max_len],
-                fill_value=self._blank_index,
-                dtype=torch.long,
-                device=encoder_output.device,
-            )
+            packed_result = [rnnt_utils.Hypothesis(y_sequence=sent, score=-1.0)
+                             for sent in hypotheses]
 
-            for h_idx, hyp in enumerate(hypotheses):
-                len_h = hypotheses_lens[h_idx]
-                hyp_t = torch.tensor(hyp, dtype=torch.long, device=packed_result.device)
-
-                packed_result[h_idx, :len_h] = hyp_t
+            # packed_result = torch.full(
+            #     size=[encoder_output.size(0), max_len],
+            #     fill_value=self._blank_index,
+            #     dtype=torch.long,
+            #     device=encoder_output.device,
+            # )
+            #
+            # for h_idx, hyp in enumerate(hypotheses):
+            #     len_h = hypotheses_lens[h_idx]
+            #     hyp_t = torch.tensor(hyp, dtype=torch.long, device=packed_result.device)
+            #
+            #     packed_result[h_idx, :len_h] = hyp_t
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
