@@ -48,14 +48,15 @@ model:
     pin_memory: false # enables pin_memory feature of the data loaders
 
   train_ds:
-    src_file_name: ???
-    tgt_file_name: ???
+    src_file_name: ~/data/wmt14_en_de/train.en
+    tgt_file_name: ~/data/wmt14_en_de/train.de
     tokens_in_batch: 4096
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
   validation_ds:
-    file_name: ??? # path to file with validation data
+    src_file_name: ~/data/wmt14_en_de/valid.en # path to file with validation data
+    tgt_file_name: ~/data/wmt14_en_de/valid.de
     batch_size: 32
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
