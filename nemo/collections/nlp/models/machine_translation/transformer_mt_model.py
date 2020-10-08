@@ -72,7 +72,6 @@ class TransformerMTModel(ModelPT):
             num_layers=cfg.machine_translation.num_layers,
             num_attention_heads=cfg.machine_translation.num_attn_heads,
             ffn_dropout=cfg.machine_translation.ffn_dropout,
-            vocab_size=self.src_tokenizer.vocab_size,
             attn_score_dropout=cfg.machine_translation.attn_score_dropout,
             attn_layer_dropout=cfg.machine_translation.attn_layer_dropout,
             max_seq_length=cfg.machine_translation.max_seq_length,
