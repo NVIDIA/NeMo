@@ -1,5 +1,5 @@
 latexcodec
-sphinx>=2.2.2
+sphinx>=3.0
 sphinx_rtd_theme
 sphinxcontrib-bibtex
 wrapt
