@@ -181,8 +181,10 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             hypotheses_lens = [len(hyp) for hyp in hypotheses]
             max_len = max(hypotheses_lens)
 
-            packed_result = [rnnt_utils.Hypothesis(y_sequence=sent, score=-1.0)
-                             for sent in hypotheses]
+            packed_result = [
+                rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
+                for sent in hypotheses
+            ]
 
             # packed_result = torch.full(
             #     size=[encoder_output.size(0), max_len],
@@ -288,8 +290,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             hypotheses_lens = [len(hyp) for hyp in hypotheses]
             max_len = max(hypotheses_lens)
 
-            packed_result = [rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
-                             for sent in hypotheses]
+            packed_result = [
+                rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
+                for sent in hypotheses
+            ]
 
             # packed_result = torch.full(
             #     size=[encoder_output.size(0), max_len],
@@ -319,6 +323,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         # Label buffer
         last_label = torch.full([batchsize, 1], fill_value=self._blank_index, dtype=torch.long, device=device)
+        last_label_without_blank = last_label.clone()  # type: torch.Tensor
 
         # Mask buffers
         blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
@@ -336,14 +341,22 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Update blank mask with time mask
             time_mask = time_idx >= out_len
-            blank_mask = blank_mask.bitwise_or(time_mask)
+            blank_mask.bitwise_or_(time_mask)
 
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
                 # Batch prediction and joint network steps
                 if symbols_added == 0:
                     g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
                 else:
-                    g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
+                    # set a dummy label for the blank value
+                    # this value will be overwritten by "blank_id" again the last label update below
+                    last_label_without_blank_mask = last_label == self._blank_index
+                    last_label_without_blank[last_label_without_blank_mask] = 0  # temp change of label
+                    last_label_without_blank[~last_label_without_blank_mask] = last_label[
+                        ~last_label_without_blank_mask
+                    ]
+
+                    g, hidden_prime = self._pred_step(last_label_without_blank, hidden, batch_size=batchsize)
 
                 logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
 
@@ -355,7 +368,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # Update blank mask with current predicted blanks
                 k_is_blank = k == self._blank_index
-                blank_mask = blank_mask.bitwise_or(k_is_blank)
+                blank_mask.bitwise_or_(k_is_blank)
 
                 # If all samples predict / have predicted prior blanks, exit loop early
                 if blank_mask.all():
@@ -369,6 +382,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Recover prior state for all samples which predicted blank now/past
                     if hidden is not None:
+                        # LSTM has 2 states
                         for state_id in range(len(hidden)):
                             hidden_prime[state_id][:, batch_indices, :] = hidden[state_id][:, batch_indices, :]
 

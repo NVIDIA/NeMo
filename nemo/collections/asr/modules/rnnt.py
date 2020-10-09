@@ -99,7 +99,6 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         # y: (B, U)
         y = rnn.label_collate(targets)
 
-        print("Y (B, U) shape ", y.shape)
         g, _ = self.predict(y, state=states)  # (B, U + 1, D)
         g = g.transpose(1, 2)  # (B, D, U + 1)
 

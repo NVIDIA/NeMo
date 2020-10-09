@@ -25,7 +25,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.rnnt_wer import RNNTWER
+from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingWER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -88,14 +88,14 @@ class EncDecRNNTModel(ASRModel):
 
         self.decoder = EncDecRNNTModel.from_config_dict(self.cfg.decoder)
         self.joint = EncDecRNNTModel.from_config_dict(self.cfg.joint)
-        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1, zero_infinity=True)
+        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
         if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecRNNTModel.from_config_dict(self.cfg.spec_augment)
         else:
             self.spec_augmentation = None
 
         # Setup decoding objects
-        self.decoding = RNNTWER(
+        self.decoding = RNNTDecodingWER(
             decoding_cfg=self.cfg.decoding,
             decoder=self.decoder,
             joint=self.joint,
@@ -195,7 +195,7 @@ class EncDecRNNTModel(ASRModel):
                 # Assume same decoding config as before
                 decoding_cfg = self.cfg.decoding
 
-            self.decoding = RNNTWER(
+            self.decoding = RNNTDecodingWER(
                 decoding_cfg=decoding_cfg,
                 decoder=self.decoder,
                 joint=self.joint,
@@ -405,7 +405,7 @@ class EncDecRNNTModel(ASRModel):
             'test_wer_num': logs['val_wer_num'],
             'test_wer_denom': logs['val_wer_denom'],
         }
-        if 'val_loss' in test_logs:
+        if 'val_loss' in logs:
             test_logs['test_loss'] = logs['val_loss']
         return test_logs
 
