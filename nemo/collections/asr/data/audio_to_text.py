@@ -303,13 +303,19 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
     transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
 
-    Additionally, user provides path to precomputed durations.
+    Additionally, user provides path to precomputed durations, which is a pickled python dict with 'tags' and 'durs'
+    keys, both of which are list of examples values. Tag is a unique example identifier, which is a wav filename
+    without suffix. Durations are an additional tuple of two tensors: graphemes durations and blanks durations.
+    Example below:
+    {'tags': ['LJ050-0234', 'LJ019-0373'],
+     'durs': [(graphemes_durs0, blanks_durs0), (graphemes_durs1, blanks_durs1)]}
 
     Args:
         **kwargs: Passed to AudioToCharDataset constructor.
         durs_path (str): String path to pickled list of '[(tag, durs)]' durations location.
         rep (bool): True if repeat text graphemes according to durs.
-        vocab: Vocabulary config (parser + set of graphemes to use).
+        vocab: Vocabulary config (parser + set of graphemes to use). Constructor propagates these to
+            `self.make_vocab` function call to build a complete vocabulary.
     """
 
     @property
@@ -330,6 +336,17 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
 
     @staticmethod
     def make_vocab(notation='chars', punct=True, spaces=False, stresses=False):
+        """Constructs vocabulary from given parameters.
+
+        Args:
+            notation (str): Either 'chars' or 'phonemes' as general notation.
+            punct (bool): True if reserve grapheme for basic punctuation.
+            spaces (bool): True if prepend spaces to every punctuation symbol.
+            stresses (bool): True if use phonemes codes with stresses (0-2).
+
+        Returns:
+            (vocabs.Base) Vocabulary
+        """
         if notation == 'chars':
             vocab = vocabs.Chars(punct=punct, spaces=spaces)
         elif notation == 'phonemes':
