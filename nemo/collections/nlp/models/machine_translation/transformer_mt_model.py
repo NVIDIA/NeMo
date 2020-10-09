@@ -91,7 +91,6 @@ class TransformerMTModel(ModelPT):
             embedding=self.embedding_layer,
             decoder=self.decoder,
             log_softmax=self.log_softmax,
-            max_seq_length=cfg.machine_translation.max_seq_length,
             beam_size=cfg.machine_translation.beam_size,
             bos_token=self.tgt_tokenizer.bos_id,
             pad_token=self.tgt_tokenizer.pad_id,
