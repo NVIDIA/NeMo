@@ -142,7 +142,7 @@ class RNNTDecodingWER(TensorMetric):
         prediction_list = hypotheses_list
         # iterate over batch
         for ind in range(len(prediction_list)):
-            prediction = prediction_list[ind].y_sequence.to(device='cpu', dtype=torch.long).numpy()
+            prediction = prediction_list[ind].y_sequence.tolist()
             # CTC decoding procedure
             decoded_prediction = []
             previous = self.blank_id
