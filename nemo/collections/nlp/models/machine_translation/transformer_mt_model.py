@@ -105,7 +105,7 @@ class TransformerMTModel(ModelPT):
         self.log_softmax.mlp.layer0.weight = self.embedding_layer.token_embedding.weight
 
         self.loss_fn = SmoothedCrossEntropyLoss(
-            pad_id=self.tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing)
+            pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing)
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
