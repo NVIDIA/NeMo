@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.config_store import ConfigStore
-from hydra.types import ObjectConf
 
 __all__ = ['TrainerConfig']
 
