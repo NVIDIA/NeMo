@@ -87,7 +87,5 @@ class TrainerConfig:
 
 # Register the trainer config.
 cs.store(
-    group="trainer",
-    name="trainer",
-    node=TrainerConfig,
+    group="trainer", name="trainer", node=TrainerConfig,
 )
