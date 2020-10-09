@@ -73,7 +73,7 @@ class RNNTDecodingWER(TensorMetric):
         self.use_cer = self.cfg.get('use_cer', False)
         self.log_prediction = self.cfg.get('log_prediction', True)
 
-        possible_strategies = ['greedy', 'beam', 'tsd', 'alsd']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decodin strategy must be one of {possible_strategies}")
 
@@ -84,6 +84,15 @@ class RNNTDecodingWER(TensorMetric):
                 blank_index=self.blank_id,
                 max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
             )
+
+        elif self.cfg.strategy == 'greedy_batch':
+            self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                blank_index=self.blank_id,
+                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+            )
+
         elif self.cfg.strategy == 'beam':
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
@@ -92,6 +101,7 @@ class RNNTDecodingWER(TensorMetric):
                 search_type='default',
                 score_norm=self.cfg.beam.get('score_norm', True),
             )
+
         elif self.cfg.strategy == 'tsd':
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
@@ -101,6 +111,7 @@ class RNNTDecodingWER(TensorMetric):
                 score_norm=self.cfg.beam.get('score_norm', True),
                 tsd_max_symbols_per_step=self.cfg.beam.get('tsd_max_symbols', 50),
             )
+
         elif self.cfg.strategy == 'alsd':
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,

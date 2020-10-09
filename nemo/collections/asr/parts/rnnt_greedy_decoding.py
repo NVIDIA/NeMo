@@ -345,7 +345,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
                 # Batch prediction and joint network steps
-                if symbols_added == 0:
+                if len(label[0]) == 0:
                     g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
                 else:
                     # set a dummy label for the blank value
