@@ -65,12 +65,14 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         self,
         hypotheses: List[Hypothesis],
         cache: Dict[Tuple[int], Any],
+        batch_states: List[torch.Tensor]
     ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
         """
 
         Args:
             hypotheses:
             cache:
+            batch_states:
 
         Returns:
 

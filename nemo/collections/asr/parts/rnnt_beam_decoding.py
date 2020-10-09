@@ -304,7 +304,7 @@ class BeamRNNTInfer(Typing):
             for v in range(self.tsd_max_symbols_per_step):
                 D = []
 
-                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache)
+                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache, beam_state)
 
                 beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y), dim=-1)
                 beam_topk = beam_logp[:, 1:].topk(beam, dim=-1)
@@ -313,6 +313,7 @@ class BeamRNNTInfer(Typing):
 
                 for i, hyp in enumerate(C):
                     if hyp.y_sequence not in seq_A:
+                        print(beam_logp[i, 0])
                         A.append(
                             Hypothesis(
                                 score=(hyp.score + float(beam_logp[i, 0])),
