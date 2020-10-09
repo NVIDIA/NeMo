@@ -39,7 +39,7 @@ def hydra_runner(
         # Create config store.
         cs = ConfigStore.instance()
         # Register the configuration as a node under a given name.
-        cs.store(name=config_name, node=schema)
+        cs.store(name=config_name.replace(".yaml", ""), node=schema)
 
     def decorator(task_function: TaskFunction) -> Callable[[], None]:
         @functools.wraps(task_function)
