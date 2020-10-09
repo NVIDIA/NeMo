@@ -111,17 +111,23 @@ class TransformerMTModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
     @typecheck()
-    def forward(self, input_ids, attention_mask):
+    def forward(self, src, src_mask, tgt, tgt_mask, labels, sent_ids):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        token_embeddings = self.embedding_layer(input_ids)
-        hidden_states = self.encoder(token_embeddings, attention_mask)
-        decoder_hidden_states = self.decoder(hidden_states)
-        log_probs = self.log_softmax(hidden_states=decoder_hidden_states)
+        src_embeddings = self.embedding_layer(input_ids=src)
+        src_hiddens = self.encoder(src_embeddings, src_mask)
+        tgt_embeddings = self.embedding_layer(input_ids=tgt)
+        tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
+        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        loss = self.loss_fn(logits=log_probs, labels=labels)
+        beam_results = None
+        if not self.training:
+            beam_results = self.beam_search(
+                decoder_input_ids=tgt, encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
 
-        return log_probs
+        return loss, [tgt, loss, beam_results, sent_ids]
 
     def training_step(self, batch, batch_idx):
         """
