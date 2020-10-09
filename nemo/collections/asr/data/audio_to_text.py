@@ -18,7 +18,9 @@ from typing import Callable, Dict, List, Optional, Union
 import braceexpand
 import torch
 import webdataset as wd
+from torch.nn import functional as F
 
+from nemo.collections.asr.data import vocabs
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
@@ -28,6 +30,7 @@ from nemo.utils.decorators import experimental
 
 __all__ = [
     'AudioToCharDataset',
+    'AudioToCharWithDursDataset',
     'AudioToBPEDataset',
     'AudioLabelDataset',
     'TarredAudioToCharDataset',
@@ -285,6 +288,158 @@ class AudioToCharDataset(_AudioTextDataset):
             pad_id=pad_id,
             load_audio=load_audio,
             add_misc=add_misc,
+        )
+
+
+class AudioToCharWithDursDataset(AudioToCharDataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, and durations (in seconds). Each new line is a
+    different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+    "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    Additionally, user provides path to precomputed durations, which is a pickled python dict with 'tags' and 'durs'
+    keys, both of which are list of examples values. Tag is a unique example identifier, which is a wav filename
+    without suffix. Durations are an additional tuple of two tensors: graphemes durations and blanks durations.
+    Example below:
+    {'tags': ['LJ050-0234', 'LJ019-0373'],
+     'durs': [(graphemes_durs0, blanks_durs0), (graphemes_durs1, blanks_durs1)]}
+
+    Args:
+        **kwargs: Passed to AudioToCharDataset constructor.
+        durs_path (str): String path to pickled list of '[(tag, durs)]' durations location.
+        rep (bool): True if repeat text graphemes according to durs.
+        vocab: Vocabulary config (parser + set of graphemes to use). Constructor propagates these to
+            `self.make_vocab` function call to build a complete vocabulary.
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports."""
+        return {
+            'audio': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'audio_len': NeuralType(('B',), LengthsType()),
+            'text': NeuralType(('B', 'T'), LabelsType()),
+            'text_len': NeuralType(('B',), LengthsType()),
+            'durs': NeuralType(('B', 'T'), LengthsType()),
+        }
+
+    @staticmethod
+    def make_vocab(notation='chars', punct=True, spaces=False, stresses=False):
+        """Constructs vocabulary from given parameters.
+
+        Args:
+            notation (str): Either 'chars' or 'phonemes' as general notation.
+            punct (bool): True if reserve grapheme for basic punctuation.
+            spaces (bool): True if prepend spaces to every punctuation symbol.
+            stresses (bool): True if use phonemes codes with stresses (0-2).
+
+        Returns:
+            (vocabs.Base) Vocabulary
+        """
+        if notation == 'chars':
+            vocab = vocabs.Chars(punct=punct, spaces=spaces)
+        elif notation == 'phonemes':
+            vocab = vocabs.Phonemes(punct=punct, stresses=stresses, spaces=spaces)
+        else:
+            raise ValueError("Unsupported vocab type.")
+        return vocab
+
+    def __init__(self, **kwargs):
+        durs_path = kwargs.pop('durs_path')
+        rep = kwargs.pop('rep', False)
+        self.vocab = self.make_vocab(**kwargs.pop('vocab', {}))
+        kwargs.setdefault('labels', [])
+
+        super().__init__(**kwargs)
+
+        pth = torch.load(durs_path)
+        tag2d = dict(zip(pth['tags'], pth['durs']))
+        durs = []
+        for i, e in enumerate(self.collection):
+            tag = os.path.splitext(os.path.basename(e.audio_file))[0]
+            durs.append(tag2d[tag])
+        self.durs = durs
+        self.rep = rep
+
+    def __getitem__(self, item):
+        sample = self.collection[item]
+        audio, audio_len, _, _ = super().__getitem__(item)  # noqa
+        text = self.vocab.encode(sample.text_raw)
+        text, text_len = torch.tensor(text).long(), torch.tensor(len(text)).long()
+        blanks_durs, graphemes_durs = self.durs[item]
+
+        return (
+            audio,
+            audio_len,
+            text,
+            text_len,
+            blanks_durs,
+            graphemes_durs,
+        )
+
+    @staticmethod
+    def _merge(tensors, dim=0, value=0, dtype=None):
+        """Merges list of tensors into one."""
+        tensors = [tensor if isinstance(tensor, torch.Tensor) else torch.tensor(tensor) for tensor in tensors]
+        dim = dim if dim != -1 else len(tensors[0].shape) - 1
+        dtype = tensors[0].dtype if dtype is None else dtype
+        max_len = max(tensor.shape[dim] for tensor in tensors)
+        new_tensors = []
+        for tensor in tensors:
+            pad = (2 * len(tensor.shape)) * [0]
+            pad[-2 * dim - 1] = max_len - tensor.shape[dim]
+            new_tensors.append(F.pad(tensor, pad=pad, value=value))
+        return torch.stack(new_tensors).to(dtype=dtype)
+
+    @staticmethod
+    def _interleave(x, y):
+        """Interleave two tensors."""
+        xy = torch.stack([x[:-1], y], dim=1).view(-1)
+        xy = F.pad(xy, pad=[0, 1], value=x[-1])
+        return xy
+
+    def _collate_fn(self, batch):
+        batch = list(zip(*batch))
+
+        asr_batch = _speech_collate_fn(list(zip(*batch[:4])), pad_id=self.vocab.pad)
+        audio, audio_len, text, text_len = asr_batch
+
+        text = [
+            self._interleave(
+                x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device,).fill_(self.vocab.blank), y=t,
+            )
+            for t in text
+        ]
+        text = self._merge(text, value=self.vocab.pad, dtype=torch.long)
+        text_len = text_len * 2 + 1
+
+        blanks_durs, graphemes_durs = batch[4:]
+        durs = [self._interleave(b, c) for b, c in zip(blanks_durs, graphemes_durs)]
+        durs = self._merge(durs, dtype=torch.long).to(text.device)
+
+        if self.rep:
+            text = self._merge(
+                tensors=[torch.repeat_interleave(text1, durs1) for text1, durs1 in zip(text, durs)], dtype=torch.long,
+            )
+            text_len = durs.sum(-1)
+
+        return (
+            audio,
+            audio_len,
+            text,
+            text_len,
+            durs,
         )
 
 
