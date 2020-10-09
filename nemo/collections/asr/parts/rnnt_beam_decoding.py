@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis
@@ -39,6 +40,21 @@ from nemo.utils import logging
 
 
 class BeamRNNTInfer(Typing):
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports.
+        """
+        return {"predictions": NeuralType(elements_type=HypothesisType())}
+
     def __init__(
         self,
         decoder_model: rnnt_utils.AbstractRNNTDecoder,
@@ -90,7 +106,7 @@ class BeamRNNTInfer(Typing):
         self.nsc_prefix_alpha = nsc_prefix_alpha
 
     @typecheck()
-    def __call__(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def __call__(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor) -> Hypothesis:
         """Perform beam search.
         Args:
             encoder_output: Encoded speech features (B, T_max, D_enc)
@@ -98,8 +114,34 @@ class BeamRNNTInfer(Typing):
         Returns:
             nbest_hyps: N-best decoding results
         """
-        nbest_hyps = self.search_algorithm(encoder_output, encoded_lengths)
-        return nbest_hyps
+        # Preserve decoder and joint training state
+        decoder_training_state = self.decoder.training
+        joint_training_state = self.joint.training
+
+        with torch.no_grad():
+            # Apply optional preprocessing
+            encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
+
+            self.decoder.eval()
+            self.joint.eval()
+
+            hypotheses = []
+            with tqdm(range(encoder_output.size(0)), desc='Beam search progress:',
+                      total=encoder_output.size(0), unit='sample') as idx_gen:
+                for batch_idx in idx_gen:
+                    inseq = encoder_output[batch_idx: batch_idx + 1, :, :]  # [1, T, D]
+                    logitlen = encoded_lengths[batch_idx]
+                    nbest_hyps = self.search_algorithm(inseq, logitlen)  # sorted list of hypothesis
+
+                    best_hypothesis = nbest_hyps[0]  # type: Hypothesis
+                    hypotheses.append(best_hypothesis)
+
+            # packed_result = [
+            #     rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
+            #     for sent in hypotheses
+            # ]
+
+        return (hypotheses,)
 
     def sort_nbest(self, hyps: List[Hypothesis]) -> List[Hypothesis]:
         """Sort hypotheses by score or score given sequence length.
@@ -113,8 +155,8 @@ class BeamRNNTInfer(Typing):
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
 
-    def greedy_search(self, h: torch.Tensor) -> List[Hypothesis]:
-        """Greedy search implementation for transformer-transducer.
+    def greedy_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+        """Greedy search implementation for transducer.
         Args:
             h: Encoded speech features (1, T_max, D_enc)
         Returns:
@@ -127,17 +169,32 @@ class BeamRNNTInfer(Typing):
 
         y, state, _ = self.decoder.score_hypothesis(hyp, cache)
 
-        for i, hi in enumerate(h[0]):
-            ytu = torch.log_softmax(self.joint.joint(hi, y), dim=-1)
-            logp, pred = torch.max(ytu, dim=-1)
+        for i in range(h.shape[1]):
+            hi = h[:, i: i + 1, :]  # [1, 1, D]
 
-            if pred != self.blank:
-                hyp.y_sequence.append(int(pred))
-                hyp.score += float(logp)
+            not_blank = True
+            symbols_added = 0
 
-                hyp.dec_state = state
+            while not_blank and symbols_added < self.tsd_max_symbols_per_step:
+                ytu = torch.log_softmax(self.joint.joint(hi, y), dim=-1)  # [1, 1, 1, V + 1]
+                ytu = ytu[0, 0, 0, :]  # [V + 1]
 
-                y, state, _ = self.decoder.score_hypothesis(hyp, cache)
+                if ytu.dtype != torch.float32:
+                    ytu = ytu.float()
+
+                logp, pred = torch.max(ytu, dim=-1)  # 1, 1
+                pred = pred.item()
+
+                if pred == self.blank:
+                    not_blank = False
+                else:
+                    hyp.y_sequence.append(int(pred))
+                    hyp.score += float(logp)
+
+                    hyp.dec_state = state
+
+                    y, state, _ = self.decoder.score_hypothesis(hyp, cache)
+                symbols_added += 1
 
         return [hyp]
 
@@ -150,30 +207,43 @@ class BeamRNNTInfer(Typing):
         """
         beam = min(self.beam_size, self.vocab_size)
         beam_k = min(beam, (self.vocab_size - 1))
-        blank_tensor = torch.tensor(self.blank, device=h.device, dtype=torch.long)
+        blank_tensor = torch.tensor([self.blank], device=h.device, dtype=torch.long)
+
+        # Precompute some constants for blank position
+        ids = list(range(self.vocab_size + 1))
+        ids.remove(self.blank)
+
+        if self.blank == 0:
+            index_incr = 1
+        else:
+            index_incr = 0
 
         dec_state = self.decoder.initialize_state(h)
 
         kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state)]
         cache = {}
 
-        for hi in h[0]:
+        for i in range(h.shape[1]):
+            hi = h[:, i: i + 1, :]  # [1, 1, D]
             hyps = kept_hyps
             kept_hyps = []
 
+            iter_count = 0
             while True:
                 max_hyp = max(hyps, key=lambda x: x.score)
                 hyps.remove(max_hyp)
 
-                y, state, lm_tokens = self.decoder.score_hypothesis(max_hyp, cache)
+                y, state, lm_tokens = self.decoder.score_hypothesis(max_hyp, cache)  # [1, 1, D]
 
-                ytu = torch.log_softmax(self.joint.joint(hi, y), dim=-1)
+                ytu = torch.log_softmax(self.joint.joint(hi, y), dim=-1)  # [1, 1, 1, V + 1]
+                ytu = ytu[0, 0, 0, :]  # [V + 1]
 
-                top_k = ytu[1:].topk(beam_k, dim=-1)
+                # remove blank token before top k
+                top_k = ytu[ids].topk(beam_k, dim=-1)
 
                 ytu = (
-                    torch.cat((top_k[0], ytu[0:1])),
-                    torch.cat((top_k[1] + 1, blank_tensor)),
+                    torch.cat((top_k[0], ytu[self.blank].unsqueeze(0))),
+                    torch.cat((top_k[1] + index_incr, blank_tensor)),
                 )
 
                 # if self.lm:
@@ -202,6 +272,7 @@ class BeamRNNTInfer(Typing):
 
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
                 kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
+
                 if len(kept_most_prob) >= beam:
                     kept_hyps = kept_most_prob
                     break
@@ -218,9 +289,10 @@ class BeamRNNTInfer(Typing):
         """
         beam = min(self.beam_size, self.vocab_size)
 
-        beam_state = self.decoder.initialize_state(torch.zeros(beam, device=h.device, dtype=h.dtype))  # [L, B, H]
+        beam_state = self.decoder.initialize_state(torch.zeros(beam, device=h.device, dtype=h.dtype))  # [L, B, H], [L, B, H]
+        dec_state = [state[:, :1, :] for state in beam_state]  # [L, 1, H], [L, 1, H]
 
-        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=beam_state[:, :1, :],)]
+        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=dec_state)]
         cache = {}
 
         for hi in h[0]:

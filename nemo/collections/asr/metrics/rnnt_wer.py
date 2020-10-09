@@ -142,7 +142,10 @@ class RNNTDecodingWER(TensorMetric):
         prediction_list = hypotheses_list
         # iterate over batch
         for ind in range(len(prediction_list)):
-            prediction = prediction_list[ind].y_sequence.tolist()
+            prediction = prediction_list[ind].y_sequence
+            if type(prediction) != list:
+                prediction = prediction.tolist()
+
             # CTC decoding procedure
             decoded_prediction = []
             previous = self.blank_id

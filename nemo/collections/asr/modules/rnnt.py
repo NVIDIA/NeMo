@@ -76,7 +76,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         self.pred_rnn_layers = prednet["pred_rnn_layers"]
 
         # Initialize the model (blank token increases vocab size by 1)
-        super().__init__(vocab_size=vocab_size + 1)
+        super().__init__(vocab_size=vocab_size)
 
         # Optional arguments
         forget_gate_bias = prednet.get('forget_gate_bias', 1.0)
@@ -211,18 +211,34 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         device = hypothesis.dec_state[0].device
         dtype = hypothesis.dec_state[0].dtype
 
-        target = torch.Tensor(hypothesis.y_sequence, device=device, dtype=dtype).unsqueeze(0)
+        # parse "blank" tokens in hypothesis
+        if len(hypothesis.y_sequence) > 0 and hypothesis.y_sequence[-1] == self.blank_idx:
+            blank_state = True
+        else:
+            blank_state = False
+
+        target = torch.full([1, 1], fill_value=hypothesis.y_sequence[-1], device=device, dtype=torch.long)
         lm_token = target[:, -1]  # [1]
+
+        # if blank_state:
+        #     hypothesis.y_sequence.pop()
+
         sequence = tuple(hypothesis.y_sequence)
 
         if sequence in cache:
             y, new_state = cache[sequence]
         else:
-            y, new_state = self.predict(
-                target, state=hypothesis.dec_state, add_sos=False, batch_size=1
-            )  # [1, U + 1, H]
+            if blank_state:
+                y, new_state = self.predict(
+                    None, state=None, add_sos=False, batch_size=1
+                )  # [1, U, H]
 
-            y = y[:, -1, :]  # U[1, H]
+            else:
+                y, new_state = self.predict(
+                    target, state=hypothesis.dec_state, add_sos=False, batch_size=1
+                )  # [1, U, H]
+
+            y = y[:, -1:, :]  # U[1, 1, H]
             cache[sequence] = (y, new_state)
 
         return y, new_state, lm_token
@@ -256,7 +272,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
 
         if process:
             batch = len(tokens)
-            device = hypotheses[0].dec_state.device
+            device = hypotheses[0].dec_state[0].device
 
             # pad tokens
             token_lens = [len(seq) for seq in tokens]
@@ -264,7 +280,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
             for i in range(batch):
                 if token_lens[i] < max_seq_len:
                     diff = max_seq_len - token_lens[i]
-                    pad = [self.blank_idx] * diff
+                    pad = [self.blank_idx] * diff  # Replace self.blank_idx with 0 temporarily
                     tokens[i].extend(pad)
 
             b_tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
