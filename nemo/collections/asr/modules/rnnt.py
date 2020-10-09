@@ -70,13 +70,14 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         vocab_size: int,
         normalization_mode: Optional[str] = None,
         random_state_sampling: bool = False,
+        blank_as_pad: bool = True
     ):
         # Required arguments
         self.pred_hidden = prednet['pred_hidden']
         self.pred_rnn_layers = prednet["pred_rnn_layers"]
 
         # Initialize the model (blank token increases vocab size by 1)
-        super().__init__(vocab_size=vocab_size)
+        super().__init__(vocab_size=vocab_size, blank_as_pad=blank_as_pad)
 
         # Optional arguments
         forget_gate_bias = prednet.get('forget_gate_bias', 1.0)
@@ -85,7 +86,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         self.random_state_sampling = random_state_sampling
 
         self.prediction = self._predict(
-            vocab_size=vocab_size + 1,  # add 1 for blank symbol
+            vocab_size=vocab_size,  # add 1 for blank symbol
             pred_n_hidden=self.pred_hidden,
             pred_rnn_layers=self.pred_rnn_layers,
             forget_gate_bias=forget_gate_bias,
@@ -165,9 +166,14 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         return g, hid
 
     def _predict(self, vocab_size, pred_n_hidden, pred_rnn_layers, forget_gate_bias, t_max, norm, dropout):
+        if self.blank_as_pad:
+            embed = torch.nn.Embedding(vocab_size + 1, pred_n_hidden, padding_idx=self.blank_idx)
+        else:
+            embed = torch.nn.Embedding(vocab_size, pred_n_hidden)
+
         layers = torch.nn.ModuleDict(
             {
-                "embed": torch.nn.Embedding(vocab_size - 1, pred_n_hidden),
+                "embed": embed,
                 "dec_rnn": rnn.rnn(
                     input_size=pred_n_hidden,
                     hidden_size=pred_n_hidden,
@@ -278,7 +284,6 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
 
         if process:
             batch = len(process)
-
 
             # pad tokens
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch)

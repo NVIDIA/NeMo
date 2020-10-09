@@ -34,11 +34,11 @@ class Hypothesis:
 
 
 class AbstractRNNTDecoder(NeuralModule, ABC):
-    def __init__(self, vocab_size):
+    def __init__(self, vocab_size, blank_as_pad):
         super().__init__()
 
-        # self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.blank_as_pad = blank_as_pad
         self.blank_idx = vocab_size  # last index of vocabulary
 
     @abstractmethod
