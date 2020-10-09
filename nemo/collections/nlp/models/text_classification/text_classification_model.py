@@ -365,13 +365,8 @@ class TextClassificationModel(NLPModel, Exportable):
 
         classifier_onnx = self.classifier.export(
             'classifier_' + output,
-<<<<<<< HEAD
-            input_example,
-            output_example,
-=======
             None,  # computed by input_example()
             None,
->>>>>>> main
             verbose,
             export_params,
             do_constant_folding,
