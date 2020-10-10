@@ -62,10 +62,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     def batch_score_hypothesis(
-        self,
-        hypotheses: List[Hypothesis],
-        cache: Dict[Tuple[int], Any],
-        batch_states: List[torch.Tensor]
+        self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
     ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
         """
 
@@ -76,6 +73,31 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
 
         Returns:
 
+        """
+        raise NotImplementedError()
+
+    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+        """Create batch of decoder states.
+       Args:
+           batch_states (tuple): batch of decoder states
+              ([L x (B, dec_dim)], [L x (B, dec_dim)])
+           decoder_states (list): list of decoder states
+               [B x ([L x (1, dec_dim)], [L x (1, dec_dim)])]
+       Returns:
+           batch_states (tuple): batch of decoder states
+               ([L x (B, dec_dim)], [L x (B, dec_dim)])
+       """
+        raise NotImplementedError()
+
+    def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
+        """Get decoder state from batch of states, for given id.
+        Args:
+            batch_states (tuple): batch of decoder states
+                ([L x (B, dec_dim)], [L x (B, dec_dim)])
+            idx (int): index to extract state from batch of states
+        Returns:
+            (tuple): decoder states for given id
+                ([L x (1, dec_dim)], [L x (1, dec_dim)])
         """
         raise NotImplementedError()
 

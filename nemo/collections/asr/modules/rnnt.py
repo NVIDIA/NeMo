@@ -267,7 +267,9 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         if final_batch == 0:
             raise ValueError("No hypotheses was provided for the batch!")
 
-        device = hypotheses[0].dec_state[0].device
+        _p = next(self.parameters())
+        device = _p.device
+        dtype = _p.dtype
 
         tokens = []
         process = []
@@ -286,9 +288,9 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
             batch = len(process)
 
             # pad tokens
-            tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch)
-            dec_states = self.initialize_state(tokens)  # [L, B, D]
-            dec_states = self._batch_initialize_states(dec_states, [d_state for seq, d_state in process])
+            tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
+            dec_states = self.initialize_state(tokens.to(dtype=dtype))  # [L, B, D]
+            dec_states = self.batch_initialize_states(dec_states, [d_state for seq, d_state in process])
 
             y, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
@@ -297,14 +299,14 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         j = 0
         for i in range(final_batch):
             if done[i] is None:
-                new_state = self._select_state(dec_states, j)
+                new_state = self.batch_select_state(dec_states, j)
 
                 done[i] = (y[j], new_state)
                 cache[process[j][0]] = (y[j], new_state)
 
                 j += 1
 
-        batch_states = self._batch_initialize_states(batch_states, [d_state for y_j, d_state in done])
+        batch_states = self.batch_initialize_states(batch_states, [d_state for y_j, d_state in done])
         batch_y = torch.stack([y_j for y_j, d_state in done])
 
         lm_tokens = torch.tensor([h.y_sequence[-1] for h in hypotheses], device=device, dtype=torch.long).view(
@@ -313,12 +315,12 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
 
         return batch_y, batch_states, lm_tokens
 
-    def _batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
         """Create batch of decoder states.
            Args:
                batch_states (tuple): batch of decoder states
                   ([L x (B, dec_dim)], [L x (B, dec_dim)])
-               l_states (list): list of decoder states
+               decoder_states (list): list of decoder states
                    [B x ([L x (1, dec_dim)], [L x (1, dec_dim)])]
            Returns:
                batch_states (tuple): batch of decoder states
@@ -331,7 +333,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
 
         return batch_states
 
-    def _select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
+    def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
         Args:
             batch_states (tuple): batch of decoder states
