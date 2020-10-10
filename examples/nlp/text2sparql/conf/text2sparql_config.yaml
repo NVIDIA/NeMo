@@ -8,8 +8,6 @@ trainer:
   max_epochs: 2 # the number of training epochs
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
-  precision: 16 # 16 to use AMP
-  amp_level: O1 # O1 or O2 if using AMP
   distributed_backend: ddp
   gradient_clip_val: 0.0
   row_log_interval: 1
@@ -20,7 +18,7 @@ trainer:
 model:
   nemo_path: null # exported .nemo path
   max_seq_length: 150
-  batch_size: 8
+  batch_size: 16
   convert_labels: true # true if Bart, false otherwise (converts pad_id to -100 for masked loss)
   data_dir: null
 

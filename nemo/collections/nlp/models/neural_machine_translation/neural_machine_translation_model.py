@@ -54,19 +54,13 @@ class NeuralMachineTranslationModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
-        assert not (
-            cfg.language_model.pretrained_model_name
-            and cfg.language_model.pretrained_encoder_model_name
-            or cfg.language_model.pretrained_decoder_model_name
-        ), (
-            "Must have either pretrained_model_name or "
-            "both pretrained_encoder_model name and pretrained_decoder_model_name."
-        )
-
-        self.cfg = cfg
-
         # must assign tokenizers before init
         if cfg.language_model.pretrained_model_name:
+            if cfg.language_model.pretrained_encoder_model_name or cfg.language_model.pretrained_decoder_model_name:
+                raise ValueError(
+                    "Must have either pretrained_model_name or both pretrained_encoder_model name and "
+                    "pretrained_decoder_model_name."
+                )
             # setup tokenizer
             self.encoder_tokenizer = self.setup_tokenizer(cfg.encoder_tokenizer)
             self.encoder_add_special_tokens = cfg.encoder_tokenizer.add_special_tokens
@@ -75,9 +69,10 @@ class NeuralMachineTranslationModel(ModelPT):
             self.decoder_tokenizer = self.encoder_tokenizer
             self.decoder_add_special_tokens = self.encoder_add_special_tokens
         else:
-            assert (
+            if not (
                 cfg.language_model.pretrained_encoder_model_name and cfg.language_model.pretrained_decoder_model_name
-            ), "Both encoder and decoder must be specified"
+            ):
+                raise ValueError("Both encoder and decoder must be specified")
 
             # setup tokenizers
             self.encoder_tokenizer = self.setup_tokenizer(cfg.encoder_tokenizer)
@@ -86,8 +81,10 @@ class NeuralMachineTranslationModel(ModelPT):
             self.decoder_tokenizer = self.setup_tokenizer(cfg.decoder_tokenizer)
             self.decoder_add_special_tokens = cfg.decoder_tokenizer.add_special_tokens
 
-        assert self.encoder_tokenizer, "encoder_tokenizer failed to initialize"
-        assert self.decoder_tokenizer, "decoder_tokenizer failed to initialize"
+        if not self.encoder_tokenizer:
+            raise TypeError("encoder_tokenizer failed to initialize")
+        if not self.decoder_tokenizer:
+            raise TypeError("decoder_tokenizer failed to initialize")
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
@@ -100,9 +97,10 @@ class NeuralMachineTranslationModel(ModelPT):
             else:
                 self.model = AutoModel.from_pretrained(cfg.language_model.pretrained_model_name)
         else:
-            assert (
+            if not (
                 cfg.language_model.pretrained_encoder_model_name and cfg.language_model.pretrained_decoder_model_name
-            ), "Both encoder and decoder must be specified"
+            ):
+                raise ValueError("Both encoder and decoder must be specified")
 
             # Setup encoder/decoder model
             self.model = EncoderDecoderModel.from_encoder_decoder_pretrained(
@@ -140,7 +138,7 @@ class NeuralMachineTranslationModel(ModelPT):
             bos_token_id=self.encoder_tokenizer.bos_id,
             eos_token_id=self.encoder_tokenizer.eos_id,
             decoder_start_token_id=self.decoder_tokenizer.bos_id,
-            **self.cfg.generate,
+            **self._cfg.generate,
         )
         return outputs
 
@@ -223,14 +221,14 @@ class NeuralMachineTranslationModel(ModelPT):
             decoder_tokenizer=self.decoder_tokenizer,
             encoder_add_special_tokens=self.encoder_add_special_tokens,
             decoder_add_special_tokens=self.decoder_add_special_tokens,
-            max_seq_length=self.cfg.max_seq_length,
+            max_seq_length=self._cfg.max_seq_length,
             num_samples=cfg.get("num_samples", -1),
-            convert_labels=self.cfg.convert_labels,
+            convert_labels=self._cfg.convert_labels,
         )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=self.cfg.batch_size,
+            batch_size=self._cfg.batch_size,
             shuffle=cfg.shuffle,
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),

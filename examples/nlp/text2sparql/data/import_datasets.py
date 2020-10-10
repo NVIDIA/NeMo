@@ -13,6 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script downloads Text2Sparql data and processes it into NeMo's neural machine translation dataset format.
+
+Text2Sparql data consists of 3 files which are saved to source_data_dir:
+    - train_queries_v3.tsv
+    - test_easy_queries_v3.tsv
+    - test_hard_queries_v3.tsv
+
+After processing, the script saves them to the target_data_dir as:
+    - train.tsv
+    - test_easy.tsv
+    - test_hard.tsv
+
+
+You may run it with:
+
+python import_datasets \
+    --source_data_dir ./text2sparql_src \
+    --target_data_dir ./text2sparql_tgt
+"""
+
 import argparse
 import csv
 import os
@@ -20,7 +41,6 @@ from urllib.request import Request, urlopen
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import MODE_EXISTS_TMP, if_exist
 from nemo.utils import logging
-
 
 base_url = "https://m.meetkai.com/public_datasets/knowledge/"
 prefix_map = {

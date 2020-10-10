@@ -13,6 +13,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script contains an example on how to evaluate a NeuralMachineTranslationModel.
+To load the example Text2Sparql dataset, please refer to ./data/import_datasets.py.
+To train a model, please refer to text2sparql.py.
+
+
+***Setting the configs***
+This script uses the `/examples/nlp/text2sparql/conf/text2sparql_config.yaml` config file by default.
+You may update the config file from the file directly or by using the command line arguments.
+Another other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
+
+Please refer to text2sparql.py for detailed instructions on setting the configuration.
+
+
+***How to run the script?***
+- To reload and evaluate the model, run:
+
+python evaluate_text2sparql.py \
+    model.test_ds.filepath="$TGT_DATA_DIR"/test_easy.tsv \
+    model.batch_size=16 \
+    model.nemo_path=./NeMo_logs/bart.nemo \
+    exp_manager.exp_dir=./NeMo_logs
+"""
 
 import os
 
