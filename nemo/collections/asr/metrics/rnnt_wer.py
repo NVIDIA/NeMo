@@ -77,6 +77,13 @@ class RNNTDecodingWER(TensorMetric):
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decodin strategy must be one of {possible_strategies}")
 
+        self.decoding2 = greedy_decode.GreedyRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                blank_index=self.blank_id,
+                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+            )
+
         if self.cfg.strategy == 'greedy':
             self.decoding = greedy_decode.GreedyRNNTInfer(
                 decoder_model=decoder,
@@ -140,21 +147,27 @@ class RNNTDecodingWER(TensorMetric):
 
         # Drop predictions to CPU
         prediction_list = hypotheses_list
-        # iterate over batch
+
         for ind in range(len(prediction_list)):
             prediction = prediction_list[ind].y_sequence
             if type(prediction) != list:
                 prediction = prediction.tolist()
 
-            # CTC decoding procedure
-            decoded_prediction = []
-            previous = self.blank_id
-            for p in prediction:
-                if (p != previous or previous == self.blank_id) and p != self.blank_id:
-                    decoded_prediction.append(p)
-                previous = p
-            hypothesis = ''.join([self.labels_map[c] for c in decoded_prediction if c != self.blank_id])
+            # Greedy sample level is already preprocessed by implicit CTC decoding
+            if isinstance(self.decoding, (greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer)):
+                hypothesis = ''.join([self.labels_map[c] for c in prediction if c != self.blank_id])
+            else:
+                # CTC decoding procedure
+                # decoded_prediction = []
+                # previous = self.blank_id
+                # for p in prediction:
+                #     if (p != previous or previous == self.blank_id) and p != self.blank_id:
+                #         decoded_prediction.append(p)
+                #     previous = p
+                # hypothesis = ''.join([self.labels_map[c] for c in decoded_prediction if c != self.blank_id])
+                hypothesis = ''.join([self.labels_map[c] for c in prediction if c != self.blank_id])
             hypotheses.append(hypothesis)
+
         return hypotheses
 
     def forward(
@@ -183,8 +196,8 @@ class RNNTDecodingWER(TensorMetric):
 
         if self.log_prediction:
             logging.info(f"\n")
-            logging.info(f"reference:{references[0]}")
-            logging.info(f"decoded  :{hypotheses[0]}")
+            logging.info(f"reference :{references[0]}")
+            logging.info(f"decoded   :{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:

@@ -178,26 +178,10 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 sentence = self._greedy_decode(inseq, logitlen)
                 hypotheses.append(sentence)
 
-            hypotheses_lens = [len(hyp) for hyp in hypotheses]
-            max_len = max(hypotheses_lens)
-
             packed_result = [
                 rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
                 for sent in hypotheses
             ]
-
-            # packed_result = torch.full(
-            #     size=[encoder_output.size(0), max_len],
-            #     fill_value=self._blank_index,
-            #     dtype=torch.long,
-            #     device=encoder_output.device,
-            # )
-            #
-            # for h_idx, hyp in enumerate(hypotheses):
-            #     len_h = hypotheses_lens[h_idx]
-            #     hyp_t = torch.tensor(hyp, dtype=torch.long, device=packed_result.device)
-            #
-            #     packed_result[h_idx, :len_h] = hyp_t
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -208,6 +192,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
     def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor):
         hidden = None
         label = []
+
         for time_idx in range(out_len):
             f = x[time_idx, :, :].unsqueeze(0)  # [1, 1, D]
 
@@ -262,6 +247,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             max_symbols_per_step=max_symbols_per_step,
         )
 
+        if self.decoder.blank_as_pad:
+            self._greedy_decode = self._greedy_decode_blank_as_pad
+        else:
+            self._greedy_decode = self._greedy_decode_masked
+
     @typecheck()
     def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor):
         """Returns a list of sentences given an input batch.
@@ -287,26 +277,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             inseq = encoder_output  # [B, T, D]
             hypotheses = self._greedy_decode(inseq, logitlen, device=inseq.device)
 
-            hypotheses_lens = [len(hyp) for hyp in hypotheses]
-            max_len = max(hypotheses_lens)
-
             packed_result = [
                 rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
                 for sent in hypotheses
             ]
-
-            # packed_result = torch.full(
-            #     size=[encoder_output.size(0), max_len],
-            #     fill_value=self._blank_index,
-            #     dtype=torch.long,
-            #     device=encoder_output.device,
-            # )
-            #
-            # for h_idx, hyp in enumerate(hypotheses):
-            #     len_h = hypotheses_lens[h_idx]
-            #     hyp_t = torch.tensor(hyp, dtype=torch.long, device=packed_result.device)
-            #
-            #     packed_result[h_idx, :len_h] = hyp_t
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -314,7 +288,105 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         return (packed_result,)
 
     @torch.no_grad()
-    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
+    def _greedy_decode_blank_as_pad(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
+        # Initialize state
+        hidden = None
+        batchsize = x.shape[0]
+
+        # Output string buffer
+        label = [[] for _ in range(batchsize)]
+
+        # Last Label buffer + Last Label without blank buffer
+        # batch level equivalent of the last_label
+        last_label = torch.full([batchsize, 1], fill_value=self._blank_index, dtype=torch.long, device=device)
+
+        # Mask buffers
+        blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
+        reset = torch.tensor(0, dtype=torch.bool, device=device)
+
+        # Get max sequence length
+        max_out_len = out_len.max()
+
+        for time_idx in range(max_out_len):
+            f = x[:, time_idx: time_idx + 1, :]  # [B, 1, D]
+
+            # Prepare t timestamp batch variables
+            not_blank = True
+            symbols_added = 0
+
+            # Reset blank mask
+            blank_mask *= reset
+
+            # Update blank mask with time mask
+            # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
+            # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
+            time_mask = time_idx >= out_len
+            blank_mask.bitwise_or_(time_mask)
+
+            # Start inner loop
+            while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
+                # Batch prediction and joint network steps
+                # If very first prediction step, submit SOS tag (blank) to pred_step.
+                # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
+                if time_idx == 0 and symbols_added == 0:
+                    g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
+                else:
+                    # Perform batch step prediction of decoder, getting new states and scores ("g")
+                    g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
+
+                # Batched joint step - Output = [B, V + 1]
+                logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
+
+                if logp.dtype != torch.float32:
+                    logp = logp.float()
+
+                # Get index k, of max prob for batch
+                v, k = logp.max(1)
+
+                # Update blank mask with current predicted blanks
+                # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
+                k_is_blank = k == self._blank_index
+                blank_mask.bitwise_or_(k_is_blank)
+
+                # If all samples predict / have predicted prior blanks, exit loop early
+                # This is equivalent to if single sample predicted k
+                if blank_mask.all():
+                    not_blank = False
+                else:
+                    # Collect batch indices where blanks occurred now/past
+                    blank_indices = []
+                    if hidden is not None:
+                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
+
+                    # Recover prior state for all samples which predicted blank now/past
+                    if hidden is not None:
+                        # LSTM has 2 states
+                        for state_id in range(len(hidden)):
+                            hidden_prime[state_id][:, blank_indices, :] = hidden[state_id][:, blank_indices, :]
+
+                    # Recover prior predicted label for all samples which predicted blank now/past
+                    k[blank_indices] = last_label[blank_indices, 0]
+
+                    # Update new label and hidden state for next iteration
+                    last_label = k.view(-1, 1)
+                    hidden = hidden_prime
+
+                    # Update predicted labels, accounting for time mask
+                    # If blank was predicted even once, now or in the past,
+                    # Force the current predicted label to also be blank
+                    # This ensures that blanks propogate across all timesteps
+                    # once they have occured (normally stopping condition of sample level loop).
+                    k = k.masked_fill(blank_mask, self._blank_index)
+                    for kidx, ki in enumerate(k):
+                        if time_mask[kidx] == 0 and ki != self._blank_index:
+                            label[kidx].append(ki)
+
+                symbols_added += 1
+
+        return label
+
+    @torch.no_grad()
+    def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
         # Initialize state
         hidden = None
         batchsize = x.shape[0]
@@ -354,7 +426,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Batch prediction and joint network steps
                 # If very first prediction step, submit SOS tag (blank) to pred_step.
                 # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
-                if len(label[0]) == 0:
+                if time_idx == 0 and symbols_added == 0:
                     g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
                 else:
                     # Set a dummy label for the blank value
@@ -389,18 +461,18 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     not_blank = False
                 else:
                     # Collect batch indices where blanks occurred now/past
-                    batch_indices = []
+                    blank_indices = []
                     if hidden is not None:
-                        batch_indices = (blank_mask == 1).nonzero(as_tuple=False)
+                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
 
                     # Recover prior state for all samples which predicted blank now/past
                     if hidden is not None:
                         # LSTM has 2 states
                         for state_id in range(len(hidden)):
-                            hidden_prime[state_id][:, batch_indices, :] = hidden[state_id][:, batch_indices, :]
+                            hidden_prime[state_id][:, blank_indices, :] = hidden[state_id][:, blank_indices, :]
 
-                        # Recover prior predicted label for all samples which predicted blank now/past
-                        k[batch_indices] = last_label[batch_indices, 0]
+                    # Recover prior predicted label for all samples which predicted blank now/past
+                    k[blank_indices] = last_label[blank_indices, 0]
 
                     # Update new label and hidden state for next iteration
                     last_label = k.view(-1, 1)
@@ -413,7 +485,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # once they have occured (normally stopping condition of sample level loop).
                     k = k.masked_fill(blank_mask, self._blank_index)
                     for kidx, ki in enumerate(k):
-                        if time_mask[kidx] == 0:
+                        if time_mask[kidx] == 0 and ki != self._blank_index:
                             label[kidx].append(ki)
 
                 symbols_added += 1

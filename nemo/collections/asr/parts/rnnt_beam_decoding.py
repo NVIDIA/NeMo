@@ -71,8 +71,8 @@ class BeamRNNTInfer(Typing):
         self.joint = joint_model
 
         self.blank = decoder_model.blank_idx
-        # self.hidden_size = decoder_model.hidden_size
         self.vocab_size = decoder_model.vocab_size
+        self.search_type = search_type
 
         if beam_size < 1:
             raise ValueError("Beam search size cannot be less than 1!")
@@ -145,6 +145,9 @@ class BeamRNNTInfer(Typing):
             #     for sent in hypotheses
             # ]
 
+        self.decoder.train(decoder_training_state)
+        self.joint.train(joint_training_state)
+
         return (hypotheses,)
 
     def sort_nbest(self, hyps: List[Hypothesis]) -> List[Hypothesis]:
@@ -166,6 +169,7 @@ class BeamRNNTInfer(Typing):
         Returns:
             hyp: 1-best decoding results
         """
+
         dec_state = self.decoder.initialize_state(h)
 
         hyp = Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state)
@@ -179,7 +183,7 @@ class BeamRNNTInfer(Typing):
             not_blank = True
             symbols_added = 0
 
-            while not_blank and symbols_added < self.tsd_max_symbols_per_step:
+            while not_blank:
                 ytu = torch.log_softmax(self.joint.joint(hi, y), dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
