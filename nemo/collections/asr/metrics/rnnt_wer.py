@@ -153,19 +153,8 @@ class RNNTDecodingWER(TensorMetric):
             if type(prediction) != list:
                 prediction = prediction.tolist()
 
-            # Greedy sample level is already preprocessed by implicit CTC decoding
-            if isinstance(self.decoding, (greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyBatchedRNNTInfer)):
-                hypothesis = ''.join([self.labels_map[c] for c in prediction if c != self.blank_id])
-            else:
-                # CTC decoding procedure
-                # decoded_prediction = []
-                # previous = self.blank_id
-                # for p in prediction:
-                #     if (p != previous or previous == self.blank_id) and p != self.blank_id:
-                #         decoded_prediction.append(p)
-                #     previous = p
-                # hypothesis = ''.join([self.labels_map[c] for c in decoded_prediction if c != self.blank_id])
-                hypothesis = ''.join([self.labels_map[c] for c in prediction if c != self.blank_id])
+            # RNN-T sample level is already preprocessed by implicit CTC decoding
+            hypothesis = ''.join([self.labels_map[c] for c in prediction if c != self.blank_id])
             hypotheses.append(hypothesis)
 
         return hypotheses
