@@ -18,78 +18,156 @@ import editdistance
 import torch
 from pytorch_lightning.metrics import TensorMetric
 
+from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
+__all__ = ['RNNTBPEDecodingWER']
 
-class WERBPE(TensorMetric):
+
+class RNNTBPEDecodingWER(TensorMetric):
     """
-    This metric computes numerator and denominator for Overall Word Error Rate for BPE tokens (WER-BPE) between prediction and reference texts.
-    When doing distributed training/evaluation the result of res=WERBPE(predictions, targets, target_lengths) calls
+    This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
+    When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
     will be all-reduced between all workers using SUM operations.
-    Here contains two numbers res=[wer_numerator, wer_denominator]. WERBPE=wer_numerator/wer_denominator.
+    Here contains two numbers res=[wer_numerator, wer_denominator]. WER=wer_numerator/wer_denominator.
 
     If used with PytorchLightning LightningModule, include wer_numerator and wer_denominators inside validation_step results.
     Then aggregate (sum) then at the end of validation epoch to correctly compute validation WER.
 
     Example:
-       def validation_step(self, batch, batch_idx):
-           ...
-           wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-           return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+        def validation_step(self, batch, batch_idx):
+            ...
+            wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
-       def validation_epoch_end(self, outputs):
-           ...
-           wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-           wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-           tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
-           return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+        def validation_epoch_end(self, outputs):
+            ...
+            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
-       vocabulary: NeMo tokenizer object, which inherits from TokenizerSpec.
-       batch_dim_index: Index of the batch dimension.
-       use_cer: Whether to compute word-error-rate or character-error-rate.
-       ctc_decode: Whether to perform CTC decode.
-       log_prediction: Whether to log a single decoded sample per call.
+        vocabulary: List of strings that describes the vocabulary of the dataset.
+        batch_dim_index: Index of the batch dimension.
+        use_cer: Whether to use Character Error Rate isntead of Word Error Rate.
+        ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
+        log_prediction: Whether to log a single decoded sample per call.
 
     Returns:
-       res: a torch.Tensor object with two elements: [wer_numerator, wer_denominators]. To correctly compute average
-       text word error rate, compute wer=wer_numerator/wer_denominators
+        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
+        text word error rate, compute wer=wer_numerator/wer_denominator
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, batch_dim_index=0, use_cer=False, ctc_decode=True, log_prediction=True
+        self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec, batch_dim_index=0,
     ):
-        super().__init__(name="WER_BPE")
+        super(RNNTBPEDecodingWER, self).__init__(name="RNNTWER")
+        self.cfg = decoding_cfg
         self.tokenizer = tokenizer
         self.batch_dim_index = batch_dim_index
         self.blank_id = tokenizer.tokenizer.vocab_size
-        self.use_cer = use_cer
-        self.ctc_decode = ctc_decode
-        self.log_prediction = log_prediction
+        self.use_cer = self.cfg.get('use_cer', False)
+        self.log_prediction = self.cfg.get('log_prediction', True)
 
-    def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
+        if self.cfg.strategy not in possible_strategies:
+            raise ValueError(f"Decodin strategy must be one of {possible_strategies}")
+
+        self.decoding2 = greedy_decode.GreedyRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                blank_index=self.blank_id,
+                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+            )
+
+        if self.cfg.strategy == 'greedy':
+            self.decoding = greedy_decode.GreedyRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                blank_index=self.blank_id,
+                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+            )
+
+        elif self.cfg.strategy == 'greedy_batch':
+            self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                blank_index=self.blank_id,
+                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+            )
+
+        elif self.cfg.strategy == 'beam':
+            self.decoding = beam_decode.BeamRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                beam_size=self.cfg.beam.beam_size,
+                search_type='default',
+                score_norm=self.cfg.beam.get('score_norm', True),
+            )
+
+        elif self.cfg.strategy == 'tsd':
+            self.decoding = beam_decode.BeamRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                beam_size=self.cfg.beam.beam_size,
+                search_type='tsd',
+                score_norm=self.cfg.beam.get('score_norm', True),
+                tsd_max_symbols_per_step=self.cfg.beam.get('tsd_max_symbols', 50),
+            )
+
+        elif self.cfg.strategy == 'alsd':
+            self.decoding = beam_decode.BeamRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                beam_size=self.cfg.beam.beam_size,
+                search_type='alsd',
+                score_norm=self.cfg.beam.get('score_norm', True),
+                alsd_max_symmetric_expansion=self.cfg.beam.get('alsd_max_sym_expand', 2),
+            )
+
+    def rnnt_decoder_predictions_tensor(
+        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
+    ) -> List[str]:
         """
         Decodes a sequence of labels to words
         """
         hypotheses = []
+        # Compute hypotheses
+        with torch.no_grad():
+            hypotheses_list = self.decoding(
+                encoder_output=encoder_output, encoded_lengths=encoded_lengths
+            )  # type: [List[Hypothesis]]
+
+            # extract the hypotheses
+            hypotheses_list = hypotheses_list[0]  # type: List[Hypothesis]
+
         # Drop predictions to CPU
-        prediction_cpu_tensor = predictions.long().cpu()
-        # iterate over batch
-        for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
-            prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
-            # CTC decoding procedure
-            decoded_prediction = []
-            previous = self.blank_id
-            for p in prediction:
-                if (p != previous or previous == self.blank_id) and p != self.blank_id:
-                    decoded_prediction.append(p)
-                previous = p
-            hypothesis = self.tokenizer.ids_to_text(decoded_prediction)
+        prediction_list = hypotheses_list
+
+        for ind in range(len(prediction_list)):
+            prediction = prediction_list[ind].y_sequence
+            if type(prediction) != list:
+                prediction = prediction.tolist()
+
+            prediction = [p for p in prediction if p != self.blank_id]
+
+            # RNN-T sample level is already preprocessed by implicit CTC decoding
+            hypothesis = self.tokenizer.ids_to_text(prediction)
             hypotheses.append(hypothesis)
+
         return hypotheses
 
-    def forward(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+    ) -> torch.Tensor:
         words = 0.0
         scores = 0.0
         references = []
@@ -104,15 +182,13 @@ class WERBPE(TensorMetric):
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.tokenizer.ids_to_text(target)
                 references.append(reference)
-            if self.ctc_decode:
-                hypotheses = self.ctc_decoder_predictions_tensor(predictions)
-            else:
-                raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
+
+            hypotheses = self.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
 
         if self.log_prediction:
             logging.info(f"\n")
-            logging.info(f"reference:{references[0]}")
-            logging.info(f"decoded  :{hypotheses[0]}")
+            logging.info(f"reference :{references[0]}")
+            logging.info(f"decoded   :{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:
@@ -124,4 +200,4 @@ class WERBPE(TensorMetric):
             words += len(r_list)
             # Compute Levenstein's distance
             scores += editdistance.eval(h_list, r_list)
-        return torch.tensor([scores, words]).to(predictions.device)
+        return torch.tensor([scores, words], device=encoded_lengths.device)

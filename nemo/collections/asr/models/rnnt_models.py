@@ -125,40 +125,39 @@ class EncDecRNNTModel(ASRModel):
 
             A list of transcriptions in the same order as paths2audio_files
         """
-        # if paths2audio_files is None or len(paths2audio_files) == 0:
-        #     return {}
-        # # We will store transcriptions here
-        # hypotheses = []
-        # # Model's mode and device
-        # mode = self.training
-        # device = next(self.parameters()).device
-        # try:
-        #     # Switch model to evaluation mode
-        #     self.eval()
-        #     logging_level = logging.get_verbosity()
-        #     logging.set_verbosity(logging.WARNING)
-        #     # Work in tmp directory - will store manifest file there
-        #     with tempfile.TemporaryDirectory() as tmpdir:
-        #         with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
-        #             for audio_file in paths2audio_files:
-        #                 entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
-        #                 fp.write(json.dumps(entry) + '\n')
-        #
-        #         config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
-        #
-        #         temporary_datalayer = self._setup_transcribe_dataloader(config)
-        #         for test_batch in temporary_datalayer:
-        #             _, _, greedy_predictions = self.forward(
-        #                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
-        #             )
-        #             hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
-        #             del test_batch
-        # finally:
-        #     # set mode back to its original value
-        #     self.train(mode=mode)
-        #     logging.set_verbosity(logging_level)
-        # return hypotheses
-        pass
+        if paths2audio_files is None or len(paths2audio_files) == 0:
+            return {}
+        # We will store transcriptions here
+        hypotheses = []
+        # Model's mode and device
+        mode = self.training
+        device = next(self.parameters()).device
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            # Work in tmp directory - will store manifest file there
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                    for audio_file in paths2audio_files:
+                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                        fp.write(json.dumps(entry) + '\n')
+
+                config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
+
+                temporary_datalayer = self._setup_transcribe_dataloader(config)
+                for test_batch in temporary_datalayer:
+                    encoded, encoded_len = self.forward(
+                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                    )
+                    hypotheses += self.decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len)
+                    del test_batch
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+            logging.set_verbosity(logging_level)
+        return hypotheses
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
         """
@@ -182,12 +181,20 @@ class EncDecRNNTModel(ASRModel):
         else:
             if new_vocabulary is None or len(new_vocabulary) == 0:
                 raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
+
             joint_config = self.joint.to_config_dict()
             new_joint_config = copy.deepcopy(joint_config)
             new_joint_config['vocabulary'] = new_vocabulary
             new_joint_config['num_classes'] = len(new_vocabulary)
             del self.joint
             self.joint = EncDecRNNTModel.from_config_dict(new_joint_config)
+
+            decoder_config = self.decoder.to_config_dict()
+            new_decoder_config = copy.deepcopy(decoder_config)
+            new_decoder_config.vocab_size = len(new_vocabulary)
+            del self.decoder
+            self.decoder = EncDecRNNTModel.from_config_dict(new_joint_config)
+
             del self.loss
             self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
 
@@ -204,9 +211,14 @@ class EncDecRNNTModel(ASRModel):
             )
 
             # Update config
-            OmegaConf.set_struct(self.cfg.joint, False)
-            self.cfg.joint = new_joint_config
-            OmegaConf.set_struct(self.cfg.joint, True)
+            with open_dict(self.cfg.joint):
+                self.cfg.joint = new_joint_config
+
+            with open_dict(self.cfg.decoder):
+                self.cfg.decoder = new_decoder_config
+
+            with open_dict(self.cfg.decoding):
+                self.cfg.decoding = decoding_cfg
 
             logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
