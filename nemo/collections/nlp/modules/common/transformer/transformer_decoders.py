@@ -74,6 +74,9 @@ class TransformerDecoder(nn.Module):
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
+        print(f"(TransformerDecoder._get_memory_states)i, decoder_states.shape:", i, decoder_states.shape)
+        if decoder_mems_list is not None:
+            print(f"(TransformerDecoder._get_memory_states)decoder_mems_list[{i}].shape:", decoder_mems_list[i].shape)
         if decoder_mems_list is not None:
             memory_states = torch.cat((decoder_mems_list[i], decoder_states), dim=1)
         else:
