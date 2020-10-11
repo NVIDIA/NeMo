@@ -93,6 +93,8 @@ class TransformerEmbedding(nn.Module):
         position_ids = torch.arange(
             start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device
         )
+        print("(TransformerEmbedding.forward)position_ids.shape, input_ids.shape:", position_ids.shape, input_ids.shape)
+        print("(TransformerEmbedding.forward)position_ids, input_ids:", position_ids, input_ids)
         position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
 
         token_embeddings = self.token_embedding(input_ids)
