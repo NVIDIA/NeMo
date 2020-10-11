@@ -24,15 +24,22 @@ from nemo.core.config import Config
 
 
 def hydra_runner(
-    config_path: Optional[str] = None, config_name: Optional[str] = None
+    config_path: Optional[str] = None, config_name: Optional[str] = None, schema: Optional[Any] = None
 ) -> Callable[[TaskFunction], Any]:
     """
     Decorator used for passing the Config paths to main function.
+    Optionally registers a schema used for validation/providing default values.
 
     Args:
-        config_path: path to the directory where the config exists.
-        config_name: name of the config file.
+        config_path: Path to the directory where the config exists.
+        config_name: Name of the config file.
+        schema: Structured config  type representing the schema used for validation/providing default values.
     """
+    if schema is not None:
+        # Create config store.
+        cs = ConfigStore.instance()
+        # Register the configuration as a node under a given name.
+        cs.store(name=config_name.replace(".yaml", ""), node=schema)
 
     def decorator(task_function: TaskFunction) -> Callable[[], None]:
         @functools.wraps(task_function)
