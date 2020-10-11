@@ -17,7 +17,7 @@ from typing import Optional
 import torch
 
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import LabelsType, LogprobsType, LossType, MaskType, NeuralType
+from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType
 
 __all__ = ['SmoothedCrossEntropyLoss']
 
@@ -48,7 +48,7 @@ class SmoothedCrossEntropyLoss(Loss):
         """Returns definitions of module input ports.
         """
         return {
-            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "log_probs": NeuralType(('B', 'T', 'D'), LogitsType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
             "output_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
         }
