@@ -116,16 +116,27 @@ class TransformerMTModel(ModelPT):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
+        if src.ndim == 3:
+            # Dateaset returns alreadey batched data and the first dimension of size 1 added by DataLoader
+            # is excess.
+            src = src.squeeze()
+            src_mask = src_mask.squeeze()
+            tgt = tgt.squeeze()
+            tgt_mask = tgt_mask.squeeze()
+            labels = labels.squeeze()
+            sent_ids = sent_ids.squeeze()
         src_embeddings = self.embedding_layer(input_ids=src)
         src_hiddens = self.encoder(src_embeddings, src_mask)
         tgt_embeddings = self.embedding_layer(input_ids=tgt)
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
-        loss = self.loss_fn(logits=log_probs, labels=labels)
+        loss = self.loss_fn(log_probs=log_probs, labels=labels)
         beam_results = None
         if not self.training:
             beam_results = self.beam_search(
-                decoder_input_ids=tgt, encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+                decoder_input_ids=tgt, 
+                encoder_hidden_states=src_hiddens, 
+                encoder_input_mask=src_mask)
 
         return loss, [tgt, loss, beam_results, sent_ids]
 
@@ -135,10 +146,11 @@ class TransformerMTModel(ModelPT):
         passed in as `batch`.
         """
         # forward pass
-        input_ids, input_mask, labels = batch
-        log_probs = self(input_ids=input_ids, attention_mask=input_mask)
+        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
+        log_probs = self(
+            src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids)
 
-        train_loss = self.loss_fn(logits=log_probs, labels=labels)
+        train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': train_loss, 'log': tensorboard_logs}
@@ -148,10 +160,21 @@ class TransformerMTModel(ModelPT):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_mask, labels = batch
-        log_probs = self(input_ids=input_ids, attention_mask=input_mask)
+        print("(TransformerMTModel.validdation_step)len(batch):", len(batch))
+        for i in range(6):
+            print(f"(TransformerMTModel.validdation_step)type(batch[{i}]):", type(batch[i]))
+            if i < 5:
+                print(f"(TransformerMTModel.validdation_step)batch[{i}].shape:", batch[i].shape)
+            else:
+                for j in range(len(batch[i])):
+                    print(f"(TransformerMTModel.validation_step)type(batch[{i}][{j}]:", type(batch[i][j]))
+                    print(f"(TransformerMTModel.validation_step)batch[{i}][{j}]", batch[i][j])
+        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
+        log_probs = self(
+            src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids)
 
-        val_loss = self.loss_fn(logits=log_probs, labels=labels)
+
+        val_loss = self.loss_fn(log_probs=log_probs, labels=labels)
 
         tensorboard_logs = {
             'val_loss': val_loss,
