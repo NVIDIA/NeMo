@@ -66,6 +66,7 @@ class TransformerMTModel(ModelPT):
             embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
             learn_positional_encodings=False,
         )
+        # print("(TransformerMTModel.__init__)self.embedding_layer.device:", self.embedding_layer.device)
         self.encoder = TransformerEncoder(
             hidden_size=cfg.machine_translation.hidden_size,
             inner_size=cfg.machine_translation.inner_size,
@@ -128,15 +129,18 @@ class TransformerMTModel(ModelPT):
         src_embeddings = self.embedding_layer(input_ids=src)
         src_hiddens = self.encoder(src_embeddings, src_mask)
         tgt_embeddings = self.embedding_layer(input_ids=tgt)
+        print("(TransformerMTModel.forward)before doecoder call")
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
+        print("(TransformerMTModel.forward)after decoder call")
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         loss = self.loss_fn(log_probs=log_probs, labels=labels)
         beam_results = None
         if not self.training:
+            print("(TransformerMTModel.forward)before beam search call")
             beam_results = self.beam_search(
-                decoder_input_ids=tgt, 
                 encoder_hidden_states=src_hiddens, 
                 encoder_input_mask=src_mask)
+            print("(TransformerMTModel.forward)after beam seach call")
 
         return loss, [tgt, loss, beam_results, sent_ids]
 
@@ -147,8 +151,7 @@ class TransformerMTModel(ModelPT):
         """
         # forward pass
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
-        log_probs = self(
-            src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids)
+        train_loss, _ = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids)
 
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
 
@@ -170,11 +173,7 @@ class TransformerMTModel(ModelPT):
                     print(f"(TransformerMTModel.validation_step)type(batch[{i}][{j}]:", type(batch[i][j]))
                     print(f"(TransformerMTModel.validation_step)batch[{i}][{j}]", batch[i][j])
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
-        log_probs = self(
-            src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids)
-
-
-        val_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+        val_loss, _ = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids)
 
         tensorboard_logs = {
             'val_loss': val_loss,
