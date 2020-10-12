@@ -66,7 +66,6 @@ class TransformerMTModel(ModelPT):
             embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
             learn_positional_encodings=False,
         )
-        # print("(TransformerMTModel.__init__)self.embedding_layer.device:", self.embedding_layer.device)
         self.encoder = TransformerEncoder(
             hidden_size=cfg.machine_translation.hidden_size,
             inner_size=cfg.machine_translation.inner_size,
@@ -123,24 +122,20 @@ class TransformerMTModel(ModelPT):
         if src.ndim == 3:
             # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
             # is excess.
-            src = src.squeeze()
-            src_mask = src_mask.squeeze()
-            tgt = tgt.squeeze()
-            tgt_mask = tgt_mask.squeeze()
+            src = src.squeeze(dim=0)
+            src_mask = src_mask.squeeze(dim=0)
+            tgt = tgt.squeeze(dim=0)
+            tgt_mask = tgt_mask.squeeze(dim=0)
         src_embeddings = self.embedding_layer(input_ids=src)
         src_hiddens = self.encoder(src_embeddings, src_mask)
         tgt_embeddings = self.embedding_layer(input_ids=tgt)
-        print("(TransformerMTModel.forward)before doecoder call")
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
-        print("(TransformerMTModel.forward)after decoder call")
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
         if not self.training:
-            print("(TransformerMTModel.forward)before beam search call")
             beam_results = self.beam_search(
                 encoder_hidden_states=src_hiddens,
                 encoder_input_mask=src_mask)
-            print("(TransformerMTModel.forward)after beam seach call")
 
         return log_probs, beam_results
 
@@ -151,12 +146,12 @@ class TransformerMTModel(ModelPT):
         """
         # forward pass
         src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
-        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
 
         if labels.ndim == 3:
             # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
             # is excess.
-            labels = labels.squeeze()
+            labels = labels.squeeze(dim=0)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
@@ -167,22 +162,17 @@ class TransformerMTModel(ModelPT):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        print("(TransformerMTModel.validdation_step)len(batch):", len(batch))
-        for i in range(6):
-            print(f"(TransformerMTModel.validdation_step)type(batch[{i}]):", type(batch[i]))
-            if i < 5:
-                print(f"(TransformerMTModel.validdation_step)batch[{i}].shape:", batch[i].shape)
-            else:
-                for j in range(len(batch[i])):
-                    print(f"(TransformerMTModel.validation_step)type(batch[{i}][{j}]:", type(batch[i][j]))
-                    print(f"(TransformerMTModel.validation_step)batch[{i}][{j}]", batch[i][j])
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
-        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        try:
+            log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        except IndexError as e:
+            print("(TransformerMTModel.validation_step)src_ids.shape:", src_ids.shape)
+            raise e
         if labels.ndim == 3:
             # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
             # is excess.
-            labels = labels.squeeze()
-            sent_ids = sent_ids.squeeze()
+            labels = labels.squeeze(dim=0)
+            sent_ids = sent_ids.squeeze(dim=0)
         val_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.last_eval_beam_results = beam_results
         self.last_eval_loss = val_loss

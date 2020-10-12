@@ -51,10 +51,6 @@ class TranslationDataset(Dataset):
         src_mask = (src_ids != self.src_tokenizer.pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_tokenizer.pad_id).astype(np.int32)
         sent_ids = np.array(self.batch_indices[idx])
-        print("(MachineTranslationDataset.__getitem__)src_ids.shape, src_mask.shape, tgt_ids.shape, tgt_mask_shape, labels.shape, len(sent_ids):", 
-              src_ids.shape, src_mask.shape, tgt_ids.shape, tgt_mask.shape, labels.shape, sent_ids.shape)
-        print("(MachineTranslationDataset.__getitem__)sent_ids:", sent_ids) 
-        
         return src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids
 
     def pad_batches(self, src_ids, tgt_ids, batch_indices):
