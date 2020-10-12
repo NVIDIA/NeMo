@@ -64,7 +64,7 @@ class MachineTranslationLogEvalCallback(Callback):
         self._on_eval_end(trainer, pl_module, "Validation")
 
     def _on_eval_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        for tr in pl_module.last_eval_beam_results.cpu().numpy():
+        for tr in pl_module.last_eval_beam_results:
             self._translations.append(pl_module.tgt_tokenizer.ids_to_text(tr))
         tgts = batch[2].squeeze(dim=0).cpu().numpy()
         for tgt in tgts:
