@@ -66,11 +66,9 @@ class GreedySequenceGenerator(nn.Module):
         self.batch_size = batch_size
 
         decoder_parameter = next(self.decoder.parameters())
-        print("(GreedySequenceGenerator.__init__)type(decoder_parameter):", type(decoder_parameter))
-        print("(GreedySequenceGenerator.__init__)decoder_parameter.device:", decoder_parameter.device)
 
-        self.device = next(self.decoder.parameters()).device
-
+        # TODO replace self.device attribute with defining device on the fly according to Pytorch Lightning recomendations
+        self.device = next(self.decoder.parameters()).device  
     @torch.no_grad()
     def _forward(
         self,
@@ -121,8 +119,6 @@ class GreedySequenceGenerator(nn.Module):
         """
 
         decoder_parameter = next(self.decoder.parameters())
-        print("(GreedySequenceGenerator.__init__)type(decoder_parameter):", type(decoder_parameter))
-        print("(GreedySequenceGenerator.__init__)decoder_parameter.device:", decoder_parameter.device)
 
         batch_size = self.batch_size
 
@@ -240,10 +236,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         self.len_pen = len_pen
 
     def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
-        print("(BeamSearchSequenceGenerator.forward)beam search is run")
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
-        print("(BeamSearchSequenceGenerator.forward)batch_size:", batch_size)
-        print("(BeamSearchSequenceGenerator.forward)tgt.shape:", tgt.shape)
 
         # generate initial buffer of beam_size prefixes-hypotheses
         log_probs, decoder_mems_list = self._forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
@@ -254,9 +247,6 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, 1), prefixes), dim=1)
         for j in range(len(decoder_mems_list)):
             decoder_mems_list[j] = decoder_mems_list[j].repeat(self.beam_size, 1, 1)
-        print("(BeamSearchSequenceGenerator.forward)len(decoder_mems_list):", len(decoder_mems_list))
-        for i, ldml in enumerate(decoder_mems_list):
-            print(f"(BeamSearchSequenceGenerator.forward)decoder_mems_list[{i}]:", ldml.shape)
         
         # repeat source sequence beam_size times for beam search
         if encoder_hidden_states is not None:
