@@ -38,18 +38,18 @@ class MachineTranslationLogEvalCallback(Callback):
     def _on_eval_end(self, trainer, pl_module, mode):
         counts = np.array(self._non_pad_tokens)
         eval_loss = np.sum(np.array(self._losses) * counts) / np.sum(counts)
-        token_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="fairseq")
-        sacre_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="13a")
-        print(f"{mode} results for process {pl_module.global_rank}".capitalize())
+        token_bleu = corpus_bleu(self._translations, self._ground_truths, tokenize="fairseq")
+        sacre_bleu = corpus_bleu(self._translations, self._ground_truths, tokenize="13a")
+        trainer.logger.info(f"{mode} results".capitalize())
         for i in range(3):
             sent_id = np.random.randint(len(self._translations))
-            print(f"Ground truth: {self._ground_truths[sent_id]}\n")
-            print(f"Translation: {self._translations[sent_id]}\n")
-        print("-" * 50)
-        print(f"loss: {eval_loss:.3f}")
-        print(f"TokenBLEU: {token_bleu}")
-        print(f"SacreBLEU: {sacre_bleu}")
-        print("-" * 50)
+            trainer.logger.info(f"Ground truth: {self._ground_truths[sent_id]}\n")
+            trainer.logger.info(f"Translation: {self._translations[sent_id]}\n")
+        trainer.logger.info("-" * 50)
+        trainer.logger.info(f"loss: {eval_loss:.3f}")
+        trainer.logger.info(f"TokenBLEU: {token_bleu:.2f}")
+        trainer.logger.info(f"SacreBLEU: {sacre_bleu:.2f}")
+        trainer.logger.info("-" * 50)
 
     @rank_zero_only
     def on_test_end(self, trainer, pl_module):
@@ -59,23 +59,22 @@ class MachineTranslationLogEvalCallback(Callback):
     def on_validation_end(self, trainer, pl_module):
         self._on_eval_end(trainer, pl_module, "Validation")
 
-    @rank_zero_only
-    def on_sanity_check_end(self, trainer, pl_module):
-        self._on_eval_end(trainer, pl_module, "Validation")
-
-    def _on_eval_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx, mode):
-        self._translations.extend(outputs['translations'])
-        self._ground_truths.extend(outputs['ground_truths'])
-        self._non_pad_tokens.append(outputs['num_non_pad_tokens'])
-        self._losses.append(outputs[f'{mode}_loss'])
-
-    @rank_zero_only
-    def on_test_batch_end(self, trainer, pl_module, batch, outputs, batch_idx, dataloader_idx):
-        self._on_eval_batch_end(trainer, pl_module, batch, outputs, batch_idx, dataloader_idx, 'test')
+    def _on_eval_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+        for tr in pl_module.last_eval_beam_results:
+            self._translations.append(pl_module.tgt_tokenizer.ids_to_text(tr))
+        for tgt in batch[2]:
+            self._ground_truths.append(pl_module.tgt_tokenizer.ids_to_text(tgt))
+            non_pad_tokens = np.not_equal(tgt, pl_module.tgt_tokenizer.pad_id).sum().item()
+            self._non_pad_tokens.append(non_pad_tokens)
+        self._losses.append(pl_module.last_eval_loss)
 
     @rank_zero_only
-    def on_validation_batch_end(self, trainer, pl_module, batch, outputs, batch_idx, dataloader_idx):
-        self._on_eval_batch_end(trainer, pl_module, batch, outputs, batch_idx, dataloader_idx, 'val')
+    def on_test_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+        self._on_eval_batch_end(trainer, pl_module, batch, batch_idx, dataloader_idx)
+
+    @rank_zero_only
+    def on_validation_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+        self._on_eval_batch_end(trainer, pl_module, batch, batch_idx, dataloader_idx)
 
     def _on_eval_start(self, trainer, pl_module):
         self._translations = []
@@ -90,8 +89,3 @@ class MachineTranslationLogEvalCallback(Callback):
     @rank_zero_only
     def on_validation_start(self, trainer, pl_module):
         self._on_eval_start(trainer, pl_module)
-
-    @rank_zero_only
-    def on_sanity_check_start(self, trainer, pl_module):
-        self._on_eval_start(trainer, pl_module)
-

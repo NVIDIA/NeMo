@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,7 +15,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# =============================================================================
 
+# =============================================================================
 # Copyright 2017--2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not
@@ -24,6 +30,7 @@
 # an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
 # express or implied. See the License for the specific language governing
 # permissions and limitations under the License.
+# =============================================================================
 
 """
 SacreBLEU provides hassle-free computation of shareable, comparable, and reproducible BLEU scores.
@@ -1477,17 +1484,16 @@ def corpus_bleu(
     tokenize=DEFAULT_TOKENIZER,
     use_effective_order=False,
 ) -> BLEU:
-    """Produces BLEU scores along with its sufficient statistics from a source against one or more references.
+    """Produces BLEU scores along with its sufficient statistics from a
+    source against one or more references.
 
-    :param sys_stream: The system stream (a sequence of segments)
-    :param ref_streams: A list of one or more reference streams (each a sequence of segments)
-    :param smooth: The smoothing method to use
-    :param smooth_value: For 'floor' smoothing, the floor to use
-    :param force: Ignore data that looks already tokenized
-    :param lowercase: Lowercase the data
-    :param tokenize: The tokenizer to use
-
-    :return: a BLEU object containing everything you'd want
+    :param sys_stream: The system stream (a sequence of segments) :param
+    ref_streams: A list of one or more reference streams (each a sequence of
+    segments) :param smooth: The smoothing method to use :param smooth_value:
+    For 'floor' smoothing, the floor to use :param force: Ignore data that
+    looks already tokenized :param lowercase: Lowercase the data :param
+    tokenize: The tokenizer to use :return: a BLEU object containing
+    everything you'd want
     """
 
     # Add some robustness to the input arguments
