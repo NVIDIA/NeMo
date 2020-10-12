@@ -38,8 +38,10 @@ class MachineTranslationLogEvalCallback(Callback):
     def _on_eval_end(self, trainer, pl_module, mode):
         counts = np.array(self._non_pad_tokens)
         eval_loss = np.sum(np.array(self._losses) * counts) / np.sum(counts)
+
         token_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="13a")
+
         print(f"{mode} results".capitalize())
         for i in range(3):
             sent_id = np.random.randint(len(self._translations))
@@ -64,7 +66,7 @@ class MachineTranslationLogEvalCallback(Callback):
         self._on_eval_end(trainer, pl_module, "Validation")
 
     def _on_eval_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        for tr in pl_module.last_eval_beam_results:
+        for tr in pl_module.last_eval_beam_results.cpu().numpy():
             self._translations.append(pl_module.tgt_tokenizer.ids_to_text(tr))
         tgts = batch[2].squeeze(dim=0).cpu().numpy()
         for tgt in tgts:
