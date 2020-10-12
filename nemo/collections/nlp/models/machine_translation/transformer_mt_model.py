@@ -108,6 +108,9 @@ class TransformerMTModel(ModelPT):
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing)
 
+        self.last_eval_loss = None
+        self.last_eval_beam_results = None
+
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
 
@@ -173,13 +176,16 @@ class TransformerMTModel(ModelPT):
                 for j in range(len(batch[i])):
                     print(f"(TransformerMTModel.validation_step)type(batch[{i}][{j}]:", type(batch[i][j]))
                     print(f"(TransformerMTModel.validation_step)batch[{i}][{j}]", batch[i][j])
-        src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
+        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
         if labels.ndim == 3:
             # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
             # is excess.
             labels = labels.squeeze()
+            sent_ids = sent_ids.squeeze()
         val_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+        self.last_eval_beam_results = beam_results
+        self.last_eval_loss = val_loss
 
         tensorboard_logs = {'val_loss': val_loss}
 
