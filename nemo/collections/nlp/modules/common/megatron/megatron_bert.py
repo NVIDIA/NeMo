@@ -102,10 +102,10 @@ class MegatronBertEncoder(BertModule):
     @property
     def hidden_size(self):
         """
-            Property returning hidden size.
+        Property returning hidden size.
 
-            Returns:
-                Hidden size.
+        Returns:
+            Hidden size.
         """
         return self._hidden_size
 
@@ -127,7 +127,7 @@ class MegatronBertEncoder(BertModule):
 
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights.
-           For model parallel checkpoints the directory structure 
+           For model parallel checkpoints the directory structure
            should be restore_path/mp_rank_0X/model_optim_rng.pt
 
         Args:
