@@ -15,14 +15,14 @@
 from typing import Dict
 
 import torch
-from pytorch_lightning.metrics import TensorMetric
+from pytorch_lightning.metrics import Metric
 
 from nemo.utils import logging
 
 __all__ = ['Perplexity']
 
 
-class Perplexity(TensorMetric):
+class Perplexity(Metric):
     """
     This metric computes the perplexity given the language model loss.
     """

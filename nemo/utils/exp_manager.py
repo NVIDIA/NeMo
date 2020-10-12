@@ -515,7 +515,7 @@ def configure_loggers(
     logger_list = (
         LoggerList(logger_list, nemo_name=name, nemo_version=version) if len(logger_list) > 1 else logger_list[0]
     )
-    trainer.configure_logger(logger_list)
+    trainer.logger_connector.configure_logger(logger_list)
 
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str):
@@ -549,9 +549,10 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
     checkpoint_callback = NeMoModelCheckpoint(
         filepath=Path(log_dir / 'checkpoints' / '{val_loss:.2f}-{epoch}'),
         save_top_k=3,
+        monitor='val_loss',
         save_last=True,
         prefix=name + "--",
     )
-    trainer.configure_checkpoint_callback(checkpoint_callback)
+    #trainer.configure_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
     trainer.checkpoint_callback = checkpoint_callback
