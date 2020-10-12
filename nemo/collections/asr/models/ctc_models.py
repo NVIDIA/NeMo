@@ -18,8 +18,8 @@ import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
 
-import torch
 import onnx
+import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
