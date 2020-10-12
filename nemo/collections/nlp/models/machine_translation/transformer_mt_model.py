@@ -115,7 +115,7 @@ class TransformerMTModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
     @typecheck()
-    def forward(self, src, src_mask, tgt, tgt_mask, labels, sent_ids):
+    def forward(self, src, src_mask, tgt, tgt_mask):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
