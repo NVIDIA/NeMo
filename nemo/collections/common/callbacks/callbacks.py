@@ -38,9 +38,11 @@ class MachineTranslationLogEvalCallback(Callback):
     def _on_eval_end(self, trainer, pl_module, mode):
         counts = np.array(self._non_pad_tokens)
         eval_loss = np.sum(np.array(self._losses) * counts) / np.sum(counts)
+        print(f"{mode} results".capitalize())
+        print("(MachineTranslationLogEvalCallback._on_eval_end)len(self._translations), len(self._ground_truths):", len(self._translations), len(self._ground_truths))
         token_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="13a")
-        print(f"{mode} results".capitalize())
+        trainer.logger.info(f"{mode} results".capitalize())
         for i in range(3):
             sent_id = np.random.randint(len(self._translations))
             print(f"Ground truth: {self._ground_truths[sent_id]}\n")
