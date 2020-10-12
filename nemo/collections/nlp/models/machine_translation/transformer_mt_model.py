@@ -174,8 +174,8 @@ class TransformerMTModel(ModelPT):
             labels = labels.squeeze(dim=0)
             sent_ids = sent_ids.squeeze(dim=0)
         val_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        self.last_eval_beam_results = beam_results
-        self.last_eval_loss = val_loss
+        self.last_eval_beam_results = beam_results.cpu().numpy()
+        self.last_eval_loss = val_loss.cpu().numpy()
 
         tensorboard_logs = {'val_loss': val_loss}
 
