@@ -38,17 +38,17 @@ class MachineTranslationLogEvalCallback(Callback):
     def _on_eval_end(self, trainer, pl_module, mode):
         counts = np.array(self._non_pad_tokens)
         eval_loss = np.sum(np.array(self._losses) * counts) / np.sum(counts)
-        token_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="fairseq")
-        sacre_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="13a")
-        print(f"{mode} results for gpu:0".capitalize())
+        token_bleu = corpus_bleu(self._translations, self._ground_truths, tokenize="fairseq")
+        sacre_bleu = corpus_bleu(self._translations, self._ground_truths, tokenize="13a")
+        print(f"{mode} results".capitalize())
         for i in range(3):
             sent_id = np.random.randint(len(self._translations))
             print(f"Ground truth: {self._ground_truths[sent_id]}\n")
             print(f"Translation: {self._translations[sent_id]}\n")
         print("-" * 50)
         print(f"loss: {eval_loss:.3f}")
-        print(f"TokenBLEU: {token_bleu}")
-        print(f"SacreBLEU: {sacre_bleu}")
+        print(f"TokenBLEU: {token_bleu:.2f}")
+        print(f"SacreBLEU: {sacre_bleu:.2f}")
         print("-" * 50)
 
     @rank_zero_only
@@ -64,13 +64,14 @@ class MachineTranslationLogEvalCallback(Callback):
         self._on_eval_end(trainer, pl_module, "Validation")
 
     def _on_eval_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        for tr in pl_module.last_eval_beam_results:
+        for tr in pl_module.last_eval_beam_results.cpu().numpy():
             self._translations.append(pl_module.tgt_tokenizer.ids_to_text(tr))
-        tgts = batch[2].squeeze(dim=0).cpu().numpy()
+        tgts = batch[2].squeeze().cpu().numpy()
         for tgt in tgts:
+            print("(MachineTranslationLogEvalCallback._on_eval_batch_end)tgt.shape:", tgt.shape)
             self._ground_truths.append(pl_module.tgt_tokenizer.ids_to_text(tgt))
-        non_pad_tokens = np.not_equal(tgts, pl_module.tgt_tokenizer.pad_id).sum().item()
-        self._non_pad_tokens.append(non_pad_tokens)
+            non_pad_tokens = np.not_equal(tgt, pl_module.tgt_tokenizer.pad_id).sum().item()
+            self._non_pad_tokens.append(non_pad_tokens)
         self._losses.append(pl_module.last_eval_loss)
 
     @rank_zero_only
