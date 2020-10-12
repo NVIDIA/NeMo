@@ -3,10 +3,11 @@ name: &name TransformerLM
 
 trainer:
   gpus:
+    - 0
     - 1 # the number of gpus, 0 for CPU
   num_nodes: 1
-  max_epochs: 2
-  max_steps: 400 # precedence over max_epochs
+  max_epochs: 1000
+  max_steps: 100000 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
@@ -49,7 +50,7 @@ model:
   train_ds:
     src_file_name: ~/data/wmt14_en_de2/train.en
     tgt_file_name: ~/data/wmt14_en_de2/train.de
-    tokens_in_batch: 4096
+    tokens_in_batch: 2048
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
@@ -63,14 +64,14 @@ model:
 
   optim:
     name: adam
-    lr: 1e-4
+    lr: 3.5e-4
     betas: [0.9, 0.999]
     weight_decay: 0
 
     sched:
       name: WarmupAnnealing
       warmup_steps: null
-      warmup_ratio: 0.05
+      warmup_ratio: 0.04
       last_epoch: -1
 
       # pytorch lightning args
