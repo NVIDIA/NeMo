@@ -93,7 +93,10 @@ class TextClassificationModel(NLPModel, Exportable):
             self.loss = CrossEntropyLoss()
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(cfg.dataset.num_classes)
+        self.classification_report = ClassificationReport(
+            num_classes=cfg.dataset.num_classes,
+            mode='micro',
+        )
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
@@ -146,7 +149,11 @@ class TextClassificationModel(NLPModel, Exportable):
         val_loss = self.loss(logits=logits, labels=labels)
 
         preds = torch.argmax(logits, axis=-1)
-        tp, fp, fn = self.classification_report(preds, labels)
+        
+        self.classification_report(preds, labels)
+        tp = self.classification_report.tp
+        fn = self.classification_report.fn
+        fp = self.classification_report.fp
 
         tensorboard_logs = {f'{prefix}_loss': val_loss, f'{prefix}_tp': tp, f'{prefix}_fn': fn, f'{prefix}_fp': fp}
 
@@ -165,11 +172,8 @@ class TextClassificationModel(NLPModel, Exportable):
             prefix = 'val'
 
         avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
-        # calculate metrics and log classification report
-        tp = torch.sum(torch.stack([x['log'][f'{prefix}_tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log'][f'{prefix}_fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log'][f'{prefix}_fp'] for x in outputs]), 0)
-        precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
+
+        precision, recall, f1 = self.classification_report.compute()
 
         tensorboard_logs = {
             f'{prefix}_loss': avg_loss,
