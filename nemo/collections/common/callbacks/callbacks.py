@@ -40,16 +40,16 @@ class MachineTranslationLogEvalCallback(Callback):
         eval_loss = np.sum(np.array(self._losses) * counts) / np.sum(counts)
         token_bleu = corpus_bleu(self._translations, self._ground_truths, tokenize="fairseq")
         sacre_bleu = corpus_bleu(self._translations, self._ground_truths, tokenize="13a")
-        trainer.logger.info(f"{mode} results".capitalize())
+        print(f"{mode} results".capitalize())
         for i in range(3):
             sent_id = np.random.randint(len(self._translations))
-            trainer.logger.info(f"Ground truth: {self._ground_truths[sent_id]}\n")
-            trainer.logger.info(f"Translation: {self._translations[sent_id]}\n")
-        trainer.logger.info("-" * 50)
-        trainer.logger.info(f"loss: {eval_loss:.3f}")
-        trainer.logger.info(f"TokenBLEU: {token_bleu:.2f}")
-        trainer.logger.info(f"SacreBLEU: {sacre_bleu:.2f}")
-        trainer.logger.info("-" * 50)
+            print(f"Ground truth: {self._ground_truths[sent_id]}\n")
+            print(f"Translation: {self._translations[sent_id]}\n")
+        print("-" * 50)
+        print(f"loss: {eval_loss:.3f}")
+        print(f"TokenBLEU: {token_bleu:.2f}")
+        print(f"SacreBLEU: {sacre_bleu:.2f}")
+        print("-" * 50)
 
     @rank_zero_only
     def on_test_end(self, trainer, pl_module):
