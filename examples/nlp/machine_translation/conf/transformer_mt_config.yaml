@@ -54,10 +54,10 @@ model:
   validation_ds:
     src_file_name: ~/data/wmt14_en_de2/valid.en # path to file with validation data
     tgt_file_name: ~/data/wmt14_en_de2/valid.de
-    tokens_in_batch: 32
+    tokens_in_batch: 1024
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
-    predict_last_k: 64
+    predict_last_k: 0
 
   optim:
     name: adam
