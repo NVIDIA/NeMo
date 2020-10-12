@@ -118,14 +118,12 @@ class TransformerMTModel(ModelPT):
         in the `nn.Module` in vanilla PyTorch.
         """
         if src.ndim == 3:
-            # Dateaset returns alreadey batched data and the first dimension of size 1 added by DataLoader
+            # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
             # is excess.
             src = src.squeeze()
             src_mask = src_mask.squeeze()
             tgt = tgt.squeeze()
             tgt_mask = tgt_mask.squeeze()
-            labels = labels.squeeze()
-            sent_ids = sent_ids.squeeze()
         src_embeddings = self.embedding_layer(input_ids=src)
         src_hiddens = self.encoder(src_embeddings, src_mask)
         tgt_embeddings = self.embedding_layer(input_ids=tgt)
@@ -133,16 +131,15 @@ class TransformerMTModel(ModelPT):
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         print("(TransformerMTModel.forward)after decoder call")
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
-        loss = self.loss_fn(log_probs=log_probs, labels=labels)
         beam_results = None
         if not self.training:
             print("(TransformerMTModel.forward)before beam search call")
             beam_results = self.beam_search(
-                encoder_hidden_states=src_hiddens, 
+                encoder_hidden_states=src_hiddens,
                 encoder_input_mask=src_mask)
             print("(TransformerMTModel.forward)after beam seach call")
 
-        return loss, [tgt, loss, beam_results, sent_ids]
+        return log_probs, beam_results
 
     def training_step(self, batch, batch_idx):
         """
@@ -150,9 +147,13 @@ class TransformerMTModel(ModelPT):
         passed in as `batch`.
         """
         # forward pass
-        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
-        train_loss, _ = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids)
+        src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
+        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
 
+        if labels.ndim == 3:
+            # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
+            # is excess.
+            labels = labels.squeeze()
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
@@ -172,12 +173,15 @@ class TransformerMTModel(ModelPT):
                 for j in range(len(batch[i])):
                     print(f"(TransformerMTModel.validation_step)type(batch[{i}][{j}]:", type(batch[i][j]))
                     print(f"(TransformerMTModel.validation_step)batch[{i}][{j}]", batch[i][j])
-        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
-        val_loss, _ = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids)
+        src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
+        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        if labels.ndim == 3:
+            # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
+            # is excess.
+            labels = labels.squeeze()
+        val_loss = self.loss_fn(log_probs=log_probs, labels=labels)
 
-        tensorboard_logs = {
-            'val_loss': val_loss,
-        }
+        tensorboard_logs = {'val_loss': val_loss}
 
         return {'val_loss': val_loss, 'log': tensorboard_logs}
 
