@@ -1,5 +1,5 @@
 # Config file for training left-to-right Transformer language model
-name: &name TransformerLM
+name: &name TransformerMT
 
 trainer:
   gpus: 8
@@ -27,12 +27,13 @@ model:
     num_attn_heads: 8
     inner_size: 2048
     max_seq_length: 512
-    embedding_dropout: 0
-    ffn_dropout: 0
-    attn_score_dropout: 0
-    attn_layer_dropout: 0
-    beam_size: 4
+    embedding_dropout: 0.1
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    beam_size: 21
     label_smoothing: 0.1
+    len_pen: 0.3
 
   dataset:
     max_seq_length: 512
@@ -43,14 +44,14 @@ model:
   train_ds:
     src_file_name: /data/train.en
     tgt_file_name: /data/train.de
-    tokens_in_batch: 16000
+    tokens_in_batch: 18000
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
   validation_ds:
     src_file_name: /data/valid.en # path to file with validation data
     tgt_file_name: /data/valid.de
-    tokens_in_batch: 1024
+    tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     predict_last_k: 0
@@ -63,7 +64,7 @@ model:
 
     sched:
       name: InverseSquareRootAnnealing
-      warmup_steps: 4000
+      warmup_steps: 8000
       warmup_ratio: null
       last_epoch: -1
 
