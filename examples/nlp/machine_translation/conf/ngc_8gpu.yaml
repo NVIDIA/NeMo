@@ -50,7 +50,7 @@ model:
   validation_ds:
     src_file_name: /data/valid.en # path to file with validation data
     tgt_file_name: /data/valid.de
-    tokens_in_batch: 20000
+    tokens_in_batch: 1024
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     predict_last_k: 0
