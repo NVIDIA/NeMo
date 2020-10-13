@@ -62,6 +62,7 @@ class BeamRNNTInfer(Typing):
         beam_size: int,
         search_type: str = 'default',
         score_norm: bool = True,
+        best_hypothesis: bool = True,
         tsd_max_symbols_per_step: Optional[int] = 50,
         alsd_max_symmetric_expansion: int = 2,
         nsc_max_timesteps_expansion: int = 1,
@@ -73,6 +74,7 @@ class BeamRNNTInfer(Typing):
         self.blank = decoder_model.blank_idx
         self.vocab_size = decoder_model.vocab_size
         self.search_type = search_type
+        self.best_hypothesis = best_hypothesis
 
         if beam_size < 1:
             raise ValueError("Beam search size cannot be less than 1!")
@@ -99,6 +101,15 @@ class BeamRNNTInfer(Typing):
 
         if tsd_max_symbols_per_step is None:
             tsd_max_symbols_per_step = -1
+
+        if search_type in ['tsd', 'alsd', 'nsc'] and not self.decoder.blank_as_pad:
+            raise ValueError(
+                f"Search type was chosen as '{search_type}', however the decoder module provided "
+                f"does not support the `blank` token as a pad value. {search_type} requires "
+                f"the blank token as pad value support in order to perform batched beam search."
+                f"Please chose one of the other beam search methods, or re-train your model "
+                f"with this support."
+            )
 
         self.tsd_max_symbols_per_step = tsd_max_symbols_per_step
         self.alsd_max_symmetric_expansion = alsd_max_symmetric_expansion
@@ -303,7 +314,11 @@ class BeamRNNTInfer(Typing):
             torch.zeros(beam, device=h.device, dtype=h.dtype)
         )  # [L, B, H], [L, B, H]
 
-        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_beam_select_state(beam_state, 0))]
+        B = [
+            Hypothesis(
+                y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_beam_select_state(beam_state, 0)
+            )
+        ]
         cache = {}
 
         for i in range(h.shape[1]):
@@ -338,7 +353,9 @@ class BeamRNNTInfer(Typing):
                     else:
                         dict_pos = seq_A.index(hyp.y_sequence)
 
-                        A[dict_pos].score = np.logaddexp(A[dict_pos].score, (hyp.score + float(beam_logp[i, self.blank])))
+                        A[dict_pos].score = np.logaddexp(
+                            A[dict_pos].score, (hyp.score + float(beam_logp[i, self.blank]))
+                        )
 
                 if v < self.tsd_max_symbols_per_step:
                     for i, hyp in enumerate(C):
@@ -382,7 +399,11 @@ class BeamRNNTInfer(Typing):
 
         beam_state = self.decoder.initialize_state(torch.zeros(beam, device=h.device, dtype=h.dtype))  # [L, B, H]
 
-        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_beam_select_state(beam_state, 0))]
+        B = [
+            Hypothesis(
+                y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_beam_select_state(beam_state, 0)
+            )
+        ]
 
         final = []
         cache = {}
