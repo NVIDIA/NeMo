@@ -13,37 +13,14 @@
 # limitations under the License.
 
 import torch
-from pytorch_lightning.metrics import TensorMetric
+from pytorch_lightning.metrics import Metric
 
 __all__ = ['TopKClassificationAccuracy', 'compute_topk_accuracy']
 
 
-def compute_topk_accuracy(correct_counts, total_counts):
-    """
-    Computes the top-k accuracy when provided with a stacked tensor from multiple
-    DDP processes.
-
-    Args:
-        correct_counts: Tensor of shape [D, K], D being the number of processes
-            and K being the top-k parameter.
-        total_counts: Tensor of shape [D, K], D being the number of processes
-            and K being the top-k parameter.
-
-    Returns:
-        A list of length `K`, such that k-th index corresponds to top-k accuracy
-        over all distributed processes.
-    """
-    top_k_scores = []
-
-    for ki in range(correct_counts.shape[-1]):
-        correct_count = correct_counts[:, ki].sum()
-        total_count = total_counts[:, ki].sum()
-        top_k_scores.append(correct_count / float(total_count))
-
-    return top_k_scores
 
 
-class TopKClassificationAccuracy(TensorMetric):
+class TopKClassificationAccuracy(Metric):
     """
     This metric computes numerator and denominator for Overall Accuracy between logits and labels.
     When doing distributed training/evaluation the result of res=TopKClassificationAccuracy(logits, labels) calls
@@ -88,8 +65,10 @@ class TopKClassificationAccuracy(TensorMetric):
             top_k = [1]
 
         self.top_k = top_k
+        self.add_state("correct_counts_k", default=torch.zeros_like(self.top_k))
+        self.add_state("total_counts_k", default=torch.zeros_like(self.top_k))
 
-    def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def update(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
             max_k = max(self.top_k)
 
@@ -107,6 +86,34 @@ class TopKClassificationAccuracy(TensorMetric):
                 correct_counts_k.append(correct_k)
                 total_counts_k.append(total_k)
 
-            results = torch.tensor([correct_counts_k, total_counts_k], dtype=labels.dtype, device=labels.device)
+            self.correct_counts_k = torch.tensor(correct_counts_k, dtype=labels.dtype, device=labels.device)
+            self.total_counts_k = torch.tensor(total_counts_k, dtype=labels.dtype, device=labels.device)
 
-        return results
+        #    results = torch.tensor([correct_counts_k, total_counts_k], dtype=labels.dtype, device=labels.device)
+
+        # return results
+    
+    def compute(self):
+        """
+        Computes the top-k accuracy when provided with a stacked tensor from multiple
+        DDP processes.
+
+        Args:
+            correct_counts: Tensor of shape [D, K], D being the number of processes
+                and K being the top-k parameter.
+            total_counts: Tensor of shape [D, K], D being the number of processes
+                and K being the top-k parameter.
+
+        Returns:
+            A list of length `K`, such that k-th index corresponds to top-k accuracy
+            over all distributed processes.
+        """
+        top_k_scores = []
+
+        for ki in range(self.correct_counts.shape[-1]):
+            correct_count = self.correct_counts[:, ki].sum()
+            total_count = self.total_counts[:, ki].sum()
+            top_k_scores.append(correct_count / float(total_count))
+
+        return top_k_scores
+
