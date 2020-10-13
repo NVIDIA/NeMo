@@ -40,11 +40,11 @@ __all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 class EncDecSpeakerLabelModel(ModelPT):
     """Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
-    performing model forward pass. 
-    Expects config dict for 
+    performing model forward pass.
+    Expects config dict for
     * preprocessor
     * Jasper/Quartznet Encoder
-    * Speaker Decoder 
+    * Speaker Decoder
     """
 
     @classmethod
@@ -234,11 +234,11 @@ class EncDecSpeakerLabelModel(ModelPT):
     def setup_finetune_model(self, model_config: DictConfig):
         """
         setup_finetune_model method sets up training data, validation data and test data with new
-        provided config, this checks for the previous labels set up during training from scratch, if None, 
+        provided config, this checks for the previous labels set up during training from scratch, if None,
         it sets up labels for provided finetune data from manifest files
 
         Args:
-        model_config: cfg which has train_ds, optional validation_ds, optional test_ds and 
+        model_config: cfg which has train_ds, optional validation_ds, optional test_ds and
         mandatory encoder and decoder model params
         make sure you set num_classes correctly for finetune data
 
