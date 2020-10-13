@@ -38,9 +38,10 @@ model:
     separable: true
     se: true
     se_context_size: -1
-    # encoder / decoder values
+    # encoder / decoder / joint values
     enc_hidden: 1024
     pred_hidden: 320
+    joint_hidden: 320
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -162,7 +163,7 @@ model:
     log_softmax: null  # sets it according to cpu/gpu device
 
     jointnet:
-      joint_hidden: 320
+      joint_hidden: ${model.model_defaults.joint_hidden}
       activation: "relu"
       dropout: 0.0
 
