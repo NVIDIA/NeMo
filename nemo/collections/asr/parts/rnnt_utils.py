@@ -48,6 +48,9 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         self.blank_idx = blank_idx  # first or last index of vocabulary
         self.blank_as_pad = blank_as_pad
 
+        if blank_idx not in [0, vocab_size]:
+            raise ValueError("`blank_idx` must be either 0 or the final token of the vocabulary")
+
     @abstractmethod
     def predict(
         self,
