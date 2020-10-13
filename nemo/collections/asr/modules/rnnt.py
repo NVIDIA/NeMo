@@ -249,7 +249,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
 
         return y, new_state, lm_token
 
-    def batch_score_hypothesis(
+    def batch_beam_score_hypothesis(
         self, hypotheses: List[rnnt_utils.Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
     ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
         """
@@ -290,7 +290,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
             # pad tokens
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
             dec_states = self.initialize_state(tokens.to(dtype=dtype))  # [L, B, D]
-            dec_states = self.batch_initialize_states(dec_states, [d_state for seq, d_state in process])
+            dec_states = self.batch_beam_initialize_states(dec_states, [d_state for seq, d_state in process])
 
             y, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
@@ -299,14 +299,14 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         j = 0
         for i in range(final_batch):
             if done[i] is None:
-                new_state = self.batch_select_state(dec_states, j)
+                new_state = self.batch_beam_select_state(dec_states, j)
 
                 done[i] = (y[j], new_state)
                 cache[process[j][0]] = (y[j], new_state)
 
                 j += 1
 
-        batch_states = self.batch_initialize_states(batch_states, [d_state for y_j, d_state in done])
+        batch_states = self.batch_beam_initialize_states(batch_states, [d_state for y_j, d_state in done])
         batch_y = torch.stack([y_j for y_j, d_state in done])
 
         lm_tokens = torch.tensor([h.y_sequence[-1] for h in hypotheses], device=device, dtype=torch.long).view(
@@ -315,7 +315,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
 
         return batch_y, batch_states, lm_tokens
 
-    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+    def batch_beam_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
         """Create batch of decoder states.
            Args:
                batch_states (tuple): batch of decoder states
@@ -333,7 +333,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
 
         return batch_states
 
-    def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
+    def batch_beam_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
         Args:
             batch_states (tuple): batch of decoder states
@@ -431,9 +431,6 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         decoder_outputs = decoder_outputs.transpose(1, 2)  # (B, U + 1, D)
 
         out = self.joint(encoder_outputs, decoder_outputs)  # [B, T, U, K + 1]
-
-        # encoder_outputs.transpose_(1, 2)  # (B, D, T)
-        # decoder_outputs.transpose_(1, 2)  # (B, D, U + 1)
         return out
 
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:

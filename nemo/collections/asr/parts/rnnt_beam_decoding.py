@@ -140,11 +140,6 @@ class BeamRNNTInfer(Typing):
                     best_hypothesis = nbest_hyps[0]  # type: Hypothesis
                     hypotheses.append(best_hypothesis)
 
-            # packed_result = [
-            #     rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
-            #     for sent in hypotheses
-            # ]
-
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
@@ -308,7 +303,7 @@ class BeamRNNTInfer(Typing):
             torch.zeros(beam, device=h.device, dtype=h.dtype)
         )  # [L, B, H], [L, B, H]
 
-        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0))]
+        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_beam_select_state(beam_state, 0))]
         cache = {}
 
         for i in range(h.shape[1]):
@@ -322,7 +317,7 @@ class BeamRNNTInfer(Typing):
             for v in range(self.tsd_max_symbols_per_step):
                 D = []
 
-                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache, beam_state)
+                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_beam_score_hypothesis(C, cache, beam_state)
 
                 beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y), dim=-1)  # [B, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
@@ -351,7 +346,7 @@ class BeamRNNTInfer(Typing):
                             new_hyp = Hypothesis(
                                 score=(hyp.score + float(logp)),
                                 y_sequence=(hyp.y_sequence + [int(k)]),
-                                dec_state=self.decoder.batch_select_state(beam_state, i),
+                                dec_state=self.decoder.batch_beam_select_state(beam_state, i),
                                 lm_state=hyp.lm_state,
                             )
 
@@ -371,16 +366,23 @@ class BeamRNNTInfer(Typing):
         Returns:
             nbest_hyps: N-best decoding results
         """
+        ids = list(range(self.vocab_size + 1))
+        ids.remove(self.blank)
+
+        if self.blank == 0:
+            index_incr = 1
+        else:
+            index_incr = 0
+
         beam = min(self.beam_size, self.vocab_size)
 
         h = h[0]
         h_length = int(h.size(0))
         u_max = min(self.alsd_max_symmetric_expansion, (h_length - 1))
 
-        init_tensor = h
-        beam_state = self.decoder.init_state(torch.zeros((beam,), device=h.device, dtype=h.dtype))  # [L, B, H]
+        beam_state = self.decoder.initialize_state(torch.zeros(beam, device=h.device, dtype=h.dtype))  # [L, B, H]
 
-        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=beam_state[:, :1, :],)]
+        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_beam_select_state(beam_state, 0))]
 
         final = []
         cache = {}
@@ -390,27 +392,47 @@ class BeamRNNTInfer(Typing):
 
             B_ = []
             h_states = []
-            for hyp in B:
+
+            batch_ids = list(range(len(B)))
+            batch_removal_ids = []
+            for bid, hyp in enumerate(B):
                 u = len(hyp.y_sequence) - 1
                 t = i - u + 1
 
                 if t > (h_length - 1):
+                    batch_removal_ids.append(bid)
                     continue
 
                 B_.append(hyp)
                 h_states.append((t, h[t]))
 
             if B_:
-                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(B_, cache)
+                if len(B_) != beam:
+                    sub_batch_ids = batch_ids
+                    for id in batch_removal_ids:
+                        sub_batch_ids.remove(id)
+                    beam_state_ = [beam_state[state_id][:, sub_batch_ids, :] for state_id in range(len(beam_state))]
+                else:
+                    beam_state_ = beam_state
 
-                h_enc = torch.stack([h[1] for h in h_states])
+                beam_y, beam_state_, beam_lm_tokens = self.decoder.batch_beam_score_hypothesis(B_, cache, beam_state_)
 
-                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y), dim=-1)
-                beam_topk = beam_logp[:, 1:].topk(beam, dim=-1)
+                if len(B_) != beam:
+                    for state_id in range(len(beam_state)):
+                        beam_state[state_id][:, sub_batch_ids, :] = beam_state_[state_id][...]
+                else:
+                    beam_state = beam_state_
+
+                h_enc = torch.stack([h[1] for h in h_states])  # [T=beam, D]
+                h_enc = h_enc.unsqueeze(1)  # [B=beam, T=1, D]
+
+                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y), dim=-1)  # [B=beam, 1, 1, V + 1]
+                beam_logp = beam_logp[:, 0, 0, :]  # [B=beam, V + 1]
+                beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
 
                 for i, hyp in enumerate(B_):
                     new_hyp = Hypothesis(
-                        score=(hyp.score + float(beam_logp[i, 0])),
+                        score=(hyp.score + float(beam_logp[i, self.blank])),
                         y_sequence=hyp.y_sequence[:],
                         dec_state=hyp.dec_state,
                         lm_state=hyp.lm_state,
@@ -421,11 +443,11 @@ class BeamRNNTInfer(Typing):
                     if h_states[i][0] == (h_length - 1):
                         final.append(new_hyp)
 
-                    for logp, k in zip(beam_topk[0][i], beam_topk[1][i] + 1):
+                    for logp, k in zip(beam_topk[0][i], beam_topk[1][i] + index_incr):
                         new_hyp = Hypothesis(
                             score=(hyp.score + float(logp)),
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
-                            dec_state=self.decoder.select_state(beam_state, i),
+                            dec_state=self.decoder.batch_beam_select_state(beam_state, i),
                             lm_state=hyp.lm_state,
                         )
 
