@@ -1,5 +1,8 @@
 pip install -r requirements/requirements.txt \
   && pip install -r requirements/requirements_nlp.txt \
+  && export nemo_path=$(pwd) \
+  && echo "NeMo path: ${nemo_path}" \
+  && export PYTHONPATH="${nemo_path}" \
   && cd .. \
   && mkdir -p data \
   && cd data \
@@ -11,7 +14,6 @@ pip install -r requirements/requirements.txt \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.en \
   && cat train.en train.de > yttm_train.ende \
   && yttm bpe --data yttm_train.ende --model bpe_32k_en_de_yttm.model --vocab_size 32000 \
-  && export PYTHONPATH=/NeMo \
   && cd  ../NeMo/examples/nlp/machine_translation \
   && python transformer_mt.py -cn ngc_8gpu
 
