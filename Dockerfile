@@ -61,7 +61,7 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
     export CFLAGS="-I$CUDA_HOME/include $CFLAGS" && \
     # install pytorch binding
     cd ../pytorch_binding && \
-    pip install .
+    python setup.py install
 
 
 # install nemo dependencies
