@@ -43,14 +43,14 @@ model:
   train_ds:
     src_file_name: /data/train.en
     tgt_file_name: /data/train.de
-    tokens_in_batch: 25000
+    tokens_in_batch: 20000
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
   validation_ds:
     src_file_name: /data/valid.en # path to file with validation data
     tgt_file_name: /data/valid.de
-    tokens_in_batch: 25000
+    tokens_in_batch: 20000
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     predict_last_k: 0
