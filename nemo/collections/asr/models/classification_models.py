@@ -24,7 +24,7 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.common.metrics import TopKClassificationAccuracy
+from nemo.collections.common.metrics import TopKClassificationAccuracy, compute_topk_accuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
