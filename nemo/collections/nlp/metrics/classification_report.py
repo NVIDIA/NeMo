@@ -89,16 +89,10 @@ class ClassificationReport(Metric):
             TP.append((label_predicted == current_label)[label_predicted].sum())
             FP.append((label_predicted != current_label)[label_predicted].sum())
             FN.append((label_predicted != current_label)[current_label].sum())
-        # self.tp = torch.tensor(TP)
-        # self.fn = torch.tensor(FN)
-        # self.fp = torch.tensor(FP)
+
         self.tp = torch.tensor(TP).to(predictions.device)
         self.fn = torch.tensor(FN).to(predictions.device)
         self.fp = torch.tensor(FP).to(predictions.device)
-        #return torch.tensor([self.TP, self.FP, self.FN]).to(predictions.device)
-        # logging.info(f'self.tp:{self.tp}')
-        # logging.info(f'self.fn:{self.fn}')
-        # logging.info(f'self.fp:{self.fp}')
     
     def compute(self):
         """
@@ -111,25 +105,14 @@ class ClassificationReport(Metric):
         Return:
             aggregated precision, recall, f1
         """
-        logging.info(f'self.tp:{self.tp}')
-        logging.info(f'self.fn:{self.fn}')
-        logging.info(f'self.fp:{self.fp}')
-
         zeros = torch.zeros_like(self.tp)
         num_examples_per_class = self.tp + self.fn
         total_examples = torch.sum(num_examples_per_class)
         num_non_empty_classes = torch.nonzero(num_examples_per_class).size(0)
 
-        # precision = torch.where(self.tp + self.fp != zeros, self.tp / (self.tp + self.fp) * 100, zeros)
-        # recall = torch.where(self.tp + self.fn != zeros, self.tp / (self.tp + self.fn) * 100, zeros)
-        # f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
         precision = torch.true_divide(self.tp * 100, (self.tp + self.fp + METRIC_EPS))
         recall = torch.true_divide(self.tp * 100, (self.tp + self.fn + METRIC_EPS))
         f1 = torch.true_divide(2 * precision * recall, (precision + recall + METRIC_EPS))
-
-        logging.info(f'precision: {precision}')
-        logging.info(f'recall: {recall}')
-        logging.info(f'f1: {f1}')
 
         report = '\n{:50s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
         for id in range(self.tp.shape[0]):
