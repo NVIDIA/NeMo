@@ -49,7 +49,7 @@ model:
     sample_rate: ${model.sample_rate}
     window_stride: 0.01
     window: "hann"
-    features: &n_mels 80
+    features: &n_mels 64
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
@@ -76,47 +76,41 @@ model:
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
-        stride: [2]
+        stride: [1]
         dilation: [1]
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
-        stride_last: true
-        residual_mode: "stride_add"
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
         kernel: [15]
-        stride: [2]
+        stride: [1]
         dilation: [1]
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
-        stride_last: true
-        residual_mode: "stride_add"
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
-        stride: [2]
+        stride: [1]
         dilation: [1]
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
-        stride_last: true
-        residual_mode: "stride_add"
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
@@ -126,8 +120,8 @@ model:
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: 256
         repeat: 1
@@ -137,8 +131,8 @@ model:
         dropout: 0.0
         residual: false
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: ${model.model_defaults.enc_hidden}
         repeat: 1
@@ -148,8 +142,8 @@ model:
         dropout: 0.0
         residual: false
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
   decoder:
     _target_: nemo.collections.asr.modules.RNNTDecoder
@@ -228,8 +222,6 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
-  resume_if_exists: false
-  resume_ignore_no_checkpoint: false
 
 hydra:
   run:

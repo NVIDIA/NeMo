@@ -77,8 +77,8 @@ model:
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
@@ -88,8 +88,8 @@ model:
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
         stride_last: true
         residual_mode: "stride_add"
 
@@ -101,8 +101,8 @@ model:
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
         stride_last: true
         residual_mode: "stride_add"
 
@@ -114,8 +114,8 @@ model:
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
         stride_last: true
         residual_mode: "stride_add"
 
@@ -127,8 +127,8 @@ model:
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: 256
         repeat: 1
@@ -138,8 +138,8 @@ model:
         dropout: 0.0
         residual: false
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
       - filters: ${model.model_defaults.enc_hidden}
         repeat: 1
@@ -149,8 +149,8 @@ model:
         dropout: 0.0
         residual: false
         separable: ${model.model_defaults.separable}
-        se: true
-        se_context_size: -1
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
   decoder:
     _target_: nemo.collections.asr.modules.RNNTDecoder
