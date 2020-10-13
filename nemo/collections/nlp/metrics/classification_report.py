@@ -16,6 +16,7 @@ from typing import Dict, Optional, Any
 
 import torch
 from pytorch_lightning.metrics import Metric
+from pytorch_lightning.metrics.utils import METRIC_EPS
 
 from nemo.utils import logging
 
@@ -95,6 +96,9 @@ class ClassificationReport(Metric):
         self.fn = torch.tensor(FN).to(predictions.device)
         self.fp = torch.tensor(FP).to(predictions.device)
         #return torch.tensor([self.TP, self.FP, self.FN]).to(predictions.device)
+        # logging.info(f'self.tp:{self.tp}')
+        # logging.info(f'self.fn:{self.fn}')
+        # logging.info(f'self.fp:{self.fp}')
     
     def compute(self):
         """
@@ -107,14 +111,21 @@ class ClassificationReport(Metric):
         Return:
             aggregated precision, recall, f1
         """
+        # logging.info(f'self.tp:{self.tp}')
+        # logging.info(f'self.fn:{self.fn}')
+        # logging.info(f'self.fp:{self.fp}')
+
         zeros = torch.zeros_like(self.tp)
         num_examples_per_class = self.tp + self.fn
         total_examples = torch.sum(num_examples_per_class)
         num_non_empty_classes = torch.nonzero(num_examples_per_class).size(0)
 
-        precision = torch.where(self.tp + self.fp != zeros, self.tp / (self.tp + self.fp) * 100, zeros)
-        recall = torch.where(self.tp + self.fn != zeros, self.tp / (self.tp + self.fn) * 100, zeros)
-        f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
+        # precision = torch.where(self.tp + self.fp != zeros, self.tp / (self.tp + self.fp) * 100, zeros)
+        # recall = torch.where(self.tp + self.fn != zeros, self.tp / (self.tp + self.fn) * 100, zeros)
+        # f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
+        precision = torch.true_divide(self.tp, (self.tp + self.fp + METRIC_EPS) * 100)
+        recall = torch.true_divide(self.tp, (self.tp + self.fn + METRIC_EPS) * 100)
+        f1 = torch.true_divide(2 * precision * recall, (precision + recall + METRIC_EPS))
 
         report = '\n{:50s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
         for id in range(self.tp.shape[0]):
@@ -126,13 +137,9 @@ class ClassificationReport(Metric):
                 label, precision[id], recall[id], f1[id], num_examples_per_class[id]
             )
 
-        micro_precision = torch.where(torch.sum(self.tp + self.fp) != zeros, torch.sum(self.tp) / torch.sum(self.tp + self.fp) * 100, zeros)
-        micro_recall = torch.where(torch.sum(self.tp + self.fn) != zeros, torch.sum(self.tp) / torch.sum(self.tp + self.fn) * 100, zeros)
-        micro_f1 = torch.where(
-            micro_precision + micro_recall != zeros,
-            2 * micro_precision * micro_recall / (micro_precision + micro_recall),
-            zeros,
-        )
+        micro_precision = torch.true_divide(torch.sum(self.tp), torch.sum(self.tp + self.fp) * 100 + METRIC_EPS)
+        micro_recall = torch.true_divide(torch.sum(self.tp), torch.sum(self.tp + self.fn) * 100 + METRIC_EPS)
+        micro_f1 = torch.true_divide(2 * micro_precision * micro_recall, (micro_precision + micro_recall + METRIC_EPS))
 
         macro_precision = torch.sum(precision) / num_non_empty_classes
         macro_recall = torch.sum(recall) / num_non_empty_classes
@@ -145,7 +152,7 @@ class ClassificationReport(Metric):
         report += "\n-------------------"
 
         report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
-            'micro avg', micro_precision[0], micro_recall[0], micro_f1[0], total_examples
+            'micro avg', micro_precision, micro_recall, micro_f1, total_examples
         )
 
         report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
@@ -165,7 +172,7 @@ class ClassificationReport(Metric):
         elif self.mode == 'weighted':
             return weighted_precision, weighted_recall, weighted_f1
         elif self.mode == 'micro':
-            return micro_precision[0], micro_recall[0], micro_f1[0]
+            return micro_precision, micro_recall, micro_f1
         elif self.mode == 'all':
             return precision, recall, f1
         else:
