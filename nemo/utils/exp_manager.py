@@ -517,6 +517,15 @@ def configure_loggers(
     )
     trainer.logger_connector.configure_logger(logger_list)
 
+class NeMoModelCheckpoint(ModelCheckpoint):
+    @rank_zero_only
+    def on_train_end(self, trainer, pl_module):
+        filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
+        # TODO: Remove try, except block once lightning's ModelCheckpoint is stable
+        try:  # Try lightning master signature
+            self._save_model(filepath, trainer, pl_module)  # noqa pylint: disable=too-many-function-args
+        except TypeError:  # Fall back to lightning == 0.8.5 signature if failed
+            self._save_model(filepath)  # noqa
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
@@ -536,15 +545,6 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
     else:
         logging.warning("trainer had a weights_save_path of cwd(). This was ignored.")
     # Create the callback and attach it to trainer
-    class NeMoModelCheckpoint(ModelCheckpoint):
-        @rank_zero_only
-        def on_train_end(self, trainer, pl_module):
-            filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
-            # TODO: Remove try, except block once lightning's ModelCheckpoint is stable
-            try:  # Try lightning master signature
-                self._save_model(filepath, trainer, pl_module)  # noqa pylint: disable=too-many-function-args
-            except TypeError:  # Fall back to lightning == 0.8.5 signature if failed
-                self._save_model(filepath)  # noqa
 
     checkpoint_callback = NeMoModelCheckpoint(
         filepath=Path(log_dir / 'checkpoints' / '{val_loss:.2f}-{epoch}'),
@@ -553,6 +553,6 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
         save_last=True,
         prefix=name + "--",
     )
-    #trainer.configure_checkpoint_callback(checkpoint_callback)
+    trainer.callback_connector.init_default_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
     trainer.checkpoint_callback = checkpoint_callback
