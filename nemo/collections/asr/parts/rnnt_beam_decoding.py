@@ -319,7 +319,7 @@ class BeamRNNTInfer(Typing):
 
         B = [
             Hypothesis(
-                y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_beam_select_state(beam_state, 0)
+                y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0)
             )
         ]
         cache = {}
@@ -335,7 +335,7 @@ class BeamRNNTInfer(Typing):
             for v in range(self.tsd_max_symbols_per_step):
                 D = []
 
-                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_beam_score_hypothesis(C, cache, beam_state)
+                beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache, beam_state)
 
                 beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y), dim=-1)  # [B, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
@@ -366,7 +366,7 @@ class BeamRNNTInfer(Typing):
                             new_hyp = Hypothesis(
                                 score=(hyp.score + float(logp)),
                                 y_sequence=(hyp.y_sequence + [int(k)]),
-                                dec_state=self.decoder.batch_beam_select_state(beam_state, i),
+                                dec_state=self.decoder.batch_select_state(beam_state, i),
                                 lm_state=hyp.lm_state,
                             )
 
@@ -404,7 +404,7 @@ class BeamRNNTInfer(Typing):
 
         B = [
             Hypothesis(
-                y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_beam_select_state(beam_state, 0)
+                y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0)
             )
         ]
 
@@ -439,7 +439,7 @@ class BeamRNNTInfer(Typing):
                 else:
                     beam_state_ = beam_state
 
-                beam_y, beam_state_, beam_lm_tokens = self.decoder.batch_beam_score_hypothesis(B_, cache, beam_state_)
+                beam_y, beam_state_, beam_lm_tokens = self.decoder.batch_score_hypothesis(B_, cache, beam_state_)
 
                 if len(B_) != beam:
                     for state_id in range(len(beam_state)):
@@ -471,7 +471,7 @@ class BeamRNNTInfer(Typing):
                         new_hyp = Hypothesis(
                             score=(hyp.score + float(logp)),
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
-                            dec_state=self.decoder.batch_beam_select_state(beam_state, i),
+                            dec_state=self.decoder.batch_select_state(beam_state, i),
                             lm_state=hyp.lm_state,
                         )
 

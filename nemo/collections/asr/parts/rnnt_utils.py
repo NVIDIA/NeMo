@@ -41,12 +41,12 @@ class NBestHypotheses:
 
 
 class AbstractRNNTDecoder(NeuralModule, ABC):
-    def __init__(self, vocab_size, blank_as_pad):
+    def __init__(self, vocab_size, blank_idx, blank_as_pad):
         super().__init__()
 
         self.vocab_size = vocab_size
+        self.blank_idx = blank_idx  # first or last index of vocabulary
         self.blank_as_pad = blank_as_pad
-        self.blank_idx = vocab_size  # last index of vocabulary
 
     @abstractmethod
     def predict(
@@ -68,7 +68,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
     ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
         raise NotImplementedError()
 
-    def batch_beam_score_hypothesis(
+    def batch_score_hypothesis(
         self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
     ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
         """
@@ -83,7 +83,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def batch_beam_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
         """Create batch of decoder states.
        Args:
            batch_states (tuple): batch of decoder states
@@ -96,7 +96,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
        """
         raise NotImplementedError()
 
-    def batch_beam_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
+    def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
         Args:
             batch_states (tuple): batch of decoder states
