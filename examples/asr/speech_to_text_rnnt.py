@@ -21,10 +21,9 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 Basic run (on CPU for 50 epochs):
-    python examples/asr/speech_to_text.py \
-        model.train_ds.manifest_filepath="/Users/okuchaiev/Data/an4_dataset/an4_train.json" \
-        model.validation_ds.manifest_filepath="/Users/okuchaiev/Data/an4_dataset/an4_val.json" \
-        hydra.run.dir="." \
+    python examples/asr/speech_to_text_rnnt.py \
+        model.train_ds.manifest_filepath="<path to train dataset>" \
+        model.validation_ds.manifest_filepath="<path to validation dataset>" \
         trainer.gpus=0 \
         trainer.max_epochs=50
 
@@ -43,6 +42,7 @@ Override some args of optimizer:
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     hydra.run.dir="." \
     trainer.gpus=2 \
+    trainer.precision=16 \
     trainer.max_epochs=2 \
     model.optim.args.params.betas=[0.8,0.5] \
     model.optim.args.params.weight_decay=0.0001
@@ -53,6 +53,7 @@ Overide optimizer entirely
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     hydra.run.dir="." \
     trainer.gpus=2 \
+    trainer.precision=16 \
     trainer.max_epochs=2 \
     model.optim.name=adamw \
     model.optim.lr=0.001 \
@@ -70,6 +71,12 @@ def main(cfg):
     asr_model = EncDecRNNTModel(cfg=cfg.model, trainer=trainer)
 
     trainer.fit(asr_model)
+
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        gpu = 1 if cfg.trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu, precision=cfg.trainer.precision)
+        if asr_model.prepare_test(trainer):
+            trainer.test(asr_model)
 
 
 if __name__ == '__main__':

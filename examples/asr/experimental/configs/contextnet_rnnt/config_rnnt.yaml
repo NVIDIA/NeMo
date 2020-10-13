@@ -82,35 +82,41 @@ model:
       - filters: 256
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
-        stride: [1]
+        stride: [2]
         dilation: [1]
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
         se: true
         se_context_size: -1
+        stride_last: true
+        residual_mode: "stride_add"
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
         kernel: [15]
-        stride: [1]
+        stride: [2]
         dilation: [1]
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
         se: true
         se_context_size: -1
+        stride_last: true
+        residual_mode: "stride_add"
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
-        stride: [1]
+        stride: [2]
         dilation: [1]
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
         se: true
         se_context_size: -1
+        stride_last: true
+        residual_mode: "stride_add"
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}

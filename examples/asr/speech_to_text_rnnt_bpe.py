@@ -43,6 +43,7 @@ Override some args of optimizer:
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     hydra.run.dir="." \
     trainer.gpus=2 \
+    trainer.precision=16 \
     trainer.max_epochs=2 \
     model.optim.args.params.betas=[0.8,0.5] \
     model.optim.args.params.weight_decay=0.0001
@@ -53,6 +54,7 @@ Overide optimizer entirely
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     hydra.run.dir="." \
     trainer.gpus=2 \
+    trainer.precision=16 \
     trainer.max_epochs=2 \
     model.optim.name=adamw \
     model.optim.lr=0.001 \
@@ -70,6 +72,12 @@ def main(cfg):
     asr_model = EncDecRNNTBPEModel(cfg=cfg.model, trainer=trainer)
 
     trainer.fit(asr_model)
+
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        gpu = 1 if cfg.trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu, precision=cfg.trainer.precision)
+        if asr_model.prepare_test(trainer):
+            trainer.test(asr_model)
 
 
 if __name__ == '__main__':
