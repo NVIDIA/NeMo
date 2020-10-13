@@ -117,7 +117,9 @@ class BeamRNNTInfer(Typing):
         self.nsc_prefix_alpha = nsc_prefix_alpha
 
     @typecheck()
-    def __call__(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor) -> Union[Hypothesis, NBestHypotheses]:
+    def __call__(
+        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
+    ) -> Union[Hypothesis, NBestHypotheses]:
         """Perform beam search.
         Args:
             encoder_output: Encoded speech features (B, T_max, D_enc)
@@ -317,11 +319,7 @@ class BeamRNNTInfer(Typing):
             torch.zeros(beam, device=h.device, dtype=h.dtype)
         )  # [L, B, H], [L, B, H]
 
-        B = [
-            Hypothesis(
-                y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0)
-            )
-        ]
+        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0))]
         cache = {}
 
         for i in range(h.shape[1]):
@@ -402,11 +400,7 @@ class BeamRNNTInfer(Typing):
 
         beam_state = self.decoder.initialize_state(torch.zeros(beam, device=h.device, dtype=h.dtype))  # [L, B, H]
 
-        B = [
-            Hypothesis(
-                y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0)
-            )
-        ]
+        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0))]
 
         final = []
         cache = {}

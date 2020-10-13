@@ -308,7 +308,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         max_out_len = out_len.max()
 
         for time_idx in range(max_out_len):
-            f = x[:, time_idx: time_idx + 1, :]  # [B, 1, D]
+            f = x[:, time_idx : time_idx + 1, :]  # [B, 1, D]
 
             # Prepare t timestamp batch variables
             not_blank = True

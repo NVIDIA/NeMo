@@ -28,7 +28,7 @@ def rnn(
     forget_gate_bias: Optional[float] = 1.0,
     dropout: Optional[float] = 0.0,
     norm_first_rnn: Optional[bool] = None,
-    t_max: Optional[int] = None
+    t_max: Optional[int] = None,
 ) -> torch.nn.Module:
 
     if norm not in [None, "batch", "layer"]:
@@ -53,17 +53,18 @@ def rnn(
             dropout=dropout,
             forget_gate_bias=forget_gate_bias,
             t_max=t_max,
-            norm_first_rnn=norm_first_rnn
+            norm_first_rnn=norm_first_rnn,
         )
 
     if norm == "layer":
-        return torch.jit.script(ln_lstm(  # torch.jit.script(
+        return torch.jit.script(
+            ln_lstm(  # torch.jit.script(
                 input_size=input_size,
                 hidden_size=hidden_size,
                 num_layers=num_layers,
                 dropout=dropout,
                 forget_gate_bias=forget_gate_bias,
-                t_max=t_max
+                t_max=t_max,
             )
         )
 
@@ -133,10 +134,11 @@ class LSTMDropout(torch.nn.Module):
                     n = p.nelement()
                     hidden_size = n // 4
                     p.data.fill_(0)
-                    p.data[hidden_size: 2 * hidden_size] = \
-                        torch.log(torch.nn.init.uniform_(p.data[0: hidden_size], 1, t_max - 1))
+                    p.data[hidden_size : 2 * hidden_size] = torch.log(
+                        torch.nn.init.uniform_(p.data[0:hidden_size], 1, t_max - 1)
+                    )
                     # forget gate biases = log(uniform(1, Tmax-1))
-                    p.data[0: hidden_size] = -p.data[hidden_size: 2 * hidden_size]
+                    p.data[0:hidden_size] = -p.data[hidden_size : 2 * hidden_size]
                     # input gate biases = -(forget gate biases)
 
         elif forget_gate_bias is not None:
@@ -186,7 +188,7 @@ class RNNLayer(torch.nn.Module):
                 num_layers=1,
                 dropout=0.0,
                 forget_gate_bias=forget_gate_bias,
-                t_max=t_max
+                t_max=t_max,
             )
         else:
             self.rnn = rnn_type(input_size=input_size, hidden_size=hidden_size, bias=not batch_norm)
@@ -222,7 +224,7 @@ class BNRNNSum(torch.nn.Module):
         dropout: Optional[float] = 0.0,
         forget_gate_bias: Optional[float] = 1.0,
         norm_first_rnn: bool = False,
-        t_max: Optional[int] = None
+        t_max: Optional[int] = None,
     ):
         super().__init__()
         self.rnn_layers = rnn_layers
@@ -238,7 +240,7 @@ class BNRNNSum(torch.nn.Module):
                     rnn_type=rnn_type,
                     batch_norm=batch_norm and (norm_first_rnn or i > 0),
                     forget_gate_bias=forget_gate_bias,
-                    t_max=t_max
+                    t_max=t_max,
                 )
             )
 
@@ -315,8 +317,12 @@ class StackTime(torch.nn.Module):
 
 
 def ln_lstm(
-    input_size: int, hidden_size: int, num_layers: int, dropout: Optional[float], forget_gate_bias: Optional[float],
-    t_max: Optional[int]
+    input_size: int,
+    hidden_size: int,
+    num_layers: int,
+    dropout: Optional[float],
+    forget_gate_bias: Optional[float],
+    t_max: Optional[int],
 ) -> torch.nn.Module:
     """Returns a ScriptModule that mimics a PyTorch native LSTM."""
     # The following are not implemented.
@@ -403,9 +409,7 @@ def init_stacked_lstm(
 class StackedLSTM(torch.nn.Module):
     def __init__(self, num_layers: int, layer: torch.nn.Module, first_layer_args: List, other_layer_args: List):
         super(StackedLSTM, self).__init__()
-        self.layers: torch.nn.ModuleList = init_stacked_lstm(
-            num_layers, layer, first_layer_args, other_layer_args
-        )
+        self.layers: torch.nn.ModuleList = init_stacked_lstm(num_layers, layer, first_layer_args, other_layer_args)
 
     def forward(
         self, input: torch.Tensor, states: Optional[List[Tuple[torch.Tensor, torch.Tensor]]]
@@ -423,7 +427,7 @@ class StackedLSTM(torch.nn.Module):
 
             states = temp_states
 
-        output_states:List[Tuple[torch.Tensor, torch.Tensor]] = []
+        output_states: List[Tuple[torch.Tensor, torch.Tensor]] = []
         output = input
         for i, rnn_layer in enumerate(self.layers):
             state = states[i]

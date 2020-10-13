@@ -83,6 +83,11 @@ class RNNTLoss(Loss):
         loss = torch.mean(loss)
 
         # del new variables that may have been created
-        del log_probs, targets, input_lengths, target_lengths,
+        del (
+            log_probs,
+            targets,
+            input_lengths,
+            target_lengths,
+        )
 
         return loss

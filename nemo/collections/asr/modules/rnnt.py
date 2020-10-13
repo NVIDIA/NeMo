@@ -51,7 +51,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
-            "states": NeuralType(('D', 'B', 'D'), ElementType(), optional=True)
+            "states": NeuralType(('D', 'B', 'D'), ElementType(), optional=True),
         }
 
     @property
@@ -69,7 +69,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         vocab_size: int,
         normalization_mode: Optional[str] = None,
         random_state_sampling: bool = False,
-        blank_as_pad: bool = True
+        blank_as_pad: bool = True,
     ):
         # Required arguments
         self.pred_hidden = prednet['pred_hidden']
@@ -240,9 +240,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
             y, new_state = cache[sequence]
         else:
             if blank_state:
-                y, new_state = self.predict(
-                    None, state=None, add_sos=False, batch_size=1
-                )  # [1, U, H]
+                y, new_state = self.predict(None, state=None, add_sos=False, batch_size=1)  # [1, U, H]
 
             else:
                 y, new_state = self.predict(
