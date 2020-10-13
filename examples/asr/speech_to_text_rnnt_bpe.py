@@ -63,7 +63,7 @@ Overide optimizer entirely
 """
 
 
-@hydra_runner(config_path="experimental/configs/contextnet_rnnt", config_name="contextnet_rnnt_192_8x_stride_bpe")
+@hydra_runner(config_path="experimental/configs/contextnet_rnnt", config_name="config_rnnt_bpe")
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
