@@ -15,7 +15,7 @@ trainer:
   checkpoint_callback: false # provided by exp_manager
   logger: false # provided by exp_manager
   num_sanity_val_steps: 0
-  log_every_n_steps:: 1  # Interval of logging.
+  log_every_n_steps: 1  # Interval of logging.
 
 model:
   nemo_path: null # exported .nemo path
