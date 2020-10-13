@@ -33,6 +33,13 @@ class Hypothesis:
     lm_scores: torch.Tensor = None
 
 
+@dataclass
+class NBestHypotheses:
+    """List of N best hypotheses"""
+
+    n_best_hypotheses: Optional[List[Hypothesis]]
+
+
 class AbstractRNNTDecoder(NeuralModule, ABC):
     def __init__(self, vocab_size, blank_as_pad):
         super().__init__()

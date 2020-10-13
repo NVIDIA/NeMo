@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Optional
 
 import editdistance
 import torch
 from pytorch_lightning.metrics import TensorMetric
 
-from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
 __all__ = ['RNNTDecodingWER']
@@ -77,13 +76,6 @@ class RNNTDecodingWER(TensorMetric):
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decodin strategy must be one of {possible_strategies}")
 
-        self.decoding2 = greedy_decode.GreedyRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
-            )
-
         if self.cfg.strategy == 'greedy':
             self.decoding = greedy_decode.GreedyRNNTInfer(
                 decoder_model=decoder,
@@ -101,29 +93,35 @@ class RNNTDecodingWER(TensorMetric):
             )
 
         elif self.cfg.strategy == 'beam':
+
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
                 beam_size=self.cfg.beam.beam_size,
+                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='default',
                 score_norm=self.cfg.beam.get('score_norm', True),
             )
 
         elif self.cfg.strategy == 'tsd':
+
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
                 beam_size=self.cfg.beam.beam_size,
+                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='tsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
                 tsd_max_symbols_per_step=self.cfg.beam.get('tsd_max_symbols', 50),
             )
 
         elif self.cfg.strategy == 'alsd':
+
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
                 beam_size=self.cfg.beam.beam_size,
+                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='alsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
                 alsd_max_symmetric_expansion=self.cfg.beam.get('alsd_max_sym_expand', 2),
@@ -131,11 +129,10 @@ class RNNTDecodingWER(TensorMetric):
 
     def rnnt_decoder_predictions_tensor(
         self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
-    ) -> List[str]:
+    ) -> (List[str], Optional[List[List[str]]]):
         """
         Decodes a sequence of labels to words
         """
-        hypotheses = []
         # Compute hypotheses
         with torch.no_grad():
             hypotheses_list = self.decoding(
@@ -148,8 +145,24 @@ class RNNTDecodingWER(TensorMetric):
         # Drop predictions to CPU
         prediction_list = hypotheses_list
 
-        for ind in range(len(prediction_list)):
-            prediction = prediction_list[ind].y_sequence
+        if isinstance(prediction_list[0], NBestHypotheses):
+            hypotheses = []
+            all_hypotheses = []
+            for nbest_hyp in prediction_list:  # type: NBestHypotheses
+                n_hyps = nbest_hyp.n_best_hypotheses
+                decoded_hyps = self.decode_hypothesis(n_hyps)
+                hypotheses.append(decoded_hyps[0])
+                all_hypotheses.append(decoded_hyps)
+
+            return hypotheses, all_hypotheses
+        else:
+            hypotheses = self.decode_hypothesis(prediction_list)
+            return hypotheses, None
+
+    def decode_hypothesis(self, hypotheses_list):
+        hypotheses = []
+        for ind in range(len(hypotheses_list)):
+            prediction = hypotheses_list[ind].y_sequence
             if type(prediction) != list:
                 prediction = prediction.tolist()
 
@@ -181,7 +194,7 @@ class RNNTDecodingWER(TensorMetric):
                 reference = ''.join([self.labels_map[c] for c in target if c != self.blank_id])
                 references.append(reference)
 
-            hypotheses = self.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
+            hypotheses, _ = self.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
 
         if self.log_prediction:
             logging.info(f"\n")

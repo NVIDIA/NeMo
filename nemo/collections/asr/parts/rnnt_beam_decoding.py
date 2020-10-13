@@ -33,7 +33,7 @@ import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.parts import rnnt_utils
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
@@ -62,7 +62,7 @@ class BeamRNNTInfer(Typing):
         beam_size: int,
         search_type: str = 'default',
         score_norm: bool = True,
-        best_hypothesis: bool = True,
+        return_best_hypothesis: bool = True,
         tsd_max_symbols_per_step: Optional[int] = 50,
         alsd_max_symmetric_expansion: int = 2,
         nsc_max_timesteps_expansion: int = 1,
@@ -74,7 +74,7 @@ class BeamRNNTInfer(Typing):
         self.blank = decoder_model.blank_idx
         self.vocab_size = decoder_model.vocab_size
         self.search_type = search_type
-        self.best_hypothesis = best_hypothesis
+        self.return_best_hypothesis = return_best_hypothesis
 
         if beam_size < 1:
             raise ValueError("Beam search size cannot be less than 1!")
@@ -117,7 +117,7 @@ class BeamRNNTInfer(Typing):
         self.nsc_prefix_alpha = nsc_prefix_alpha
 
     @typecheck()
-    def __call__(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor) -> Hypothesis:
+    def __call__(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor) -> Union[Hypothesis, NBestHypotheses]:
         """Perform beam search.
         Args:
             encoder_output: Encoded speech features (B, T_max, D_enc)
@@ -148,7 +148,10 @@ class BeamRNNTInfer(Typing):
                     logitlen = encoded_lengths[batch_idx]
                     nbest_hyps = self.search_algorithm(inseq, logitlen)  # sorted list of hypothesis
 
-                    best_hypothesis = nbest_hyps[0]  # type: Hypothesis
+                    if self.return_best_hypothesis:
+                        best_hypothesis = nbest_hyps[0]  # type: Hypothesis
+                    else:
+                        best_hypothesis = NBestHypotheses(nbest_hyps)  # type: NBestHypotheses
                     hypotheses.append(best_hypothesis)
 
         self.decoder.train(decoder_training_state)
