@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 import torch
 from pytorch_lightning.metrics import Metric
@@ -63,17 +63,14 @@ class ClassificationReport(Metric):
         dist_sync_on_step: bool = False,
         process_group: Optional[Any] = None,
     ):
-        super().__init__(
-            dist_sync_on_step=dist_sync_on_step,
-            process_group=process_group
-        )
+        super().__init__(dist_sync_on_step=dist_sync_on_step, process_group=process_group)
         self.num_classes = num_classes
         if label_ids:
             self.ids_to_labels = {v: k for k, v in label_ids.items()}
         else:
             self.ids_to_labels = None
         self.mode = mode
-        
+
         self.add_state("tp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
         self.add_state("fn", default=torch.zeros(num_classes), dist_reduce_fx='sum')
         self.add_state("fp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
@@ -93,7 +90,7 @@ class ClassificationReport(Metric):
         self.tp = torch.tensor(TP).to(predictions.device)
         self.fn = torch.tensor(FN).to(predictions.device)
         self.fp = torch.tensor(FP).to(predictions.device)
-    
+
     def compute(self):
         """
         Calculates and logs classification report similar to sklearn.metrics.classification_report
