@@ -49,7 +49,7 @@ model:
     sample_rate: ${model.sample_rate}
     window_stride: 0.01
     window: "hann"
-    features: &n_mels 64
+    features: &n_mels 80
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
