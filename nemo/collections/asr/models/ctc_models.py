@@ -209,9 +209,8 @@ class EncDecCTCModel(ASRModel):
             augmentor = None
 
         shuffle = config['shuffle']
-
+        device = 'gpu' if torch.cuda.is_available() else 'cpu'
         if config.get('use_dali', False):
-            device = 'gpu'
             device_id = self.local_rank if device == 'gpu' else -1
             dataset = AudioToCharDALIDataset(
                 manifest_filepath=config['manifest_filepath'],
@@ -348,13 +347,15 @@ class EncDecCTCModel(ASRModel):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
-    def processed_batch(self, batch):
+    def processed_batch(self, outputs):
         need_processing = True
         # Spec augment is not applied during evaluation/testing
         need_augmenting = self.spec_augmentation is not None and self.training
-        if len(batch) == 1:  # DALI case
-            # DALI Pytorch iterator gives an array with a dictionary
-            out_dict = batch[0]
+
+        # DALI Pytorch iterator gives an array with a dictionary instead of a list with 4 arrays
+        is_dali = len(outputs) == 1 and isinstance(outputs[0], dict)
+        if is_dali:
+            out_dict = outputs[0]
             if 'processed_signal' in out_dict:
                 need_processing = False  # DALI already performed preprocessing
                 processed_signal = out_dict['processed_signal']
@@ -362,11 +363,13 @@ class EncDecCTCModel(ASRModel):
             elif 'audio' in out_dict:
                 audio_signal = out_dict['audio']
                 audio_signal_len = out_dict['audio_len'].reshape(-1)  # flattening (batch_size, 1) to (batch_size,)
+            else:
+                raise ValueError(f"Unexpected DALI outputs: {outputs}.")
 
             transcript = out_dict['transcript']
             transcript_len = out_dict['transcript_len'].reshape(-1)  # flattening (batch_size, 1) to (batch_size,)
         else:
-            audio_signal, audio_signal_len, transcript, transcript_len = batch
+            audio_signal, audio_signal_len, transcript, transcript_len = outputs
 
         if need_processing:
             processed_signal, processed_signal_len = self.preprocessor(

@@ -12,14 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali as dali
-from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.plugin.pytorch import DALIGenericIterator as DALIPytorchIterator
 from nemo.utils.decorators import experimental
 from omegaconf import DictConfig
 import numpy as np
 import math
 import torch
+
+try:
+    import nvidia.dali as dali
+    from nvidia.dali.pipeline import Pipeline
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as DALIPytorchIterator
+    HAVE_DALI = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_DALI = False
 
 __all__ = [
     'AudioToCharDALIDataset',
@@ -49,25 +54,34 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
         device_id (int): Index of the GPU to be used. Only applicable when device == 'gpu'. Defaults to 0.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
-        preprocessor_cfg (DictConfig): Preprocessor configuration
+        preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
     """
 
-    def __init__(
-        self,
-        manifest_filepath: str,
-        labels=None,
-        sample_rate: int = 16000,
-        batch_size: int = 32,
-        num_threads: int = 4,
-        trim_silence: bool = False,
-        min_duration: float = 0.0,
-        max_duration: float = 0.0,
-        shuffle: bool = True,
-        device: str = 'gpu',
-        device_id: int = 0,
-        global_rank: int = 0,
-        world_size: int = 0,
-        preprocessor_cfg: DictConfig = None):
+    def __init__(self,
+                 manifest_filepath: str,
+                 device: str,
+                 batch_size: int,
+                 labels=None,
+                 sample_rate: int = 16000,
+                 num_threads: int = 4,
+                 trim_silence: bool = False,
+                 min_duration: float = 0.0,
+                 max_duration: float = 0.0,
+                 shuffle: bool = True,
+                 device_id: int = 0,
+                 global_rank: int = 0,
+                 world_size: int = 1,
+                 preprocessor_cfg: DictConfig = None):
+        if not HAVE_DALI:
+            raise ModuleNotFoundError(
+                f"{self} requires NVIDIA DALI to be installed. "
+                f"See: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#id1"
+            )
+
+        if device not in ('cpu', 'gpu'):
+            raise ValueError(
+                f"{self} received an unexpected device argument {device}. Supported values are: 'cpu', 'gpu'"
+            )
 
         self.batch_size = batch_size  # Used by NeMo
 
@@ -83,9 +97,7 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
 
         self.labels = labels
         if self.labels is None:
-            raise ValueError(f"{self} expects a labels  parameter.")
-
-        assert self.labels is not None
+            raise ValueError(f"{self} expects a labels parameter.")
 
         self.label2id, self.id2label = {}, {}
         for label_id, label in enumerate(self.labels):
@@ -104,11 +116,14 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
             elif preprocessor_cfg.cls == "nemo.collections.asr.modules.AudioToMFCCPreprocessor":
                 feature_type = "mfcc"
             else:
-                assert False, "Preprocessor {} not supported".format(preprocessor_cfg.cls)
+                raise ValueError(
+                    f"{self} received an unexpected preprocessor configuration: {preprocessor_cfg.cls}."
+                    f" Supported preprocessors are: AudioToMelSpectrogramPreprocessor, AudioToMFCCPreprocessor"
+                )
 
             # Default values taken from AudioToMelSpectrogramPreprocessor
             params = preprocessor_cfg.params
-            self.dither = params['dither'] if 'dither' in params else 1e-5
+            self.dither = params['dither'] if 'dither' in params else 0.0
             self.preemph = params['preemph'] if 'preemph' in params else 0.97
             self.window_size_sec = params['window_size'] if 'window_size' in params else 0.02
             self.window_stride_sec = params['window_stride'] if 'window_stride' in params else 0.01
@@ -123,9 +138,8 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
                 self.normalization_axes = (0, 1)
             else:
                 raise ValueError(
-                    f"{self} received {normalize} for the "
-                    f"normalize parameter. It must be either 'per_feature' or "
-                    f"'all_features'."
+                    f"{self} received {normalize} for the normalize parameter."
+                    f" It must be either 'per_feature' or 'all_features'."
                 )
 
             self.window = None
@@ -145,9 +159,9 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
                     self.window = window_fn(self.window_size, periodic=False)
                 except:
                     raise ValueError(
-                        f"{self} received {window_name} for the "
-                        f"window parameter. It must be one of: ('hann', 'ones', 'hamming', "
-                        f"'blackman', 'bartlett', None). None is equivalent to 'hann'."
+                        f"{self} received {window_name} for the window parameter."
+                        f" It must be one of: ('hann', 'ones', 'hamming', 'blackman', 'bartlett', None)."
+                        f" None is equivalent to 'hann'."
                     )
 
             self.n_fft = params['n_fft'] if 'n_fft' in params else None  # None means default
@@ -188,16 +202,15 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
                     self.log_zero_guard_value = torch.finfo(torch.float32).eps
                 else:
                     raise ValueError(
-                        f"{self} received {self.log_zero_guard_value} for the "
-                        f"log_zero_guard_type parameter. It must be either a "
-                        f"number, 'tiny', or 'eps'"
+                        f"{self} received {self.log_zero_guard_value} for the log_zero_guard_type parameter."
+                        f"It must be either a number, 'tiny', or 'eps'"
                     )
 
             self.mag_power = params['mag_power'] if 'mag_power' in params else 2
             if self.mag_power != 1.0 and self.mag_power != 2.0:
                 raise ValueError(
-                    f"{self} received {self.mag_power} for the "
-                    f"mag_power parameter. It must be either 1.0 or 2.0."
+                    f"{self} received {self.mag_power} for the mag_power parameter."
+                    f" It must be either 1.0 or 2.0."
                 )
 
             self.pad_to = params['pad_to'] if 'pad_to' in params else 16
@@ -205,16 +218,19 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
 
         for pipe in self.pipes:
             with pipe:
-                # TODO implement offset(?)
-                audio, transcript = dali.fn.nemo_asr_reader(name="Reader", manifest_filepaths = manifest_filepath.split(','),
-                                                            dtype = dali.types.FLOAT, downmix = True, sample_rate=float(self.sample_rate),
-                                                            min_duration=min_duration, max_duration=max_duration,
-                                                            read_sample_rate=False, read_text=True, random_shuffle=shuffle,
-                                                            shard_id=self.shard_id, num_shards=self.num_shards)
+                audio, transcript = dali.fn.nemo_asr_reader(
+                    name="Reader", manifest_filepaths = manifest_filepath.split(','),
+                    dtype = dali.types.FLOAT, downmix = True, sample_rate=float(self.sample_rate),
+                    min_duration=min_duration, max_duration=max_duration,
+                    read_sample_rate=False, read_text=True, random_shuffle=shuffle,
+                    shard_id=self.shard_id, num_shards=self.num_shards
+                )
 
                 transcript_len = dali.fn.shapes(dali.fn.reshape(transcript, shape=[-1]))
                 transcript = dali.fn.pad(transcript)
-                transcript = dali.fn.lookup_table(transcript, dtype=dali.types.INT64, keys=self.label2id_keys, values=self.label2id_values)
+                transcript = dali.fn.lookup_table(
+                    transcript, dtype=dali.types.INT64, keys=self.label2id_keys, values=self.label2id_values
+                )
                 if self.device == 'gpu':
                     transcript = transcript.gpu()
                     transcript_len = transcript_len.gpu()
@@ -261,7 +277,7 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
                         )
                         # Mel Spectrogram to MFCC
                         if feature_type == 'mfcc':
-                            spec = dali.fn.mfcc(spec, n_mffc=self.n_mfcc)
+                            spec = dali.fn.mfcc(spec, n_mfcc=self.n_mfcc)
 
                     # Logarithm
                     if self.log_zero_guard_type == 'add':
