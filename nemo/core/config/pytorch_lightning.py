@@ -62,8 +62,8 @@ class TrainerConfig:
     limit_val_batches: Any = 1.0
     limit_test_batches: Any = 1.0
     val_check_interval: Any = 1.0
-    log_save_interval: int = 100
-    row_log_interval: int = 50
+    flush_logs_every_n_steps:: int = 100
+    log_every_n_steps:: int = 50
     distributed_backend: Optional[str] = None
     sync_batchnorm: bool = False
     precision: int = 32
