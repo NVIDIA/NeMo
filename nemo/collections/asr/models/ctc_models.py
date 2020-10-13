@@ -358,11 +358,11 @@ class EncDecCTCModel(ASRModel):
         tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
         if hasattr(self, '_trainer') and self._trainer is not None:
-            log_every_n_steps: = self._trainer.log_every_n_steps:
+            log_every_n_steps = self._trainer.log_every_n_steps
         else:
-            log_every_n_steps: = 1
+            log_every_n_steps = 1
 
-        if (batch_nb + 1) % row_log_interval == 0:
+        if (batch_nb + 1) % log_every_n_steps == 0:
             self._wer(predictions, transcript, transcript_len)
             tensorboard_logs.update({'training_batch_wer': self._wer.compute()})
 
