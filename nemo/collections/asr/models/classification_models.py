@@ -212,14 +212,14 @@ class EncDecClassificationModel(ASRModel):
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
 
-        correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
+        self._accuracy(logits=logits, labels=labels)
+        # for ki in range(correct_counts.shape[-1]):
+        #     correct_count = correct_counts[ki]
+        #     total_count = total_counts[ki]
+        #     top_k = self._accuracy.top_k[ki]
 
-        for ki in range(correct_counts.shape[-1]):
-            correct_count = correct_counts[ki]
-            total_count = total_counts[ki]
-            top_k = self._accuracy.top_k[ki]
-
-            tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = correct_count / float(total_count)
+        #     tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = self._accuracy.compute()
+        tensorboard_logs['training_batch_accuracy_top_k'] = self._accuracy.compute()
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 

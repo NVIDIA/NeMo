@@ -15,9 +15,7 @@
 import torch
 from pytorch_lightning.metrics import Metric
 
-__all__ = ['TopKClassificationAccuracy', 'compute_topk_accuracy']
-
-
+__all__ = ['TopKClassificationAccuracy']
 
 
 class TopKClassificationAccuracy(Metric):
@@ -58,8 +56,8 @@ class TopKClassificationAccuracy(Metric):
         accuracy, compute acc=correct_count/total_count
     """
 
-    def __init__(self, top_k=None):
-        super(TopKClassificationAccuracy, self).__init__(name="TopKClassificationAccuracy")
+    def __init__(self, top_k=None, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
 
         if top_k is None:
             top_k = [1]
@@ -88,10 +86,6 @@ class TopKClassificationAccuracy(Metric):
 
             self.correct_counts_k = torch.tensor(correct_counts_k, dtype=labels.dtype, device=labels.device)
             self.total_counts_k = torch.tensor(total_counts_k, dtype=labels.dtype, device=labels.device)
-
-        #    results = torch.tensor([correct_counts_k, total_counts_k], dtype=labels.dtype, device=labels.device)
-
-        # return results
     
     def compute(self):
         """
@@ -116,4 +110,3 @@ class TopKClassificationAccuracy(Metric):
             top_k_scores.append(correct_count / float(total_count))
 
         return top_k_scores
-
