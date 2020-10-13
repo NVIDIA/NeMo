@@ -27,7 +27,6 @@ from nemo.core.neural_types import (
     LogprobsType,
     NeuralType,
 )
-from nemo.utils import logging
 
 
 class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
@@ -407,20 +406,20 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         self.preserve_memory = preserve_memory
 
         # Required arguments
-        encoder_hidden = jointnet['encoder_hidden']
-        pred_hidden = jointnet['pred_hidden']
-        joint_hidden = jointnet['joint_hidden']
-        activation = jointnet['activation']
+        self.encoder_hidden = jointnet['encoder_hidden']
+        self.pred_hidden = jointnet['pred_hidden']
+        self.joint_hidden = jointnet['joint_hidden']
+        self.activation = jointnet['activation']
 
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)
 
         self.pred, self.enc, self.joint_net = self._joint_net(
             num_classes=self._num_classes,  # add 1 for blank symbol
-            pred_n_hidden=pred_hidden,
-            enc_n_hidden=encoder_hidden,
-            joint_n_hidden=joint_hidden,
-            activation=activation,
+            pred_n_hidden=self.pred_hidden,
+            enc_n_hidden=self.encoder_hidden,
+            joint_n_hidden=self.joint_hidden,
+            activation=self.activation,
             dropout=dropout,
         )
 

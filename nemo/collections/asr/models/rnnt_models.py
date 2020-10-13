@@ -25,7 +25,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingWER
+from nemo.collections.asr.metrics.rnnt_wer import RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -95,7 +95,7 @@ class EncDecRNNTModel(ASRModel):
             self.spec_augmentation = None
 
         # Setup decoding objects
-        self.decoding = RNNTDecodingWER(
+        self.decoding = RNNTDecoding(
             decoding_cfg=self.cfg.decoding,
             decoder=self.decoder,
             joint=self.joint,
@@ -193,7 +193,7 @@ class EncDecRNNTModel(ASRModel):
             new_decoder_config = copy.deepcopy(decoder_config)
             new_decoder_config.vocab_size = len(new_vocabulary)
             del self.decoder
-            self.decoder = EncDecRNNTModel.from_config_dict(new_joint_config)
+            self.decoder = EncDecRNNTModel.from_config_dict(new_decoder_config)
 
             del self.loss
             self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
@@ -202,7 +202,7 @@ class EncDecRNNTModel(ASRModel):
                 # Assume same decoding config as before
                 decoding_cfg = self.cfg.decoding
 
-            self.decoding = RNNTDecodingWER(
+            self.decoding = RNNTDecoding(
                 decoding_cfg=decoding_cfg,
                 decoder=self.decoder,
                 joint=self.joint,

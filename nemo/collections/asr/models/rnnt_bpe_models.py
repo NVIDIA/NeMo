@@ -25,7 +25,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecodingWER
+from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecodind
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
@@ -96,7 +96,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup decoding object
-        self.decoding = RNNTBPEDecodingWER(
+        self.decoding = RNNTBPEDecodind(
             decoding_cfg=self.cfg.decoding,
             decoder=self.decoder,
             joint=self.joint,
@@ -200,13 +200,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
         new_joint_config['vocabulary'] = ListConfig(list(vocabulary.values()))
         new_joint_config['num_classes'] = len(vocabulary)
         del self.joint
-        self.joint = EncDecRNNTModel.from_config_dict(new_joint_config)
+        self.joint = EncDecRNNTBPEModel.from_config_dict(new_joint_config)
 
         decoder_config = self.decoder.to_config_dict()
         new_decoder_config = copy.deepcopy(decoder_config)
         new_decoder_config.vocab_size = len(vocabulary)
         del self.decoder
-        self.decoder = EncDecRNNTModel.from_config_dict(new_joint_config)
+        self.decoder = EncDecRNNTBPEModel.from_config_dict(new_decoder_config)
 
         del self.loss
         self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
@@ -215,7 +215,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
             # Assume same decoding config as before
             decoding_cfg = self.cfg.decoding
 
-        self.decoding = RNNTBPEDecodingWER(
+        self.decoding = RNNTBPEDecodind(
             decoding_cfg=decoding_cfg,
             decoder=self.decoder,
             joint=self.joint,

@@ -24,10 +24,10 @@ from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
-__all__ = ['RNNTBPEDecodingWER']
+__all__ = ['RNNTBPEDecodind']
 
 
-class RNNTBPEDecodingWER(TensorMetric):
+class RNNTBPEDecodind(TensorMetric):
     """
     This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
     When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
@@ -65,7 +65,7 @@ class RNNTBPEDecodingWER(TensorMetric):
     def __init__(
         self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec, batch_dim_index=0,
     ):
-        super(RNNTBPEDecodingWER, self).__init__(name="RNNTWER")
+        super(RNNTBPEDecodind, self).__init__(name="RNNTWER")
         self.cfg = decoding_cfg
         self.tokenizer = tokenizer
         self.batch_dim_index = batch_dim_index

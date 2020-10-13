@@ -23,10 +23,10 @@ from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
-__all__ = ['RNNTDecodingWER']
+__all__ = ['RNNTDecoding']
 
 
-class RNNTDecodingWER(TensorMetric):
+class RNNTDecoding(TensorMetric):
     """
     This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
     When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
@@ -64,7 +64,7 @@ class RNNTDecodingWER(TensorMetric):
     def __init__(
         self, decoding_cfg, decoder, joint, vocabulary, batch_dim_index=0,
     ):
-        super(RNNTDecodingWER, self).__init__(name="RNNTWER")
+        super(RNNTDecoding, self).__init__(name="RNNTWER")
         self.cfg = decoding_cfg
         self.batch_dim_index = batch_dim_index
         self.blank_id = len(vocabulary)
