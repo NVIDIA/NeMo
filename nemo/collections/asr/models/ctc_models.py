@@ -363,8 +363,8 @@ class EncDecCTCModel(ASRModel):
             row_log_interval = 1
 
         if (batch_nb + 1) % row_log_interval == 0:
-            wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
-            tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
+            self._wer(predictions, transcript, transcript_len)
+            tensorboard_logs.update({'training_batch_wer': self._wer.compute()})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -376,7 +376,8 @@ class EncDecCTCModel(ASRModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
+        self._wer(predictions, transcript, transcript_len)
+        wer_num, wer_denom = self._wer.scores, self._wer.words
         return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
