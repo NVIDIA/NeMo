@@ -16,13 +16,13 @@ from typing import List
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import TensorMetric
+from pytorch_lightning.metrics import Metric
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
 
-class WERBPE(TensorMetric):
+class WERBPE(Metric):
     """
     This metric computes numerator and denominator for Overall Word Error Rate for BPE tokens (WER-BPE) between prediction and reference texts.
     When doing distributed training/evaluation the result of res=WERBPE(predictions, targets, target_lengths) calls

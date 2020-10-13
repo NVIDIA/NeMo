@@ -16,7 +16,7 @@ from typing import List
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import TensorMetric
+from pytorch_lightning.metrics import Metric
 
 from nemo.utils import logging
 
@@ -59,7 +59,7 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
     return wer
 
 
-class WER(TensorMetric):
+class WER(Metric):
     """
     This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
     When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
