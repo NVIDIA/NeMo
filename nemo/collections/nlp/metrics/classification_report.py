@@ -63,7 +63,6 @@ class ClassificationReport(Metric):
         process_group: Optional[Any] = None,
     ):
         super().__init__(
-            self,
             dist_sync_on_step=dist_sync_on_step,
             process_group=process_group
         )
