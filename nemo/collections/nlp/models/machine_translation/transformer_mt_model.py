@@ -96,6 +96,7 @@ class TransformerMTModel(ModelPT):
             bos=self.tgt_tokenizer.bos_id,
             pad=self.tgt_tokenizer.pad_id,
             eos=self.tgt_tokenizer.eos_id,
+            len_pen=cfg.machine_translation.len_pen,
         )
 
         std_init_range = 1 / math.sqrt(cfg.machine_translation.hidden_size)
