@@ -3,9 +3,8 @@ pip install -r requirements/requirements.txt \
   && export nemo_path=$(pwd) \
   && echo "NeMo path: ${nemo_path}" \
   && export PYTHONPATH="${nemo_path}" \
-  && cd .. \
-  && mkdir -p data \
-  && cd data \
+  && mkdir -p /data \
+  && cd /data \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.de -O valid.de \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.en -O valid.en \
   && cp valid.de test.de \
@@ -13,7 +12,8 @@ pip install -r requirements/requirements.txt \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.de \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.en \
   && cat train.en train.de > yttm_train.ende \
+  && echo "current path when creating yttm model: $(pwd)" \
   && yttm bpe --data yttm_train.ende --model bpe_32k_en_de_yttm.model --vocab_size 32000 \
-  && cd  ../NeMo/examples/nlp/machine_translation \
+  && cd  "${nemo_path}/examples/nlp/machine_translation" \
   && python transformer_mt.py -cn ngc_8gpu
 
