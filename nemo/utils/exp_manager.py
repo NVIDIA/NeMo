@@ -517,6 +517,7 @@ def configure_loggers(
     )
     trainer.logger_connector.configure_logger(logger_list)
 
+
 class NeMoModelCheckpoint(ModelCheckpoint):
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
@@ -526,6 +527,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             self._save_model(filepath, trainer, pl_module)  # noqa pylint: disable=too-many-function-args
         except TypeError:  # Fall back to lightning == 0.8.5 signature if failed
             self._save_model(filepath)  # noqa
+
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint

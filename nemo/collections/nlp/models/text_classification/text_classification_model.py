@@ -93,10 +93,7 @@ class TextClassificationModel(NLPModel, Exportable):
             self.loss = CrossEntropyLoss()
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(
-            num_classes=cfg.dataset.num_classes,
-            mode='micro',
-        )
+        self.classification_report = ClassificationReport(num_classes=cfg.dataset.num_classes, mode='micro',)
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
@@ -149,7 +146,7 @@ class TextClassificationModel(NLPModel, Exportable):
         val_loss = self.loss(logits=logits, labels=labels)
 
         preds = torch.argmax(logits, axis=-1)
-        
+
         self.classification_report(preds, labels)
         tp = self.classification_report.tp
         fn = self.classification_report.fn
