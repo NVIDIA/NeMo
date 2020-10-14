@@ -32,16 +32,13 @@ class ClassificationReportTests(TestCase):
         preds = torch.Tensor([0, 1, 1, 1, 2, 2, 0])
         labels = torch.Tensor([1, 0, 0, 1, 2, 1, 0])
 
-
         def __convert_to_tensor(sklearn_metric):
             return torch.Tensor([round(sklearn_metric * 100)])[0]
 
         for mode in ['macro', 'micro', 'weighted']:
 
             classification_report_nemo = ClassificationReport(
-                num_classes=self.num_classes,
-                label_ids=self.label_ids,
-                mode=mode
+                num_classes=self.num_classes, label_ids=self.label_ids, mode=mode
             )
 
             precision, recall, f1 = classification_report_nemo(preds, labels)

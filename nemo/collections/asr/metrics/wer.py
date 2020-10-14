@@ -101,7 +101,7 @@ class WER(Metric):
         use_cer=False,
         ctc_decode=True,
         log_prediction=True,
-        dist_sync_on_step=False
+        dist_sync_on_step=False,
     ):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
         self.batch_dim_index = batch_dim_index
@@ -173,7 +173,7 @@ class WER(Metric):
 
         self.scores = torch.tensor(scores).to(predictions.device)
         self.words = torch.tensor(words).to(predictions.device)
-        #return torch.tensor([scores, words]).to(predictions.device)
+        # return torch.tensor([scores, words]).to(predictions.device)
 
     def compute(self):
         return self.scores / self.words

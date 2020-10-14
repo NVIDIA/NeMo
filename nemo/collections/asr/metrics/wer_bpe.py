@@ -133,10 +133,10 @@ class WERBPE(Metric):
             words += len(r_list)
             # Compute Levenstein's distance
             scores += editdistance.eval(h_list, r_list)
-        
+
         self.scores = torch.tensor(scores).to(predictions.device)
         self.words = torch.tensor(words).to(predictions.device)
-        #return torch.tensor([scores, words]).to(predictions.device)
+        # return torch.tensor([scores, words]).to(predictions.device)
 
     def compute(self):
         return self.scores / self.words
