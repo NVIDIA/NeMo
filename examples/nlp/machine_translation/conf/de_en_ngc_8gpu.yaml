@@ -54,7 +54,6 @@ model:
     pin_memory: false # enables pin_memory feature of the data loaders
     num_workers: 8 # number of workers for data loaders
 
-
   validation_ds:
     src_file_name: /data/valid.de # path to file with validation data
     tgt_file_name: /data/valid.en
