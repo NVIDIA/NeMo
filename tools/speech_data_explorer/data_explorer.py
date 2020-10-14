@@ -63,6 +63,9 @@ def load_data(data_filename):
                     'text': item['text'],
                 }
             )
+            for k in item:
+                if k not in data[-1]:
+                    data[-1][k] = item[k]
             num_hours += item['duration']
             for word in item['text'].split():
                 vocabulary[word] += 1
@@ -176,36 +179,51 @@ stats_layout = [
     ),
 ]
 
-samples_layout = [
-    dbc.Row(dbc.Col(html.H5('Data'), className='text-secondary'), className='mt-3'),
-    dbc.Row(
-        dbc.Col(
-            dash_table.DataTable(
-                id='datatable',
-                columns=[{'name': k.replace('_', ' '), 'id': k} for k in data[0]],
-                data=data,
-                filter_action='native',
-                sort_action='native',
-                row_selectable='single',
-                selected_rows=[0],
-                page_action='native',
-                page_current=0,
-                page_size=10,
-                style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0, 'textAlign': 'left'},
-                style_header={'color': 'text-primary', 'text_align': 'center',},
-                style_cell_conditional=[{'if': {'column_id': 'audio_filepath'}, 'width': '15%'}]
-                + [
-                    {'if': {'column_id': c}, 'width': '10%', 'text_align': 'center'}
-                    for c in ['duration', 'num_words', 'num_chars', 'word_rate', 'char_rate']
-                ],
-            ),
+samples_layout = (
+    [
+        dbc.Row(dbc.Col(html.H5('Data'), className='text-secondary'), className='mt-3'),
+        dbc.Row(
+            dbc.Col(
+                dash_table.DataTable(
+                    id='datatable',
+                    columns=[{'name': k.replace('_', ' '), 'id': k} for k in data[0]],
+                    data=data,
+                    filter_action='native',
+                    sort_action='native',
+                    row_selectable='single',
+                    selected_rows=[0],
+                    page_action='native',
+                    page_current=0,
+                    page_size=10,
+                    style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0, 'textAlign': 'left'},
+                    style_header={'color': 'text-primary', 'text_align': 'center',},
+                    style_cell_conditional=[{'if': {'column_id': 'audio_filepath'}, 'width': '15%'}]
+                    + [
+                        {'if': {'column_id': c}, 'width': '10%', 'text_align': 'center'}
+                        for c in ['duration', 'num_words', 'num_chars', 'word_rate', 'char_rate']
+                    ],
+                ),
+            )
+        ),
+    ]
+    + [
+        dbc.Row(
+            [
+                dbc.Col(
+                    html.Div(children=k.replace('_', ' ')),
+                    width=3,
+                    className='mt-2 bg-light text-monospace text-break rounded border',
+                ),
+                dbc.Col(html.Div(id='_' + k), className='mt-2 bg-light text-monospace text-break rounded border'),
+            ]
         )
-    ),
-    dbc.Row(dbc.Col(html.Div(id='filename'),), className='mt-2 bg-light text-monospace text-break rounded border'),
-    dbc.Row(dbc.Col(html.Div(id='transcript'),), className='mt-2 bg-light text-monospace rounded border'),
-    dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), className='mt-3'),
-]
+        for k in data[0]
+    ]
+    + [
+        dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), className='mt-3'),
+        dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), className='mt-3'),
+    ]
+)
 
 app.layout = html.Div(
     [
@@ -236,12 +254,9 @@ def nav_click(url):
         return [stats_layout, True, False]
 
 
-@app.callback(
-    [Output('filename', 'children'), Output('transcript', 'children')], [Input('datatable', 'selected_rows')]
-)
-def show_text(idx):
-    text = data[idx[0]]['text']
-    return data[idx[0]]['audio_filepath'], text
+@app.callback([Output('_' + k, 'children') for k in data[0]], [Input('datatable', 'selected_rows')])
+def show_item(idx):
+    return [data[idx[0]][k] for k in data[0]]
 
 
 @app.callback(Output('signal-graph', 'figure'), [Input('datatable', 'selected_rows')])
@@ -256,7 +271,15 @@ def plot_signal(idx):
     s_db = librosa.power_to_db(np.abs(s) ** 2, ref=np.max, top_db=100)
     figs = make_subplots(rows=2, cols=1, subplot_titles=('Waveform', 'Spectrogram'))
     figs.add_trace(
-        go.Scatter(x=np.arange(audio.shape[0]) / fs, y=audio, line={'color': 'green'}, name='Waveform'), row=1, col=1
+        go.Scatter(
+            x=np.arange(audio.shape[0]) / fs,
+            y=audio,
+            line={'color': 'green'},
+            name='Waveform',
+            hovertemplate='Time: %{x:.2f} s<br>Amplitude: %{y:.2f}<br><extra></extra>',
+        ),
+        row=1,
+        col=1,
     )
     figs.add_trace(
         go.Heatmap(
@@ -266,14 +289,16 @@ def plot_signal(idx):
             dx=time_stride,
             dy=fs / n_fft / 1000,
             name='Spectrogram',
+            hovertemplate='Time: %{x:.2f} s<br>Frequency: %{y:.2f} kHz<br>Magnitude: %{z:.2f} dB<extra></extra>',
         ),
         row=2,
         col=1,
     )
     figs.update_layout({'margin': dict(l=0, r=0, t=20, b=0, pad=0), 'height': 500})
     figs.update_xaxes(title_text='Time, s', row=1, col=1)
-    figs.update_yaxes(title_text='Frequency, kHz', row=2, col=1)
+    figs.update_yaxes(title_text='Amplitude', row=1, col=1)
     figs.update_xaxes(title_text='Time, s', row=2, col=1)
+    figs.update_yaxes(title_text='Frequency, kHz', row=2, col=1)
 
     return figs
 
