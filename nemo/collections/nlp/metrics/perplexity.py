@@ -27,8 +27,12 @@ class Perplexity(Metric):
     This metric computes the perplexity given the language model loss.
     """
 
-    def __init__(self):
-        super(Perplexity, self).__init__(name="Perplexity")
+    def __init__(self, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        self.add_state('perplexity', default=torch.tensor(0), dist_reduce_fx='mean')
 
     def update(self, loss: torch.Tensor):
-        return torch.exp(loss)
+        self.perplexity = torch.exp(loss)
+    
+    def compute(self):
+        return self.perplexity
