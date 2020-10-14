@@ -90,7 +90,7 @@ def asr_model(test_data_dir):
     return model_instance
 
 
-class TestEncDecCTCModel:
+class TestEncDecRNNTBPEModel:
     @pytest.mark.skipif(
         not WARP_RNNT_AVAILABLE,
         reason='RNNTLoss has not been compiled. Please compile and install '
@@ -131,8 +131,6 @@ class TestEncDecCTCModel:
     )
     @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, asr_model):
-        old_vocab = copy.deepcopy(asr_model.joint.vocabulary)
-
         with tempfile.TemporaryDirectory() as tmpdir:
             old_tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
             new_tokenizer_dir = os.path.join(tmpdir, 'tokenizer')

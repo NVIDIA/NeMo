@@ -87,7 +87,7 @@ class OverLastDim(torch.nn.Module):
         self.module = module
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        *dims, input_size = x.size()
+        *dims, _ = x.size()
 
         reduced_dims = 1
         for dim in dims:

@@ -26,7 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -36,7 +36,6 @@ from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import *
-from nemo.utils import logging
 
 
 class BeamRNNTInfer(Typing):
@@ -188,7 +187,7 @@ class BeamRNNTInfer(Typing):
 
         y, state, _ = self.decoder.score_hypothesis(hyp, cache)
 
-        for i in range(h.shape[1]):
+        for i in range(int(encoded_lengths)):
             hi = h[:, i : i + 1, :]  # [1, 1, D]
 
             not_blank = True
@@ -209,7 +208,6 @@ class BeamRNNTInfer(Typing):
                 else:
                     hyp.y_sequence.append(int(pred))
                     hyp.score += float(logp)
-
                     hyp.dec_state = state
 
                     y, state, _ = self.decoder.score_hypothesis(hyp, cache)
@@ -242,7 +240,7 @@ class BeamRNNTInfer(Typing):
         kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state)]
         cache = {}
 
-        for i in range(h.shape[1]):
+        for i in range(int(encoded_lengths)):
             hi = h[:, i : i + 1, :]  # [1, 1, D]
             hyps = kept_hyps
             kept_hyps = []
@@ -264,9 +262,6 @@ class BeamRNNTInfer(Typing):
                     torch.cat((top_k[1] + index_incr, blank_tensor)),
                 )
 
-                # if self.lm:
-                #     lm_state, lm_scores = self.lm.predict(max_hyp.lm_state, lm_tokens)
-
                 for logp, k in zip(*ytu):
                     new_hyp = Hypothesis(
                         score=(max_hyp.score + float(logp)),
@@ -279,12 +274,7 @@ class BeamRNNTInfer(Typing):
                         kept_hyps.append(new_hyp)
                     else:
                         new_hyp.dec_state = state
-
                         new_hyp.y_sequence.append(int(k))
-
-                        # if self.lm:
-                        #     new_hyp.lm_state = lm_state
-                        #     new_hyp.score += self.lm_weight * lm_scores[0][k]
 
                         hyps.append(new_hyp)
 
@@ -322,7 +312,7 @@ class BeamRNNTInfer(Typing):
         B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0))]
         cache = {}
 
-        for i in range(h.shape[1]):
+        for i in range(int(encoded_lengths)):
             hi = h[:, i : i + 1, :]
 
             A = []
@@ -341,11 +331,11 @@ class BeamRNNTInfer(Typing):
 
                 seq_A = [h.y_sequence for h in A]
 
-                for i, hyp in enumerate(C):
+                for j, hyp in enumerate(C):
                     if hyp.y_sequence not in seq_A:
                         A.append(
                             Hypothesis(
-                                score=(hyp.score + float(beam_logp[i, self.blank])),
+                                score=(hyp.score + float(beam_logp[j, self.blank])),
                                 y_sequence=hyp.y_sequence[:],
                                 dec_state=hyp.dec_state,
                                 lm_state=hyp.lm_state,
@@ -355,16 +345,16 @@ class BeamRNNTInfer(Typing):
                         dict_pos = seq_A.index(hyp.y_sequence)
 
                         A[dict_pos].score = np.logaddexp(
-                            A[dict_pos].score, (hyp.score + float(beam_logp[i, self.blank]))
+                            A[dict_pos].score, (hyp.score + float(beam_logp[j, self.blank]))
                         )
 
                 if v < self.tsd_max_symbols_per_step:
-                    for i, hyp in enumerate(C):
-                        for logp, k in zip(beam_topk[0][i], beam_topk[1][i] + index_incr):
+                    for j, hyp in enumerate(C):
+                        for logp, k in zip(beam_topk[0][j], beam_topk[1][j] + index_incr):
                             new_hyp = Hypothesis(
                                 score=(hyp.score + float(logp)),
                                 y_sequence=(hyp.y_sequence + [int(k)]),
-                                dec_state=self.decoder.batch_select_state(beam_state, i),
+                                dec_state=self.decoder.batch_select_state(beam_state, j),
                                 lm_state=hyp.lm_state,
                             )
 
@@ -394,8 +384,8 @@ class BeamRNNTInfer(Typing):
 
         beam = min(self.beam_size, self.vocab_size)
 
-        h = h[0]
-        h_length = int(h.size(0))
+        h = h[0]  # [T, D]
+        h_length = int(encoded_lengths)  # int(h.size(0))
         u_max = min(self.alsd_max_symmetric_expansion, (h_length - 1))
 
         beam_state = self.decoder.initialize_state(torch.zeros(beam, device=h.device, dtype=h.dtype))  # [L, B, H]
@@ -448,9 +438,9 @@ class BeamRNNTInfer(Typing):
                 beam_logp = beam_logp[:, 0, 0, :]  # [B=beam, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
 
-                for i, hyp in enumerate(B_):
+                for j, hyp in enumerate(B_):
                     new_hyp = Hypothesis(
-                        score=(hyp.score + float(beam_logp[i, self.blank])),
+                        score=(hyp.score + float(beam_logp[j, self.blank])),
                         y_sequence=hyp.y_sequence[:],
                         dec_state=hyp.dec_state,
                         lm_state=hyp.lm_state,
@@ -458,14 +448,14 @@ class BeamRNNTInfer(Typing):
 
                     A.append(new_hyp)
 
-                    if h_states[i][0] == (h_length - 1):
+                    if h_states[j][0] == (h_length - 1):
                         final.append(new_hyp)
 
-                    for logp, k in zip(beam_topk[0][i], beam_topk[1][i] + index_incr):
+                    for logp, k in zip(beam_topk[0][j], beam_topk[1][j] + index_incr):
                         new_hyp = Hypothesis(
                             score=(hyp.score + float(logp)),
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
-                            dec_state=self.decoder.batch_select_state(beam_state, i),
+                            dec_state=self.decoder.batch_select_state(beam_state, j),
                             lm_state=hyp.lm_state,
                         )
 

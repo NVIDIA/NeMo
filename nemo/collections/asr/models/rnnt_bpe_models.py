@@ -13,11 +13,8 @@
 # limitations under the License.
 
 import copy
-import json
 import os
-import tempfile
-from math import ceil
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
@@ -29,8 +26,7 @@ from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecodind
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 try:

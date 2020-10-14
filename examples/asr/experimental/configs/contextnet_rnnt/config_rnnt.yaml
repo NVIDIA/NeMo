@@ -180,7 +180,7 @@ model:
       beam_size: 2
       score_norm: true
       tsd_max_symbols: 50  # for Time Synchronous Decoding
-      alsd_max_sym_expand: 2  # for Alignment-Length Synchronous Decoding
+      alsd_max_sym_expand: 4  # for Alignment-Length Synchronous Decoding
 
   optim:
     name: adam

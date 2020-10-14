@@ -230,11 +230,9 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         """
         if hypothesis.dec_state is not None:
             device = hypothesis.dec_state[0].device
-            dtype = hypothesis.dec_state[0].dtype
         else:
             _p = next(self.parameters())
             device = _p.device
-            dtype = _p.dtype
 
         # parse "blank" tokens in hypothesis
         if len(hypothesis.y_sequence) > 0 and hypothesis.y_sequence[-1] == self.blank_idx:

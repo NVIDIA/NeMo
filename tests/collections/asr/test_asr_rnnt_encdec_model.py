@@ -115,7 +115,7 @@ def asr_model():
     return model_instance
 
 
-class TestEncDecCTCModel:
+class TestEncDecRNNTModel:
     @pytest.mark.skipif(
         not WARP_RNNT_AVAILABLE,
         reason='RNNTLoss has not been compiled. Please compile and install '
