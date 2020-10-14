@@ -174,3 +174,4 @@ examples/neural_graphs/*.yml
 ngc_results/
 .hydra/
 nemo_experiments/
+ngc_results/

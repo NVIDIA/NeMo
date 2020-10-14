@@ -15,45 +15,38 @@ trainer:
   row_log_interval: 100  # Interval of logging.
   val_check_interval: 1000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-  progress_bar_refresh_rate: 0
 
 model:
   machine_translation:
-    tokenizer:
-      tokenizer_name: yttm
-      tokenizer_model: /data/bpe_32k_en_de_yttm.model
-# 2 following fields are mutually exclusive with `tokenizer`
-#    src_tokenizer:
-#      tokenizer_name: yttm
-#      tokenizer_model: /data/bpe_32k_en_de_yttm.model
-#    tgt_tokenizer:
-#      tokenizer_name: yttm
-#      tokenizer_model: /data/bpe_32k_en_de_yttm.model
+    src_tokenizer: yttm
+    tgt_tokenizer: yttm
+    src_tokenizer_model: /data/bpe_32k_en_de_yttm.model
+    tgt_tokenizer_model: /data/bpe_32k_en_de_yttm.model
     hidden_size: 512
     num_layers: 6
     num_attn_heads: 8
     inner_size: 2048
-    max_seq_length: 512  # maximum allowed length in embedding layer
+    max_seq_length: 512
     embedding_dropout: 0.1
     ffn_dropout: 0.1
     attn_score_dropout: 0.1
     attn_layer_dropout: 0.1
-    beam_size: 4
+    beam_size: 21
     label_smoothing: 0.1
-    len_pen: 0.6
+    len_pen: 0.3
+
+  dataset:
+    max_seq_length: 512
+    num_workers: 2 # number of workers for data loaders
+    drop_last: false # drops the last last batch if it is smaller than the batch size
+    pin_memory: false # enables pin_memory feature of the data loaders
 
   train_ds:
     src_file_name: /data/train.de
     tgt_file_name: /data/train.en
     tokens_in_batch: 16000
-    clean: true
-    max_seq_length: 128
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
-    drop_last: false # drops the last last batch if it is smaller than the batch size
-    pin_memory: false # enables pin_memory feature of the data loaders
-    num_workers: 8 # number of workers for data loaders
-
 
   validation_ds:
     src_file_name: /data/valid.de # path to file with validation data
@@ -62,20 +55,6 @@ model:
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     predict_last_k: 0
-    drop_last: false # drops the last last batch if it is smaller than the batch size
-    pin_memory: false # enables pin_memory feature of the data loaders
-    num_workers: 8 # number of workers for data loaders
-
-  test_ds:
-    src_file_name: /data/test.de # path to file with validation data
-    tgt_file_name: /data/test.en
-    tokens_in_batch: 512
-    shuffle: false
-    num_samples: -1 # number of samples to be considered, -1 means all the dataset
-    predict_last_k: 0
-    drop_last: false # drops the last last batch if it is smaller than the batch size
-    pin_memory: false # enables pin_memory feature of the data loaders
-    num_workers: 8 # number of workers for data loaders
 
   optim:
     name: adam
