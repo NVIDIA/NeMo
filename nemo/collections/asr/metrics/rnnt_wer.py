@@ -23,10 +23,10 @@ from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
-__all__ = ['RNNTDecoding']
+__all__ = ['RNNTDecoding', 'RNNTWER']
 
 
-class RNNTDecoding(TensorMetric):
+class RNNTDecoding:
     """
     This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
     When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
@@ -62,15 +62,12 @@ class RNNTDecoding(TensorMetric):
     """
 
     def __init__(
-        self, decoding_cfg, decoder, joint, vocabulary, batch_dim_index=0,
+        self, decoding_cfg, decoder, joint, vocabulary,
     ):
-        super(RNNTDecoding, self).__init__(name="RNNTWER")
+        super(RNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
-        self.batch_dim_index = batch_dim_index
         self.blank_id = len(vocabulary)
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
-        self.use_cer = self.cfg.get('use_cer', False)
-        self.log_prediction = self.cfg.get('log_prediction', True)
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
         if self.cfg.strategy not in possible_strategies:
@@ -172,6 +169,51 @@ class RNNTDecoding(TensorMetric):
 
         return hypotheses
 
+
+class RNNTWER(TensorMetric):
+    """
+        This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
+        When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
+        will be all-reduced between all workers using SUM operations.
+        Here contains two numbers res=[wer_numerator, wer_denominator]. WER=wer_numerator/wer_denominator.
+
+        If used with PytorchLightning LightningModule, include wer_numerator and wer_denominators inside validation_step results.
+        Then aggregate (sum) then at the end of validation epoch to correctly compute validation WER.
+
+        Example:
+            def validation_step(self, batch, batch_idx):
+                ...
+                wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+                return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+
+            def validation_epoch_end(self, outputs):
+                ...
+                wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
+                wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+                tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+                return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+
+        Args:
+            vocabulary: List of strings that describes the vocabulary of the dataset.
+            batch_dim_index: Index of the batch dimension.
+            use_cer: Whether to use Character Error Rate isntead of Word Error Rate.
+            ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
+            log_prediction: Whether to log a single decoded sample per call.
+
+        Returns:
+            res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
+            text word error rate, compute wer=wer_numerator/wer_denominator
+        """
+
+    def __init__(self, decoding: RNNTDecoding, batch_dim_index=0, use_cer=False, log_prediction=True):
+        super(RNNTWER, self).__init__(name="RNNTWER")
+        self.decoding = decoding
+        self.batch_dim_index = batch_dim_index
+        self.use_cer = use_cer
+        self.log_prediction = log_prediction
+        self.blank_id = self.decoding.blank_id
+        self.labels_map = self.decoding.labels_map
+
     def forward(
         self,
         encoder_output: torch.Tensor,
@@ -194,7 +236,7 @@ class RNNTDecoding(TensorMetric):
                 reference = ''.join([self.labels_map[c] for c in target if c != self.blank_id])
                 references.append(reference)
 
-            hypotheses, _ = self.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
+            hypotheses, _ = self.decoding.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
 
         if self.log_prediction:
             logging.info(f"\n")

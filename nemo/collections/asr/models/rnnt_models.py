@@ -25,7 +25,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecoding
+from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -96,12 +96,10 @@ class EncDecRNNTModel(ASRModel):
 
         # Setup decoding objects
         self.decoding = RNNTDecoding(
-            decoding_cfg=self.cfg.decoding,
-            decoder=self.decoder,
-            joint=self.joint,
-            vocabulary=self.joint.vocabulary,
-            batch_dim_index=0,
+            decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
+
+        self.wer = RNNTWER(decoding=self.decoding, batch_dim_index=0, use_cer=False)
 
         if 'compute_eval_loss' in self.cfg:
             self.compute_eval_loss = self.cfg.compute_eval_loss
@@ -203,11 +201,14 @@ class EncDecRNNTModel(ASRModel):
                 decoding_cfg = self.cfg.decoding
 
             self.decoding = RNNTDecoding(
-                decoding_cfg=decoding_cfg,
-                decoder=self.decoder,
-                joint=self.joint,
-                vocabulary=self.joint.vocabulary,
-                batch_dim_index=0,
+                decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+            )
+
+            self.wer = RNNTWER(
+                decoding=self.decoding,
+                batch_dim_index=self.wer.batch_dim_index,
+                use_cer=self.wer.use_cer,
+                log_prediction=self.wer.log_prediction,
             )
 
             # Update config
@@ -385,7 +386,7 @@ class EncDecRNNTModel(ASRModel):
             row_log_interval = 1
 
         if (batch_nb + 1) % row_log_interval == 0:
-            wer_num, wer_denom = self.decoding(encoded, encoded_len, transcript, transcript_len)
+            wer_num, wer_denom = self.wer(encoded, encoded_len, transcript, transcript_len)
             tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
@@ -406,7 +407,7 @@ class EncDecRNNTModel(ASRModel):
 
             tensorboard_logs['val_loss'] = loss_value
 
-        wer_num, wer_denom = self.decoding(encoded, encoded_len, transcript, transcript_len)
+        wer_num, wer_denom = self.wer(encoded, encoded_len, transcript, transcript_len)
         tensorboard_logs['val_wer_num'] = wer_num
         tensorboard_logs['val_wer_denom'] = wer_denom
         return tensorboard_logs

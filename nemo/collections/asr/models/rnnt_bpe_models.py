@@ -22,7 +22,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecodind
+from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
@@ -92,13 +92,14 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup decoding object
-        self.decoding = RNNTBPEDecodind(
+        self.decoding = RNNTBPEDecoding(
             decoding_cfg=self.cfg.decoding,
             decoder=self.decoder,
             joint=self.joint,
             tokenizer=self.tokenizer,
-            batch_dim_index=0,
         )
+
+        self.wer = RNNTBPEWER(decoding=self.decoding, batch_dim_index=0, use_cer=False)
 
     def _setup_tokenizer(self):
         if self.tokenizer_type not in ['bpe', 'wpe']:
@@ -211,15 +212,20 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
             # Assume same decoding config as before
             decoding_cfg = self.cfg.decoding
 
-        self.decoding = RNNTBPEDecodind(
+        self.decoding = RNNTBPEDecoding(
             decoding_cfg=decoding_cfg,
             decoder=self.decoder,
             joint=self.joint,
             tokenizer=self.tokenizer,
-            batch_dim_index=0,
         )
 
-        # Update config
+        self.wer = RNNTBPEWER(
+            decoding=self.decoding,
+            batch_dim_index=self.wer.batch_dim_index,
+            use_cer=self.wer.use_cer,
+            log_prediction=self.wer.log_prediction,
+        )
+
         # Update config
         with open_dict(self.cfg.joint):
             self.cfg.joint = new_joint_config
