@@ -14,6 +14,7 @@
 
 import torch
 from pytorch_lightning.metrics import Metric
+from pytorch_lightning.metrics.utils import METRIC_EPS
 
 __all__ = ['TopKClassificationAccuracy']
 
@@ -89,24 +90,12 @@ class TopKClassificationAccuracy(Metric):
     
     def compute(self):
         """
-        Computes the top-k accuracy when provided with a stacked tensor from multiple
-        DDP processes.
-
-        Args:
-            correct_counts: Tensor of shape [D, K], D being the number of processes
-                and K being the top-k parameter.
-            total_counts: Tensor of shape [D, K], D being the number of processes
-                and K being the top-k parameter.
+        Computes the top-k accuracy.
 
         Returns:
             A list of length `K`, such that k-th index corresponds to top-k accuracy
             over all distributed processes.
         """
-        top_k_scores = []
-
-        for ki in range(self.correct_counts.shape[-1]):
-            correct_count = self.correct_counts[:, ki].sum()
-            total_count = self.total_counts[:, ki].sum()
-            top_k_scores.append(correct_count / float(total_count))
+        top_k_scores = torch.true_divide(self.correct_counts_k, self.total_counts_k + METRIC_EPS)
 
         return top_k_scores
