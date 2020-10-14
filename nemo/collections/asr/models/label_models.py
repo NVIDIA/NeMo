@@ -177,7 +177,7 @@ class EncDecSpeakerLabelModel(ModelPT):
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
 
-        #correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
+        # correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
         self._accuracy(logits=logits, labels=labels)
 
         # for ki in range(correct_counts.shape[-1]):
@@ -186,7 +186,7 @@ class EncDecSpeakerLabelModel(ModelPT):
         #     top_k = self._accuracy.top_k[ki]
         #     self.accuracy = (correct_count / float(total_count)) * 100
 
-            #tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = self.accuracy
+        # tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = self.accuracy
         tensorboard_logs['training_batch_accuracy_top_k'] = self._accuracy.compute()
 
         return {'loss': self.loss_value, 'log': tensorboard_logs}

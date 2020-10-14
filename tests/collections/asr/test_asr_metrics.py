@@ -89,7 +89,7 @@ class TestWordErrorRate:
             .detach()
             .cpu()
         )
-        #return res[0] / res[1]
+        # return res[0] / res[1]
         return res.item()
 
     @pytest.mark.unit
@@ -126,4 +126,7 @@ class TestWordErrorRate:
             n2 = random.randint(1, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
-            assert abs(self.get_wer(wer, prediction=s1, reference=s2) - word_error_rate(hypotheses=[s1], references=[s2])) < 1e-6
+            assert (
+                abs(self.get_wer(wer, prediction=s1, reference=s2) - word_error_rate(hypotheses=[s1], references=[s2]))
+                < 1e-6
+            )
