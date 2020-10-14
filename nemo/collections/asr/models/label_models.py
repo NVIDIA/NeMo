@@ -86,7 +86,7 @@ class EncDecSpeakerLabelModel(ModelPT):
             logging.info("Training with Softmax-CrossEntropy loss")
             self.loss = CELoss()
 
-        self._accuracy = TopKClassificationAccuracy(top_k=[1])
+        self._accuracy = TopKClassificationAccuracy(top_k=[1], dist_sync_on_step=True)
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -177,17 +177,9 @@ class EncDecSpeakerLabelModel(ModelPT):
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
 
-        # correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
-        self._accuracy(logits=logits, labels=labels)
+        acc = self._accuracy(logits=logits, labels=labels)
 
-        # for ki in range(correct_counts.shape[-1]):
-        #     correct_count = correct_counts[ki]
-        #     total_count = total_counts[ki]
-        #     top_k = self._accuracy.top_k[ki]
-        #     self.accuracy = (correct_count / float(total_count)) * 100
-
-        # tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = self.accuracy
-        tensorboard_logs['training_batch_accuracy_top_k'] = self._accuracy.compute()
+        tensorboard_logs['training_batch_accuracy_top_k'] = acc
 
         return {'loss': self.loss_value, 'log': tensorboard_logs}
 
@@ -195,9 +187,14 @@ class EncDecSpeakerLabelModel(ModelPT):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         self.loss_value = self.loss(logits=logits, labels=labels)
-        self._accuracy(logits=logits, labels=labels)
+        acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {'val_loss': self.loss_value, 'val_correct_counts': correct_counts, 'val_total_counts': total_counts}
+        return {
+            'val_loss': self.loss_value,
+            'val_correct_counts': correct_counts,
+            'val_total_counts': total_counts,
+            'val_acc_top_k': acc_top_k
+        }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         self.val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
