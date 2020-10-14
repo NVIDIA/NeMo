@@ -338,7 +338,8 @@ class EncDecCTCModel(ASRModel, Exportable):
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal,
+            length=input_signal_length,
         )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
@@ -446,7 +447,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             )
 
         encoder_onnx = self.encoder.export(
-            'encoder_' + output,
+            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
             None,  # computed by input_example()
             None,
             verbose,
@@ -461,7 +462,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         )
 
         decoder_onnx = self.decoder.export(
-            'decoder_' + output,
+            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
             None,  # computed by input_example()
             None,
             verbose,
