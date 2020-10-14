@@ -271,7 +271,15 @@ def plot_signal(idx):
     s_db = librosa.power_to_db(np.abs(s) ** 2, ref=np.max, top_db=100)
     figs = make_subplots(rows=2, cols=1, subplot_titles=('Waveform', 'Spectrogram'))
     figs.add_trace(
-        go.Scatter(x=np.arange(audio.shape[0]) / fs, y=audio, line={'color': 'green'}, name='Waveform'), row=1, col=1
+        go.Scatter(
+            x=np.arange(audio.shape[0]) / fs,
+            y=audio,
+            line={'color': 'green'},
+            name='Waveform',
+            hovertemplate='Time: %{x:.2f} s<br>Amplitude: %{y:.2f}<br><extra></extra>',
+        ),
+        row=1,
+        col=1,
     )
     figs.add_trace(
         go.Heatmap(
@@ -281,14 +289,16 @@ def plot_signal(idx):
             dx=time_stride,
             dy=fs / n_fft / 1000,
             name='Spectrogram',
+            hovertemplate='Time: %{x:.2f} s<br>Frequency: %{y:.2f} kHz<br>Magnitude: %{z:.2f} dB<extra></extra>',
         ),
         row=2,
         col=1,
     )
     figs.update_layout({'margin': dict(l=0, r=0, t=20, b=0, pad=0), 'height': 500})
     figs.update_xaxes(title_text='Time, s', row=1, col=1)
-    figs.update_yaxes(title_text='Frequency, kHz', row=2, col=1)
+    figs.update_yaxes(title_text='Amplitude', row=1, col=1)
     figs.update_xaxes(title_text='Time, s', row=2, col=1)
+    figs.update_yaxes(title_text='Frequency, kHz', row=2, col=1)
 
     return figs
 
