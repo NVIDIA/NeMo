@@ -21,6 +21,7 @@ from nemo.utils import logging
 
 __all__ = ['Perplexity']
 
+
 class Perplexity(Metric):
     """
     This metric computes the perplexity given the language model loss.
@@ -32,6 +33,6 @@ class Perplexity(Metric):
 
     def update(self, loss: torch.Tensor):
         self.perplexity = torch.exp(loss)
-    
+
     def compute(self):
         return self.perplexity
