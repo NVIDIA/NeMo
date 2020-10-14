@@ -96,6 +96,15 @@ class TopKClassificationAccuracy(Metric):
             A list of length `K`, such that k-th index corresponds to top-k accuracy
             over all distributed processes.
         """
-        top_k_scores = torch.true_divide(self.correct_counts_k, self.total_counts_k + METRIC_EPS)
+        if self.top_k == [1]:
+            return [self.correct_counts_k.float() / self.total_counts_k]
 
-        return top_k_scores
+        else:
+            top_k_scores = []
+
+            for ki in range(self.correct_counts_k.shape[-1]):
+                correct_count = self.correct_counts_k[ki].item()
+                total_count = self.total_counts_k[ki].item()
+                top_k_scores.append(correct_count / float(total_count))
+
+            return top_k_scores
