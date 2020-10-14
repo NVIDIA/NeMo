@@ -30,7 +30,7 @@ class TestCommonMetrics:
 
         assert accuracy.correct_counts_k.shape == torch.Size([1])
         assert accuracy.total_counts_k.shape == torch.Size([1])
-        assert abs(acc - 0.667) < 1e-3
+        assert abs(acc[0] - 0.667) < 1e-3
 
     @pytest.mark.unit
     def test_top_1_2_accuracy(self):
@@ -51,11 +51,12 @@ class TestCommonMetrics:
         labels = torch.tensor([[0, 0, 2], [2, 0, 0]], dtype=torch.long)
 
         accuracy = TopKClassificationAccuracy(top_k=None)
-        accuracy(logits=self.top_k_logits, labels=labels[0])
-        correct1, total1 = accuracy.compute()
+        proc1_acc = accuracy(logits=self.top_k_logits, labels=labels[0])
+        correct1, total1 = accuracy.correct_counts_k, accuracy.total_counts_k
 
-        accuracy(logits=torch.flip(self.top_k_logits, dims=[1]), labels=labels[1])  # reverse logits
-        correct2, total2 = accuracy.compute()
+        accuracy.reset()
+        proc2_acc = accuracy(logits=torch.flip(self.top_k_logits, dims=[1]), labels=labels[1])  # reverse logits
+        correct2, total2 = accuracy.correct_counts_k, accuracy.total_counts_k
 
         correct = torch.stack([correct1, correct2])
         total = torch.stack([total1, total2])
@@ -63,14 +64,12 @@ class TestCommonMetrics:
         assert correct.shape == torch.Size([2, 1])
         assert total.shape == torch.Size([2, 1])
 
-        proc1_acc = correct[0] / total[0]
-        proc2_acc = correct[1] / total[1]
+        assert abs(proc1_acc[0] - 0.667) < 1e-3  # 2/3
+        assert abs(proc2_acc[0] - 0.333) < 1e-3  # 1/3
 
-        assert abs(proc1_acc - 0.667) < 1e-3  # 2/3
-        assert abs(proc2_acc - 0.333) < 1e-3  # 1/3
-
-        accuracy.correct_counts_k = correct
-        accuracy.correct_counts_k = total
+        accuracy.reset()
+        accuracy.correct_counts_k = correct.sum()
+        accuracy.total_counts_k = total.sum()
         acc_topk = accuracy.compute()
         acc_top1 = acc_topk[0]
 
@@ -80,11 +79,15 @@ class TestCommonMetrics:
     def test_top_1_accuracy_distributed_uneven_batch(self):
         # Simulate test on 2 process DDP execution
         accuracy = TopKClassificationAccuracy(top_k=None)
-        correct1, total1 = accuracy(logits=self.top_k_logits, labels=torch.tensor([0, 0, 2]))
-        correct2, total2 = accuracy(
+
+        proc1_acc = accuracy(logits=self.top_k_logits, labels=torch.tensor([0, 0, 2]))
+        correct1, total1 = accuracy.correct_counts_k, accuracy.total_counts_k
+
+        proc2_acc = accuracy(
             logits=torch.flip(self.top_k_logits, dims=[1])[:2, :],  # reverse logits, select first 2 samples
             labels=torch.tensor([2, 0]),
         )  # reduce number of labels
+        correct2, total2 = accuracy.correct_counts_k, accuracy.total_counts_k
 
         correct = torch.stack([correct1, correct2])
         total = torch.stack([total1, total2])
@@ -92,16 +95,12 @@ class TestCommonMetrics:
         assert correct.shape == torch.Size([2, 1])
         assert total.shape == torch.Size([2, 1])
 
-        proc1_acc = correct[0] / total[0]
-        proc2_acc = correct[1] / total[1]
+        assert abs(proc1_acc[0] - 0.667) < 1e-3  # 2/3
+        assert abs(proc2_acc[0] - 0.500) < 1e-3  # 1/2
 
-        assert abs(proc1_acc - 0.667) < 1e-3  # 2/3
-        assert abs(proc2_acc - 0.500) < 1e-3  # 1/2
-
-        accuracy.correct_counts_k = correct
-        accuracy.correct_counts_k = total
+        accuracy.correct_counts_k = correct.sum()
+        accuracy.total_counts_k = total.sum()
         acc_topk = accuracy.compute()
-
         acc_top1 = acc_topk[0]
 
         assert abs(acc_top1 - 0.6) < 1e-3  # 3/5
