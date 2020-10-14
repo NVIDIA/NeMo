@@ -176,7 +176,6 @@ model:
 
   decoding:
     strategy: "greedy_batch"
-    use_cer: false
 
     # greedy strategy config
     greedy:
