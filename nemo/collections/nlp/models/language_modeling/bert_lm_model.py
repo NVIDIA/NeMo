@@ -107,7 +107,7 @@ class BERTLMModel(ModelPT):
         # create extra bias
 
         # setup to track metrics
-        self.perplexity_metric = Perplexity()
+        self.perplexity_metric = Perplexity(dist_sync_on_step=True)
 
         self.setup_optimization(cfg.optim)
 

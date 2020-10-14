@@ -108,7 +108,7 @@ class NeuralMachineTranslationModel(ModelPT):
                 decoder=cfg.language_model.pretrained_decoder_model_name,
             )
 
-        self.perplexity_metric = Perplexity()
+        self.perplexity_metric = Perplexity(dist_sync_on_step=True)
 
         self.setup_optimization(cfg.optim)
 

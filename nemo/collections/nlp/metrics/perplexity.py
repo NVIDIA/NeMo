@@ -21,7 +21,6 @@ from nemo.utils import logging
 
 __all__ = ['Perplexity']
 
-# TODO: needs syncing across DDP processes?
 class Perplexity(Metric):
     """
     This metric computes the perplexity given the language model loss.
