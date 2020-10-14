@@ -112,7 +112,7 @@ class RNNTDecoding(TensorMetric):
                 return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='tsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
-                tsd_max_symbols_per_step=self.cfg.beam.get('tsd_max_symbols', 50),
+                tsd_max_sym_exp_per_step=self.cfg.beam.get('tsd_max_sym_exp', 50),
             )
 
         elif self.cfg.strategy == 'alsd':
@@ -124,7 +124,7 @@ class RNNTDecoding(TensorMetric):
                 return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='alsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
-                alsd_max_symmetric_expansion=self.cfg.beam.get('alsd_max_sym_expand', 2),
+                alsd_max_target_len=self.cfg.beam.get('alsd_max_target_len', 2),
             )
 
     def rnnt_decoder_predictions_tensor(

@@ -62,8 +62,8 @@ class BeamRNNTInfer(Typing):
         search_type: str = 'default',
         score_norm: bool = True,
         return_best_hypothesis: bool = True,
-        tsd_max_symbols_per_step: Optional[int] = 50,
-        alsd_max_symmetric_expansion: int = 2,
+        tsd_max_sym_exp_per_step: Optional[int] = 50,
+        alsd_max_target_len: Union[int, float] = 1.0,
         nsc_max_timesteps_expansion: int = 1,
         nsc_prefix_alpha: int = 1,
     ):
@@ -98,8 +98,8 @@ class BeamRNNTInfer(Typing):
                 f"Please use one of : (default, tsd, alsd, nsc)"
             )
 
-        if tsd_max_symbols_per_step is None:
-            tsd_max_symbols_per_step = -1
+        if tsd_max_sym_exp_per_step is None:
+            tsd_max_sym_exp_per_step = -1
 
         if search_type in ['tsd', 'alsd', 'nsc'] and not self.decoder.blank_as_pad:
             raise ValueError(
@@ -110,8 +110,8 @@ class BeamRNNTInfer(Typing):
                 f"with this support."
             )
 
-        self.tsd_max_symbols_per_step = tsd_max_symbols_per_step
-        self.alsd_max_symmetric_expansion = alsd_max_symmetric_expansion
+        self.tsd_max_symmetric_expansion_per_step = tsd_max_sym_exp_per_step
+        self.alsd_max_target_length = alsd_max_target_len
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
         self.nsc_prefix_alpha = nsc_prefix_alpha
 
@@ -320,7 +320,7 @@ class BeamRNNTInfer(Typing):
 
             h_enc = hi
 
-            for v in range(self.tsd_max_symbols_per_step):
+            for v in range(self.tsd_max_symmetric_expansion_per_step):
                 D = []
 
                 beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache, beam_state)
@@ -348,7 +348,7 @@ class BeamRNNTInfer(Typing):
                             A[dict_pos].score, (hyp.score + float(beam_logp[j, self.blank]))
                         )
 
-                if v < self.tsd_max_symbols_per_step:
+                if v < self.tsd_max_symmetric_expansion_per_step:
                     for j, hyp in enumerate(C):
                         for logp, k in zip(beam_topk[0][j], beam_topk[1][j] + index_incr):
                             new_hyp = Hypothesis(
@@ -385,8 +385,11 @@ class BeamRNNTInfer(Typing):
         beam = min(self.beam_size, self.vocab_size)
 
         h = h[0]  # [T, D]
-        h_length = int(encoded_lengths)  # int(h.size(0))
-        u_max = min(self.alsd_max_symmetric_expansion, (h_length - 1))
+        h_length = int(encoded_lengths)
+        if type(self.alsd_max_target_length) == float:
+            u_max = int(self.alsd_max_target_length * h_length)
+        else:
+            u_max = int(self.alsd_max_target_length)
 
         beam_state = self.decoder.initialize_state(torch.zeros(beam, device=h.device, dtype=h.dtype))  # [L, B, H]
 
@@ -415,6 +418,7 @@ class BeamRNNTInfer(Typing):
                 h_states.append((t, h[t]))
 
             if B_:
+                sub_batch_ids = None
                 if len(B_) != beam:
                     sub_batch_ids = batch_ids
                     for id in batch_removal_ids:
@@ -425,7 +429,7 @@ class BeamRNNTInfer(Typing):
 
                 beam_y, beam_state_, beam_lm_tokens = self.decoder.batch_score_hypothesis(B_, cache, beam_state_)
 
-                if len(B_) != beam:
+                if sub_batch_ids is not None:
                     for state_id in range(len(beam_state)):
                         beam_state[state_id][:, sub_batch_ids, :] = beam_state_[state_id][...]
                 else:
@@ -448,6 +452,11 @@ class BeamRNNTInfer(Typing):
 
                     A.append(new_hyp)
 
+                    if sub_batch_ids is not None:
+                        h_states_idx = sub_batch_ids[j]
+                    else:
+                        h_states_idx = j
+
                     if h_states[j][0] == (h_length - 1):
                         final.append(new_hyp)
 
@@ -455,7 +464,7 @@ class BeamRNNTInfer(Typing):
                         new_hyp = Hypothesis(
                             score=(hyp.score + float(logp)),
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
-                            dec_state=self.decoder.batch_select_state(beam_state, j),
+                            dec_state=self.decoder.batch_select_state(beam_state, h_states_idx),
                             lm_state=hyp.lm_state,
                         )
 
@@ -463,6 +472,9 @@ class BeamRNNTInfer(Typing):
 
                 B = sorted(A, key=lambda x: x.score, reverse=True)[:beam]
                 B = self.recombine_hypotheses(B)
+
+            elif len(batch_ids) == len(batch_removal_ids):
+                break
 
         if final:
             return self.sort_nbest(final)
