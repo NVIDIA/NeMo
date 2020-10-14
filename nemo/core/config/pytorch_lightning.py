@@ -37,7 +37,6 @@ class TrainerConfig:
 
     logger: Any = True
     checkpoint_callback: Any = True
-    early_stop_callback: Any = False
     callbacks: Optional[Any] = None
     default_root_dir: Optional[str] = None
     gradient_clip_val: float = 0
