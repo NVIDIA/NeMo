@@ -63,7 +63,7 @@ class TrainerConfig:
     val_check_interval: Any = 1.0
     flush_logs_every_n_steps: int = 100
     log_every_n_steps: int = 50
-    distributed_backend: Optional[str] = None
+    accelerator: Optional[str] = None
     sync_batchnorm: bool = False
     precision: int = 32
     weights_summary: Optional[str] = "full"  # ModelSummary.MODE_DEFAULT

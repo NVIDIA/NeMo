@@ -57,7 +57,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
             self.crop_or_pad = None
 
         # Setup metric objects
-        self._accuracy = TopKClassificationAccuracy()
+        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
 
     def transcribe(self, paths2audio_files: str) -> str:
         raise NotImplementedError("Classification models do not transcribe audio.")
@@ -231,17 +231,27 @@ class EncDecClassificationModel(ASRModel, Exportable):
         audio_signal, audio_signal_len, labels, labels_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
-        self._accuracy(logits=logits, labels=labels)
+        acc = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {'val_loss': loss_value, 'val_correct_counts': correct_counts, 'val_total_counts': total_counts}
+        return {
+            'val_loss': loss_value,
+            'val_correct_counts': correct_counts,
+            'val_total_counts': total_counts,
+            'val_acc': acc,
+        }
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
-        self._accuracy(logits=logits, labels=labels)
+        acc = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {'test_loss': loss_value, 'test_correct_counts': correct_counts, 'test_total_counts': total_counts}
+        return {
+            'test_loss': loss_value,
+            'test_correct_counts': correct_counts,
+            'test_total_counts': total_counts,
+            'test_acc': acc,
+        }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()

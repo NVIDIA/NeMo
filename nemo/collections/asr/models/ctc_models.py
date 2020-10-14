@@ -104,7 +104,13 @@ class EncDecCTCModel(ASRModel, Exportable):
             self.spec_augmentation = None
 
         # Setup metric objects
-        self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        self._wer = WER(
+            vocabulary=self.decoder.vocabulary,
+            batch_dim_index=0,
+            use_cer=False,
+            ctc_decode=True,
+            dist_sync_on_step=True
+        )
 
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False) -> List[str]:
@@ -193,7 +199,13 @@ class EncDecCTCModel(ASRModel, Exportable):
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             del self.loss
             self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
-            self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+            self._wer = WER(
+                vocabulary=self.decoder.vocabulary,
+                batch_dim_index=0,
+                use_cer=False,
+                ctc_decode=True,
+                dist_sync_on_step=True
+            )
 
             # Update config
             OmegaConf.set_struct(self._cfg.decoder, False)
@@ -366,8 +378,8 @@ class EncDecCTCModel(ASRModel, Exportable):
             log_every_n_steps = 1
 
         if (batch_nb + 1) % log_every_n_steps == 0:
-            self._wer(predictions, transcript, transcript_len)
-            tensorboard_logs.update({'training_batch_wer': self._wer.compute()})
+            wer = self._wer(predictions, transcript, transcript_len)
+            tensorboard_logs.update({'training_batch_wer': wer})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -379,9 +391,14 @@ class EncDecCTCModel(ASRModel, Exportable):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        self._wer(predictions, transcript, transcript_len)
+        wer = self._wer(predictions, transcript, transcript_len)
         wer_num, wer_denom = self._wer.scores, self._wer.words
-        return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+        return {
+            'val_loss': loss_value,
+            'val_wer_num': wer_num,
+            'val_wer_denom': wer_denom,
+            'val_wer': wer,
+        }
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
@@ -389,6 +406,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             'test_loss': logs['val_loss'],
             'test_wer_num': logs['val_wer_num'],
             'test_wer_denom': logs['val_wer_denom'],
+            'test_wer': logs['val_wer'],
         }
         return test_logs
 

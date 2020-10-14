@@ -21,7 +21,7 @@ from nemo.utils import logging
 
 __all__ = ['Perplexity']
 
-
+# TODO: needs syncing across DDP processes?
 class Perplexity(Metric):
     """
     This metric computes the perplexity given the language model loss.
@@ -29,6 +29,7 @@ class Perplexity(Metric):
 
     def __init__(self):
         super(Perplexity, self).__init__(name="Perplexity")
+        
 
-    def forward(self, loss: torch.Tensor) -> torch.Tensor:
+    def update(self, loss: torch.Tensor):
         return torch.exp(loss)
