@@ -193,7 +193,7 @@ class EncDecSpeakerLabelModel(ModelPT):
             'val_loss': self.loss_value,
             'val_correct_counts': correct_counts,
             'val_total_counts': total_counts,
-            'val_acc_top_k': acc_top_k
+            'val_acc_top_k': acc_top_k,
         }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
