@@ -63,6 +63,9 @@ def load_data(data_filename):
                     'text': item['text'],
                 }
             )
+            for k in item:
+                if k not in data[-1]:
+                    data[-1][k] = item[k]
             num_hours += item['duration']
             for word in item['text'].split():
                 vocabulary[word] += 1
@@ -176,36 +179,51 @@ stats_layout = [
     ),
 ]
 
-samples_layout = [
-    dbc.Row(dbc.Col(html.H5('Data'), className='text-secondary'), className='mt-3'),
-    dbc.Row(
-        dbc.Col(
-            dash_table.DataTable(
-                id='datatable',
-                columns=[{'name': k.replace('_', ' '), 'id': k} for k in data[0]],
-                data=data,
-                filter_action='native',
-                sort_action='native',
-                row_selectable='single',
-                selected_rows=[0],
-                page_action='native',
-                page_current=0,
-                page_size=10,
-                style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0, 'textAlign': 'left'},
-                style_header={'color': 'text-primary', 'text_align': 'center',},
-                style_cell_conditional=[{'if': {'column_id': 'audio_filepath'}, 'width': '15%'}]
-                + [
-                    {'if': {'column_id': c}, 'width': '10%', 'text_align': 'center'}
-                    for c in ['duration', 'num_words', 'num_chars', 'word_rate', 'char_rate']
-                ],
-            ),
+samples_layout = (
+    [
+        dbc.Row(dbc.Col(html.H5('Data'), className='text-secondary'), className='mt-3'),
+        dbc.Row(
+            dbc.Col(
+                dash_table.DataTable(
+                    id='datatable',
+                    columns=[{'name': k.replace('_', ' '), 'id': k} for k in data[0]],
+                    data=data,
+                    filter_action='native',
+                    sort_action='native',
+                    row_selectable='single',
+                    selected_rows=[0],
+                    page_action='native',
+                    page_current=0,
+                    page_size=10,
+                    style_cell={'overflow': 'hidden', 'textOverflow': 'ellipsis', 'maxWidth': 0, 'textAlign': 'left'},
+                    style_header={'color': 'text-primary', 'text_align': 'center',},
+                    style_cell_conditional=[{'if': {'column_id': 'audio_filepath'}, 'width': '15%'}]
+                    + [
+                        {'if': {'column_id': c}, 'width': '10%', 'text_align': 'center'}
+                        for c in ['duration', 'num_words', 'num_chars', 'word_rate', 'char_rate']
+                    ],
+                ),
+            )
+        ),
+    ]
+    + [
+        dbc.Row(
+            [
+                dbc.Col(
+                    html.Div(children=k.replace('_', ' ')),
+                    width=3,
+                    className='mt-2 bg-light text-monospace text-break rounded border',
+                ),
+                dbc.Col(html.Div(id='_' + k), className='mt-2 bg-light text-monospace text-break rounded border'),
+            ]
         )
-    ),
-    dbc.Row(dbc.Col(html.Div(id='filename'),), className='mt-2 bg-light text-monospace text-break rounded border'),
-    dbc.Row(dbc.Col(html.Div(id='transcript'),), className='mt-2 bg-light text-monospace rounded border'),
-    dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), className='mt-3'),
-]
+        for k in data[0]
+    ]
+    + [
+        dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), className='mt-3'),
+        dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), className='mt-3'),
+    ]
+)
 
 app.layout = html.Div(
     [
@@ -236,12 +254,9 @@ def nav_click(url):
         return [stats_layout, True, False]
 
 
-@app.callback(
-    [Output('filename', 'children'), Output('transcript', 'children')], [Input('datatable', 'selected_rows')]
-)
-def show_text(idx):
-    text = data[idx[0]]['text']
-    return data[idx[0]]['audio_filepath'], text
+@app.callback([Output('_' + k, 'children') for k in data[0]], [Input('datatable', 'selected_rows')])
+def show_item(idx):
+    return [data[idx[0]][k] for k in data[0]]
 
 
 @app.callback(Output('signal-graph', 'figure'), [Input('datatable', 'selected_rows')])
