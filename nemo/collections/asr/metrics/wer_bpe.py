@@ -138,5 +138,5 @@ class WERBPE(Metric):
         self.words = torch.tensor(words).to(predictions.device)
         #return torch.tensor([scores, words]).to(predictions.device)
 
-        def compute(self):
-            return self.scores / self.words
+    def compute(self):
+        return self.scores / self.words
