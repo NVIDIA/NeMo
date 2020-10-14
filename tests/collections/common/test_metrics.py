@@ -26,25 +26,21 @@ class TestCommonMetrics:
         labels = torch.tensor([0, 0, 2], dtype=torch.long)
 
         accuracy = TopKClassificationAccuracy(top_k=None)
-        correct, total = accuracy(logits=self.top_k_logits, labels=labels)
+        acc = accuracy(logits=self.top_k_logits, labels=labels)
 
-        assert correct.shape == torch.Size([1])
-        assert total.shape == torch.Size([1])
-        assert abs((correct / total) - 0.667) < 1e-3
+        assert accuracy.correct_counts_k.shape == torch.Size([1])
+        assert accuracy.total_counts_k.shape == torch.Size([1])
+        assert abs(acc - 0.667) < 1e-3
 
     @pytest.mark.unit
     def test_top_1_2_accuracy(self):
         labels = torch.tensor([0, 1, 0], dtype=torch.long)
 
         accuracy = TopKClassificationAccuracy(top_k=[1, 2])
-        accuracy(logits=self.top_k_logits, labels=labels)
-        correct, total = accuracy.compute()
-        
-        assert correct.shape == torch.Size([2])
-        assert total.shape == torch.Size([2])
+        top1_acc, top2_acc = accuracy(logits=self.top_k_logits, labels=labels)
 
-        top1_acc = correct[0] / total[0]
-        top2_acc = correct[1] / total[1]
+        assert accuracy.correct_counts_k.shape == torch.Size([2])
+        assert accuracy.total_counts_k.shape == torch.Size([2])
 
         assert abs(top1_acc - 0.0) < 1e-3
         assert abs(top2_acc - 0.333) < 1e-3
