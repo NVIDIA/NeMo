@@ -82,11 +82,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # Setup metric objects
         self._wer = WERBPE(
-            tokenizer=self.tokenizer,
-            batch_dim_index=0,
-            use_cer=False,
-            ctc_decode=True,
-            dist_sync_on_step=True,
+            tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, dist_sync_on_step=True,
         )
 
     def _setup_tokenizer(self):

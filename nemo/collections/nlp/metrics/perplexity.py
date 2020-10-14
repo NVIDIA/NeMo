@@ -29,7 +29,6 @@ class Perplexity(Metric):
 
     def __init__(self):
         super(Perplexity, self).__init__(name="Perplexity")
-        
 
     def update(self, loss: torch.Tensor):
         return torch.exp(loss)

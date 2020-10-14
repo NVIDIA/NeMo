@@ -106,7 +106,7 @@ class EncDecCTCModel(ASRModel):
             batch_dim_index=0,
             use_cer=False,
             ctc_decode=True,
-            dist_sync_on_step=True
+            dist_sync_on_step=True,
         )
 
     @torch.no_grad()
@@ -201,7 +201,7 @@ class EncDecCTCModel(ASRModel):
                 batch_dim_index=0,
                 use_cer=False,
                 ctc_decode=True,
-                dist_sync_on_step=True
+                dist_sync_on_step=True,
             )
 
             # Update config
