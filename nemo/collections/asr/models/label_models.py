@@ -226,7 +226,10 @@ class EncDecSpeakerLabelModel(ModelPT):
         correct_counts = torch.stack([x['test_correct_counts'] for x in outputs])
         total_counts = torch.stack([x['test_total_counts'] for x in outputs])
 
-        topk_scores = compute_topk_accuracy(correct_counts, total_counts)
+        self._accuracy.correct_counts_k = correct_counts
+        self._accuracy.total_counts_k = total_counts
+        topk_scores = self._accuracy.compute()
+
         logging.info("test_loss: {:.3f}".format(self.val_loss_mean))
         tensorboard_log = {'test_loss': self.val_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
