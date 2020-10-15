@@ -172,16 +172,13 @@ class EncDecSpeakerLabelModel(ModelPT):
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         self.loss_value = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {
-            'train_loss': self.loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+        self.log('train_loss', self.loss_value)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         acc = self._accuracy(logits=logits, labels=labels)
 
-        tensorboard_logs['training_batch_accuracy_top_k'] = acc
+        self.log('training_batch_accuracy_top_k', acc)
 
-        return {'loss': self.loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch

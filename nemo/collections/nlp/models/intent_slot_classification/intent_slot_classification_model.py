@@ -87,10 +87,14 @@ class IntentSlotClassificationModel(NLPModel):
 
         # setup to track metrics
         self.intent_classification_report = ClassificationReport(
-            self.data_desc.num_intents, self.data_desc.intents_label_ids
+            self.data_desc.num_intents,
+            self.data_desc.intents_label_ids,
+            dist_sync_on_step=True
         )
         self.slot_classification_report = ClassificationReport(
-            self.data_desc.num_slots, self.data_desc.slots_label_ids
+            self.data_desc.num_slots,
+            self.data_desc.slots_label_ids,
+            dist_sync_on_step=True
         )
 
         # Optimizer setup needs to happen after all model weights are ready
