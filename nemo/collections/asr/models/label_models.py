@@ -175,11 +175,14 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.log('train_loss', self.loss_value)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
-        self._accuracy(logits=logits, labels=labels)
+        acc = self._accuracy(logits=logits, labels=labels)
 
         self.log('training_batch_accuracy_top_k', acc)
 
         # TODO: can't return anything?
+        # return {
+        #     'train_loss': self.loss_value
+        # }
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
@@ -193,12 +196,12 @@ class EncDecSpeakerLabelModel(ModelPT):
         for top_k, acc in enumerate(acc_top_k):
             self.log(f'val_top_{top_k}', top_k)
             self.log(f'val_acc_top_{top_k}', acc)
-        # return {
-        #     'val_loss': self.loss_value,
-        #     'val_correct_counts': correct_counts,
-        #     'val_total_counts': total_counts,
-        #     'val_acc_top_k': acc_top_k,
-        # }
+        return {
+            'val_loss': self.loss_value,
+            'val_correct_counts': correct_counts,
+            'val_total_counts': total_counts,
+            'val_acc_top_k': acc_top_k,
+        }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         self.val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -211,19 +214,33 @@ class EncDecSpeakerLabelModel(ModelPT):
 
         logging.info("val_loss: {:.3f}".format(self.val_loss_mean))
         self.log('val_loss', self.val_loss_mean)
-        # for top_k, score in zip(self._accuracy.top_k, topk_scores):
-        #     self.log('val_epoch_top@{}'.format(top_k), score)
-        #     self.accuracy = score * 100
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            self.log('val_epoch_top@{}'.format(top_k), score)
+            self.accuracy = score * 100
 
-        # return {'val_loss': self.val_loss_mean}
+        return {
+            'val_loss': self.val_loss_mean,
+            'val_acc_top_k': topk_scores,
+        }
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         self.loss_value = self.loss(logits=logits, labels=labels)
-        self._accuracy(logits=logits, labels=labels)
+        acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {'test_loss': self.loss_value, 'test_correct_counts': correct_counts, 'test_total_counts': total_counts}
+        self.log('test_loss', self.loss_value)
+        self.log('test_correct_counts', correct_counts)
+        self.log('test_total_counts', total_counts)
+        for top_k, acc in enumerate(acc_top_k):
+            self.log(f'test_top_{top_k}', top_k)
+            self.log(f'test_acc_top_{top_k}', acc)
+        return {
+            'test_loss': self.loss_value,
+            'test_correct_counts': correct_counts,
+            'test_total_counts': total_counts,
+            'test_acc_top_k': acc_top_k,
+        }
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         self.val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
@@ -235,12 +252,15 @@ class EncDecSpeakerLabelModel(ModelPT):
         topk_scores = self._accuracy.compute()
 
         logging.info("test_loss: {:.3f}".format(self.val_loss_mean))
-        tensorboard_log = {'test_loss': self.val_loss_mean}
+        self.log('test_loss', self.val_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
+            self.log('test_epoch_top@{}'.format(top_k), score)
             self.accuracy = score * 100
 
-        return {'log': tensorboard_log}
+        return {
+            'test_loss': self.val_loss_mean,
+            'test_acc_top_k': topk_scores,
+        }
 
     def setup_finetune_model(self, model_config: DictConfig):
         """
