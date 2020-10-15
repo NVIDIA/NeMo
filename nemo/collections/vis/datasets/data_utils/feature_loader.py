@@ -34,15 +34,10 @@ class SpatialFeatureLoader:
                     for n in range(num_files)]
         self.h5_files = [h5py.File(path, 'r') for path in h5_paths]
 
-    def __del__(self):
-        for f in self.h5_files:
-            f.close()
-
     def load_feature(self, imageId):
         info = self.all_info[imageId]
         file, idx = info['file'], info['idx']
         return self.h5_files[file]['features'][idx]
-
 
 class ObjectsFeatureLoader:
     def __init__(self, feature_dir):
@@ -53,10 +48,6 @@ class ObjectsFeatureLoader:
         h5_paths = [osp.join(feature_dir, 'gqa_objects_%d.h5' % n)
                     for n in range(num_files)]
         self.h5_files = [h5py.File(path, 'r') for path in h5_paths]
-
-    def __del__(self):
-        for f in self.h5_files:
-            f.close()
 
     def load_feature(self, imageId):
         info = self.all_info[imageId]
