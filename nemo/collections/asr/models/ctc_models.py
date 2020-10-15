@@ -23,7 +23,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset
+from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -86,7 +86,7 @@ class EncDecCTCModel(ASRModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.global_rank = 0
-        self.world_size = 0
+        self.world_size = 1
         self.local_rank = 0
         if trainer is not None:
             self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
@@ -214,11 +214,18 @@ class EncDecCTCModel(ASRModel):
             device_id = self.local_rank if device == 'gpu' else -1
             dataset = AudioToCharDALIDataset(
                 manifest_filepath=config['manifest_filepath'],
+                device=device,
                 batch_size=config['batch_size'],
                 labels=config['labels'],
                 sample_rate=config['sample_rate'],
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                blank_index=config.get('blank_index', -1),
+                unk_index=config.get('unk_index', -1),
+                normalize=config.get('normalize_transcripts', False),
+                trim=config.get('trim_silence', True),
+                parser=config.get('parser', 'en'),
                 shuffle=shuffle,
-                device=device,
                 device_id=device_id,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
@@ -351,23 +358,12 @@ class EncDecCTCModel(ASRModel):
         need_processing = True
         # Spec augment is not applied during evaluation/testing
         need_augmenting = self.spec_augmentation is not None and self.training
-
-        # DALI Pytorch iterator gives an array with a dictionary instead of a list with 4 arrays
-        is_dali = len(outputs) == 1 and isinstance(outputs[0], dict)
-        if is_dali:
-            out_dict = outputs[0]
-            if 'processed_signal' in out_dict:
-                need_processing = False  # DALI already performed preprocessing
-                processed_signal = out_dict['processed_signal']
-                processed_signal_len = out_dict['processed_signal_len'].reshape(-1)  # flattening (batch_size, 1) to (batch_size,)
-            elif 'audio' in out_dict:
-                audio_signal = out_dict['audio']
-                audio_signal_len = out_dict['audio_len'].reshape(-1)  # flattening (batch_size, 1) to (batch_size,)
+        if isinstance(outputs, DALIOutputs):
+            if outputs.has_processed_signal():
+                need_processing = False
+                processed_signal, processed_signal_len, transcript, transcript_len = outputs.get()
             else:
-                raise ValueError(f"Unexpected DALI outputs: {outputs}.")
-
-            transcript = out_dict['transcript']
-            transcript_len = out_dict['transcript_len'].reshape(-1)  # flattening (batch_size, 1) to (batch_size,)
+                audio_signal, audio_signal_len, transcript, transcript_len = outputs.get()
         else:
             audio_signal, audio_signal_len, transcript, transcript_len = outputs
 

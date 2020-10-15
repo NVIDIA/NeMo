@@ -13,7 +13,10 @@
 # limitations under the License.
 
 from nemo.utils.decorators import experimental
+from nemo.collections.asr.parts import parsers
 from omegaconf import DictConfig
+from typing import Callable, List, Optional, Union
+from collections.abc import Iterator
 import numpy as np
 import math
 import torch
@@ -30,8 +33,27 @@ __all__ = [
     'AudioToCharDALIDataset',
 ]
 
+class DALIOutputs(object):
+    def __init__(self, out_dict):
+        self._outs = out_dict
+        self._has_processed_signal = ('processed_signal' in out_dict and 'processed_signal_len' in out_dict)
+        if not self._has_processed_signal:
+            assert('audio' in out_dict and 'audio_len' in out_dict)
+        assert ('transcript' in out_dict and 'transcript_len' in out_dict)
+
+    def has_processed_signal(self):
+        return self._has_processed_signal
+
+    def get(self):
+        if self._has_processed_signal:
+            return self._outs['processed_signal'], self._outs['processed_signal_len'].reshape(-1), \
+                   self._outs['transcript'], self._outs['transcript_len'].reshape(-1)
+        else:
+            return self._outs['audio'], self._outs['audio_len'].reshape(-1), \
+                   self._outs['transcript'], self._outs['transcript_len'].reshape(-1)
+
 @experimental
-class AudioToCharDALIDataset(DALIPytorchIterator):
+class AudioToCharDALIDataset(Iterator):
     """
     NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a sample descriptor in JSON,
     including audio files, transcripts, and durations (in seconds).
@@ -46,9 +68,14 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
         sample_rate (int): Sample rate to resample loaded audio to.
         batch_size (int): Number of samples in a batch.
         num_threads (int): Number of CPU processing threads to be created by the DALI pipeline.
-        trim_silence (bool): If True, it will extract the nonsilent region of the loaded audio signal.
-        min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
         max_duration (float): Determines the maximum allowed duration, in seconds, of the loaded audio files.
+        min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
+        blank_index (int): blank character index, default = -1
+        unk_index (int): unk_character index, default = -1
+        normalize (bool): whether to normalize transcript text (default): True
+        bos_id (int): Id of beginning of sequence symbol to append if not None
+        eos_id (int): Id of end of sequence symbol to append if not None
+        trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
         shuffle (bool): If set to True, the dataset will shuffled after loading.
         device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
         device_id (int): Index of the GPU to be used. Only applicable when device == 'gpu'. Defaults to 0.
@@ -61,13 +88,19 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
                  manifest_filepath: str,
                  device: str,
                  batch_size: int,
-                 labels=None,
+                 labels: Union[str, List[str]],
                  sample_rate: int = 16000,
                  num_threads: int = 4,
-                 trim_silence: bool = False,
-                 min_duration: float = 0.0,
                  max_duration: float = 0.0,
+                 min_duration: float = 0.0,
+                 blank_index: int = -1,
+                 unk_index: int = -1,
+                 normalize: bool = True,
+                 bos_id: Optional[int] = None,
+                 eos_id: Optional[int] = None,
+                 trim: bool = False,
                  shuffle: bool = True,
+                 parser: Union[str, Callable] = 'en',
                  device_id: int = 0,
                  global_rank: int = 0,
                  world_size: int = 1,
@@ -96,15 +129,16 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
             self.num_shards = None
 
         self.labels = labels
-        if self.labels is None:
-            raise ValueError(f"{self} expects a labels parameter.")
+        if self.labels is None or len(self.labels) == 0:
+            raise ValueError(f"{self} expects non empty labels list")
 
-        self.label2id, self.id2label = {}, {}
-        for label_id, label in enumerate(self.labels):
-            self.label2id[ord(label)] = label_id
-            self.id2label[label_id] = ord(label)
-        self.label2id_keys = [k for k in self.label2id.keys()]
-        self.label2id_values = [float(self.label2id[k]) for k in self.label2id_keys]
+        self.parser = parsers.make_parser(
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
+        )
+
+        self.eos_id = eos_id
+        self.bos_id = bos_id
+        self.sample_rate = sample_rate
 
         self.pipes = [Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=self.device_id,
                                exec_async=True, exec_pipelined=True)]
@@ -228,15 +262,9 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
 
                 transcript_len = dali.fn.shapes(dali.fn.reshape(transcript, shape=[-1]))
                 transcript = dali.fn.pad(transcript)
-                transcript = dali.fn.lookup_table(
-                    transcript, dtype=dali.types.INT64, keys=self.label2id_keys, values=self.label2id_values
-                )
-                if self.device == 'gpu':
-                    transcript = transcript.gpu()
-                    transcript_len = transcript_len.gpu()
 
                 # Extract nonsilent region, if necessary
-                if trim_silence:
+                if trim:
                     # Need to extract non-silent region before moving to the GPU
                     roi_start, roi_len = dali.fn.nonsilent_region(audio, cutoff_db=-60)
                     audio = audio.gpu() if self.device == 'gpu' else audio
@@ -288,9 +316,7 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
                     )
 
                     # Normalization
-                    spec = dali.fn.normalize(
-                        spec, axes=self.normalization_axes
-                    )
+                    spec = dali.fn.normalize(spec, axes=self.normalization_axes)
 
                     # Extracting the length of the spectrogram
                     shape_start = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
@@ -309,6 +335,16 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
             # Building DALI pipeline
             pipe.build()
 
+        if has_preprocessor:
+            output_names = ['processed_signal', 'processed_signal_len', 'transcript_raw', 'transcript_raw_len']
+        else:
+            output_names = ['audio', 'audio_len', 'transcript_raw', 'transcript_raw_len']
+
+        self._iter = DALIPytorchIterator(
+            self.pipes, output_map=output_names, reader_name="Reader",
+            fill_last_batch=True, dynamic_shape=True, auto_reset=True
+        )
+
         # TODO come up with a better solution
         class DummyDataset:
             def __init__(self, parent):
@@ -317,12 +353,52 @@ class AudioToCharDALIDataset(DALIPytorchIterator):
                 return self.parent.size
         self.dataset = DummyDataset(self)  # Used by NeMo
 
-        if has_preprocessor:
-            output_names = ['processed_signal', 'processed_signal_len', 'transcript', 'transcript_len']
-        else:
-            output_names = ['audio', 'audio_len', 'transcript', 'transcript_len']
+    def reset():
+        self._iter.reset()
 
-        super(AudioToCharDALIDataset, self).__init__(self.pipes,
-                                                     output_map=output_names,
-                                                     reader_name="Reader",
-                                                     fill_last_batch=True, dynamic_shape=True, auto_reset=True)
+    def __iter__(self):
+        return self
+
+    def next(self):
+        return self.__next__()
+
+    @property
+    def size(self):
+        return self._iter.size
+
+    def __len__(self):
+        return math.ceil(self._iter.size / self._iter.batch_size)
+
+    def __next__(self):
+        outputs = self._iter.next()
+        assert(len(outputs) == 1)
+        out = outputs[0]
+        text_raw_len = out['transcript_raw_len'].numpy()
+        text_raw = out['transcript_raw'].numpy()
+
+        text_tokens = []
+        text_tokens_len = []
+        max_len = 0
+        batch_size = text_raw.shape[0]
+        for i, text in enumerate(text_raw):
+            n = text_raw_len[i][0]
+            tbytes = str(text[:n].tobytes(), encoding='utf8')
+            ttokens = self.parser(tbytes)
+            if self.bos_id is not None:
+                ttokens = [self.bos_id] + ttokens
+            if self.eos_id is not None:
+                ttokens = ttokens + [self.eos_id]
+            ttokens_len = len(ttokens)
+            text_tokens_len.append(ttokens_len)
+            text_tokens.append(ttokens)
+            if ttokens_len > max_len:
+                max_len = ttokens_len
+
+        transcript_out = torch.zeros(batch_size, max_len, dtype=torch.long)
+        for i, n in enumerate(text_tokens_len):
+            transcript_out[i, :n] = torch.tensor(text_tokens[i], dtype=torch.long)
+        transcript_len_out = torch.tensor(text_tokens_len, dtype=torch.long)
+
+        out['transcript'] = transcript_out
+        out['transcript_len'] = transcript_len_out
+        return DALIOutputs(out)
