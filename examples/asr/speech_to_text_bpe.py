@@ -34,7 +34,7 @@ python speech_to_text_bpe.py \
     model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
     model.tokenizer.type=<either bpe or wpe> \
     trainer.gpus=2 \
-    trainer.distributed_backend="ddp" \
+    trainer.accelerator="ddp" \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
     model.optim.lr=0.1 \

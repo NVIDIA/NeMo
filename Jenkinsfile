@@ -252,7 +252,7 @@ pipeline {
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-cased \
-        trainer.distributed_backend=ddp \
+        trainer.accelerator=ddp \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
        }
@@ -337,7 +337,7 @@ pipeline {
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-    	    trainer.distributed_backend=ddp \
+    	    trainer.accelerator=ddp \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
@@ -356,7 +356,7 @@ pipeline {
             model.dataset.use_cache=false \
             model.train_ds.batch_size=3 \
             model.validation_ds.batch_size=4 \
-	    trainer.distributed_backend=ddp \
+	    trainer.accelerator=ddp \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
@@ -756,7 +756,7 @@ pipeline {
         model.language_model.pretrained_model_name=distilbert-base-uncased \
         model.dataset.use_cache=false \
         trainer.gpus=[0,1] \
-        trainer.distributed_backend=ddp \
+        trainer.accelerator=ddp \
         +trainer.fast_dev_run=true \
         exp_manager.exp_dir=exp_distilbert_base_uncased \
         '
@@ -781,7 +781,7 @@ pipeline {
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[0]" \
             +trainer.fast_dev_run=True \
-            trainer.distributed_backend=null \
+            trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=12 \
             model.validation_ds.dataloader_params.batch_size=12'
@@ -794,7 +794,7 @@ pipeline {
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[1]" \
             +trainer.fast_dev_run=True \
-            trainer.distributed_backend=null \
+            trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.batch_size=4'
@@ -819,7 +819,7 @@ pipeline {
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[0]" \
             +trainer.fast_dev_run=True \
-            trainer.distributed_backend=null \
+            trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.batch_size=4'
@@ -832,7 +832,7 @@ pipeline {
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[1]" \
             +trainer.fast_dev_run=True \
-            trainer.distributed_backend=null \
+            trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.batch_size=4 \
             model.validation_ds.batch_size=4'

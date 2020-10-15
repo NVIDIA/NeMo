@@ -357,7 +357,7 @@ trainer:
   max_epochs: 100
   max_steps: null # computed at runtime if not set
   num_nodes: 1
-  distributed_backend: ddp
+  accelerator: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: false  # Provided by exp_manager
   logger: false  # Provided by exp_manager
