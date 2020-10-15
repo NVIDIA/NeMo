@@ -14,7 +14,6 @@
 
 import torch
 from pytorch_lightning.metrics import Metric
-from pytorch_lightning.metrics.utils import METRIC_EPS
 
 __all__ = ['TopKClassificationAccuracy']
 

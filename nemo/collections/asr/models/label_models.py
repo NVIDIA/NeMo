@@ -175,7 +175,7 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.log('train_loss', self.loss_value)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
-        acc = self._accuracy(logits=logits, labels=labels)
+        self._accuracy(logits=logits, labels=labels)
 
         self.log('training_batch_accuracy_top_k', acc)
 
