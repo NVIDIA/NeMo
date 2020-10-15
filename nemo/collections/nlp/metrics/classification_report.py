@@ -102,7 +102,6 @@ class ClassificationReport(Metric):
         Return:
             aggregated precision, recall, f1
         """
-        zeros = torch.zeros_like(self.tp)
         num_examples_per_class = self.tp + self.fn
         total_examples = torch.sum(num_examples_per_class)
         num_non_empty_classes = torch.nonzero(num_examples_per_class).size(0)

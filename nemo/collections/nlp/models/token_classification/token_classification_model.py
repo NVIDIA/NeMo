@@ -148,7 +148,10 @@ class TokenClassificationModel(NLPModel):
 
         preds = torch.argmax(logits, axis=-1)[subtokens_mask]
         labels = labels[subtokens_mask]
-        tp, fp, fn = self.classification_report(preds, labels)
+        self.classification_report(preds, labels)
+        tp = self.classification_report.tp
+        fn = self.classification_report.fn
+        fp = self.classification_report.fp
 
         tensorboard_logs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
         return {'val_loss': val_loss, 'log': tensorboard_logs}
@@ -161,10 +164,7 @@ class TokenClassificationModel(NLPModel):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report
-        tp = torch.sum(torch.stack([x['log']['tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log']['fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log']['fp'] for x in outputs]), 0)
-        precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='macro')
+        precision, recall, f1 = self.classification_report.compute()
 
         tensorboard_logs = {
             'val_loss': avg_loss,
