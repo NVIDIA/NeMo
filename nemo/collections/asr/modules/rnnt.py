@@ -548,9 +548,11 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         self.preserve_memory = preserve_memory
 
         if preserve_memory:
-            logging.warning("`preserve_memory` was set for the Joint Model. Please be aware this will severely impact "
-                            "the forward-backward step time. It also might not solve OOM issues if the GPU simply "
-                            "does not have enough memory to compute the joint.")
+            logging.warning(
+                "`preserve_memory` was set for the Joint Model. Please be aware this will severely impact "
+                "the forward-backward step time. It also might not solve OOM issues if the GPU simply "
+                "does not have enough memory to compute the joint."
+            )
 
         # Required arguments
         self.encoder_hidden = jointnet['encoder_hidden']
