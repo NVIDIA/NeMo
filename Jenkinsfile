@@ -378,6 +378,7 @@ pipeline {
           branch 'main'
           changeRequest target: 'main'
         }
+      }
       failFast true
       stage('MegaBERT SQUAD 2.0') {
         // Cannot do fast_dev_run because squad needs whole dev dataset
@@ -401,6 +402,7 @@ pipeline {
           sh 'rm -rf examples/nlp/question_answering/exp_megabert_squad_2.0'
         }
       }
+    }
 
     stage('L2: Parallel RoBERTa SQUAD v1.1') {
       when {
