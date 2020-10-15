@@ -550,7 +550,7 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
 
     checkpoint_callback = NeMoModelCheckpoint(
         filepath=Path(log_dir / 'checkpoints' / '{val_loss:.2f}-{epoch}'),
-        save_top_k=3,
+        # save_top_k=3,
         # monitor='val_loss',
         save_last=True,
         prefix=name + "--",
