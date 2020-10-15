@@ -271,7 +271,7 @@ class FilterbankFeatures(nn.Module):
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
                 win_length=self.win_length,
-                center=True,
+                center=False,  # TODO: undo
                 window=self.window.to(dtype=torch.float),
             )
 
@@ -333,6 +333,10 @@ class FilterbankFeatures(nn.Module):
     @torch.no_grad()
     def forward(self, x, seq_len):
         seq_len = self.get_seq_len(seq_len.float())
+
+        # TODO: Remove MelGAN padding
+        p = (self.n_fft - self.hop_length) // 2
+        x = torch.nn.functional.pad(x.unsqueeze(1), (p, p), "reflect").squeeze(1)
 
         # dither
         if self.dither > 0:
