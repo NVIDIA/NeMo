@@ -150,19 +150,12 @@ class QAModel(NLPModel):
                 unique_ids=unique_ids,
                 start_logits=start_logits,
                 end_logits=end_logits,
-                n_best_size=self._cfg.validation_ds.n_best_size,
-                max_answer_length=self._cfg.validation_ds.max_answer_length,
+                n_best_size=self._cfg.dataset.n_best_size,
+                max_answer_length=self._cfg.dataset.max_answer_length,
                 version_2_with_negative=self._cfg.dataset.version_2_with_negative,
-                null_score_diff_threshold=self._cfg.validation_ds.null_score_diff_threshold,
+                null_score_diff_threshold=self._cfg.dataset.null_score_diff_threshold,
                 do_lower_case=self._cfg.dataset.do_lower_case,
             )
-
-            if self._cfg.validation_ds.output_nbest_file is not None:
-                with open(self._cfg.validation_ds.output_nbest_file, "w") as writer:
-                    writer.write(json.dumps(all_nbest, indent=4) + "\n")
-            if self._cfg.validation_ds.output_prediction_file is not None:
-                with open(self._cfg.validation_ds.output_prediction_file, "w") as writer:
-                    writer.write(json.dumps(all_predictions, indent=4) + "\n")
 
         logging.info(f"exact match {exact_match}")
         logging.info(f"f1 {f1}")
@@ -198,9 +191,9 @@ class QAModel(NLPModel):
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
-            tokenizer_model=cfg.tokenizer_model,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            vocab_file=cfg.vocab_file,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
         )
         self.tokenizer = tokenizer
 
@@ -236,9 +229,9 @@ class QAModel(NLPModel):
             dataset=dataset,
             batch_size=cfg.batch_size,
             collate_fn=dataset.collate_fn,
-            drop_last=cfg.get('drop_last', False),
+            drop_last=self._cfg.dataset.get('drop_last', False),
             shuffle=cfg.shuffle,
-            num_workers=cfg.get('num_workers', 0),
+            num_workers=self._cfg.dataset.get('num_workers', 0),
         )
         return dl
 

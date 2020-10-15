@@ -31,9 +31,9 @@ def main(cfg: DictConfig) -> None:
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     infer_datasets = [cfg.model.validation_ds, cfg.model.test_ds]
     for infer_dataset in infer_datasets:
-        if infer_dataset.output_prediction_file is not None:
+        if infer_dataset.get('output_prediction_file', None) is not None:
             infer_dataset.output_prediction_file = os.path.join(log_dir, infer_dataset.output_prediction_file)
-        if infer_dataset.output_nbest_file is not None:
+        if infer_dataset.get('output_nbest_file', None) is not None:
             infer_dataset.output_nbest_file = os.path.join(log_dir, infer_dataset.output_nbest_file)
 
     question_answering_model = QAModel(cfg.model, trainer=trainer)
