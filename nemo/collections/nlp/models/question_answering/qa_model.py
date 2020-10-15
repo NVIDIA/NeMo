@@ -82,9 +82,12 @@ class QAModel(NLPModel):
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
 
-        # tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        self.log('train_loss', loss)
+        self.log('loss', loss)
         self.log('lr', self._optimizer.param_groups[0]['lr'])
+        # return {
+        #     'train_loss': loss,
+        #     'lr': self._optimizer.param_groups[0]['lr']
+        # }
 
     def validation_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
@@ -99,7 +102,6 @@ class QAModel(NLPModel):
             'end_logits': end_logits,
         }
         self.log('val_loss', loss)
-        self.log('eval_tensors', eval_tensors)
         return {'val_loss': loss, 'eval_tensors': eval_tensors}
 
     def test_step(self, batch, batch_idx):
@@ -169,9 +171,12 @@ class QAModel(NLPModel):
 
         logging.info(f"exact match {exact_match}")
         logging.info(f"f1 {f1}")
+        self.log('val_loss', avg_loss)
+        self.log('exact_match', exact_match)
+        self.log('f1', f1)
 
-        tensorboard_logs = {'val_loss': avg_loss, 'exact_match': exact_match, 'f1': f1}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        # tensorboard_logs = {'val_loss': avg_loss, 'exact_match': exact_match, 'f1': f1}
+        # return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def test_epoch_end(self, outputs):
         unique_ids = tensor2list(torch.cat([x['test_tensors']['unique_ids'] for x in outputs]))
