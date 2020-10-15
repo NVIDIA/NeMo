@@ -93,10 +93,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
 
         # Setup decoding object
         self.decoding = RNNTBPEDecoding(
-            decoding_cfg=self.cfg.decoding,
-            decoder=self.decoder,
-            joint=self.joint,
-            tokenizer=self.tokenizer,
+            decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
 
         self.wer = RNNTBPEWER(decoding=self.decoding, batch_dim_index=0, use_cer=False)
@@ -213,10 +210,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
             decoding_cfg = self.cfg.decoding
 
         self.decoding = RNNTBPEDecoding(
-            decoding_cfg=decoding_cfg,
-            decoder=self.decoder,
-            joint=self.joint,
-            tokenizer=self.tokenizer,
+            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
 
         self.wer = RNNTBPEWER(

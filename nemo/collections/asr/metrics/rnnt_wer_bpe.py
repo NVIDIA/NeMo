@@ -179,7 +179,7 @@ class RNNTBPEDecoding:
 
             return hypotheses, all_hypotheses
         else:
-            hypotheses = self.decode_hypothesis(prediction_list)   # type: List[str]
+            hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
             return hypotheses, None
 
     def decode_hypothesis(self, hypotheses_list):
@@ -246,11 +246,7 @@ class RNNTBPEWER(TensorMetric):
     """
 
     def __init__(
-        self,
-        decoding: RNNTBPEDecoding,
-        batch_dim_index=0,
-        use_cer: bool = False,
-        log_prediction: bool = True,
+        self, decoding: RNNTBPEDecoding, batch_dim_index=0, use_cer: bool = False, log_prediction: bool = True,
     ):
         super(RNNTBPEWER, self).__init__(name="RNNTBPEWER")
         self.decoding = decoding
