@@ -82,7 +82,7 @@ class QAModel(NLPModel):
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
 
-        #tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
+        # tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
         self.log('train_loss', loss)
         self.log('lr', self._optimizer.param_groups[0]['lr'])
 
