@@ -349,7 +349,7 @@ class TextClassificationModel(NLPModel, Exportable):
             )
 
         bert_model_onnx = self.bert_model.export(
-            'bert_' + output,
+            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
             None,  # computed by input_example()
             None,
             verbose,
@@ -364,7 +364,7 @@ class TextClassificationModel(NLPModel, Exportable):
         )
 
         classifier_onnx = self.classifier.export(
-            'classifier_' + output,
+            os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output)),
             None,  # computed by input_example()
             None,
             verbose,
