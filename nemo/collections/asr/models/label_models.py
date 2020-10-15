@@ -179,6 +179,7 @@ class EncDecSpeakerLabelModel(ModelPT):
 
         self.log('training_batch_accuracy_top_k', acc)
 
+        # TODO: can't return anything?
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
@@ -186,12 +187,18 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.loss_value = self.loss(logits=logits, labels=labels)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        return {
-            'val_loss': self.loss_value,
-            'val_correct_counts': correct_counts,
-            'val_total_counts': total_counts,
-            'val_acc_top_k': acc_top_k,
-        }
+        self.log('val_loss', self.loss_value)
+        self.log('val_correct_counts', correct_counts)
+        self.log('val_total_counts', total_counts)
+        for top_k, acc in enumerate(acc_top_k):
+            self.log(f'val_top_{top_k}', top_k)
+            self.log(f'val_acc_top_{top_k}', acc)
+        # return {
+        #     'val_loss': self.loss_value,
+        #     'val_correct_counts': correct_counts,
+        #     'val_total_counts': total_counts,
+        #     'val_acc_top_k': acc_top_k,
+        # }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         self.val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -203,12 +210,12 @@ class EncDecSpeakerLabelModel(ModelPT):
         topk_scores = self._accuracy.compute()
 
         logging.info("val_loss: {:.3f}".format(self.val_loss_mean))
-        tensorboard_log = {'val_loss': self.val_loss_mean}
-        for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
-            self.accuracy = score * 100
+        self.log('val_loss', self.val_loss_mean)
+        # for top_k, score in zip(self._accuracy.top_k, topk_scores):
+        #     self.log('val_epoch_top@{}'.format(top_k), score)
+        #     self.accuracy = score * 100
 
-        return {'log': tensorboard_log}
+        # return {'val_loss': self.val_loss_mean}
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
