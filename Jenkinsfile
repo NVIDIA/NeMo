@@ -319,59 +319,88 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel MegaBERT Token Classification / SQUAD v2.0') {
+    // stage('L2: Parallel MegaBERT Token Classification / SQUAD v2.0') {
+    //   when {
+    //     anyOf{
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage ('Token Classification with MegaBERT') {
+    //       steps {
+    //         sh 'cd examples/nlp/token_classification && \
+    //         python token_classification.py \
+    //         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+    //         model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
+    //         model.train_ds.batch_size=10 \
+    //         model.dataset.max_seq_length=50 \
+    //         model.dataset.use_cache=false \
+    // 	      trainer.accelerator=ddp \
+    //         trainer.precision=16 \
+    //         trainer.amp_level=O1 \
+    //         trainer.gpus=[1] \
+    //         +trainer.fast_dev_run=true \
+    //         exp_manager.exp_dir=exp_megabert_base_uncased \
+    //         '
+    //         sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
+    //       }
+    //     }
+    //     stage('MegaBERT SQUAD 2.0') {
+    //       // Cannot do fast_dev_run because squad needs whole dev dataset
+    //       steps {
+    //         sh 'cd examples/nlp/question_answering && \
+    //         python question_answering_squad.py \
+    //         model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+    //         model.dataset.use_cache=false \
+    //         model.train_ds.batch_size=1 \
+    //         model.validation_ds.batch_size=1 \
+	  //         trainer.accelerator=ddp \
+    //         trainer.max_epochs=1 \
+    //         +trainer.max_steps=1 \
+    //         model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+    //         model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
+    //         model.dataset.version_2_with_negative=true \
+    //         trainer.precision=16 \
+    //         trainer.amp_level=O1 \
+    //         trainer.gpus=[0] \
+    //         exp_manager.exp_dir=exp_megabert_squad_2.0 \
+    //         '
+    //         sh 'rm -rf examples/nlp/question_answering/exp_megabert_squad_2.0'
+    //       }
+    //     }
+    //   }
+    // }
+    stage('L2: Parallel MegaBERT SQUAD 2.0') {
       when {
         anyOf{
           branch 'main'
           changeRequest target: 'main'
         }
-      }
       failFast true
-      parallel {
-        stage ('Token Classification with MegaBERT') {
-          steps {
-            sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-            model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
-            model.train_ds.batch_size=10 \
-            model.dataset.max_seq_length=50 \
-            model.dataset.use_cache=false \
-    	      trainer.accelerator=ddp \
-            trainer.precision=16 \
-            trainer.amp_level=O1 \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=true \
-            exp_manager.exp_dir=exp_megabert_base_uncased \
-            '
-            sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
-          }
-        }
-        stage('MegaBERT SQUAD 2.0') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
-          steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.dataset.use_cache=false \
-            model.train_ds.batch_size=1 \
-            model.validation_ds.batch_size=1 \
-	          trainer.accelerator=ddp \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
-            model.dataset.version_2_with_negative=true \
-            trainer.precision=16 \
-            trainer.amp_level=O1 \
-            trainer.gpus=[0] \
-            exp_manager.exp_dir=exp_megabert_squad_2.0 \
-            '
-            sh 'rm -rf examples/nlp/question_answering/exp_megabert_squad_2.0'
-          }
+      stage('MegaBERT SQUAD 2.0') {
+        // Cannot do fast_dev_run because squad needs whole dev dataset
+        steps {
+          sh 'cd examples/nlp/question_answering && \
+          python question_answering_squad.py \
+          model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+          model.dataset.use_cache=false \
+          model.train_ds.batch_size=1 \
+          model.validation_ds.batch_size=1 \
+          trainer.accelerator=ddp \
+          trainer.max_epochs=1 \
+          +trainer.max_steps=1 \
+          model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+          model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
+          model.dataset.version_2_with_negative=true \
+          trainer.precision=16 \
+          trainer.gpus=[1] \
+          exp_manager.exp_dir=exp_megabert_squad_2.0 \
+          '
+          sh 'rm -rf examples/nlp/question_answering/exp_megabert_squad_2.0'
         }
       }
-    }
 
     stage('L2: Parallel RoBERTa SQUAD v1.1') {
       when {
