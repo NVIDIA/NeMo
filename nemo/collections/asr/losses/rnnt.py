@@ -60,7 +60,17 @@ class RNNTLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction=None):
+    def __init__(self, num_classes):
+        """
+        RNN-T Loss function based on https://github.com/HawkAaron/warp-transducer.
+
+        Note:
+        Requires the pytorch bindings to be installed prior to calling this class.
+
+        Args:
+            num_classes: Number of target classes for the joint network to predict.
+                (Excluding the RNN-T blank token).
+        """
         super(RNNTLoss, self).__init__()
 
         if not WARP_RNNT_AVAILABLE:
@@ -73,25 +83,27 @@ class RNNTLoss(Loss):
             )
 
         self._blank = num_classes
-        self._loss = warprnnt.RNNTLoss(blank=self._blank, reduction=reduction)
+        self._loss = warprnnt.RNNTLoss(blank=self._blank, reduction=None)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
+        # Cast to int 32
         input_lengths = input_lengths.int()
         target_lengths = target_lengths.int()
         targets = targets.int()
 
         max_logit_len = input_lengths.max()
 
-        # force cast to float32
+        # Force cast joint to float32
         if log_probs.dtype != torch.float32:
             logits_orig = log_probs
             log_probs = log_probs.float()
             del logits_orig  # save memory *before* computing the loss
 
         # Ensure that shape mismatch does not occur due to padding
-        # Will remove at most 1 paded timestep from log_prob
+        # Will remove at most 1 padded timestep from `log_prob`
         if log_probs.shape[1] != max_logit_len:
+            # [B, T + 1, U, V + 1] -> [B, T, U, V + 1]
             log_probs = log_probs[:, :max_logit_len, :, :].contiguous()
 
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)

@@ -44,9 +44,11 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
     git clone https://github.com/HawkAaron/warp-transducer && \
     cd warp-transducer && \
     git checkout $COMMIT_SHA && \
+    # disable old compile flags (compute_30 arch)
     sed -i 's/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30 -O2")/#set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30 -O2")/g' CMakeLists.txt && \
+    # enable Cuda 11 compilation if necessary
     # sed -i 's/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")/g' CMakeLists.txt && \
-    # build
+    # build loss function
     mkdir build && \
     cd build && \
     cmake .. && \
