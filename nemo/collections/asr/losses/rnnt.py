@@ -101,10 +101,12 @@ class RNNTLoss(Loss):
             del logits_orig  # save memory *before* computing the loss
 
         # Ensure that shape mismatch does not occur due to padding
-        # Will remove at most 1 padded timestep from `log_prob`
+        # Due to padding and subsequent downsampling, it may be possible that
+        # max sequence length computed does not match the actual max sequence length
+        # of the log_probs tensor, therefore we increment the input_lengths by the difference.
+        # This difference is in the range [0, 1] only.
         if log_probs.shape[1] != max_logit_len:
-            # [B, T + 1, U, V + 1] -> [B, T, U, V + 1]
-            log_probs = log_probs[:, :max_logit_len, :, :].contiguous()
+            input_lengths += abs(log_probs.shape[1] - max_logit_len)
 
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
         loss = torch.mean(loss)
