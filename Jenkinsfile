@@ -354,9 +354,9 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
-            model.train_ds.batch_size=3 \
+            model.train_ds.batch_size=1 \
             model.validation_ds.batch_size=4 \
-	    trainer.accelerator=ddp \
+	          trainer.accelerator=ddp \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
