@@ -213,13 +213,9 @@ class EncDecClassificationModel(ASRModel):
         }
 
         self._accuracy(logits=logits, labels=labels)
-        # for ki in range(correct_counts.shape[-1]):
-        #     correct_count = correct_counts[ki]
-        #     total_count = total_counts[ki]
-        #     top_k = self._accuracy.top_k[ki]
-
-        #     tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = self._accuracy.compute()
-        tensorboard_logs['training_batch_accuracy_top_k'] = self._accuracy.compute()
+        top_k = self._accuracy.compute()
+        for i, top_i in enumerate(top_k):
+            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
