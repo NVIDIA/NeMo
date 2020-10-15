@@ -13,3 +13,5 @@
 # limitations under the License.
 
 from nemo.collections.vis.datasets.clevr import CLEVR, CLEVRConfig
+from nemo.collections.vis.datasets.gqa import GQA, GQAConfig
+from nemo.collections.vis.datasets.clevrer import CLEVRER, CLEVRERConfig
