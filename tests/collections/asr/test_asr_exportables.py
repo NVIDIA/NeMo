@@ -14,9 +14,11 @@
 import os
 import tempfile
 
+import onnx
 import pytest
 from omegaconf import DictConfig
 
+from nemo.collections.asr.models import EncDecCTCModel
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
 
 
@@ -24,7 +26,59 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_ConvASREncoder_export_to_onnx(self):
-        encoder_dict = {
+        with tempfile.TemporaryDirectory() as tmpdir:
+            encoder_instance = ConvASREncoder.from_config_dict(DictConfig(self.encoder_dict)).cuda()
+            assert isinstance(encoder_instance, ConvASREncoder)
+            filename = os.path.join(tmpdir, 'qn_encoder.onnx')
+            encoder_instance.export(output=filename)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 12
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'outputs'
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_ConvASRDecoder_export_to_onnx(self):
+        decoder = ConvASRDecoder.from_config_dict(config=DictConfig(self.decoder_dict)).cuda()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'qn_decoder.onnx')
+            decoder.export(output=filename)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 3
+            assert onnx_model.graph.node[0].name == 'Conv_0'
+            assert onnx_model.graph.input[0].name == 'encoder_output'
+            assert onnx_model.graph.output[0].name == 'logprobs'
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_EncDecCTCModel_export_to_onnx(self):
+        model_config = DictConfig(
+            {
+                'preprocessor': DictConfig(self.preprocessor),
+                'encoder': DictConfig(self.encoder_dict),
+                'decoder': DictConfig(self.decoder_dict),
+            }
+        )
+        model = EncDecCTCModel(cfg=model_config)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'qn.onnx')
+            model.export(output=filename)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 15
+            assert onnx_model.graph.node[12].name == 'DCConv_0'
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'logprobs'
+
+    def setup_method(self):
+        self.preprocessor = {
+            'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
+            'params': dict({}),
+        }
+
+        self.encoder_dict = {
             'cls': 'nemo.collections.asr.modules.ConvASREncoder',
             'params': {
                 'feat_in': 64,
@@ -46,16 +100,8 @@ class TestExportable:
                 ],
             },
         }
-        with tempfile.TemporaryDirectory() as tmpdir:
-            encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict)).cuda()
-            assert isinstance(encoder_instance, ConvASREncoder)
-            filename = os.path.join(tmpdir, 'qn_encoder.onnx')
-            encoder_instance.export(output=filename)
 
-    @pytest.mark.unit
-    @pytest.mark.run_only_on('GPU')
-    def test_ConvASRDecoder_export_to_onnx(self):
-        decoder_params = {
+        self.decoder_dict = {
             'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
             'params': {
                 'feat_in': 1024,
@@ -92,7 +138,3 @@ class TestExportable:
                 ],
             },
         }
-        decoder = ConvASRDecoder.from_config_dict(config=DictConfig(decoder_params)).cuda()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join(tmpdir, 'qn_decoder.onnx')
-            decoder.export(output=filename)
