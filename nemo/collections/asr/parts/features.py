@@ -223,6 +223,7 @@ class FilterbankFeatures(nn.Module):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        mel=True,
     ):
         super(FilterbankFeatures, self).__init__()
         self.log_zero_guard_value = log_zero_guard_value
@@ -295,6 +296,7 @@ class FilterbankFeatures(nn.Module):
         self.max_length = max_length + max_pad
         self.pad_value = pad_value
         self.mag_power = mag_power
+        self.mel = mel
 
         # We want to avoid taking the log of zero
         # There are two options: either adding or clamping to a small value
@@ -358,8 +360,9 @@ class FilterbankFeatures(nn.Module):
         if self.mag_power != 1.0:
             x = x.pow(self.mag_power)
 
-        # dot with filterbank energies
-        x = torch.matmul(self.fb.to(x.dtype), x)
+        if self.mel:
+            # dot with filterbank energies
+            x = torch.matmul(self.fb.to(x.dtype), x)
 
         # log features if required
         if self.log:
