@@ -140,7 +140,7 @@ trainer:
   gpus: 1
   max_epochs: ???
   num_nodes: 1
-  distributed_backend: ddp
+  accelerator: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: False
   logger: False

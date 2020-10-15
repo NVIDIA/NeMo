@@ -9,7 +9,7 @@ trainer:
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O0 # O1/O2 for mixed precision
   precision: 16
-  distributed_backend: ddp
+  accelerator: ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
 
@@ -51,7 +51,7 @@ model:
     pretrained_model_name: bert-base-uncased
     lm_checkpoint: null
     config_file: null # json file, precedence over config
-    config: null 
+    config: null
 
   optim:
     name: adam
