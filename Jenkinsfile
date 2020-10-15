@@ -337,7 +337,7 @@ pipeline {
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-    	    trainer.accelerator=ddp \
+    	      trainer.accelerator=ddp \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
