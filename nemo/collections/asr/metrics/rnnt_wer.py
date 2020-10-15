@@ -28,37 +28,49 @@ __all__ = ['RNNTDecoding', 'RNNTWER']
 
 class RNNTDecoding:
     """
-    This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
-    When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
-    will be all-reduced between all workers using SUM operations.
-    Here contains two numbers res=[wer_numerator, wer_denominator]. WER=wer_numerator/wer_denominator.
-
-    If used with PytorchLightning LightningModule, include wer_numerator and wer_denominators inside validation_step results.
-    Then aggregate (sum) then at the end of validation epoch to correctly compute validation WER.
-
-    Example:
-        def validation_step(self, batch, batch_idx):
-            ...
-            wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
-
-        def validation_epoch_end(self, outputs):
-            ...
-            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-            tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
-            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+    Used for performing RNN-T auto-regressive decoding of the Decoder+Joint network given the encoder state.
 
     Args:
-        vocabulary: List of strings that describes the vocabulary of the dataset.
-        batch_dim_index: Index of the batch dimension.
-        use_cer: Whether to use Character Error Rate isntead of Word Error Rate.
-        ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
-        log_prediction: Whether to log a single decoded sample per call.
+        decoding_cfg: A dict-like object which contains the following key-value pairs.
+            strategy: str value which represents the type of decoding that can occur.
+                Possible values are :
+                -   greedy, greedy_batch (for greedy decoding).
+                -   beam, tsd, alsd (for beam search decoding).
 
-    Returns:
-        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
-        text word error rate, compute wer=wer_numerator/wer_denominator
+            The config may further contain the following sub-dictionaries:
+            "greedy":
+                max_symbols: int, describing the maximum number of target tokens to decode per
+                    timestep during greedy decoding. Setting to larger values allows longer sentences
+                    to be decoded, at the cost of increased execution time.
+
+            "beam":
+                beam_size: int, defining the beam size for beam search. Must be >= 1.
+                    If beam_size == 1, will perform cached greedy search. This might be slightly different
+                    results compared to the greedy search above.
+
+                score_norm: optional bool, whether to normalize the returned beam score in the hypotheses.
+                    Set to True by default.
+
+                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
+                    hypotheses after beam search has concluded. This flag is set by default.
+
+                tsd_max_sym_exp: optional int, determines number of symmetric expansions of the target symbols
+                    per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
+                    at increased cost to execution time.
+
+                alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
+                    If an integer is provided, it can decode sequences of that particular maximum length.
+                    If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
+                    where seq_len is the length of the acoustic model output (T).
+
+                    NOTE:
+                        If a float is provided, it can be greater than 1!
+                        By default, a float of 2.0 is used so that a target sequence can be at most twice
+                        as long as the acoustic model output length T.
+
+        decoder: The Decoder/Prediction network module.
+        joint: The Joint network module.
+        vocabulary: The vocabulary (excluding the RNNT blank token) which will be used for decoding.
     """
 
     def __init__(
@@ -128,7 +140,25 @@ class RNNTDecoding:
         self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
     ) -> (List[str], Optional[List[List[str]]]):
         """
-        Decodes a sequence of labels to words
+        Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
+
+        Args:
+            encoder_output: torch.Tensor of shape [B, D, T].
+            encoded_lengths: torch.Tensor containing lengths of the padded encoder outputs. Shape [B].
+
+        Returns:
+            If `return_best_hypothesis` is set:
+                A tuple (hypotheses, None):
+                hypotheses - list of Hypothesis (best hypothesis per sample).
+                    Look at rnnt_utils.Hypothesis for more information.
+
+            If `return_best_hypothesis` is not set:
+                A tuple(hypotheses, all_hypotheses)
+                hypotheses - list of Hypothesis (best hypothesis per sample).
+                    Look at rnnt_utils.Hypothesis for more information.
+                all_hypotheses - list of NBestHypotheses. Each NBestHypotheses further contains a sorted
+                    list of all the hypotheses of the model per sample.
+                    Look at rnnt_utils.NBestHypotheses for more information.
         """
         # Compute hypotheses
         with torch.no_grad():
@@ -139,31 +169,42 @@ class RNNTDecoding:
             # extract the hypotheses
             hypotheses_list = hypotheses_list[0]  # type: List[Hypothesis]
 
-        # Drop predictions to CPU
         prediction_list = hypotheses_list
 
         if isinstance(prediction_list[0], NBestHypotheses):
             hypotheses = []
             all_hypotheses = []
             for nbest_hyp in prediction_list:  # type: NBestHypotheses
-                n_hyps = nbest_hyp.n_best_hypotheses
-                decoded_hyps = self.decode_hypothesis(n_hyps)
-                hypotheses.append(decoded_hyps[0])
+                n_hyps = nbest_hyp.n_best_hypotheses  # Extract all hypotheses for this sample
+                decoded_hyps = self.decode_hypothesis(n_hyps)  # type: List[str]
+                hypotheses.append(decoded_hyps[0])  # best hypothesis
                 all_hypotheses.append(decoded_hyps)
 
             return hypotheses, all_hypotheses
         else:
-            hypotheses = self.decode_hypothesis(prediction_list)
+            hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
             return hypotheses, None
 
     def decode_hypothesis(self, hypotheses_list):
+        """
+        Decode a list of hypotheses into a list of strings.
+
+        Args:
+            hypotheses_list: List of Hypothesis.
+
+        Returns:
+            A list of strings.
+        """
         hypotheses = []
         for ind in range(len(hypotheses_list)):
+            # Extract the integer encoded hypothesis
             prediction = hypotheses_list[ind].y_sequence
+
             if type(prediction) != list:
                 prediction = prediction.tolist()
 
             # RNN-T sample level is already preprocessed by implicit CTC decoding
+            # Simply remove any blank tokens
             hypothesis = ''.join([self.labels_map[c] for c in prediction if c != self.blank_id])
             hypotheses.append(hypothesis)
 
@@ -172,38 +213,37 @@ class RNNTDecoding:
 
 class RNNTWER(TensorMetric):
     """
-        This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
-        When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
-        will be all-reduced between all workers using SUM operations.
-        Here contains two numbers res=[wer_numerator, wer_denominator]. WER=wer_numerator/wer_denominator.
+    This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
+    When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
+    will be all-reduced between all workers using SUM operations.
+    Here contains two numbers res=[wer_numerator, wer_denominator]. WER=wer_numerator/wer_denominator.
 
-        If used with PytorchLightning LightningModule, include wer_numerator and wer_denominators inside validation_step results.
-        Then aggregate (sum) then at the end of validation epoch to correctly compute validation WER.
+    If used with PytorchLightning LightningModule, include wer_numerator and wer_denominators inside validation_step results.
+    Then aggregate (sum) then at the end of validation epoch to correctly compute validation WER.
 
-        Example:
-            def validation_step(self, batch, batch_idx):
-                ...
-                wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-                return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+    Example:
+        def validation_step(self, batch, batch_idx):
+            ...
+            wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
-            def validation_epoch_end(self, outputs):
-                ...
-                wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-                wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-                tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
-                return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+        def validation_epoch_end(self, outputs):
+            ...
+            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
-        Args:
-            vocabulary: List of strings that describes the vocabulary of the dataset.
-            batch_dim_index: Index of the batch dimension.
-            use_cer: Whether to use Character Error Rate isntead of Word Error Rate.
-            ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
-            log_prediction: Whether to log a single decoded sample per call.
+    Args:
+        decoding: RNNTDecoding object that will perform autoregressive decoding of the RNNT model.
+        batch_dim_index: Index of the batch dimension.
+        use_cer: Whether to use Character Error Rate isntead of Word Error Rate.
+        log_prediction: Whether to log a single decoded sample per call.
 
-        Returns:
-            res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
-            text word error rate, compute wer=wer_numerator/wer_denominator
-        """
+    Returns:
+        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
+        text word error rate, compute wer=wer_numerator/wer_denominator
+    """
 
     def __init__(self, decoding: RNNTDecoding, batch_dim_index=0, use_cer=False, log_prediction=True):
         super(RNNTWER, self).__init__(name="RNNTWER")
