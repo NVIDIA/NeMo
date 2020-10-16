@@ -54,7 +54,10 @@ class Model(ModelPT):
         # Instantiate dataset.
         ds = hydra.utils.instantiate(dataset_cfg, transform=transform)
         # Instantiate dataloader.
-        dl = hydra.utils.instantiate(dataloader_cfg, dataset=ds, collate_fn=ds.collate_fn)
+        if hasattr(ds, "collate_fn"):
+            dl = hydra.utils.instantiate(dataloader_cfg, dataset=ds, collate_fn=ds.collate_fn)
+        else:
+            dl = hydra.utils.instantiate(dataloader_cfg, dataset=ds)
 
         # Return the dataloader.
         return dl
