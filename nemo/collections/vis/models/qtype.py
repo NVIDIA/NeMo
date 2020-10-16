@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import MISSING, dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass, field
+from typing import Any, List
 
 import hydra
 import torch
-from omegaconf import OmegaConf
 
 from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.models.model import Model
-from nemo.collections.vis.modules import SentenceEmbeddings, SentenceEmbeddingsConfig
+from nemo.collections.vis.modules import SentenceEmbeddingsConfig
 from nemo.collections.vis.transforms import Compose
-from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
 
 
@@ -109,7 +107,7 @@ class QType(Model):
         embs = self._se(questions)
 
         # Encode question.
-        activations, (hidden, memory) = self.eq(embs, (init_hidden, init_memory))
+        activations, (_, _) = self.eq(embs, (init_hidden, init_memory))
 
         # Return the last output.
         return activations.contiguous()[:, -1, :].squeeze(1)
