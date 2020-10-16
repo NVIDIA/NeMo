@@ -96,6 +96,7 @@ class SceneGraphFeatureLoader:
         print('Loading scene graph from %s' % scene_graph_file)
         with open(scene_graph_file) as f:
             self.SGs = json.load(f)
+        print(len(self.SGs))
         print('Done')
         self.name_dict = VocabDict(vocab_name_file)
         self.attr_dict = VocabDict(vocab_attr_file)
