@@ -101,7 +101,6 @@ class TopKClassificationAccuracy(Metric):
         else:
             top_k_scores = compute_topk_accuracy(self.correct_counts_k, self.total_counts_k)
 
-
             return top_k_scores
 
 
