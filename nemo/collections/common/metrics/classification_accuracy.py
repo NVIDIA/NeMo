@@ -99,11 +99,16 @@ class TopKClassificationAccuracy(Metric):
             return [self.correct_counts_k.float() / self.total_counts_k]
 
         else:
-            top_k_scores = compute_topk_accuracy(self.correct_counts_k, self.total_counts_k)
+            top_k_scores = []
+
+            for ki in range(self.correct_counts_k.shape[-1]):
+                correct_count = self.correct_counts_k[ki].item()
+                total_count = self.total_counts_k[ki].item()
+                top_k_scores.append(correct_count / float(total_count))
 
             return top_k_scores
 
-def compute_topk_accuracy(correct_counts, total_counts):
+def compute_topk_accuracy(correct_counts_k, total_counts_k):
     """
     Computes the top-k accuracy when provided with a stacked tensor from multiple
     DDP processes.
@@ -118,9 +123,9 @@ def compute_topk_accuracy(correct_counts, total_counts):
     """
     top_k_scores = []
 
-    for ki in range(correct_counts.shape[-1]):
-        correct_count = correct_counts[:, ki].sum()
-        total_count = total_counts[:, ki].sum()
+    for ki in range(correct_counts_k.shape[-1]):
+        correct_count = correct_counts_k[ki].item()
+        total_count = total_counts_k[ki].item()
         top_k_scores.append(correct_count / float(total_count))
 
-    return top_k_scores
+        return top_k_scores
