@@ -44,8 +44,7 @@ class QTypeConfig:
     question_transforms: List[Any] = field(default_factory=list)
     answer_transforms: List[Any] = field(default_factory=list)
     embeddings: SentenceEmbeddingsConfig = SentenceEmbeddingsConfig(
-        word_mappings_filepath="",
-        embeddings_size=50,
+        word_mappings_filepath="", embeddings_size=50,
     )
     hidden_size: int = 100
     num_layers: int = 1
