@@ -207,6 +207,7 @@ class GQA(Dataset):
 		vocab_attributes_file = './data_utils/vocab_files/attributes.txt'
 		vocab_question_file = './data_utils/vocab_files/questions.txt'
 		vocab_answers_file = './data_utils/vocab_files/answers.txt'
+		vocab_relation_file = './data_utils/vocab_files/relations.txt'
 
 		# Number of objects
 		num_objects = 100
@@ -245,10 +246,10 @@ class GQA(Dataset):
 		if self._load_scene_graph and not self._split.startswith('test'):
 			if self._split == 'train':
 				scene_graph_dirs = join(self._root, "sceneGraphs", 'train_sceneGraphs.json')
-				self._scene_graph_loader = SceneGraphFeatureLoader(scene_graph_dirs, vocab_object_file, vocab_attributes_file, num_objects)
+				self._scene_graph_loader = SceneGraphFeatureLoader(scene_graph_dirs, vocab_object_file, vocab_attributes_file, vocab_relation_file, num_objects)
 			elif self._split == 'validation':
 				scene_graph_dirs = join(self._root, "sceneGraphs", 'val_sceneGraphs.json')
-				self._scene_graph_loader = SceneGraphFeatureLoader(scene_graph_dirs, vocab_object_file, vocab_attributes_file, num_objects)
+				self._scene_graph_loader = SceneGraphFeatureLoader(scene_graph_dirs, vocab_object_file, vocab_attributes_file, vocab_relation_file, num_objects)
 
 		# Training split folder and file with data question.
 		if self._split == 'train':
@@ -451,7 +452,7 @@ class GQA(Dataset):
 			index: index of the sample to return.
 
 		Returns:
-			indices, images_ids, images, questions, answers, question_types, spatial_features, object_features, object_normalized_bbox, obj_attributes 
+			indices, images_ids, images, questions, answers, question_types, spatial_features, object_features, object_normalized_bbox, obj_attributes, obj_relations
 		"""
 		# Get item.
 		item = self.data[index]
@@ -501,11 +502,13 @@ class GQA(Dataset):
 			result = self._scene_graph_loader.load_feature_normalized_bbox(img_id)
 			# We extract object names, attributes from scene graph
 			obj_attributes = result[0]
+			obj_relations = result[1]
 		else:
 			obj_attributes = None
+			obj_relations = None
 
 		# Return sample.
-		return index, img_id, img, question, answer, question_type, spatial_features, obj_features, obj_normalized_bbox, obj_attributes
+		return index, img_id, img, question, answer, question_type, spatial_features, obj_features, obj_normalized_bbox, obj_attributes, obj_relations
 
 	def collate_fn(self, batch):
 		"""
@@ -515,7 +518,7 @@ class GQA(Dataset):
 			batch: list of individual samples to combine
 
 		Returns:
-			Batch of: indices, images_ids, images, questions, answers, question_types, spatial_features, obj_features, obj_normalized_bbox, obj_attributes
+			Batch of: indices, images_ids, images, questions, answers, question_types, spatial_features, obj_features, obj_normalized_bbox, obj_attributes, obj_relations
 
 		"""
 		# Collate indices.
@@ -553,9 +556,11 @@ class GQA(Dataset):
 		# Scene graph
 		if self._load_scene_graph and not self._split.startswith('test'):
 			obj_attributes_batch = [sample[9] for sample in batch]
+			obj_relations_batch = [sample[10] for sample in batch]
 		else:
 			obj_attributes_batch = None
+			obj_relations_batch = None
 
 		# Return collated dict.
 		return indices_batch, img_ids_batch, imgs_batch, questions_batch, answers_batch, question_type_batch, \
-		 spatial_features_batch, obj_features_batch, obj_normalized_bbox_batch, obj_attributes_batch
+		 spatial_features_batch, obj_features_batch, obj_normalized_bbox_batch, obj_attributes_batch, obj_relations_batch
