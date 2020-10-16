@@ -101,27 +101,25 @@ class TopKClassificationAccuracy(Metric):
         else:
             top_k_scores = compute_topk_accuracy(self.correct_counts_k, self.total_counts_k)
 
+
             return top_k_scores
 
 
 def compute_topk_accuracy(correct_counts_k, total_counts_k):
     """
-    Computes the top-k accuracy when provided with a stacked tensor from multiple
-    DDP processes.
+    Computes the top-k accuracy
     Args:
-        correct_counts: Tensor of shape [D, K], D being the number of processes
-            and K being the top-k parameter.
-        total_counts: Tensor of shape [D, K], D being the number of processes
-            and K being the top-k parameter.
+        correct_counts: Tensor of shape [K], K being the top-k parameter.
+        total_counts: Tensor of shape [K], and K being the top-k parameter.
     Returns:
         A list of length `K`, such that k-th index corresponds to top-k accuracy
         over all distributed processes.
     """
     top_k_scores = []
 
-    for ki in range(correct_counts_k.shape[-1]):
+    for ki in range(len(correct_counts_k)):
         correct_count = correct_counts_k[ki].item()
         total_count = total_counts_k[ki].item()
         top_k_scores.append(correct_count / float(total_count))
 
-        return top_k_scores
+    return top_k_scores
