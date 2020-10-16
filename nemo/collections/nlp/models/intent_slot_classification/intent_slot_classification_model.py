@@ -87,10 +87,16 @@ class IntentSlotClassificationModel(NLPModel):
 
         # setup to track metrics
         self.intent_classification_report = ClassificationReport(
-            self.data_desc.num_intents, self.data_desc.intents_label_ids, dist_sync_on_step=True
+            num_classes=self.data_desc.num_intents,
+            label_ids=self.data_desc.intents_label_ids,
+            dist_sync_on_step=True,
+            mode='micro',
         )
         self.slot_classification_report = ClassificationReport(
-            self.data_desc.num_slots, self.data_desc.slots_label_ids, dist_sync_on_step=True
+            num_classes=self.data_desc.num_slots,
+            label_ids=self.data_desc.slots_label_ids,
+            dist_sync_on_step=True,
+            mode='micro',
         )
 
         # Optimizer setup needs to happen after all model weights are ready
@@ -145,21 +151,21 @@ class IntentSlotClassificationModel(NLPModel):
         # calculate accuracy metrics for intents and slot reporting
         # intents
         preds = torch.argmax(intent_logits, axis=-1)
-        intent_tp, intent_fp, intent_fn = self.intent_classification_report(preds, intent_labels)
+        self.intent_classification_report(preds, intent_labels)
         # slots
         subtokens_mask = subtokens_mask > 0.5
         preds = torch.argmax(slot_logits, axis=-1)[subtokens_mask]
         slot_labels = slot_labels[subtokens_mask]
-        slot_tp, slot_fp, slot_fn = self.slot_classification_report(preds, slot_labels)
+        self.slot_classification_report(preds, slot_labels)
 
         tensorboard_logs = {
             'val_loss': val_loss,
-            'intent_tp': intent_tp,
-            'intent_fn': intent_fn,
-            'intent_fp': intent_fp,
-            'slot_tp': slot_tp,
-            'slot_fn': slot_fn,
-            'slot_fp': slot_fp,
+            'intent_tp': self.intent_classification_report.tp,
+            'intent_fn': self.intent_classification_report.fn,
+            'intent_fp': self.intent_classification_report.fp,
+            'slot_tp': self.slot_classification_report.tp,
+            'slot_fn': self.slot_classification_report.fn,
+            'slot_fp': self.slot_classification_report.fp,
         }
 
         return {'val_loss': val_loss, 'log': tensorboard_logs}
@@ -172,19 +178,9 @@ class IntentSlotClassificationModel(NLPModel):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report (separately for intents and slots)
-        tp = torch.sum(torch.stack([x['log']['intent_tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log']['intent_fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log']['intent_fp'] for x in outputs]), 0)
-        intent_precision, intent_recall, intent_f1 = self.intent_classification_report.get_precision_recall_f1(
-            tp, fn, fp, mode='micro'
-        )
+        intent_precision, intent_recall, intent_f1 = self.intent_classification_report.compute()
 
-        tp = torch.sum(torch.stack([x['log']['slot_tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log']['slot_fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log']['slot_fp'] for x in outputs]), 0)
-        slot_precision, slot_recall, slot_f1 = self.slot_classification_report.get_precision_recall_f1(
-            tp, fn, fp, mode='micro'
-        )
+        slot_precision, slot_recall, slot_f1 = self.slot_classification_report.compute()
 
         tensorboard_logs = {
             'val_loss': avg_loss,

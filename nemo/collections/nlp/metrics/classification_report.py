@@ -111,13 +111,13 @@ class ClassificationReport(Metric):
         f1 = torch.true_divide(2 * precision * recall, (precision + recall + METRIC_EPS))
 
         report = '\n{:50s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
-        for id in range(self.tp.shape[0]):
-            label = f'label_id: {id}'
-            if self.ids_to_labels and id in self.ids_to_labels:
-                label = f'{self.ids_to_labels[id]} ({label})'
+        for i in range(self.tp.shape[0]):
+            label = f'label_id: {i}'
+            if self.ids_to_labels and i in self.ids_to_labels:
+                label = f'{self.ids_to_labels[i]} ({label})'
 
             report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
-                label, precision[id], recall[id], f1[id], num_examples_per_class[id]
+                label, precision[i], recall[i], f1[i], num_examples_per_class[i]
             )
 
         micro_precision = torch.true_divide(torch.sum(self.tp) * 100, torch.sum(self.tp + self.fp) + METRIC_EPS)

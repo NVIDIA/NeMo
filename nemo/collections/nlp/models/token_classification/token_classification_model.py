@@ -80,6 +80,7 @@ class TokenClassificationModel(NLPModel):
 
         self.loss = self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
         # setup to track metrics
+        # TODO: What is the current mode?
         self.classification_report = ClassificationReport(len(self._cfg.label_ids), label_ids=self._cfg.label_ids)
 
     def update_data_dir(self, data_dir: str) -> None:
@@ -294,7 +295,7 @@ class TokenClassificationModel(NLPModel):
             self.to(device)
             infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
 
-            for i, batch in enumerate(infer_datalayer):
+            for batch in infer_datalayer:
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
 
                 logits = self.forward(
