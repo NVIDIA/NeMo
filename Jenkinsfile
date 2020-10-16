@@ -791,7 +791,8 @@ pipeline {
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=12 \
-            model.validation_ds.dataloader_params.batch_size=12'
+            model.validation_ds.dataloader_params.batch_size=12 \
+            ~trainer.check_val_every_n_epoch'
           }
         }
         stage('WaveGlow') {
@@ -804,7 +805,8 @@ pipeline {
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.batch_size=4'
+            model.validation_ds.dataloader_params.batch_size=4 \
+            ~trainer.check_val_every_n_epoch'
           }
         }
       }
@@ -829,7 +831,8 @@ pipeline {
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.batch_size=4'
+            model.validation_ds.dataloader_params.batch_size=4 \
+            ~trainer.check_val_every_n_epoch'
           }
         }
         stage('GlowTTS') {
@@ -842,7 +845,8 @@ pipeline {
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.batch_size=4 \
-            model.validation_ds.batch_size=4'
+            model.validation_ds.batch_size=4 \
+            ~trainer.check_val_every_n_epoch'
           }
         }
       }
