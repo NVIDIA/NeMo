@@ -192,7 +192,7 @@ class MBMelGanModel(ModelPT):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
     def training_epoch_end(self, outputs):
-        if self.global_step == 15000:
+        if self.global_step >= 15000:
             self.train_disc = True
         return super().training_epoch_end(outputs)
 
