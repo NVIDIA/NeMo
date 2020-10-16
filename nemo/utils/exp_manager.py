@@ -552,7 +552,7 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
         filepath=Path(log_dir / 'checkpoints' / '{val_loss:.2f}-{epoch}'),
         # save_top_k=3,
         # monitor='val_loss',
-        save_last=True,
+        # save_last=True,
         prefix=name + "--",
     )
     trainer.callback_connector.init_default_checkpoint_callback(checkpoint_callback)
