@@ -657,6 +657,7 @@ pipeline {
               sh 'ls -lha examples/nlp/language_modeling'
             }
         }
+        // TODO: Need to fix exp checkpoint callback and update the callback parameter
         stage('L2: Pretraining BERT from Preprocessed') {
             steps {
               sh 'cd examples/nlp/language_modeling && \
@@ -674,6 +675,7 @@ pipeline {
               model.optim.weight_decay=0.01 \
               model.optim.sched.warmup_ratio=0.01 \
               exp_manager.exp_dir=PretrainingBERTFromPreprocessed \
+              exp_manager.create_checkpoint_callback=False \
               '
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed'
               sh 'ls -lha examples/nlp/language_modeling'
