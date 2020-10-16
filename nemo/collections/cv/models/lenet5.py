@@ -14,7 +14,6 @@
 
 from typing import Dict, Optional
 
-import torchvision.transforms as transforms
 from omegaconf import OmegaConf
 
 from nemo.collections.cv.losses import NLLLoss
