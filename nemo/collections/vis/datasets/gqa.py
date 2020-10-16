@@ -242,7 +242,7 @@ class GQA(Dataset):
 			if self._load_object_features:
 				object_features_dirs = join(self._root, "objects")
 				self._object_features_loader = ObjectsFeatureLoader(object_features_dirs)
-		if self._load_scene_graph:
+		if self._load_scene_graph and not self._split.startswith('test'):
 			if self._split == 'train':
 				scene_graph_dirs = join(self._root, "sceneGraphs", 'train_sceneGraphs.json')
 				self._scene_graph_loader = SceneGraphFeatureLoader(scene_graph_dirs, vocab_object_file, vocab_attributes_file, num_objects)
@@ -252,7 +252,7 @@ class GQA(Dataset):
 
 		# Training split folder and file with data question.
 		if self._split == 'train':
-			if self._split == 'balanced':
+			if self._dataset_type == 'balanced':
 				data_file = join(self._root, "questions", 'train_balanced_questions.json')
 			else:
 				raise ValueError("Dataset type `{}` not supported yet".format(self._dataset_type))
@@ -271,7 +271,7 @@ class GQA(Dataset):
 		# Test-dev split folder and file with data question.
 		elif self._split == 'test-dev':
 			if self._dataset_type == 'balanced':
-				data_file = join(self.root, "questions", 'testdev_balanced_questions.json')
+				data_file = join(self._root, "questions", 'testdev_balanced_questions.json')
 			else:
 				raise ValueError("Dataset type `{}` not supported yet".format(self._dataset_type))
 		else:
@@ -304,7 +304,7 @@ class GQA(Dataset):
 			logging.info("Cannot find question files")
 			return False
 		# In case we want to return ground truth scene graph
-		if self._load_scene_graph:
+		if self._load_scene_graph and not self._split.startswith('test'):
 			scenefile = join(self._root, "sceneGraphs", self.zip_names["scene"])
 			if not exists(scenefile):
 				logging.info("Cannot find scene graph files")
@@ -320,7 +320,6 @@ class GQA(Dataset):
 			# object features (from Faster-RNN)
 			if self._load_object_features:
 				objectfile = join(self._root, self.features_names["object"])
-				print('work here 4')
 				if not exists(objectfile):
 					logging.info("Cannot find object features files")
 					return False
@@ -349,7 +348,7 @@ class GQA(Dataset):
 		download_and_extract_archive(questionurl, download_root=questiondir, filename=questionfile)
 
 		# In case we want to return scene graph
-		if self._load_scene_graph:
+		if self._load_scene_graph and not self._split.startswith('test'):
 			scenefile = self.zip_names["scene"]
 			sceneurl = self.download_url_prefix + self.zip_names["scene"]
 			scenedir = join(self._root, "sceneGraphs")
@@ -498,7 +497,7 @@ class GQA(Dataset):
 				obj_features = None
 				obj_normalized_bbox = None
 		# Scene graph
-		if self._load_scene_graph:
+		if self._load_scene_graph and not self._split.startswith('test'):
 			result = self._scene_graph_loader.load_feature_normalized_bbox(img_id)
 			# We extract object names, attributes from scene graph
 			obj_attributes = result[0]
@@ -552,7 +551,7 @@ class GQA(Dataset):
 				obj_features_batch = None
 				obj_normalized_bbox_batch = None
 		# Scene graph
-		if self._load_scene_graph:
+		if self._load_scene_graph and not self._split.startswith('test'):
 			obj_attributes_batch = [sample[9] for sample in batch]
 		else:
 			obj_attributes_batch = None
