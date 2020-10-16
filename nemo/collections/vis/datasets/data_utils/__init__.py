@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.vis.datasets.data_utils.feature_loader import (
-    SpatialFeatureLoader,
     ObjectsFeatureLoader,
     SceneGraphFeatureLoader,
+    SpatialFeatureLoader,
     VocabDict,
 )
