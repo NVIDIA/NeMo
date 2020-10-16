@@ -20,10 +20,7 @@ import numpy as np
 import os.path as osp
 from glob import glob
 
-import re
-
-_SENTENCE_SPLIT_REGEX = re.compile(r'(\W+)')
-
+# Feature loader
 class SpatialFeatureLoader:
     def __init__(self, feature_dir):
         info_file = osp.join(feature_dir, 'gqa_spatial_info.json')
@@ -92,16 +89,17 @@ class ObjectsFeatureLoader:
 
 
 class SceneGraphFeatureLoader:
-    def __init__(self, scene_graph_file, vocab_name_file, vocab_attr_file, max_num):
+    def __init__(self, scene_graph_file, vocab_name_file, vocab_attr_file,
+                 vocab_relation_file, max_num):
         print('Loading scene graph from %s' % scene_graph_file)
         with open(scene_graph_file) as f:
             self.SGs = json.load(f)
-        print(len(self.SGs))
-        print('Done')
         self.name_dict = VocabDict(vocab_name_file)
         self.attr_dict = VocabDict(vocab_attr_file)
+        self.rel_dict = VocabDict(vocab_relation_file)
         self.num_name = self.name_dict.num_vocab
         self.num_attr = self.attr_dict.num_vocab
+        self.num_rel = self.rel_dict.num_vocab
         self.max_num = max_num
 
     def load_feature_normalized_bbox(self, imageId):
@@ -113,10 +111,19 @@ class SceneGraphFeatureLoader:
         # object names and attributes
         feature = np.zeros(
             (self.max_num, self.num_name+self.num_attr), np.float32)
+        # relations between objects
+        rel =np.zeros(
+            (self.max_num, self.num_name, self.num_rel), np.float32)
 
         names = feature[:, :self.num_name]
         attrs = feature[:, self.num_name:]
         bbox = np.zeros((self.max_num, 4), np.float32)
+
+        # for populating relations
+        obj_id_2_name = {}
+        for idx, objId in enumerate(sorted(sg['objects'])):
+            obj = sg['objects'][objId]
+            obj_id_2_name[objId] = obj['name']
 
         objIds = sorted(sg['objects'])[:self.max_num]
         for idx, objId in enumerate(objIds):
@@ -126,6 +133,12 @@ class SceneGraphFeatureLoader:
             # attributes of the objects
             for a in obj['attributes']:
                 attrs[idx, self.attr_dict.word2idx(a)] = 1.
+            # relation between objects
+            for relation in obj['relations']:
+                obj_name = obj_id_2_name[relation['object']]
+                obj_idx = self.name_dict.word2idx(obj_name)
+                rel_idx = self.rel_dict.word2idx(relation['name'])
+                rel[idx, obj_idx, rel_idx] = 1.
         # xywh -> xyxy
         bbox[:, 2] += bbox[:, 0] - 1
         bbox[:, 3] += bbox[:, 1] - 1
@@ -135,7 +148,7 @@ class SceneGraphFeatureLoader:
         normalized_bbox = bbox / [w, h, w, h]
         valid = get_valid(len(bbox), num)
 
-        return feature, normalized_bbox, valid
+        return feature, rel, normalized_bbox, valid
 
 
 def get_valid(total_num, valid_num):
