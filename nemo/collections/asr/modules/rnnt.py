@@ -26,7 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 
@@ -39,6 +39,7 @@ from nemo.core.neural_types import (
     LabelsType,
     LengthsType,
     LogprobsType,
+    LossType,
     NeuralType,
 )
 from nemo.utils import logging
@@ -509,6 +510,37 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
 
             Warning: This will make the forward-backward pass much slower than normal.
             It also might not fix the OOM if the GPU simply does not have enough memory to compute the joint.
+
+        fuse_loss_wer: Optional bool, set to False by default.
+            NOTE: This is an experimental feature that attempts to trade of compute time for memory preservation.
+            There may be undetermined effects to convergence behaviour.
+
+            Fuses the joint forward, loss forward and
+            wer forward steps. In doing so, it trades of speed for memory conservation by creating sub-batches
+            of the provided batch of inputs, and performs Joint forward, loss forward and wer forward (optional),
+            all on sub-batches, then collates results to be exactly equal to results from the entire batch.
+
+            When this flag is set, prior to calling forward, the fields `loss` and `wer` (either one) *must*
+            be set using the `RNNTJoint.set_loss()` or `RNNTJoint.set_wer()` methods.
+
+            Further, when this flag is set, the following argument `fused_batch_size` *must* be provided
+            as a non negative integer. This value refers to the size of the sub-batch.
+
+            When the flag is set, the input and output signature of `forward()` of this method changes.
+            Input - in addition to `encoder_outputs` (mandatory argument), the following arguments can be provided.
+                - decoder_outputs (optional). Required if loss computation is required.
+                - encoder_lengths (required)
+                - transcripts (optional). Required for wer calculation.
+                - transcript_lengths (optional). Required for wer calculation.
+                - compute_wer (bool, default false). Whether to compute WER or not for the fused batch.
+
+            Output - instead of the usual `joint` log prob tensor, the following results can be returned.
+                - loss (optional). Returned if decoder_outputs, transcripts and transript_lengths are not None.
+                - wer_numerator + wer_denominator (optional). Returned if transcripts, transcripts_lengths are provided
+                    and compute_wer is set.
+
+        fused_batch_size: Optional int, required if `fuse_loss_wer` flag is set. Determines the size of the
+            sub-batches. Should be any value below the actual batch size per GPU.
     """
 
     @property
@@ -518,15 +550,27 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         return {
             "encoder_outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "decoder_outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
+            "encoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "transcripts": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "transcript_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "compute_wer": NeuralType(optional=True),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output ports.
         """
-        return {
-            "outputs": NeuralType(('B', 'T', 'D', 'D'), LogprobsType()),
-        }
+        if not self._fuse_loss_wer:
+            return {
+                "outputs": NeuralType(('B', 'T', 'D', 'D'), LogprobsType()),
+            }
+
+        else:
+            return {
+                "loss": NeuralType(elements_type=LossType(), optional=True),
+                "wer_numer": NeuralType(elements_type=ElementType(), optional=True),
+                "wer_denom": NeuralType(elements_type=ElementType(), optional=True),
+            }
 
     def __init__(
         self,
@@ -535,6 +579,8 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         vocabulary: Optional[List] = None,
         log_softmax: Optional[bool] = None,
         preserve_memory: bool = False,
+        fuse_loss_wer: bool = False,
+        fused_batch_size: Optional[int] = None,
     ):
         super().__init__()
 
@@ -542,6 +588,22 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
 
         self._vocab_size = num_classes
         self._num_classes = num_classes + 1  # add 1 for blank symbol
+
+        self._fuse_loss_wer = fuse_loss_wer
+        self._fused_batch_size = fused_batch_size
+
+        if fuse_loss_wer and (fused_batch_size is None):
+            raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+
+        if fuse_loss_wer:
+            logging.warning(
+                "\nFused joint step is an experimental technique. Please be aware that it "
+                "may have unintended side effects such as increased word error rate or difficulty in "
+                "reducing loss!\n"
+            )
+
+        self._loss = None
+        self._wer = None
 
         # Log softmax should be applied explicitly only for CPU
         self.log_softmax = log_softmax
@@ -573,14 +635,167 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         )
 
     @typecheck()
-    def forward(self, encoder_outputs: torch.Tensor, decoder_outputs: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        encoder_outputs: torch.Tensor,
+        decoder_outputs: Optional[torch.Tensor],
+        encoder_lengths: Optional[torch.Tensor] = None,
+        transcripts: Optional[torch.Tensor] = None,
+        transcript_lengths: Optional[torch.Tensor] = None,
+        compute_wer: bool = False,
+    ) -> Union[torch.Tensor, List[torch.Tensor]]:
         # encoder = (B, D, T)
-        # decoder = (B, D, U)
+        # decoder = (B, D, U) if passed, else None
         encoder_outputs = encoder_outputs.transpose(1, 2)  # (B, T, D)
-        decoder_outputs = decoder_outputs.transpose(1, 2)  # (B, U, D)
 
-        out = self.joint(encoder_outputs, decoder_outputs)  # [B, T, U, V + 1]
-        return out
+        if decoder_outputs is not None:
+            decoder_outputs = decoder_outputs.transpose(1, 2)  # (B, U, D)
+
+        if not self._fuse_loss_wer:
+            if decoder_outputs is None:
+                raise ValueError(
+                    "decoder_outputs passed is None, and `fuse_loss_wer` is not set. "
+                    "decoder_outputs can only be None for fused step!"
+                )
+
+            out = self.joint(encoder_outputs, decoder_outputs)  # [B, T, U, V + 1]
+            return out
+
+        else:
+            # At least the loss module must be supplied during fused joint
+            if self._loss is None and self._wer is None:
+                raise ValueError(
+                    "`fuse_loss_wer` flag is set, but `loss_module` and `wer_module` modules were not provided! "
+                    "At least `loss_module` must be set"
+                )
+
+            # If fused joint step is required, fused batch size is required as well
+            if self._fused_batch_size is None:
+                raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+
+            # When using fused joint step, both encoder and transcript lengths must be provided
+            if (encoder_lengths is None) or (transcript_lengths is None):
+                raise ValueError(
+                    "`fuse_loss_wer` is set, therefore encoder and target lengths must be provided as well!"
+                )
+
+            losses = []
+            wer_numer_list = []
+            wer_denom_list = []
+            batch_size = int(encoder_outputs.size(0))  # actual batch size
+
+            # Iterate over batch using fused_batch_size steps
+            for batch_idx in range(0, batch_size, self._fused_batch_size):
+                begin = batch_idx
+                end = min(begin + self._fused_batch_size, batch_size)
+
+                # Extract the sub batch inputs
+                sub_enc = encoder_outputs[begin:end, ...]
+                sub_transcripts = transcripts[begin:end, ...]
+
+                sub_enc_lens = encoder_lengths[begin:end]
+                sub_transcript_lens = transcript_lengths[begin:end]
+
+                # Sub transcripts does not need the full padding of the entire batch
+                # Therefore reduce the decoder time steps to match
+                max_sub_enc_length = sub_enc_lens.max()
+                max_sub_transcript_length = sub_transcript_lens.max()
+
+                if decoder_outputs is not None:
+                    # Reduce encoder length to preserve computation
+                    # Encoder: [sub-batch, T, D] -> [sub-batch, T', D]; T' < T
+                    if sub_enc.shape[1] != max_sub_enc_length:
+                        sub_enc = sub_enc.narrow(dim=1, start=0, length=max_sub_enc_length).contiguous()
+
+                    sub_dec = decoder_outputs[begin:end, ...]  # [sub-batch, U, D]
+
+                    # Reduce decoder length to preserve computation
+                    # Decoder: [sub-batch, U, D] -> [sub-batch, U', D]; U' < U
+                    if sub_dec.shape[1] != max_sub_transcript_length + 1:
+                        sub_dec = sub_dec.narrow(dim=1, start=0, length=max_sub_transcript_length + 1).contiguous()
+
+                    # Perform joint => [sub-batch, T', U', V + 1]
+                    sub_joint = self.joint(sub_enc, sub_dec)
+
+                    # Compute sub batch loss
+                    # preserve loss reduction type
+                    loss_reduction = self.loss.reduction
+
+                    # override loss reduction to sum
+                    self.loss.reduction = None
+
+                    # compute and preserve loss
+                    if self._fused_batch_size == 1:
+                        loss_sum = self.loss(
+                            log_probs=sub_joint,
+                            targets=sub_transcripts,
+                            input_lengths=sub_enc_lens,
+                            target_lengths=sub_transcript_lens,
+                        )
+                        losses.append(loss_sum)
+
+                    else:
+                        # Loss must be calculated per sample when using sub-batches to avoid
+                        # randomized sub-batch padding from interacting with the loss function.
+                        for idx in range(int(sub_joint.shape[0])):
+                            # Extract joint of individual sample, sliced to appropriate size.
+                            sample_joint = sub_joint[
+                                idx : idx + 1, : sub_enc_lens[idx], : sub_transcript_lens[idx] + 1, :
+                            ].contiguous()
+
+                            loss_val = self.loss(
+                                log_probs=sample_joint,
+                                targets=sub_transcripts[idx : idx + 1, : sub_transcript_lens[idx] + 1],
+                                input_lengths=sub_enc_lens[idx : idx + 1],
+                                target_lengths=sub_transcript_lens[idx : idx + 1],
+                            )
+                            losses.append(loss_val)
+
+                    # reset loss reduction type
+                    self.loss.reduction = loss_reduction
+
+                else:
+                    losses = None
+
+                # Compute WER for sub batch
+                if compute_wer:
+                    sub_enc = sub_enc.transpose(1, 2)  # [B, T, D] -> [B, D, T]
+
+                    original_log_prediction = self.wer.log_prediction
+                    if batch_idx == 0:
+                        self.wer.log_prediction = True
+                    else:
+                        self.wer.log_prediction = False
+
+                    # Compute the wer (with logging for just 1st sub-batch)
+                    wer_num, wer_denom = self.wer(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
+                    wer_numer_list.append(wer_num)
+                    wer_denom_list.append(wer_denom)
+
+                    # Reset logging default
+                    self.wer.log_prediction = original_log_prediction
+
+                del sub_enc, sub_dec, sub_transcripts
+
+            # Collect sub batch loss results
+            if losses is not None:
+                loss_value = torch.cat(losses, 0)
+                loss_value = loss_value.mean()  # global batch size average
+            else:
+                loss_value = None
+
+            # Collect sub batch wer results
+            if compute_wer:
+                wer_num = torch.tensor(wer_numer_list, device=encoder_outputs.device, dtype=wer_numer_list[0].dtype)
+                wer_denom = torch.tensor(wer_denom_list, device=encoder_outputs.device, dtype=wer_denom_list[0].dtype)
+
+                wer_num = wer_num.sum()  # global sum of correct words/chars
+                wer_denom = wer_denom.sum()  # global sum of all words/chars
+            else:
+                wer_num = None
+                wer_denom = None
+
+            return loss_value, wer_num, wer_denom
 
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """
@@ -676,3 +891,41 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
     @property
     def num_classes_with_blank(self):
         return self._num_classes
+
+    @property
+    def loss(self):
+        return self._loss
+
+    def set_loss(self, loss):
+        if not self._fuse_loss_wer:
+            raise ValueError("Attempting to set loss module even though `fuse_loss_wer` is not set!")
+
+        self._loss = loss
+
+    @property
+    def wer(self):
+        return self._wer
+
+    def set_wer(self, wer):
+        if not self._fuse_loss_wer:
+            raise ValueError("Attempting to set WER module even though `fuse_loss_wer` is not set!")
+
+        self._wer = wer
+
+    @property
+    def fuse_loss_wer(self):
+        return self._fuse_loss_wer
+
+    def set_fuse_loss_wer(self, fuse_loss_wer):
+        self._fuse_loss_wer = fuse_loss_wer
+
+        if self._fuse_loss_wer is False:
+            self._loss = None
+            self._wer = None
+
+    @property
+    def fused_batch_size(self):
+        return self._fuse_loss_wer
+
+    def set_fused_batch_size(self, fused_batch_size):
+        self._fused_batch_size = fused_batch_size

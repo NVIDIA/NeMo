@@ -106,6 +106,11 @@ class EncDecRNNTModel(ASRModel):
         else:
             self.compute_eval_loss = False
 
+        # Setup fused Joint step if flag is set
+        if self.joint.fuse_loss_wer:
+            self.joint.set_loss(self.loss)
+            self.joint.set_wer(self.wer)
+
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         """
@@ -210,6 +215,11 @@ class EncDecRNNTModel(ASRModel):
                 use_cer=self.wer.use_cer,
                 log_prediction=self.wer.log_prediction,
             )
+
+            # Setup fused Joint step
+            if self.joint.fuse_loss_wer:
+                self.joint.set_loss(self.loss)
+                self.joint.set_wer(self.wer)
 
             # Update config
             with open_dict(self.cfg.joint):
@@ -372,22 +382,45 @@ class EncDecRNNTModel(ASRModel):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         encoded, encoded_len = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
-        joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
-
-        loss_value = self.loss(
-            log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
-        )
-
-        tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
         if hasattr(self, '_trainer') and self._trainer is not None:
             row_log_interval = self._trainer.row_log_interval
         else:
             row_log_interval = 1
 
-        if (batch_nb + 1) % row_log_interval == 0:
-            wer_num, wer_denom = self.wer(encoded, encoded_len, transcript, transcript_len)
-            tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
+        if not self.joint.fuse_loss_wer:
+            joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
+            loss_value = self.loss(
+                log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
+            )
+
+            tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+
+            if (batch_nb + 1) % row_log_interval == 0:
+                wer_num, wer_denom = self.wer(encoded, encoded_len, transcript, transcript_len)
+                tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
+
+        else:
+            # Fused step
+            if (batch_nb + 1) % row_log_interval == 0:
+                compute_wer = True
+            else:
+                compute_wer = False
+
+            # Fused joint step
+            loss_value, wer_num, wer_denom = self.joint(
+                encoder_outputs=encoded,
+                decoder_outputs=decoder,
+                encoder_lengths=encoded_len,
+                transcripts=transcript,
+                transcript_lengths=transcript_len,
+                compute_wer=compute_wer,
+            )
+
+            tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+
+            if compute_wer:
+                tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -397,19 +430,46 @@ class EncDecRNNTModel(ASRModel):
 
         tensorboard_logs = {}
 
-        if self.compute_eval_loss:
-            decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
-            joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
+        if not self.joint.fuse_loss_wer:
+            if self.compute_eval_loss:
+                decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
+                joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
 
-            loss_value = self.loss(
-                log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
+                loss_value = self.loss(
+                    log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
+                )
+
+                tensorboard_logs['val_loss'] = loss_value
+
+            wer_num, wer_denom = self.wer(encoded, encoded_len, transcript, transcript_len)
+            tensorboard_logs['val_wer_num'] = wer_num
+            tensorboard_logs['val_wer_denom'] = wer_denom
+
+        else:
+            compute_wer = True
+
+            if self.compute_eval_loss:
+                decoded, target_len = self.decoder(targets=transcript, target_length=transcript_len)
+            else:
+                decoded = None
+                target_len = transcript_len
+
+            # Fused joint step
+            loss_value, wer_num, wer_denom = self.joint(
+                encoder_outputs=encoded,
+                decoder_outputs=decoded,
+                encoder_lengths=encoded_len,
+                transcripts=transcript,
+                transcript_lengths=target_len,
+                compute_wer=compute_wer,
             )
 
-            tensorboard_logs['val_loss'] = loss_value
+            if loss_value is not None:
+                tensorboard_logs['val_loss'] = loss_value
 
-        wer_num, wer_denom = self.wer(encoded, encoded_len, transcript, transcript_len)
-        tensorboard_logs['val_wer_num'] = wer_num
-        tensorboard_logs['val_wer_denom'] = wer_denom
+            tensorboard_logs['val_wer_num'] = wer_num
+            tensorboard_logs['val_wer_denom'] = wer_denom
+
         return tensorboard_logs
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):

@@ -60,7 +60,7 @@ class RNNTLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, reduction='mean'):
         """
         RNN-T Loss function based on https://github.com/HawkAaron/warp-transducer.
 
@@ -82,7 +82,11 @@ class RNNTLoss(Loss):
                 "container that supports RNN-T loss."
             )
 
+        if reduction not in ['mean', 'sum']:
+            raise ValueError("`reduction` must be one of [mean, sum]")
+
         self._blank = num_classes
+        self.reduction = reduction
         self._loss = warprnnt.RNNTLoss(blank=self._blank, reduction=None)
 
     @typecheck()
@@ -104,12 +108,16 @@ class RNNTLoss(Loss):
         # Due to padding and subsequent downsampling, it may be possible that
         # max sequence length computed does not match the actual max sequence length
         # of the log_probs tensor, therefore we increment the input_lengths by the difference.
-        # This difference is in the range [0, 1] only.
+        # This difference is generally small.
         if log_probs.shape[1] != max_logit_len:
-            input_lengths += abs(log_probs.shape[1] - max_logit_len)
+            log_probs = log_probs.narrow(dim=1, start=0, length=max_logit_len)
 
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
-        loss = torch.mean(loss)
+
+        if self.reduction == 'mean':
+            loss = torch.mean(loss)
+        elif self.reduction == 'sum':
+            loss = torch.sum(loss)
 
         # del new variables that may have been created
         del (

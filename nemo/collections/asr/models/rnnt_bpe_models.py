@@ -98,6 +98,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
 
         self.wer = RNNTBPEWER(decoding=self.decoding, batch_dim_index=0, use_cer=False)
 
+        # Setup fused Joint step if flag is set
+        if self.joint.fuse_loss_wer:
+            self.joint.set_loss(self.loss)
+            self.joint.set_wer(self.wer)
+
     def _setup_tokenizer(self):
         if self.tokenizer_type not in ['bpe', 'wpe']:
             raise ValueError(
@@ -219,6 +224,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
             use_cer=self.wer.use_cer,
             log_prediction=self.wer.log_prediction,
         )
+
+        # Setup fused Joint step
+        if self.joint.fuse_loss_wer:
+            self.joint.set_loss(self.loss)
+            self.joint.set_wer(self.wer)
 
         # Update config
         with open_dict(self.cfg.joint):
