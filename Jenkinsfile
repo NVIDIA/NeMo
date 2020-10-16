@@ -46,7 +46,7 @@ pipeline {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
       }
     }
-    
+
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
@@ -449,7 +449,7 @@ pipeline {
         }
       }
     }
-    // Adding this back after upgrade
+    // TODO: Adding this back after upgrade
     // stage('L2: Text Classification with Model Parallel Size 2 Megatron BERT') {
     //   when {
     //     anyOf{
@@ -480,7 +480,8 @@ pipeline {
     //   }
     // }
 
-    // Pretrained models need to be retrained?
+    // TODO: Pytorch Lightning has some issues with restoring Metric classes, asked on the lightning slack if they can
+    // provide a simple solution.
     // stage('L2: Parallel NLP Examples 2') {
     //   when {
     //     anyOf{
