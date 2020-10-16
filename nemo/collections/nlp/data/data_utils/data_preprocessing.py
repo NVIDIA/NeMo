@@ -50,7 +50,6 @@ __all__ = [
     'dataset_to_ids',
     'get_freq_weights',
     'fill_class_weights',
-    'calc_class_weights',
     'normalize_answer',
     'get_labels_to_labels_id_mapping',
     'get_vocab',
@@ -418,11 +417,6 @@ def fill_class_weights(weights, max_id=-1):
         if i in weights:
             all_weights[i] = weights[i]
     return all_weights
-
-
-def calc_class_weights(label_freq, max_id=-1):
-    weights_dict = get_freq_weights(label_freq)
-    return fill_class_weights(weights_dict, max_id=max_id)
 
 
 def get_vocab(file):
