@@ -24,12 +24,10 @@ from typing import Any, Optional
 
 import cv2
 import numpy as np
-import torch
 from hydra.core.config_store import ConfigStore
 from hydra.types import ObjectConf
 from PIL import Image
 from torchvision.datasets.utils import download_and_extract_archive, download_url
-from torchvision.io import read_video
 from torchvision.transforms import transforms
 
 from nemo.core.classes import Dataset

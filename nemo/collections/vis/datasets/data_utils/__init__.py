@@ -12,4 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vis.datasets.data_utils.feature_loader import *
+from nemo.collections.vis.datasets.data_utils.feature_loader import (
+    SpatialFeatureLoader,
+    ObjectsFeatureLoader,
+    SceneGraphFeatureLoader,
+    VocabDict,
+)

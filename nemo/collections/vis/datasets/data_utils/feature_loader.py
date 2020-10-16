@@ -21,6 +21,13 @@ from glob import glob
 import h5py
 import numpy as np
 
+__all__ = [
+    "SpatialFeatureLoader",
+    "ObjectsFeatureLoader",
+    "SceneGraphFeatureLoader",
+    "VocabDict",
+]
+
 
 # Feature loader
 class SpatialFeatureLoader:

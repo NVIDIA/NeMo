@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import pytorch_lightning as ptl
-from omegaconf import MISSING, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo.collections.cv.datasets.configs import CIFAR10Config
 from nemo.collections.cv.models import ResNet50

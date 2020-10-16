@@ -19,7 +19,6 @@ from omegaconf import OmegaConf
 from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.models.model import Model
 from nemo.collections.cv.modules import LeNet5 as LeNet5Module
-from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import NeuralType
 
 

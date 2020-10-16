@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Optional
 
 from hydra.core.config_store import ConfigStore
 from hydra.types import ObjectConf
