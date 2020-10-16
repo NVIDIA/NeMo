@@ -108,6 +108,7 @@ class TopKClassificationAccuracy(Metric):
 
             return top_k_scores
 
+
 def compute_topk_accuracy(correct_counts_k, total_counts_k):
     """
     Computes the top-k accuracy when provided with a stacked tensor from multiple
