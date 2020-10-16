@@ -15,9 +15,8 @@
 from typing import Any, Dict, Optional, Union
 
 import hydra
-from omegaconf import OmegaConf, DictConfig
-
 import torchvision.transforms as transforms
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.core.classes import ModelPT
 from nemo.core.config import DataLoaderConfig

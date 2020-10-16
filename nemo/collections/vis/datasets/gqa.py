@@ -15,31 +15,27 @@
 __author__ = "Anh Tuan Nguyen"
 
 
-from os import makedirs
-from os.path import expanduser, join, exists
-
 import json
-from PIL import Image
+from dataclasses import dataclass
 from glob import glob
+from os import makedirs
+from os.path import exists, expanduser, join
+from typing import Any, Optional
 
 import torch
-from torchvision.transforms import transforms
-from torchvision.datasets.utils import download_and_extract_archive, check_md5
-
-from typing import Any, Optional
-from dataclasses import dataclass
-
-from hydra.types import ObjectConf
 from hydra.core.config_store import ConfigStore
-
-from nemo.utils import logging
-from nemo.core.classes import Dataset
+from hydra.types import ObjectConf
+from PIL import Image
+from torchvision.datasets.utils import check_md5, download_and_extract_archive
+from torchvision.transforms import transforms
 
 from nemo.collections.vis.datasets.data_utils import (
-    SpatialFeatureLoader,
     ObjectsFeatureLoader,
     SceneGraphFeatureLoader,
+    SpatialFeatureLoader,
 )
+from nemo.core.classes import Dataset
+from nemo.utils import logging
 
 # Create the config store instance.
 cs = ConfigStore.instance()
@@ -591,4 +587,3 @@ class GQA(Dataset):
             obj_attributes_batch,
             obj_relations_batch,
         )
-

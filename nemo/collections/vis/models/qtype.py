@@ -12,21 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional, Union, List
-from dataclasses import dataclass, field, MISSING
+from dataclasses import MISSING, dataclass, field
+from typing import Any, Dict, List, Optional, Union
 
 import hydra
+import torch
 from omegaconf import OmegaConf
 
-import torch
-
-from nemo.collections.cv.models.model import Model
 from nemo.collections.cv.losses import NLLLoss
+from nemo.collections.cv.models.model import Model
+from nemo.collections.vis.modules import SentenceEmbeddings, SentenceEmbeddingsConfig
+from nemo.collections.vis.transforms import Compose
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
-
-from nemo.collections.vis.transforms import Compose
-from nemo.collections.vis.modules import SentenceEmbeddings, SentenceEmbeddingsConfig
 
 
 @dataclass

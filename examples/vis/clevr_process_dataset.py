@@ -12,21 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List
 from dataclasses import dataclass, field
-
-from omegaconf import OmegaConf, MISSING
-import hydra
-
 from os.path import expanduser
+from typing import Any, List
 
-from nemo.utils import logging
-
-from nemo.core.config import hydra_runner, DataLoaderConfig
-from nemo.collections.vis.datasets import CLEVRConfig
+import hydra
+from omegaconf import MISSING, OmegaConf
 
 from nemo.collections.cv.models import Model
+from nemo.collections.vis.datasets import CLEVRConfig
 from nemo.collections.vis.transforms import Compose
+from nemo.core.config import DataLoaderConfig, hydra_runner
+from nemo.utils import logging
 
 
 @dataclass

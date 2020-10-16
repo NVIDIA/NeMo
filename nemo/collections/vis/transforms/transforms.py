@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod, ABC
-from typing import List, Any
-from dataclasses import dataclass, field, MISSING
+from abc import ABC, abstractmethod
+from dataclasses import MISSING, dataclass, field
+from typing import Any, List
 
 import torch
-
-from hydra.types import ObjectConf
 from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
 
 # Create the config store instance.
 cs = ConfigStore.instance()

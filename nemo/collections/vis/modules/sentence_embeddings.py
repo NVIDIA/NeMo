@@ -31,22 +31,21 @@ __author__ = "Tomasz Kornuta"
 # This file contains code artifacts adapted from the original implementation:
 # https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/language/sentence_embeddings.py
 
-from typing import Optional, List
-from dataclasses import dataclass, field, MISSING
-
-import torch
-import numpy as np
-
-from os.path import dirname, exists, join, expanduser
 import csv
 import zipfile
+from dataclasses import MISSING, dataclass, field
+from os.path import dirname, exists, expanduser, join
+from typing import List, Optional
+
+import numpy as np
+import torch
 import tqdm
 
 import nemo  # to get version.
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
-from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils import logging
+from nemo.utils.cloud import maybe_download_from_cloud
 
 
 @dataclass

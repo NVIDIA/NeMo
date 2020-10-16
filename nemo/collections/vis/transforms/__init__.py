@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vis.transforms.transforms import Compose, ToTensor, ToTensorConfig
-
 from nemo.collections.vis.transforms.text_transforms import (
+    LowerCase,
+    LowerCaseConfig,
     RemoveCharacters,
     RemoveCharactersConfig,
     RemovePunctuation,
     RemovePunctuationConfig,
-    LowerCase,
-    LowerCaseConfig,
     Tokenizer,
     TokenizerConfig,
     WordToIndex,
     WordToIndexConfig,
 )
+from nemo.collections.vis.transforms.transforms import Compose, ToTensor, ToTensorConfig

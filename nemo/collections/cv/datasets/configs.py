@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional
 from dataclasses import dataclass
+from typing import Any, Optional
 
-from hydra.types import ObjectConf
 from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
 
 # Create the config store instance.
 cs = ConfigStore.instance()

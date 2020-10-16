@@ -50,9 +50,7 @@ class AdamConfig:
 
 # Register Adam.
 cs.store(
-    group="optim",
-    name="adam",
-    node=ObjectConf(target="torch.optim.Adam", params=AdamConfig()),
+    group="optim", name="adam", node=ObjectConf(target="torch.optim.Adam", params=AdamConfig()),
 )
 
 
@@ -67,9 +65,7 @@ class SGDConfig:
 
 # Register SGD.
 cs.store(
-    group="optim",
-    name="sgd",
-    node=ObjectConf(target="torch.optim.SGD", params=SGDConfig()),
+    group="optim", name="sgd", node=ObjectConf(target="torch.optim.SGD", params=SGDConfig()),
 )
 
 
@@ -106,9 +102,7 @@ class NovogradConfig:
 
 # Register Novograd.
 cs.store(
-    group="optim",
-    name="novograd",
-    node=ObjectConf(target="nemo.core.optim.Novograd", params=NovogradConfig()),
+    group="optim", name="novograd", node=ObjectConf(target="nemo.core.optim.Novograd", params=NovogradConfig()),
 )
 
 

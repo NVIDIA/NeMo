@@ -15,15 +15,14 @@
 from typing import Any, Dict, Optional, Union
 
 import hydra
-from omegaconf import OmegaConf, DictConfig
+import torchvision.transforms as transforms
+from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.models.model import Model
 from nemo.collections.cv.modules import LeNet5 as LeNet5Module
-from nemo.collections.cv.losses import NLLLoss
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
-
-import torchvision.transforms as transforms
 
 
 class LeNet5(Model):

@@ -31,29 +31,26 @@ __author__ = "Tomasz Kornuta"
 # This file contains code artifacts adapted from the original implementation:
 # https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/tasks/image_text_to_class/clevr.py
 
-from os import makedirs
-from os.path import expanduser, join, exists
-
 import json
-from PIL import Image
+from dataclasses import dataclass
+from os import makedirs
+from os.path import exists, expanduser, join
+from typing import Any, Optional
 
 import torch
-from torchvision.transforms import transforms
-from torchvision.datasets.utils import download_and_extract_archive, check_md5
-
-from typing import Any, Optional
-from dataclasses import dataclass
-
-from hydra.types import ObjectConf
 from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
+from PIL import Image
+from torchvision.datasets.utils import check_md5, download_and_extract_archive
+from torchvision.transforms import transforms
 
-from nemo.utils import logging
 from nemo.core.classes import Dataset
+from nemo.utils import logging
+from nemo.utils.configuration_error import ConfigurationError
+from nemo.utils.configuration_parsing import get_value_from_dictionary, get_value_list_from_dictionary
 
 # from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 
-from nemo.utils.configuration_parsing import get_value_from_dictionary, get_value_list_from_dictionary
-from nemo.utils.configuration_error import ConfigurationError
 
 # Create the config store instance.
 cs = ConfigStore.instance()

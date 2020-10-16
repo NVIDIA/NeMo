@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, List
-
 from dataclasses import dataclass
+from typing import Any, List, Optional
 
 import pytorch_lightning as ptl
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from nemo.utils import logging
-from nemo.collections.cv.models import LeNet5
-
-from nemo.core.config import hydra_runner, DataLoaderConfig, TrainerConfig, AdamConfig
 from nemo.collections.cv.datasets.configs import MNISTConfig
+from nemo.collections.cv.models import LeNet5
+from nemo.core.config import AdamConfig, DataLoaderConfig, TrainerConfig, hydra_runner
+from nemo.utils import logging
 
 
 @dataclass

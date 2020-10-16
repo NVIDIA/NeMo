@@ -15,16 +15,15 @@
 from typing import Any, Dict, Optional, Union
 
 import hydra
-from omegaconf import OmegaConf, DictConfig
+import torchvision.transforms as transforms
+from omegaconf import DictConfig, OmegaConf
+from torch import nn
 
+from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.models.model import Model
 from nemo.collections.cv.modules import ImageEncoder, ImageEncoderConfig
-from nemo.collections.cv.losses import NLLLoss
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
-
-from torch import nn
-import torchvision.transforms as transforms
 
 
 class ResNet50(Model):

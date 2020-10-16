@@ -31,20 +31,18 @@ __author__ = "Tomasz Kornuta"
 # This file contains code artifacts adapted from the original implementation:
 # https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/image_encoder.py
 
-from typing import Optional
 from dataclasses import dataclass
-
-from hydra.types import ObjectConf
-from hydra.core.config_store import ConfigStore
+from typing import Optional
 
 import torch
 import torchvision.models as models
+from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
 
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AxisKind, AxisType, ImageFeatureValue, ImageValue, LogitsType, NeuralType
-from nemo.utils.configuration_parsing import get_value_from_dictionary
 from nemo.utils.configuration_error import ConfigurationError
-
+from nemo.utils.configuration_parsing import get_value_from_dictionary
 
 # Create the config store instance.
 cs = ConfigStore.instance()

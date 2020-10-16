@@ -12,22 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod, ABC
-from typing import List, Union
-from dataclasses import dataclass, field, MISSING
-
+import csv
+import string
+from abc import ABC, abstractmethod
+from dataclasses import MISSING, dataclass, field
 from os.path import exists, expanduser
+from typing import List, Union
+
+import nltk
+from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
 
 from nemo.collections.vis.transforms.transforms import Transform
 from nemo.utils import logging
-
-from hydra.types import ObjectConf
-from hydra.core.config_store import ConfigStore
-
-import string
-import nltk
-import csv
-
 
 # from nemo.utils.configuration_parsing import get_value_list_from_dictionary
 

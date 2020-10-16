@@ -15,28 +15,25 @@
 __author__ = "Anh Tuan Nguyen"
 
 
-from os import makedirs
-from os.path import expanduser, join, exists
-
 import json
+from dataclasses import dataclass
+from glob import glob
+from os import makedirs
+from os.path import exists, expanduser, join
+from typing import Any, Optional
+
 import cv2
 import numpy as np
-from PIL import Image
-from glob import glob
-
 import torch
-from torchvision.transforms import transforms
-from torchvision.io import read_video
-from torchvision.datasets.utils import download_and_extract_archive, download_url
-
-from typing import Any, Optional
-from dataclasses import dataclass
-
-from hydra.types import ObjectConf
 from hydra.core.config_store import ConfigStore
+from hydra.types import ObjectConf
+from PIL import Image
+from torchvision.datasets.utils import download_and_extract_archive, download_url
+from torchvision.io import read_video
+from torchvision.transforms import transforms
 
-from nemo.utils import logging
 from nemo.core.classes import Dataset
+from nemo.utils import logging
 
 # from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 
@@ -462,4 +459,3 @@ class CLEVRER(Dataset):
             question_type_batch,
             question_subtype_batch,
         )
-

@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Adopted from the following repository (https://github.com/ronghanghu/gqa_single_hop_baseline) 
-  
-import h5py
+# Adopted from the following repository (https://github.com/ronghanghu/gqa_single_hop_baseline)
+
 import json
-import numpy as np
 import os.path as osp
 from glob import glob
+
+import h5py
+import numpy as np
+
 
 # Feature loader
 class SpatialFeatureLoader:
@@ -27,8 +29,7 @@ class SpatialFeatureLoader:
         with open(info_file) as f:
             self.all_info = json.load(f)
         num_files = len(glob(osp.join(feature_dir, 'gqa_spatial_*.h5')))
-        h5_paths = [osp.join(feature_dir, 'gqa_spatial_%d.h5' % n)
-                    for n in range(num_files)]
+        h5_paths = [osp.join(feature_dir, 'gqa_spatial_%d.h5' % n) for n in range(num_files)]
         self.h5_files = [h5py.File(path, 'r') for path in h5_paths]
 
     def load_feature(self, imageId):
@@ -36,14 +37,14 @@ class SpatialFeatureLoader:
         file, idx = info['file'], info['idx']
         return self.h5_files[file]['features'][idx]
 
+
 class ObjectsFeatureLoader:
     def __init__(self, feature_dir):
         info_file = osp.join(feature_dir, 'gqa_objects_info.json')
         with open(info_file) as f:
             self.all_info = json.load(f)
         num_files = len(glob(osp.join(feature_dir, 'gqa_objects_*.h5')))
-        h5_paths = [osp.join(feature_dir, 'gqa_objects_%d.h5' % n)
-                    for n in range(num_files)]
+        h5_paths = [osp.join(feature_dir, 'gqa_objects_%d.h5' % n) for n in range(num_files)]
         self.h5_files = [h5py.File(path, 'r') for path in h5_paths]
 
     def load_feature(self, imageId):
@@ -89,8 +90,7 @@ class ObjectsFeatureLoader:
 
 
 class SceneGraphFeatureLoader:
-    def __init__(self, scene_graph_file, vocab_name_file, vocab_attr_file,
-                 vocab_relation_file, max_num):
+    def __init__(self, scene_graph_file, vocab_name_file, vocab_attr_file, vocab_relation_file, max_num):
         print('Loading scene graph from %s' % scene_graph_file)
         with open(scene_graph_file) as f:
             self.SGs = json.load(f)
@@ -109,14 +109,12 @@ class SceneGraphFeatureLoader:
         #     print('truncating %d objects to %d' % (num, self.max_num))
 
         # object names and attributes
-        feature = np.zeros(
-            (self.max_num, self.num_name+self.num_attr), np.float32)
+        feature = np.zeros((self.max_num, self.num_name + self.num_attr), np.float32)
         # relations between objects
-        rel =np.zeros(
-            (self.max_num, self.num_name, self.num_rel), np.float32)
+        rel = np.zeros((self.max_num, self.num_name, self.num_rel), np.float32)
 
-        names = feature[:, :self.num_name]
-        attrs = feature[:, self.num_name:]
+        names = feature[:, : self.num_name]
+        attrs = feature[:, self.num_name :]
         bbox = np.zeros((self.max_num, 4), np.float32)
 
         # for populating relations
@@ -125,20 +123,20 @@ class SceneGraphFeatureLoader:
             obj = sg['objects'][objId]
             obj_id_2_name[objId] = obj['name']
 
-        objIds = sorted(sg['objects'])[:self.max_num]
+        objIds = sorted(sg['objects'])[: self.max_num]
         for idx, objId in enumerate(objIds):
             obj = sg['objects'][objId]
             bbox[idx] = obj['x'], obj['y'], obj['w'], obj['h']
-            names[idx, self.name_dict.word2idx(obj['name'])] = 1.
+            names[idx, self.name_dict.word2idx(obj['name'])] = 1.0
             # attributes of the objects
             for a in obj['attributes']:
-                attrs[idx, self.attr_dict.word2idx(a)] = 1.
+                attrs[idx, self.attr_dict.word2idx(a)] = 1.0
             # relation between objects
             for relation in obj['relations']:
                 obj_name = obj_id_2_name[relation['object']]
                 obj_idx = self.name_dict.word2idx(obj_name)
                 rel_idx = self.rel_dict.word2idx(relation['name'])
-                rel[idx, obj_idx, rel_idx] = 1.
+                rel[idx, obj_idx, rel_idx] = 1.0
         # xywh -> xyxy
         bbox[:, 2] += bbox[:, 0] - 1
         bbox[:, 3] += bbox[:, 1] - 1
@@ -156,6 +154,7 @@ def get_valid(total_num, valid_num):
     valid[:valid_num] = True
     return valid
 
+
 # Vocab class for constructing object, attributes vocabulary
 def load_str_list(fname):
     with open(fname) as f:
@@ -163,14 +162,13 @@ def load_str_list(fname):
     lines = [l.strip() for l in lines]
     return lines
 
+
 class VocabDict:
     def __init__(self, vocab_file):
         self.word_list = load_str_list(vocab_file)
         self.word2idx_dict = {w: n_w for n_w, w in enumerate(self.word_list)}
         self.num_vocab = len(self.word_list)
-        self.UNK_idx = (
-            self.word2idx_dict['<unk>'] if '<unk>' in self.word2idx_dict
-            else None)
+        self.UNK_idx = self.word2idx_dict['<unk>'] if '<unk>' in self.word2idx_dict else None
 
     def idx2word(self, n_w):
         return self.word_list[n_w]
@@ -181,5 +179,4 @@ class VocabDict:
         elif self.UNK_idx is not None:
             return self.UNK_idx
         else:
-            raise ValueError('word %s not in dictionary (while dictionary does'
-                             ' not contain <unk>)' % w)
+            raise ValueError('word %s not in dictionary (while dictionary does' ' not contain <unk>)' % w)
