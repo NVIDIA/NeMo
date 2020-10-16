@@ -71,7 +71,15 @@ pipeline {
         stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
           steps {
             sh 'cd examples/cv && \
-            python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
+            python mnist_lenet5_image_classification_training.py trainer.gpus=0 \
+            trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
+            && rm -rf outputs'
+          }
+        }
+        stage ('CIFAR-10 image classification with ResNet-50 Integration Test - on CPU') {
+          steps {
+            sh 'cd examples/cv && \
+            python cifar10_resnet50_image_classification_training.py trainer.gpus=0 \
             trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
             && rm -rf outputs'
           }
