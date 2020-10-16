@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional
 
 import hydra
 import torchvision.transforms as transforms
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from nemo.core.classes import ModelPT
 from nemo.core.config import DataLoaderConfig

@@ -13,10 +13,10 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import pytorch_lightning as ptl
-from omegaconf import MISSING, DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo.collections.cv.datasets.configs import MNISTConfig
 from nemo.collections.cv.models import LeNet5

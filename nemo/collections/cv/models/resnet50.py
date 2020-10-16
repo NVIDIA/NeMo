@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional
 
-import hydra
-import torchvision.transforms as transforms
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from torch import nn
 
 from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.models.model import Model
 from nemo.collections.cv.modules import ImageEncoder, ImageEncoderConfig
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types import *
+from nemo.core.neural_types import NeuralType
 
 
 class ResNet50(Model):

@@ -13,10 +13,9 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
 
 import pytorch_lightning as ptl
-from omegaconf import MISSING, DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo.collections.vis.datasets import CLEVRConfig
 from nemo.collections.vis.models import QType, QTypeConfig

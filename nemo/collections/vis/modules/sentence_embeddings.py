@@ -35,15 +35,14 @@ import csv
 import zipfile
 from dataclasses import MISSING, dataclass, field
 from os.path import dirname, exists, expanduser, join
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import torch
 import tqdm
 
 import nemo  # to get version.
-from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
+from nemo.core.classes import NeuralModule
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
 
