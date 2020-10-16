@@ -197,6 +197,8 @@ def attach_onnx_to_onnx(model1: onnx.ModelProto, model2: onnx.ModelProto, prefix
         )
     for i in range(len(model2.graph.initializer)):
         model2.graph.initializer[i].name = prefix2 + model2.graph.initializer[i].name
+    for i in range(len(model2.graph.node)):
+        model2.graph.node[i].name = prefix2 + model2.graph.node[i].name
 
     for o in range(len(model1.graph.output)):
         for i in range(len(model2.graph.node)):

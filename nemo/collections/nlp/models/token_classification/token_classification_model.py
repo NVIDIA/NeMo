@@ -25,7 +25,7 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
-from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
+from nemo.collections.nlp.data.token_classification.token_classification_descriptor import get_dataset_stats
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -56,10 +56,9 @@ class TokenClassificationModel(NLPModel):
         self._setup_tokenizer(cfg.tokenizer)
 
         self._cfg = cfg
-        self.data_desc = None
-        self.update_data_dir(cfg.dataset.data_dir)
         self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
 
+        self.class_weights = None
         super().__init__(cfg=cfg, trainer=trainer)
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
@@ -90,16 +89,8 @@ class TokenClassificationModel(NLPModel):
         Args:
             data_dir: path to data directory
         """
-        modes = ["train", "test", "dev"]
         self._cfg.dataset.data_dir = data_dir
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
-        if os.path.exists(data_dir):
-            self.data_desc = TokenClassificationDataDesc(
-                data_dir=data_dir,
-                modes=modes,
-                pad_label=self._cfg.dataset.pad_label,
-                label_ids_dict=self._cfg.label_ids,
-            )
 
     def setup_loss(self, class_balancing: str = None):
         """Setup loss
@@ -186,16 +177,29 @@ class TokenClassificationModel(NLPModel):
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
-        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
-            # save label maps to the config
-            self._cfg.label_ids = OmegaConf.create(self.data_desc.label_ids)
+        labels_file = os.path.join(self._cfg.dataset.data_dir, train_data_config.labels_file)
+        label_ids, label_ids_filename, self.class_weights = get_dataset_stats(
+            label_file=labels_file, is_training=True, pad_label=self._cfg.dataset.pad_label
+        )
+        # save label maps to the config
+        self._cfg.label_ids = OmegaConf.create(label_ids)
+        self.register_artifact('label_ids.csv', label_ids_filename)
+
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
+
+        labels_file = os.path.join(self._cfg.dataset.data_dir, val_data_config.labels_file)
+        get_dataset_stats(
+            label_file=labels_file,
+            is_training=False,
+            pad_label=self._cfg.dataset.pad_label,
+            label_ids_dict=self._cfg.label_ids,
+        )
+
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig] = None):
@@ -236,7 +240,7 @@ class TokenClassificationModel(NLPModel):
             tokenizer=self.tokenizer,
             num_samples=cfg.num_samples,
             pad_label=dataset_cfg.pad_label,
-            label_ids=self.data_desc.label_ids,
+            label_ids=self._cfg.label_ids,
             ignore_extra_tokens=dataset_cfg.ignore_extra_tokens,
             ignore_start_end=dataset_cfg.ignore_start_end,
             use_cache=dataset_cfg.use_cache,
