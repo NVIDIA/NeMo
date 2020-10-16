@@ -33,20 +33,22 @@ import torch
 from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 
 
 class _GreedyRNNTInfer(Typing):
     """A greedy transducer decoder.
-        Args:
-            blank_symbol: See `Decoder`.
-            model: Model to use for prediction.
-            max_symbols_per_step: The maximum number of symbols that can be added
-                to a sequence in a single time step; if set to None then there is
-                no limit.
-            cutoff_prob: Skip to next step in search if current highest character
-                probability is less than this.
-        """
+
+    Provides a common abstraction for sample level and batch level greedy decoding.
+
+    Args:
+        decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
+        joint_model: rnnt_utils.AbstractRNNTJoint implementation.
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        max_symbols_per_step: Optional int. The maximum number of symbols that can be added
+            to a sequence in a single time step; if set to None then there is
+            no limit.
+    """
 
     @property
     def input_types(self):
@@ -89,12 +91,16 @@ class _GreedyRNNTInfer(Typing):
         batch_size: Optional[int] = None,
     ) -> (torch.Tensor, torch.Tensor):
         """
+        Common prediction step based on the AbstractRNNTDecoder implementation.
+
         Args:
-            label (int/torch.Tensor): Label or "Start-of-Signal" token.
-            hidden (Optional torch.Tensor): RNN State vector
-            batch_size (Optional torch.Tensor): Batch size of output
+            label: (int/torch.Tensor): Label or "Start-of-Signal" token.
+            hidden: (Optional torch.Tensor): RNN State vector
+            add_sos (bool): Whether to add a zero vector at the begging as "start of sentence" token.
+            batch_size: Batch size of the output tensor.
+
         Returns:
-            g: (B, U + 1, H)
+            g: (B, U, H) if add_sos is false, else (B, U + 1, H)
             hid: (h, c) where h is the final sequence hidden state and c is
                 the final cell state:
                     h (tensor), shape (L, B, H)
@@ -117,12 +123,15 @@ class _GreedyRNNTInfer(Typing):
 
     def _joint_step(self, enc, pred, log_normalize: Optional[bool] = None):
         """
+        Common joint step based on AbstractRNNTJoint implementation.
+
         Args:
-            enc:
-            pred:
-            log_normalize:
+            enc: Output of the Encoder model. A torch.Tensor of shape [B, 1, H1]
+            pred: Output of the Decoder model. A torch.Tensor of shape [B, 1, H2]
+            log_normalize: Whether to log normalize or not. None will log normalize only for CPU.
+
         Returns:
-             logits of shape (B, T=1, U=1, K + 1)
+             logits of shape (B, T=1, U=1, V + 1)
         """
         logits = self.joint.joint(enc, pred)
 
@@ -138,14 +147,16 @@ class _GreedyRNNTInfer(Typing):
 
 class GreedyRNNTInfer(_GreedyRNNTInfer):
     """A greedy transducer decoder.
+
+    Sequence level greedy decoding, performed auto-repressively.
+
     Args:
-        blank_symbol: See `Decoder`.
-        model: Model to use for prediction.
-        max_symbols_per_step: The maximum number of symbols that can be added
+        decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
+        joint_model: rnnt_utils.AbstractRNNTJoint implementation.
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
-        cutoff_prob: Skip to next step in search if current highest character
-            probability is less than this.
     """
 
     def __init__(
@@ -164,13 +175,16 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
     @typecheck()
     def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor):
-        """Returns a list of sentences given an input batch.
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-repressively.
+
         Args:
-            x: A tensor of size (batch, features, timesteps).
-            out_lens: list of int representing the length of each sequence
+            encoder_output: A tensor of size (batch, features, timesteps).
+            encoded_lengths: list of int representing the length of each sequence
                 output sequence.
+
         Returns:
-            list containing batch number of sentences (strings).
+            packed list containing batch number of sentences (Hypotheses).
         """
         # Preserve decoder and joint training state
         decoder_training_state = self.decoder.training
@@ -184,12 +198,14 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             self.joint.eval()
 
             hypotheses = []
+            # Process each sequence independently
             for batch_idx in range(encoder_output.size(0)):
                 inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
                 logitlen = encoded_lengths[batch_idx]
                 sentence = self._greedy_decode(inseq, logitlen)
                 hypotheses.append(sentence)
 
+            # Pack results into Hypotheses
             packed_result = [
                 rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
                 for sent in hypotheses
@@ -202,47 +218,66 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
     @torch.no_grad()
     def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor):
+        # x: [T, 1, D]
+        # out_len: [seq_len]
+
+        # Initialize blank state and empty label set
         hidden = None
         label = []
 
+        # For timestep t in X_t
         for time_idx in range(out_len):
+            # Extract encoder embedding at timestep t
             f = x[time_idx, :, :].unsqueeze(0)  # [1, 1, D]
 
+            # Setup exit flags and counter
             not_blank = True
             symbols_added = 0
 
+            # While blank is not predicted, or we dont run out of max symbols per timestep
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
+                # In the first timestep, we initialize the network with RNNT Blank
+                # In later timesteps, we provide previous predicted label as input.
                 last_label = self._SOS if label == [] else label[-1]
+
+                # Perform prediction network and joint network steps.
                 g, hidden_prime = self._pred_step(last_label, hidden)
                 logp = self._joint_step(f, g, log_normalize=None)[0, 0, 0, :]
 
+                # torch.max(0) op doesnt exist for FP 16.
                 if logp.dtype != torch.float32:
                     logp = logp.float()
 
                 # get index k, of max prob
                 v, k = logp.max(0)
-                k = k.item()
+                k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
 
+                # If blank token is predicted, exit inner loop, move onto next timestep t
                 if k == self._blank_index:
                     not_blank = False
                 else:
+                    # Append token to label set, update RNN state.
                     label.append(k)
                     hidden = hidden_prime
+
+                # Increment token counter.
                 symbols_added += 1
 
         return label
 
 
 class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
-    """A greedy transducer decoder.
+    """A batch level greedy transducer decoder.
+
+    Batch level greedy decoding, performed auto-repressively.
+
     Args:
-        blank_symbol: See `Decoder`.
-        model: Model to use for prediction.
-        max_symbols_per_step: The maximum number of symbols that can be added
+        decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
+        joint_model: rnnt_utils.AbstractRNNTJoint implementation.
+        blank_index: int index of the blank token. Can be 0 or len(vocabulary).
+        max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
-        cutoff_prob: Skip to next step in search if current highest character
-            probability is less than this.
     """
 
     def __init__(
@@ -259,6 +294,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             max_symbols_per_step=max_symbols_per_step,
         )
 
+        # Depending on availability of `blank_as_pad` support
+        # switch between more efficient batch decoding technique
         if self.decoder.blank_as_pad:
             self._greedy_decode = self._greedy_decode_blank_as_pad
         else:
@@ -266,13 +303,16 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
     @typecheck()
     def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor):
-        """Returns a list of sentences given an input batch.
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-repressively.
+
         Args:
-            x: A tensor of size (batch, features, timesteps).
-            out_lens: list of int representing the length of each sequence
+            encoder_output: A tensor of size (batch, features, timesteps).
+            encoded_lengths: list of int representing the length of each sequence
                 output sequence.
+
         Returns:
-            list containing batch number of sentences (strings).
+            packed list containing batch number of sentences (Hypotheses).
         """
         # Preserve decoder and joint training state
         decoder_training_state = self.decoder.training
@@ -281,7 +321,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         with torch.no_grad():
             # Apply optional preprocessing
             encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
-            logitlen = encoded_lengths  # .to('cpu').numpy()
+            logitlen = encoded_lengths
 
             self.decoder.eval()
             self.joint.eval()
@@ -289,6 +329,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             inseq = encoder_output  # [B, T, D]
             hypotheses = self._greedy_decode(inseq, logitlen, device=inseq.device)
 
+            # Pack the hypotheses results
             packed_result = [
                 rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
                 for sent in hypotheses
@@ -301,6 +342,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
     @torch.no_grad()
     def _greedy_decode_blank_as_pad(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
+        # x: [B, T, D]
+        # out_len: [B]
+        # device: torch.device
+
         # Initialize state
         hidden = None
         batchsize = x.shape[0]
@@ -399,6 +444,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
     @torch.no_grad()
     def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
+        # x: [B, T, D]
+        # out_len: [B]
+        # device: torch.device
+
         # Initialize state
         hidden = None
         batchsize = x.shape[0]

@@ -35,7 +35,7 @@ from tqdm import tqdm
 from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 
 
 class BeamRNNTInfer(Typing):

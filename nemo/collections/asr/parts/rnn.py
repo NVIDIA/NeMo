@@ -30,7 +30,37 @@ def rnn(
     norm_first_rnn: Optional[bool] = None,
     t_max: Optional[int] = None,
 ) -> torch.nn.Module:
+    """
+    Utility function to provide unified interface to common LSTM RNN modules.
 
+    Args:
+        input_size: Input dimension.
+
+        hidden_size: Hidden dimension of the RNN.
+
+        num_layers: Number of RNN layers.
+
+        norm: Optional string representing type of normalization to apply to the RNN.
+            Supported values are None, batch and layer.
+
+        forget_gate_bias: float, set by default to 1.0, which constructs a forget gate
+                initialized to 1.0.
+                Reference:
+                [An Empirical Exploration of Recurrent Network Architectures](http://proceedings.mlr.press/v37/jozefowicz15.pdf)
+
+        dropout: Optional dropout to apply to end of multi-layered RNN.
+
+        norm_first_rnn: Whether to normalize the first RNN layer.
+
+        t_max: int value, set to None by default. If an int is specified, performs Chrono Initialization
+            of the LSTM network, based on the maximum number of timesteps `t_max` expected during the course
+            of training.
+            Reference:
+            [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
+
+    Returns:
+        A RNN module
+    """
     if norm not in [None, "batch", "layer"]:
         raise ValueError(f"unknown norm={norm}")
 
@@ -115,8 +145,18 @@ class LSTMDropout(torch.nn.Module):
             hidden_size: See `torch.nn.LSTM`.
             num_layers: See `torch.nn.LSTM`.
             dropout: See `torch.nn.LSTM`.
-            forget_gate_bias: For each layer and each direction, the total value of
-                to initialise the forget gate bias to.
+
+            forget_gate_bias: float, set by default to 1.0, which constructs a forget gate
+                initialized to 1.0.
+                Reference:
+                [An Empirical Exploration of Recurrent Network Architectures](http://proceedings.mlr.press/v37/jozefowicz15.pdf)
+
+            t_max: int value, set to None by default. If an int is specified, performs Chrono Initialization
+                of the LSTM network, based on the maximum number of timesteps `t_max` expected during the course
+                of training.
+                Reference:
+                [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
+
         Returns:
             A `torch.nn.LSTM`.
         """
@@ -300,6 +340,10 @@ class BNRNNSum(torch.nn.Module):
 
 
 class StackTime(torch.nn.Module):
+    """
+    Stacks time within the feature dim, so as to behave as a downsampling operation.
+    """
+
     def __init__(self, factor: int):
         super().__init__()
         self.factor = int(factor)
@@ -440,8 +484,11 @@ class StackedLSTM(torch.nn.Module):
 def label_collate(labels, device=None):
     """Collates the label inputs for the rnn-t prediction network.
     If `labels` is already in torch.Tensor form this is a no-op.
+
     Args:
         labels: A torch.Tensor List of label indexes or a torch.Tensor.
+        device: Optional torch device to place the label on.
+
     Returns:
         A padded torch.Tensor of shape (batch, max_seq_len).
     """
