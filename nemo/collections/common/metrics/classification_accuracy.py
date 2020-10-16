@@ -99,12 +99,7 @@ class TopKClassificationAccuracy(Metric):
             return [self.correct_counts_k.float() / self.total_counts_k]
 
         else:
-            top_k_scores = []
-
-            for ki in range(self.correct_counts_k.shape[-1]):
-                correct_count = self.correct_counts_k[ki].item()
-                total_count = self.total_counts_k[ki].item()
-                top_k_scores.append(correct_count / float(total_count))
+            top_k_scores = compute_topk_accuracy(self.correct_counts_k, self.total_counts_k)
 
             return top_k_scores
 
