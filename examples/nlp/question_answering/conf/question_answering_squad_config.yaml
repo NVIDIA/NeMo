@@ -52,7 +52,6 @@ model:
     drop_last: false
 
   train_ds:
-    mode: train
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: true
@@ -60,14 +59,12 @@ model:
     # shared among dataloaders
 
   validation_ds:
-    mode: eval
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: false
     num_samples: -1
 
   test_ds:
-    mode: test
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: false

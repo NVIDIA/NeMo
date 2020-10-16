@@ -86,35 +86,38 @@ class QAModel(NLPModel):
         return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
+        if self.testing:
+            prefix = 'test'
+        else:
+            prefix = 'val'
+
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, start_logits, end_logits = self.loss(
             logits=logits, start_positions=start_positions, end_positions=end_positions
         )
 
-        eval_tensors = {
+        tensors = {
             'unique_ids': unique_ids,
             'start_logits': start_logits,
             'end_logits': end_logits,
         }
-        return {'val_loss': loss, 'eval_tensors': eval_tensors}
+        return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
 
     def test_step(self, batch, batch_idx):
-        input_ids, input_type_ids, input_mask, unique_ids = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-
-        test_tensors = {
-            'unique_ids': unique_ids,
-            'logits': logits,
-        }
-        return {'test_tensors': test_tensors}
+        return self.validation_step(batch, batch_idx)
 
     def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        if self.testing:
+            prefix = 'test'
+        else:
+            prefix = 'val'
 
-        unique_ids = torch.cat([x['eval_tensors']['unique_ids'] for x in outputs])
-        start_logits = torch.cat([x['eval_tensors']['start_logits'] for x in outputs])
-        end_logits = torch.cat([x['eval_tensors']['end_logits'] for x in outputs])
+        avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
+
+        unique_ids = torch.cat([x[f'{prefix}_tensors']['unique_ids'] for x in outputs])
+        start_logits = torch.cat([x[f'{prefix}_tensors']['start_logits'] for x in outputs])
+        end_logits = torch.cat([x[f'{prefix}_tensors']['end_logits'] for x in outputs])
 
         all_unique_ids = []
         all_start_logits = []
@@ -146,7 +149,8 @@ class QAModel(NLPModel):
             for u in all_end_logits:
                 end_logits.extend(tensor2list(u))
 
-            exact_match, f1, all_predictions, all_nbest = self.validation_dataset.evaluate(
+            eval_dataset = self.test_dataset if self.testing else self.validation_dataset
+            exact_match, f1, all_predictions, all_nbest = eval_dataset.evaluate(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
                 end_logits=end_logits,
@@ -157,36 +161,39 @@ class QAModel(NLPModel):
                 do_lower_case=self._cfg.dataset.do_lower_case,
             )
 
-        logging.info(f"exact match {exact_match}")
-        logging.info(f"f1 {f1}")
+        logging.info(f"{prefix} exact match {exact_match}")
+        logging.info(f"{prefix} f1 {f1}")
 
-        tensorboard_logs = {'val_loss': avg_loss, 'exact_match': exact_match, 'f1': f1}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        tensorboard_logs = {f'{prefix}_loss': avg_loss, f'{prefix}_exact_match': exact_match, f'{prefix}_f1': f1}
+        return {f'{prefix}_loss': avg_loss, 'log': tensorboard_logs}
 
     def test_epoch_end(self, outputs):
-        unique_ids = tensor2list(torch.cat([x['test_tensors']['unique_ids'] for x in outputs]))
-        logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
-        s, e = logits.split(dim=-1, split_size=1)
-        start_logits = tensor2list(s.squeeze())
-        end_logits = tensor2list(e.squeeze())
-        (all_predictions, all_nbest, scores_diff) = self.test_dataset.get_predictions(
-            unique_ids=unique_ids,
-            start_logits=start_logits,
-            end_logits=end_logits,
-            n_best_size=self._cfg.test_ds.n_best_size,
-            max_answer_length=self._cfg.test_ds.max_answer_length,
-            version_2_with_negative=self._cfg.dataset.version_2_with_negative,
-            null_score_diff_threshold=self._cfg.test_ds.null_score_diff_threshold,
-            do_lower_case=self._cfg.dataset.do_lower_case,
-        )
+        return self.validation_epoch_end(outputs)
 
-        if self._cfg.test_ds.output_nbest_file is not None:
-            with open(self._cfg.test_ds.output_nbest_file, "w") as writer:
-                writer.write(json.dumps(all_nbest, indent=4) + "\n")
-        if self._cfg.test_ds.output_prediction_file is not None:
-            with open(self._cfg.test_ds.output_prediction_file, "w") as writer:
-                writer.write(json.dumps(all_predictions, indent=4) + "\n")
-        return {}
+    # def test_epoch_end(self, outputs):
+    #     unique_ids = tensor2list(torch.cat([x['test_tensors']['unique_ids'] for x in outputs]))
+    #     logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
+    #     s, e = logits.split(dim=-1, split_size=1)
+    #     start_logits = tensor2list(s.squeeze())
+    #     end_logits = tensor2list(e.squeeze())
+    #     (all_predictions, all_nbest, scores_diff) = self.test_dataset.get_predictions(
+    #         unique_ids=unique_ids,
+    #         start_logits=start_logits,
+    #         end_logits=end_logits,
+    #         n_best_size=self._cfg.test_ds.n_best_size,
+    #         max_answer_length=self._cfg.test_ds.max_answer_length,
+    #         version_2_with_negative=self._cfg.dataset.version_2_with_negative,
+    #         null_score_diff_threshold=self._cfg.test_ds.null_score_diff_threshold,
+    #         do_lower_case=self._cfg.dataset.do_lower_case,
+    #     )
+
+    #     if self._cfg.test_ds.output_nbest_file is not None:
+    #         with open(self._cfg.test_ds.output_nbest_file, "w") as writer:
+    #             writer.write(json.dumps(all_nbest, indent=4) + "\n")
+    #     if self._cfg.test_ds.output_prediction_file is not None:
+    #         with open(self._cfg.test_ds.output_prediction_file, "w") as writer:
+    #             writer.write(json.dumps(all_predictions, indent=4) + "\n")
+    #     return {}
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
@@ -198,17 +205,33 @@ class QAModel(NLPModel):
         self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
+        if not train_data_config or not train_data_config.file:
+            logging.info(
+                f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
+            )
+            self._test_dl = None
+            return
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        if not val_data_config or not val_data_config.file:
+            logging.info(
+                f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
+            )
+            self._test_dl = None
+            return
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode="val")
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        if test_data_config.file is None:
+        if not test_data_config or test_data_config.file is None:
+            logging.info(
+                f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
+            )
+            self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
+    def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.file,
@@ -217,12 +240,12 @@ class QAModel(NLPModel):
             max_seq_length=self._cfg.dataset.max_seq_length,
             version_2_with_negative=self._cfg.dataset.version_2_with_negative,
             num_samples=cfg.num_samples,
-            mode=cfg.mode,
+            mode=mode,
             use_cache=self._cfg.dataset.use_cache,
         )
-        if cfg.mode == "eval":
+        if mode == "val":
             self.validation_dataset = dataset
-        elif cfg.mode == "test":
+        elif mode == "test":
             self.test_dataset = dataset
 
         dl = torch.utils.data.DataLoader(

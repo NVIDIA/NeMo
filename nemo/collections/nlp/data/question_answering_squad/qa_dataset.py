@@ -62,8 +62,8 @@ class SquadDataset(Dataset):
             does not exist. Defaults to None.
         num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        mode (str): Use "train", "eval" or "test" to define between
-            training and evaluation.
+        mode (str): Use "train", "val", "test", "infer" to define between
+            training, evaluation and inference.
         use_cache (bool): Caches preprocessed data for future usage
     """
 
@@ -83,8 +83,8 @@ class SquadDataset(Dataset):
         self.version_2_with_negative = version_2_with_negative
         self.processor = SquadProcessor(data_file=data_file, mode=mode)
         self.mode = mode
-        if mode not in ["eval", "train", "test"]:
-            raise ValueError(f"mode should be either 'train', 'eval', or 'test' but got {mode}")
+        if mode not in ["val", "train", "test", "infer"]:
+            raise ValueError(f"mode should be either 'train', 'val', or 'test' but got {mode}")
         self.examples = self.processor.get_examples()
 
         vocab_size = getattr(tokenizer, "vocab_size", 0)
@@ -121,7 +121,7 @@ class SquadDataset(Dataset):
                 max_seq_length=max_seq_length,
                 doc_stride=doc_stride,
                 max_query_length=max_query_length,
-                has_groundtruth=mode != "test",
+                has_groundtruth=mode != "infer",
             )
 
             if use_cache:
@@ -136,7 +136,7 @@ class SquadDataset(Dataset):
 
     def __getitem__(self, idx):
         feature = self.features[idx]
-        if self.mode == "test":
+        if self.mode == "infer":
             return (
                 np.array(feature.input_ids),
                 np.array(feature.segment_ids),

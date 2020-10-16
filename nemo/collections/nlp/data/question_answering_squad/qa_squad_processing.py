@@ -255,7 +255,7 @@ class SquadProcessor(DataProcessor):
 
     Args:
         data_file: data file path
-        mode: "train"/"eval" for training/validation mode
+        mode: "train"/"eval" for training/inf mode
     """
 
     def __init__(self, data_file: str, mode: str):
@@ -288,11 +288,11 @@ class SquadProcessor(DataProcessor):
                         is_impossible = False
 
                     if not is_impossible:
-                        if set_type == "train" or set_type == "eval":
+                        if set_type in ["train", "val", "test"]:
                             answer = qa["answers"][0]
                             answer_text = answer["text"]
                             start_position_character = answer["answer_start"]
-                        if set_type == "eval":
+                        if set_type in ["val", "test"]:
                             answers = qa["answers"]
 
                     example = SquadExample(
@@ -429,7 +429,6 @@ def convert_examples_to_features(
             (tok_start_position, tok_end_position) = _improve_answer_span(
                 all_doc_tokens, tok_start_position, tok_end_position, tokenizer, example.answer_text
             )
-
         # The -3 accounts for tokenizer.cls_token, tokenizer.sep_token and tokenizer.sep_token
         # doc_spans contains all possible contexts options of given length
         max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
