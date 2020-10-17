@@ -8,8 +8,8 @@ pip install -r requirements/requirements.txt \
   && cd /data \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.de -O valid.de \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.en -O valid.en \
-  && cp valid.de test.de \
-  && cp valid.en test.en \
+  && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2014.de -O test.de \
+  && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2014.en -O test.en \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.de \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.en \
   && cat train.en train.de > yttm_train.ende \
