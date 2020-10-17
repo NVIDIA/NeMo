@@ -42,19 +42,19 @@ cs = ConfigStore.instance()
 @dataclass
 class CLEVRERConfig:
     """
-	Structured config for the CLEVRER dataset.
+    Structured config for the CLEVRER dataset.
 
-	For more details please refer to:
-	http://clevrer.csail.mit.edu/
+    For more details please refer to:
+    http://clevrer.csail.mit.edu/
 
-	Args:
-		_target_: Specification of dataset class
-		root: Folder where task will store data (DEFAULT: "~/data/clevrer")
-		split: Defines the set (split) that will be used (Options: train | val | test ) (DEFAULT: train)
-		stream_frames: Flag indicating whether the task will load and return frames in the video (DEFAULT: True)
-		transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
-		download: downloads the data if not present (DEFAULT: True)
-	"""
+    Args:
+        _target_: Specification of dataset class
+        root: Folder where task will store data (DEFAULT: "~/data/clevrer")
+        split: Defines the set (split) that will be used (Options: train | val | test ) (DEFAULT: train)
+        stream_frames: Flag indicating whether the task will load and return frames in the video (DEFAULT: True)
+        transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
+        download: downloads the data if not present (DEFAULT: True)
+    """
 
     # Dataset target class name.
     _target_: str = "nemo.collections.vis.datasets.CLEVRER"
@@ -75,58 +75,58 @@ cs.store(
 
 class CLEVRER(Dataset):
     """
-	Class fetching data from the CLEVRER (Video Question Answering for Temporal and Causal Reasoning) dataset.
+    Class fetching data from the CLEVRER (Video Question Answering for Temporal and Causal Reasoning) dataset.
 
-	The CLEVRER dataset consists of the followings:
+    The CLEVRER dataset consists of the followings:
 
-		- 20,000 videos, separated into train (index 0 - 9999), validation (index 10000 - 14999), and test (index 15000 - 19999) splits.
-		- Questions which are categorized into descriptives, explanatory, predictive and counterfactual
-		- Annotation files which contain object properties, motion trajectories and collision events
+        - 20,000 videos, separated into train (index 0 - 9999), validation (index 10000 - 14999), and test (index 15000 - 19999) splits.
+        - Questions which are categorized into descriptives, explanatory, predictive and counterfactual
+        - Annotation files which contain object properties, motion trajectories and collision events
 
-	For more details please refer to the associated _website or _paper.
+    For more details please refer to the associated _website or _paper.
 
-	After downloading and extracting, we will have the following directory
+    After downloading and extracting, we will have the following directory
 
-	data/clevrer
-	videos/
-	# Train
-		video_00000-01000
-		...
-		video_09000-10000
-	# Validation
-		video_10000-11000
-		...
-		video_14000-15000
-	# Test
-		video_15000-16000
-		...
-		video_19000-20000
-	
-	annotations/
-	# Train	
-			annotation_00000-01000
-			...
-			annotation_09000-10000
-	# Validation
-			annotation_11000-12000
-			...
-			annotation_14000-15000
-	question/
-		train.json
-		validation.json
-		test.json
+    data/clevrer
+    videos/
+    # Train
+        video_00000-01000
+        ...
+        video_09000-10000
+    # Validation
+        video_10000-11000
+        ...
+        video_14000-15000
+    # Test
+        video_15000-16000
+        ...
+        video_19000-20000
+    
+    annotations/
+    # Train 
+            annotation_00000-01000
+            ...
+            annotation_09000-10000
+    # Validation
+            annotation_11000-12000
+            ...
+            annotation_14000-15000
+    question/
+        train.json
+        validation.json
+        test.json
 
-	video_frames/
-		sim_00000/ frame_00000.jpg, frame_00001.jpg, ...
-		sim_00001/ frame_00000.jpg, frame_00001.jpg, ...
-		...
-		sim_19999/ frame_00000.jpg, frame_00001.jpg, ...
+    video_frames/
+        sim_00000/ frame_00000.jpg, frame_00001.jpg, ...
+        sim_00001/ frame_00000.jpg, frame_00001.jpg, ...
+        ...
+        sim_19999/ frame_00000.jpg, frame_00001.jpg, ...
 
-	.. _website: http://clevrer.csail.mit.edu/
+    .. _website: http://clevrer.csail.mit.edu/
 
-	.._paper: https://arxiv.org/pdf/1910.01442
+    .._paper: https://arxiv.org/pdf/1910.01442
 
-	"""
+    """
 
     download_url_prefix_videos = "http://data.csail.mit.edu/clevrer/videos/"
     download_url_prefix_annotations = "http://data.csail.mit.edu/clevrer/annotations/"
@@ -141,20 +141,22 @@ class CLEVRER(Dataset):
         root: str = "~/data/clevrer",
         split: str = "train",
         stream_frames: bool = True,
+        save_frames: bool = False,
         transform: Optional[Any] = None,
         download: bool = True,
     ):
         """
-		Initializes dataset object. Calls base constructor.
-		Downloads the dataset if not present and loads the adequate files depending on the mode.
+        Initializes dataset object. Calls base constructor.
+        Downloads the dataset if not present and loads the adequate files depending on the mode.
 
-		Args:
-		root: Folder where task will store data (DEFAULT: "~/data/clevrer")
-			split: Defines the set (split) that will be used (Options: train | val | test) (DEFAULT: train)
-			stream_frames: Flag indicating whether the task will return frames from the video (DEFAULT: True)
-			transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
-			download: downloads the data if not present (DEFAULT: True)
-		"""
+        Args:
+        root: Folder where task will store data (DEFAULT: "~/data/clevrer")
+            split: Defines the set (split) that will be used (Options: train | val | test) (DEFAULT: train)
+            stream_frames: Flag indicating whether the task will return frames from the video (DEFAULT: True)
+            save_frames: Flag indicating whether user want to save frames into disk or not (DEFAULT: False)
+            transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
+            download: downloads the data if not present (DEFAULT: True)
+        """
 
         # Call constructors of parent class.
         super().__init__()
@@ -168,6 +170,7 @@ class CLEVRER(Dataset):
 
         # Process split.
         self._split = split
+        self._save_frames = save_frames
 
         # Download dataset when required.
         if download:
@@ -290,9 +293,9 @@ class CLEVRER(Dataset):
 
     def load_data(self, source_data_file):
         """
-		Loads the dataset from source file.
+        Loads the dataset from source file.
 
-		"""
+        """
         dataset = []
 
         with open(source_data_file) as f:
@@ -309,22 +312,22 @@ class CLEVRER(Dataset):
 
     def __len__(self):
         """
-		Returns:
-			The size of the loaded dataset split.
-		"""
+        Returns:
+            The size of the loaded dataset split.
+        """
         return len(self.data)
 
     def get_frames(self, video_index):
         """
-		Function loads and returns video frames along with its size.
-		Additionally, it performs all the required transformations.
+        Function loads and returns video frames along with its size.
+        Additionally, it performs all the required transformations.
 
-		Args:
-			video_index: Identifier of the video.
+        Args:
+            video_index: Identifier of the video.
 
-		Returns:
-			List of video frames (PIL Image / Tensor, depending on the applied transforms)
-		"""
+        Returns:
+            List of video frames (PIL Image / Tensor, depending on the applied transforms)
+        """
 
         # Directory to save the frames
         frame_dir = join(self._video_frames, "sim_%05d" % video_index)
@@ -348,43 +351,43 @@ class CLEVRER(Dataset):
                 # extract frames from videos
                 ret, frame = frame_extractor.read()
                 if ret:
-                    filename = 'frame_%05d.jpg' % currentframe
-                    frame_file = join(frame_dir, filename)
-                    logging.info('Creating frame file: ' + filename)
-                    # store frame into file
-                    cv2.imwrite(frame_file, frame)
+                    # if we want to save frames
+                    if self._save_frames:
+                        filename = 'frame_%05d.jpg' % currentframe
+                        frame_file = join(frame_dir, filename)
+                        logging.info('Creating frame file: ' + filename)
+                        # store frame into file
+                        cv2.imwrite(frame_file, frame)
+                    
+                    # return frames
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(rgb)
+                    if self._image_transform is not None:
+                        # Apply transformation(s).
+                        img = self._image_transform(img)
+
+                    frames.append(img)
                     currentframe += 1
                 else:
                     logging.info('Finish extracting frame from the video')
                     break
-
-        # Using PIL to read the frames from file
-        num_frames = len(glob(join(frame_dir, 'frame_*.jpg')))
-
-        frames = []
-        for frame in range(num_frames):
-            # Load the image and convert to RGB
-            img = Image.open(join(frame_dir, 'frame_%05d.jpg' % frame)).convert('RGB')
-
-            if self._image_transform is not None:
-                # Apply transformation(s).
-                img = self._image_transform(img)
-            # Save the frame
-            frames.append(img)
-
+            # Release all space and windows once done 
+            cam.release()
+            cv2.destroyAllWindows()
+            
         # Return frame list.
         return frames
 
     def __getitem__(self, index):
         """
-		Getter method to access the dataset and return a single sample.
+        Getter method to access the dataset and return a single sample.
 
-		Args:
-			index: index of the sample to return.
+        Args:
+            index: index of the sample to return.
 
-		Returns:
-			indices, video_id, frames, question_id, questions, answers, question_types, question_subtypes
-		"""
+        Returns:
+            indices, video_id, frames, question_id, questions, answers, question_types, question_subtypes
+        """
         # Get item.
         item = self.data[index]
 
@@ -416,15 +419,15 @@ class CLEVRER(Dataset):
 
     def collate_fn(self, batch):
         """
-		Combines a list of samples (retrieved with :py:func:`__getitem__`) into a batch.
+        Combines a list of samples (retrieved with :py:func:`__getitem__`) into a batch.
 
-		Args:
-			batch: list of individual samples to combine
+        Args:
+            batch: list of individual samples to combine
 
-		Returns:
-			Batch of: indices, video_id, frames, question_id, questions, answers, question_types, question_subtypes
+        Returns:
+            Batch of: indices, video_id, frames, question_id, questions, answers, question_types, question_subtypes
 
-		"""
+        """
         # Collate indices.
         indices_batch = [sample[0] for sample in batch]
 
