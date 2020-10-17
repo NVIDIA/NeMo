@@ -72,7 +72,7 @@ pipeline {
           steps {
             sh 'cd examples/cv && \
             python mnist_lenet5_image_classification_training.py trainer.gpus=0 \
-            trainer.fast_dev_run=true dataset.data_folder=/home/TestData \
+            trainer.fast_dev_run=true dataset.root=/home/TestData \
             && rm -rf outputs'
           }
         }
@@ -80,7 +80,7 @@ pipeline {
           steps {
             sh 'cd examples/cv && \
             python cifar10_resnet50_image_classification_training.py trainer.gpus=0 \
-            trainer.fast_dev_run=true dataset.data_folder=/home/TestData \
+            trainer.fast_dev_run=true dataset.root=/home/TestData \
             && rm -rf outputs'
           }
         }
