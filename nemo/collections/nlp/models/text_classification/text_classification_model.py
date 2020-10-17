@@ -93,7 +93,11 @@ class TextClassificationModel(NLPModel, Exportable):
             self.loss = CrossEntropyLoss()
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(num_classes=cfg.dataset.num_classes, mode='micro',)
+        self.classification_report = ClassificationReport(
+            num_classes=cfg.dataset.num_classes,
+            mode='micro',
+            dist_sync_on_step=True
+        )
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
