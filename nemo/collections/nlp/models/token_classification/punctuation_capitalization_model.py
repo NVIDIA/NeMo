@@ -89,10 +89,10 @@ class PunctuationCapitalizationModel(ModelPT):
 
         # setup to track metrics
         self.punct_class_report = ClassificationReport(
-            num_classes=len(self._cfg.punct_label_ids), label_ids=self._cfg.punct_label_ids, mode='macro'
+            num_classes=len(self._cfg.punct_label_ids), label_ids=self._cfg.punct_label_ids, mode='macro', dist_sync_on_step=True
         )
         self.capit_class_report = ClassificationReport(
-            num_classes=len(self._cfg.capit_label_ids), label_ids=self._cfg.capit_label_ids, mode='macro'
+            num_classes=len(self._cfg.capit_label_ids), label_ids=self._cfg.capit_label_ids, mode='macro', dist_sync_on_step=True
         )
 
     @typecheck()
@@ -167,10 +167,10 @@ class PunctuationCapitalizationModel(ModelPT):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report for Punctuation task
-        punct_precision, punct_recall, punct_f1 = self.punct_class_report.compute()
+        punct_precision, punct_recall, punct_f1, _ = self.punct_class_report.compute()
 
         # calculate metrics and log classification report for Capitalization task
-        capit_precision, capit_recall, capit_f1 = self.capit_class_report.compute()
+        capit_precision, capit_recall, capit_f1, _ = self.capit_class_report.compute()
 
         tensorboard_logs = {
             'validation_loss': avg_loss,
