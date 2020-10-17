@@ -385,8 +385,10 @@ class EncDecRNNTModel(ASRModel):
 
         if hasattr(self, '_trainer') and self._trainer is not None:
             row_log_interval = self._trainer.row_log_interval
+            sample_id = self._trainer.global_step
         else:
             row_log_interval = 1
+            sample_id = batch_nb
 
         if not self.joint.fuse_loss_wer:
             joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
@@ -396,13 +398,13 @@ class EncDecRNNTModel(ASRModel):
 
             tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
-            if (batch_nb + 1) % row_log_interval == 0:
+            if (sample_id + 1) % row_log_interval == 0:
                 wer_num, wer_denom = self.wer(encoded, encoded_len, transcript, transcript_len)
                 tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
 
         else:
             # Fused step
-            if (batch_nb + 1) % row_log_interval == 0:
+            if (sample_id + 1) % row_log_interval == 0:
                 compute_wer = True
             else:
                 compute_wer = False

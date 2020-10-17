@@ -511,7 +511,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
             Warning: This will make the forward-backward pass much slower than normal.
             It also might not fix the OOM if the GPU simply does not have enough memory to compute the joint.
 
-        fuse_loss_wer: Optional bool, set to False by default.
+        experimental_fuse_loss_wer: Optional bool, set to False by default.
             NOTE: This is an experimental feature that attempts to trade of compute time for memory preservation.
             There may be undetermined effects to convergence behaviour.
 
@@ -579,7 +579,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         vocabulary: Optional[List] = None,
         log_softmax: Optional[bool] = None,
         preserve_memory: bool = False,
-        fuse_loss_wer: bool = False,
+        experimental_fuse_loss_wer: bool = False,
         fused_batch_size: Optional[int] = None,
     ):
         super().__init__()
@@ -589,13 +589,13 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         self._vocab_size = num_classes
         self._num_classes = num_classes + 1  # add 1 for blank symbol
 
-        self._fuse_loss_wer = fuse_loss_wer
+        self._fuse_loss_wer = experimental_fuse_loss_wer
         self._fused_batch_size = fused_batch_size
 
-        if fuse_loss_wer and (fused_batch_size is None):
+        if experimental_fuse_loss_wer and (fused_batch_size is None):
             raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
 
-        if fuse_loss_wer:
+        if experimental_fuse_loss_wer:
             logging.warning(
                 "\nFused joint step is an experimental technique. Please be aware that it "
                 "may have unintended side effects such as increased word error rate or difficulty in "
@@ -690,7 +690,9 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                 end = min(begin + self._fused_batch_size, batch_size)
 
                 # Extract the sub batch inputs
-                sub_enc = encoder_outputs[begin:end, ...]
+                # sub_enc = encoder_outputs[begin:end, ...]
+
+                sub_enc = encoder_outputs.narrow(dim=0, start=begin, length=end - begin)
                 sub_transcripts = transcripts[begin:end, ...]
 
                 sub_enc_lens = encoder_lengths[begin:end]
@@ -705,14 +707,15 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                     # Reduce encoder length to preserve computation
                     # Encoder: [sub-batch, T, D] -> [sub-batch, T', D]; T' < T
                     if sub_enc.shape[1] != max_sub_enc_length:
-                        sub_enc = sub_enc.narrow(dim=1, start=0, length=max_sub_enc_length).contiguous()
+                        sub_enc = sub_enc.narrow(dim=1, start=0, length=max_sub_enc_length)  # .contiguous()
 
-                    sub_dec = decoder_outputs[begin:end, ...]  # [sub-batch, U, D]
+                    # sub_dec = decoder_outputs[begin:end, ...]  # [sub-batch, U, D]
+                    sub_dec = decoder_outputs.narrow(dim=0, start=begin, length=end - begin)  # [sub-batch, U, D]
 
                     # Reduce decoder length to preserve computation
                     # Decoder: [sub-batch, U, D] -> [sub-batch, U', D]; U' < U
                     if sub_dec.shape[1] != max_sub_transcript_length + 1:
-                        sub_dec = sub_dec.narrow(dim=1, start=0, length=max_sub_transcript_length + 1).contiguous()
+                        sub_dec = sub_dec.narrow(dim=1, start=0, length=max_sub_transcript_length + 1)  # .contiguous()
 
                     # Perform joint => [sub-batch, T', U', V + 1]
                     sub_joint = self.joint(sub_enc, sub_dec)
@@ -743,11 +746,19 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                                 idx : idx + 1, : sub_enc_lens[idx], : sub_transcript_lens[idx] + 1, :
                             ].contiguous()
 
+                            sample_transcript = sub_transcripts.narrow(dim=0, start=idx, length=1)
+                            sample_transcript = sample_transcript.narrow(
+                                dim=1, start=0, length=sub_transcript_lens[idx]
+                            )
+
+                            sample_input_lens = sub_enc_lens.narrow(dim=0, start=idx, length=1)
+                            sample_target_lens = sub_transcript_lens.narrow(dim=0, start=idx, length=1)
+
                             loss_val = self.loss(
                                 log_probs=sample_joint,
-                                targets=sub_transcripts[idx : idx + 1, : sub_transcript_lens[idx] + 1],
-                                input_lengths=sub_enc_lens[idx : idx + 1],
-                                target_lengths=sub_transcript_lens[idx : idx + 1],
+                                targets=sample_transcript,
+                                input_lengths=sample_input_lens,
+                                target_lengths=sample_target_lens,
                             )
                             losses.append(loss_val)
 
