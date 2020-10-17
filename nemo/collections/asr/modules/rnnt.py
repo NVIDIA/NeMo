@@ -143,7 +143,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
 
         # state maintenance is unnecessary during training forward call
         # to get state, use .predict() method.
-        g, _ = self.predict(y, state=states)  # (B, U, D)
+        g, _ = self.predict(y, state=states, add_sos=True)  # (B, U, D)
         g = g.transpose(1, 2)  # (B, D, U)
 
         return g, target_length
@@ -690,8 +690,6 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                 end = min(begin + self._fused_batch_size, batch_size)
 
                 # Extract the sub batch inputs
-                # sub_enc = encoder_outputs[begin:end, ...]
-
                 sub_enc = encoder_outputs.narrow(dim=0, start=begin, length=end - begin)
                 sub_transcripts = transcripts[begin:end, ...]
 
@@ -707,7 +705,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                     # Reduce encoder length to preserve computation
                     # Encoder: [sub-batch, T, D] -> [sub-batch, T', D]; T' < T
                     if sub_enc.shape[1] != max_sub_enc_length:
-                        sub_enc = sub_enc.narrow(dim=1, start=0, length=max_sub_enc_length)  # .contiguous()
+                        sub_enc = sub_enc.narrow(dim=1, start=0, length=max_sub_enc_length)
 
                     # sub_dec = decoder_outputs[begin:end, ...]  # [sub-batch, U, D]
                     sub_dec = decoder_outputs.narrow(dim=0, start=begin, length=end - begin)  # [sub-batch, U, D]
@@ -715,10 +713,15 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                     # Reduce decoder length to preserve computation
                     # Decoder: [sub-batch, U, D] -> [sub-batch, U', D]; U' < U
                     if sub_dec.shape[1] != max_sub_transcript_length + 1:
-                        sub_dec = sub_dec.narrow(dim=1, start=0, length=max_sub_transcript_length + 1)  # .contiguous()
+                        sub_dec = sub_dec.narrow(dim=1, start=0, length=max_sub_transcript_length + 1)
 
                     # Perform joint => [sub-batch, T', U', V + 1]
                     sub_joint = self.joint(sub_enc, sub_dec)
+
+                    # Reduce transcript length to correct alignment
+                    # Transcript: [sub-batch, L] -> [sub-batch, L']; L' <= L
+                    if sub_transcripts.shape[1] != max_sub_transcript_length:
+                        sub_transcripts = sub_transcripts.narrow(dim=1, start=0, length=max_sub_transcript_length)
 
                     # Compute sub batch loss
                     # preserve loss reduction type
@@ -728,39 +731,13 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                     self.loss.reduction = None
 
                     # compute and preserve loss
-                    if self._fused_batch_size == 1:
-                        loss_sum = self.loss(
-                            log_probs=sub_joint,
-                            targets=sub_transcripts,
-                            input_lengths=sub_enc_lens,
-                            target_lengths=sub_transcript_lens,
-                        )
-                        losses.append(loss_sum)
-
-                    else:
-                        # Loss must be calculated per sample when using sub-batches to avoid
-                        # randomized sub-batch padding from interacting with the loss function.
-                        for idx in range(int(sub_joint.shape[0])):
-                            # Extract joint of individual sample, sliced to appropriate size.
-                            sample_joint = sub_joint[
-                                idx : idx + 1, : sub_enc_lens[idx], : sub_transcript_lens[idx] + 1, :
-                            ].contiguous()
-
-                            sample_transcript = sub_transcripts.narrow(dim=0, start=idx, length=1)
-                            sample_transcript = sample_transcript.narrow(
-                                dim=1, start=0, length=sub_transcript_lens[idx]
-                            )
-
-                            sample_input_lens = sub_enc_lens.narrow(dim=0, start=idx, length=1)
-                            sample_target_lens = sub_transcript_lens.narrow(dim=0, start=idx, length=1)
-
-                            loss_val = self.loss(
-                                log_probs=sample_joint,
-                                targets=sample_transcript,
-                                input_lengths=sample_input_lens,
-                                target_lengths=sample_target_lens,
-                            )
-                            losses.append(loss_val)
+                    loss_batch = self.loss(
+                        log_probs=sub_joint,
+                        targets=sub_transcripts,
+                        input_lengths=sub_enc_lens,
+                        target_lengths=sub_transcript_lens,
+                    )
+                    losses.append(loss_batch)
 
                     # reset loss reduction type
                     self.loss.reduction = loss_reduction
