@@ -17,7 +17,6 @@ __author__ = "Anh Tuan Nguyen"
 
 import json
 from dataclasses import dataclass
-from glob import glob
 from os import makedirs
 from os.path import exists, expanduser, join
 from typing import Any, Optional
@@ -26,7 +25,7 @@ import torch
 from hydra.core.config_store import ConfigStore
 from hydra.types import ObjectConf
 from PIL import Image
-from torchvision.datasets.utils import check_md5, download_and_extract_archive
+from torchvision.datasets.utils import download_and_extract_archive
 from torchvision.transforms import transforms
 
 from nemo.collections.vis.datasets.data_utils import (

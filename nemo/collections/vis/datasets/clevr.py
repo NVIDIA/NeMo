@@ -47,9 +47,7 @@ from torchvision.transforms import transforms
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.configuration_error import ConfigurationError
-from nemo.utils.configuration_parsing import get_value_from_dictionary, get_value_list_from_dictionary
-
-# from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
+from nemo.utils.configuration_parsing import get_value_from_dictionary
 
 
 # Create the config store instance.
