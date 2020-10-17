@@ -4,75 +4,91 @@ name: &name TransformerMT
 trainer:
   gpus:
     - 0
-    - 1 # the number of gpus, 0 for CPU
+    - 1
   num_nodes: 1
   max_epochs: 1000
-  max_steps: 300000 # precedence over max_epochs
+  max_steps: 2000 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   distributed_backend: ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  row_log_interval: 1  # Interval of logging.
+  row_log_interval: 100  # Interval of logging.
   val_check_interval: 1000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  progress_bar_refresh_rate: 0
 
 model:
   machine_translation:
-    src_tokenizer: yttm
-    tgt_tokenizer: yttm
-    #special_tokens:
-    #    unk_token: '<UNK>'
-    #    pad_token: '<PAD>'
-    #    bos_token: '<BOS>'
-    #    eos_token: '<EOS>'
-    src_tokenizer_model: ~/data/wmt14_en_de/bpe_32k_ende_yttm.model
-    tgt_tokenizer_model: ~/data/wmt14_en_de/bpe_32k_ende_yttm.model
+    tokenizer:
+      tokenizer_name: yttm
+      tokenizer_model: /data/bpe_32k_en_de_yttm.model
+# 2 following fields are mutually exclusive with `tokenizer`
+#    src_tokenizer:
+#      tokenizer_name: yttm
+#      tokenizer_model: /data/bpe_32k_en_de_yttm.model
+#    tgt_tokenizer:
+#      tokenizer_name: yttm
+#      tokenizer_model: /data/bpe_32k_en_de_yttm.model
     hidden_size: 512
     num_layers: 6
     num_attn_heads: 8
     inner_size: 2048
-    max_seq_length: 512
+    max_seq_length: 512  # maximum allowed length in embedding layer
     embedding_dropout: 0.1
     ffn_dropout: 0.1
     attn_score_dropout: 0.1
     attn_layer_dropout: 0.1
-    beam_size: 21
-    len_pen: 0.3
+    beam_size: 4
     label_smoothing: 0.1
-
-  dataset:
-    max_seq_length: 512
-    num_workers: 2 # number of workers for data loaders
-    drop_last: false # drops the last last batch if it is smaller than the batch size
-    pin_memory: false # enables pin_memory feature of the data loaders
+    len_pen: 0.6
 
   train_ds:
-    src_file_name: ~/data/wmt14_en_de/train.en
-    tgt_file_name: ~/data/wmt14_en_de/train.de
-    tokens_in_batch: 4096
+    src_file_name: /data/train.en
+    tgt_file_name: /data/train.de
+    tokens_in_batch: 512
+    clean: true
+    max_seq_length: 256
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
+    drop_last: false # drops the last last batch if it is smaller than the batch size
+    pin_memory: false # enables pin_memory feature of the data loaders
+    num_workers: 8 # number of workers for data loaders
+
 
   validation_ds:
-    src_file_name: ~/data/wmt14_en_de/valid.en # path to file with validation data
-    tgt_file_name: ~/data/wmt14_en_de/valid.de
+    src_file_name: /data/valid.en # path to file with validation data
+    tgt_file_name: /data/valid.de
     tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     predict_last_k: 0
+    drop_last: false # drops the last last batch if it is smaller than the batch size
+    pin_memory: false # enables pin_memory feature of the data loaders
+    num_workers: 8 # number of workers for data loaders
+
+  test_ds:
+    src_file_name: /data/test.en # path to file with validation data
+    tgt_file_name: /data/test.de
+    tokens_in_batch: 512
+    shuffle: false
+    num_samples: -1 # number of samples to be considered, -1 means all the dataset
+    predict_last_k: 0
+    drop_last: false # drops the last last batch if it is smaller than the batch size
+    pin_memory: false # enables pin_memory feature of the data loaders
+    num_workers: 8 # number of workers for data loaders
 
   optim:
     name: adam
-    lr: 1e-3
+    lr: 3.5e-4
     betas: [0.9, 0.98]
     weight_decay: 0
 
     sched:
       name: InverseSquareRootAnnealing
-      warmup_steps: 10000
-      warmup_ratio: null
+      warmup_steps: null
+      warmup_ratio: 0.04
       last_epoch: -1
 
       # pytorch lightning args
@@ -80,7 +96,7 @@ model:
       reduce_on_plateau: false
 
 exp_manager:
-  exp_dir: null  # where to store logs and checkpoints
+  exp_dir: /result  # where to store logs and checkpoints
   name: *name  # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
