@@ -178,9 +178,9 @@ class IntentSlotClassificationModel(NLPModel):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report (separately for intents and slots)
-        intent_precision, intent_recall, intent_f1 = self.intent_classification_report.compute()
+        intent_precision, intent_recall, intent_f1, _ = self.intent_classification_report.compute()
 
-        slot_precision, slot_recall, slot_f1 = self.slot_classification_report.compute()
+        slot_precision, slot_recall, slot_f1, _ = self.slot_classification_report.compute()
 
         tensorboard_logs = {
             'val_loss': avg_loss,
