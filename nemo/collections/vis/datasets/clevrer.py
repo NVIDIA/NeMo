@@ -342,38 +342,42 @@ class CLEVRER(Dataset):
                     break
                 prev_endpoint = end_point
 
+        frames = []
+
         # Extract frame once, reused later
         if not exists(frame_dir):
             makedirs(frame_dir)
-            frame_extractor = cv2.VideoCapture(video_file)
-            currentframe = 0
-            while True:
-                # extract frames from videos
-                ret, frame = frame_extractor.read()
-                if ret:
-                    # if we want to save frames
-                    if self._save_frames:
-                        filename = 'frame_%05d.jpg' % currentframe
-                        frame_file = join(frame_dir, filename)
+        
+        frame_extractor = cv2.VideoCapture(video_file)
+        currentframe = 0
+        while True:
+            # extract frames from videos
+            ret, frame = frame_extractor.read()
+            if ret:
+                # if we want to save frames
+                if self._save_frames:
+                    filename = 'frame_%05d.jpg' % currentframe
+                    frame_file = join(frame_dir, filename)
+                    if not exists(frame_file):
                         logging.info('Creating frame file: ' + filename)
                         # store frame into file
                         cv2.imwrite(frame_file, frame)
                     
-                    # return frames
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    img = Image.fromarray(rgb)
-                    if self._image_transform is not None:
-                        # Apply transformation(s).
-                        img = self._image_transform(img)
+                # return frames
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                img = Image.fromarray(rgb)
+                if self._image_transform is not None:
+                    # Apply transformation(s).
+                    img = self._image_transform(img)
 
-                    frames.append(img)
-                    currentframe += 1
-                else:
-                    logging.info('Finish extracting frame from the video')
-                    break
-            # Release all space and windows once done 
-            cam.release()
-            cv2.destroyAllWindows()
+                frames.append(img)
+                currentframe += 1
+            else:
+                logging.info('Finish extracting frame from the video')
+                break
+        # Release all space and windows once done 
+        frame_extractor.release()
+        cv2.destroyAllWindows()
             
         # Return frame list.
         return frames
@@ -410,9 +414,14 @@ class CLEVRER(Dataset):
         else:
             answer = "<UNK>"
 
-        # Question type
+        # Question type and subtype
         question_type = item["question_type"]
-        question_subtype = item["question_subtype"]
+
+        if "question_subtype" in item.keys():
+            question_subtype = item["question_subtype"]
+        else:
+            question_subtype = "<UNK>"
+
 
         # Return sample.
         return index, video_index, frames, question_id, question, answer, question_type, question_subtype
