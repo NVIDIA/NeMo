@@ -180,7 +180,6 @@ class SquadDataset(Dataset):
         all_predictions = collections.OrderedDict()
         all_nbest_json = collections.OrderedDict()
         scores_diff_json = collections.OrderedDict()
-
         for (example_index, example) in enumerate(self.examples):
 
             features = example_index_to_features[example_index]

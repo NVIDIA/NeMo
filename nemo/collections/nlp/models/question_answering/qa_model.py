@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -149,7 +149,7 @@ class QAModel(NLPModel):
             for u in all_end_logits:
                 end_logits.extend(tensor2list(u))
 
-            eval_dataset = self.test_dataset if self.testing else self.validation_dataset
+            eval_dataset = self.self._test_dl.dataset if self.testing else self._validation_dl.dataset
             exact_match, f1, all_predictions, all_nbest = eval_dataset.evaluate(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
@@ -170,30 +170,76 @@ class QAModel(NLPModel):
     def test_epoch_end(self, outputs):
         return self.validation_epoch_end(outputs)
 
-    # def test_epoch_end(self, outputs):
-    #     unique_ids = tensor2list(torch.cat([x['test_tensors']['unique_ids'] for x in outputs]))
-    #     logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
-    #     s, e = logits.split(dim=-1, split_size=1)
-    #     start_logits = tensor2list(s.squeeze())
-    #     end_logits = tensor2list(e.squeeze())
-    #     (all_predictions, all_nbest, scores_diff) = self.test_dataset.get_predictions(
-    #         unique_ids=unique_ids,
-    #         start_logits=start_logits,
-    #         end_logits=end_logits,
-    #         n_best_size=self._cfg.test_ds.n_best_size,
-    #         max_answer_length=self._cfg.test_ds.max_answer_length,
-    #         version_2_with_negative=self._cfg.dataset.version_2_with_negative,
-    #         null_score_diff_threshold=self._cfg.test_ds.null_score_diff_threshold,
-    #         do_lower_case=self._cfg.dataset.do_lower_case,
-    #     )
+    @torch.no_grad()
+    def inference(
+        self,
+        file: str,
+        batch_size: int = 1,
+        output_nbest_file: Optional[str] = None,
+        output_prediction_file: Optional[str] = None,
+    ) -> List[int]:
+        """
+        Get prediction for the queries
+        Args:
+            queries: text sequences
+            batch_size: batch size to use during inference
+            max_seq_length: sequences longer than max_seq_length will get truncated. default -1 disables truncation.
+        Returns:
+            all_preds: model predictions
+        """
+        # store predictions for all queries in a single list
+        all_predictions = []
+        all_nbest = []
+        mode = self.training
+        device = next(self.parameters()).device
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            dataloader_cfg = {"batch_size": batch_size, "file": file, "shuffle": False, "num_samples": 100}
+            dataloader_cfg = OmegaConf.create(dataloader_cfg)
+            infer_datalayer = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode="infer")
 
-    #     if self._cfg.test_ds.output_nbest_file is not None:
-    #         with open(self._cfg.test_ds.output_nbest_file, "w") as writer:
-    #             writer.write(json.dumps(all_nbest, indent=4) + "\n")
-    #     if self._cfg.test_ds.output_prediction_file is not None:
-    #         with open(self._cfg.test_ds.output_prediction_file, "w") as writer:
-    #             writer.write(json.dumps(all_predictions, indent=4) + "\n")
-    #     return {}
+            all_logits = []
+            all_unique_ids = []
+            for i, batch in enumerate(infer_datalayer):
+                input_ids, token_type_ids, attention_mask, unique_ids = batch
+                logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    token_type_ids=token_type_ids.to(device),
+                    attention_mask=attention_mask.to(device),
+                )
+                all_logits.append(logits)
+                all_unique_ids.append(unique_ids)
+            logits = torch.cat(all_logits)
+            unique_ids = tensor2list(torch.cat(all_unique_ids))
+            s, e = logits.split(dim=-1, split_size=1)
+            start_logits = tensor2list(s.squeeze())
+            end_logits = tensor2list(e.squeeze())
+            (all_predictions, all_nbest, scores_diff) = infer_datalayer.dataset.get_predictions(
+                unique_ids=unique_ids,
+                start_logits=start_logits,
+                end_logits=end_logits,
+                n_best_size=self._cfg.dataset.n_best_size,
+                max_answer_length=self._cfg.dataset.max_answer_length,
+                version_2_with_negative=self._cfg.dataset.version_2_with_negative,
+                null_score_diff_threshold=self._cfg.dataset.null_score_diff_threshold,
+                do_lower_case=self._cfg.dataset.do_lower_case,
+            )
+
+            if output_nbest_file is not None:
+                with open(output_nbest_file, "w") as writer:
+                    writer.write(json.dumps(all_nbest, indent=4) + "\n")
+            if output_prediction_file is not None:
+                with open(output_prediction_file, "w") as writer:
+                    writer.write(json.dumps(all_predictions, indent=4) + "\n")
+
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+            logging.set_verbosity(logging_level)
+        return all_predictions, all_nbest
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
@@ -243,10 +289,6 @@ class QAModel(NLPModel):
             mode=mode,
             use_cache=self._cfg.dataset.use_cache,
         )
-        if mode == "val":
-            self.validation_dataset = dataset
-        elif mode == "test":
-            self.test_dataset = dataset
 
         dl = torch.utils.data.DataLoader(
             dataset=dataset,
