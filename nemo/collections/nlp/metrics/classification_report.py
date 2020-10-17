@@ -112,8 +112,8 @@ class ClassificationReport(Metric):
         total_examples = torch.sum(self.num_examples_per_class)
         num_non_empty_classes = torch.nonzero(self.num_examples_per_class).size(0)
 
-        precision = torch.true_divide(self.tp, (self.tp + self.fp + METRIC_EPS))
-        recall = torch.true_divide(self.tp, (self.tp + self.fn + METRIC_EPS))
+        precision = torch.true_divide(self.tp * 100, (self.tp + self.fp + METRIC_EPS))
+        recall = torch.true_divide(self.tp * 100, (self.tp + self.fn + METRIC_EPS))
         f1 = torch.true_divide(2 * precision * recall, (precision + recall + METRIC_EPS))
 
         report = '\n{:50s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
@@ -126,8 +126,8 @@ class ClassificationReport(Metric):
                 label, precision[i], recall[i], f1[i], self.num_examples_per_class[i]
             )
 
-        micro_precision = torch.true_divide(torch.sum(self.tp), torch.sum(self.tp + self.fp) + METRIC_EPS)
-        micro_recall = torch.true_divide(torch.sum(self.tp), torch.sum(self.tp + self.fn) + METRIC_EPS)
+        micro_precision = torch.true_divide(torch.sum(self.tp) * 100, torch.sum(self.tp + self.fp) + METRIC_EPS)
+        micro_recall = torch.true_divide(torch.sum(self.tp) * 100, torch.sum(self.tp + self.fn) + METRIC_EPS)
         micro_f1 = torch.true_divide(2 * micro_precision * micro_recall, (micro_precision + micro_recall + METRIC_EPS))
 
         macro_precision = torch.sum(precision) / num_non_empty_classes
