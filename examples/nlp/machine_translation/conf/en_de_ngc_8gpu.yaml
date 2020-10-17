@@ -15,6 +15,7 @@ trainer:
   row_log_interval: 100  # Interval of logging.
   val_check_interval: 1000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  progress_bar_refresh_rate: 0
 
 model:
   machine_translation:
