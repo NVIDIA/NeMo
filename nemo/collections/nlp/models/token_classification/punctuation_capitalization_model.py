@@ -89,10 +89,16 @@ class PunctuationCapitalizationModel(ModelPT):
 
         # setup to track metrics
         self.punct_class_report = ClassificationReport(
-            num_classes=len(self._cfg.punct_label_ids), label_ids=self._cfg.punct_label_ids, mode='macro', dist_sync_on_step=True
+            num_classes=len(self._cfg.punct_label_ids),
+            label_ids=self._cfg.punct_label_ids,
+            mode='macro',
+            dist_sync_on_step=True,
         )
         self.capit_class_report = ClassificationReport(
-            num_classes=len(self._cfg.capit_label_ids), label_ids=self._cfg.capit_label_ids, mode='macro', dist_sync_on_step=True
+            num_classes=len(self._cfg.capit_label_ids),
+            label_ids=self._cfg.capit_label_ids,
+            mode='macro',
+            dist_sync_on_step=True,
         )
 
     @typecheck()
