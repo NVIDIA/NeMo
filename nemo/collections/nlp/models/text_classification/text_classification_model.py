@@ -151,10 +151,7 @@ class TextClassificationModel(NLPModel, Exportable):
 
         preds = torch.argmax(logits, axis=-1)
 
-        self.classification_report(preds, labels)
-        tp = self.classification_report.tp
-        fn = self.classification_report.fn
-        fp = self.classification_report.fp
+        tp, fn, fp, _ = self.classification_report(preds, labels)
 
         tensorboard_logs = {f'{prefix}_loss': val_loss, f'{prefix}_tp': tp, f'{prefix}_fn': fn, f'{prefix}_fp': fp}
 
@@ -174,7 +171,9 @@ class TextClassificationModel(NLPModel, Exportable):
 
         avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
 
-        precision, recall, f1 = self.classification_report.compute()
+        precision, recall, f1, report = self.classification_report.compute()
+
+        logging.info(report)
 
         tensorboard_logs = {
             f'{prefix}_loss': avg_loss,
