@@ -386,6 +386,12 @@ class EncDecRNNTModel(ASRModel):
         if hasattr(self, '_trainer') and self._trainer is not None:
             row_log_interval = self._trainer.row_log_interval
             sample_id = self._trainer.global_step
+
+            # TODO: Remove temporary patch once PTL 1.x is merged
+            if row_log_interval > self._trainer.num_training_batches:
+                log_gt_train_batches = True
+            else:
+                log_gt_train_batches = False
         else:
             row_log_interval = 1
             sample_id = batch_nb
@@ -423,6 +429,10 @@ class EncDecRNNTModel(ASRModel):
 
             if compute_wer:
                 tensorboard_logs.update({'training_batch_wer': wer_num / wer_denom})
+
+        if hasattr(self, '_trainer') and self._trainer is not None:
+            if log_gt_train_batches and (((sample_id + 1) % row_log_interval) == 0):
+                self._trainer.log_metrics(metrics=tensorboard_logs, grad_norm_dic={}, step=sample_id + 1)
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
