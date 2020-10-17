@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import math
 from pathlib import Path
 from typing import Dict, Optional
 
+import numpy as np
 import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
+from nemo.collections.common.metrics.sacrebleu import corpus_bleu
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -43,29 +46,47 @@ class TransformerMTModel(ModelPT):
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
-        self.src_tokenizer = get_tokenizer(
-            tokenizer_name=cfg.machine_translation.src_tokenizer,
-            tokenizer_model=Path(cfg.machine_translation.src_tokenizer_model).expanduser()
-        )
-        self.tgt_tokenizer = get_tokenizer(
-            tokenizer_name=cfg.machine_translation.tgt_tokenizer,
-            tokenizer_model=Path(cfg.machine_translation.tgt_tokenizer_model).expanduser()
-        )
-
-        # make vocabulary size divisible by 8 for fast fp16 training
-        src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
-        tgt_vocab_size = 8 * math.ceil(self.tgt_tokenizer.vocab_size / 8)
+        if "tokenizer" in cfg.machine_translation:
+            if "src_tokenizer" in cfg.machine_translation or "tgt_tokenizer" in cfg.machine_translation:
+                raise ValueError(
+                    "If 'tokenizer' is in 'machine_translation' section than this section should not contain "
+                    "'src_tokenizer' and 'tgt_tokenizer' fields.")
+            self.src_tokenizer = get_tokenizer(**cfg.machine_translation.tokenizer)
+            self.tgt_tokenizer = self.src_tokenizer
+            # make vocabulary size divisible by 8 for fast fp16 training
+            src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
+            tgt_vocab_size = src_vocab_size
+            self.src_embedding_layer = TransformerEmbedding(
+                vocab_size=src_vocab_size,
+                hidden_size=cfg.machine_translation.hidden_size,
+                max_sequence_length=cfg.machine_translation.max_seq_length,
+                embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
+                learn_positional_encodings=False,
+            )
+            self.tgt_embedding_layer = self.src_embedding_layer
+        else:
+            self.src_tokenizer = get_tokenizer(**cfg.machine_translation.src_tokenizer)
+            self.tgt_tokenizer = get_tokenizer(**cfg.machine_translation.tgt_tokenizer)
+            # make vocabulary size divisible by 8 for fast fp16 training
+            src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
+            tgt_vocab_size = 8 * math.ceil(self.tgt_tokenizer.vocab_size / 8)
+            self.src_embedding_layer = TransformerEmbedding(
+                vocab_size=src_vocab_size,
+                hidden_size=cfg.machine_translation.hidden_size,
+                max_sequence_length=cfg.machine_translation.max_seq_length,
+                embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
+                learn_positional_encodings=False,
+            )
+            self.tgt_embedding_layer = TransformerEmbedding(
+                vocab_size=tgt_vocab_size,
+                hidden_size=cfg.machine_translation.hidden_size,
+                max_sequence_length=cfg.machine_translation.max_seq_length,
+                embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
+                learn_positional_encodings=False,
+            )
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        self.embedding_layer = TransformerEmbedding(
-            vocab_size=src_vocab_size,
-            hidden_size=cfg.machine_translation.hidden_size,
-            max_sequence_length=cfg.machine_translation.max_seq_length,
-            embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
-            learn_positional_encodings=False,
-        )
         self.encoder = TransformerEncoder(
             hidden_size=cfg.machine_translation.hidden_size,
             inner_size=cfg.machine_translation.inner_size,
@@ -88,7 +109,7 @@ class TransformerMTModel(ModelPT):
             hidden_size=cfg.machine_translation.hidden_size, num_classes=tgt_vocab_size, log_softmax=True,
         )
         self.beam_search = BeamSearchSequenceGenerator(
-            embedding=self.embedding_layer,
+            embedding=self.tgt_embedding_layer,
             decoder=self.decoder,
             log_softmax=self.log_softmax,
             max_sequence_length=cfg.machine_translation.max_seq_length,
@@ -103,13 +124,10 @@ class TransformerMTModel(ModelPT):
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # tie weights of embedding and softmax matrices
-        self.log_softmax.mlp.layer0.weight = self.embedding_layer.token_embedding.weight
+        self.log_softmax.mlp.layer0.weight = self.tgt_embedding_layer.token_embedding.weight
 
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing)
-
-        self.last_eval_loss = None
-        self.last_eval_beam_results = None
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -120,16 +138,9 @@ class TransformerMTModel(ModelPT):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        if src.ndim == 3:
-            # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
-            # is excess.
-            src = src.squeeze(dim=0)
-            src_mask = src_mask.squeeze(dim=0)
-            tgt = tgt.squeeze(dim=0)
-            tgt_mask = tgt_mask.squeeze(dim=0)
-        src_embeddings = self.embedding_layer(input_ids=src)
+        src_embeddings = self.src_embedding_layer(input_ids=src)
         src_hiddens = self.encoder(src_embeddings, src_mask)
-        tgt_embeddings = self.embedding_layer(input_ids=tgt)
+        tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
@@ -146,51 +157,79 @@ class TransformerMTModel(ModelPT):
         passed in as `batch`.
         """
         # forward pass
+        for i in range(len(batch)):
+            if batch[i].ndim == 3:
+                # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
+                # is excess.
+                batch[i] = batch[i].squeeze()
         src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
         log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
-
-        if labels.ndim == 3:
-            # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
-            # is excess.
-            labels = labels.squeeze(dim=0)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': train_loss, 'log': tensorboard_logs}
+
+    def eval_step(self, batch, batch_idx, mode):
+        for i in range(len(batch)):
+            if batch[i].ndim == 3:
+                # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
+                # is excess.
+                batch[i] = batch[i].squeeze()
+        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
+        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+        translations = [self.tgt_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+        ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in tgt_ids.cpu().numpy()]
+        num_non_pad_tokens = np.not_equal(tgt_ids, self.tgt_tokenizer.pad_id).sum().item()
+        tensorboard_logs = {f'{mode}_loss': eval_loss}
+        return {
+            f'{mode}_loss': eval_loss,
+            'translations': translations,
+            'ground_truths': ground_truths,
+            'num_non_pad_tokens': num_non_pad_tokens,
+            'log': tensorboard_logs}
+
+    def test_step(self, batch, batch_idx):
+        return self.eval_step(batch, batch_idx, 'test')
 
     def validation_step(self, batch, batch_idx):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
-        try:
-            log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
-        except IndexError as e:
-            print("(TransformerMTModel.validation_step)src_ids.shape:", src_ids.shape)
-            raise e
-        if labels.ndim == 3:
-            # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
-            # is excess.
-            labels = labels.squeeze(dim=0)
-            sent_ids = sent_ids.squeeze(dim=0)
-        val_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        self.last_eval_beam_results = beam_results.cpu().numpy()
-        self.last_eval_loss = val_loss.cpu().numpy()
+        return self.eval_step(batch, batch_idx, 'val')
 
-        tensorboard_logs = {'val_loss': val_loss}
-
-        return {'val_loss': val_loss, 'log': tensorboard_logs}
+    def eval_epoch_end(self, outputs, mode):
+        counts = np.array([x['num_non_pad_tokens'] for x in outputs])
+        eval_loss = np.sum(np.array([x[f'{mode}_loss'] for x in outputs]) * counts) / counts.sum()
+        translations = list(itertools.chain(*[x['translations'] for x in outputs]))
+        ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
+        token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
+        sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+        self.trainer.logger.log_metrics({'tokenBLEU': token_bleu, 'sacreBLEU': sacre_bleu})
+        print(f"{mode} results".capitalize())
+        for i in range(3):
+            sent_id = np.random.randint(len(self._translations))
+            print(f"Ground truth: {self._ground_truths[sent_id]}\n")
+            print(f"Translation: {self._translations[sent_id]}\n")
+        print("-" * 50)
+        print(f"loss: {eval_loss:.3f}")
+        print(f"TokenBLEU: {token_bleu}")
+        print(f"SacreBLEU: {sacre_bleu}")
+        print("-" * 50)
+        ans = {f"{mode}_loss": eval_loss, f"{mode}_tokenBLEU": token_bleu, f"{mode}_sacreBLEU": sacre_bleu}
+        ans['log'] = dict(ans)
+        return ans
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
+        return self.eval_epoch_end(outputs, 'val')
 
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss, 'val_ppl': torch.exp(avg_loss)}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+    def test_epoch_end(self, outputs):
+        return self.eval_epoch_end(outputs, 'test')
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
