@@ -76,7 +76,6 @@ class ClassificationReport(Metric):
         self.add_state("fp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
         self.add_state("num_examples_per_class", default=torch.zeros(num_classes), dist_reduce_fx='sum')
 
-
     def update(self, predictions: torch.Tensor, labels: torch.Tensor):
         TP = []
         FN = []
@@ -88,7 +87,7 @@ class ClassificationReport(Metric):
             TP.append((label_predicted == current_label)[label_predicted].sum())
             FP.append((label_predicted != current_label)[label_predicted].sum())
             FN.append((label_predicted != current_label)[current_label].sum())
-        
+
         tp = torch.tensor(TP).to(predictions.device)
         fn = torch.tensor(FN).to(predictions.device)
         fp = torch.tensor(FP).to(predictions.device)
@@ -110,8 +109,8 @@ class ClassificationReport(Metric):
         Return:
             aggregated precision, recall, f1
         """
-        #logging.info(f'self.num_examples_per_class: {self.num_examples_per_class}')
-        #num_examples_per_class = self.tp + self.fn
+        # logging.info(f'self.num_examples_per_class: {self.num_examples_per_class}')
+        # num_examples_per_class = self.tp + self.fn
         total_examples = torch.sum(self.num_examples_per_class)
         num_non_empty_classes = torch.nonzero(self.num_examples_per_class).size(0)
 
@@ -156,7 +155,7 @@ class ClassificationReport(Metric):
             + '\n'
         )
 
-        #logging.info(report)
+        # logging.info(report)
 
         if self.mode == 'macro':
             return macro_precision, macro_recall, macro_f1, report
