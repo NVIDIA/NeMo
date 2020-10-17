@@ -109,8 +109,6 @@ class ClassificationReport(Metric):
         Return:
             aggregated precision, recall, f1
         """
-        # logging.info(f'self.num_examples_per_class: {self.num_examples_per_class}')
-        # num_examples_per_class = self.tp + self.fn
         total_examples = torch.sum(self.num_examples_per_class)
         num_non_empty_classes = torch.nonzero(self.num_examples_per_class).size(0)
 
