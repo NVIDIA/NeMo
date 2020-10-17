@@ -43,33 +43,31 @@ cs = ConfigStore.instance()
 @dataclass
 class GQAConfig:
     """
-	Structured config for the GQA dataset.
+    Structured config for the GQA dataset.
 
-	For more details please refer to:
-	https://cs.stanford.edu/people/dorarad/gqa/
+    For more details please refer to:
+    https://cs.stanford.edu/people/dorarad/gqa/
 
-	Args:
-		_target_: Specification of dataset class
-		root: Folder where task will store data (DEFAULT: "~/data/gqa")
-		split: Defines the set (split) that will be used (Options: train | val | test ) (DEFAULT: train)
-		stream_images: Flag indicating whether the task will load and return images (DEFAULT: True)
-		transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
-		dataset_type: Type of dataset to use for training, can be either all or balanced (DEFAULT: balanced) 
-		extract_features: Whether we will pre-extracted features from the images (DEFAULT: False)
-		load_spatial_features: Whether we will load spatial features from pretrained Resnet (DEFAULT: False)
-		load_object_features: Whether we will load object features from pretrained fast-RCNN (DEFAULT: False)
-		load_scene_graph: Whether we will load the scene graph (DEFAULT: False)
-		download: downloads the data if not present (DEFAULT: True)
-	"""
+    Args:
+        _target_: Specification of dataset class
+        root: Folder where task will store data (DEFAULT: "~/data/gqa")
+        split: Defines the set (split) that will be used (Options: train | val | test ) (DEFAULT: train)
+        stream_images: Flag indicating whether the task will load and return images (DEFAULT: True)
+        transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
+        dataset_type: Type of dataset to use for training, can be either all or balanced (DEFAULT: balanced) 
+        load_spatial_features: Whether we will load spatial features from pretrained Resnet (DEFAULT: False)
+        load_object_features: Whether we will load object features from pretrained fast-RCNN (DEFAULT: False)
+        load_scene_graph: Whether we will load the scene graph (DEFAULT: False)
+        download: downloads the data if not present (DEFAULT: True)
+    """
 
     # Dataset target class name.
     _target_: str = "nemo.collections.vis.datasets.GQA"
     root: str = "~/data/gqa"
     split: str = "train"
-    stream_images: bool = True
+    stream_images: bool = False
     # only support balanced for now
     dataset_type: str = "balanced"
-    extract_features: bool = False
     load_spatial_features: bool = False
     load_object_features: bool = False
     load_scene_graph: bool = False
@@ -87,52 +85,52 @@ cs.store(
 
 class GQA(Dataset):
     """
-	Class fetching data from the GQA (Visual Reasoning in the Real World) dataset.
+    Class fetching data from the GQA (Visual Reasoning in the Real World) dataset.
 
-	The GQA dataset consists of the followings:
+    The GQA dataset consists of the followings:
 
-		- Real world images with scene graph annotation (113,018 images)
-		- Questions with functional program annotation (22M questions)
-		- Vocabulary size of 3097 and 1878 possible answers
-		- Questions can be categorized into either structural and semantics type
+        - Real world images with scene graph annotation (113,018 images)
+        - Questions with functional program annotation (22M questions)
+        - Vocabulary size of 3097 and 1878 possible answers
+        - Questions can be categorized into either structural and semantics type
 
-	For more details please refer to the associated _website or _paper.
+    For more details please refer to the associated _website or _paper.
 
-	After downloading and extracting, we will have the following directory
+    After downloading and extracting, we will have the following directory
 
-	data/gqa
-	questions/
-		train_all_questions/
-			train_all_questions_0.json
-			...
-			train_all_questions_9.json
-		train_balanced_questions.json
-		val_all_questions.json
-		val_balanced_questions.json
-		submission_all_questions.json
-		test_all_questions.json
-		test_balanced_questions.json
-	spatial/
-		gqa_spatial_info.json
-		gqa_spatial_0.h5
-		...
-		gqa_spatial_15.h5
-	objects/
-		gqa_objects_info.json
-		gqa_objects_0.h5
-		...
-		gqa_objects_15.h5
-	sceneGraphs/
-		train_sceneGraphs.json
-		val_sceneGraphs.json
-	images/
-		...
+    data/gqa
+    questions/
+        train_all_questions/
+            train_all_questions_0.json
+            ...
+            train_all_questions_9.json
+        train_balanced_questions.json
+        val_all_questions.json
+        val_balanced_questions.json
+        submission_all_questions.json
+        test_all_questions.json
+        test_balanced_questions.json
+    spatial/
+        gqa_spatial_info.json
+        gqa_spatial_0.h5
+        ...
+        gqa_spatial_15.h5
+    objects/
+        gqa_objects_info.json
+        gqa_objects_0.h5
+        ...
+        gqa_objects_15.h5
+    sceneGraphs/
+        train_sceneGraphs.json
+        val_sceneGraphs.json
+    images/
+        ...
 
-	.. _website: https://cs.stanford.edu/people/dorarad/gqa/
+    .. _website: https://cs.stanford.edu/people/dorarad/gqa/
 
-	.._paper: https://arxiv.org/pdf/1902.09506
+    .._paper: https://arxiv.org/pdf/1902.09506
 
-	"""
+    """
 
     download_url_prefix = "https://nlp.stanford.edu/data/gqa/"
     zip_names = {"scene": "sceneGraphs.zip", "questions": "questions1.2.zip", "images": "images.zip"}
@@ -142,9 +140,8 @@ class GQA(Dataset):
         self,
         root: str = "~/data/gqa",
         split: str = "train",
-        stream_images: bool = True,
+        stream_images: bool = False,
         dataset_type: str = "balanced",
-        extract_features: bool = False,
         load_spatial_features: bool = False,
         load_object_features: bool = False,
         load_scene_graph: bool = False,
@@ -152,21 +149,20 @@ class GQA(Dataset):
         download: bool = True,
     ):
         """
-		Initializes dataset object. Calls base constructor.
-		Downloads the dataset if not present and loads the adequate files depending on the mode.
+        Initializes dataset object. Calls base constructor.
+        Downloads the dataset if not present and loads the adequate files depending on the mode.
 
-		Args:
-		root: Folder where task will store data (DEFAULT: "~/data/gqa")
-			split: Defines the set (split) that will be used (Options: train | val | test) (DEFAULT: train)
-			stream_images: Flag indicating whether the task will load and return images (DEFAULT: True)
-			dataset_type: Flag indicating which type of dataset we will use (all or balanced) (DEFAULT: "all")
-			extract_features: Flag indicating whether we want raw image or features extracted from pre-trained model (DEFAULT: False)
-			load_spatial_features: Flag indicating whether we will load spatial features from Resnet (DEFAULT: False)
-			load_object_features: Flag indicating whether we will load object features from Fast-RCNN (DEFAULT: False)
-			load_scene_graph: Flag indicating whether we will load scene graph (DEFAULT: False)
-			transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
-			download: downloads the data if not present (DEFAULT: True)
-		"""
+        Args:
+        root: Folder where task will store data (DEFAULT: "~/data/gqa")
+            split: Defines the set (split) that will be used (Options: train | val | test) (DEFAULT: train)
+            stream_images: Flag indicating whether the task will load and return images (DEFAULT: True)
+            dataset_type: Flag indicating which type of dataset we will use (all or balanced) (DEFAULT: "all")
+            load_spatial_features: Flag indicating whether we will load spatial features from Resnet (DEFAULT: False)
+            load_object_features: Flag indicating whether we will load object features from Fast-RCNN (DEFAULT: False)
+            load_scene_graph: Flag indicating whether we will load scene graph (DEFAULT: False)
+            transform: TorchVision image preprocessing/augmentations to apply (DEFAULT: None)
+            download: downloads the data if not present (DEFAULT: True)
+        """
         # Call constructors of parent class.
         super().__init__()
 
@@ -184,7 +180,6 @@ class GQA(Dataset):
         self._stream_images = stream_images
 
         self._dataset_type = dataset_type
-        self._extract_features = extract_features
         self._load_spatial_features = load_spatial_features
         self._load_object_features = load_object_features
         self._load_scene_graph = load_scene_graph
@@ -236,13 +231,12 @@ class GQA(Dataset):
 
         self._split_image_folder = join(self._root, "images")
         # instantiate feature loader object
-        if self._extract_features:
-            if self._load_spatial_features:
-                spatial_features_dirs = join(self._root, "spatial")
-                self._spatial_features_loader = SpatialFeatureLoader(spatial_features_dirs)
-            if self._load_object_features:
-                object_features_dirs = join(self._root, "objects")
-                self._object_features_loader = ObjectsFeatureLoader(object_features_dirs)
+        if self._load_spatial_features:
+            spatial_features_dirs = join(self._root, "spatial")
+            self._spatial_features_loader = SpatialFeatureLoader(spatial_features_dirs)
+        if self._load_object_features:
+            object_features_dirs = join(self._root, "objects")
+            self._object_features_loader = ObjectsFeatureLoader(object_features_dirs)
         if self._load_scene_graph and not self._split.startswith('test'):
             if self._split == 'train':
                 scene_graph_dirs = join(self._root, "sceneGraphs", 'train_sceneGraphs.json')
@@ -310,20 +304,19 @@ class GQA(Dataset):
             if not exists(scenefile):
                 logging.info("Cannot find scene graph files")
                 return False
-        # In case we want to return features
-        if self._extract_features:
-            # spatial features (from ResNet101)
-            if self._load_spatial_features:
-                spatialfile = join(self._root, self.features_names["spatial"])
-                if not exists(spatialfile):
-                    logging.info("Cannot find spatial features files")
-                    return False
-            # object features (from Faster-RNN)
-            if self._load_object_features:
-                objectfile = join(self._root, self.features_names["object"])
-                if not exists(objectfile):
-                    logging.info("Cannot find object features files")
-                    return False
+       
+        # spatial features (from ResNet101)
+        if self._load_spatial_features:
+            spatialfile = join(self._root, self.features_names["spatial"])
+            if not exists(spatialfile):
+                logging.info("Cannot find spatial features files")
+                return False
+        # object features (from Faster-RNN)
+        if self._load_object_features:
+            objectfile = join(self._root, self.features_names["object"])
+            if not exists(objectfile):
+                logging.info("Cannot find object features files")
+                return False
         # In case we want to return images
         if self._stream_images:
             imagefile = join(self._root, self.zip_names["images"])
@@ -378,9 +371,9 @@ class GQA(Dataset):
 
     def load_data(self, source_data_file):
         """
-		Loads the dataset from source file.
+        Loads the dataset from source file.
 
-		"""
+        """
         dataset = []
 
         if self._split == 'test':
@@ -416,22 +409,22 @@ class GQA(Dataset):
 
     def __len__(self):
         """
-		Returns:
-			The size of the loaded dataset split.
-		"""
+        Returns:
+            The size of the loaded dataset split.
+        """
         return len(self.data)
 
     def get_image(self, img_id):
         """
-		Function loads and returns image along with its size.
-		Additionally, it performs all the required transformations.
+        Function loads and returns image along with its size.
+        Additionally, it performs all the required transformations.
 
-		Args:
-			img_id: Identifier of the images.
+        Args:
+            img_id: Identifier of the images.
 
-		Returns:
-			image (PIL Image / Tensor, depending on the applied transforms)
-		"""
+        Returns:
+            image (PIL Image / Tensor, depending on the applied transforms)
+        """
 
         # Load the image and convert to RGB.
         img = Image.open(join(self._split_image_folder, img_id)).convert('RGB')
@@ -445,14 +438,14 @@ class GQA(Dataset):
 
     def __getitem__(self, index):
         """
-		Getter method to access the dataset and return a single sample.
+        Getter method to access the dataset and return a single sample.
 
-		Args:
-			index: index of the sample to return.
+        Args:
+            index: index of the sample to return.
 
-		Returns:
-			indices, images_ids, images, questions, answers, question_types, spatial_features, object_features, object_normalized_bbox, obj_attributes, obj_relations
-		"""
+        Returns:
+            indices, images_ids, images, questions, answers, question_types, spatial_features, object_features, object_normalized_bbox, obj_attributes, obj_relations
+        """
         # Get item.
         item = self.data[index]
 
@@ -480,22 +473,21 @@ class GQA(Dataset):
         else:
             question_type = "<UNK>"
 
-        # Load images features and scene graphs
-        if self._extract_features:
-            # Spatial features
-            if self._load_spatial_features:
-                spatial_features = self._spatial_features_loader.load_feature(img_id)
-            else:
-                spatial_features = None
-            # Object features
-            if self._load_object_features:
-                result = self._object_features_loader.load_feature_normalized_bbox(img_id)
-                # We extract object features and bounding box coordinates
-                obj_features = result[0]
-                obj_normalized_bbox = result[1]
-            else:
-                obj_features = None
-                obj_normalized_bbox = None
+  
+        # Spatial features
+        if self._load_spatial_features:
+            spatial_features = self._spatial_features_loader.load_feature(img_id)
+        else:
+            spatial_features = None
+        # Object features
+        if self._load_object_features:
+            result = self._object_features_loader.load_feature_normalized_bbox(img_id)
+            # We extract object features and bounding box coordinates
+            obj_features = result[0]
+            obj_normalized_bbox = result[1]
+        else:
+            obj_features = None
+            obj_normalized_bbox = None
         # Scene graph
         if self._load_scene_graph and not self._split.startswith('test'):
             result = self._scene_graph_loader.load_feature_normalized_bbox(img_id)
@@ -523,15 +515,15 @@ class GQA(Dataset):
 
     def collate_fn(self, batch):
         """
-		Combines a list of samples (retrieved with :py:func:`__getitem__`) into a batch.
+        Combines a list of samples (retrieved with :py:func:`__getitem__`) into a batch.
 
-		Args:
-			batch: list of individual samples to combine
+        Args:
+            batch: list of individual samples to combine
 
-		Returns:
-			Batch of: indices, images_ids, images, questions, answers, question_types, spatial_features, obj_features, obj_normalized_bbox, obj_attributes, obj_relations
+        Returns:
+            Batch of: indices, images_ids, images, questions, answers, question_types, spatial_features, obj_features, obj_normalized_bbox, obj_attributes, obj_relations
 
-		"""
+        """
         # Collate indices.
         indices_batch = [sample[0] for sample in batch]
 
@@ -550,20 +542,18 @@ class GQA(Dataset):
         # Collate question_types
         question_type_batch = [sample[5] for sample in batch]
 
-        # Collate images features
-        if self._extract_features:
-            # Spatial features
-            if self._load_spatial_features:
-                spatial_features_batch = [sample[6] for sample in batch]
-            else:
-                spatial_features_batch = None
-            # Object features
-            if self._load_object_features:
-                obj_features_batch = [sample[7] for sample in batch]
-                obj_normalized_bbox_batch = [sample[8] for sample in batch]
-            else:
-                obj_features_batch = None
-                obj_normalized_bbox_batch = None
+        # Spatial features
+        if self._load_spatial_features:
+            spatial_features_batch = [sample[6] for sample in batch]
+        else:
+            spatial_features_batch = None
+        # Object features
+        if self._load_object_features:
+            obj_features_batch = [sample[7] for sample in batch]
+            obj_normalized_bbox_batch = [sample[8] for sample in batch]
+        else:
+            obj_features_batch = None
+            obj_normalized_bbox_batch = None
         # Scene graph
         if self._load_scene_graph and not self._split.startswith('test'):
             obj_attributes_batch = [sample[9] for sample in batch]
