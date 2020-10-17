@@ -14,7 +14,7 @@
 
 import csv
 import string
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import MISSING, dataclass, field
 from os.path import exists, expanduser
 from typing import List, Union

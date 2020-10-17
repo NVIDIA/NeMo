@@ -77,7 +77,7 @@ class LeNet5(NeuralModule):
             )
         }
 
-    # @typecheck()
+    @typecheck()
     def forward(self, images):
         """
         Performs the forward step of the LeNet-5 model.

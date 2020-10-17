@@ -22,7 +22,6 @@ from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.models.model import Model
 from nemo.collections.vis.modules import SentenceEmbeddingsConfig
 from nemo.collections.vis.transforms import Compose
-from nemo.core.neural_types import *
 
 
 @dataclass
