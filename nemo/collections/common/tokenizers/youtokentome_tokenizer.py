@@ -14,6 +14,8 @@
 # limitations under the License.
 # =============================================================================
 
+from pathlib import Path
+
 import youtokentome as yttm
 
 from nemo.collections.common.tokenizers import TokenizerSpec
@@ -23,6 +25,7 @@ __all__ = ['YouTokenToMeTokenizer']
 
 class YouTokenToMeTokenizer(TokenizerSpec):
     def __init__(self, model_path):
+        model_path = Path(model_path).expanduser()
         self.tokenizer = yttm.BPE(model=str(model_path))
         self.vocab_size = len(self.tokenizer.vocab())
         self.special_tokens = self.tokens_to_ids(["<PAD>", "<UNK>", "<BOS>", "<EOS>"])
