@@ -2,7 +2,7 @@
 name: &name TransformerMT
 
 trainer:
-  gpus: 1
+  gpus: 2
   num_nodes: 1
   max_epochs: 1000
   max_steps: 20 # precedence over max_epochs
