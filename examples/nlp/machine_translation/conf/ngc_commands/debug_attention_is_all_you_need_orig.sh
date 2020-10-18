@@ -4,8 +4,8 @@ pip install -r requirements/requirements.txt \
   && export HYDRA_FULL_ERROR=1 \
   && echo "NeMo path: ${nemo_path}" \
   && export PYTHONPATH="${nemo_path}" \
-  && mkdir -p /data \
-  && cd /data \
+  && mkdir -p /data/wmt14_en_de \
+  && cd /data/wmt14_en_de \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.de -O valid.de \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.en -O valid.en \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2014.de -O test.de \
