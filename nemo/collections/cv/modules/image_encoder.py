@@ -33,6 +33,7 @@ __author__ = "Tomasz Kornuta and Anh Tuan Nguyen"
 
 # The object detection was adapted from the following detectron2 implementation:
 # https://github.com/airsplay/py-bottom-up-attention/blob/master/demo/detectron2_mscoco_proposal_maxnms.py
+import os
 
 from dataclasses import dataclass
 from typing import Optional
@@ -47,7 +48,7 @@ import detectron2
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.modeling.postprocessing import detector_postprocess
-from detectron2.modeling.roi_heads.fast_rcnn import FastRCNNOutputLayers,
+from detectron2.modeling.roi_heads.fast_rcnn import FastRCNNOutputLayers, FastRCNNOutputs
 from detectron2.structures import Boxes, Instances, ImageList
 
 from hydra.core.config_store import ConfigStore
@@ -62,6 +63,7 @@ from nemo.utils.configuration_parsing import get_value_from_dictionary
 cs = ConfigStore.instance()
 
 D2_ROOT = os.path.dirname(os.path.dirname(detectron2.__file__)) # Root of detectron2
+
 
 @dataclass
 class ImageEncoderConfig:
