@@ -433,7 +433,7 @@ class ImageEncoder(NeuralModule):
 			# batch the features
 			pred_classes = torch.stack(instances.pred_classes for instances in raw_instances_list).type(torch.LongTensor) # (B x num_boxes)
 			pred_scores = torch.stack(instances.scores for instances in raw_instances_list).type(torch.FloatTensor) # (B x num_boxes)
-			bboxes = torch.stack(instances.pred_boxes for instances in raw_instances_list).type(torch.FloatTensor) # (B x num_boxes x 4)
+			bboxes = torch.stack(instances.pred_boxes.tensor for instances in raw_instances_list).type(torch.FloatTensor) # (B x num_boxes x 4)
 			features = torch.stack(feature for feature in roi_features_list).type(torch.FloatTensor) # (B x num_boxes x 2048)
 
 			# return features
