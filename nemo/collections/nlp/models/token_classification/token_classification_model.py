@@ -133,10 +133,17 @@ class TokenClassificationModel(NLPModel):
         """
         input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-
         loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
-        tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        return {'loss': loss, 'log': tensorboard_logs}
+        lr = self._optimizer.param_groups[0]['lr']
+
+        self.log('train_loss', loss)
+        self.log('lr', lr, prog_bar=True)
+
+        return {
+            'loss': loss,
+            'lr': lr,
+        }
+
 
     def validation_step(self, batch, batch_idx):
         """
@@ -153,8 +160,12 @@ class TokenClassificationModel(NLPModel):
         labels = labels[subtokens_mask]
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        tensorboard_logs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
-        return {'val_loss': val_loss, 'log': tensorboard_logs}
+        return {
+            'val_loss': val_loss,
+            'tp': tp,
+            'fn': fn,
+            'fp': fp
+        }
 
     def validation_epoch_end(self, outputs):
         """
@@ -163,18 +174,16 @@ class TokenClassificationModel(NLPModel):
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-        # calculate metrics and log classification report
+        # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
 
         logging.info(report)
 
-        tensorboard_logs = {
-            'val_loss': avg_loss,
-            'precision': precision,
-            'f1': f1,
-            'recall': recall,
-        }
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        self.log('val_loss', avg_loss, prog_bar=True)
+        self.log('precision', precision)
+        self.log('f1', f1)
+        self.log('recall', recall)
+
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
