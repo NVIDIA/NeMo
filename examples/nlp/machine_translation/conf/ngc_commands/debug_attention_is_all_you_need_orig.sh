@@ -4,8 +4,8 @@ pip install -r requirements/requirements.txt \
   && export HYDRA_FULL_ERROR=1 \
   && echo "NeMo path: ${nemo_path}" \
   && export PYTHONPATH="${nemo_path}" \
-  && mkdir -p /data/wmt14_en_de \
-  && cd /data/wmt14_en_de \
+  && mkdir -p /data \
+  && cd /data \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.de -O valid.de \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.en -O valid.en \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2014.de -O test.de \
@@ -23,9 +23,5 @@ pip install -r requirements/requirements.txt \
   && cp valid.en train.en \
   && cp valid.de train.de \
   && cd  "${nemo_path}/examples/nlp/machine_translation" \
-  && python train.py -cn debug_on_ngc \
-  && export best_ckpt_path=$(cat best_checkpoint_path.txt) \
-  && echo "best ckpt path:" ${best_ckpt_path} \
-  && ln -s ${best_ckpt_path} best.ckpt \
-  && python test.py model.test_checkpoint_path=best.ckpt -cn debug_on_ngc
+  && python transformer_mt.py -cn debug_on_ngc
 

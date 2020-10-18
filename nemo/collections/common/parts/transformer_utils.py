@@ -53,6 +53,9 @@ def form_attention_mask(input_mask, diagonal=None, debug=False):
         if debug:
             print("(form_attention_mask)to device")
             print("(form_attention_mask)xx.shape, xx.dtype, xx.device, input_mask.device:", xx.shape, xx.dtype, xx.device, input_mask.device)
+            print("(form_attention_mask)xx:", xx)
+            #if xx.shape[-1] == 13:
+            #    raise Exception()
         xx = xx.to(input_mask.device)
         if debug:
             print("(form_attention_mask)before torch.tril")
