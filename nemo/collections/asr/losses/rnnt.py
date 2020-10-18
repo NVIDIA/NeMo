@@ -92,11 +92,12 @@ class RNNTLoss(Loss):
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
         # Cast to int 32
+        targets = targets.int()
         input_lengths = input_lengths.int()
         target_lengths = target_lengths.int()
-        targets = targets.int()
 
         max_logit_len = input_lengths.max()
+        max_targets_len = target_lengths.max()
 
         # Force cast joint to float32
         if log_probs.dtype != torch.float32:
@@ -110,7 +111,12 @@ class RNNTLoss(Loss):
         # of the log_probs tensor, therefore we increment the input_lengths by the difference.
         # This difference is generally small.
         if log_probs.shape[1] != max_logit_len:
-            log_probs = log_probs.narrow(dim=1, start=0, length=max_logit_len).contiguous()
+            log_probs = log_probs.narrow(dim=1, start=0, length=max_logit_len)
+
+        # Reduce transcript length to correct alignment if additional padding was applied.
+        # Transcript: [B, L] -> [B, L']; If L' < L
+        if targets.shape[1] != max_targets_len:
+            targets = targets.narrow(dim=1, start=0, length=max_targets_len)
 
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
 
