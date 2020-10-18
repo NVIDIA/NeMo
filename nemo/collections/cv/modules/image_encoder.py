@@ -306,16 +306,20 @@ class ImageEncoder(NeuralModule):
 				),
 				# bounding box of different objects in a batch of images (B x num_boxes x 4)
 				"bboxes": NeuralType(
-					axes=(AxisType(kind=AxisKind.Batch), 
-						  AxisType(kind=AxisKind.Any, size=self._max_boxes),
-						  AxisType(kind=AxisKind.Any, size=4),),
+					axes=(
+						AxisType(kind=AxisKind.Batch), 
+						AxisType(kind=AxisKind.Any, size=self._max_boxes),
+						AxisType(kind=AxisKind.Any, size=4),
+					),
 					elements_type=PredictionsType(),
 				),
 				# pooled features of different objects in a batch of images (B x num_boxes x 2048)
 				"features": NeuralType(
-					axes=(AxisType(kind=AxisKind.Batch), 
-						  AxisType(kind=AxisKind.Any, size=self._max_boxes),
-						  AxisType(kind=AxisKind.Any, size=2048)),
+					axes=(
+						AxisType(kind=AxisKind.Batch), 
+						AxisType(kind=AxisKind.Any, size=self._max_boxes),
+						AxisType(kind=AxisKind.Any, size=2048),
+					),
 					elements_type=ImageFeatureValue(),
 				)
 			}
