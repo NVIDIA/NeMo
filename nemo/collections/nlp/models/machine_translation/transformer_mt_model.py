@@ -43,16 +43,15 @@ class TransformerMTModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         # shared params for dataset and data loaders
-        self.dataset_cfg = cfg.dataset
         if "tokenizer" in cfg.machine_translation:
             if "src_tokenizer" in cfg.machine_translation or "tgt_tokenizer" in cfg.machine_translation:
                 raise ValueError(
-                    "If 'tokenizer' is in 'machine_translation' section than this section should not contain "
-                    "'src_tokenizer' and 'tgt_tokenizer' fields.")
+                    "If 'tokenizer' is in 'machine_translation' section of config then this section should "
+                    "not contain 'src_tokenizer' and 'tgt_tokenizer' fields.")
             self.src_tokenizer = get_tokenizer(**cfg.machine_translation.tokenizer)
             self.tgt_tokenizer = self.src_tokenizer
+            super().__init__(cfg=cfg, trainer=trainer)
             # make vocabulary size divisible by 8 for fast fp16 training
             src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
             tgt_vocab_size = src_vocab_size
@@ -67,6 +66,7 @@ class TransformerMTModel(ModelPT):
         else:
             self.src_tokenizer = get_tokenizer(**cfg.machine_translation.src_tokenizer)
             self.tgt_tokenizer = get_tokenizer(**cfg.machine_translation.tgt_tokenizer)
+            super().__init__(cfg=cfg, trainer=trainer)
             # make vocabulary size divisible by 8 for fast fp16 training
             src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
             tgt_vocab_size = 8 * math.ceil(self.tgt_tokenizer.vocab_size / 8)
@@ -84,9 +84,8 @@ class TransformerMTModel(ModelPT):
                 embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
                 learn_positional_encodings=False,
             )
-
+            
         # init superclass
-        super().__init__(cfg=cfg, trainer=trainer)
         self.encoder = TransformerEncoder(
             hidden_size=cfg.machine_translation.hidden_size,
             inner_size=cfg.machine_translation.inner_size,
@@ -131,24 +130,41 @@ class TransformerMTModel(ModelPT):
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
+        self.last_eval_beam_results = None
+        self.last_eval_loss = None
 
     @typecheck()
-    def forward(self, src, src_mask, tgt, tgt_mask):
+    def forward(self, src, src_mask, tgt, tgt_mask, debug=False):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
+        if debug:
+            print("(TransformerMTModel.forward)before src embedding layer")
         src_embeddings = self.src_embedding_layer(input_ids=src)
+        if debug:
+            print("(TransformerMTModel.forward)before encoder")
         src_hiddens = self.encoder(src_embeddings, src_mask)
+        if debug:
+            print("(TransformerMTModel.forward)before tt embedding layer")
         tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
-        tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
+        if debug:
+            print("(TransformerMTModel.forward)before decoder")
+        tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask, debug=debug)
+        if debug:
+            print("(TransformerMTModel.forward)before softmax")
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
+        if debug:
+            print("(TransformerMTModel.forward)before beam search block")
         if not self.training:
+            if debug:
+                print("(TransformerMTModel.forward)before beam search")
             beam_results = self.beam_search(
                 encoder_hidden_states=src_hiddens,
                 encoder_input_mask=src_mask)
-
+        if debug:
+            print("(TransformerMTModel.forward)after beam search")
         return log_probs, beam_results
 
     def training_step(self, batch, batch_idx):
@@ -176,11 +192,20 @@ class TransformerMTModel(ModelPT):
                 # is excess.
                 batch[i] = batch[i].squeeze()
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
-        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        if mode == 'test':
+            print("(TransformerMTModel.eval_step)before forward")
+            print("(TransformerMTModel.eval_step)src_ids.shape, src_mask.shape, tgt_ids.shape, tgt_mask.shape:", src_ids.shape, src_mask.shape, tgt_ids.shape, tgt_mask.shape)
+        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask, debug=mode=='test')
+        if mode == 'test':
+            print("(TransformerMTModel.eval_step)before loss computation")
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+        self.last_eval_beam_results, self.last_eval_loss = beam_results, eval_loss
+        if mode == 'test':
+            print("(TransformerMTModel.eval_step)after loss computation")
         translations = [self.tgt_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
-        ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in tgt_ids.cpu().numpy()]
-        num_non_pad_tokens = np.not_equal(tgt_ids, self.tgt_tokenizer.pad_id).sum().item()
+        np_tgt = tgt_ids.cpu().numpy()
+        ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+        num_non_pad_tokens = np.not_equal(np_tgt, self.tgt_tokenizer.pad_id).sum().item()
         tensorboard_logs = {f'{mode}_loss': eval_loss}
         return {
             f'{mode}_loss': eval_loss,
@@ -206,18 +231,21 @@ class TransformerMTModel(ModelPT):
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
         token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
-        self.trainer.logger.log_metrics({'tokenBLEU': token_bleu, 'sacreBLEU': sacre_bleu})
         print(f"{mode} results".capitalize())
         for i in range(3):
-            sent_id = np.random.randint(len(self._translations))
-            print(f"Ground truth: {self._ground_truths[sent_id]}\n")
-            print(f"Translation: {self._translations[sent_id]}\n")
+            sent_id = np.random.randint(len(translations))
+            print(f"Ground truth: {ground_truths[sent_id]}\n")
+            print(f"Translation: {translations[sent_id]}\n")
         print("-" * 50)
         print(f"loss: {eval_loss:.3f}")
         print(f"TokenBLEU: {token_bleu}")
         print(f"SacreBLEU: {sacre_bleu}")
         print("-" * 50)
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_tokenBLEU": token_bleu, f"{mode}_sacreBLEU": sacre_bleu}
+        ans = {
+            f"{mode}_loss": eval_loss, 
+            f"{mode}_tokenBLEU": token_bleu.score, 
+            f"{mode}_sacreBLEU": sacre_bleu.score
+        }
         ans['log'] = dict(ans)
         return ans
 
@@ -256,9 +284,9 @@ class TransformerMTModel(ModelPT):
             dataset=dataset,
             batch_size=1,
             sampler=sampler,
-            num_workers=self.dataset_cfg.get("num_workers", 2),
-            pin_memory=self.dataset_cfg.get("pin_memory", False),
-            drop_last=self.dataset_cfg.get("drop_last", False),
+            num_workers=cfg.get("num_workers", 2),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False),
         )
 
     @classmethod
