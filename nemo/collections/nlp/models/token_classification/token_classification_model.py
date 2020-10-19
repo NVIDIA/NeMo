@@ -80,7 +80,6 @@ class TokenClassificationModel(NLPModel):
 
         self.loss = self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
         # setup to track metrics
-        # TODO: What is the current mode?
         self.classification_report = ClassificationReport(
             len(self._cfg.label_ids), label_ids=self._cfg.label_ids, dist_sync_on_step=True
         )
