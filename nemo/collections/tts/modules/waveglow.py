@@ -13,7 +13,7 @@
 # limitations under the License.
 import torch
 
-from nemo.collections.tts.helpers.helpers import remove, OperationMode
+from nemo.collections.tts.helpers.helpers import OperationMode, remove
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import (

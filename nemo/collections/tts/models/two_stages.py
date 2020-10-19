@@ -20,7 +20,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from nemo.collections.tts.helpers.helpers import griffin_lim, OperationMode
+from nemo.collections.tts.helpers.helpers import OperationMode, griffin_lim
 from nemo.collections.tts.models.base import LinVocoder, MelToSpec, Vocoder
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType

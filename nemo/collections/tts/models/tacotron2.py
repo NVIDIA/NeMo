@@ -37,6 +37,7 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
+
 @dataclass
 class Preprocessor:
     cls: str = MISSING
