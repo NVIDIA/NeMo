@@ -247,7 +247,7 @@ class Tacotron2Model(SpectrogramGenerator):
             pad_value=self.pad_value,
         )
         return {
-            "loss": loss,
+            "val_loss": loss,
             "mel_target": spec_target,
             "mel_postnet": spec_pred_postnet,
             "gate": gate_pred,
@@ -265,9 +265,8 @@ class Tacotron2Model(SpectrogramGenerator):
                 log_images=True,
                 add_audio=False,
             )
-        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        self.log('val_loss', avg_loss)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):

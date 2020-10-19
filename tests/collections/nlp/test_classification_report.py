@@ -40,8 +40,8 @@ class ClassificationReportTests(TestCase):
             classification_report_nemo = ClassificationReport(
                 num_classes=self.num_classes, label_ids=self.label_ids, mode=mode
             )
-
-            precision, recall, f1 = classification_report_nemo(preds, labels)
+            # pytest.set_trace()
+            precision, recall, f1, _ = classification_report_nemo(preds, labels)
             tp, fp, fn = classification_report_nemo.tp, classification_report_nemo.fp, classification_report_nemo.fn
             pr_sklearn, recall_sklearn, f1_sklearn, _ = precision_recall_fscore_support(labels, preds, average=mode)
 

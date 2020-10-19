@@ -85,7 +85,8 @@ def main(cfg: DictConfig) -> None:
         model = TokenClassificationModel(cfg.model, trainer=trainer)
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
-        model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
+        # TODO: Remove strict, when lightning has persistent parameter support for add_state()
+        model = TokenClassificationModel.from_pretrained(cfg.pretrained_model, strict=False)
 
         data_dir = cfg.model.dataset.get('data_dir', None)
         if data_dir:
@@ -116,7 +117,7 @@ def main(cfg: DictConfig) -> None:
     After model training is done, you can use the model for inference.
     You can either evaluate data from a text_file that follows training data format,
     or provide a list of queries you want to add entities to
-    
+
     During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU
     and no DDP to obtain accurate results
     """

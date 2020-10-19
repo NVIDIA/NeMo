@@ -89,10 +89,16 @@ class PunctuationCapitalizationModel(ModelPT):
 
         # setup to track metrics
         self.punct_class_report = ClassificationReport(
-            len(self._cfg.punct_label_ids), label_ids=self._cfg.punct_label_ids
+            num_classes=len(self._cfg.punct_label_ids),
+            label_ids=self._cfg.punct_label_ids,
+            mode='macro',
+            dist_sync_on_step=True,
         )
         self.capit_class_report = ClassificationReport(
-            len(self._cfg.capit_label_ids), label_ids=self._cfg.capit_label_ids
+            num_classes=len(self._cfg.capit_label_ids),
+            label_ids=self._cfg.capit_label_ids,
+            mode='macro',
+            dist_sync_on_step=True,
         )
 
     @typecheck()
@@ -125,8 +131,12 @@ class PunctuationCapitalizationModel(ModelPT):
         passed in as `batch`.
         """
         loss, _, _ = self._make_step(batch)
-        tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        return {'loss': loss, 'log': tensorboard_logs}
+        lr = self._optimizer.param_groups[0]['lr']
+
+        self.log('lr', lr, prog_bar=True)
+        self.log('train_loss', loss)
+
+        return {'loss': loss, 'lr': lr}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
@@ -139,24 +149,20 @@ class PunctuationCapitalizationModel(ModelPT):
         subtokens_mask = subtokens_mask > 0.5
         punct_preds = torch.argmax(punct_logits, axis=-1)[subtokens_mask]
         punct_labels = punct_labels[subtokens_mask]
-        punct_tp, punct_fp, punct_fn = self.punct_class_report(punct_preds, punct_labels)
+        self.punct_class_report.update(punct_preds, punct_labels)
 
         capit_preds = torch.argmax(capit_logits, axis=-1)[subtokens_mask]
         capit_labels = capit_labels[subtokens_mask]
-        capit_tp, capit_fp, capit_fn = self.capit_class_report(capit_preds, capit_labels)
-        tensorboard_logs = {
-            'val_loss': val_loss,
-            'punct_tp': punct_tp,
-            'punct_fn': punct_fn,
-            'punct_fp': punct_fp,
-            'capit_tp': capit_tp,
-            'capit_fn': capit_fn,
-            'capit_fp': capit_fp,
-        }
+        self.capit_class_report.update(capit_preds, capit_labels)
 
         return {
             'val_loss': val_loss,
-            'log': tensorboard_logs,
+            'punct_tp': self.punct_class_report.tp,
+            'punct_fn': self.punct_class_report.fn,
+            'punct_fp': self.punct_class_report.fp,
+            'capit_tp': self.capit_class_report.tp,
+            'capit_fn': self.capit_class_report.fn,
+            'capit_fp': self.capit_class_report.fp,
         }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
@@ -167,22 +173,23 @@ class PunctuationCapitalizationModel(ModelPT):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report for Punctuation task
-        punct_tp = torch.sum(torch.stack([x['log']['punct_tp'] for x in outputs]), 0)
-        punct_fn = torch.sum(torch.stack([x['log']['punct_fn'] for x in outputs]), 0)
-        punct_fp = torch.sum(torch.stack([x['log']['punct_fp'] for x in outputs]), 0)
-        punct_precision, punct_recall, punct_f1 = self.punct_class_report.get_precision_recall_f1(
-            punct_tp, punct_fn, punct_fp, mode='macro'
-        )
+        punct_precision, punct_recall, punct_f1, punct_report = self.punct_class_report.compute()
+        logging.info(f'Punctuation report: {punct_report}')
 
         # calculate metrics and log classification report for Capitalization task
-        capit_tp = torch.sum(torch.stack([x['log']['capit_tp'] for x in outputs]), 0)
-        capit_fn = torch.sum(torch.stack([x['log']['capit_fn'] for x in outputs]), 0)
-        capit_fp = torch.sum(torch.stack([x['log']['capit_fp'] for x in outputs]), 0)
-        capit_precision, capit_recall, capit_f1 = self.capit_class_report.get_precision_recall_f1(
-            capit_tp, capit_fn, capit_fp, mode='macro'
-        )
-        tensorboard_logs = {
-            'validation_loss': avg_loss,
+        capit_precision, capit_recall, capit_f1, capit_report = self.capit_class_report.compute()
+        logging.info(f'Capitalization report: {capit_report}')
+
+        self.log('val_loss', avg_loss, prog_bar=True)
+        self.log('punct_precision', punct_precision)
+        self.log('punct_f1', punct_f1)
+        self.log('punct_recall', punct_recall)
+        self.log('capit_precision', capit_precision)
+        self.log('capit_f1', capit_f1)
+        self.log('capit_recall', capit_recall)
+
+        return {
+            'val_loss': avg_loss,
             'punct_precision': punct_precision,
             'punct_f1': punct_f1,
             'punct_recall': punct_recall,
@@ -190,7 +197,6 @@ class PunctuationCapitalizationModel(ModelPT):
             'capit_f1': capit_f1,
             'capit_recall': capit_recall,
         }
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
@@ -327,7 +333,7 @@ class PunctuationCapitalizationModel(ModelPT):
             all_punct_preds = []
             all_capit_preds = []
 
-            for i, batch in enumerate(infer_datalayer):
+            for batch in infer_datalayer:
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
 
                 punct_logits, capit_logits = self.forward(

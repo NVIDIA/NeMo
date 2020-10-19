@@ -172,12 +172,15 @@ class EncDecSpeakerLabelModel(ModelPT):
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         self.loss_value = self.loss(logits=logits, labels=labels)
 
-        self.log('train_loss', self.loss_value)
-        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
+        tensorboard_logs = {
+            'train_loss': self.loss_value,
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+        }
 
-        acc = self._accuracy(logits=logits, labels=labels)
-
-        self.log('training_batch_accuracy_top_k', acc)
+        self._accuracy(logits=logits, labels=labels)
+        top_k = self._accuracy.compute()
+        for i, top_i in enumerate(top_k):
+            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
 
         # TODO: can't return anything?
         # return {
@@ -190,12 +193,6 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.loss_value = self.loss(logits=logits, labels=labels)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        self.log('val_loss', self.loss_value)
-        self.log('val_correct_counts', correct_counts)
-        self.log('val_total_counts', total_counts)
-        for top_k, acc in enumerate(acc_top_k):
-            self.log(f'val_top_{top_k}', top_k)
-            self.log(f'val_acc_top_{top_k}', acc)
         return {
             'val_loss': self.loss_value,
             'val_correct_counts': correct_counts,

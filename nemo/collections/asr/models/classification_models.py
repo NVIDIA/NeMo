@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import copy
+import os
 from typing import Dict, List, Optional, Union
 
+import onnx
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -26,13 +28,15 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import *
 from nemo.utils import logging
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
-class EncDecClassificationModel(ASRModel):
+class EncDecClassificationModel(ASRModel, Exportable):
     """Encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -343,6 +347,61 @@ class EncDecClassificationModel(ASRModel):
             cfg.num_classes = len(labels)
 
         OmegaConf.set_struct(cfg, True)
+
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+    ):
+        if input_example is not None or output_example is not None:
+            logging.warning(
+                "Passed input and output examples will be ignored and recomputed since"
+                " EncDecClassificationModel consists of two separate models (encoder and decoder) with different"
+                " inputs and outputs."
+            )
+
+        encoder_onnx = self.encoder.export(
+            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        decoder_onnx = self.decoder.export(
+            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "EDC")
+        onnx.save(output_model, output)
 
 
 class MatchboxNet(EncDecClassificationModel):

@@ -18,6 +18,7 @@ import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
 
+import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -28,13 +29,15 @@ from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 
-class EncDecCTCModel(ASRModel):
+class EncDecCTCModel(ASRModel, Exportable):
     """Base class for encoder decoder CTC-based models."""
 
     @classmethod
@@ -438,6 +441,61 @@ class EncDecCTCModel(ASRModel):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
+
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+    ):
+        if input_example is not None or output_example is not None:
+            logging.warning(
+                "Passed input and output examples will be ignored and recomputed since"
+                " EncDecCTCModel consists of two separate models (encoder and decoder) with different"
+                " inputs and outputs."
+            )
+
+        encoder_onnx = self.encoder.export(
+            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        decoder_onnx = self.decoder.export(
+            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "DC")
+        onnx.save(output_model, output)
 
 
 class JasperNet(EncDecCTCModel):
