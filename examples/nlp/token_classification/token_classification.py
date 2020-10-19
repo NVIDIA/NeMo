@@ -120,33 +120,33 @@ def main(cfg: DictConfig) -> None:
     During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU
     and no DDP to obtain accurate results
     """
-    # logging.info(
-    #     'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU '
-    #     'and no DDP to obtain accurate results'
-    # )
-    # gpu = 1 if cfg.trainer.gpus != 0 else 0
-    # trainer = pl.Trainer(gpus=gpu)
-    # model.set_trainer(trainer)
-    #
-    # if do_training:
-    #     # run evaluation on a dataset from file
-    #     # only possible if model.dataset.data_dir is specified
-    #     # change the path to the file you want to use for the final evaluation
-    #     model.evaluate_from_file(
-    #         text_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.text_file),
-    #         labels_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.labels_file),
-    #         output_dir=exp_dir,
-    #         add_confusion_matrix=True,
-    #         normalize_confusion_matrix=True,
-    #     )
-    #
-    # # run an inference on a few examples
-    # queries = ['we bought four shirts from the nvidia gear store in santa clara.', 'Nvidia is a company.']
-    # results = model.add_predictions(queries)
-    #
-    # for query, result in zip(queries, results):
-    #     logging.info(f'Query : {query}')
-    #     logging.info(f'Result: {result.strip()}\n')
+    logging.info(
+        'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU '
+        'and no DDP to obtain accurate results'
+    )
+    gpu = 1 if cfg.trainer.gpus != 0 else 0
+    trainer = pl.Trainer(gpus=gpu)
+    model.set_trainer(trainer)
+
+    if do_training:
+        # run evaluation on a dataset from file
+        # only possible if model.dataset.data_dir is specified
+        # change the path to the file you want to use for the final evaluation
+        model.evaluate_from_file(
+            text_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.text_file),
+            labels_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.labels_file),
+            output_dir=exp_dir,
+            add_confusion_matrix=True,
+            normalize_confusion_matrix=True,
+        )
+
+    # run an inference on a few examples
+    queries = ['we bought four shirts from the nvidia gear store in santa clara.', 'Nvidia is a company.']
+    results = model.add_predictions(queries)
+
+    for query, result in zip(queries, results):
+        logging.info(f'Query : {query}')
+        logging.info(f'Result: {result.strip()}\n')
 
 
 if __name__ == '__main__':

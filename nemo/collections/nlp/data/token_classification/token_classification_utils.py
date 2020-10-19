@@ -67,7 +67,10 @@ def get_label_ids(
 
     # check that all labels from label_file are present in the specified label_ids_dict
     # or generate label_ids_dict from data (for training only)
+    save_label_ids = True
     if label_ids_dict:
+        logging.info(f'Using provided labels mapping {label_ids_dict}')
+        save_label_ids = False
         for name in unique_labels:
             if name not in label_ids_dict:
                 raise ValueError(f'{name} class from {label_file} not found in the provided mapping: {label_ids_dict}')
@@ -79,7 +82,7 @@ def get_label_ids(
             label_ids_dict[label] = len(label_ids_dict)
 
     label_ids_filename = os.path.join(data_dir, 'label_ids.csv')
-    if is_training:
+    if is_training and save_label_ids:
         with open(label_ids_filename, 'w') as f:
             labels, _ = zip(*sorted(label_ids_dict.items(), key=lambda x: x[1]))
             f.write('\n'.join(labels))

@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
-from nemo.collections.nlp.data.token_classification.token_classification_descriptor import get_label_ids
+from nemo.collections.nlp.data.token_classification.token_classification_utils import get_label_ids
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -55,12 +55,13 @@ class TokenClassificationModel(NLPModel):
         """Initializes Token Classification Model."""
         # extract str to int labels mapping if a mapping file provided
         if isinstance(cfg.label_ids, str):
-            label_ids_file = os.path.join(cfg.dataset.data_dir, cfg.label_ids)
-            if os.path.exists(label_ids_file):
-                logging.info(f'Reusing label_ids file found at {label_ids_file}.')
-                label_ids = get_labels_to_labels_id_mapping(label_ids_file)
+            if os.path.exists(cfg.label_ids):
+                logging.info(f'Reusing label_ids file found at {cfg.label_ids}.')
+                label_ids = get_labels_to_labels_id_mapping(cfg.label_ids)
                 # update the config to store name to id mapping
                 cfg.label_ids = OmegaConf.create(label_ids)
+            else:
+                raise ValueError(f'{cfg.label_ids} not found.')
 
         self._setup_tokenizer(cfg.tokenizer)
 
@@ -171,6 +172,20 @@ class TokenClassificationModel(NLPModel):
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
+    def test_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the test loop with the data from the test dataloader
+        passed in as `batch`.
+        """
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        """
+        Called at the end of test to aggregate outputs.
+        :param outputs: list of individual outputs of each test step.
+        """
+        return self.validation_epoch_end(outputs)
+
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
@@ -215,7 +230,17 @@ class TokenClassificationModel(NLPModel):
     def setup_test_data(self, test_data_config: Optional[DictConfig] = None):
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
-        self._test_dl = self.__setup_dataloader_from_config(cfg=test_data_config)
+
+        labels_file = os.path.join(self._cfg.dataset.data_dir, test_data_config.labels_file)
+        get_label_ids(
+            label_file=labels_file,
+            is_training=False,
+            pad_label=self._cfg.dataset.pad_label,
+            label_ids_dict=self._cfg.label_ids,
+            get_weights=False,
+        )
+
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig) -> DataLoader:
         """
@@ -289,6 +314,7 @@ class TokenClassificationModel(NLPModel):
             drop_last=False,
         )
 
+    @torch.no_grad()
     def _infer(self, queries: List[str], batch_size: int = None) -> List[int]:
         """
         Get prediction for the queries
@@ -381,8 +407,8 @@ class TokenClassificationModel(NLPModel):
         labels_file: Optional[str] = None,
         add_confusion_matrix: Optional[bool] = False,
         normalize_confusion_matrix: Optional[bool] = True,
-        batch_size: int = 32,
-    ) -> List[str]:
+        batch_size: int = 1,
+    ) -> None:
         """
         Run inference on data from a file, plot confusion matrix and calculate classification report.
         Use this method for final evaluation.
@@ -397,8 +423,6 @@ class TokenClassificationModel(NLPModel):
             add_confusion_matrix: whether to generate confusion matrix
             normalize_confusion_matrix: whether to normalize confusion matrix
             batch_size: batch size to use during inference.
-        Returns:
-            result: text with added capitalization and punctuation
         """
         output_dir = os.path.abspath(output_dir)
 
@@ -432,7 +456,7 @@ class TokenClassificationModel(NLPModel):
                 # convert labels from string label to ids
                 label_ids = self._cfg.label_ids
                 all_labels = [label_ids[label] for label in all_labels]
-                print(len(all_labels), len(all_preds))
+
                 plot_confusion_matrix(
                     all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
                 )
