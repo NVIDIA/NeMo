@@ -156,8 +156,6 @@ class ClassificationReport(Metric):
             + '\n'
         )
 
-        # logging.info(report)
-
         if self.mode == 'macro':
             return macro_precision, macro_recall, macro_f1, report
         elif self.mode == 'weighted':
