@@ -105,7 +105,7 @@ class TokenClassificationModel(NLPModel):
 
     def setup_loss(self, class_balancing: str = None):
         """Setup loss
-           Setup or update loss. Call only when train
+           Setup or update loss.
 
         Args:
             class_balancing: whether to use class weights during training
@@ -187,7 +187,6 @@ class TokenClassificationModel(NLPModel):
     def test_epoch_end(self, outputs):
         """
         Called at the end of test to aggregate outputs.
-        :param outputs: list of individual outputs of each test step.
         """
         return self.validation_epoch_end(outputs)
 
