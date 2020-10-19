@@ -69,7 +69,7 @@ model:
     window: hann
 
   squeezewave:
-    _target_: nemo.collections.tts.modules.squeezewave.SqueezeWaveModul
+    _target_: nemo.collections.tts.modules.squeezewave.SqueezeWaveModule
     n_early_every: 2
     n_early_size: 16
     n_flows: 12

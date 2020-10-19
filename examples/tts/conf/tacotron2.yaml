@@ -79,13 +79,13 @@ model:
     window: hann
 
   encoder:
-    _target_: nemo.collections.tts.modules.tacotron2.Encode
+    _target_: nemo.collections.tts.modules.tacotron2.Encoder
     encoder_kernel_size: 5
     encoder_n_convolutions: 3
     encoder_embedding_dim: &enc_emb_dim 512
 
   decoder:
-    _target_: nemo.collections.tts.modules.tacotron2.Decode &decoder_params
+    _target_: nemo.collections.tts.modules.tacotron2.Decoder
     decoder_rnn_dim: 1024
     encoder_embedding_dim: *enc_emb_dim
     gate_threshold: 0.5
@@ -105,7 +105,7 @@ model:
     early_stopping: true
 
   postnet:
-    _target_: nemo.collections.tts.modules.tacotron2.Postne
+    _target_: nemo.collections.tts.modules.tacotron2.Postnet
     n_mel_channels: *n_mels
     p_dropout: 0.5
     postnet_embedding_dim: 512

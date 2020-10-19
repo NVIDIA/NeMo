@@ -119,7 +119,7 @@ model:
     sched:
       name: CosineAnnealing
 
-      # Schedular params
+      # Scheduler params
       warmup_steps: 3000
       min_lr: 1e-4
       last_epoch: -1
