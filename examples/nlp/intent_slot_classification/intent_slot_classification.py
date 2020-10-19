@@ -60,7 +60,7 @@ def main(cfg: DictConfig) -> None:
         # we will reinitialize the trainer with a single GPU and no distributed backend for the evaluation
         # we need to call the next line also to overcome an issue with a trainer reinitialization in PT
         cfg.trainer.gpus = 1 if cfg.trainer.gpus != 0 else 0
-        cfg.trainer.distributed_backend = None
+        cfg.trainer.accelerator = None
         eval_trainer = pl.Trainer(**cfg.trainer)
 
         eval_trainer.test(model=eval_model, ckpt_path=None, verbose=False)

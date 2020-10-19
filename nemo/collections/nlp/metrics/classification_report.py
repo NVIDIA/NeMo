@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
+from typing import Any, Dict, Optional
 
 import torch
-from pytorch_lightning.metrics import TensorMetric
-
-from nemo.utils import logging
+from pytorch_lightning.metrics import Metric
+from pytorch_lightning.metrics.utils import METRIC_EPS
 
 __all__ = ['ClassificationReport']
 
 
-class ClassificationReport(TensorMetric):
+class ClassificationReport(Metric):
     """
     This metric computes the number of True Positive, False Negative, and False Positive examples per class.
     When doing distributed training/evaluation the result of res=ClassificationReport(predictions, labels) calls
@@ -35,34 +34,54 @@ class ClassificationReport(TensorMetric):
     Example:
         def validation_step(self, batch, batch_idx):
             ...
-            tp, fp, fn = self.punct_class_report(predictions, labels)
-            return {'val_loss': loss_value, 'val_tp': tp, 'val_fp': fp, 'val_fn': fn}
+            tp, fn, fp, _ = self.classification_report(preds, labels)
+
+            return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
         def validation_epoch_end(self, outputs):
             ...
-            tp = torch.sum(torch.stack([x['tp'] for x in outputs]), 0)
-            fn = torch.sum(torch.stack([x['fn'] for x in outputs]), 0)
-            fp = torch.sum(torch.stack([x['fp'] for x in outputs]), 0)
-            precision, recall, f1 = self.get_precision_recall_f1(tp, fn, fp, mode='macro')
-            tensorboard_logs = {'validation_loss': avg_loss, 'precision': precision, 'f1': f1, 'recall': recall}
-            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+            # calculate metrics and classification report
+            precision, recall, f1, report = self.classification_report.compute()
+
+            logging.info(report)
+
+            self.log('val_loss', avg_loss, prog_bar=True)
+            self.log('precision', precision)
+            self.log('f1', f1)
+            self.log('recall', recall)
 
     Args:
         num_classes: number of classes in the dataset
         label_ids (optional): label name to label id mapping
-    Returns:
-        res: a torch.Tensor object with three elements: [true positives, false positives, false negatives].
+        mode: how to compute the average
+        dist_sync_on_step: sync across ddp
+        process_group: which processes to sync across
+    Return:
+        aggregated precision, recall, f1, report
     """
 
-    def __init__(self, num_classes: int, label_ids: Dict[str, int] = None):
-        super(ClassificationReport, self).__init__(name="ClassificationReport")
+    def __init__(
+        self,
+        num_classes: int,
+        label_ids: Dict[str, int] = None,
+        mode: str = 'macro',
+        dist_sync_on_step: bool = False,
+        process_group: Optional[Any] = None,
+    ):
+        super().__init__(dist_sync_on_step=dist_sync_on_step, process_group=process_group)
         self.num_classes = num_classes
         if label_ids:
             self.ids_to_labels = {v: k for k, v in label_ids.items()}
         else:
             self.ids_to_labels = None
+        self.mode = mode
 
-    def forward(self, predictions: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        self.add_state("tp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
+        self.add_state("fn", default=torch.zeros(num_classes), dist_reduce_fx='sum')
+        self.add_state("fp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
+        self.add_state("num_examples_per_class", default=torch.zeros(num_classes), dist_reduce_fx='sum')
+
+    def update(self, predictions: torch.Tensor, labels: torch.Tensor):
         TP = []
         FN = []
         FP = []
@@ -73,60 +92,56 @@ class ClassificationReport(TensorMetric):
             TP.append((label_predicted == current_label)[label_predicted].sum())
             FP.append((label_predicted != current_label)[label_predicted].sum())
             FN.append((label_predicted != current_label)[current_label].sum())
-        return torch.tensor([TP, FP, FN]).to(predictions.device)
 
-    def get_precision_recall_f1(
-        self, tp: torch.Tensor, fn: torch.Tensor, fp: torch.Tensor, mode='macro',
-    ):
-        """
-        Calculates and logs classification report similar to sklearn.metrics.classification_report
-        Args:
-            tp: Number of true positives per class
-            fn: Number of false negatives per class
-            fp: Number of false positives per class
-            mode: 'macro' to use macro averaging to combine f1 scores for classes
-        Return:
-            aggregated precision, recall, f1
-        """
-        zeros = torch.zeros_like(tp)
+        tp = torch.tensor(TP).to(predictions.device)
+        fn = torch.tensor(FN).to(predictions.device)
+        fp = torch.tensor(FP).to(predictions.device)
         num_examples_per_class = tp + fn
-        total_examples = torch.sum(num_examples_per_class)
-        num_non_empty_classes = torch.nonzero(num_examples_per_class).size(0)
 
-        precision = torch.where(tp + fp != zeros, tp / (tp + fp) * 100, zeros)
-        recall = torch.where(tp + fn != zeros, tp / (tp + fn) * 100, zeros)
-        f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
+        self.tp += tp
+        self.fn += fn
+        self.fp += fp
+        self.num_examples_per_class += num_examples_per_class
+
+    def compute(self):
+        """
+        Aggregates and then calculates logs classification report similar to sklearn.metrics.classification_report.
+        Typically used during epoch_end.
+        Return:
+            aggregated precision, recall, f1, report
+        """
+        total_examples = torch.sum(self.num_examples_per_class)
+        num_non_empty_classes = torch.nonzero(self.num_examples_per_class).size(0)
+
+        precision = torch.true_divide(self.tp * 100, (self.tp + self.fp + METRIC_EPS))
+        recall = torch.true_divide(self.tp * 100, (self.tp + self.fn + METRIC_EPS))
+        f1 = torch.true_divide(2 * precision * recall, (precision + recall + METRIC_EPS))
 
         report = '\n{:50s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
-        for id in range(tp.shape[0]):
-            label = f'label_id: {id}'
-            if self.ids_to_labels and id in self.ids_to_labels:
-                label = f'{self.ids_to_labels[id]} ({label})'
+        for i in range(len(self.tp)):
+            label = f'label_id: {i}'
+            if self.ids_to_labels and i in self.ids_to_labels:
+                label = f'{self.ids_to_labels[i]} ({label})'
 
             report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
-                label, precision[id], recall[id], f1[id], num_examples_per_class[id]
+                label, precision[i], recall[i], f1[i], self.num_examples_per_class[i]
             )
 
-        micro_precision = torch.where(torch.sum(tp + fp) != zeros, torch.sum(tp) / torch.sum(tp + fp) * 100, zeros)
-        micro_recall = torch.where(torch.sum(tp + fn) != zeros, torch.sum(tp) / torch.sum(tp + fn) * 100, zeros)
-        micro_f1 = torch.where(
-            micro_precision + micro_recall != zeros,
-            2 * micro_precision * micro_recall / (micro_precision + micro_recall),
-            zeros,
-        )
+        micro_precision = torch.true_divide(torch.sum(self.tp) * 100, torch.sum(self.tp + self.fp) + METRIC_EPS)
+        micro_recall = torch.true_divide(torch.sum(self.tp) * 100, torch.sum(self.tp + self.fn) + METRIC_EPS)
+        micro_f1 = torch.true_divide(2 * micro_precision * micro_recall, (micro_precision + micro_recall + METRIC_EPS))
 
         macro_precision = torch.sum(precision) / num_non_empty_classes
         macro_recall = torch.sum(recall) / num_non_empty_classes
         macro_f1 = torch.sum(f1) / num_non_empty_classes
-
-        weighted_precision = torch.sum(precision * num_examples_per_class) / total_examples
-        weighted_recall = torch.sum(recall * num_examples_per_class) / total_examples
-        weighted_f1 = torch.sum(f1 * num_examples_per_class) / total_examples
+        weighted_precision = torch.sum(precision * self.num_examples_per_class) / total_examples
+        weighted_recall = torch.sum(recall * self.num_examples_per_class) / total_examples
+        weighted_f1 = torch.sum(f1 * self.num_examples_per_class) / total_examples
 
         report += "\n-------------------"
 
         report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
-            'micro avg', micro_precision[0], micro_recall[0], micro_f1[0], total_examples
+            'micro avg', micro_precision, micro_recall, micro_f1, total_examples
         )
 
         report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
@@ -139,18 +154,16 @@ class ClassificationReport(TensorMetric):
             + '\n'
         )
 
-        logging.info(report)
-
-        if mode == 'macro':
-            return macro_precision, macro_recall, macro_f1
-        elif mode == 'weighted':
-            return weighted_precision, weighted_recall, weighted_f1
-        elif mode == 'micro':
-            return micro_precision[0], micro_recall[0], micro_f1[0]
-        elif mode == 'all':
-            return precision, recall, f1
+        if self.mode == 'macro':
+            return macro_precision, macro_recall, macro_f1, report
+        elif self.mode == 'weighted':
+            return weighted_precision, weighted_recall, weighted_f1, report
+        elif self.mode == 'micro':
+            return micro_precision, micro_recall, micro_f1, report
+        elif self.mode == 'all':
+            return precision, recall, f1, report
         else:
             raise ValueError(
-                f'{mode} mode is not supported. Choose "macro" to get aggregated numbers \
+                f'{self.mode} mode is not supported. Choose "macro" to get aggregated numbers \
             or "all" to get values for each class.'
             )

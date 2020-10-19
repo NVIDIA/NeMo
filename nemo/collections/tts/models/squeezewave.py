@@ -172,8 +172,7 @@ class SqueezeWaveModel(Vocoder):
                 mel_fb=self.audio_to_melspec_precessor.fb,
             )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        self.log('val_loss', avg_loss)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):

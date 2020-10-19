@@ -16,9 +16,9 @@ import tempfile
 
 import onnx
 import pytest
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
 
 
@@ -71,6 +71,18 @@ class TestExportable:
             assert onnx_model.graph.node[12].name == 'DCConv_0'
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logprobs'
+
+    def test_EncDecClassificationModel_export_to_onnx(self, speech_classification_model):
+        model = speech_classification_model.train()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'edc.onnx')
+            model.export(output=filename)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 24
+            assert onnx_model.graph.node[12].name == 'EDCShape_0'
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'logits'
 
     def setup_method(self):
         self.preprocessor = {
@@ -138,3 +150,46 @@ class TestExportable:
                 ],
             },
         }
+
+
+@pytest.fixture()
+def speech_classification_model():
+    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    encoder = {
+        'cls': 'nemo.collections.asr.modules.ConvASREncoder',
+        'params': {
+            'feat_in': 64,
+            'activation': 'relu',
+            'conv_mask': True,
+            'jasper': [
+                {
+                    'filters': 32,
+                    'repeat': 1,
+                    'kernel': [1],
+                    'stride': [1],
+                    'dilation': [1],
+                    'dropout': 0.0,
+                    'residual': False,
+                    'separable': True,
+                    'se': True,
+                    'se_context_size': -1,
+                }
+            ],
+        },
+    }
+
+    decoder = {
+        'cls': 'nemo.collections.asr.modules.ConvASRDecoderClassification',
+        'params': {'feat_in': 32, 'num_classes': 30,},
+    }
+
+    modelConfig = DictConfig(
+        {
+            'preprocessor': DictConfig(preprocessor),
+            'encoder': DictConfig(encoder),
+            'decoder': DictConfig(decoder),
+            'labels': ListConfig(["dummy_cls_{}".format(i + 1) for i in range(30)]),
+        }
+    )
+    model = EncDecClassificationModel(cfg=modelConfig)
+    return model
