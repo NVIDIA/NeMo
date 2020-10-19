@@ -42,7 +42,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
         self._update_decoder_config(self._cfg.decoder)
-        print(self._cfg.preprocessor)
 
         self.preprocessor = EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecClassificationModel.from_config_dict(self._cfg.encoder)
