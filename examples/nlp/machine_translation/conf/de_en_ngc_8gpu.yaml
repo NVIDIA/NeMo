@@ -45,7 +45,7 @@ model:
   train_ds:
     src_file_name: /data/train.de
     tgt_file_name: /data/train.en
-    tokens_in_batch: 20000
+    tokens_in_batch: 16000
     clean: true
     max_seq_length: 128
     shuffle: true
