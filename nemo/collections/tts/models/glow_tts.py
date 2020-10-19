@@ -34,14 +34,9 @@ from nemo.utils import logging
 
 
 @dataclass
-class PreprocessorParams:
-    pad_value: float = MISSING
-
-
-@dataclass
 class Preprocessor:
     cls: str = MISSING
-    params: PreprocessorParams = PreprocessorParams()
+    pad_value: float = MISSING
 
 
 @dataclass

@@ -41,7 +41,6 @@ def create_mel_filterbank(*args, **kwargs):
     return librosa.filters.mel(*args, **kwargs)
 
 
-@experimental
 class EDMel2SpecModule(NeuralModule, Exportable):
     def __init__(
         self,

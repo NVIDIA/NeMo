@@ -44,18 +44,10 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
 
 
-@experimental
 class GlowTTSLoss(Loss):
     """
     Loss for the GlowTTS model
     """
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
 
     @property
     def input_types(self):

@@ -221,12 +221,3 @@ class WaveGlowModule(NeuralModule, Exportable):
             wavenet.in_layers = remove(wavenet.in_layers)
             wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
             wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
-
-    def save_to(self, save_path: str):
-        # TODO: Implement me!
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        # TODO: Implement me!
-        pass
