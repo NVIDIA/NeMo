@@ -32,13 +32,6 @@ from nemo.core.neural_types.elements import LengthsType, MelSpectrogramType, Tok
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
-
-@dataclass
-class Preprocessor:
-    cls: str = MISSING
-    pad_value: float = MISSING
-
-
 @dataclass
 class GlowTTSConfig:
     encoder: Dict[Any, Any] = MISSING

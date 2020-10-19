@@ -35,12 +35,6 @@ from nemo.utils import logging
 
 
 @dataclass
-class Preprocessor:
-    cls: str = MISSING
-    pad_value: float = MISSING
-
-
-@dataclass
 class SqueezeWaveConfig:
     squeezewave: Dict[Any, Any] = MISSING
     preprocessor: Preprocessor = Preprocessor()
@@ -67,7 +61,6 @@ class SqueezeWaveModel(Vocoder):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.squeezewave = instantiate(self._cfg.squeezewave)

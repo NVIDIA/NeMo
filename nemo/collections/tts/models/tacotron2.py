@@ -40,7 +40,7 @@ from nemo.utils import logging
 
 @dataclass
 class Preprocessor:
-    cls: str = MISSING
+    _target_: str = MISSING
     pad_value: float = MISSING
 
 
@@ -73,7 +73,7 @@ class Tacotron2Model(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.pad_value = self._cfg.preprocessor.params.pad_value
+        self.pad_value = self._cfg.preprocessor.pad_value
         self._parser = None
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
