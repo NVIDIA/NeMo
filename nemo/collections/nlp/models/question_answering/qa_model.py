@@ -171,9 +171,6 @@ class QAModel(NLPModel):
         self.log('exact_match', exact_match)
         self.log('f1', f1)
 
-        # tensorboard_logs = {'val_loss': avg_loss, 'exact_match': exact_match, 'f1': f1}
-        # return {'val_loss': avg_loss, 'log': tensorboard_logs}
-
     def test_epoch_end(self, outputs):
         unique_ids = tensor2list(torch.cat([x['test_tensors']['unique_ids'] for x in outputs]))
         logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
