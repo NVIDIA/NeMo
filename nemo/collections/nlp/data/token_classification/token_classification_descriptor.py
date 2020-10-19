@@ -22,20 +22,32 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import (
 )
 from nemo.utils import logging
 
-__all__ = ['get_dataset_stats']
+__all__ = ['get_label_ids']
 
 
-def get_dataset_stats(
-    label_file: str, is_training: bool = False, pad_label: str = 'O', label_ids_dict: Dict[str, int] = None
+def get_label_ids(
+    label_file: str,
+    is_training: bool = False,
+    pad_label: str = 'O',
+    label_ids_dict: Dict[str, int] = None,
+    get_weights: bool = True,
 ):
-    """A descriptor class that reads all the data and calculates some stats of the data and also calculates
-    the class weights to be used for class balancing
-    Args:
-        data_dir: the path to the data folder
-        modes: list of the modes to read, it can be from ["train", "test", "dev"] by default.
-        It is going to look for the data files at {data_dir}/{mode}.txt
-        label_ids_dict: labels to ids mapping from pretrained model
     """
+    Generates str to int labels mapping for training data or checks correctness of the label_ids_dict
+    file for non-training files or if label_ids_dict is specified
+
+    Args:
+        label_file: the path of the label file to process
+        is_training: indicates whether the label_file is used for training
+        pad_label: token used for padding
+        label_ids_dict: str label name to int ids mapping. Required for non-training data.
+            If specified, the check that all labels from label_file are present in label_ids_dict will be performed.
+            For training data, if label_ids_dict is None, a new mapping will be generated from label_file.
+        get_weights: set to True to calculate class weights, required for Weighted Loss.
+    """
+    if not os.path.exists(label_file):
+        raise ValueError(f'File {label_file} was not found.')
+
     logging.info(f'Processing {label_file}')
     if not is_training and label_ids_dict is None:
         raise ValueError(
@@ -43,12 +55,9 @@ def get_dataset_stats(
             f'should be provided'
         )
 
-    if not os.path.exists(label_file):
-        raise ValueError(f'Stats calculation for {label_file} was not found.')
-
+    # collect all labels from the label_file
     data_dir = os.path.dirname(label_file)
-    unique_labels = set()
-
+    unique_labels = set(pad_label)
     all_labels = []
     with open(label_file, 'r') as f:
         for line in f:
@@ -56,37 +65,41 @@ def get_dataset_stats(
             all_labels.extend(line)
             unique_labels.update(line)
 
-    label_ids = {pad_label: 0}
-    if pad_label in unique_labels:
-        unique_labels.remove(pad_label)
-    for label in sorted(unique_labels):
-        label_ids[label] = len(label_ids)
+    # check that all labels from label_file are present in the specified label_ids_dict
+    # or generate label_ids_dict from data (for training only)
+    if label_ids_dict:
+        for name in unique_labels:
+            if name not in label_ids_dict:
+                raise ValueError(f'{name} class from {label_file} not found in the provided mapping: {label_ids_dict}')
+    else:
+        label_ids_dict = {pad_label: 0}
+        if pad_label in unique_labels:
+            unique_labels.remove(pad_label)
+        for label in sorted(unique_labels):
+            label_ids_dict[label] = len(label_ids_dict)
 
-    if label_ids_dict and len(set(label_ids_dict) | set(label_ids)) != len(label_ids_dict):
-        raise ValueError(
-            f'Provided labels to ids map: {label_ids_dict} does not match the labels '
-            f'in the {label_file}: {label_ids}'
-        )
-
+    label_ids_filename = os.path.join(data_dir, 'label_ids.csv')
     if is_training:
-        label_ids = label_ids_dict if label_ids_dict else label_ids
-        logging.info(f'Labels: {label_ids_dict}')
-        label_ids_filename = os.path.join(data_dir, 'label_ids.csv')
-        out = open(label_ids_filename, 'w')
-        labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
-        out.write('\n'.join(labels))
-        logging.info(f'Labels mapping saved to : {out.name}')
+        with open(label_ids_filename, 'w') as f:
+            labels, _ = zip(*sorted(label_ids_dict.items(), key=lambda x: x[1]))
+            f.write('\n'.join(labels))
+        logging.info(f'Labels mapping {label_ids_dict} saved to : {label_ids_filename}')
 
-        all_labels = [label_ids[label] for label in all_labels]
+    # calculate label statistics
+    stats_file = os.path.join(data_dir, os.path.splitext(os.path.basename(label_file))[0] + '_label_stats.tsv')
+    if os.path.exists(stats_file) and not is_training and not get_weights:
+        logging.info(f'{stats_file} found, skipping stats calculation.')
+    else:
+        all_labels = [label_ids_dict[label] for label in all_labels]
         logging.info(f'Three most popular labels in {label_file}:')
-        total_labels, label_frequencies, max_id = get_label_stats(
-            all_labels, os.path.join(data_dir, os.path.basename(label_file)[:-4] + '_label_stats.tsv')
-        )
+        total_labels, label_frequencies, max_id = get_label_stats(all_labels, stats_file)
+        logging.info(f'Total labels: {total_labels}. Label frequencies - {label_frequencies}')
 
-        logging.info(f'Total labels: {total_labels}')
-        logging.info(f'Label frequencies - {label_frequencies}')
-
+    if get_weights:
         class_weights_dict = get_freq_weights(label_frequencies)
         logging.info(f'Class Weights: {class_weights_dict}')
         class_weights = fill_class_weights(class_weights_dict, max_id)
-        return label_ids, label_ids_filename, class_weights
+    else:
+        class_weights = None
+
+    return label_ids_dict, label_ids_filename, class_weights

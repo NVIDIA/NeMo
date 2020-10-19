@@ -330,8 +330,8 @@ def get_labels_to_labels_id_mapping(file):
     '''
     lines = open(file, 'r').readlines()
     lines = [line.strip() for line in lines if line.strip()]
-    labels = {lines[i]: i for i in range(len(lines))}
-    return labels
+    label_ids = {lines[i]: i for i in range(len(lines))}
+    return label_ids
 
 
 def if_exist(outfold, files):

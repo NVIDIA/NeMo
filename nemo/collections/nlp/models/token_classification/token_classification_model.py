@@ -21,11 +21,12 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
+from nemo.collections.nlp.data.data_utils.data_preprocessing import get_labels_to_labels_id_mapping
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
-from nemo.collections.nlp.data.token_classification.token_classification_descriptor import get_dataset_stats
+from nemo.collections.nlp.data.token_classification.token_classification_descriptor import get_label_ids
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -52,14 +53,19 @@ class TokenClassificationModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes Token Classification Model."""
+        # extract str to int labels mapping if a mapping file provided
+        if isinstance(cfg.label_ids, str):
+            label_ids_file = os.path.join(cfg.dataset.data_dir, cfg.label_ids)
+            if os.path.exists(label_ids_file):
+                logging.info(f'Reusing label_ids file found at {label_ids_file}.')
+                label_ids = get_labels_to_labels_id_mapping(label_ids_file)
+                # update the config to store name to id mapping
+                cfg.label_ids = OmegaConf.create(label_ids)
 
         self._setup_tokenizer(cfg.tokenizer)
 
-        self._cfg = cfg
-        self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
-
-        self.class_weights = None
         super().__init__(cfg=cfg, trainer=trainer)
+
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
@@ -77,8 +83,8 @@ class TokenClassificationModel(NLPModel):
             use_transformer_init=self._cfg.head.use_transformer_init,
         )
 
+        self.class_weights = None
         self.loss = self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
-        # setup to track metrics
         self.classification_report = ClassificationReport(len(self._cfg.label_ids), label_ids=self._cfg.label_ids)
 
     def update_data_dir(self, data_dir: str) -> None:
@@ -94,14 +100,14 @@ class TokenClassificationModel(NLPModel):
 
     def setup_loss(self, class_balancing: str = None):
         """Setup loss
-           Call this method only after update_data_dir() so that self.data_desc has class weights stats
+           Setup or update loss. Call only when train
 
         Args:
             class_balancing: whether to use class weights during training
         """
-        if class_balancing == 'weighted_loss' and self.data_desc:
+        if class_balancing == 'weighted_loss' and self.class_weights:
             # you may need to increase the number of epochs for convergence when using weighted_loss
-            loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.class_weights)
+            loss = CrossEntropyLoss(logits_ndim=3, weight=self.class_weights)
         else:
             loss = CrossEntropyLoss(logits_ndim=3)
         return loss
@@ -179,13 +185,16 @@ class TokenClassificationModel(NLPModel):
             train_data_config = self._cfg.train_ds
 
         labels_file = os.path.join(self._cfg.dataset.data_dir, train_data_config.labels_file)
-        label_ids, label_ids_filename, self.class_weights = get_dataset_stats(
-            label_file=labels_file, is_training=True, pad_label=self._cfg.dataset.pad_label
+        label_ids, label_ids_filename, self.class_weights = get_label_ids(
+            label_file=labels_file,
+            is_training=True,
+            pad_label=self._cfg.dataset.pad_label,
+            label_ids_dict=self._cfg.label_ids,
+            get_weights=self._cfg.dataset.class_balancing == 'weighted_loss',
         )
         # save label maps to the config
         self._cfg.label_ids = OmegaConf.create(label_ids)
         self.register_artifact('label_ids.csv', label_ids_filename)
-
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
@@ -193,11 +202,12 @@ class TokenClassificationModel(NLPModel):
             val_data_config = self._cfg.validation_ds
 
         labels_file = os.path.join(self._cfg.dataset.data_dir, val_data_config.labels_file)
-        get_dataset_stats(
+        get_label_ids(
             label_file=labels_file,
             is_training=False,
             pad_label=self._cfg.dataset.pad_label,
             label_ids_dict=self._cfg.label_ids,
+            get_weights=False,
         )
 
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
