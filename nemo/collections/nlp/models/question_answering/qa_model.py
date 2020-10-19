@@ -149,7 +149,7 @@ class QAModel(NLPModel):
             for u in all_end_logits:
                 end_logits.extend(tensor2list(u))
 
-            eval_dataset = self.self._test_dl.dataset if self.testing else self._validation_dl.dataset
+            eval_dataset = self._test_dl.dataset if self.testing else self._validation_dl.dataset
             exact_match, f1, all_predictions, all_nbest = eval_dataset.evaluate(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
