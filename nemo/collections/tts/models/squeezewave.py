@@ -19,10 +19,9 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
-from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
+from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func, OperationMode
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import Vocoder
-from nemo.collections.tts.modules.squeezewave import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -81,6 +80,19 @@ class SqueezeWaveModel(Vocoder):
         self.loss = WaveGlowLoss()  # Same loss as WaveGlow
 
     @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, new_mode):
+        if new_mode == OperationMode.training:
+            self.train()
+        else:
+            self.eval()
+        self.mode = new_mode
+        self.squeezewave.mode = new_mode
+
+    @property
     def input_types(self):
         return {
             "audio": NeuralType(('B', 'T'), AudioSignal()),
@@ -125,9 +137,7 @@ class SqueezeWaveModel(Vocoder):
         output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     )
     def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: bool = 1.0) -> torch.Tensor:
-        self.eval()
         self.mode = OperationMode.infer
-        self.squeezewave.mode = OperationMode.infer
 
         with torch.no_grad():
             audio = self.squeezewave(spec=spec, run_inverse=True, audio=None, sigma=sigma)
@@ -136,7 +146,7 @@ class SqueezeWaveModel(Vocoder):
 
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
-        self.squeezewave.mode = OperationMode.training
+
         audio, audio_len = batch
         z, log_s_list, log_det_W_list = self.forward(audio=audio, audio_len=audio_len, run_inverse=False)
 
@@ -149,7 +159,7 @@ class SqueezeWaveModel(Vocoder):
 
     def validation_step(self, batch, batch_idx):
         self.mode = OperationMode.validation
-        self.squeezewave.mode = OperationMode.validation
+
         audio, audio_len = batch
         z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self.forward(
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)

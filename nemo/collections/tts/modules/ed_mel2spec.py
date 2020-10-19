@@ -37,14 +37,6 @@ def str2act(txt):
     }[txt.lower()]
 
 
-class OperationMode(Enum):
-    """Training or Inference (Evaluation) mode"""
-
-    training = 0
-    validation = 1
-    infer = 2
-
-
 def create_mel_filterbank(*args, **kwargs):
     return librosa.filters.mel(*args, **kwargs)
 
