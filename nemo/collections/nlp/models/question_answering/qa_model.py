@@ -84,10 +84,6 @@ class QAModel(NLPModel):
 
         self.log('loss', loss)
         self.log('lr', self._optimizer.param_groups[0]['lr'])
-        # return {
-        #     'train_loss': loss,
-        #     'lr': self._optimizer.param_groups[0]['lr']
-        # }
 
     def validation_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
