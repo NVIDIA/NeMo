@@ -33,7 +33,7 @@ model:
     num_layers: 6
     num_attn_heads: 8
     inner_size: 2048
-    max_seq_length: 128  # maximum allowed length in embedding layer
+    max_seq_length: 512  # maximum allowed length in embedding layer
     embedding_dropout: 0.1
     ffn_dropout: 0.1
     attn_score_dropout: 0.1
@@ -47,7 +47,7 @@ model:
     tgt_file_name: /data/train.de
     tokens_in_batch: 16000
     clean: true
-    max_seq_length: 256
+    max_seq_length: 128
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     drop_last: false # drops the last last batch if it is smaller than the batch size
