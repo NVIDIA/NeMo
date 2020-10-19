@@ -71,9 +71,16 @@ class Tacotron2Model(SpectrogramGenerator):
         elif not isinstance(cfg, DictConfig):
             raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
         # Ensure passed cfg is compliant with schema
-        OmegaConf.merge(cfg, schema)
+        try:
+            OmegaConf.merge(cfg, schema)
+            self.pad_value = self._cfg.preprocessor.pad_value
+        except ConfigAttributeError:
+            self.pad_value = self._cfg.preprocessor.params.pad_value
+            logging.warning(
+                "Your config is using an old NeMo yaml configuration. Please ensure that the yaml matches the "
+                "current version in the main branch for future compatibility."
+            )
 
-        self.pad_value = self._cfg.preprocessor.pad_value
         self._parser = None
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
