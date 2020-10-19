@@ -140,7 +140,6 @@ class IntentSlotClassificationModel(NLPModel):
             'lr': lr,
         }
 
-
     def validation_step(self, batch, batch_idx):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader

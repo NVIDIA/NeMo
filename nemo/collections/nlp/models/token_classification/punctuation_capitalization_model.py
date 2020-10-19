@@ -136,11 +136,7 @@ class PunctuationCapitalizationModel(ModelPT):
         self.log('lr', lr, prog_bar=True)
         self.log('train_loss', loss)
 
-        return {
-            'loss': loss,
-            'lr': lr
-        }
-
+        return {'loss': loss, 'lr': lr}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
@@ -192,7 +188,7 @@ class PunctuationCapitalizationModel(ModelPT):
         self.log('capit_f1', capit_f1)
         self.log('capit_recall', capit_recall)
 
-        return{
+        return {
             'val_loss': avg_loss,
             'punct_precision': punct_precision,
             'punct_f1': punct_f1,

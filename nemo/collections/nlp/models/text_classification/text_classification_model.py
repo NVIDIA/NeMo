@@ -158,12 +158,7 @@ class TextClassificationModel(NLPModel, Exportable):
 
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        return {
-            'val_loss': val_loss,
-            'tp': tp,
-            'fn': fn,
-            'fp': fp
-        }
+        return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
     def validation_epoch_end(self, outputs):
         """
@@ -176,7 +171,7 @@ class TextClassificationModel(NLPModel, Exportable):
             prefix = 'test'
         else:
             prefix = 'val'
-        
+
         avg_loss = torch.stack([x[f'val_loss'] for x in outputs]).mean()
 
         # calculate metrics and classification report

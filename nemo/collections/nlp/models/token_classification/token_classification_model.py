@@ -144,7 +144,6 @@ class TokenClassificationModel(NLPModel):
             'lr': lr,
         }
 
-
     def validation_step(self, batch, batch_idx):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
@@ -160,12 +159,7 @@ class TokenClassificationModel(NLPModel):
         labels = labels[subtokens_mask]
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        return {
-            'val_loss': val_loss,
-            'tp': tp,
-            'fn': fn,
-            'fp': fp
-        }
+        return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
     def validation_epoch_end(self, outputs):
         """
@@ -183,7 +177,6 @@ class TokenClassificationModel(NLPModel):
         self.log('precision', precision)
         self.log('f1', f1)
         self.log('recall', recall)
-
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
