@@ -30,6 +30,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import NeuralType
+from nemo.utils import logging
 
 
 class IntentSlotClassificationModel(NLPModel):
@@ -129,9 +130,16 @@ class IntentSlotClassificationModel(NLPModel):
         intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
         slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
         train_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
+        lr = self._optimizer.param_groups[0]['lr']
 
-        tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        return {'loss': train_loss, 'log': tensorboard_logs}
+        self.log('train_loss', train_loss)
+        self.log('lr', lr, prog_bar=True)
+
+        return {
+            'loss': train_loss,
+            'lr': lr,
+        }
+
 
     def validation_step(self, batch, batch_idx):
         """
@@ -151,14 +159,14 @@ class IntentSlotClassificationModel(NLPModel):
         # calculate accuracy metrics for intents and slot reporting
         # intents
         preds = torch.argmax(intent_logits, axis=-1)
-        self.intent_classification_report(preds, intent_labels)
+        self.intent_classification_report.update(preds, intent_labels)
         # slots
         subtokens_mask = subtokens_mask > 0.5
         preds = torch.argmax(slot_logits, axis=-1)[subtokens_mask]
         slot_labels = slot_labels[subtokens_mask]
-        self.slot_classification_report(preds, slot_labels)
+        self.slot_classification_report.update(preds, slot_labels)
 
-        tensorboard_logs = {
+        return {
             'val_loss': val_loss,
             'intent_tp': self.intent_classification_report.tp,
             'intent_fn': self.intent_classification_report.fn,
@@ -168,8 +176,6 @@ class IntentSlotClassificationModel(NLPModel):
             'slot_fp': self.slot_classification_report.fp,
         }
 
-        return {'val_loss': val_loss, 'log': tensorboard_logs}
-
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
@@ -178,11 +184,21 @@ class IntentSlotClassificationModel(NLPModel):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report (separately for intents and slots)
-        intent_precision, intent_recall, intent_f1, _ = self.intent_classification_report.compute()
+        intent_precision, intent_recall, intent_f1, intent_report = self.intent_classification_report.compute()
+        logging.info(f'Intent report: {intent_report}')
 
-        slot_precision, slot_recall, slot_f1, _ = self.slot_classification_report.compute()
+        slot_precision, slot_recall, slot_f1, slot_report = self.slot_classification_report.compute()
+        logging.info(f'Slot report: {slot_report}')
 
-        tensorboard_logs = {
+        self.log('val_loss', avg_loss)
+        self.log('intent_precision', intent_precision)
+        self.log('intent_recall', intent_recall)
+        self.log('intent_f1', intent_f1)
+        self.log('slot_precision', slot_precision)
+        self.log('slot_recall', slot_recall)
+        self.log('slot_f1', slot_f1)
+
+        return {
             'val_loss': avg_loss,
             'intent_precision': intent_precision,
             'intent_recall': intent_recall,
@@ -191,7 +207,6 @@ class IntentSlotClassificationModel(NLPModel):
             'slot_recall': slot_recall,
             'slot_f1': slot_f1,
         }
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def test_step(self, batch, batch_idx):
         """
