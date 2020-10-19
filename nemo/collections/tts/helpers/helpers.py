@@ -26,6 +26,14 @@ from pytorch_lightning.utilities import rank_zero_only
 from nemo.utils import logging
 
 
+class OperationMode(Enum):
+    """Training or Inference (Evaluation) mode"""
+
+    training = 0
+    validation = 1
+    infer = 2
+
+
 def get_mask_from_lengths(lengths, max_len=None):
     if not max_len:
         max_len = torch.max(lengths).item()

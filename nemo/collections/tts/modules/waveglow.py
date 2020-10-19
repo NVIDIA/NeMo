@@ -28,14 +28,6 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 
 
-class OperationMode(Enum):
-    """Training or Inference (Evaluation) mode"""
-
-    training = 0
-    validation = 1
-    infer = 2
-
-
 class WaveGlowModule(NeuralModule, Exportable):
     def __init__(
         self,
