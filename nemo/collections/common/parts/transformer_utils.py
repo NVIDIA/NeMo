@@ -20,7 +20,7 @@ __all__ = ['NEG_INF', 'form_attention_mask', 'transformer_weights_init', 'mask_p
 NEG_INF = -10000.0
 
 
-def form_attention_mask(input_mask, diagonal=None, debug=False):
+def form_attention_mask(input_mask, diagonal=None):
     """
     Build attention mask with optional masking of future tokens we forbid
     to attend to (e.g. as it is in Transformer decoder).
@@ -40,32 +40,10 @@ def form_attention_mask(input_mask, diagonal=None, debug=False):
     if input_mask is None:
         return None
     attn_shape = (1, input_mask.shape[1], input_mask.shape[1])
-    if debug:
-        print("(form_attention_mask)before to byte and unsqueeze")
     attn_mask = input_mask.byte().unsqueeze(1)
     if diagonal is not None:
-        if debug:
-            print("(form_attention_mask)before torch.ones")
-        xx = torch.ones(attn_shape)
-        if debug:
-            print("(form_attention_mask)xx.byte()")
-        xx = xx.byte()
-        if debug:
-            print("(form_attention_mask)to device")
-            print("(form_attention_mask)xx.shape, xx.dtype, xx.device, input_mask.device:", xx.shape, xx.dtype, xx.device, input_mask.device)
-            print("(form_attention_mask)xx:", xx)
-            #if xx.shape[-1] == 13:
-            #    raise Exception()
-        xx = xx.to(input_mask.device)
-        if debug:
-            print("(form_attention_mask)before torch.tril")
-        future_mask = torch.tril(xx, diagonal)
-        # future_mask = torch.tril(torch.ones(attn_shape).byte().to(input_mask.device), diagonal)
-        if debug:
-            print("(form_attention_mask)before bitwise and")
+        future_mask = torch.tril(torch.ones(attn_shape).byte().to(input_mask.device), diagonal)
         attn_mask = attn_mask & future_mask
-    if debug:
-        print("(form_attention_mask)before attention mask final compute")
     attention_mask = (1 - attn_mask.to(torch.float)) * NEG_INF
     return attention_mask.unsqueeze(1)
 
