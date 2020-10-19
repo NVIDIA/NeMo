@@ -15,6 +15,7 @@ n_mels: &n_mels 80
 
 model:
   init_adv_lambda: 2.5
+  increase_lambda: False
 
   labels: ${labels}
   train_ds:

@@ -38,6 +38,7 @@ class MBMelGanModel(ModelPT):
         self.train_disc = False
         self.mse_loss = torch.nn.MSELoss()
         self.adv_coeff = self._cfg.init_adv_lambda
+        self.increase_coeff = self._cfg.increase_lambda
 
     @property
     def input_types(self):
@@ -59,8 +60,8 @@ class MBMelGanModel(ModelPT):
         logging.info(f"MAX STEPS: {max_steps}")
         # sch1 = torch.optim.lr_scheduler.MultiStepLR(opt1, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
         # sch2 = torch.optim.lr_scheduler.MultiStepLR(opt2, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
-        sch1 = CosineAnnealing(opt1, max_steps=max_steps, min_lr=1e-5)
-        sch2 = CosineAnnealing(opt2, max_steps=max_steps, min_lr=1e-5, warmup_steps=15000)  # Use warmup to delay start
+        sch1 = CosineAnnealing(opt1, max_steps=max_steps, min_lr=1e-5, warmup_steps=15000)  # Use warmup to delay start
+        sch2 = CosineAnnealing(opt2, max_steps=max_steps, min_lr=1e-5)
         return [opt1, opt2], [sch1, sch2]
 
     def forward(self):
@@ -200,14 +201,15 @@ class MBMelGanModel(ModelPT):
             self.train_disc = True
 
         # Add staircase increase for adv_coeff
-        if self.global_step >= 55000:
-            self.adv_coeff = 10
-        elif self.global_step >= 45000:
-            self.adv_coeff = 7.5
-        elif self.global_step >= 35000:
-            self.adv_coeff = 5
-        elif self.global_step >= 25000:
-            self.adv_coeff = 2.5
+        if self.increase_coeff:
+            if self.global_step >= 55000:
+                self.adv_coeff = 10
+            elif self.global_step >= 45000:
+                self.adv_coeff = 7.5
+            elif self.global_step >= 35000:
+                self.adv_coeff = 5
+            elif self.global_step >= 25000:
+                self.adv_coeff = 2.5
         return super().training_epoch_end(outputs)
 
     @classmethod
