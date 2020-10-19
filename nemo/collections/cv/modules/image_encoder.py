@@ -294,21 +294,23 @@ class ImageEncoder(NeuralModule):
 		# Return neural types for object-detector
 		else:
 			return {
+				# Note: num_boxes is in the range of (self._min_boxes, self._max_boxes)
+
 				# classes of diffent objects in a batch of images (B x num_boxes)
 				"classes": NeuralType(
-					axes=(AxisType(kind=AxisKind.Batch), AxisType(kind=AxisKind.Any, size=self._max_boxes),),
+					axes=(AxisType(kind=AxisKind.Batch), AxisType(kind=AxisKind.Any),),
 					elements_type=PredictionsType(),
 				),
 				# prediction score of different objects in a batch of images (B x num_boxes)
 				"scores": NeuralType(
-					axes=(AxisType(kind=AxisKind.Batch), AxisType(kind=AxisKind.Any, size=self._max_boxes),),
+					axes=(AxisType(kind=AxisKind.Batch), AxisType(kind=AxisKind.Any),),
 					elements_type=PredictionsType(),
 				),
 				# bounding box of different objects in a batch of images (B x num_boxes x 4)
 				"bboxes": NeuralType(
 					axes=(
 						AxisType(kind=AxisKind.Batch), 
-						AxisType(kind=AxisKind.Any, size=self._max_boxes),
+						AxisType(kind=AxisKind.Any),
 						AxisType(kind=AxisKind.Any, size=4),
 					),
 					elements_type=PredictionsType(),
@@ -317,7 +319,7 @@ class ImageEncoder(NeuralModule):
 				"features": NeuralType(
 					axes=(
 						AxisType(kind=AxisKind.Batch), 
-						AxisType(kind=AxisKind.Any, size=self._max_boxes),
+						AxisType(kind=AxisKind.Any),
 						AxisType(kind=AxisKind.Any, size=2048),
 					),
 					elements_type=ImageFeatureValue(),
@@ -430,7 +432,7 @@ class ImageEncoder(NeuralModule):
 					raw_instances = detector_postprocess(instances, height, width)
 					raw_instances_list.append(raw_instances)
 
-			# batch the features
+			# batch the features, num_boxes in the ranges of (self._min_boxes, self._max_boxes)
 			pred_classes = torch.stack(instances.pred_classes for instances in raw_instances_list).type(torch.LongTensor) # (B x num_boxes)
 			pred_scores = torch.stack(instances.scores for instances in raw_instances_list).type(torch.FloatTensor) # (B x num_boxes)
 			bboxes = torch.stack(instances.pred_boxes.tensor for instances in raw_instances_list).type(torch.FloatTensor) # (B x num_boxes x 4)
