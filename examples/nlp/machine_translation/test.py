@@ -29,8 +29,6 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer, callbacks=[MachineTranslationLogEvalCallback()])
     exp_manager(trainer, cfg.get("exp_manager", None))
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
-    trainer.fit(transformer_mt)
-    transformer_mt = transformer_mt.float()
     trainer.test(transformer_mt)
 
 

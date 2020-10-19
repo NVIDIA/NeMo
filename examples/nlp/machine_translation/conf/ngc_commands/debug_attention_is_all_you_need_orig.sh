@@ -23,5 +23,6 @@ pip install -r requirements/requirements.txt \
   && cp valid.en train.en \
   && cp valid.de train.de \
   && cd  "${nemo_path}/examples/nlp/machine_translation" \
-  && python transformer_mt.py -cn debug_on_ngc
+  && python train.py -cn debug_on_ngc
+  && python test.py -cn debug_on_ngc
 
