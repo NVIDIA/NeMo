@@ -37,6 +37,7 @@ class MBMelGanModel(ModelPT):
         )
         self.train_disc = False
         self.mse_loss = torch.nn.MSELoss()
+        self.adv_coeff = self._cfg.init_adv_lambda
 
     @property
     def input_types(self):
@@ -127,7 +128,7 @@ class MBMelGanModel(ModelPT):
                     loss_gen += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
                 loss_gen /= len(fake_score)
 
-                loss += self._cfg.adv_lambda * loss_gen
+                loss += self.adv_coeff * loss_gen
             if self.global_step % 1000:
                 self.logger.experiment.add_scalar("loss_generator", loss, self.global_step)
             return {
@@ -197,6 +198,16 @@ class MBMelGanModel(ModelPT):
     def training_epoch_end(self, outputs):
         if self.global_step >= 15000:
             self.train_disc = True
+
+        # Add staircase increase for adv_coeff
+        if self.global_step >= 55000:
+            self.adv_coeff = 10
+        elif self.global_step >= 45000:
+            self.adv_coeff = 7.5
+        elif self.global_step >= 35000:
+            self.adv_coeff = 5
+        elif self.global_step >= 25000:
+            self.adv_coeff = 2.5
         return super().training_epoch_end(outputs)
 
     @classmethod

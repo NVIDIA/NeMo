@@ -14,7 +14,7 @@ validation_datasets: ???
 n_mels: &n_mels 80
 
 model:
-  adv_lambda: 2.5
+  init_adv_lambda: 2.5
 
   labels: ${labels}
   train_ds:
