@@ -246,7 +246,9 @@ def infer_pwg(cfg):
 @hydra_runner(config_path="conf", config_name="multiband_melgan")
 def infer_pwg_batch(cfg):
     model = MBMelGanModel.load_from_checkpoint(
-        "/home/jasoli/nemo/NeMo/examples/tts/experiments/1501438_MelGAN_MSE_BS64_E3000/MB_MelGan--last.ckpt"
+        # "/home/jasoli/nemo/NeMo/examples/tts/experiments/1501438_MelGAN_MSE_BS64_E3000/MB_MelGan--last.ckpt"
+        # "/mnt/hdd/experiment_results/MelGAN/1528354_MelGAN_LSE_GenPre/MB_MelGan/2020-10-16_22-15-23/checkpoints/MB_MelGan--end.ckpt"
+        "/mnt/hdd/experiment_results/MelGAN/1528357_LinGAN_LSE_GenPre/MB_MelGan/2020-10-16_22-15-25/checkpoints/MB_MelGan--end.ckpt"
     )
     # "/home/jasoli/nemo/NeMo/examples/tts/nemo_experiments/MB_MelGan/2020-09-24_11-29-43/checkpoints/MB_MelGan--last.ckpt"
     model.setup_validation_data(cfg.model.validation_ds)
@@ -258,12 +260,13 @@ def infer_pwg_batch(cfg):
         audio_len = audio_len.to("cuda")
         with torch.no_grad():
             spec, _ = model.audio_to_melspec_precessor(audio, audio_len)
+            print(spec.shape)
             mb_audio_pred = model.generator(spec)
             audio_pred = model.pqmf.synthesis(mb_audio_pred)
         for i, single_audio in enumerate(audio_pred):
             print(single_audio.cpu().numpy().squeeze())
             librosa.output.write_wav(
-                f"MB_MelGAN_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], sr=22050
+                f"MB_LinGAN_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], sr=22050
             )
         break
 
@@ -515,7 +518,7 @@ def infer_pwg_batch(cfg):
 if __name__ == '__main__':
     # main()  # noqa pylint: disable=no-value-for-parameter
     # infer()
-    train_pwg()
+    # train_pwg()
     # infer_pwg()
-    # infer_pwg_batch()
+    infer_pwg_batch()
     pass

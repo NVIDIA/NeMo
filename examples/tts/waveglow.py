@@ -30,5 +30,67 @@ def main(cfg):
     trainer.fit(model)
 
 
+@hydra_runner(config_path="conf", config_name="waveglow")
+def infer_batch(cfg):
+    import torch
+    import librosa
+    from torch_stft import STFT
+
+    model = WaveGlowModel.from_pretrained("WaveGlow-22050Hz")
+    model.setup_validation_data(cfg.model.validation_ds)
+    model.cuda()
+    model.eval()
+
+    class Denoiser(torch.nn.Module):
+        """ Removes model bias from audio produced with waveglow """
+
+        def __init__(self, waveglow, filter_length=1024, n_overlap=4, win_length=1024, mode='zeros'):
+            super(Denoiser, self).__init__()
+            self.stft = STFT(
+                filter_length=filter_length, hop_length=int(filter_length / n_overlap), win_length=win_length
+            ).cuda()
+            if mode == 'zeros':
+                mel_input = torch.zeros((1, 80, 88)).cuda()
+            elif mode == 'normal':
+                mel_input = torch.randn((1, 80, 88)).cuda()
+            else:
+                raise Exception("Mode {} if not supported".format(mode))
+
+            with torch.no_grad():
+                bias_audio = waveglow.convert_spectrogram_to_audio(spec=mel_input, sigma=0.0).float()
+                bias_spec, _ = self.stft.transform(bias_audio)
+
+            self.register_buffer('bias_spec', bias_spec[:, :, 0][:, :, None])
+
+        def forward(self, audio, strength=0.1):
+            audio_spec, audio_angles = self.stft.transform(audio.cuda().float())
+            audio_spec_denoised = audio_spec - self.bias_spec * strength
+            audio_spec_denoised = torch.clamp(audio_spec_denoised, 0.0)
+            audio_denoised = self.stft.inverse(audio_spec_denoised, audio_angles)
+            return audio_denoised
+
+    denoiser = Denoiser(model)
+    denoiser.cuda()
+    denoiser.eval()
+
+    for batch in model._validation_dl:
+        audio, audio_len = batch
+        audio = audio.to("cuda")
+        audio_len = audio_len.to("cuda")
+        with torch.no_grad():
+            spec, _ = model.audio_to_melspec_precessor(audio, audio_len)
+            audio_pred = model.convert_spectrogram_to_audio(spec=spec)
+            # audio_pred = denoiser(audio_pred)
+        for i, single_audio in enumerate(audio_pred):
+            print(single_audio.cpu().numpy().squeeze())
+            librosa.output.write_wav(
+                f"WaveGlow_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], sr=22050
+            )
+        for i, single_audio in enumerate(audio):
+            librosa.output.write_wav(f"Real_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], sr=22050)
+        break
+
+
 if __name__ == '__main__':
-    main()  # noqa pylint: disable=no-value-for-parameter
+    # main()  # noqa pylint: disable=no-value-for-parameter
+    infer_batch()
