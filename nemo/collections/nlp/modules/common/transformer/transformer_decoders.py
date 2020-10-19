@@ -81,7 +81,7 @@ class TransformerDecoder(nn.Module):
         return memory_states
 
     def forward(
-        self, decoder_states, decoder_mask, encoder_states, encoder_mask, decoder_mems_list=None, return_mems=False, debug=False
+        self, decoder_states, decoder_mask, encoder_states, encoder_mask, decoder_mems_list=None, return_mems=False
     ):
         """
         Args:
@@ -95,27 +95,15 @@ class TransformerDecoder(nn.Module):
             return_mems: bool, whether to return outputs of all decoder layers
                 or the last layer only
         """
-        if debug:
-            print("(TransformerDeconder.forward)before forming decoder mask")
-        decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=0, debug=debug)
-        if debug:
-            print("(TransformerDeconder.forward)before forming encoder mask")
+        decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=0)
         encoder_attn_mask = form_attention_mask(encoder_mask)
-        if debug:
-            print("(TransformerDeconder.forward)before getting memory states")
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
         cached_mems_list = [memory_states]
 
         for i, layer in enumerate(self.layers):
-            if debug:
-                print(f"(TransformerDeconder.forward)before applying layer {i}")
             decoder_states = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
-            if debug:
-                print(f"(TransformerDeconder.forward)before getting memory states for layer {i}")
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
-        if debug:
-            print("(TransformerDeconder.forward)before returning")
 
         if return_mems:
             return cached_mems_list

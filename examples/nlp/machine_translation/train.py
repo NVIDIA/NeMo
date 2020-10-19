@@ -21,7 +21,6 @@ from nemo.collections.nlp.models.machine_translation import TransformerMTModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from nemo.utils.get_rank import is_global_rank_zero
 
 
 @hydra_runner(config_path="conf", config_name="transformer_mt_config")

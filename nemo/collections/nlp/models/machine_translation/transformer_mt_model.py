@@ -134,37 +134,21 @@ class TransformerMTModel(ModelPT):
         self.last_eval_loss = None
 
     @typecheck()
-    def forward(self, src, src_mask, tgt, tgt_mask, debug=False):
+    def forward(self, src, src_mask, tgt, tgt_mask):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        if debug:
-            print("(TransformerMTModel.forward)before src embedding layer")
         src_embeddings = self.src_embedding_layer(input_ids=src)
-        if debug:
-            print("(TransformerMTModel.forward)before encoder")
         src_hiddens = self.encoder(src_embeddings, src_mask)
-        if debug:
-            print("(TransformerMTModel.forward)before tt embedding layer")
         tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
-        if debug:
-            print("(TransformerMTModel.forward)before decoder")
-        tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask, debug=debug)
-        if debug:
-            print("(TransformerMTModel.forward)before softmax")
+        tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
-        if debug:
-            print("(TransformerMTModel.forward)before beam search block")
         if not self.training:
-            if debug:
-                print("(TransformerMTModel.forward)before beam search")
             beam_results = self.beam_search(
                 encoder_hidden_states=src_hiddens,
                 encoder_input_mask=src_mask)
-        if debug:
-            print("(TransformerMTModel.forward)after beam search")
         return log_probs, beam_results
 
     def training_step(self, batch, batch_idx):
@@ -192,16 +176,9 @@ class TransformerMTModel(ModelPT):
                 # is excess.
                 batch[i] = batch[i].squeeze()
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
-        if mode == 'test':
-            print("(TransformerMTModel.eval_step)before forward")
-            print("(TransformerMTModel.eval_step)src_ids.shape, src_mask.shape, tgt_ids.shape, tgt_mask.shape:", src_ids.shape, src_mask.shape, tgt_ids.shape, tgt_mask.shape)
-        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask, debug=mode=='test')
-        if mode == 'test':
-            print("(TransformerMTModel.eval_step)before loss computation")
+        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.last_eval_beam_results, self.last_eval_loss = beam_results, eval_loss
-        if mode == 'test':
-            print("(TransformerMTModel.eval_step)after loss computation")
         translations = [self.tgt_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
@@ -231,16 +208,6 @@ class TransformerMTModel(ModelPT):
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
         token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
-        print(f"{mode} results".capitalize())
-        for i in range(3):
-            sent_id = np.random.randint(len(translations))
-            print(f"Ground truth: {ground_truths[sent_id]}\n")
-            print(f"Translation: {translations[sent_id]}\n")
-        print("-" * 50)
-        print(f"loss: {eval_loss:.3f}")
-        print(f"TokenBLEU: {token_bleu}")
-        print(f"SacreBLEU: {sacre_bleu}")
-        print("-" * 50)
         ans = {
             f"{mode}_loss": eval_loss, 
             f"{mode}_tokenBLEU": token_bleu.score, 
