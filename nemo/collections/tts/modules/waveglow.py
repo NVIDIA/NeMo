@@ -11,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from enum import Enum
-
 import torch
 
-from nemo.collections.tts.helpers.helpers import remove
+from nemo.collections.tts.helpers.helpers import remove, OperationMode
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import (

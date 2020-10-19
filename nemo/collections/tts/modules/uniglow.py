@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from enum import Enum
 
 import torch
 import torch.nn.functional as F
@@ -21,7 +20,6 @@ from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, NormalDistributionSamplesType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import experimental
 
 
 class UniGlowModule(NeuralModule, Exportable):

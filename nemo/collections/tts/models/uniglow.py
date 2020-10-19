@@ -94,7 +94,7 @@ class UniGlowModel(Vocoder):
             self.train()
         else:
             self.eval()
-        self.mode = new_mode
+        self._mode = new_mode
         self.model.mode = new_mode
 
     @property

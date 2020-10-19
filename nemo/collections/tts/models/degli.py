@@ -136,7 +136,7 @@ class DegliModel(LinVocoder):
             self.train()
         else:
             self.eval()
-        self.mode = new_mode
+        self._mode = new_mode
         self.degli.mode = new_mode
 
     @property

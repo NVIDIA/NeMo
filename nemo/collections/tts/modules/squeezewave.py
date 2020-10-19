@@ -35,8 +35,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import Enum
-
 import torch
 
 from nemo.collections.tts.helpers.helpers import OperationMode

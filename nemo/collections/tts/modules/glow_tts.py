@@ -58,7 +58,6 @@ from nemo.core.neural_types.elements import (
     TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import experimental
 
 
 class TextEncoder(NeuralModule):

@@ -84,7 +84,7 @@ class WaveGlowModel(Vocoder):
             self.train()
         else:
             self.eval()
-        self.mode = new_mode
+        self._mode = new_mode
         self.waveglow.mode = new_mode
 
     @property

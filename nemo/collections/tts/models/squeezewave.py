@@ -84,7 +84,7 @@ class SqueezeWaveModel(Vocoder):
             self.train()
         else:
             self.eval()
-        self.mode = new_mode
+        self._mode = new_mode
         self.squeezewave.mode = new_mode
 
     @property
