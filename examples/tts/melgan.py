@@ -55,8 +55,11 @@ class MBMelGanModel(ModelPT):
         num_samples = len(self._train_dl.dataset)
         batch_size = self._train_dl.batch_size
         max_steps = round(num_samples * iters_per_batch / float(batch_size))
-        sch1 = torch.optim.lr_scheduler.MultiStepLR(opt1, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
-        sch2 = torch.optim.lr_scheduler.MultiStepLR(opt2, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
+        logging.info(f"MAX STEPS: {max_steps}")
+        # sch1 = torch.optim.lr_scheduler.MultiStepLR(opt1, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
+        # sch2 = torch.optim.lr_scheduler.MultiStepLR(opt2, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
+        sch1 = CosineAnnealing(opt1, max_steps=max_steps, min_lr=1e-5)
+        sch2 = CosineAnnealing(opt2, max_steps=max_steps, min_lr=1e-5, warmup_steps=15000)  # Use warmup to delay start
         return [opt1, opt2], [sch1, sch2]
 
     def forward(self):
@@ -518,7 +521,12 @@ def infer_pwg_batch(cfg):
 if __name__ == '__main__':
     # main()  # noqa pylint: disable=no-value-for-parameter
     # infer()
-    # train_pwg()
+    train_pwg()
     # infer_pwg()
-    infer_pwg_batch()
+    # infer_pwg_batch()
     pass
+
+"""
+Currently at 25 steps per epoch
+Runs pretraining for 15000 steps, which is 600 epochs
+"""
