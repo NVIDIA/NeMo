@@ -211,7 +211,7 @@ class GLUEModel(NLPModel):
 
         tensorboard_logs['val_loss'] = avg_loss
         for key in tensorboard_logs:
-            self.log(f'{key}', key, prog_bar=True)
+            self.log(f'{key}', tensorboard_logs[key], prog_bar=True)
 
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
