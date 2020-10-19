@@ -51,7 +51,7 @@ model:
     mel_freq: 80
     layers: 8
     sampling_rate: ${sample_rate}
-    widening: 16 
+    widening: 16
     use_batchnorm: True
     droprate: 0.2
     num_dropout: 3
@@ -64,7 +64,7 @@ model:
     name: adam
     lr: 5.e-4
     weight_decay: 1.e-3
-    
+
     sched:
       name: ReduceLROnPlateau
       mode: min
@@ -86,12 +86,12 @@ trainer:
   gpus: 1 # number of gpus
   max_epochs: 200
   num_nodes: 1
-  distributed_backend: ddp
+  accelerator: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  log_save_interval: 2000
-  row_log_interval: 200
+  flush_logs_every_n_steps: 2000
+  log_every_n_steps: 200
   check_val_every_n_epoch: 10
   precision: 32
   gradient_clip_val: 4.0

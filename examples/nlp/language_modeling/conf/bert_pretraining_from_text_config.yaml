@@ -8,9 +8,9 @@ trainer:
   accumulate_grad_batches: 1 # accumulates grads every k batches
   precision: 16 # 16 to use AMP
   amp_level: O1 # O1 or O2 if using AMP
-  distributed_backend: ddp
+  accelerator: ddp
   gradient_clip_val: 0.0
-  row_log_interval: 1
+  log_every_n_steps: 1
   val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
   checkpoint_callback: false # provided by exp_manager
   logger: false # provided by exp_manager
@@ -29,7 +29,7 @@ model:
   # Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
 
   language_model:
-    pretrained_model_name: bert-base-uncased 
+    pretrained_model_name: bert-base-uncased
     lm_checkpoint: null
     config:
       attention_probs_dropout_prob: 0.1
@@ -46,7 +46,7 @@ model:
     config_file: null # json file, precedence over config
 
   tokenizer:
-    tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec 
+    tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec
     vocab_file: null # path to vocab file
     tokenizer_model: null # tokenizer model for sentencepiece
     special_tokens: # only necessary for adding transformer/bert-specific special tokens to tokenizer if the tokenizer does not already have these inherently.

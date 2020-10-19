@@ -139,8 +139,16 @@ class GLUEModel(NLPModel):
             loss = self.loss(preds=model_output, labels=labels)
         else:
             loss = self.loss(logits=model_output, labels=labels)
-        tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        return {'loss': loss, 'log': tensorboard_logs}
+
+        lr = self._optimizer.param_groups[0]['lr']
+
+        self.log('train_loss', loss)
+        self.log('lr', lr, prog_bar=True)
+
+        return {
+            'loss': loss,
+            'lr': lr,
+        }
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         input_ids, input_type_ids, input_mask, labels = batch
@@ -155,8 +163,7 @@ class GLUEModel(NLPModel):
             model_output = torch.argmax(model_output, 1)
 
         eval_tensors = {'preds': model_output, 'labels': labels}
-        tensorboard_logs = {'val_loss': val_loss}
-        return {'val_loss': val_loss, 'log': tensorboard_logs, 'eval_tensors': eval_tensors}
+        return {'val_loss': val_loss, 'eval_tensors': eval_tensors}
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
@@ -203,6 +210,9 @@ class GLUEModel(NLPModel):
                     f.write('preds\t' + list2str(preds) + '\n')
 
         tensorboard_logs['val_loss'] = avg_loss
+        for key in tensorboard_logs:
+            self.log(f'{key}', tensorboard_logs[key], prog_bar=True)
+
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_tokenizer(self, cfg: DictConfig):

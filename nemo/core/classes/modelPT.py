@@ -186,7 +186,11 @@ class ModelPT(LightningModule, Model):
 
     @classmethod
     def restore_from(
-        cls, restore_path: str, override_config_path: Optional[str] = None, map_location: Optional[torch.device] = None
+        cls,
+        restore_path: str,
+        override_config_path: Optional[str] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = False,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -196,6 +200,7 @@ class ModelPT(LightningModule, Model):
                 config file
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict.
 
             Example:
                 ```
@@ -238,7 +243,7 @@ class ModelPT(LightningModule, Model):
                 OmegaConf.set_struct(conf, True)
                 instance = cls.from_config_dict(config=conf)
                 instance = instance.to(map_location)
-                instance.load_state_dict(torch.load(model_weights, map_location=map_location))
+                instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
