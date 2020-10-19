@@ -75,7 +75,8 @@ def main():
         logging.set_verbosity(logging.DEBUG)
 
     logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-    asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
+    # TODO: Remove strict, when lightning has persistent parameter support for add_state()
+    asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, strict=False)
     logging.info(f"Using NGC cloud TTS Spectrogram Generator model {args.tts_model_spec}")
     tts_model_spec = SpectrogramGenerator.from_pretrained(model_name=args.tts_model_spec)
     logging.info(f"Using NGC cloud TTS Vocoder model {args.tts_model_vocoder}")

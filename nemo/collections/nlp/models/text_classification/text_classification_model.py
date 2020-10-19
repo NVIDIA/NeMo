@@ -93,7 +93,9 @@ class TextClassificationModel(NLPModel, Exportable):
             self.loss = CrossEntropyLoss()
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(cfg.dataset.num_classes)
+        self.classification_report = ClassificationReport(
+            num_classes=cfg.dataset.num_classes, mode='micro', dist_sync_on_step=True
+        )
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
@@ -127,8 +129,15 @@ class TextClassificationModel(NLPModel, Exportable):
 
         train_loss = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        return {'loss': train_loss, 'log': tensorboard_logs}
+        lr = self._optimizer.param_groups[0]['lr']
+
+        self.log('train_loss', train_loss)
+        self.log('lr', lr, prog_bar=True)
+
+        return {
+            'loss': train_loss,
+            'lr': lr,
+        }
 
     def validation_step(self, batch, batch_idx):
         """
@@ -146,11 +155,10 @@ class TextClassificationModel(NLPModel, Exportable):
         val_loss = self.loss(logits=logits, labels=labels)
 
         preds = torch.argmax(logits, axis=-1)
-        tp, fp, fn = self.classification_report(preds, labels)
 
-        tensorboard_logs = {f'{prefix}_loss': val_loss, f'{prefix}_tp': tp, f'{prefix}_fn': fn, f'{prefix}_fp': fp}
+        tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        return {f'{prefix}_loss': val_loss, 'log': tensorboard_logs}
+        return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
     def validation_epoch_end(self, outputs):
         """
@@ -164,20 +172,17 @@ class TextClassificationModel(NLPModel, Exportable):
         else:
             prefix = 'val'
 
-        avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
-        # calculate metrics and log classification report
-        tp = torch.sum(torch.stack([x['log'][f'{prefix}_tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log'][f'{prefix}_fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log'][f'{prefix}_fp'] for x in outputs]), 0)
-        precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
+        avg_loss = torch.stack([x[f'val_loss'] for x in outputs]).mean()
 
-        tensorboard_logs = {
-            f'{prefix}_loss': avg_loss,
-            f'{prefix}_precision': precision,
-            f'{prefix}_recall': recall,
-            f'{prefix}_f1': f1,
-        }
-        return {f'{prefix}_loss': avg_loss, 'log': tensorboard_logs}
+        # calculate metrics and classification report
+        precision, recall, f1, report = self.classification_report.compute()
+
+        logging.info(f'{prefix}_report: {report}')
+
+        self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
+        self.log(f'{prefix}_precision', precision)
+        self.log(f'{prefix}_f1', f1)
+        self.log(f'{prefix}_recall', recall)
 
     def test_step(self, batch, batch_idx):
         """

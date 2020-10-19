@@ -81,7 +81,9 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup metric objects
-        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        self._wer = WERBPE(
+            tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, dist_sync_on_step=True,
+        )
 
     def _setup_tokenizer(self):
         if self.tokenizer_type not in ['bpe', 'wpe']:
