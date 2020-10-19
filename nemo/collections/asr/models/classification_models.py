@@ -26,7 +26,7 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.common.metrics import TopKClassificationAccuracy, compute_topk_accuracy
+from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import *
@@ -57,7 +57,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
             self.crop_or_pad = None
 
         # Setup metric objects
-        self._accuracy = TopKClassificationAccuracy()
+        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
 
     def transcribe(self, paths2audio_files: str) -> str:
         raise NotImplementedError("Classification models do not transcribe audio.")
@@ -216,14 +216,10 @@ class EncDecClassificationModel(ASRModel, Exportable):
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
 
-        correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
-
-        for ki in range(correct_counts.shape[-1]):
-            correct_count = correct_counts[ki]
-            total_count = total_counts[ki]
-            top_k = self._accuracy.top_k[ki]
-
-            tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = correct_count / float(total_count)
+        self._accuracy(logits=logits, labels=labels)
+        top_k = self._accuracy.compute()
+        for i, top_i in enumerate(top_k):
+            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -231,22 +227,36 @@ class EncDecClassificationModel(ASRModel, Exportable):
         audio_signal, audio_signal_len, labels, labels_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
-        correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
-        return {'val_loss': loss_value, 'val_correct_counts': correct_counts, 'val_total_counts': total_counts}
+        acc = self._accuracy(logits=logits, labels=labels)
+        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        return {
+            'val_loss': loss_value,
+            'val_correct_counts': correct_counts,
+            'val_total_counts': total_counts,
+            'val_acc': acc,
+        }
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
-        correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
-        return {'test_loss': loss_value, 'test_correct_counts': correct_counts, 'test_total_counts': total_counts}
+        acc = self._accuracy(logits=logits, labels=labels)
+        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        return {
+            'test_loss': loss_value,
+            'test_correct_counts': correct_counts,
+            'test_total_counts': total_counts,
+            'test_acc': acc,
+        }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x['val_correct_counts'] for x in outputs])
         total_counts = torch.stack([x['val_total_counts'] for x in outputs])
 
-        topk_scores = compute_topk_accuracy(correct_counts, total_counts)
+        self._accuracy.correct_counts_k = correct_counts
+        self._accuracy.total_counts_k = total_counts
+        topk_scores = self._accuracy.compute()
 
         tensorboard_log = {'val_loss': val_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
@@ -259,7 +269,9 @@ class EncDecClassificationModel(ASRModel, Exportable):
         correct_counts = torch.stack([x['test_correct_counts'].unsqueeze(0) for x in outputs])
         total_counts = torch.stack([x['test_total_counts'].unsqueeze(0) for x in outputs])
 
-        topk_scores = compute_topk_accuracy(correct_counts, total_counts)
+        self._accuracy.correct_counts_k = correct_counts
+        self._accuracy.total_counts_k = total_counts
+        topk_scores = self._accuracy.compute()
 
         tensorboard_log = {'test_loss': test_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):

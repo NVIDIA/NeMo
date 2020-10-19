@@ -56,10 +56,12 @@ def main():
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model)
+        # TODO: Remove strict, when lightning has persistent parameter support for add_state()
+        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model, strict=False)
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
+        # TODO: Remove strict, when lightning has persistent parameter support for add_state()
+        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, strict=False)
     asr_model.setup_test_data(
         test_data_config={
             'sample_rate': 16000,

@@ -35,7 +35,7 @@ Place pretrained model in ${EXP_DIR}/${EXP_NAME} with spkr.nemo
         +model.test_ds.time_length=8 \
         exp_manager.exp_name=${EXP_NAME} \
         exp_manager.exp_dir=${EXP_DIR} \
-        trainer.gpus=1 
+        trainer.gpus=1
 
 See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb for notebook tutorial
 """
@@ -52,7 +52,7 @@ def main(cfg):
     ):
         logging.info("changing gpus to 1 to minimize DDP issues while extracting embeddings")
         cfg.trainer.gpus = 1
-        cfg.trainer.distributed_backend = None
+        cfg.trainer.accelerator = None
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
