@@ -37,7 +37,7 @@ from nemo.utils import logging
 @dataclass
 class SqueezeWaveConfig:
     squeezewave: Dict[Any, Any] = MISSING
-    preprocessor: Preprocessor = Preprocessor()
+    preprocessor: Dict[Any, Any] = MISSING
     sigma: float = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
