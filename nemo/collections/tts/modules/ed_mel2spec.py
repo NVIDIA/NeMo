@@ -13,7 +13,6 @@
 # limitations under the License.
 import math
 from collections import OrderedDict
-from enum import Enum
 
 import librosa
 import torch
@@ -23,7 +22,6 @@ from numpy.linalg import pinv
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import experimental
 
 
 def str2act(txt):
