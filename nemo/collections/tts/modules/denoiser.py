@@ -15,7 +15,6 @@
 import torch
 
 from nemo.collections.asr.parts.features import STFTExactPad
-from nemo.collections.tts.modules.squeezewave import OperationMode
 
 
 class SqueezeWaveDenoiser(torch.nn.Module):
@@ -27,15 +26,16 @@ class SqueezeWaveDenoiser(torch.nn.Module):
             filter_length=filter_length, hop_length=hop_length, win_length=win_length, window=window,
         ).to(model.device)
 
+        old_mode = model.mode
+
         with torch.no_grad():
             spect = torch.zeros((1, n_mel, 88)).to(model.device)
             bias_audio = model.convert_spectrogram_to_audio(spect=spect, sigma=0.0)
             bias_spect, _ = self.stft.transform(bias_audio)
             self.bias_spect = bias_spect[:, :, 0][:, :, None]
 
-        # Reset mode to validation since `model.convert_spectrogram_to_audio` sets it to infer
-        model.mode = OperationMode.validation
-        model.squeezewave.mode = OperationMode.validation
+        # Reset old mode since `model.convert_spectrogram_to_audio` sets it to infer
+        model.mode = old_mode
 
     def forward(self, audio, strength=0.1):
         audio_spect, audio_angles = self.stft.transform(audio)
