@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import os
+
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
@@ -27,7 +29,9 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer, callbacks=[MachineTranslationLogEvalCallback()])
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+    with open("experiment_path.txt", 'w') as f:
+        f.write(str(exp_dir))
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
     trainer.fit(transformer_mt)
 

@@ -28,7 +28,10 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer, callbacks=[MachineTranslationLogEvalCallback()])
     exp_manager(trainer, cfg.get("exp_manager", None))
-    transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
+    if cfg.model.test_checkpoint_path is None:
+        raise ValueError("Not checkpoint for testing was provided")
+    transformer_mt = TransformerMTModel.load_from_checkpoint(cfg.model.test_checkpoint_path)
+    transformer_mt.setup_test_data(cfg.model.test_ds)
     trainer.test(transformer_mt)
 
 

@@ -12,7 +12,7 @@ trainer:
   distributed_backend: ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  row_log_interval: 100  # Interval of logging.
+  log_every_n_steps: 100  # Interval of logging.
   val_check_interval: 1000  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   progress_bar_refresh_rate: 0
@@ -43,8 +43,8 @@ model:
     len_pen: 0.6
 
   train_ds:
-    src_file_name: /data/train.de
-    tgt_file_name: /data/train.en
+    src_file_name: /data/train.en
+    tgt_file_name: /data/train.de
     tokens_in_batch: 16000
     clean: true
     max_seq_length: 128
@@ -56,8 +56,8 @@ model:
 
 
   validation_ds:
-    src_file_name: /data/valid.de # path to file with validation data
-    tgt_file_name: /data/valid.en
+    src_file_name: /data/valid.en # path to file with validation data
+    tgt_file_name: /data/valid.de
     tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
@@ -67,8 +67,8 @@ model:
     num_workers: 8 # number of workers for data loaders
 
   test_ds:
-    src_file_name: /data/test.de # path to file with validation data
-    tgt_file_name: /data/test.en
+    src_file_name: /data/test.en # path to file with validation data
+    tgt_file_name: /data/test.de
     tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset

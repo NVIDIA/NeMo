@@ -175,3 +175,4 @@ ngc_results/
 .hydra/
 nemo_experiments/
 ngc_results/
+experiment_dir.txt

@@ -130,8 +130,6 @@ class TransformerMTModel(ModelPT):
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
-        self.last_eval_beam_results = None
-        self.last_eval_loss = None
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
@@ -177,8 +175,7 @@ class TransformerMTModel(ModelPT):
                 batch[i] = batch[i].squeeze()
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
-        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        self.last_eval_beam_results, self.last_eval_loss = beam_results, eval_loss
+        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels).cpu().numpy()
         translations = [self.tgt_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
