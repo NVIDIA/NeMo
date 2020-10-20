@@ -20,10 +20,10 @@ from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pystoi import stoi
 
-from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
+from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.uniglowloss import UniGlowLoss
 from nemo.collections.tts.models.base import Vocoder
-from nemo.collections.tts.modules.uniglow import OperationMode, UniGlowModule
+from nemo.collections.tts.modules.uniglow import UniGlowModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -37,20 +37,9 @@ from nemo.utils import logging
 
 
 @dataclass
-class PreprocessorParams:
-    pad_value: float = MISSING
-
-
-@dataclass
-class Preprocessor:
-    cls: str = MISSING
-    params: PreprocessorParams = PreprocessorParams()
-
-
-@dataclass
 class WaveglowConfig:
     waveglow: Dict[Any, Any] = MISSING
-    preprocessor: Preprocessor = Preprocessor()
+    preprocessor: Dict[Any, Any] = MISSING
     sigma: float = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
@@ -73,7 +62,6 @@ class UniGlowModel(Vocoder):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.model = UniGlowModule(
@@ -88,6 +76,19 @@ class UniGlowModel(Vocoder):
         self.mode = OperationMode.infer
         self.loss = UniGlowLoss(self._cfg.uniglow.stft_loss_coef)
         self.removed_weightnorm = False
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, new_mode):
+        if new_mode == OperationMode.training:
+            self.train()
+        else:
+            self.eval()
+        self._mode = new_mode
+        self.model.mode = new_mode
 
     @property
     def input_types(self):
@@ -135,9 +136,7 @@ class UniGlowModel(Vocoder):
         if not self.removed_weightnorm:
             self.waveglow.remove_weightnorm()
             self.removed_weightnorm = True
-        self.eval()
         self.mode = OperationMode.infer
-        self.model.mode = OperationMode.infer
 
         with torch.no_grad():
             audio = self.model(spec=spec, audio=None, sigma=sigma)
@@ -146,7 +145,6 @@ class UniGlowModel(Vocoder):
 
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
-        self.model.mode = OperationMode.training
         audio, audio_len = batch
         z, logdet, predicted_audio = self(audio=audio, audio_len=audio_len)
         loss = self.loss(z=z, logdet=logdet, gt_audio=audio, predicted_audio=predicted_audio, sigma=self.sigma)
@@ -159,7 +157,6 @@ class UniGlowModel(Vocoder):
 
     def validation_step(self, batch, batch_idx):
         self.mode = OperationMode.validation
-        self.model.mode = OperationMode.validation
         audio, audio_len = batch
         z, logdet, predicted_audio, spec, spec_len = self(audio=audio, audio_len=audio_len)
         loss = self.loss(z=z, logdet=logdet, gt_audio=audio, predicted_audio=predicted_audio, sigma=self.sigma)
