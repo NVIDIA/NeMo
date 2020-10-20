@@ -68,8 +68,8 @@ class TestCommonMetrics:
         assert abs(proc2_acc[0] - 0.333) < 1e-3  # 1/3
 
         accuracy.reset()
-        accuracy.correct_counts_k = correct.sum()
-        accuracy.total_counts_k = total.sum()
+        accuracy.correct_counts_k = torch.tensor([correct.sum()])
+        accuracy.total_counts_k = torch.tensor([total.sum()])
         acc_topk = accuracy.compute()
         acc_top1 = acc_topk[0]
 
@@ -98,8 +98,8 @@ class TestCommonMetrics:
         assert abs(proc1_acc[0] - 0.667) < 1e-3  # 2/3
         assert abs(proc2_acc[0] - 0.500) < 1e-3  # 1/2
 
-        accuracy.correct_counts_k = correct.sum()
-        accuracy.total_counts_k = total.sum()
+        accuracy.correct_counts_k = torch.tensor([correct.sum()])
+        accuracy.total_counts_k = torch.tensor([total.sum()])
         acc_topk = accuracy.compute()
         acc_top1 = acc_topk[0]
 

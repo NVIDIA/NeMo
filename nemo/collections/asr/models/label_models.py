@@ -199,8 +199,8 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         self.val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        correct_counts = torch.stack([x['val_correct_counts'] for x in outputs])
-        total_counts = torch.stack([x['val_total_counts'] for x in outputs])
+        correct_counts = torch.stack([x['val_correct_counts'] for x in outputs]).sum(axis=0)
+        total_counts = torch.stack([x['val_total_counts'] for x in outputs]).sum(axis=0)
 
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
@@ -238,8 +238,8 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         self.val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-        correct_counts = torch.stack([x['test_correct_counts'] for x in outputs])
-        total_counts = torch.stack([x['test_total_counts'] for x in outputs])
+        correct_counts = torch.stack([x['test_correct_counts'] for x in outputs]).sum(axis=0)
+        total_counts = torch.stack([x['test_total_counts'] for x in outputs]).sum(axis=0)
 
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
