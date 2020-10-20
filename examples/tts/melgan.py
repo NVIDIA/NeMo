@@ -61,8 +61,16 @@ class MBMelGanModel(ModelPT):
         # sch1 = torch.optim.lr_scheduler.MultiStepLR(opt1, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
         # sch2 = torch.optim.lr_scheduler.MultiStepLR(opt2, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
         sch1 = CosineAnnealing(opt1, max_steps=max_steps, min_lr=1e-5, warmup_steps=15000)  # Use warmup to delay start
+        sch1_dict = {
+            'scheduler': sch1,
+            'interval': 'step',
+        }
         sch2 = CosineAnnealing(opt2, max_steps=max_steps, min_lr=1e-5)
-        return [opt1, opt2], [sch1, sch2]
+        sch2_dict = {
+            'scheduler': sch2,
+            'interval': 'step',
+        }
+        return [opt1, opt2], [sch1_dict, sch2_dict]
 
     def forward(self):
         pass
