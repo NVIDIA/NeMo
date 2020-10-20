@@ -207,9 +207,6 @@ class EncDecSpeakerLabelModel(ModelPT):
         topk_scores = self._accuracy.compute()
 
         logging.info("val_loss: {:.3f}".format(self.val_loss_mean))
-        import ipdb
-
-        ipdb.set_trace()
         self.log('val_loss', self.val_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             self.log('val_epoch_top@{}'.format(top_k), score)
