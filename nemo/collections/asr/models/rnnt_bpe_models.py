@@ -24,8 +24,8 @@ from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAud
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
+from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.collections.common import tokenizers
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
@@ -37,7 +37,7 @@ except (ImportError, ModuleNotFoundError):
     WARP_RNNT_AVAILABLE = False
 
 
-class EncDecRNNTBPEModel(EncDecRNNTModel):
+class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
     """Base class for encoder decoder CTC-based models."""
 
     @classmethod
@@ -68,12 +68,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
         if not isinstance(cfg, DictConfig):
             cfg = OmegaConf.create(cfg)
 
-        self.tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer, resolve=True)  # type: dict
-        self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
-        self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
-
         # Setup the tokenizer
-        self._setup_tokenizer()
+        self._setup_tokenizer(cfg.tokenizer)
 
         # Initialize a dummy vocabulary
         vocabulary = self.tokenizer.tokenizer.get_vocab()
@@ -96,67 +92,14 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
             decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
 
-        self.wer = RNNTBPEWER(decoding=self.decoding, batch_dim_index=0, use_cer=False)
+        self.wer = RNNTBPEWER(
+            decoding=self.decoding, batch_dim_index=0, use_cer=False, log_prediction=True, dist_sync_on_step=True
+        )
 
         # Setup fused Joint step if flag is set
         if self.joint.fuse_loss_wer:
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
-
-    def _setup_tokenizer(self):
-        if self.tokenizer_type not in ['bpe', 'wpe']:
-            raise ValueError(
-                "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
-                "`wpe` for BERT based tokenizer"
-            )
-
-        if self.tokenizer_type == 'bpe':
-            # This is a BPE Tokenizer
-            model_path = os.path.join(self.tokenizer_dir, 'tokenizer.model')
-            model_path = self.register_artifact('tokenizer.model_path', model_path)
-            self.model_path = model_path
-
-            if 'special_tokens' in self.tokenizer_cfg:
-                special_tokens = self.tokenizer_cfg['special_tokens']
-            else:
-                special_tokens = None
-
-            # Update special tokens
-            self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path, special_tokens=special_tokens)
-
-            vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
-            vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
-            self.vocab_path = vocab_path
-
-            vocabulary = {0: '<unk>'}
-            with open(vocab_path) as f:
-                for i, piece in enumerate(f):
-                    piece = piece.replace('\n', '')
-                    vocabulary[i + 1] = piece
-
-            # wrapper method to get vocabulary conveniently
-            def get_vocab():
-                return vocabulary
-
-            # attach utility values to the tokenizer wrapper
-            self.tokenizer.tokenizer.vocab_size = len(vocabulary)
-            self.tokenizer.tokenizer.get_vocab = get_vocab
-            self.tokenizer.tokenizer.all_special_tokens = self.tokenizer.special_token_to_id
-
-        else:
-            # This is a WPE Tokenizer
-            vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
-            self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
-            self.vocab_path = self.tokenizer_dir
-
-            self.tokenizer = tokenizers.AutoTokenizer(
-                pretrained_model_name='bert-base-cased', vocab_file=self.tokenizer_dir, **self.tokenizer_cfg
-            )
-        logging.info(
-            "Tokenizer {} initialized with {} tokens".format(
-                self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
-            )
-        )
 
     def change_vocabulary(
         self, new_tokenizer_dir: str, new_tokenizer_type: str, decoding_cfg: Optional[DictConfig] = None
@@ -185,11 +128,10 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
         if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
             raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
 
-        self.tokenizer_dir = new_tokenizer_dir  # Remove tokenizer directory
-        self.tokenizer_type = new_tokenizer_type.lower()  # Remove tokenizer_type
+        tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
 
         # Setup the tokenizer
-        self._setup_tokenizer()
+        self._setup_tokenizer(tokenizer_cfg)
 
         # Initialize a dummy vocabulary
         vocabulary = self.tokenizer.tokenizer.get_vocab()
@@ -223,6 +165,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel):
             batch_dim_index=self.wer.batch_dim_index,
             use_cer=self.wer.use_cer,
             log_prediction=self.wer.log_prediction,
+            dist_sync_on_step=True,
         )
 
         # Setup fused Joint step

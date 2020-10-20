@@ -568,6 +568,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         else:
             return {
                 "loss": NeuralType(elements_type=LossType(), optional=True),
+                "wer": NeuralType(elements_type=ElementType(), optional=True),
                 "wer_numer": NeuralType(elements_type=ElementType(), optional=True),
                 "wer_denom": NeuralType(elements_type=ElementType(), optional=True),
             }
@@ -598,8 +599,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         if experimental_fuse_loss_wer:
             logging.warning(
                 "\nFused joint step is an experimental technique. Please be aware that it "
-                "may have unintended side effects such as increased word error rate or difficulty in "
-                "reducing loss!\n"
+                "may have unintended side effects!\n"
             )
 
         self._loss = None
@@ -643,7 +643,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         transcripts: Optional[torch.Tensor] = None,
         transcript_lengths: Optional[torch.Tensor] = None,
         compute_wer: bool = False,
-    ) -> Union[torch.Tensor, List[torch.Tensor]]:
+    ) -> Union[torch.Tensor, List[Optional[torch.Tensor]]]:
         # encoder = (B, D, T)
         # decoder = (B, D, U) if passed, else None
         encoder_outputs = encoder_outputs.transpose(1, 2)  # (B, T, D)
@@ -663,20 +663,18 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
 
         else:
             # At least the loss module must be supplied during fused joint
-            if self._loss is None and self._wer is None:
-                raise ValueError(
-                    "`fuse_loss_wer` flag is set, but `loss_module` and `wer_module` modules were not provided! "
-                    "At least `loss_module` must be set"
-                )
+            if self._loss is None or self._wer is None:
+                raise ValueError("`fuse_loss_wer` flag is set, but `loss` and `wer` modules were not provided! ")
 
             # If fused joint step is required, fused batch size is required as well
             if self._fused_batch_size is None:
-                raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+                raise ValueError("If `experimental_fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
 
             # When using fused joint step, both encoder and transcript lengths must be provided
             if (encoder_lengths is None) or (transcript_lengths is None):
                 raise ValueError(
-                    "`fuse_loss_wer` is set, therefore encoder and target lengths must be provided as well!"
+                    "`experimental_fuse_loss_wer` is set, therefore encoder and target lengths "
+                    "must be provided as well!"
                 )
 
             losses = []
@@ -756,12 +754,16 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                         self.wer.log_prediction = False
 
                     # Compute the wer (with logging for just 1st sub-batch)
-                    wer_num, wer_denom = self.wer(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
+                    wer = self.wer(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
+                    wer_num, wer_denom = self.wer.scores, self.wer.words
                     wer_numer_list.append(wer_num)
                     wer_denom_list.append(wer_denom)
 
                     # Reset logging default
                     self.wer.log_prediction = original_log_prediction
+
+                else:
+                    wer = None
 
                 del sub_enc, sub_dec, sub_transcripts
 
@@ -783,7 +785,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                 wer_num = None
                 wer_denom = None
 
-            return loss_value, wer_num, wer_denom
+            return loss_value, wer, wer_num, wer_denom
 
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """

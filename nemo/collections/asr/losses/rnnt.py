@@ -111,7 +111,7 @@ class RNNTLoss(Loss):
         # of the log_probs tensor, therefore we increment the input_lengths by the difference.
         # This difference is generally small.
         if log_probs.shape[1] != max_logit_len:
-            log_probs = log_probs.narrow(dim=1, start=0, length=max_logit_len)
+            log_probs = log_probs.narrow(dim=1, start=0, length=max_logit_len).contiguous()
 
         # Reduce transcript length to correct alignment if additional padding was applied.
         # Transcript: [B, L] -> [B, L']; If L' < L

@@ -16,7 +16,7 @@ from typing import List, Optional
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import TensorMetric
+from pytorch_lightning.metrics import Metric
 
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
@@ -211,7 +211,7 @@ class RNNTDecoding:
         return hypotheses
 
 
-class RNNTWER(TensorMetric):
+class RNNTWER(Metric):
     """
     This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
     When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
@@ -245,8 +245,10 @@ class RNNTWER(TensorMetric):
         text word error rate, compute wer=wer_numerator/wer_denominator
     """
 
-    def __init__(self, decoding: RNNTDecoding, batch_dim_index=0, use_cer=False, log_prediction=True):
-        super(RNNTWER, self).__init__(name="RNNTWER")
+    def __init__(
+        self, decoding: RNNTDecoding, batch_dim_index=0, use_cer=False, log_prediction=True, dist_sync_on_step=False
+    ):
+        super(RNNTWER, self).__init__(dist_sync_on_step=dist_sync_on_step)
         self.decoding = decoding
         self.batch_dim_index = batch_dim_index
         self.use_cer = use_cer
@@ -254,7 +256,10 @@ class RNNTWER(TensorMetric):
         self.blank_id = self.decoding.blank_id
         self.labels_map = self.decoding.labels_map
 
-    def forward(
+        self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum')
+        self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum')
+
+    def update(
         self,
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
@@ -293,4 +298,10 @@ class RNNTWER(TensorMetric):
             words += len(r_list)
             # Compute Levenstein's distance
             scores += editdistance.eval(h_list, r_list)
-        return torch.tensor([scores, words], device=encoded_lengths.device)
+
+        self.scores = torch.tensor(scores, device=encoder_output.device)
+        self.words = torch.tensor(words, device=encoder_output.device)
+        # return torch.tensor([scores, words]).to(predictions.device)
+
+    def compute(self):
+        return self.scores.float() / self.words
