@@ -95,6 +95,9 @@ class TopKClassificationAccuracy(Metric):
             A list of length `K`, such that k-th index corresponds to top-k accuracy
             over all distributed processes.
         """
+        if not len(self.correct_counts_k) == len(self.top_k) == len(self.total_counts_k):
+            raise ValueError("length of counts must match to topk length")
+
         if self.top_k == [1]:
             return [self.correct_counts_k.float() / self.total_counts_k]
 
