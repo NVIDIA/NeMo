@@ -116,10 +116,6 @@ model:
       iters_per_batch: 1 # computed at runtime
       max_steps: null # computed at runtime or explicitly set here
 
-      # pytorch lightning args
-      monitor: val_loss
-      reduce_on_plateau: false
-
       # scheduler config override
       args:
         name: auto
