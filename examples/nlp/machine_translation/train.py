@@ -23,6 +23,7 @@ from nemo.collections.nlp.models.machine_translation import TransformerMTModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 @hydra_runner(config_path="conf", config_name="transformer_mt_config")
@@ -32,8 +33,9 @@ def main(cfg: DictConfig) -> None:
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
     trainer.fit(transformer_mt)
-    with open("best_checkpoint_path.txt", 'w') as f:
-        f.write(trainer.checkpoint_callback.best_model_path)
+    if is_global_rank_zero():
+        with open("best_checkpoint_path.txt", 'w') as f:
+            f.write(trainer.checkpoint_callback.best_model_path)
 
 
 if __name__ == '__main__':

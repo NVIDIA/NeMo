@@ -25,11 +25,11 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="transformer_mt_config")
 def main(cfg: DictConfig) -> None:
+    if cfg.model.test_checkpoint_path is None:
+        raise ValueError("Not checkpoint for testing was provided")
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer, callbacks=[MachineTranslationLogEvalCallback()])
     exp_manager(trainer, cfg.get("exp_manager", None))
-    if cfg.model.test_checkpoint_path is None:
-        raise ValueError("Not checkpoint for testing was provided")
     transformer_mt = TransformerMTModel.load_from_checkpoint(cfg.model.test_checkpoint_path)
     transformer_mt.setup_test_data(cfg.model.test_ds)
     trainer.test(transformer_mt)
