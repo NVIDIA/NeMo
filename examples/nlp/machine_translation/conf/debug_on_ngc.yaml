@@ -18,6 +18,7 @@ trainer:
   progress_bar_refresh_rate: 1
 
 model:
+  test_checkpoint_path: null
   machine_translation:
     tokenizer:
       tokenizer_name: yttm

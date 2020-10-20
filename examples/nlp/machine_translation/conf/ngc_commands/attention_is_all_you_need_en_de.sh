@@ -17,7 +17,8 @@ pip install -r requirements/requirements.txt \
   && yttm bpe --data yttm_train.ende --model bpe_32k_en_de_yttm.model --vocab_size 32000 \
   && cd  "${nemo_path}/examples/nlp/machine_translation" \
   && python train.py -cn en_de_ngc_8gpu \
-  && export exp_dir=$(cat experiment_dir.txt) \
-  && ln -s ${exp_dir}/checkpoints/TransformerMT---val* ${exp_dir}/checkpoints/best.ckpt \
-  && python test.py model.test_checkpoint_path=${exp_dir}/checkpoints/best.ckpt -cn en_de_ngc_8gpu
+  && export best_ckpt_path=$(cat best_checkpoint_path.txt) \
+  && echo "best ckpt path:" ${best_ckpt_path} \
+  && ln -s ${best_ckpt_path} best.ckpt \
+  && python test.py model.test_checkpoint_path=best.ckpt -cn en_de_ngc_8gpu
 

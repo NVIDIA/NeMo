@@ -18,6 +18,7 @@ trainer:
   progress_bar_refresh_rate: 0
 
 model:
+  test_checkpoint_path: null
   machine_translation:
     tokenizer:
       tokenizer_name: yttm
@@ -47,7 +48,7 @@ model:
     tgt_file_name: /data/train.en
     tokens_in_batch: 16000
     clean: true
-    max_seq_length: 128
+    max_seq_length: 512
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     drop_last: false # drops the last last batch if it is smaller than the batch size
