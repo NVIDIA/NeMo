@@ -36,12 +36,12 @@
 
 import math
 from collections import OrderedDict
-from enum import Enum
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import IntType, LengthsType, SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -67,14 +67,6 @@ def replace_magnitude(x, mag):
 
     phase = torch.atan2(x[:, 1:], x[:, :1])  # imag, real
     return torch.cat([mag * torch.cos(phase), mag * torch.sin(phase)], dim=1)
-
-
-class OperationMode(Enum):
-    """Training or Inference (Evaluation) mode"""
-
-    training = 0
-    validation = 1
-    infer = 2
 
 
 def overlap_add(x, hop_length, eye=None):
@@ -230,7 +222,7 @@ class DegliDNN(nn.Module):
     """
     The tiny model, which was used by the paper.
     Very efficient in terms of memory (~400KB),
-    but utilizes 11x11 /7x7 convolutions which results slow execution. 
+    but utilizes 11x11 /7x7 convolutions which results slow execution.
     Inferece costs about the same at 5-32 ED model, with lower quality.
     """
 
@@ -538,7 +530,7 @@ class DegliModule(NeuralModule, Exportable):
             max_length: maximum length of the audio in the batch
             repeat: how many iterations to apply using this network
         Returns:
-            training/ validation: 
+            training/ validation:
                 out_repeats: output of all blocks: [B, repeats, 2, F, T]
                 final_out: output of the final block: [B, 2, F, T]
                 residual: output of the final dnn: [B, 2, F, T]

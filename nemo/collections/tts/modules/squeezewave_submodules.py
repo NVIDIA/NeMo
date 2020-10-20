@@ -117,7 +117,7 @@ class SqueezeWaveNet(torch.nn.Module):
         self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
 
         padding = (kernel_size - 1) // 2
-        for i in range(n_layers):
+        for _ in range(n_layers):
             self.in_layers.append(
                 torch.nn.Sequential(
                     torch.nn.BatchNorm1d(n_channels),
