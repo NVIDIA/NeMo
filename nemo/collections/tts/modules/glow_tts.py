@@ -58,10 +58,8 @@ from nemo.core.neural_types.elements import (
     TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import experimental
 
 
-@experimental
 class TextEncoder(NeuralModule):
     def __init__(
         self,
@@ -196,15 +194,7 @@ class TextEncoder(NeuralModule):
 
         return x_m, x_logs, logw, x_mask
 
-    def save_to(self, save_path: str):
-        """TODO: Implement"""
 
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """TODO: Implement"""
-
-
-@experimental
 class FlowSpecDecoder(NeuralModule):
     def __init__(
         self,
@@ -324,13 +314,6 @@ class FlowSpecDecoder(NeuralModule):
     def store_inverse(self):
         for f in self.flows:
             f.store_inverse()
-
-    def save_to(self, save_path: str):
-        """TODO: Implement"""
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """TODO: Implement"""
 
 
 class GlowTTSModule(NeuralModule):
@@ -456,10 +439,3 @@ class GlowTTSModule(NeuralModule):
         y, _ = self.decoder(spect=z, spect_mask=y_mask, speaker_embeddings=speaker, reverse=True)
 
         return y, attn
-
-    def save_to(self, save_path: str):
-        """TODO: Implement"""
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """TODO: Implement"""

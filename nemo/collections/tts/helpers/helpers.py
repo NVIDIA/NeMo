@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
 from typing import Dict, Sequence
 
 import librosa
@@ -24,6 +25,14 @@ from pystoi import stoi
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.utils import logging
+
+
+class OperationMode(Enum):
+    """Training or Inference (Evaluation) mode"""
+
+    training = 0
+    validation = 1
+    infer = 2
 
 
 def get_mask_from_lengths(lengths, max_len=None):

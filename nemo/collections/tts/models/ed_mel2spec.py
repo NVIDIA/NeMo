@@ -26,7 +26,6 @@ from torch import Tensor, nn
 
 from nemo.collections.tts.helpers.helpers import eval_tts_scores, griffin_lim
 from nemo.collections.tts.models.base import MelToSpec
-from nemo.collections.tts.modules.ed_mel2spec import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import MelSpectrogramType, SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -70,7 +69,6 @@ class EDMel2SpecModel(MelToSpec):
         OmegaConf.merge(cfg, schema)
 
         self.ed_mel2spec = instantiate(self._cfg.mel2spec)
-        self.mode = OperationMode.infer
 
         self.criterion = nn.L1Loss(reduction='none')  # maybe should be loss subclass?
         loss_mode = self._cfg.train_params.loss_mode
@@ -90,12 +88,6 @@ class EDMel2SpecModel(MelToSpec):
         }[loss_mode]
 
         self.filters = [gen_filter(k) for k, s in self.f_specs]
-
-    def set_operation_mode(self, new_mode):
-        if not new_mode == OperationMode.training:
-            self.eval()
-        self.mode = new_mode
-        self.ed_mel2spec.mode = new_mode
 
     @property
     def input_types(self):
@@ -120,7 +112,7 @@ class EDMel2SpecModel(MelToSpec):
         return spec  # audio_pred
 
     def convert_mel_spectrogram_to_linear(self, mel: torch.Tensor) -> torch.Tensor:
-        self.set_operation_mode(OperationMode.infer)
+        self.eval()
         if len(mel.shape) == 3:
             mel = mel.unsqueeze(1)
 
@@ -197,8 +189,6 @@ class EDMel2SpecModel(MelToSpec):
         return loss
 
     def training_step(self, batch, batch_idx):
-        self.set_operation_mode(OperationMode.training)
-
         _, y_spec, _, _, T_ys, _, _ = batch
 
         x_mel = self.ed_mel2spec.spec_to_mel(y_spec)
@@ -222,8 +212,6 @@ class EDMel2SpecModel(MelToSpec):
         return output
 
     def validation_step(self, batch, batch_idx):
-        self.set_operation_mode(OperationMode.validation)
-
         _, y_spec, _, _, T_ys, _, path_speech = batch
 
         x_mel = self.ed_mel2spec.spec_to_mel(y_spec)
@@ -244,7 +232,7 @@ class EDMel2SpecModel(MelToSpec):
 
         if self._cfg.train_params.validate_scores:
             '''
-                For validaiton, estimate the wave using standard griffin lim, 
+                For validaiton, estimate the wave using standard griffin lim,
                 comparing the real wave with the griffin lim counterpart.
             '''
 
