@@ -48,107 +48,102 @@ model:
     test_loss_idx: 0
 
   preprocessor:
-    cls: nemo.collections.asr.modules.AudioToMFCCPreprocessor
-    params:
-      window_size: 0.025
-      window_stride: 0.01
-      window: "hann"
-      n_mels: &n_mels 64
-      n_mfcc: *n_mels
-      n_fft: 512
+    _target_: nemo.collections.asr.modules.AudioToMFCCPreprocessor
+    window_size: 0.025
+    window_stride: 0.01
+    window: "hann"
+    n_mels: &n_mels 64
+    n_mfcc: *n_mels
+    n_fft: 512
 
   spec_augment:
-    cls: nemo.collections.asr.modules.SpectrogramAugmentation
-    params:
-      freq_masks: 2
-      time_masks: 2
-      freq_width: 15
-      time_width: 25
-      rect_masks: 5
-      rect_time: 25
-      rect_freq: 15
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 2
+    time_masks: 2
+    freq_width: 15
+    time_width: 25
+    rect_masks: 5
+    rect_time: 25
+    rect_freq: 15
 
   crop_or_pad_augment:
-    cls: nemo.collections.asr.modules.CropOrPadSpectrogramAugmentation
-    params:
-      audio_length: ${model.timesteps}
+    _target_: nemo.collections.asr.modules.CropOrPadSpectrogramAugmentation
+    audio_length: ${model.timesteps}
 
   encoder:
-    cls: nemo.collections.asr.modules.ConvASREncoder
-    params:
-      feat_in: *n_mels
-      activation: relu
-      conv_mask: true
+    _target_: nemo.collections.asr.modules.ConvASREncoder
+    feat_in: *n_mels
+    activation: relu
+    conv_mask: true
 
-      jasper:
-        - filters: 128
-          repeat: 1
-          kernel: [11]
-          stride: [1]
-          dilation: [1]
-          dropout: ${model.dropout}
-          residual: false
-          separable: true
-          kernel_size_factor: ${model.kernel_size_factor}
+    jasper:
+      - filters: 128
+        repeat: 1
+        kernel: [11]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.dropout}
+        residual: false
+        separable: true
+        kernel_size_factor: ${model.kernel_size_factor}
 
-        - filters: 64
-          repeat: ${model.repeat}
-          kernel: [13]
-          stride: [1]
-          dilation: [1]
-          dropout: ${model.dropout}
-          residual: true
-          separable: true
-          kernel_size_factor: ${model.kernel_size_factor}
+      - filters: 64
+        repeat: ${model.repeat}
+        kernel: [13]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.dropout}
+        residual: true
+        separable: true
+        kernel_size_factor: ${model.kernel_size_factor}
 
-        - filters: 64
-          repeat: ${model.repeat}
-          kernel: [15]
-          stride: [1]
-          dilation: [1]
-          dropout: ${model.dropout}
-          residual: true
-          separable: true
-          kernel_size_factor: ${model.kernel_size_factor}
+      - filters: 64
+        repeat: ${model.repeat}
+        kernel: [15]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.dropout}
+        residual: true
+        separable: true
+        kernel_size_factor: ${model.kernel_size_factor}
 
-        - filters: 64
-          repeat: ${model.repeat}
-          kernel: [17]
-          stride: [1]
-          dilation: [1]
-          dropout: ${model.dropout}
-          residual: true
-          separable: true
-          kernel_size_factor: ${model.kernel_size_factor}
+      - filters: 64
+        repeat: ${model.repeat}
+        kernel: [17]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.dropout}
+        residual: true
+        separable: true
+        kernel_size_factor: ${model.kernel_size_factor}
 
-        - filters: 128
-          repeat: 1
-          kernel: [29]
-          stride: [1]
-          dilation: [2]
-          dropout: ${model.dropout}
-          residual: false
-          separable: true
-          kernel_size_factor: ${model.kernel_size_factor}
+      - filters: 128
+        repeat: 1
+        kernel: [29]
+        stride: [1]
+        dilation: [2]
+        dropout: ${model.dropout}
+        residual: false
+        separable: true
+        kernel_size_factor: ${model.kernel_size_factor}
 
-        - filters: &enc_final_filters 128
-          repeat: 1
-          kernel: [1]
-          stride: [1]
-          dilation: [1]
-          dropout: ${model.dropout}
-          residual: false
+      - filters: &enc_final_filters 128
+        repeat: 1
+        kernel: [1]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.dropout}
+        residual: false
 
   decoder:
-    cls: nemo.collections.asr.modules.ConvASRDecoderClassification
-    params:
-      feat_in: *enc_final_filters
-      return_logits: true
-      pooling_type: 'avg'
+    _target_: nemo.collections.asr.modules.ConvASRDecoderClassification
+    feat_in: *enc_final_filters
+    return_logits: true
+    pooling_type: 'avg'
 
   optim:
     name: novograd
-    # cls: nemo.core.optim.optimizers.Novograd
+    # _target_: nemo.core.optim.optimizers.Novograd
     lr: 0.05
     # optimizer arguments
     betas: [0.95, 0.5]
