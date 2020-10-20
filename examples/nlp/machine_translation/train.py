@@ -30,10 +30,10 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer, callbacks=[MachineTranslationLogEvalCallback()])
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
-    with open("experiment_dir.txt", 'w') as f:
-        f.write(str(exp_dir))
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
     trainer.fit(transformer_mt)
+    with open("best_checkpoint_path.txt", 'w') as f:
+        f.write(trainer.checkpoint_callback.best_model_path)
 
 
 if __name__ == '__main__':
