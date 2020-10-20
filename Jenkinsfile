@@ -617,19 +617,20 @@ pipeline {
             sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
           }
         }
-        stage('STS-b T5-small') {
-          steps {
-            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-            model.dataset.use_cache=false \
-            model.language_model.pretrained_model_name="t5-small" \
-            model.task_name=sts-b \
-            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
-            sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
-          }
-        }
+        // Disable T5 test as HF update broke it as of Oct 20, 2020
+        // stage('STS-b T5-small') {
+        //   steps {
+        //     sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+        //     model.dataset.use_cache=false \
+        //     model.language_model.pretrained_model_name="t5-small" \
+        //     model.task_name=sts-b \
+        //     model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+        //     trainer.gpus=[1] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
+        //     sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
+        //   }
+        // }
       }
     }
 
