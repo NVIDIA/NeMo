@@ -152,8 +152,13 @@ pipeline {
             model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params={} \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
             exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
           }
@@ -225,8 +230,13 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
-            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params={} \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
             exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
           }
