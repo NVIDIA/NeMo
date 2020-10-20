@@ -22,6 +22,11 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.nlp.data import SquadDataset
+from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing import (
+    EVALUATION_MODE,
+    INFERENCE_MODE,
+    TRAINING_MODE,
+)
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -199,7 +204,7 @@ class QAModel(NLPModel):
             logging.set_verbosity(logging.WARNING)
             dataloader_cfg = {"batch_size": batch_size, "file": file, "shuffle": False, "num_samples": 100}
             dataloader_cfg = OmegaConf.create(dataloader_cfg)
-            infer_datalayer = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode="infer")
+            infer_datalayer = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode=INFERENCE_MODE)
 
             all_logits = []
             all_unique_ids = []
@@ -257,7 +262,7 @@ class QAModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode=TRAINING_MODE)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.file:
@@ -266,7 +271,7 @@ class QAModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode="val")
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode=EVALUATION_MODE)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.file is None:
@@ -275,7 +280,7 @@ class QAModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode=EVALUATION_MODE)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         dataset = SquadDataset(
