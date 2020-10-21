@@ -82,7 +82,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # Setup metric objects
         self._wer = WERBPE(
-            tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, dist_sync_on_step=True,
+            tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, dist_sync_on_step=True, log_prediction=self._cfg.get("log_prediction", False)
         )
 
     def _setup_tokenizer(self):
@@ -175,6 +175,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
                 add_misc=config.get('add_misc', False),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
+                use_start_end_token=config.get('use_start_end_token', True),
             )
             shuffle = False
         else:
@@ -194,6 +195,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
                 trim=config.get('trim_silence', True),
                 load_audio=config.get('load_audio', True),
                 add_misc=config.get('add_misc', False),
+                use_start_end_token=config.get('use_start_end_token', True),
             )
 
         return torch.utils.data.DataLoader(
@@ -300,7 +302,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
         del self.loss
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
-        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, log_prediction=self._cfg.get("log_prediction", False))
 
         # Update config
         OmegaConf.set_struct(self._cfg.decoder, False)

@@ -31,6 +31,7 @@ from nemo.core.config.pytorch import DataLoaderConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.core.config.schedulers import (
     CosineAnnealingParams,
+    NoamAnnealingParams,
     InverseSquareRootAnnealingParams,
     PolynomialDecayAnnealingParams,
     PolynomialHoldDecayAnnealingParams,

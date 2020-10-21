@@ -121,7 +121,7 @@ class WERBPE(Metric):
         if self.log_prediction:
             logging.info(f"\n")
             logging.info(f"reference:{references[0]}")
-            logging.info(f"decoded  :{hypotheses[0]}")
+            logging.info(f"predicted:{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:

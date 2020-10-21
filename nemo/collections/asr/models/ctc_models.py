@@ -96,8 +96,18 @@ class EncDecCTCModel(ASRModel, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
+
+        if not self._cfg.decoder.feat_in and hasattr(self.encoder, 'feat_out'):
+            self._cfg.decoder.feat_in = self.encoder.feat_out
+        else:
+            logging.error("param feat_in of the decoder' config is not set!")
+
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
+
+        self.loss = CTCLoss(
+            num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True, reduction=self._cfg.ctc_reduction
+        )
+
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
@@ -110,6 +120,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             use_cer=False,
             ctc_decode=True,
             dist_sync_on_step=True,
+            log_prediction=self._cfg.get("log_prediction", False),
         )
 
     @torch.no_grad()
@@ -205,6 +216,7 @@ class EncDecCTCModel(ASRModel, Exportable):
                 use_cer=False,
                 ctc_decode=True,
                 dist_sync_on_step=True,
+                log_prediction=self._cfg.get("log_prediction", False),
             )
 
             # Update config

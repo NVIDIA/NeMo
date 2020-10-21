@@ -285,7 +285,7 @@ class FilterbankFeatures(nn.Module):
         highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
-            librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float,
+            librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float
         ).unsqueeze(0)
         self.register_buffer("fb", filterbanks)
 
@@ -357,6 +357,21 @@ class FilterbankFeatures(nn.Module):
         # dot with filterbank energies
         x = torch.matmul(self.fb.to(x.dtype), x)
 
+        # mask to zero any values beyond seq_len in batch, pad to multiple of
+        # `pad_to` (for efficiency)
+        max_len = x.size(-1)
+        mask = torch.arange(max_len).to(x.device)
+        mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
+        x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
+        del mask
+        pad_to = self.pad_to
+        if pad_to == "max":
+            x = nn.functional.pad(x, (0, self.max_length - x.size(-1)), value=self.pad_value)
+        elif pad_to > 0:
+            pad_amt = x.size(-1) % pad_to
+            if pad_amt != 0:
+                x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
+
         # log features if required
         if self.log:
             if self.log_zero_guard_type == "add":
@@ -374,18 +389,4 @@ class FilterbankFeatures(nn.Module):
         if self.normalize:
             x = normalize_batch(x, seq_len, normalize_type=self.normalize)
 
-        # mask to zero any values beyond seq_len in batch, pad to multiple of
-        # `pad_to` (for efficiency)
-        max_len = x.size(-1)
-        mask = torch.arange(max_len).to(x.device)
-        mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
-        x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
-        del mask
-        pad_to = self.pad_to
-        if pad_to == "max":
-            x = nn.functional.pad(x, (0, self.max_length - x.size(-1)), value=self.pad_value)
-        elif pad_to > 0:
-            pad_amt = x.size(-1) % pad_to
-            if pad_amt != 0:
-                x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
         return x, seq_len
