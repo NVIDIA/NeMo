@@ -16,6 +16,7 @@ import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -69,7 +70,17 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
 
+    if cfg.model.get("load_from_checkpoint", None):
+        logging.info(f"Loading checkpoint '{cfg.model.load_from_checkpoint}' ...")
+        asr_model.update_weights(checkpoint_path=cfg.model.load_weights_from_checkpoint)
+
     trainer.fit(asr_model)
+
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        gpu = 1 if cfg.trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu)
+        if asr_model.prepare_test(trainer):
+            trainer.test(asr_model)
 
 
 if __name__ == '__main__':

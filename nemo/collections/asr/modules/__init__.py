@@ -24,3 +24,19 @@ from nemo.collections.asr.modules.conv_asr import (
     ConvASREncoder,
     SpeakerDecoder,
 )
+
+from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
+from nemo.collections.asr.modules.lstm_decoder import LSTMDecoder
+
+from nemo.collections.asr.modules.activations import Swish
+from nemo.collections.asr.modules.conformer_modules import ConformerConvolution, ConformerFeedForward
+
+from nemo.collections.asr.modules.subsampling import ConvSubsampling
+from nemo.collections.asr.modules.multi_head_attention import (
+    MultiHeadAttention,
+    RelPositionMultiHeadAttention,
+    RelPositionMultiHeadAttention_old,
+    RelPositionalEncoding_old,
+    RelPositionalEncoding,
+    PositionalEncoding,
+)
