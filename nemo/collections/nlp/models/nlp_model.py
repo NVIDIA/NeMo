@@ -113,7 +113,7 @@ class NLPModel(ModelPT):
                     logging.info("replacing sampler with model parallel sampler")
                     mp_sampler = torch.utils.data.distributed.DistributedSampler(
                         self._train_dl.dataset,
-                        num_replicas=app_state.model_parallel_size,
+                        num_replicas=app_state.data_parallel_size,
                         rank=app_state.data_parallel_rank,
                     )
                     mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
