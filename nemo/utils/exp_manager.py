@@ -56,6 +56,19 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 
 @dataclass
+class CallbackParams:
+    filepath: Optional[str, Path] = None,  #If None, exp_manager will attempt to handle the filepath
+    monitor: Optional[str] = "val_loss",
+    verbose: Optional[bool] = True,
+    save_last: Optional[bool] = True,
+    save_top_k: Optional[int] = 3,
+    save_weights_only: Optional[bool] = False,
+    mode: Optional[str] = "auto",
+    period: Optional[int] = 1,
+    prefix: Optional[str] = None,  #If None, exp_manager will attempt to handle the filepath
+
+
+@dataclass
 class ExpManagerConfig:
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
@@ -73,6 +86,7 @@ class ExpManagerConfig:
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
+    checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
 
@@ -192,7 +206,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     if is_global_rank_zero():
         if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, log_dir, checkpoint_name)
+            configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
 
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
@@ -525,7 +539,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self._save_model(filepath, trainer, pl_module)
 
 
-def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str):
+def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
     """
@@ -544,14 +558,12 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
         logging.warning("trainer had a weights_save_path of cwd(). This was ignored.")
     # Create the callback and attach it to trainer
 
-    checkpoint_callback = NeMoModelCheckpoint(
-        filepath=Path(log_dir / 'checkpoints' / '{val_loss:.2f}-{epoch}'),
-        save_top_k=3,
-        monitor='val_loss',
-        save_last=True,
-        prefix=name + "--",
-        verbose=True,
-    )
+    if params.filepath is None:
+        params.filepath = Path(log_dir / 'checkpoints' / f'{{{params.monitor}:.2f}}-{{epoch}}')
+    if params.prefix is None:
+        params.prefix = name + "--"
+
+    checkpoint_callback = NeMoModelCheckpoint(**params)
     trainer.callback_connector.init_default_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
     trainer.checkpoint_callback = checkpoint_callback
