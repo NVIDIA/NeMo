@@ -15,8 +15,7 @@
 import torch
 
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import LengthsType, LogitsType, LogprobsType, NeuralType, PredictionsType
-from nemo.utils import logging
+from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
 
 
 class BeamSearchDecoderWithLM(NeuralModule):
