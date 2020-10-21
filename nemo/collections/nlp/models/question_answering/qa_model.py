@@ -87,8 +87,10 @@ class QAModel(NLPModel):
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
 
-        self.log('loss', loss)
-        self.log('lr', self._optimizer.param_groups[0]['lr'])
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('train_loss', loss)
+        self.log('lr', lr, prog_bar=True)
+        return {'loss': loss, 'lr': lr}
 
     def validation_step(self, batch, batch_idx):
         if self.testing:
@@ -169,7 +171,7 @@ class QAModel(NLPModel):
 
         logging.info(f"{prefix} exact match {exact_match}")
         logging.info(f"{prefix} f1 {f1}")
-        
+
         self.log(f'{prefix}_loss', avg_loss)
         self.log(f'{prefix}_exact_match', exact_match)
         self.log(f'{prefix}_f1', f1)
