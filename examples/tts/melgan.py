@@ -102,7 +102,7 @@ class MBMelGanModel(ModelPT):
                 loss_disc += self.mse_loss(fake_score[i][-1], fake_score[i][-1].new_zeros(fake_score[i][-1].size()))
             loss_disc /= len(fake_score)
 
-            if self.global_step % 1000:
+            if self.global_step % 1000 == 0:
                 self.logger.experiment.add_scalar("loss_discriminator", loss_disc, self.global_step)
             return {
                 'loss': loss_disc,
@@ -140,7 +140,7 @@ class MBMelGanModel(ModelPT):
                 loss_gen /= len(fake_score)
 
                 loss += self.adv_coeff * loss_gen
-            if self.global_step % 1000:
+            if self.global_step % 1000 == 0:
                 self.logger.experiment.add_scalar("loss_generator", loss, self.global_step)
             return {
                 'loss': loss,
@@ -209,11 +209,12 @@ class MBMelGanModel(ModelPT):
     def training_epoch_end(self, outputs):
         if self.current_epoch % 10 == 0:
             lrs = []
-            for scheduler in trainer.lr_schedulers:
+            for scheduler in self._trainer.lr_schedulers:
                 param_groups = scheduler['scheduler'].optimizer.param_groups
                 lrs.append(param_groups[0]['lr'])
-            self.log("lr-Adam", lrs[0])
-            self.log("lr-Adam-1", lrs[0])
+            self.logger.experiment.add_scalar("lr-Adam", lrs[0], self.global_step)
+            self.logger.experiment.add_scalar("lr-Adam-1", lrs[1], self.global_step)
+            self.logger.experiment.add_scalar("epoch", self.current_epoch, self.global_step)
 
         if self.current_epoch >= np.ceil(0.2 * self._trainer.max_epochs):
             self.train_disc = True
