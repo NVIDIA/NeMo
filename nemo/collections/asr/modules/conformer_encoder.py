@@ -109,7 +109,6 @@ class ConformerEncoder(NeuralModule, Exportable):
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
-        dropout_in=0.1,
         dropout_att=0.0,
     ):
         super().__init__()
@@ -142,11 +141,11 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
-                d_model=d_model, dropout_rate=dropout_in, dropout_emb_rate=dropout_emb, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout, dropout_emb_rate=dropout_emb, xscale=self.xscale
             )
         elif self_attention_model == "abs_pos":
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout_in, max_len=6000, reverse=False, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout, max_len=6000, reverse=False, xscale=self.xscale
             )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")

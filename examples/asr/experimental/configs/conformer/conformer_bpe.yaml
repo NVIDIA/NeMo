@@ -93,10 +93,9 @@ model:
     conv_kernel_size: 31
 
     ### regularization
-    dropout: 0.1
-    dropout_emb: 0.1
-    dropout_in: 0.1
-    dropout_att: 0.0
+    dropout: 0.1 # The dropout used inside the Conformer Modules
+    dropout_emb: 0.1 # The dropout used embeddings
+    dropout_att: 0.0 # The dropout for multi-headed attention modules
 
   decoder:
     _target_: nemo.collections.asr.modules.LSTMDecoder

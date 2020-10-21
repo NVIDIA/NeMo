@@ -45,8 +45,8 @@ Override some args of optimizer:
     hydra.run.dir="." \
     trainer.gpus=2 \
     trainer.max_epochs=2 \
-    model.optim.args.params.betas=[0.8,0.5] \
-    model.optim.args.params.weight_decay=0.0001
+    model.optim.args.betas=[0.8,0.5] \
+    model.optim.args.weight_decay=0.0001
 
 Overide optimizer entirely
     python speech_to_text.py \

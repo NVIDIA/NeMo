@@ -67,16 +67,16 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         vocabulary = self.tokenizer.tokenizer.get_vocab()
 
         # Set the new vocabulary
-        cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+        cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
 
         # Override number of classes if placeholder provided
-        if cfg.decoder.params['num_classes'] < 1:
+        if cfg.decoder['num_classes'] < 1:
             logging.info(
                 "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                    cfg.decoder.params['num_classes'], len(vocabulary)
+                    cfg.decoder['num_classes'], len(vocabulary)
                 )
             )
-            cfg.decoder.params['num_classes'] = len(vocabulary)
+            cfg.decoder['num_classes'] = len(vocabulary)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -288,7 +288,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # Set the new vocabulary
         decoder_config = copy.deepcopy(self.decoder.to_config_dict())
-        decoder_config.params.vocabulary = ListConfig(list(vocabulary.values()))
+        decoder_config.vocabulary = ListConfig(list(vocabulary.values()))
 
         # Override number of classes if placeholder provided
         logging.info(
