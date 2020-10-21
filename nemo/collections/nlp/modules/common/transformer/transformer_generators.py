@@ -308,7 +308,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
                     .gather(1, mems_ids)
                     .view(-1, p_len - 1, hidden_size)
                 )
-# update prefixes_len and pad_profile
+
+            # update prefixes_len and pad_profile
             not_eos_pad = prefixes.ne(self.eos) & prefixes.ne(self.pad)
             prefixes_len = 1 + not_eos_pad.sum(dim=1, keepdim=True).to(scores.dtype)
             pad_profile = (~not_eos_pad[:, -1:]).long()

@@ -40,7 +40,7 @@ class MachineTranslationLogEvalCallback(Callback):
         eval_loss = np.sum(np.array(self._losses) * counts) / np.sum(counts)
         token_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="13a")
-        print(f"{mode} results".capitalize())
+        print(f"{mode} results for process {pl_module.global_rank}".capitalize())
         for i in range(3):
             sent_id = np.random.randint(len(self._translations))
             print(f"Ground truth: {self._ground_truths[sent_id]}\n")
@@ -63,23 +63,19 @@ class MachineTranslationLogEvalCallback(Callback):
     def on_sanity_check_end(self, trainer, pl_module):
         self._on_eval_end(trainer, pl_module, "Validation")
 
-    def _on_eval_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        for tr in pl_module.last_eval_beam_results:
-            self._translations.append(pl_module.tgt_tokenizer.ids_to_text(tr))
-        tgts = batch[2].squeeze(dim=0).cpu().numpy()
-        for tgt in tgts:
-            self._ground_truths.append(pl_module.tgt_tokenizer.ids_to_text(tgt))
-        non_pad_tokens = np.not_equal(tgts, pl_module.tgt_tokenizer.pad_id).sum().item()
-        self._non_pad_tokens.append(non_pad_tokens)
-        self._losses.append(pl_module.last_eval_loss)
+    def _on_eval_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx, mode):
+        self._translations.extend(outputs['translations'])
+        self._ground_truths.extend(outputs['ground_truths'])
+        self._non_pad_tokens.append(outputs['num_non_pad_tokens'])
+        self._losses.append(outputs[f'{mode}_loss'])
 
     @rank_zero_only
-    def on_test_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        self._on_eval_batch_end(trainer, pl_module, batch, batch_idx, dataloader_idx)
+    def on_test_batch_end(self, trainer, pl_module, batch, outputs, batch_idx, dataloader_idx):
+        self._on_eval_batch_end(trainer, pl_module, batch, outputs, batch_idx, dataloader_idx, 'test')
 
     @rank_zero_only
-    def on_validation_batch_end(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        self._on_eval_batch_end(trainer, pl_module, batch, batch_idx, dataloader_idx)
+    def on_validation_batch_end(self, trainer, pl_module, batch, outputs, batch_idx, dataloader_idx):
+        self._on_eval_batch_end(trainer, pl_module, batch, outputs, batch_idx, dataloader_idx, 'val')
 
     def _on_eval_start(self, trainer, pl_module):
         self._translations = []

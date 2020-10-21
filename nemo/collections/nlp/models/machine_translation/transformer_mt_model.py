@@ -43,16 +43,15 @@ class TransformerMTModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         # shared params for dataset and data loaders
-        self.dataset_cfg = cfg.dataset
         if "tokenizer" in cfg.machine_translation:
             if "src_tokenizer" in cfg.machine_translation or "tgt_tokenizer" in cfg.machine_translation:
                 raise ValueError(
-                    "If 'tokenizer' is in 'machine_translation' section than this section should not contain "
-                    "'src_tokenizer' and 'tgt_tokenizer' fields.")
+                    "If 'tokenizer' is in 'machine_translation' section of config then this section should "
+                    "not contain 'src_tokenizer' and 'tgt_tokenizer' fields.")
             self.src_tokenizer = get_tokenizer(**cfg.machine_translation.tokenizer)
             self.tgt_tokenizer = self.src_tokenizer
+            super().__init__(cfg=cfg, trainer=trainer)
             # make vocabulary size divisible by 8 for fast fp16 training
             src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
             tgt_vocab_size = src_vocab_size
@@ -67,6 +66,7 @@ class TransformerMTModel(ModelPT):
         else:
             self.src_tokenizer = get_tokenizer(**cfg.machine_translation.src_tokenizer)
             self.tgt_tokenizer = get_tokenizer(**cfg.machine_translation.tgt_tokenizer)
+            super().__init__(cfg=cfg, trainer=trainer)
             # make vocabulary size divisible by 8 for fast fp16 training
             src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
             tgt_vocab_size = 8 * math.ceil(self.tgt_tokenizer.vocab_size / 8)
@@ -84,9 +84,8 @@ class TransformerMTModel(ModelPT):
                 embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
                 learn_positional_encodings=False,
             )
-
+            
         # init superclass
-        super().__init__(cfg=cfg, trainer=trainer)
         self.encoder = TransformerEncoder(
             hidden_size=cfg.machine_translation.hidden_size,
             inner_size=cfg.machine_translation.inner_size,
@@ -148,7 +147,6 @@ class TransformerMTModel(ModelPT):
             beam_results = self.beam_search(
                 encoder_hidden_states=src_hiddens,
                 encoder_input_mask=src_mask)
-
         return log_probs, beam_results
 
     def training_step(self, batch, batch_idx):
@@ -177,10 +175,11 @@ class TransformerMTModel(ModelPT):
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
-        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels).cpu().numpy()
         translations = [self.tgt_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
-        ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in tgt_ids.cpu().numpy()]
-        num_non_pad_tokens = np.not_equal(tgt_ids, self.tgt_tokenizer.pad_id).sum().item()
+        np_tgt = tgt_ids.cpu().numpy()
+        ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+        num_non_pad_tokens = np.not_equal(np_tgt, self.tgt_tokenizer.pad_id).sum().item()
         tensorboard_logs = {f'{mode}_loss': eval_loss}
         return {
             f'{mode}_loss': eval_loss,
@@ -206,18 +205,11 @@ class TransformerMTModel(ModelPT):
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
         token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
-        self.trainer.logger.log_metrics({'tokenBLEU': token_bleu, 'sacreBLEU': sacre_bleu})
-        print(f"{mode} results".capitalize())
-        for i in range(3):
-            sent_id = np.random.randint(len(self._translations))
-            print(f"Ground truth: {self._ground_truths[sent_id]}\n")
-            print(f"Translation: {self._translations[sent_id]}\n")
-        print("-" * 50)
-        print(f"loss: {eval_loss:.3f}")
-        print(f"TokenBLEU: {token_bleu}")
-        print(f"SacreBLEU: {sacre_bleu}")
-        print("-" * 50)
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_tokenBLEU": token_bleu, f"{mode}_sacreBLEU": sacre_bleu}
+        ans = {
+            f"{mode}_loss": eval_loss, 
+            f"{mode}_tokenBLEU": token_bleu.score, 
+            f"{mode}_sacreBLEU": sacre_bleu.score
+        }
         ans['log'] = dict(ans)
         return ans
 
@@ -256,9 +248,9 @@ class TransformerMTModel(ModelPT):
             dataset=dataset,
             batch_size=1,
             sampler=sampler,
-            num_workers=self.dataset_cfg.get("num_workers", 2),
-            pin_memory=self.dataset_cfg.get("pin_memory", False),
-            drop_last=self.dataset_cfg.get("drop_last", False),
+            num_workers=cfg.get("num_workers", 2),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False),
         )
 
     @classmethod

@@ -23,6 +23,9 @@ pip install -r requirements/requirements.txt \
   && cp valid.en train.en \
   && cp valid.de train.de \
   && cd  "${nemo_path}/examples/nlp/machine_translation" \
-  && python train.py -cn debug_on_ngc
-  && python test.py -cn debug_on_ngc
+  && python train.py -cn debug_on_ngc \
+  && export best_ckpt_path=$(cat best_checkpoint_path.txt) \
+  && echo "best ckpt path:" ${best_ckpt_path} \
+  && ln -s ${best_ckpt_path} best.ckpt \
+  && python test.py model.test_checkpoint_path=best.ckpt -cn debug_on_ngc
 
