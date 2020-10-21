@@ -207,7 +207,15 @@ class QAModel(NLPModel):
             self.to(device)
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
-            dataloader_cfg = {"batch_size": batch_size, "file": file, "shuffle": False, "num_samples": 100, 'num_workers': 2, 'pin_memory': False, 'drop_last': False}
+            dataloader_cfg = {
+                "batch_size": batch_size,
+                "file": file,
+                "shuffle": False,
+                "num_samples": -1,
+                'num_workers': 2,
+                'pin_memory': False,
+                'drop_last': False,
+            }
             dataloader_cfg = OmegaConf.create(dataloader_cfg)
             infer_datalayer = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode=INFERENCE_MODE)
 
