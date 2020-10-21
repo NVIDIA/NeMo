@@ -123,7 +123,7 @@ def main(cfg: DictConfig) -> None:
     output_nbest_file = None
     # change to path if you want results to be written to file e.g.  os.path.join(exp_dir, "output_prediction_file.txt")
     output_prediction_file = None
-    inference_samples = 5 # for test purposes. To use entire inference dataset set to -1
+    inference_samples = 5  # for test purposes. To use entire inference dataset set to -1
     all_preds, all_nbests = model.inference(
         file=cfg.model.validation_ds.file,
         batch_size=1,
