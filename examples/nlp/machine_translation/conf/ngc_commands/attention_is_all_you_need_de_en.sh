@@ -14,7 +14,7 @@ pip install -r requirements/requirements.txt \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.en \
   && cat train.en train.de > yttm_train.ende \
   && echo "current path when creating yttm model: $(pwd)" \
-  && yttm bpe --data yttm_train.ende --model bpe_32k_en_de_yttm.model --vocab_size 32000 \
+  && yttm bpe --data yttm_train.ende --model bpe_37k_en_de_yttm.model --vocab_size 37000 \
   && cd  "${nemo_path}/examples/nlp/machine_translation" \
   && python train.py -cn de_en_8gpu \
   && export best_ckpt_path=$(cat best_checkpoint_path.txt) \

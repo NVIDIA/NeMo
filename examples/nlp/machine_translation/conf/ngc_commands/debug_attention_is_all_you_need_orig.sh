@@ -14,10 +14,10 @@ pip install -r requirements/requirements.txt \
   && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.en \
   && cat train.en train.de > yttm_train.ende \
   && echo "current path when creating yttm model: $(pwd)" \
-  && yttm bpe --data yttm_train.ende --model bpe_32k_en_de_yttm.model --vocab_size 32000 \
+  && yttm bpe --data yttm_train.ende --model bpe_37k_en_de_yttm.model --vocab_size 37000 \
   && mkdir -p ../wmt14_en_de2 \
   && cd ../wmt14_en_de2 \
-  && cp ../wmt14_en_de/bpe_32k_en_de_yttm.model ./ \
+  && cp ../wmt14_en_de/bpe_37k_en_de_yttm.model ./ \
   && cp ../wmt14_en_de/test* ./ \
   && cp ../wmt14_en_de/valid* ./ \
   && cp valid.en train.en \
