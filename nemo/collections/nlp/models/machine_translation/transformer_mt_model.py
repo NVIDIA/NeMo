@@ -161,7 +161,7 @@ class TransformerMTModel(ModelPT):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
-                batch[i] = batch[i].squeeze()
+                batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
         log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
@@ -174,7 +174,7 @@ class TransformerMTModel(ModelPT):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
-                batch[i] = batch[i].squeeze()
+                batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
