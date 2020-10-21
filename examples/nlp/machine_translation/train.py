@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-import os
-
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
