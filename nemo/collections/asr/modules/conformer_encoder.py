@@ -237,9 +237,7 @@ class ConformerEncoderBlock(torch.nn.Module):
         dropout_att (float): dropout probabilities for attention distributions
     """
 
-    def __init__(
-        self, d_model, d_ff, conv_kernel_size, self_attention_model, n_heads, dropout, dropout_att
-    ):
+    def __init__(self, d_model, d_ff, conv_kernel_size, self_attention_model, n_heads, dropout, dropout_att):
         super(ConformerEncoderBlock, self).__init__()
 
         self.self_attention_model = self_attention_model

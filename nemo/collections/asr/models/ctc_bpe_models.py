@@ -82,7 +82,12 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # Setup metric objects
         self._wer = WERBPE(
-            tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, dist_sync_on_step=True, log_prediction=self._cfg.get("log_prediction", False)
+            tokenizer=self.tokenizer,
+            batch_dim_index=0,
+            use_cer=False,
+            ctc_decode=True,
+            dist_sync_on_step=True,
+            log_prediction=self._cfg.get("log_prediction", False),
         )
 
     def _setup_tokenizer(self):
@@ -302,7 +307,13 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
         del self.loss
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
-        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, log_prediction=self._cfg.get("log_prediction", False))
+        self._wer = WERBPE(
+            tokenizer=self.tokenizer,
+            batch_dim_index=0,
+            use_cer=False,
+            ctc_decode=True,
+            log_prediction=self._cfg.get("log_prediction", False),
+        )
 
         # Update config
         OmegaConf.set_struct(self._cfg.decoder, False)
