@@ -314,7 +314,7 @@ pipeline {
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
+            model.train_ds.num_samples=8 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=true \
