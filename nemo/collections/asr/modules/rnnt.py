@@ -29,7 +29,6 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-
 from nemo.collections.asr.parts import rnn, rnnt_utils
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import (
@@ -688,8 +687,10 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                 end = min(begin + self._fused_batch_size, batch_size)
 
                 # Extract the sub batch inputs
+                # sub_enc = encoder_outputs[begin:end, ...]
+                # sub_transcripts = transcripts[begin:end, ...]
                 sub_enc = encoder_outputs.narrow(dim=0, start=begin, length=end - begin)
-                sub_transcripts = transcripts[begin:end, ...]
+                sub_transcripts = transcripts.narrow(dim=0, start=begin, length=end - begin)
 
                 sub_enc_lens = encoder_lengths[begin:end]
                 sub_transcript_lens = transcript_lengths[begin:end]
@@ -715,6 +716,8 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
 
                     # Perform joint => [sub-batch, T', U', V + 1]
                     sub_joint = self.joint(sub_enc, sub_dec)
+
+                    del sub_dec
 
                     # Reduce transcript length to correct alignment
                     # Transcript: [sub-batch, L] -> [sub-batch, L']; L' <= L
@@ -746,6 +749,8 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                 # Compute WER for sub batch
                 if compute_wer:
                     sub_enc = sub_enc.transpose(1, 2)  # [B, T, D] -> [B, D, T]
+                    sub_enc = sub_enc.detach()
+                    sub_transcripts = sub_transcripts.detach()
 
                     original_log_prediction = self.wer.log_prediction
                     if batch_idx == 0:
@@ -754,8 +759,10 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                         self.wer.log_prediction = False
 
                     # Compute the wer (with logging for just 1st sub-batch)
-                    wer = self.wer(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
+                    self.wer.update(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
+                    wer = self.wer.compute()
                     wer_num, wer_denom = self.wer.scores, self.wer.words
+
                     wer_numer_list.append(wer_num)
                     wer_denom_list.append(wer_denom)
 
@@ -765,19 +772,19 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                 else:
                     wer = None
 
-                del sub_enc, sub_dec, sub_transcripts
+                del sub_enc, sub_transcripts, sub_enc_lens, sub_transcript_lens
 
             # Collect sub batch loss results
             if losses is not None:
-                loss_value = torch.cat(losses, 0)
-                loss_value = loss_value.mean()  # global batch size average
+                losses = torch.cat(losses, 0)
+                losses = losses.mean()  # global batch size average
             else:
-                loss_value = None
+                losses = None
 
             # Collect sub batch wer results
             if compute_wer:
-                wer_num = torch.tensor(wer_numer_list, device=encoder_outputs.device, dtype=wer_numer_list[0].dtype)
-                wer_denom = torch.tensor(wer_denom_list, device=encoder_outputs.device, dtype=wer_denom_list[0].dtype)
+                wer_num = torch.tensor(wer_numer_list, dtype=torch.long)
+                wer_denom = torch.tensor(wer_denom_list, dtype=torch.long)
 
                 wer_num = wer_num.sum()  # global sum of correct words/chars
                 wer_denom = wer_denom.sum()  # global sum of all words/chars
@@ -785,7 +792,7 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
                 wer_num = None
                 wer_denom = None
 
-            return loss_value, wer, wer_num, wer_denom
+            return losses, wer, wer_num, wer_denom
 
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """
@@ -826,9 +833,11 @@ class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
         g.unsqueeze_(dim=1)  # (B, 1, U, H)
 
         inp = f + g  # [B, T, U, H]
+
         del f, g
 
         res = self.joint_net(inp)  # [B, T, U, V + 1]
+
         del inp
 
         if self.preserve_memory:

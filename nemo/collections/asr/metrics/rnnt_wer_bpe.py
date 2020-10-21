@@ -16,13 +16,12 @@ from typing import List, Optional
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import Metric
-
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
+from pytorch_lightning.metrics import Metric
 
 __all__ = ['RNNTBPEDecoding', 'RNNTBPEWER']
 
@@ -163,10 +162,9 @@ class RNNTBPEDecoding:
             )  # type: [List[Hypothesis]]
 
             # extract the hypotheses
-            hypotheses_list = hypotheses_list[0]  # type: List[Hypothesis]
+            prediction_list = hypotheses_list[0]  # type: List[Hypothesis]
 
         # Drop predictions to CPU
-        prediction_list = hypotheses_list
 
         if isinstance(prediction_list[0], NBestHypotheses):
             hypotheses = []
@@ -253,7 +251,7 @@ class RNNTBPEWER(Metric):
         log_prediction: bool = True,
         dist_sync_on_step=False,
     ):
-        super(RNNTBPEWER, self).__init__(dist_sync_on_step=dist_sync_on_step)
+        super(RNNTBPEWER, self).__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
         self.decoding = decoding
         self.batch_dim_index = batch_dim_index
         self.use_cer = use_cer
@@ -304,8 +302,10 @@ class RNNTBPEWER(Metric):
             # Compute Levenstein's distance
             scores += editdistance.eval(h_list, r_list)
 
-        self.scores = torch.tensor(scores, device=encoder_output.device)
-        self.words = torch.tensor(words, device=encoder_output.device)
+        del hypotheses
+
+        self.scores += torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
+        self.words += torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
         # return torch.tensor([scores, words]).to(predictions.device)
 
     def compute(self):

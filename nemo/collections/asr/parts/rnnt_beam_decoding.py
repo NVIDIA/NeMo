@@ -30,12 +30,11 @@ from typing import List, Optional, Union
 
 import numpy as np
 import torch
-from tqdm import tqdm
-
 from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+from tqdm import tqdm
 
 
 class BeamRNNTInfer(Typing):
@@ -144,16 +143,18 @@ class BeamRNNTInfer(Typing):
                 total=encoder_output.size(0),
                 unit='sample',
             ) as idx_gen:
-                for batch_idx in idx_gen:
-                    inseq = encoder_output[batch_idx : batch_idx + 1, :, :]  # [1, T, D]
-                    logitlen = encoded_lengths[batch_idx]
-                    nbest_hyps = self.search_algorithm(inseq, logitlen)  # sorted list of hypothesis
 
-                    if self.return_best_hypothesis:
-                        best_hypothesis = nbest_hyps[0]  # type: Hypothesis
-                    else:
-                        best_hypothesis = NBestHypotheses(nbest_hyps)  # type: NBestHypotheses
-                    hypotheses.append(best_hypothesis)
+                with self.decoder.as_frozen(), self.joint.as_frozen():
+                    for batch_idx in idx_gen:
+                        inseq = encoder_output[batch_idx : batch_idx + 1, :, :]  # [1, T, D]
+                        logitlen = encoded_lengths[batch_idx]
+                        nbest_hyps = self.search_algorithm(inseq, logitlen)  # sorted list of hypothesis
+
+                        if self.return_best_hypothesis:
+                            best_hypothesis = nbest_hyps[0]  # type: Hypothesis
+                        else:
+                            best_hypothesis = NBestHypotheses(nbest_hyps)  # type: NBestHypotheses
+                        hypotheses.append(best_hypothesis)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)

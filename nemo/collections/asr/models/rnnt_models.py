@@ -20,9 +20,6 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer
-
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
@@ -31,6 +28,8 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType
 from nemo.utils import logging
+from omegaconf import DictConfig, open_dict
+from pytorch_lightning import Trainer
 
 try:
     import warprnnt_pytorch as warprnnt
@@ -384,6 +383,8 @@ class EncDecRNNTModel(ASRModel):
     def training_step(self, batch, batch_nb):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         encoded, encoded_len = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        del audio_signal
+
         decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
 
         if hasattr(self, '_trainer') and self._trainer is not None:
@@ -403,8 +404,10 @@ class EncDecRNNTModel(ASRModel):
             tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
             if (sample_id + 1) % log_every_n_steps == 0:
-                wer = self.wer(encoded, encoded_len, transcript, transcript_len)
-                tensorboard_logs.update({'training_batch_wer': wer})
+                _ = self.wer.update(encoded, encoded_len, transcript, transcript_len)
+                self.wer.compute()
+                scores, words = self.wer.scores, self.wer.words
+                tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:
             # Fused step
@@ -433,6 +436,7 @@ class EncDecRNNTModel(ASRModel):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         encoded, encoded_len = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        del audio_signal
 
         tensorboard_logs = {}
 
@@ -447,8 +451,10 @@ class EncDecRNNTModel(ASRModel):
 
                 tensorboard_logs['val_loss'] = loss_value
 
-            wer = self.wer(encoded, encoded_len, transcript, transcript_len)
+            self.wer.update(encoded, encoded_len, transcript, transcript_len)
+            wer = self.wer.compute()
             wer_num, wer_denom = self.wer.scores, self.wer.words
+
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
             tensorboard_logs['val_wer'] = wer
@@ -461,7 +467,7 @@ class EncDecRNNTModel(ASRModel):
             else:
                 decoded = None
                 target_len = transcript_len
-
+            self.freeze()
             # Fused joint step
             loss_value, wer, wer_num, wer_denom = self.joint(
                 encoder_outputs=encoded,
@@ -486,7 +492,7 @@ class EncDecRNNTModel(ASRModel):
         test_logs = {
             'test_wer_num': logs['val_wer_num'],
             'test_wer_denom': logs['val_wer_denom'],
-            'test_wer': logs['val_wer'],
+            # 'test_wer': logs['val_wer'],
         }
         if 'val_loss' in logs:
             test_logs['test_loss'] = logs['val_loss']
@@ -500,7 +506,7 @@ class EncDecRNNTModel(ASRModel):
             val_loss_log = {}
         wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
         wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {**val_loss_log, 'validation_wer': wer_num / wer_denom}
+        tensorboard_logs = {**val_loss_log, 'validation_wer': wer_num.float() / wer_denom}
         return {**val_loss_log, 'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
@@ -511,7 +517,7 @@ class EncDecRNNTModel(ASRModel):
             test_loss_log = {}
         wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
         wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {**test_loss_log, 'test_wer': wer_num / wer_denom}
+        tensorboard_logs = {**test_loss_log, 'test_wer': wer_num.float() / wer_denom}
         return {**test_loss_log, 'log': tensorboard_logs}
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':

@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch.nn import Module
+from contextlib import contextmanager
 
 from nemo.core.classes.common import FileIO, Serialization, Typing
+from torch.nn import Module
 
 __all__ = ['NeuralModule']
 
@@ -36,3 +37,33 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
         """
 
         return
+
+    def freeze(self) -> None:
+        r"""
+        Freeze all params for inference.
+        """
+        for param in self.parameters():
+            param.requires_grad = False
+
+        self.eval()
+
+    def unfreeze(self) -> None:
+        """
+        Unfreeze all parameters for training.
+        """
+        for param in self.parameters():
+            param.requires_grad = True
+
+        self.train()
+
+    @contextmanager
+    def as_frozen(self):
+        """
+        Context manager which temporarily freezes a module, yields control and finally unfreezes the module.
+        """
+        self.freeze()
+
+        try:
+            yield
+        finally:
+            self.unfreeze()
