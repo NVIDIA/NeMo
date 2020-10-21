@@ -551,6 +551,7 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
         # save_last=True,
         prefix=name + "--",
         verbose=True,
+        period=100,
     )
     trainer.callback_connector.init_default_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)

@@ -60,7 +60,9 @@ class MBMelGanModel(ModelPT):
         logging.info(f"MAX STEPS: {max_steps}")
         # sch1 = torch.optim.lr_scheduler.MultiStepLR(opt1, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
         # sch2 = torch.optim.lr_scheduler.MultiStepLR(opt2, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
-        sch1 = CosineAnnealing(opt1, max_steps=max_steps, min_lr=1e-5, warmup_steps=15000)  # Use warmup to delay start
+        sch1 = CosineAnnealing(
+            opt1, max_steps=max_steps, min_lr=1e-5, warmup_steps=np.ceil(0.2 * max_steps)
+        )  # Use warmup to delay start
         sch1_dict = {
             'scheduler': sch1,
             'interval': 'step',
@@ -205,18 +207,26 @@ class MBMelGanModel(ModelPT):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
     def training_epoch_end(self, outputs):
-        if self.global_step >= 15000:
+        if self.current_epoch % 10 == 0:
+            lrs = []
+            for scheduler in trainer.lr_schedulers:
+                param_groups = scheduler['scheduler'].optimizer.param_groups
+                lrs.append(param_groups[0]['lr'])
+            self.log("lr-Adam", lrs[0])
+            self.log("lr-Adam-1", lrs[0])
+
+        if self.current_epoch >= np.ceil(0.2 * self._trainer.max_epochs):
             self.train_disc = True
 
         # Add staircase increase for adv_coeff
         if self.increase_coeff:
-            if self.global_step >= 55000:
+            if self.current_epoch >= np.ceil(11.0 / 15.0 * self._trainer.max_epochs):
                 self.adv_coeff = 10
-            elif self.global_step >= 45000:
+            elif self.current_epoch >= np.ceil(9.0 / 15.0 * self._trainer.max_epochs):
                 self.adv_coeff = 7.5
-            elif self.global_step >= 35000:
+            elif self.current_epoch >= np.ceil(7.0 / 15.0 * self._trainer.max_epochs):
                 self.adv_coeff = 5
-            elif self.global_step >= 25000:
+            elif self.current_epoch >= np.ceil(5.0 / 15.0 * self._trainer.max_epochs):
                 self.adv_coeff = 2.5
         return super().training_epoch_end(outputs)
 
@@ -230,9 +240,10 @@ def train_pwg(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = MBMelGanModel(cfg=cfg.model, trainer=trainer)
-    lr_logger = pl.callbacks.LearningRateMonitor()
+    # lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
-    trainer.callbacks.extend([lr_logger, epoch_time_logger])
+    # trainer.callbacks.extend([lr_logger, epoch_time_logger])
+    trainer.callbacks.extend([epoch_time_logger])
     trainer.fit(model)
 
 
@@ -550,4 +561,6 @@ if __name__ == '__main__':
 """
 Currently at 25 steps per epoch
 Runs pretraining for 15000 steps, which is 600 epochs
+
+refactor to run pretraining for 600/3000 epochs: first 20%
 """
