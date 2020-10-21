@@ -299,9 +299,10 @@ class QAModel(NLPModel):
             dataset=dataset,
             batch_size=cfg.batch_size,
             collate_fn=dataset.collate_fn,
-            drop_last=self._cfg.dataset.get('drop_last', False),
+            drop_last=cfg.drop_last,
             shuffle=cfg.shuffle,
-            num_workers=self._cfg.dataset.get('num_workers', 0),
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
         )
         return dl
 

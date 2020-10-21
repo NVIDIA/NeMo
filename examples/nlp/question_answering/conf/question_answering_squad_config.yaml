@@ -56,27 +56,30 @@ model:
     batch_size: 24 # per GPU
     shuffle: true
     num_samples: -1
-    # shared among dataloaders
+    # Default values for the following params are retrieved from dataset config section, but you may override them
+    num_workers: ${model.dataset.num_workers}
+    drop_last: ${model.dataset.drop_last}
+    pin_memory: ${model.dataset.pin_memory}
 
   validation_ds:
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: false
-    num_samples: -1
+    num_samples: -1    
+    # Default values for the following params are retrieved from dataset config section, but you may override them
+    num_workers: ${model.dataset.num_workers}
+    drop_last: ${model.dataset.drop_last}
+    pin_memory: ${model.dataset.pin_memory}
 
   test_ds:
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: false
     num_samples: -1
-    # The maximum length of an answer that can be
-    # generated. This is needed because the start
-    # and end predictions are not conditioned
-    # on one another.
-    output_prediction_file: test_prediction.json
-    # File to write predictions to. Only in evaluation or test mode,
-    output_nbest_file: test_nbest.json
-    # File to write nbest predictions to. Only in evaluation or test mode.
+    # Default values for the following params are retrieved from dataset config section, but you may override them
+    num_workers: ${model.dataset.num_workers}
+    drop_last: ${model.dataset.drop_last}
+    pin_memory: ${model.dataset.pin_memory}
     
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec
