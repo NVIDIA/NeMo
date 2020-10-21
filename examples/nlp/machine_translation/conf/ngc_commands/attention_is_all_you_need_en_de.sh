@@ -16,7 +16,7 @@ pip install -r requirements/requirements.txt \
   && echo "current path when creating yttm model: $(pwd)" \
   && yttm bpe --data yttm_train.ende --model bpe_32k_en_de_yttm.model --vocab_size 32000 \
   && cd  "${nemo_path}/examples/nlp/machine_translation" \
-  && python train.py -cn en_de_ngc_8gpu \
+  && python train.py -cn en_de_8gpu \
   && export best_ckpt_path=$(cat best_checkpoint_path.txt) \
   && echo "best ckpt path:" ${best_ckpt_path} \
   && ln -s ${best_ckpt_path} best.ckpt \
