@@ -29,6 +29,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
+
 from nemo.collections.asr.parts import rnn, rnnt_utils
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import (

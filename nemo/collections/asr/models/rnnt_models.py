@@ -20,6 +20,9 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
+from omegaconf import DictConfig, open_dict
+from pytorch_lightning import Trainer
+
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
@@ -28,8 +31,6 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType
 from nemo.utils import logging
-from omegaconf import DictConfig, open_dict
-from pytorch_lightning import Trainer
 
 try:
     import warprnnt_pytorch as warprnnt
