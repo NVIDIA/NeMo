@@ -370,8 +370,8 @@ pipeline {
         python question_answering_squad.py \
         model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
         model.dataset.use_cache=false \
-        model.train_ds.batch_size=8 \
-        model.train_ds.num_samples=8 \
+        model.train_ds.batch_size=1 \
+        model.train_ds.num_samples=1 \
         model.validation_ds.batch_size=8 \
         trainer.accelerator=ddp \
         trainer.max_epochs=1 \
