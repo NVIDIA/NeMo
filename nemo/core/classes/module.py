@@ -14,8 +14,9 @@
 
 from contextlib import contextmanager
 
-from nemo.core.classes.common import FileIO, Serialization, Typing
 from torch.nn import Module
+
+from nemo.core.classes.common import FileIO, Serialization, Typing
 
 __all__ = ['NeuralModule']
 

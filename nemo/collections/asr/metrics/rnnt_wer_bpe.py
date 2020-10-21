@@ -16,12 +16,13 @@ from typing import List, Optional
 
 import editdistance
 import torch
+from pytorch_lightning.metrics import Metric
+
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
-from pytorch_lightning.metrics import Metric
 
 __all__ = ['RNNTBPEDecoding', 'RNNTBPEWER']
 

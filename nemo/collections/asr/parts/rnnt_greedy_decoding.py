@@ -29,6 +29,7 @@
 from typing import Optional, Union
 
 import torch
+
 from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
