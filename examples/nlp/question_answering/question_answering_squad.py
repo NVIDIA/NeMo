@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-import os
-
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
@@ -28,13 +26,7 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
-    log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
-    infer_datasets = [cfg.model.validation_ds, cfg.model.test_ds]
-    for infer_dataset in infer_datasets:
-        if infer_dataset.output_prediction_file is not None:
-            infer_dataset.output_prediction_file = os.path.join(log_dir, infer_dataset.output_prediction_file)
-        if infer_dataset.output_nbest_file is not None:
-            infer_dataset.output_nbest_file = os.path.join(log_dir, infer_dataset.output_nbest_file)
+    exp_manager(trainer, cfg.get("exp_manager", None))
 
     question_answering_model = QAModel(cfg.model, trainer=trainer)
     trainer.fit(question_answering_model)
