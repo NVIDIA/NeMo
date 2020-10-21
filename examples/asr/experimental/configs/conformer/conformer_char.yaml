@@ -82,7 +82,7 @@ model:
     ff_expansion_factor: 4
 
     # Multi-headed Attention Module's params
-    self_attention_model: rel_pos # rel_pos, abs_pos, rel_pos_old, rel_pos_old_xl
+    self_attention_model: rel_pos # rel_pos, abs_pos
     n_heads: 4
     xscaling: true
 

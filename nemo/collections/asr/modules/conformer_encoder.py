@@ -24,9 +24,7 @@ from nemo.collections.asr.modules.multi_head_attention import (
     MultiHeadAttention,
     PositionalEncoding,
     RelPositionalEncoding,
-    RelPositionalEncoding_old,
     RelPositionMultiHeadAttention,
-    RelPositionMultiHeadAttention_old,
 )
 from nemo.collections.asr.modules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
@@ -142,24 +140,16 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.u_bias = None
         self.v_bias = None
 
-        if 'old' in self_attention_model:
-            self.pos_enc = RelPositionalEncoding_old(
-                d_model=d_model, dropout=dropout, dropout_emb_rate=dropout_emb, xscale=self.xscale
+        if self_attention_model == "rel_pos":
+            self.pos_enc = RelPositionalEncoding(
+                d_model=d_model, dropout_rate=dropout_in, dropout_emb_rate=dropout_emb, xscale=self.xscale
             )
-            if "xl" in self_attention_model:
-                self.u_bias = nn.Parameter(torch.Tensor(n_heads, d_model // n_heads))
-                self.v_bias = nn.Parameter(torch.Tensor(n_heads, d_model // n_heads))
+        elif self_attention_model == "abs_pos":
+            self.pos_enc = PositionalEncoding(
+                d_model=d_model, dropout_rate=dropout_in, max_len=6000, reverse=False, xscale=self.xscale
+            )
         else:
-            if self_attention_model == "rel_pos":
-                self.pos_enc = RelPositionalEncoding(
-                    d_model=d_model, dropout_rate=dropout_in, dropout_emb_rate=dropout_emb, xscale=self.xscale
-                )
-            elif self_attention_model == "abs_pos":
-                self.pos_enc = PositionalEncoding(
-                    d_model=d_model, dropout_rate=dropout_in, max_len=6000, reverse=False, xscale=self.xscale
-                )
-            else:
-                raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
+            raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
         self.layers = nn.ModuleList()
         for i in range(n_layers):
@@ -271,18 +261,6 @@ class ConformerEncoderBlock(torch.nn.Module):
             self.self_attn = RelPositionMultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
-        elif 'rel_pos_old' in self_attention_model:
-            self.self_attn = RelPositionMultiHeadAttention_old(
-                kdim=d_model,
-                qdim=d_model,
-                adim=d_model,
-                odim=d_model,
-                n_heads=n_heads,
-                dropout=dropout_att,
-                bias=False,
-                param_init='xavier_uniform',
-                xl_like=True if 'xl' in self_attention_model else False,
-            )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
@@ -317,8 +295,6 @@ class ConformerEncoderBlock(torch.nn.Module):
             x = self.self_attn(query=x, key=x, value=x, pos_emb=pos_emb, mask=att_mask)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
-        elif 'old' in self.self_attention_model:
-            x = self.self_attn(query=x, key=x, pos_emb=pos_emb, mask=att_mask, u_bias=u_bias, v_bias=v_bias)
         else:
             x = None
         x = self.dropout(x) + residual

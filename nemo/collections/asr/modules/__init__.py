@@ -35,8 +35,6 @@ from nemo.collections.asr.modules.subsampling import ConvSubsampling
 from nemo.collections.asr.modules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
-    RelPositionMultiHeadAttention_old,
-    RelPositionalEncoding_old,
     RelPositionalEncoding,
     PositionalEncoding,
 )
