@@ -5,7 +5,7 @@ trainer:
   gpus: 8
   num_nodes: 1
   max_epochs: 1000
-  max_steps: 200000 # precedence over max_epochs
+  max_steps: 100000 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
