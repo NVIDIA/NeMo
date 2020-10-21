@@ -57,15 +57,15 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 @dataclass
 class CallbackParams:
-    filepath: Optional[str, Path] = None,  #If None, exp_manager will attempt to handle the filepath
-    monitor: Optional[str] = "val_loss",
-    verbose: Optional[bool] = True,
-    save_last: Optional[bool] = True,
-    save_top_k: Optional[int] = 3,
-    save_weights_only: Optional[bool] = False,
-    mode: Optional[str] = "auto",
-    period: Optional[int] = 1,
-    prefix: Optional[str] = None,  #If None, exp_manager will attempt to handle the filepath
+    filepath: Optional[str, Path] = None  # If None, exp_manager will attempt to handle the filepath
+    monitor: Optional[str] = "val_loss"
+    verbose: Optional[bool] = True
+    save_last: Optional[bool] = True
+    save_top_k: Optional[int] = 3
+    save_weights_only: Optional[bool] = False
+    mode: Optional[str] = "auto"
+    period: Optional[int] = 1
+    prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
 
 
 @dataclass
@@ -248,8 +248,9 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
     if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger):
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
-            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: {cfg.create_wandb_logger}"
-            " was set to True. These can only be used if trainer does not already have a logger."
+            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
+            f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
+            " logger."
         )
     if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
         logging.error(
@@ -533,6 +534,8 @@ def configure_loggers(
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):
+    """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
+    """
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
         filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
