@@ -1,6 +1,7 @@
 # Question Answering with SQUAD
 name: &name QA
 
+pretrained_model: null # pretrained QAModel model from list_available_models()
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
   num_nodes: 1

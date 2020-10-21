@@ -200,10 +200,11 @@ class QAModel(NLPModel):
         all_predictions = []
         all_nbest = []
         mode = self.training
-        device = next(self.parameters()).device
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         try:
             # Switch model to evaluation mode
             self.eval()
+            self.to(device)
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
             dataloader_cfg = {"batch_size": batch_size, "file": file, "shuffle": False, "num_samples": 100, 'num_workers': 2, 'pin_memory': False, 'drop_last': False}

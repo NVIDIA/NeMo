@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import os
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
 from nemo.core.config import hydra_runner
@@ -26,19 +26,40 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
-    question_answering_model = QAModel(cfg.model, trainer=trainer)
-    trainer.fit(question_answering_model)
+    do_training = True
+    if not cfg.pretrained_model:
+        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+        model = QAModel(cfg.model, trainer=trainer)
+    else:
+        logging.info(f'Loading pretrained model {cfg.pretrained_model}')
+        # TODO: Remove strict, when lightning has persistent parameter support for add_state()
+        model = QAModel.from_pretrained(cfg.pretrained_model, strict=False)
+        if do_training:
+            model.setup_training_data(train_data_config=cfg.model.train_ds)
+            model.setup_validation_data(val_data_config=cfg.model.validation_ds)
+
+    if do_training:
+        trainer.fit(model)
+        if cfg.model.nemo_path:
+            model.save_to(cfg.model.nemo_path)
+            
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.file is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0
         trainer = pl.Trainer(gpus=gpu)
-        if question_answering_model.prepare_test(trainer):
-            trainer.test(question_answering_model)
+        model.setup_test_data(test_data_config=cfg.model.test_ds)
+        if model.prepare_test(trainer):
+            trainer.test(model)
 
-    if cfg.model.nemo_path:
-        question_answering_model.save_to(cfg.model.nemo_path)
+    output_nbest_file = None # os.path.join(exp_dir, "output_nbest_file.txt")
+    output_prediction_file = None #os.path.join(exp_dir, "output_prediction_file.txt")
+    all_preds, all_nbests = model.inference(file=cfg.model.validation_ds.file, batch_size=1, output_nbest_file=output_nbest_file, output_prediction_file=output_prediction_file)
+
+    for question_id, answer in all_preds.items():
+        if answer != "empty":
+            print(f"Question ID: {question_id}, answer: {answer}")
 
 
 if __name__ == '__main__':
