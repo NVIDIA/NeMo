@@ -87,8 +87,8 @@ class QAModel(NLPModel):
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
 
-        tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        return {'loss': loss, 'log': tensorboard_logs}
+        self.log('loss', loss)
+        self.log('lr', self._optimizer.param_groups[0]['lr'])
 
     def validation_step(self, batch, batch_idx):
         if self.testing:
@@ -107,6 +107,7 @@ class QAModel(NLPModel):
             'start_logits': start_logits,
             'end_logits': end_logits,
         }
+        self.log(f'{prefix}_loss', loss)
         return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
 
     def test_step(self, batch, batch_idx):
@@ -168,9 +169,10 @@ class QAModel(NLPModel):
 
         logging.info(f"{prefix} exact match {exact_match}")
         logging.info(f"{prefix} f1 {f1}")
-
-        tensorboard_logs = {f'{prefix}_loss': avg_loss, f'{prefix}_exact_match': exact_match, f'{prefix}_f1': f1}
-        return {f'{prefix}_loss': avg_loss, 'log': tensorboard_logs}
+        
+        self.log(f'{prefix}_loss', avg_loss)
+        self.log(f'{prefix}_exact_match', exact_match)
+        self.log(f'{prefix}_f1', f1)
 
     def test_epoch_end(self, outputs):
         return self.validation_epoch_end(outputs)

@@ -89,7 +89,8 @@ class TestWordErrorRate:
             .detach()
             .cpu()
         )
-        return res[0] / res[1]
+        # return res[0] / res[1]
+        return res.item()
 
     @pytest.mark.unit
     def test_wer_function(self):
@@ -109,7 +110,7 @@ class TestWordErrorRate:
         assert self.get_wer(wer, 'g p u', 'gpu') == 3.0
         assert self.get_wer(wer, 'ducati motorcycle', 'motorcycle') == 1.0
         assert self.get_wer(wer, 'ducati motorcycle', 'ducuti motorcycle') == 0.5
-        assert self.get_wer(wer, 'a f c', 'a b c') == 1.0 / 3.0
+        assert abs(self.get_wer(wer, 'a f c', 'a b c') - 1.0 / 3.0) < 1e-6
 
     @pytest.mark.unit
     def test_wer_metric_randomized(self):
@@ -125,5 +126,7 @@ class TestWordErrorRate:
             n2 = random.randint(1, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
-            # Floating-point math doesn't seem to be an issue here. Leaving as ==
-            assert self.get_wer(wer, prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
+            assert (
+                abs(self.get_wer(wer, prediction=s1, reference=s2) - word_error_rate(hypotheses=[s1], references=[s2]))
+                < 1e-6
+            )
