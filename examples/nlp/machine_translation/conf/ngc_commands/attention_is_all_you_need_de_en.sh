@@ -20,5 +20,5 @@ pip install -r requirements/requirements.txt \
   && export best_ckpt_path=$(cat best_checkpoint_path.txt) \
   && echo "best ckpt path:" ${best_ckpt_path} \
   && ln -s ${best_ckpt_path} best.ckpt \
-  && python test.py model.test_checkpoint_path=best.ckpt -cn de_en_ngc_8gpu
+  && python test.py model.test_checkpoint_path=best.ckpt -cn de_en_8gpu
 
