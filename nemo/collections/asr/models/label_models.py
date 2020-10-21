@@ -170,35 +170,34 @@ class EncDecSpeakerLabelModel(ModelPT):
     def training_step(self, batch, batch_idx):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        self.loss_value = self.loss(logits=logits, labels=labels)
+        loss = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {
-            'train_loss': self.loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+        self.log('loss', loss)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         self._accuracy(logits=logits, labels=labels)
         top_k = self._accuracy.compute()
         for i, top_i in enumerate(top_k):
-            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
+            self.log(f'training_batch_accuracy_top@{i}', top_i)
 
-        return {'loss': self.loss_value, 'log': tensorboard_logs}
+        return {'loss': loss}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        self.loss_value = self.loss(logits=logits, labels=labels)
+        loss_value = self.loss(logits=logits, labels=labels)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+
         return {
-            'val_loss': self.loss_value,
+            'val_loss': loss_value,
             'val_correct_counts': correct_counts,
             'val_total_counts': total_counts,
             'val_acc_top_k': acc_top_k,
         }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        self.val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x['val_correct_counts'] for x in outputs]).sum(axis=0)
         total_counts = torch.stack([x['val_total_counts'] for x in outputs]).sum(axis=0)
 
@@ -206,38 +205,32 @@ class EncDecSpeakerLabelModel(ModelPT):
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        logging.info("val_loss: {:.3f}".format(self.val_loss_mean))
-        self.log('val_loss', self.val_loss_mean)
+        logging.info("val_loss: {:.3f}".format(val_loss_mean))
+        self.log('val_loss', val_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            self.log('val_epoch_top@{}'.format(top_k), score)
-            self.accuracy = score * 100
+            self.log('val_epoch_accuracy_top@{}'.format(top_k), score)
 
         return {
-            'val_loss': self.val_loss_mean,
+            'val_loss': val_loss_mean,
             'val_acc_top_k': topk_scores,
         }
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        self.loss_value = self.loss(logits=logits, labels=labels)
+        loss_value = self.loss(logits=logits, labels=labels)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        self.log('test_loss', self.loss_value)
-        self.log('test_correct_counts', correct_counts)
-        self.log('test_total_counts', total_counts)
-        for top_k, acc in enumerate(acc_top_k):
-            self.log(f'test_top_{top_k}', top_k)
-            self.log(f'test_acc_top_{top_k}', acc)
+
         return {
-            'test_loss': self.loss_value,
+            'test_loss': loss_value,
             'test_correct_counts': correct_counts,
             'test_total_counts': total_counts,
             'test_acc_top_k': acc_top_k,
         }
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        self.val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x['test_correct_counts'] for x in outputs]).sum(axis=0)
         total_counts = torch.stack([x['test_total_counts'] for x in outputs]).sum(axis=0)
 
@@ -245,14 +238,13 @@ class EncDecSpeakerLabelModel(ModelPT):
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        logging.info("test_loss: {:.3f}".format(self.val_loss_mean))
-        self.log('test_loss', self.val_loss_mean)
+        logging.info("test_loss: {:.3f}".format(test_loss_mean))
+        self.log('test_loss', test_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            self.log('test_epoch_top@{}'.format(top_k), score)
-            self.accuracy = score * 100
+            self.log('test_epoch_accuracy_top@{}'.format(top_k), score)
 
         return {
-            'test_loss': self.val_loss_mean,
+            'test_loss': test_loss_mean,
             'test_acc_top_k': topk_scores,
         }
 
@@ -285,8 +277,8 @@ class EncDecSpeakerLabelModel(ModelPT):
         if self.dataset.labels is None or len(self.dataset.labels) == 0:
             raise ValueError(f'New labels must be non-empty list of labels. But I got: {self.dataset.labels}')
 
-        if 'valid_ds' in model_config and model_config.valid_ds is not None:
-            self.setup_multiple_validation_data(model_config.valid_ds)
+        if 'validation_ds' in model_config and model_config.validation_ds is not None:
+            self.setup_multiple_validation_data(model_config.validation_ds)
 
         if 'test_ds' in model_config and model_config.test_ds is not None:
             self.setup_multiple_test_data(model_config.test_ds)
