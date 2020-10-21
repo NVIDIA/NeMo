@@ -88,7 +88,7 @@ class ModelPT(LightningModule, Model):
         self._trainer = trainer
 
         # Set device_id in AppState
-        if torch.cuda.current_device() is not None:
+        if torch.cuda.is_available() and torch.cuda.current_device() is not None:
             app_state = AppState()
             app_state.device_id = torch.cuda.current_device()
 
