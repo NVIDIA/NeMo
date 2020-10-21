@@ -1,1 +1,0 @@
-/home/apeganov/PeganovNeMo/examples/nlp/machine_translation/nemo_experiments/TransformerMT/2020-10-20_13-53-50/checkpoints/TransformerMT---val_loss=9.05-epoch=0.ckpt

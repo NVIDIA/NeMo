@@ -44,8 +44,8 @@ model:
     len_pen: 0.6
 
   train_ds:
-    src_file_name: ~/data/wmt14_en_de2/train.en
-    tgt_file_name: ~/data/wmt14_en_de2/train.de
+    src_file_name: ~/data/wmt14_en_de2/train.de
+    tgt_file_name: ~/data/wmt14_en_de2/train.en
     tokens_in_batch: 512
     clean: true
     max_seq_length: 256
@@ -57,8 +57,8 @@ model:
 
 
   validation_ds:
-    src_file_name: ~/data/wmt14_en_de2/valid.en # path to file with validation data
-    tgt_file_name: ~/data/wmt14_en_de2/valid.de
+    src_file_name: ~/data/wmt14_en_de2/valid.de # path to file with validation data
+    tgt_file_name: ~/data/wmt14_en_de2/valid.en
     tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
@@ -68,8 +68,8 @@ model:
     num_workers: 8 # number of workers for data loaders
 
   test_ds:
-    src_file_name: ~/data/wmt14_en_de2/test.en # path to file with validation data
-    tgt_file_name: ~/data/wmt14_en_de2/test.de
+    src_file_name: ~/data/wmt14_en_de2/test.de # path to file with validation data
+    tgt_file_name: ~/data/wmt14_en_de2/test.en
     tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
