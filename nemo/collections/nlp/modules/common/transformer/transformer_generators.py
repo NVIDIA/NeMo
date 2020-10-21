@@ -64,11 +64,9 @@ class GreedySequenceGenerator(nn.Module):
         self.max_seq_length = max_sequence_length
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
-
-        decoder_parameter = next(self.decoder.parameters())
-
         # TODO replace self.device attribute with defining device on the fly according to Pytorch Lightning recomendations
-        self.device = next(self.decoder.parameters()).device  
+        self.device = next(self.decoder.parameters()).device
+
     @torch.no_grad()
     def _forward(
         self,
