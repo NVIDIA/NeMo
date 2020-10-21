@@ -63,8 +63,10 @@ class TopKClassificationAccuracy(Metric):
             top_k = [1]
 
         self.top_k = top_k
-        self.add_state("correct_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum')
-        self.add_state("total_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum')
+        self.add_state(
+            "correct_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum', persistent=False
+        )
+        self.add_state("total_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum', persistent=False)
 
     def update(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
