@@ -76,10 +76,12 @@ class ClassificationReport(Metric):
             self.ids_to_labels = None
         self.mode = mode
 
-        self.add_state("tp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
-        self.add_state("fn", default=torch.zeros(num_classes), dist_reduce_fx='sum')
-        self.add_state("fp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
-        self.add_state("num_examples_per_class", default=torch.zeros(num_classes), dist_reduce_fx='sum')
+        self.add_state("tp", default=torch.zeros(num_classes), dist_reduce_fx='sum', persistent=False)
+        self.add_state("fn", default=torch.zeros(num_classes), dist_reduce_fx='sum', persistent=False)
+        self.add_state("fp", default=torch.zeros(num_classes), dist_reduce_fx='sum', persistent=False)
+        self.add_state(
+            "num_examples_per_class", default=torch.zeros(num_classes), dist_reduce_fx='sum', persistent=False
+        )
 
     def update(self, predictions: torch.Tensor, labels: torch.Tensor):
         TP = []
