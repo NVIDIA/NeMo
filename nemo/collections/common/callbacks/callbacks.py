@@ -17,7 +17,7 @@ import numpy as np
 from pytorch_lightning.callbacks.base import Callback
 from pytorch_lightning.utilities import rank_zero_only
 
-from nemo.collections.common.metrics.sacrebleu import corpus_bleu
+from nemo.collections.nlp.metrics.sacrebleu import corpus_bleu
 
 
 class LogEpochTimeCallback(Callback):
