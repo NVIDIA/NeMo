@@ -46,7 +46,7 @@ model:
   train_ds:
     src_file_name: /data/train.en
     tgt_file_name: /data/train.de
-    tokens_in_batch: 16000
+    tokens_in_batch: 6250  # This is limit per gpu. Total limit is 50000
     clean: true
     max_seq_length: 512
     shuffle: true
@@ -59,7 +59,7 @@ model:
   validation_ds:
     src_file_name: /data/valid.en # path to file with validation data
     tgt_file_name: /data/valid.de
-    tokens_in_batch: 512
+    tokens_in_batch: 4096
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     predict_last_k: 0
@@ -70,7 +70,7 @@ model:
   test_ds:
     src_file_name: /data/test.en # path to file with validation data
     tgt_file_name: /data/test.de
-    tokens_in_batch: 512
+    tokens_in_batch: 4096
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     predict_last_k: 0

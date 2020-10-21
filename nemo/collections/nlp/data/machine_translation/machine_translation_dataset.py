@@ -121,8 +121,7 @@ class TranslationDataset(Dataset):
         src_len = 0
         tgt_len = 0
 
-        while i < len(buckets.keys()):
-
+        while i < len(buckets):
             while buckets[indices[i]]:
 
                 i_src = max(src_len, indices[i])
