@@ -541,7 +541,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + '.nemo')
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + '.nemo'))
 
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict):
