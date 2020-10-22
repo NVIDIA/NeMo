@@ -1120,7 +1120,7 @@ class ModelPT(LightningModule, Model):
         self._set_hparams(cfg)
 
     @staticmethod
-    def update_model_dataclass(model_cls: ModelPTConfig, update_cfg: DictConfig):
+    def update_model_dataclass(model_cls: ModelPTConfig, update_cfg: DictConfig, drop_missing_subconfigs: bool = True):
         """
         Accepts a ModelPT dataclass and a DictConfig which mirrors the structure of the
         dataclass, so as to update the dataclass with the values from the DictConfig.
@@ -1151,10 +1151,15 @@ class ModelPT(LightningModule, Model):
                 Can be obtained via hydra command line, or explicitly defined via OmegaConf.
                 Structure should mirror the Model dataclass.
 
+            drop_missing_subconfigs: Bool which determins whether to drop certain sub-configs from the ModelPTConfig
+                class, if the corresponding sub-config is missing from `update_cfg`.
+
         Returns:
             A DictConfig which is the merger of the ModelPT dataclass and the override config.
         """
-        model_cfg = config_utils.update_model_config(model_cls=model_cls, update_cfg=update_cfg)
+        model_cfg = config_utils.update_model_config(
+            model_cls=model_cls, update_cfg=update_cfg, drop_missing_subconfigs=drop_missing_subconfigs
+        )
         return model_cfg
 
     @staticmethod

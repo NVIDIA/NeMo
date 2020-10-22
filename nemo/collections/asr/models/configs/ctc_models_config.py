@@ -61,7 +61,7 @@ class SpecAugmentConfig:
 
 @dataclass
 class EncDecCTCDatasetConfig(model_cfg.DatasetConfig):
-    manifest_filepath: Optional[str] = MISSING
+    manifest_filepath: Optional[str] = None
     sample_rate: int = MISSING
     labels: List[str] = MISSING
     trim_silence: bool = False

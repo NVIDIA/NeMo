@@ -14,7 +14,7 @@
 import copy
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, configs
 
@@ -143,15 +143,38 @@ class TestEncDecCTCModel:
 
         # Construct the model
         asr_cfg = OmegaConf.create({'model': asr_model.cfg})
-        model_cfg = EncDecCTCModel.update_model_dataclass(model_cfg, asr_cfg)
-        new_model = EncDecCTCModel(cfg=model_cfg.model)
+        model_cfg_v1 = EncDecCTCModel.update_model_dataclass(model_cfg, asr_cfg)
+        new_model = EncDecCTCModel(cfg=model_cfg_v1.model)
 
         assert new_model.num_weights == asr_model.num_weights
         # trainer and exp manager should be there
-        assert 'trainer' in model_cfg
-        assert 'exp_manager' in model_cfg
+        assert 'trainer' in model_cfg_v1
+        assert 'exp_manager' in model_cfg_v1
         # datasets and optim/sched should not be there after ModelPT.update_model_dataclass()
-        assert 'train_ds' not in model_cfg.model
-        assert 'validation_ds' not in model_cfg.model
-        assert 'test_ds' not in model_cfg.model
-        assert 'optim' not in model_cfg.model
+        assert 'train_ds' not in model_cfg_v1.model
+        assert 'validation_ds' not in model_cfg_v1.model
+        assert 'test_ds' not in model_cfg_v1.model
+        assert 'optim' not in model_cfg_v1.model
+
+        # Construct the model, without dropping additional keys
+        asr_cfg = OmegaConf.create({'model': asr_model.cfg})
+        model_cfg_v2 = EncDecCTCModel.update_model_dataclass(model_cfg, asr_cfg, drop_missing_subconfigs=False)
+
+        # Assert all components are in config
+        assert 'trainer' in model_cfg_v2
+        assert 'exp_manager' in model_cfg_v2
+        assert 'train_ds' in model_cfg_v2.model
+        assert 'validation_ds' in model_cfg_v2.model
+        assert 'test_ds' in model_cfg_v2.model
+        assert 'optim' in model_cfg_v2.model
+
+        # Remove extra components (optim and sched can be kept without issue)
+        with open_dict(model_cfg_v2.model):
+            model_cfg_v2.model.pop('train_ds')
+            model_cfg_v2.model.pop('validation_ds')
+            model_cfg_v2.model.pop('test_ds')
+
+        new_model = EncDecCTCModel(cfg=model_cfg_v2.model)
+
+        assert new_model.num_weights == asr_model.num_weights
+        # trainer and exp manager should be there
