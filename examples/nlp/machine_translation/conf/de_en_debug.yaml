@@ -22,14 +22,14 @@ model:
   machine_translation:
     tokenizer:
       tokenizer_name: yttm
-      tokenizer_model: ~/data/wmt14_en_de2/bpe_37k_en_de_yttm.model
+      tokenizer_model: ~/data/wmt14_en_de2/bpe_32k_en_de_yttm.model
 # 2 following fields are mutually exclusive with `tokenizer`
 #    src_tokenizer:
 #      tokenizer_name: yttm
-#      tokenizer_model: /data/bpe_37k_en_de_yttm.model
+#      tokenizer_model: /data/bpe_32k_en_de_yttm.model
 #    tgt_tokenizer:
 #      tokenizer_name: yttm
-#      tokenizer_model: /data/bpe_37k_en_de_yttm.model
+#      tokenizer_model: /data/bpe_32k_en_de_yttm.model
     hidden_size: 512
     num_layers: 6
     num_attn_heads: 8

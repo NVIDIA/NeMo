@@ -57,15 +57,15 @@ class MachineTranslationLogEvalCallback(Callback):
 
     @rank_zero_only
     def on_test_end(self, trainer, pl_module):
-        self._on_eval_end(trainer, pl_module, "Test")
+        self._on_eval_end(trainer, pl_module, "test")
 
     @rank_zero_only
     def on_validation_end(self, trainer, pl_module):
-        self._on_eval_end(trainer, pl_module, "Validation")
+        self._on_eval_end(trainer, pl_module, "val")
 
     @rank_zero_only
     def on_sanity_check_end(self, trainer, pl_module):
-        self._on_eval_end(trainer, pl_module, "Validation")
+        self._on_eval_end(trainer, pl_module, "val")
 
     def _on_eval_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx, mode):
         self._translations.extend(outputs['translations'])
@@ -79,7 +79,7 @@ class MachineTranslationLogEvalCallback(Callback):
 
     @rank_zero_only
     def on_validation_batch_end(self, trainer, pl_module, batch, outputs, batch_idx, dataloader_idx):
-        self._on_eval_batch_end(trainer, pl_module, batch, outputs, batch_idx, dataloader_idx, 'validation')
+        self._on_eval_batch_end(trainer, pl_module, batch, outputs, batch_idx, dataloader_idx, 'val')
 
     def _on_eval_start(self, trainer, pl_module):
         self._translations = []
