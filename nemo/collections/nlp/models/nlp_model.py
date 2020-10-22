@@ -246,6 +246,7 @@ class NLPModel(ModelPT):
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
+                # Update PTL trainer to use our configure_ddp
                 self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
