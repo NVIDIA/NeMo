@@ -15,6 +15,7 @@
 import hashlib
 import json
 import os
+from nemo.utils import app_state
 from typing import List
 
 import torch
@@ -241,13 +242,8 @@ class NLPModel(ModelPT):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
-
-                # Update PTL trainer to use our configure_ddp
-                self._trainer.accelerator_backend.configure_ddp = self.configure_ddp
-
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
