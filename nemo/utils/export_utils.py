@@ -191,25 +191,30 @@ def replace_for_export(model: nn.Module, replace_1D_2D: bool = False) -> nn.Modu
 
 def attach_onnx_to_onnx(model1: onnx.ModelProto, model2: onnx.ModelProto, prefix2: str):
 
-    if len(model1.graph.output) < 1 or len(model1.graph.output) != len(model2.graph.output):
+    if len(model1.graph.output) < 1 or len(model1.graph.output) != len(model2.graph.input):
         raise ValueError(
-            'Incompatible input/output dimensions: {} != {}'.format(len(model1.graph.output), len(model2.graph.output))
+            'Incompatible input/output dimensions: {} != {}'.format(len(model1.graph.output), len(model2.graph.input))
         )
     for i in range(len(model2.graph.initializer)):
         model2.graph.initializer[i].name = prefix2 + model2.graph.initializer[i].name
     for i in range(len(model2.graph.node)):
         model2.graph.node[i].name = prefix2 + model2.graph.node[i].name
 
-    for o in range(len(model1.graph.output)):
-        for i in range(len(model2.graph.node)):
-            for j in range(len(model2.graph.node[i].input)):
+    for i in range(len(model2.graph.node)):
+        for j in range(len(model2.graph.node[i].input)):
+            for o in range(len(model1.graph.output)):
                 if model2.graph.node[i].input[j] == model2.graph.input[o].name:
                     model2.graph.node[i].input[j] = model1.graph.output[o].name
                 else:
                     model2.graph.node[i].input[j] = prefix2 + model2.graph.node[i].input[j]
-            for j in range(len(model2.graph.node[i].output)):
-                if model2.graph.node[i].output[j] != model2.graph.output[o].name:
-                    model2.graph.node[i].output[j] = prefix2 + model2.graph.node[i].output[j]
+        for j in range(len(model2.graph.node[i].output)):
+            inner_output = True
+            for p in range(len(model2.graph.output)):
+                if model2.graph.node[i].output[j] == model2.graph.output[p].name:
+                    inner_output = False
+                    break
+            if inner_output:
+                model2.graph.node[i].output[j] = prefix2 + model2.graph.node[i].output[j]
 
     graph = onnx.GraphProto()
     graph.node.extend(model1.graph.node)

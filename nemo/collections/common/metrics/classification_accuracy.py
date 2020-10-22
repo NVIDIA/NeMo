@@ -63,8 +63,10 @@ class TopKClassificationAccuracy(Metric):
             top_k = [1]
 
         self.top_k = top_k
-        self.add_state("correct_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum')
-        self.add_state("total_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum')
+        self.add_state(
+            "correct_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum', persistent=False
+        )
+        self.add_state("total_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum', persistent=False)
 
     def update(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
@@ -95,6 +97,9 @@ class TopKClassificationAccuracy(Metric):
             A list of length `K`, such that k-th index corresponds to top-k accuracy
             over all distributed processes.
         """
+        if not len(self.correct_counts_k) == len(self.top_k) == len(self.total_counts_k):
+            raise ValueError("length of counts must match to topk length")
+
         if self.top_k == [1]:
             return [self.correct_counts_k.float() / self.total_counts_k]
 
