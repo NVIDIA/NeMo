@@ -247,7 +247,7 @@ class NLPModel(ModelPT):
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
                 # Update PTL trainer to use our configure_ddp
-                self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
+                self._trainer.accelerator_backend.configure_ddp = self.configure_ddp
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
