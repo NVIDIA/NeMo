@@ -211,7 +211,11 @@ class EncDecCTCModel(ASRModel, Exportable):
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             del self.loss
-            self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
+            self.loss = CTCLoss(
+                num_classes=self.decoder.num_classes_with_blank - 1,
+                zero_infinity=True,
+                reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            )
             self._wer = WER(
                 vocabulary=self.decoder.vocabulary,
                 batch_dim_index=0,

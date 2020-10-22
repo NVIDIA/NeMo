@@ -27,7 +27,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y \
     libsndfile1 sox \
-    python-setuptools \
+    python-setuptools swig \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
@@ -42,6 +42,9 @@ RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.gi
 WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
+
+# build CTC beam search decoder
+RUN scripts/install_ctc_decoders.sh
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src

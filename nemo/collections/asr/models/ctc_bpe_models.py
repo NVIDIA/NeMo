@@ -314,7 +314,11 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
         del self.loss
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
+        self.loss = CTCLoss(
+            num_classes=self.decoder.num_classes_with_blank - 1,
+            zero_infinity=True,
+            reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+        )
         self._wer = WERBPE(
             tokenizer=self.tokenizer,
             batch_dim_index=0,
