@@ -233,6 +233,11 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         self.beam_size = beam_size
         self.len_pen = len_pen
 
+    @staticmethod
+    def compute_len_penalty(lengths, alpha):
+        """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
+        return ((5 + lengths) / 6).pow(alpha)
+
     def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
@@ -286,9 +291,10 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             scores = scores + scores_i * (1 - pad_mask).to(scores.dtype)
 
             # choose top-k hypotheses with length penalty applied
-            scores = scores / prefixes_len.pow(self.len_pen)
+            len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
+            scores = scores / len_penalties
             scores, indices_i = torch.topk(scores.view(-1, self.beam_size ** 2), self.beam_size, dim=1)
-            scores = scores.view(-1, 1) * prefixes_len.pow(self.len_pen)
+            scores = scores.view(-1, 1) * len_penalties
 
             # select prefixes which correspond to the chosen hypotheses
             prefixes = prefixes.unsqueeze(1).repeat(1, self.beam_size, 1)
@@ -319,7 +325,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
                 break
 
         # select best performing hypotheses in each element of the batch
-        scores = scores / prefixes_len.pow(self.len_pen)
+        len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
+        scores = scores / len_penalties
         best_guesses = (
             torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
         )
