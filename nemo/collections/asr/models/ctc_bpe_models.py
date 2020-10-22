@@ -70,13 +70,21 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
 
         # Override number of classes if placeholder provided
-        if cfg.decoder['num_classes'] < 1:
+        if "params" in cfg.decoder:
+            num_c = cfg.decoder["params"]["num_classes"]
+        else:
+            num_c = cfg.decoder["num_classes"]
+
+        if num_c < 1:
             logging.info(
                 "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                    cfg.decoder['num_classes'], len(vocabulary)
+                    num_c, len(vocabulary)
                 )
             )
-            cfg.decoder['num_classes'] = len(vocabulary)
+            if "params" in cfg.decoder:
+                cfg.decoder["params"]["num_classes"] = len(vocabulary)
+            else:
+                cfg.decoder['num_classes'] = len(vocabulary)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
