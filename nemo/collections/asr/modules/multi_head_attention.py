@@ -1,5 +1,4 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2017 Johns Hopkins University (Shinji Watanabe)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
