@@ -65,11 +65,28 @@ class RNNTLoss(Loss):
         RNN-T Loss function based on https://github.com/HawkAaron/warp-transducer.
 
         Note:
-        Requires the pytorch bindings to be installed prior to calling this class.
+            Requires the pytorch bindings to be installed prior to calling this class.
+
+        Warning:
+            In the case that GPU memory is exhausted in order to compute RNNTLoss, it might cause
+            a core dump at the cuda level with the following error message.
+
+            ```
+                ...
+                costs = costs.to(acts.device)
+            RuntimeError: CUDA error: an illegal memory access was encountered
+            terminate called after throwing an instance of 'c10::Error'
+            ```
+
+            Please kill all remaining python processes after this point, and use a smaller batch size
+            for train, validation and test sets so that CUDA memory is not exhausted.
 
         Args:
             num_classes: Number of target classes for the joint network to predict.
                 (Excluding the RNN-T blank token).
+
+            reduction: Type of reduction to perform on loss. Possibly values are `mean`, `sum` or None.
+                None will return a torch vector comprising the individual loss values of the batch.
         """
         super(RNNTLoss, self).__init__()
 
