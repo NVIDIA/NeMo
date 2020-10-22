@@ -536,6 +536,7 @@ def configure_loggers(
 class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
+
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
         filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
