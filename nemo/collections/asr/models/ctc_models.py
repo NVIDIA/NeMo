@@ -105,7 +105,9 @@ class EncDecCTCModel(ASRModel, Exportable):
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
 
         self.loss = CTCLoss(
-            num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True, reduction=self._cfg.ctc_reduction
+            num_classes=self.decoder.num_classes_with_blank - 1,
+            zero_infinity=True,
+            reduction=self._cfg.get("ctc_reduction", "mean_batch"),
         )
 
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
