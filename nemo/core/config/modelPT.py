@@ -22,12 +22,7 @@ from nemo.utils import exp_manager
 
 
 @dataclass
-class BaseDatasetConfig:
-    pass
-
-
-@dataclass
-class DatasetConfig(BaseDatasetConfig):
+class DatasetConfig:
     """
 
     """
@@ -41,27 +36,17 @@ class DatasetConfig(BaseDatasetConfig):
 
 
 @dataclass
-class BaseOptimConfig:
-    pass
-
-
-@dataclass
-class BaseSchedConfig:
-    pass
-
-
-@dataclass
-class SchedConfig(BaseSchedConfig):
+class SchedConfig:
     name: str = MISSING
     min_lr: float = 0.0
     last_epoch: int = -1
 
 
 @dataclass
-class OptimConfig(BaseOptimConfig):
+class OptimConfig:
     name: str = MISSING
     lr: float = MISSING
-    sched: Optional[BaseSchedConfig] = None
+    sched: Optional[SchedConfig] = None
 
 
 @dataclass
@@ -71,10 +56,10 @@ class ModelConfig:
     """
 
     # ...
-    train_ds: Optional[BaseDatasetConfig] = None
-    validation_ds: Optional[BaseDatasetConfig] = None
-    test_ds: Optional[BaseDatasetConfig] = None
-    optim: Optional[BaseOptimConfig] = None
+    train_ds: Optional[DatasetConfig] = None
+    validation_ds: Optional[DatasetConfig] = None
+    test_ds: Optional[DatasetConfig] = None
+    optim: Optional[OptimConfig] = None
 
 
 @dataclass

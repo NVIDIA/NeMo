@@ -77,9 +77,10 @@ def _add_subconfig_keys(model_cfg: DictConfig, update_cfg: DictConfig, subconfig
                 model_cfg.model[subconfig_key] = None
 
             subconfig = copy.deepcopy(model_cfg.model[subconfig_key])
+            update_subconfig = copy.deepcopy(update_cfg.model[subconfig_key])
 
             # Add the keys and update temporary values, will be updated during full merge
-            subconfig = OmegaConf.merge(update_cfg.model[subconfig_key], subconfig)
+            subconfig = OmegaConf.merge(update_subconfig, subconfig)
             # Update sub config
             model_cfg.model[subconfig_key] = subconfig
 

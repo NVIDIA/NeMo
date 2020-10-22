@@ -21,12 +21,7 @@ from nemo.core.config import modelPT as model_cfg
 
 
 @dataclass
-class BaseASRPreprocessorConfig:
-    pass
-
-
-@dataclass
-class AudioToMelSpectrogramPreprocessorConfig(BaseASRPreprocessorConfig):
+class AudioToMelSpectrogramPreprocessorConfig:
     _target_: str = "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
     sample_rate: int = 16000
     window_size: float = 0.02
@@ -140,19 +135,22 @@ class ConvASRDecoderConfig:
 
 @dataclass
 class EncDecCTCConfig(model_cfg.ModelConfig):
+    # Model global arguments
     sample_rate: int = 16000
     repeat: int = 1
     dropout: float = 0.0
     separable: bool = False
     labels: List[str] = MISSING
 
+    # Dataset configs
     train_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(shuffle=True, trim_silence=True)
     validation_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(shuffle=False)
     test_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
 
+    # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
-    # optim: Optional[Any] = None
 
+    # Model component configs
     preprocessor: AudioToMelSpectrogramPreprocessorConfig = AudioToMelSpectrogramPreprocessorConfig()
     spec_augment: Optional[SpecAugmentConfig] = SpecAugmentConfig()
     encoder: Any = ConvASREncoderConfig()
