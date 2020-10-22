@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Dict
 
 import librosa
@@ -21,19 +20,11 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 
-from nemo.collections.tts.helpers.helpers import griffin_lim
+from nemo.collections.tts.helpers.helpers import OperationMode, griffin_lim
 from nemo.collections.tts.models.base import LinVocoder, MelToSpec, Vocoder
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-
-
-class OperationMode(Enum):
-    """Training or Inference (Evaluation) mode"""
-
-    training = 0
-    validation = 1
-    infer = 2
 
 
 class MelPsuedoInverseModel(MelToSpec):
@@ -168,11 +159,15 @@ class TwoStagesModel(Vocoder):
         pass
 
     def convert_spectrogram_to_audio(self, spec: torch.Tensor, **kwargs) -> torch.Tensor:
-
         self.eval()
-        self.mode = OperationMode.infer
-        self.mel2spec.mode = OperationMode.infer
-        self.linvocoder.mode = OperationMode.infer
+        try:
+            self.mel2spec.mode = OperationMode.infer
+        except AttributeError:
+            pass
+        try:
+            self.linvocoder.mode = OperationMode.infer
+        except AttributeError:
+            pass
 
         with torch.no_grad():
             exp_spec = torch.exp(spec)

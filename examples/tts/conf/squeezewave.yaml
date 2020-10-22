@@ -12,13 +12,12 @@ model:
   train_ds:
     dataset:
       # Use SplicedAudioDataset to use all of training data
-      cls: "nemo.collections.tts.data.datalayers.AudioDataset"
-      params:
-        manifest_filepath: ${train_dataset}
-        max_duration: null
-        min_duration: 0.1
-        n_segments: 16384
-        trim: false
+      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+      manifest_filepath: ${train_dataset}
+      max_duration: null
+      min_duration: 0.1
+      n_segments: 16384
+      trim: false
     dataloader_params:
       drop_last: true
       pin_memory: true
@@ -28,15 +27,14 @@ model:
 
   validation_ds:
     dataset:
-      cls: "nemo.collections.tts.data.datalayers.AudioDataset"
-      params:
-        manifest_filepath: ${validation_datasets}
-        max_duration: null
-        min_duration: 0.1
-        n_segments: -1
-        trim: false
-        # This value is hard-coded to reflect n_window_stride * lcm(2, pad_to)
-        truncate_to: 512
+      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+      manifest_filepath: ${validation_datasets}
+      max_duration: null
+      min_duration: 0.1
+      n_segments: -1
+      trim: false
+      # This value is hard-coded to reflect n_window_stride * lcm(2, pad_to)
+      truncate_to: 512
     dataloader_params:
       drop_last: false
       shuffle: false
@@ -44,44 +42,42 @@ model:
       num_workers: 4
 
   preprocessor:
-    cls: nemo.collections.asr.parts.features.FilterbankFeatures
-    params:
-      dither: 0.0
-      nfilt: *n_mels
-      frame_splicing: 1
-      highfreq: *fmax
-      log: true
-      log_zero_guard_type: clamp
-      log_zero_guard_value: 1e-05
-      lowfreq: 0
-      mag_power: 1.0
-      n_fft: *n_fft
+    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    dither: 0.0
+    nfilt: *n_mels
+    frame_splicing: 1
+    highfreq: *fmax
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    lowfreq: 0
+    mag_power: 1.0
+    n_fft: *n_fft
 
-      # SqueezeWave is currently hardcoded to these values for window size and stride
-      # Changing these parameters are not recommended
-      n_window_size: 1024
-      n_window_stride: 256
+    # SqueezeWave is currently hardcoded to these values for window size and stride
+    # Changing these parameters are not recommended
+    n_window_size: 1024
+    n_window_stride: 256
 
-      normalize: null
-      pad_to: 1
-      pad_value: *pad_value
-      preemph: null
-      sample_rate: *sr
-      stft_exact_pad: true
-      stft_conv: true
-      window: hann
+    normalize: null
+    pad_to: 1
+    pad_value: *pad_value
+    preemph: null
+    sample_rate: *sr
+    stft_exact_pad: true
+    stft_conv: true
+    window: hann
 
   squeezewave:
-    cls: nemo.collections.tts.modules.squeezewave.SqueezeWaveModule
-    params:
-      n_early_every: 2
-      n_early_size: 16
-      n_flows: 12
-      n_group: 128
-      n_mel_channels: *n_mels
-      n_wn_channels: 256
-      n_wn_layers: 8
-      wn_kernel_size: 3
+    _target_: nemo.collections.tts.modules.squeezewave.SqueezeWaveModule
+    n_early_every: 2
+    n_early_size: 16
+    n_flows: 12
+    n_group: 128
+    n_mel_channels: *n_mels
+    n_wn_channels: 256
+    n_wn_layers: 8
+    wn_kernel_size: 3
 
   optim:
     name: adam
