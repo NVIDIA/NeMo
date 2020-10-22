@@ -61,7 +61,7 @@ pipeline {
         }
       }
       steps {
-        sh 'pytest -m "unit and not pleasefixme" --cpu'
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
       }
     }
 
