@@ -24,13 +24,14 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
+from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import SpectrogramType, LabelsType, LengthsType, LogprobsType, NeuralType
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
 
@@ -88,10 +89,12 @@ class EncDecCTCModel(ASRModel, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.global_rank = 0
-        self.world_size = 0
+        self.world_size = 1
+        self.local_rank = 0
         if trainer is not None:
             self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
             self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.local_rank = trainer.local_rank
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
@@ -221,6 +224,29 @@ class EncDecCTCModel(ASRModel, Exportable):
             augmentor = None
 
         shuffle = config['shuffle']
+        device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        if config.get('use_dali', False):
+            device_id = self.local_rank if device == 'gpu' else -1
+            dataset = AudioToCharDALIDataset(
+                manifest_filepath=config['manifest_filepath'],
+                device=device,
+                batch_size=config['batch_size'],
+                labels=config['labels'],
+                sample_rate=config['sample_rate'],
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                blank_index=config.get('blank_index', -1),
+                unk_index=config.get('unk_index', -1),
+                normalize=config.get('normalize_transcripts', False),
+                trim=config.get('trim_silence', True),
+                parser=config.get('parser', 'en'),
+                shuffle=shuffle,
+                device_id=device_id,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                preprocessor_cfg=self._cfg.preprocessor
+            )
+            return dataset
 
         # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
@@ -330,13 +356,9 @@ class EncDecCTCModel(ASRModel, Exportable):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        if hasattr(self.preprocessor, '_sample_rate'):
-            audio_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
-        else:
-            audio_eltype = AudioSignal()
         return {
-            "input_signal": NeuralType(('B', 'T'), audio_eltype),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType()),
+            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "processed_signal_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -347,24 +369,42 @@ class EncDecCTCModel(ASRModel, Exportable):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
-    @typecheck()
-    def forward(self, input_signal, input_signal_length):
-        processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
-        )
+    def processed_batch(self, outputs):
+        need_processing = True
         # Spec augment is not applied during evaluation/testing
-        if self.spec_augmentation is not None and self.training:
+        need_augmenting = self.spec_augmentation is not None and self.training
+        if isinstance(outputs, DALIOutputs):
+            if outputs.has_processed_signal():
+                need_processing = False
+                processed_signal, processed_signal_len, transcript, transcript_len = outputs.get()
+            else:
+                audio_signal, audio_signal_len, transcript, transcript_len = outputs.get()
+        else:
+            audio_signal, audio_signal_len, transcript, transcript_len = outputs
+
+        if need_processing:
+            processed_signal, processed_signal_len = self.preprocessor(
+                input_signal=audio_signal, length=audio_signal_len,
+            )
+
+        if need_augmenting:
             processed_signal = self.spec_augmentation(input_spec=processed_signal)
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+
+        return processed_signal, processed_signal_len, transcript, transcript_len
+
+    @typecheck()
+    def forward(self, processed_signal, processed_signal_length):
+        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         return log_probs, encoded_len, greedy_predictions
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        audio_signal, audio_signal_len, transcript, transcript_len = batch
+        processed_signal, processed_signal_len, transcript, transcript_len = self.processed_batch(batch)
+
         log_probs, encoded_len, predictions = self.forward(
-            input_signal=audio_signal, input_signal_length=audio_signal_len
+            processed_signal=processed_signal, processed_signal_length=processed_signal_len
         )
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
@@ -384,9 +424,10 @@ class EncDecCTCModel(ASRModel, Exportable):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        audio_signal, audio_signal_len, transcript, transcript_len = batch
+        processed_signal, processed_signal_len, transcript, transcript_len = self.processed_batch(batch)
+
         log_probs, encoded_len, predictions = self.forward(
-            input_signal=audio_signal, input_signal_length=audio_signal_len
+            processed_signal=processed_signal, processed_signal_length=processed_signal_len
         )
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
