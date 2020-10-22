@@ -57,7 +57,7 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 @dataclass
 class CallbackParams:
-    filepath: Optional[str, Path] = None  # If None, exp_manager will attempt to handle the filepath
+    filepath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     monitor: Optional[str] = "val_loss"
     verbose: Optional[bool] = True
     save_last: Optional[bool] = True
