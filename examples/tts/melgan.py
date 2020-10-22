@@ -1,4 +1,7 @@
+from pathlib import Path
+
 import librosa
+import soundfile as sf
 import numpy as np
 import pytorch_lightning as pl
 import torch
@@ -51,12 +54,11 @@ class MBMelGanModel(ModelPT):
     def configure_optimizers(self):
         opt1 = torch.optim.Adam(self.discriminator.parameters(), lr=1e-3, eps=1e-07, amsgrad=True)
         opt2 = torch.optim.Adam(self.generator.parameters(), lr=1e-3, eps=1e-07, amsgrad=True)
-        iters_per_batch = self._trainer.max_epochs / float(
-            self._trainer.num_gpus * self._trainer.num_nodes * self._trainer.accumulate_grad_batches
-        )
+        num_procs = self._trainer.num_gpus * self._trainer.num_nodes * self._trainer.accumulate_grad_batches
         num_samples = len(self._train_dl.dataset)
         batch_size = self._train_dl.batch_size
-        max_steps = round(num_samples * iters_per_batch / float(batch_size))
+        iter_per_epoch = np.ceil(num_samples / (num_procs * batch_size))
+        max_steps = iter_per_epoch * self._trainer.max_epochs
         logging.info(f"MAX STEPS: {max_steps}")
         # sch1 = torch.optim.lr_scheduler.MultiStepLR(opt1, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
         # sch2 = torch.optim.lr_scheduler.MultiStepLR(opt2, milestones=[400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
@@ -236,7 +238,6 @@ class MBMelGanModel(ModelPT):
         pass
 
 
-@hydra_runner(config_path="conf", config_name="multiband_melgan")
 def train_pwg(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
@@ -248,7 +249,6 @@ def train_pwg(cfg):
     trainer.fit(model)
 
 
-@hydra_runner(config_path="conf", config_name="multiband_melgan")
 def infer_pwg(cfg):
     model = MBMelGanModel.load_from_checkpoint(
         "/home/jasoli/nemo/NeMo/examples/tts/experiments/1501438_MelGAN_MSE_BS64_E3000/MB_MelGan--last.ckpt"
@@ -279,14 +279,9 @@ def infer_pwg(cfg):
     print(spec_out.cpu().numpy().shape)
 
 
-@hydra_runner(config_path="conf", config_name="multiband_melgan")
 def infer_pwg_batch(cfg):
-    model = MBMelGanModel.load_from_checkpoint(
-        # "/home/jasoli/nemo/NeMo/examples/tts/experiments/1501438_MelGAN_MSE_BS64_E3000/MB_MelGan--last.ckpt"
-        # "/mnt/hdd/experiment_results/MelGAN/1528354_MelGAN_LSE_GenPre/MB_MelGan/2020-10-16_22-15-23/checkpoints/MB_MelGan--end.ckpt"
-        "/mnt/hdd/experiment_results/MelGAN/1528357_LinGAN_LSE_GenPre/MB_MelGan/2020-10-16_22-15-25/checkpoints/MB_MelGan--end.ckpt"
-    )
-    # "/home/jasoli/nemo/NeMo/examples/tts/nemo_experiments/MB_MelGan/2020-09-24_11-29-43/checkpoints/MB_MelGan--last.ckpt"
+    checkpoint = list(Path(cfg.checkpoint_dir).glob("*end.ckpt"))[0]
+    model = MBMelGanModel.load_from_checkpoint(str(checkpoint))
     model.setup_validation_data(cfg.model.validation_ds)
     model.cuda()
     model.eval()
@@ -301,9 +296,7 @@ def infer_pwg_batch(cfg):
             audio_pred = model.pqmf.synthesis(mb_audio_pred)
         for i, single_audio in enumerate(audio_pred):
             print(single_audio.cpu().numpy().squeeze())
-            librosa.output.write_wav(
-                f"MB_LinGAN_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], sr=22050
-            )
+            sf.write(f"{cfg.name}_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], samplerate=22050)
         break
 
 
@@ -551,13 +544,17 @@ def infer_pwg_batch(cfg):
 #     trainer.callbacks.extend([lr_logger, epoch_time_logger])
 #     trainer.fit(model)
 
+
+@hydra_runner(config_path="conf", config_name="multiband_melgan")
+def main(cfg):
+    if "infer" in cfg:
+        infer_pwg_batch(cfg)
+    else:
+        train_pwg(cfg)
+
+
 if __name__ == '__main__':
-    # main()  # noqa pylint: disable=no-value-for-parameter
-    # infer()
-    train_pwg()
-    # infer_pwg()
-    # infer_pwg_batch()
-    pass
+    main()  # noqa pylint: disable=no-value-for-parameter
 
 """
 Currently at 25 steps per epoch
