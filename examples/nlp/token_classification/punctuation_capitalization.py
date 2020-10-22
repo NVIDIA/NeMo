@@ -49,8 +49,7 @@ def main(cfg: DictConfig) -> None:
         model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
-        # TODO: Remove strict, when lightning has persistent parameter support for add_state()
-        model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model, strict=False)
+        model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
         data_dir = cfg.model.dataset.get('data_dir', None)
         if data_dir:
             # we can also do finetunining of the pretrained model but it will require
