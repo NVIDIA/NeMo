@@ -142,7 +142,7 @@ class ConvASREncoder(NeuralModule, Exportable):
             residual_mode = lcfg.get('residual_mode', residual_mode)
             se = lcfg.get('se', False)
             se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
-            se_context_window = lcfg.get('se_context_window', -1)
+            se_context_window = lcfg.get('se_context_size', -1)
             se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
             stride_last = lcfg.get('stride_last', False)

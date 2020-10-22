@@ -14,14 +14,14 @@
 import copy
 
 import pytest
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.asr.models import EncDecCTCModel, configs
 
 
 @pytest.fixture()
 def asr_model():
-    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
     encoder = {
         '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
         'feat_in': 64,
@@ -110,3 +110,48 @@ class TestEncDecCTCModel:
         asr_model.change_vocabulary(new_vocabulary=new_vocab)
         # fully connected + bias
         assert asr_model.num_weights == nw1 + 3 * (asr_model.decoder._feat_in + 1)
+
+    @pytest.mark.unit
+    def test_dataclass_instantiation(self, asr_model):
+        model_cfg = configs.EncDecCTCModelConfig()
+
+        # Update mandatory values
+        vocabulary = asr_model.decoder.vocabulary
+        model_cfg.model.labels = vocabulary
+
+        # Update encoder
+        model_cfg.model.encoder.activation = 'relu'
+        model_cfg.model.encoder.feat_in = 64
+        model_cfg.model.encoder.jasper = [
+            configs.JasperEncoderConfig(
+                filters=1024,
+                repeat=1,
+                kernel=[1],
+                stride=[1],
+                dilation=[1],
+                dropout=0.0,
+                residual=False,
+                se=True,
+                se_context_size=-1,
+            )
+        ]
+
+        # Update decoder
+        model_cfg.model.decoder.feat_in = 1024
+        model_cfg.model.decoder.num_classes = 28
+        model_cfg.model.decoder.vocabulary = vocabulary
+
+        # Construct the model
+        asr_cfg = OmegaConf.create({'model': asr_model.cfg})
+        model_cfg = EncDecCTCModel.update_model_dataclass(model_cfg, asr_cfg)
+        new_model = EncDecCTCModel(cfg=model_cfg.model)
+
+        assert new_model.num_weights == asr_model.num_weights
+        # trainer and exp manager should be there
+        assert 'trainer' in model_cfg
+        assert 'exp_manager' in model_cfg
+        # datasets and optim/sched should not be there after ModelPT.update_model_dataclass()
+        assert 'train_ds' not in model_cfg.model
+        assert 'validation_ds' not in model_cfg.model
+        assert 'test_ds' not in model_cfg.model
+        assert 'optim' not in model_cfg.model

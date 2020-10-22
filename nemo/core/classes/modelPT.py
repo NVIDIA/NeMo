@@ -19,6 +19,7 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
+from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -30,8 +31,9 @@ from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
+from nemo.core.config.modelPT import ModelPTConfig
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.utils import logging, model_utils
+from nemo.utils import config_utils, logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -74,6 +76,8 @@ class ModelPT(LightningModule, Model):
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
+        if is_dataclass(cfg) and isinstance(cfg, ModelPTConfig):
+            cfg = OmegaConf.structured(cfg)
         if not isinstance(cfg, DictConfig):
             raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
         if trainer is not None and not isinstance(trainer, Trainer):
@@ -1114,6 +1118,44 @@ class ModelPT(LightningModule, Model):
     def cfg(self, cfg):
         self._cfg = cfg
         self._set_hparams(cfg)
+
+    @staticmethod
+    def update_model_dataclass(model_cls: ModelPTConfig, update_cfg: DictConfig):
+        """
+        Accepts a ModelPT dataclass and a DictConfig which mirrors the structure of the
+        dataclass, so as to update the dataclass with the values from the DictConfig.
+
+        Essentially, the update_cfg is obtained via hydra overrides or via manual construction,
+        and used to override the default values set in the dataclass.
+
+        # Usage
+        @hydra_runner(config_path="conf", config_name="config")
+        def main(cfg):
+            # Create the data class with valid defaults
+            model_dataclass = ModelPTConfig()
+
+            # Override the defaults with hydra / external DictConfig which mirrors the structure
+            cfg = ModelPT.update_model_dataclass(model_dataclass, cfg)
+
+            trainer = pl.Trainer(**cfg.trainer)
+            exp_manager(trainer, cfg.get("exp_manager", None))
+            asr_model = ModelPT(cfg=cfg.model, trainer=trainer)
+
+            trainer.fit(asr_model)
+
+        Args:
+            model_cls: A sub-class of ModelPTConfig describing the entire NeMo Model,
+                as well as its supporting infrastructure.
+
+            update_cfg: A DictConfig with override values for the model_cls above.
+                Can be obtained via hydra command line, or explicitly defined via OmegaConf.
+                Structure should mirror the Model dataclass.
+
+        Returns:
+            A DictConfig which is the merger of the ModelPT dataclass and the override config.
+        """
+        model_cfg = config_utils.update_model_config(model_cls=model_cls, update_cfg=update_cfg)
+        return model_cfg
 
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
