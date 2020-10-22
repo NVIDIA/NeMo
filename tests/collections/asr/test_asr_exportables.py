@@ -18,7 +18,7 @@ import onnx
 import pytest
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel
+from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel, EncDecSpeakerLabelModel
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
 
 
@@ -81,6 +81,20 @@ class TestExportable:
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert len(onnx_model.graph.node) == 24
             assert onnx_model.graph.node[12].name == 'EDCShape_0'
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'logits'
+
+    def test_EncDecSpeakerLabelModel_export_to_onnx(self, speaker_label_model):
+        model = speaker_label_model.train()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'sl.onnx')
+            model.export(output=filename)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 31
+            assert onnx_model.graph.node[0].name == 'Conv_0'
+            assert onnx_model.graph.node[12].name == 'SLConstant_9'
+            assert onnx_model.graph.node[30].name == 'SLGemm_27'
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logits'
 
@@ -193,3 +207,39 @@ def speech_classification_model():
     )
     model = EncDecClassificationModel(cfg=modelConfig)
     return model
+
+
+@pytest.fixture()
+def speaker_label_model():
+    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    encoder = {
+        'cls': 'nemo.collections.asr.modules.ConvASREncoder',
+        'params': {
+            'feat_in': 64,
+            'activation': 'relu',
+            'conv_mask': True,
+            'jasper': [
+                {
+                    'filters': 512,
+                    'repeat': 1,
+                    'kernel': [1],
+                    'stride': [1],
+                    'dilation': [1],
+                    'dropout': 0.0,
+                    'residual': False,
+                    'separable': False,
+                }
+            ],
+        },
+    }
+
+    decoder = {
+        'cls': 'nemo.collections.asr.modules.SpeakerDecoder',
+        'params': {'feat_in': 512, 'num_classes': 2, 'pool_mode': 'xvector', 'emb_sizes': [1024]},
+    }
+
+    modelConfig = DictConfig(
+        {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
+    )
+    speaker_model = EncDecSpeakerLabelModel(cfg=modelConfig)
+    return speaker_model

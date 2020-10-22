@@ -79,6 +79,7 @@ def get_acc(trial_file='', emb='', save_kaldi_emb=False):
             all_keys.append(truth)
 
             trial_score.write('\n')
+    trial_score.close()
 
     if save_kaldi_emb:
         np.save(dirname + '/all_embs_voxceleb.npy', np.asarray(trial_embs))

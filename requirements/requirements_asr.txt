@@ -16,3 +16,4 @@ webdataset
 kaldi-python-io
 scipy
 pandas
+g2p_en
