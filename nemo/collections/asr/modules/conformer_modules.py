@@ -70,7 +70,6 @@ class ConformerFeedForward(nn.Module):
     """
     feed-forward module of Conformer model.
     """
-
     def __init__(self, d_model, d_ff, dropout, activation=Swish()):
         super(ConformerFeedForward, self).__init__()
         self.linear1 = nn.Linear(d_model, d_ff)

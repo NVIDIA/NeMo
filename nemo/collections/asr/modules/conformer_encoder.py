@@ -39,7 +39,8 @@ class ConformerEncoder(NeuralModule, Exportable):
     """
     The encoder for ASR model of Conformer.
     Based on this paper:
-        https://arxiv.org/abs/2005.08100
+    'Conformer: Convolution-augmented Transformer for Speech Recognition' by Anmol Gulati et al.
+    https://arxiv.org/abs/2005.08100
     """
 
     def _prepare_for_export(self):
@@ -98,7 +99,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         feat_in,
         n_layers,
         d_model,
-        feat_out=0,
+        feat_out=-1,
         subsampling='vggnet',
         subsampling_factor=4,
         subsampling_conv_channels=64,
@@ -206,13 +207,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     @staticmethod
     def make_pad_mask(seq_lens, max_time, device=None):
-        """Make masking for padding.
-        Args:
-            seq_lens (IntTensor): `[B]`
-            device_id (int):
-        Returns:
-            mask (IntTensor): `[B, T]`
-        """
+        """Make masking for padding."""
         bs = seq_lens.size(0)
         seq_range = torch.arange(0, max_time, dtype=torch.int32)
         seq_range_expand = seq_range.unsqueeze(0).expand(bs, max_time)
@@ -268,18 +263,15 @@ class ConformerEncoderBlock(torch.nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.norm_out = LayerNorm(d_model)
 
-    def forward(self, x, att_mask=None, pos_emb=None, u_bias=None, v_bias=None, pad_mask=None):
+    def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None):
         """
         Args:
-            x (FloatTensor): `[B, T, d_model]`
-            att_mask (ByteTensor): `[B, T, T]`
-            pos_emb (LongTensor): `[L, 1, d_model]`
-            u (FloatTensor): global parameter for relative positional embedding
-            v (FloatTensor): global parameter for relative positional embedding
+            x (torch.Tensor): input signals (B, T, d_model)
+            att_mask (torch.Tensor): attention masks(B, T, T)
+            pos_emb (torch.Tensor): (L, 1, d_model)
+            pad_mask (torch.tensor): padding mask
         Returns:
-            xs (FloatTensor): `[B, T, d_model]`
-            xx_aws (FloatTensor): `[B, H, T, T]`
-
+            x (torch.Tensor): (B, T, d_model)
         """
         residual = x
         x = self.norm_feed_forward1(x)
