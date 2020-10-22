@@ -137,6 +137,11 @@ class TransformerMTModel(ModelPT):
             "val": cfg.validation_ds.get("num_examples", 3)
         }
 
+        # These attributes are added to bypass Illegal memory access error in PT1.6
+        # https://github.com/pytorch/pytorch/issues/21819
+        self.src_embedding_factor = None
+        self.tgt_embedding_factor = None
+
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         """
@@ -144,11 +149,13 @@ class TransformerMTModel(ModelPT):
         in the `nn.Module` in vanilla PyTorch.
         """
         src_embeddings = self.src_embedding_layer(input_ids=src)
-        src_emb_factor = src_embeddings.new_tensor(src_embeddings.shape[2]**0.5)
-        src_hiddens = self.encoder(src_embeddings * src_emb_factor, src_mask)
+        if self.src_embedding_factor is None:
+            self.src_embedding_factor = src_embeddings.new_tensor(src_embeddings.shape[2]**0.5)
+        src_hiddens = self.encoder(src_embeddings * self.src_embedding_factor, src_mask)
         tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
-        tgt_emb_factor = tgt_embeddings.new_tensor(tgt_embeddings.shape[2]**0.5)
-        tgt_hiddens = self.decoder(tgt_embeddings * tgt_emb_factor, tgt_mask, src_hiddens, src_mask)
+        if self.tgt_embedding_factor is None:
+            self.tgt_embedding_factor = tgt_embeddings.new_tensor(tgt_embeddings.shape[2]**0.5)
+        tgt_hiddens = self.decoder(tgt_embeddings * self.tgt_embedding_factor, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
         if not self.training:
