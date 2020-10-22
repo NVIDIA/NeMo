@@ -117,6 +117,7 @@ class TransformerMTModel(ModelPT):
             pad=self.tgt_tokenizer.pad_id,
             eos=self.tgt_tokenizer.eos_id,
             len_pen=cfg.machine_translation.len_pen,
+            max_delta=cfg.machine_translation.get("max_generation_delta", 50),
         )
 
         std_init_range = 1 / math.sqrt(cfg.machine_translation.hidden_size)
@@ -130,6 +131,11 @@ class TransformerMTModel(ModelPT):
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
+
+        self.num_examples = {
+            "test": cfg.model.test_ds.get("num_examples", 3),
+            "validation": cfg.model.validation_ds.get("num_examples", 3)
+        }
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
@@ -205,6 +211,7 @@ class TransformerMTModel(ModelPT):
         eval_loss = np.sum(np.array([x[f'{mode}_loss'] for x in outputs]) * counts) / counts.sum()
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
+        assert len(translations) == len(ground_truths)
         token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
         ans = {

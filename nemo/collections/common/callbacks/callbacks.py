@@ -40,11 +40,15 @@ class MachineTranslationLogEvalCallback(Callback):
         eval_loss = np.sum(np.array(self._losses) * counts) / np.sum(counts)
         token_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="13a")
-        print(f"{mode} results for process {pl_module.global_rank}".capitalize())
-        for i in range(3):
+        print(f"{mode} results for process with global rank {pl_module.global_rank}".upper())
+        for i in range(pl_module.num_examples[mode]):
+            example_announcement = f"EXAMPLE {i}:"
+            print(f"EXAMPLE {i}:")
+            print('-' * len(example_announcement))
             sent_id = np.random.randint(len(self._translations))
             print(f"Ground truth: {self._ground_truths[sent_id]}\n")
             print(f"Translation: {self._translations[sent_id]}\n")
+            print()
         print("-" * 50)
         print(f"loss: {eval_loss:.3f}")
         print(f"TokenBLEU: {token_bleu}")
@@ -75,7 +79,7 @@ class MachineTranslationLogEvalCallback(Callback):
 
     @rank_zero_only
     def on_validation_batch_end(self, trainer, pl_module, batch, outputs, batch_idx, dataloader_idx):
-        self._on_eval_batch_end(trainer, pl_module, batch, outputs, batch_idx, dataloader_idx, 'val')
+        self._on_eval_batch_end(trainer, pl_module, batch, outputs, batch_idx, dataloader_idx, 'validation')
 
     def _on_eval_start(self, trainer, pl_module):
         self._translations = []

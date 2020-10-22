@@ -6,12 +6,12 @@ pip install -r requirements/requirements.txt \
   && export PYTHONPATH="${nemo_path}" \
   && mkdir -p /data/wmt14_en_de \
   && cd /data/wmt14_en_de \
-  && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.de -O valid.de \
-  && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.en -O valid.en \
-  && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2014.de -O test.de \
-  && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2014.en -O test.en \
-  && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.de \
-  && wget https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.en \
+  && wget -q -O valid.de https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.de \
+  && wget -q -O valid.en https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2013.en \
+  && wget -q -O test.de https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2014.de \
+  && wget -q -O test.en https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/newstest2014.en \
+  && wget -q https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.de \
+  && wget -q https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.en \
   && cat train.en train.de > yttm_train.ende \
   && echo "current path when creating yttm model: $(pwd)" \
   && yttm bpe --data yttm_train.ende --model bpe_37k_en_de_yttm.model --vocab_size 37000 \
