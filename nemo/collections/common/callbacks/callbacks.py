@@ -34,6 +34,7 @@ class LogEpochTimeCallback(Callback):
         duration = curr_time - self.epoch_start
         trainer.logger.log_metrics({"epoch_time": duration}, step=trainer.global_step)
 
+
 class MachineTranslationLogEvalCallback(Callback):
     def _on_eval_end(self, trainer, pl_module, mode):
         counts = np.array(self._non_pad_tokens)
@@ -42,9 +43,7 @@ class MachineTranslationLogEvalCallback(Callback):
         sacre_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="13a")
         print(f"{mode} results for process with global rank {pl_module.global_rank}".upper())
         for i in range(pl_module.num_examples[mode]):
-            example_announcement = f"EXAMPLE {i}:"
-            print(f"EXAMPLE {i}:")
-            print('-' * len(example_announcement))
+            print('\u0332'.join(f"EXAMPLE {i}:"))  # Underline output
             sent_id = np.random.randint(len(self._translations))
             print(f"Ground truth: {self._ground_truths[sent_id]}\n")
             print(f"Translation: {self._translations[sent_id]}\n")
