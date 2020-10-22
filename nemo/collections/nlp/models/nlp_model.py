@@ -32,7 +32,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 __all__ = ['NLPModel']
 
