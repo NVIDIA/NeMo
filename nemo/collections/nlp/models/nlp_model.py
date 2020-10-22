@@ -15,6 +15,7 @@
 import hashlib
 import json
 import os
+from nemo.utils import app_state
 from typing import List
 
 import pytorch_lightning
@@ -267,7 +268,6 @@ class NLPModel(ModelPT):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
