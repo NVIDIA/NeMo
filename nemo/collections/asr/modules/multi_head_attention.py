@@ -1,6 +1,5 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2017 Johns Hopkins University (Shinji Watanabe)
-# Copyright 2020 Hirofumi Inaguma(Kyoto University)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,8 +23,6 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-
-from nemo.utils import logging
 
 __all__ = [
     'RelPositionMultiHeadAttention',
