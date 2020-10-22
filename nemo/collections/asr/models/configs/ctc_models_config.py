@@ -162,12 +162,3 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
 @dataclass
 class EncDecCTCModelConfig(model_cfg.ModelPTConfig):
     model: EncDecCTCConfig = EncDecCTCConfig()
-
-
-if __name__ == '__main__':
-
-    cfg = OmegaConf.structured(EncDecCTCModelConfig)
-    new_cfg = OmegaConf.load("/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/conf/quartznet_15x5_new.yaml")
-
-    cfg = OmegaConf.merge(cfg, new_cfg)
-    print(OmegaConf.to_yaml(cfg))
