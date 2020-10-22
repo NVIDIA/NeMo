@@ -24,7 +24,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules import MegatronBertEncoder
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 __all__ = ['NLPModel']
 
