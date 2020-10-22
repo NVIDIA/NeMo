@@ -468,7 +468,7 @@ class EncDecRNNTModel(ASRModel):
             else:
                 decoded = None
                 target_len = transcript_len
-            self.freeze()
+
             # Fused joint step
             loss_value, wer, wer_num, wer_denom = self.joint(
                 encoder_outputs=encoded,
