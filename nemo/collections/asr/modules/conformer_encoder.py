@@ -126,8 +126,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.pre_encode = ConvSubsampling(
                 subsampling=subsampling,
                 subsampling_factor=subsampling_factor,
-                idim=feat_in,
-                odim=d_model,
+                feat_in=feat_in,
+                feat_out=d_model,
                 conv_channels=subsampling_conv_channels,
                 activation=nn.ReLU(),
             )

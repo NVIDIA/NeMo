@@ -36,9 +36,10 @@ __all__ = [
 
 class MultiHeadAttention(nn.Module):
     """Multi-Head Attention layer.
-    :param int n_head: the number of head s
-    :param int n_feat: the number of features
-    :param float dropout_rate: dropout rate
+    Args:
+        n_head (int): number of heads
+        n_feat (int): size of the features
+        dropout_rate (float): dropout rate
     """
 
     def __init__(self, n_head, n_feat, dropout_rate):
@@ -56,29 +57,34 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
 
     def forward_qkv(self, query, key, value):
-        """Transform query, key and value.
-        :param torch.Tensor query: (batch, time1, size)
-        :param torch.Tensor key: (batch, time2, size)
-        :param torch.Tensor value: (batch, time2, size)
-        :return torch.Tensor transformed query, key and value
+        """Transforms query, key and value.
+        Args:
+            query (torch.Tensor): (batch, time1, size)
+            key (torch.Tensor): (batch, time2, size)
+            value (torch.Tensor): (batch, time2, size)
+        returns:
+            q (torch.Tensor): (batch, head, time1, size)
+            k (torch.Tensor): (batch, head, time2, size)
+            v (torch.Tensor): (batch, head, time2, size)
         """
         n_batch = query.size(0)
         q = self.linear_q(query).view(n_batch, -1, self.h, self.d_k)
         k = self.linear_k(key).view(n_batch, -1, self.h, self.d_k)
         v = self.linear_v(value).view(n_batch, -1, self.h, self.d_k)
-        q = q.transpose(1, 2)  # (batch, head, time1, d_k)
-        k = k.transpose(1, 2)  # (batch, head, time2, d_k)
-        v = v.transpose(1, 2)  # (batch, head, time2, d_k)
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
 
         return q, k, v
 
     def forward_attention(self, value, scores, mask):
         """Compute attention context vector.
-        :param torch.Tensor value: (batch, time2, size)
-        :param torch.Tensor scores: (batch, time1, time2)
-        :param torch.Tensor mask: (batch, time1, time2)
-        :return torch.Tensor transformed `value` (batch, time2, d_model)
-            weighted by the attention score (batch, time1, time2)
+        Args:
+            value (torch.Tensor): (batch, time2, size)
+            scores(torch.Tensor): (batch, time1, time2)
+            mask(torch.Tensor): (batch, time1, time2)
+        returns:
+            value (torch.Tensor): transformed `value` (batch, time2, d_model) weighted by the attention scores
         """
         n_batch = value.size(0)
         if mask is not None:
@@ -97,13 +103,13 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, query, key, value, mask):
         """Compute 'Scaled Dot Product Attention'.
-        :param torch.Tensor query: (batch, time1, size)
-        :param torch.Tensor key: (batch, time2, size)
-        :param torch.Tensor value: (batch, time2, size)
-        :param torch.Tensor mask: (batch, time1, time2)
-        :param torch.nn.Dropout dropout:
-        :return torch.Tensor: attentined and transformed `value` (batch, time1, d_model)
-             weighted by the query dot key attention (batch, head, time1, time2)
+        Args:
+            query (torch.Tensor): (batch, time1, size)
+            key (torch.Tensor): (batch, time2, size)
+            value(torch.Tensor): (batch, time2, size)
+            mask (torch.Tensor): (batch, time1, time2)
+        returns:
+            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
         q, k, v = self.forward_qkv(query, key, value)
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)
@@ -113,9 +119,10 @@ class MultiHeadAttention(nn.Module):
 class RelPositionMultiHeadAttention(MultiHeadAttention):
     """Multi-Head Attention layer with relative position encoding.
     Paper: https://arxiv.org/abs/1901.02860
-    :param int n_head: the number of head s
-    :param int n_feat: the number of features
-    :param float dropout_rate: dropout rate
+    Args:
+        n_head (int): number of heads
+        n_feat (int): size of the features
+        dropout_rate (float): dropout rate
     """
 
     def __init__(self, n_head, n_feat, dropout_rate):
@@ -132,8 +139,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
     def rel_shift(self, x, zero_triu=False):
         """Compute relative positinal encoding.
-        :param torch.Tensor x: (batch, time, size)
-        :param bool zero_triu: return the lower triangular part of the matrix
+        Args:
+            x (torch.Tensor): (batch, time, size)
+            zero_triu (bool): return the lower triangular part of the matrix
         """
         zero_pad = torch.zeros((*x.size()[:3], 1), device=x.device, dtype=x.dtype)
         x_padded = torch.cat([zero_pad, x], dim=-1)
@@ -149,14 +157,14 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
     def forward(self, query, key, value, mask, pos_emb):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
-        :param torch.Tensor query: (batch, time1, size)
-        :param torch.Tensor key: (batch, time2, size)
-        :param torch.Tensor value: (batch, time2, size)
-        :param torch.Tensor pos_emb: (batch, time1, size)
-        :param torch.Tensor mask: (batch, time1, time2)
-        :param torch.nn.Dropout dropout:
-        :return torch.Tensor: attentined and transformed `value` (batch, time1, d_model)
-             weighted by the query dot key attention (batch, head, time1, time2)
+        Args:
+            query (torch.Tensor): (batch, time1, size)
+            key (torch.Tensor): (batch, time2, size)
+            value(torch.Tensor): (batch, time2, size)
+            mask (torch.Tensor): (batch, time1, time2)
+            pos_emb (torch.Tensor) : (batch, time1, size)
+        Returns:
+            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
         q, k, v = self.forward_qkv(query, key, value)
         q = q.transpose(1, 2)  # (batch, time1, head, d_k)
@@ -188,10 +196,11 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
 class PositionalEncoding(torch.nn.Module):
     """Positional encoding.
-    :param int d_model: embedding dim
-    :param float dropout_rate: dropout rate
-    :param int max_len: maximum input length
-    :param reverse: whether to reverse the input position
+    Args:
+        d_model (int): embedding dim
+        dropout_rate (float): dropout rate
+        max_len (int): maximum input length
+        reverse (int): whether to reverse the input position
     """
 
     def __init__(self, d_model, dropout_rate, max_len=5000, reverse=False, xscale=None):
@@ -229,7 +238,7 @@ class PositionalEncoding(torch.nn.Module):
         Args:
             x (torch.Tensor): Input. Its shape is (batch, time, ...)
         Returns:
-            torch.Tensor: Encoded tensor. Its shape is (batch, time, ...)
+            Encoded Output (torch.Tensor): Its shape is (batch, time, ...)
         """
         self.extend_pe(x)
         if self.xscale:
@@ -241,17 +250,13 @@ class PositionalEncoding(torch.nn.Module):
 class RelPositionalEncoding(PositionalEncoding):
     """Relitive positional encoding module.
     See : Appendix B in https://arxiv.org/abs/1901.02860
-    :param int d_model: embedding dim
-    :param float dropout_rate: dropout rate
-    :param int max_len: maximum input length
+    Args:
+        d_model (int): embedding dim
+        dropout_rate (float): dropout rate
+        max_len (int): maximum input length
     """
 
     def __init__(self, d_model, dropout_rate, max_len=5000, dropout_emb_rate=0.0, xscale=None):
-        """Initialize class.
-        :param int d_model: embedding dim
-        :param float dropout_rate: dropout rate
-        :param int max_len: maximum input length
-        """
         super().__init__(d_model, dropout_rate, max_len, reverse=True, xscale=xscale)
 
         if dropout_emb_rate > 0:
@@ -264,8 +269,8 @@ class RelPositionalEncoding(PositionalEncoding):
         Args:
             x (torch.Tensor): Input. Its shape is (batch, time, ...)
         Returns:
-            torch.Tensor: x. Its shape is (batch, time, ...)
-            torch.Tensor: pos_emb. Its shape is (1, time, ...)
+            x (torch.Tensor): Its shape is (batch, time, ...)
+            pos_emb (torch.Tensor): Its shape is (1, time, ...)
         """
         self.extend_pe(x)
         if self.xscale:

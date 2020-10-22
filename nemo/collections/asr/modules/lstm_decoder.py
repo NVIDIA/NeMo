@@ -27,7 +27,14 @@ __all__ = ['LSTMDecoder']
 
 class LSTMDecoder(NeuralModule, Exportable):
     """
-    Simple LSTM Decoder for use with CTC-based ASR models
+    Simple LSTM Decoder for ASR models
+    Args:
+        feat_in (int): size of the input features
+        num_classes (int): the size of the vocabulary
+        lstm_hidden_size (int): hidden size of the LSTM layers
+        vocabulary (vocab): The vocabulary
+        bidirectional (bool): default is False. Whether LSTMs are bidirectional or not
+        num_layers (int): default is 1. Number of LSTM layers stacked
     """
 
     def save_to(self, save_path: str):

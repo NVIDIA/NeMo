@@ -19,19 +19,21 @@ import torch.nn as nn
 
 
 class ConvSubsampling(torch.nn.Module):
-    """Convolutional 2D subsampling (to 1/4 length).
-
-    :param int idim: input dim
-    :param int odim: output dim
-    :param str activation: activation functions
-    :param flaot dropout_rate: dropout rate
-
+    """Convolutional subsampling which supports VGGNet and striding approach introduced in:
+    VGGNet Subsampling: https://arxiv.org/pdf/1910.12977.pdf
+    Striding Subsampling:
+        "Speech-Transformer: A No-Recurrence Sequence-to-Sequence Model for Speech Recognition" by Linhao Dong et al.
+    Args:
+        subsampling (str): The subsampling technique from {"vggnet", "striding"}
+        subsampling_factor (int): The subsampling factor which should be a power of 2
+        feat_in (int): size of the input features
+        feat_out (int): size of the output features
+        conv_channels (int): Number of channels for the convolution layers.
+        activation (Module): activation function, default is nn.ReLU()
     """
 
-    def __init__(self, subsampling, subsampling_factor, idim, odim, conv_channels=-1, activation=nn.ReLU()):
+    def __init__(self, subsampling, subsampling_factor, feat_in, feat_out, conv_channels, activation=nn.ReLU()):
         super(ConvSubsampling, self).__init__()
-        if conv_channels <= 0:
-            conv_channels = odim
         self._subsampling = subsampling
 
         if subsampling_factor % 2 != 0:
@@ -44,7 +46,7 @@ class ConvSubsampling(torch.nn.Module):
             self._padding = 0
             self._stride = 2
             self._kernel_size = 2
-            self._ceil_mode = True  # TODO: is False better?
+            self._ceil_mode = True
 
             for i in range(self._sampling_num):
                 layers.append(
@@ -69,7 +71,7 @@ class ConvSubsampling(torch.nn.Module):
                 )
                 in_channels = conv_channels
         elif subsampling == 'striding':
-            self._padding = 1  # TODO: is 0 better?
+            self._padding = 1
             self._stride = 2
             self._kernel_size = 3
             self._ceil_mode = False
@@ -89,7 +91,7 @@ class ConvSubsampling(torch.nn.Module):
         else:
             raise ValueError(f"Not valid sub-sampling: {subsampling}!")
 
-        in_length = idim
+        in_length = feat_in
         for i in range(self._sampling_num):
             out_length = calc_length(
                 length=int(in_length),
@@ -100,23 +102,16 @@ class ConvSubsampling(torch.nn.Module):
             )
             in_length = out_length
 
-        self.out = torch.nn.Linear(conv_channels * out_length, odim)
+        self.out = torch.nn.Linear(conv_channels * out_length, feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
     def forward(self, x, lengths):
-        """Subsample x.
-
-        :param torch.Tensor x: input tensor
-        :param torch.Tensor x_mask: input mask
-        :return: subsampled x and mask
-        :rtype Tuple[torch.Tensor or Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
-        """
-        x = x.unsqueeze(1)  # (b, c, t, f)
+        x = x.unsqueeze(1)
         x = self.conv(x)
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
 
-        # TODO: improve the performance of here
+        # TODO: improve the performance of length calculation
         new_lengths = lengths
         for i in range(self._sampling_num):
             new_lengths = [
@@ -135,6 +130,7 @@ class ConvSubsampling(torch.nn.Module):
 
 
 def calc_length(length, padding, kernel_size, stride, ceil_mode):
+    """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
     if ceil_mode:
         length = math.ceil((length + (2 * padding) - (kernel_size - 1) - 1) / float(stride) + 1)
     else:
