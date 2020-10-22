@@ -268,6 +268,7 @@ class NLPModel(ModelPT):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
+
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
