@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
