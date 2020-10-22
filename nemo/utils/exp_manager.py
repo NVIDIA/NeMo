@@ -288,7 +288,9 @@ def check_resume(
 
     checkpoint_dir = Path(Path(log_dir) / "checkpoints")
     checkpoint = None
-    end_checkpoints = list(checkpoint_dir.glob("*end.ckpt"))
+    end_checkpoints_1 = list(checkpoint_dir.glob("*end.ckpt"))
+    end_checkpoints_0 = list(checkpoint_dir.glob("*.nemo"))
+    end_checkpoints = end_checkpoints_1.extend(end_checkpoints_0)
     last_checkpoints = list(checkpoint_dir.glob("*last.ckpt"))
     if not checkpoint_dir.exists():
         if resume_ignore_no_checkpoint:
@@ -539,8 +541,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
-        filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
-        self._save_model(filepath, trainer, pl_module)
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + '.nemo')
 
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict):
