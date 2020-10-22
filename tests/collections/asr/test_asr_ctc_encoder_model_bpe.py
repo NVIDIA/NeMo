@@ -49,7 +49,9 @@ def asr_model(test_data_dir):
 
     decoder = {
         '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
-        'feat_in': 1024, 'num_classes': -1, 'vocabulary': None,
+        'feat_in': 1024,
+        'num_classes': -1,
+        'vocabulary': None,
     }
 
     tokenizer = {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'}
