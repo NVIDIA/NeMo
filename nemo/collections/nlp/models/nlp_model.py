@@ -15,6 +15,7 @@
 import hashlib
 import json
 import os
+import pytorch_lightning
 from nemo.utils import app_state
 from typing import List
 
@@ -27,6 +28,7 @@ from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.accelerators.accelerator import Accelerator
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
