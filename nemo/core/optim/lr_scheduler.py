@@ -531,7 +531,7 @@ def prepare_lr_scheduler(
         # Compute effective num max_steps
         num_samples = len(train_dataloader.dataset)
         batch_size = train_dataloader.batch_size
-        drop_last = train_dataloader.batch_size
+        drop_last = train_dataloader.drop_last
 
         max_steps = compute_max_steps(
             max_epochs, accumulate_grad_batches, num_workers, num_samples, batch_size, drop_last,
