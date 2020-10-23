@@ -97,9 +97,9 @@ class EncDecCTCModel(ASRModel, Exportable):
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
 
-        if "params" in self.encoder:
-            if not self._cfg.decoder.params.feat_in and hasattr(self.encoder.params, 'feat_out'):
-                self._cfg.decoder.params.feat_in = self.encoder.params.feat_out
+        if "params" in self._cfg.decoder:
+            if not self._cfg.decoder.params.feat_in and hasattr(self.encoder, 'feat_out'):
+                self._cfg.decoder.params.feat_in = self.encoder.feat_out
             else:
                 logging.error("param feat_in of the decoder's config is not set!")
         else:
