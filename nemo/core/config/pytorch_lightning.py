@@ -17,8 +17,7 @@
 # Then manually edited to keep the original NeMo settigns.
 
 from dataclasses import dataclass, field
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
 
 from hydra.core.config_store import ConfigStore
 
