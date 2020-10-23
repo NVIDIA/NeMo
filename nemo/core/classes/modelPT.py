@@ -76,7 +76,7 @@ class ModelPT(LightningModule, Model):
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
-        if is_dataclass(cfg) and isinstance(cfg, ModelPTConfig):
+        if is_dataclass(cfg):
             cfg = OmegaConf.structured(cfg)
         if not isinstance(cfg, DictConfig):
             raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")

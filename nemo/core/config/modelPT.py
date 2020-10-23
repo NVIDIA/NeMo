@@ -28,7 +28,7 @@ class DatasetConfig:
     """
 
     # ...
-    batch_size: int = MISSING
+    batch_size: int = 32
     drop_last: bool = False
     shuffle: bool = False
     num_workers: Optional[int] = None
@@ -72,6 +72,8 @@ class HydraConfig:
 class ModelPTConfig:
     name: str = MISSING
     model: ModelConfig = MISSING
-    trainer: config.TrainerConfig = config.TrainerConfig()
+    trainer: config.TrainerConfig = config.TrainerConfig(
+        accelerator="ddp", checkpoint_callback=False, logger=False, log_every_n_steps=1
+    )
     exp_manager: Optional[Any] = exp_manager.ExpManagerConfig()
     hydra: HydraConfig = HydraConfig()
