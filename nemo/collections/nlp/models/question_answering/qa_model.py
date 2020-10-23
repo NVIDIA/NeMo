@@ -185,29 +185,42 @@ class QAModel(NLPModel):
         self,
         file: str,
         batch_size: int = 1,
+        num_samples: int = -1,
         output_nbest_file: Optional[str] = None,
         output_prediction_file: Optional[str] = None,
-    ) -> List[int]:
+    ):
         """
-        Get prediction for the queries
+        Get prediction for unlabeled inference data
         Args:
-            queries: text sequences
+            file: inference data
             batch_size: batch size to use during inference
-            max_seq_length: sequences longer than max_seq_length will get truncated. default -1 disables truncation.
+            num_samples: number of samples to use of inference data. Default: -1 if all data should be used.
+            output_nbest_file: optional output file for writing out nbest list
+            output_prediction_file: optional output file for writing out predictions
         Returns:
-            all_preds: model predictions
+            all_predictions: model predictions
+            all_nbest: model nbest list
         """
         # store predictions for all queries in a single list
         all_predictions = []
         all_nbest = []
         mode = self.training
-        device = next(self.parameters()).device
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         try:
             # Switch model to evaluation mode
             self.eval()
+            self.to(device)
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
-            dataloader_cfg = {"batch_size": batch_size, "file": file, "shuffle": False, "num_samples": 100}
+            dataloader_cfg = {
+                "batch_size": batch_size,
+                "file": file,
+                "shuffle": False,
+                "num_samples": num_samples,
+                'num_workers': 2,
+                'pin_memory': False,
+                'drop_last': False,
+            }
             dataloader_cfg = OmegaConf.create(dataloader_cfg)
             infer_datalayer = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode=INFERENCE_MODE)
 
