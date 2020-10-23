@@ -66,10 +66,10 @@ class TalkNetDursModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         cfg = self._cfg
-        self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.vocab)
-        self.emb = nn.Embedding(len(self.vocab.labels), cfg.d_char)
-        self.model = instantiate(cfg.model)
-        self.rz = nn.Conv1d(cfg.model.jasper[-1].filters, 1, kernel_size=1)
+        self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.model.train_ds.dataset.vocab)
+        self.emb = nn.Embedding(len(self.vocab.labels), cfg.model.d_char)
+        self.model = instantiate(cfg.model.model)
+        self.rz = nn.Conv1d(cfg.model.model.jasper[-1].filters, 1, kernel_size=1)
         self.loss = TalkNetDursLoss()
 
     @property
@@ -183,11 +183,11 @@ class TalkNetSpectModel(SpectrogramGenerator):
         super().__init__(cfg=cfg, trainer=trainer)
 
         cfg = self._cfg
-        self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.vocab)
-        self.preprocessor = instantiate(cfg.preprocessor)
-        self.emb = nn.Embedding(len(self.vocab.labels), cfg.d_char)
-        self.model = instantiate(cfg.model)
-        self.rz = nn.Conv1d(cfg.model.jasper[-1].filters, cfg.n_mels, kernel_size=1)
+        self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.model.train_ds.dataset.vocab)
+        self.preprocessor = instantiate(cfg.model.preprocessor)
+        self.emb = nn.Embedding(len(self.vocab.labels), cfg.model.d_char)
+        self.model = instantiate(cfg.model.model)
+        self.rz = nn.Conv1d(cfg.model.model.jasper[-1].filters, cfg.model.n_mels, kernel_size=1)
         self.loss = TalkNetSpectLoss()
 
     @property
@@ -270,8 +270,9 @@ class TalkNetSpectModel(SpectrogramGenerator):
     def parse(self, text: str, **kwargs) -> torch.Tensor:
         return torch.tensor(self.vocab.encode(text)).long()
 
-    def load_durs_predictor(self, checkpoint_path):
-        self.dn = TalkNetDursModel.load_from_checkpoint(checkpoint_path=checkpoint_path).cuda()
+    def load_durs_predictor(self, checkpoint_path, hparams_file):
+        self.dn = TalkNetDursModel.load_from_checkpoint(checkpoint_path=checkpoint_path,
+                                                        hparams_file=hparams_file).cuda()
 
     def generate_spectrogram(self, tokens: torch.Tensor, **kwargs) -> torch.Tensor:
         text, text_len = tokens.unsqueeze(0), torch.tensor(len(tokens)).unsqueeze(0)
