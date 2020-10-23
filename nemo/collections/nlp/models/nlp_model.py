@@ -15,6 +15,7 @@
 import hashlib
 import json
 import os
+import pytorch_lightning
 from nemo.utils import app_state
 from typing import List
 
@@ -25,6 +26,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.accelerators.accelerator import Accelerator
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
@@ -227,6 +229,31 @@ class NLPModel(ModelPT):
             logging.info("Did not detect model parallel using LightningModule.configure_ddp")
             return LightningModule.configure_ddp(self, model, device_ids)
 
+    def _clip_gradients(self, optimizer, clip_val=None):
+        """ Override of PTL Gradient Clipping.
+            Enables model parallel gradient clipping from Megatron-LM.
+
+        Args:
+            optimizer ([type]): [description]
+            clip_val ([type], optional): [description]. Defaults to None.
+        """
+        app_state = AppState()
+
+        # get clip_val from trainer if None is provided
+        if clip_val is None:
+            clip_val = float(self._trainer.gradient_clip_val)
+
+        if app_state.model_parallel_size is not None:
+            model = self._trainer.get_model()
+            parameters = model.parameters()
+            if mpu.model_parallel_is_initialized():
+                mpu.grads.clip_grad_norm(parameters=parameters, max_norm=clip_val)
+            else:
+                raise ValueError('Model parallel groups must be intialized to use model parallel gradient clipping.')
+
+        else:
+            return Accelerator._clip_gradients(self, optimizer, clip_val)
+
     def setup(self, stage: str) -> None:
         """ PTL hook that is called after DDP is initialized.
             Called at the beginning of fit and test. 
@@ -246,8 +273,16 @@ class NLPModel(ModelPT):
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
+                # mpu grad clipping needs parameters to have the attribute model_parallel
+                parameters = self._trainer.get_model().parameters()
+                for p in parameters:
+                    if not hasattr(p, 'model_parallel'):
+                        p.model_parallel = False
+
                 # Update PTL trainer to use our configure_ddp
                 self._trainer.accelerator_backend.configure_ddp = self.configure_ddp
+                # Update PTL trainer to use our _clip_gradients
+                self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
