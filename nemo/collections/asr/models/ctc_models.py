@@ -226,7 +226,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         shuffle = config['shuffle']
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
         if config.get('use_dali', False):
-            device_id = self.local_rank if device == 'gpu' else -1
+            device_id = self.local_rank if device == 'gpu' else None
             dataset = AudioToCharDALIDataset(
                 manifest_filepath=config['manifest_filepath'],
                 device=device,
@@ -374,7 +374,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         # Spec augment is not applied during evaluation/testing
         need_augmenting = self.spec_augmentation is not None and self.training
         if isinstance(outputs, DALIOutputs):
-            if outputs.has_processed_signal():
+            if outputs.has_processed_signal:
                 need_processing = False
                 processed_signal, processed_signal_len, transcript, transcript_len = outputs.get()
             else:

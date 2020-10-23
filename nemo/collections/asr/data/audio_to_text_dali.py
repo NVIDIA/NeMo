@@ -41,6 +41,7 @@ class DALIOutputs(object):
             assert('audio' in out_dict and 'audio_len' in out_dict)
         assert ('transcript' in out_dict and 'transcript_len' in out_dict)
 
+    @property
     def has_processed_signal(self):
         return self._has_processed_signal
 
@@ -77,10 +78,12 @@ class AudioToCharDALIDataset(Iterator):
         eos_id (int): Id of end of sequence symbol to append if not None
         trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
         shuffle (bool): If set to True, the dataset will shuffled after loading.
+        drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
+                          If set to False and the size of dataset is not divisible by the batch size, then the last batch will be smaller.
         device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
-        device_id (int): Index of the GPU to be used. Only applicable when device == 'gpu'. Defaults to 0.
+        device_id (int): Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
-        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
     """
 
@@ -100,6 +103,7 @@ class AudioToCharDALIDataset(Iterator):
                  eos_id: Optional[int] = None,
                  trim: bool = False,
                  shuffle: bool = True,
+                 drop_last: bool = False,
                  parser: Union[str, Callable] = 'en',
                  device_id: int = 0,
                  global_rank: int = 0,
@@ -140,8 +144,8 @@ class AudioToCharDALIDataset(Iterator):
         self.bos_id = bos_id
         self.sample_rate = sample_rate
 
-        self.pipes = [Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=self.device_id,
-                               exec_async=True, exec_pipelined=True)]
+        self.pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=self.device_id,
+                             exec_async=True, exec_pipelined=True)
 
         has_preprocessor = preprocessor_cfg is not None
         if has_preprocessor:
@@ -250,99 +254,97 @@ class AudioToCharDALIDataset(Iterator):
             self.pad_to = params['pad_to'] if 'pad_to' in params else 16
             self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
 
-        for pipe in self.pipes:
-            with pipe:
-                audio, transcript = dali.fn.nemo_asr_reader(
-                    name="Reader", manifest_filepaths = manifest_filepath.split(','),
-                    dtype = dali.types.FLOAT, downmix = True, sample_rate=float(self.sample_rate),
-                    min_duration=min_duration, max_duration=max_duration,
-                    read_sample_rate=False, read_text=True, random_shuffle=shuffle,
-                    shard_id=self.shard_id, num_shards=self.num_shards
+        with pipe:
+            audio, transcript = dali.fn.nemo_asr_reader(
+                name="Reader", manifest_filepaths = manifest_filepath.split(','),
+                dtype = dali.types.FLOAT, downmix = True, sample_rate=float(self.sample_rate),
+                min_duration=min_duration, max_duration=max_duration,
+                read_sample_rate=False, read_text=True, random_shuffle=shuffle,
+                shard_id=self.shard_id, num_shards=self.num_shards, pad_last_batch=True
+            )
+
+            transcript_len = dali.fn.shapes(dali.fn.reshape(transcript, shape=[-1]))
+            transcript = dali.fn.pad(transcript)
+
+            # Extract nonsilent region, if necessary
+            if trim:
+                # Need to extract non-silent region before moving to the GPU
+                roi_start, roi_len = dali.fn.nonsilent_region(audio, cutoff_db=-60)
+                audio = audio.gpu() if self.device == 'gpu' else audio
+                audio = dali.fn.slice(
+                    audio, roi_start, roi_len, normalized_anchor=False, normalized_shape=False, axes=[0]
+                )
+            else:
+                audio = audio.gpu() if self.device == 'gpu' else audio
+
+            if not has_preprocessor:
+                # No preprocessing, the output is the audio signal
+                audio = dali.fn.pad(audio)
+                audio_len = dali.fn.shapes(dali.fn.reshape(audio, shape=[-1]))
+                pipe.set_outputs(audio, audio_len, transcript, transcript_len)
+            else:
+                # Additive gaussian noise (dither)
+                if self.dither > 0.0:
+                    gaussian_noise = dali.fn.normal_distribution(device=self.device)
+                    audio = audio + self.dither * gaussian_noise
+
+                # Preemphasis filter
+                if self.preemph > 0.0:
+                    audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph)
+
+                # Power spectrogram
+                spec = dali.fn.spectrogram(
+                    audio,
+                    nfft=self.n_fft,
+                    window_length=self.window_size,
+                    window_step=self.window_stride
                 )
 
-                transcript_len = dali.fn.shapes(dali.fn.reshape(transcript, shape=[-1]))
-                transcript = dali.fn.pad(transcript)
-
-                # Extract nonsilent region, if necessary
-                if trim:
-                    # Need to extract non-silent region before moving to the GPU
-                    roi_start, roi_len = dali.fn.nonsilent_region(audio, cutoff_db=-60)
-                    audio = audio.gpu() if self.device == 'gpu' else audio
-                    audio = dali.fn.slice(
-                        audio, roi_start, roi_len, normalized_anchor=False, normalized_shape=False, axes=[0]
+                if feature_type == 'mel_spectrogram' or feature_type == 'mfcc':
+                    # Spectrogram to Mel Spectrogram
+                    spec = dali.fn.mel_filter_bank(
+                        spec, sample_rate=self.sample_rate, nfilter=self.n_mels, normalize=True,
+                        freq_low=self.freq_low, freq_high=self.freq_high
                     )
-                else:
-                    audio = audio.gpu() if self.device == 'gpu' else audio
+                    # Mel Spectrogram to MFCC
+                    if feature_type == 'mfcc':
+                        spec = dali.fn.mfcc(spec, n_mfcc=self.n_mfcc)
 
-                if not has_preprocessor:
-                    # No preprocessing, the output is the audio signal
-                    audio = dali.fn.pad(audio)
-                    audio_len = dali.fn.shapes(dali.fn.reshape(audio, shape=[-1]))
-                    pipe.set_outputs(audio, audio_len, transcript, transcript_len)
-                else:
-                    # Additive gaussian noise (dither)
-                    if self.dither > 0.0:
-                        gaussian_noise = dali.fn.normal_distribution(device=self.device)
-                        audio = audio + self.dither * gaussian_noise
+                # Logarithm
+                if self.log_zero_guard_type == 'add':
+                    spec = spec + self.log_zero_guard_value
 
-                    # Preemphasis filter
-                    if self.preemph > 0.0:
-                        audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph)
+                spec = dali.fn.to_decibels(
+                    spec, multiplier=math.log(10), reference=1.0, cutoff_db=math.log(self.log_zero_guard_value)
+                )
 
-                    # Power spectrogram
-                    spec = dali.fn.spectrogram(
-                        audio,
-                        nfft=self.n_fft,
-                        window_length=self.window_size,
-                        window_step=self.window_stride
-                    )
+                # Normalization
+                spec = dali.fn.normalize(spec, axes=self.normalization_axes)
 
-                    if feature_type == 'mel_spectrogram' or feature_type == 'mfcc':
-                        # Spectrogram to Mel Spectrogram
-                        spec = dali.fn.mel_filter_bank(
-                            spec, sample_rate=self.sample_rate, nfilter=self.n_mels, normalize=True,
-                            freq_low=self.freq_low, freq_high=self.freq_high
-                        )
-                        # Mel Spectrogram to MFCC
-                        if feature_type == 'mfcc':
-                            spec = dali.fn.mfcc(spec, n_mfcc=self.n_mfcc)
+                # Extracting the length of the spectrogram
+                shape_start = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
+                shape_len = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
+                spec_len = dali.fn.slice(
+                    dali.fn.shapes(spec), shape_start, shape_len, normalized_anchor=False, normalized_shape=False, axes=(0,)
+                )
 
-                    # Logarithm
-                    if self.log_zero_guard_type == 'add':
-                        spec = spec + self.log_zero_guard_value
-
-                    spec = dali.fn.to_decibels(
-                        spec, multiplier=math.log(10), reference=1.0, cutoff_db=math.log(self.log_zero_guard_value)
-                    )
-
-                    # Normalization
-                    spec = dali.fn.normalize(spec, axes=self.normalization_axes)
-
-                    # Extracting the length of the spectrogram
-                    shape_start = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
-                    shape_len = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
-                    spec_len = dali.fn.slice(
-                        dali.fn.shapes(spec), shape_start, shape_len, normalized_anchor=False, normalized_shape=False, axes=(0,)
-                    )
-
-                    # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
-                    spec = dali.fn.pad(
-                        spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1)
-                    )
-
-                    pipe.set_outputs(spec, spec_len, transcript, transcript_len)
-
-            # Building DALI pipeline
-            pipe.build()
+                # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
+                spec = dali.fn.pad(
+                    spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1)
+                )
+            pipe.set_outputs(spec, spec_len, transcript, transcript_len)
+        # Building DALI pipeline
+         pipe.build()
 
         if has_preprocessor:
             output_names = ['processed_signal', 'processed_signal_len', 'transcript_raw', 'transcript_raw_len']
         else:
             output_names = ['audio', 'audio_len', 'transcript_raw', 'transcript_raw_len']
 
+        last_batch_policy = LastBatchPolicy.DROP if drop_last else LastBatchPolicy.PARTIAL
         self._iter = DALIPytorchIterator(
-            self.pipes, output_map=output_names, reader_name="Reader",
-            fill_last_batch=True, dynamic_shape=True, auto_reset=True
+            [self.pipe], output_map=output_names, reader_name="Reader",
+            last_batch_policy=last_batch_policy, dynamic_shape=True, auto_reset=True
         )
 
         # TODO come up with a better solution
@@ -367,7 +369,7 @@ class AudioToCharDALIDataset(Iterator):
         return self._iter.size
 
     def __len__(self):
-        return math.ceil(self._iter.size / self._iter.batch_size)
+        return len(self._iter)
 
     def __next__(self):
         outputs = self._iter.next()
