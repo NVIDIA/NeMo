@@ -24,12 +24,15 @@ from transformers.tokenization_bert import BasicTokenizer
 from nemo.collections.nlp.data.data_utils import DataProcessor, is_whitespace, normalize_answer
 from nemo.utils import logging
 
-
 """
 Utility functions for Question Answering NLP tasks
 Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
+
+TRAINING_MODE = "train"
+EVALUATION_MODE = "eval"
+INFERENCE_MODE = "infer"
 
 
 def _get_tokens(s):
@@ -255,7 +258,7 @@ class SquadProcessor(DataProcessor):
 
     Args:
         data_file: data file path
-        mode: "train"/"eval" for training/validation mode
+        mode: TRAINING_MODE/EVALUATION_MODE/INFERENCE_MODE for creating training/evaluation/inference dataset
     """
 
     def __init__(self, data_file: str, mode: str):
@@ -288,11 +291,11 @@ class SquadProcessor(DataProcessor):
                         is_impossible = False
 
                     if not is_impossible:
-                        if set_type == "train" or set_type == "eval":
+                        if set_type in [TRAINING_MODE, EVALUATION_MODE]:
                             answer = qa["answers"][0]
                             answer_text = answer["text"]
                             start_position_character = answer["answer_start"]
-                        if set_type == "eval":
+                        if set_type == EVALUATION_MODE:
                             answers = qa["answers"]
 
                     example = SquadExample(
@@ -429,7 +432,6 @@ def convert_examples_to_features(
             (tok_start_position, tok_end_position) = _improve_answer_span(
                 all_doc_tokens, tok_start_position, tok_end_position, tokenizer, example.answer_text
             )
-
         # The -3 accounts for tokenizer.cls_token, tokenizer.sep_token and tokenizer.sep_token
         # doc_spans contains all possible contexts options of given length
         max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
