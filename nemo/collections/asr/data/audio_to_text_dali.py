@@ -25,6 +25,7 @@ try:
     import nvidia.dali as dali
     from nvidia.dali.pipeline import Pipeline
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as DALIPytorchIterator
+    from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
     HAVE_DALI = True
 except (ImportError, ModuleNotFoundError):
     HAVE_DALI = False
@@ -254,7 +255,7 @@ class AudioToCharDALIDataset(Iterator):
             self.pad_to = params['pad_to'] if 'pad_to' in params else 16
             self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
 
-        with pipe:
+        with self.pipe:
             audio, transcript = dali.fn.nemo_asr_reader(
                 name="Reader", manifest_filepaths = manifest_filepath.split(','),
                 dtype = dali.types.FLOAT, downmix = True, sample_rate=float(self.sample_rate),
@@ -281,7 +282,7 @@ class AudioToCharDALIDataset(Iterator):
                 # No preprocessing, the output is the audio signal
                 audio = dali.fn.pad(audio)
                 audio_len = dali.fn.shapes(dali.fn.reshape(audio, shape=[-1]))
-                pipe.set_outputs(audio, audio_len, transcript, transcript_len)
+                self.pipe.set_outputs(audio, audio_len, transcript, transcript_len)
             else:
                 # Additive gaussian noise (dither)
                 if self.dither > 0.0:
@@ -332,9 +333,9 @@ class AudioToCharDALIDataset(Iterator):
                 spec = dali.fn.pad(
                     spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1)
                 )
-            pipe.set_outputs(spec, spec_len, transcript, transcript_len)
+            self.pipe.set_outputs(spec, spec_len, transcript, transcript_len)
         # Building DALI pipeline
-         pipe.build()
+        self.pipe.build()
 
         if has_preprocessor:
             output_names = ['processed_signal', 'processed_signal_len', 'transcript_raw', 'transcript_raw_len']
