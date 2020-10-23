@@ -38,7 +38,7 @@ class NLPModel(ModelPT):
         self.bert_model = None  # Pretrained BERT encoder
         self.set_world_size(trainer)
 
-    def init_ddp_connection(self, global_rank: int, world_size: int, is_slurm_managing_tasks: bool = True) -> None:
+    def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Override for LightningModule DDP initialization.
             Initializes Megatron-LM model parallel if using model parallelism.
 
@@ -47,21 +47,18 @@ class NLPModel(ModelPT):
             world_size (int): the total number of GPUs, num_nodes * num_gpus
             is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
         """
-        LightningModule.init_ddp_connection(self, global_rank, world_size, is_slurm_managing_tasks)
-
         app_state = AppState()
 
         # we initialize megatron-lm model parallel and data parallel groups
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
-            if app_state.model_parallel_group is None:
-                mpu.initialize_model_parallel(app_state.model_parallel_size)
-                app_state.model_parallel_group = mpu.get_model_parallel_group()
-                app_state.data_parallel_group = mpu.get_data_parallel_group()
-                app_state.model_parallel_rank = torch.distributed.get_rank(group=app_state.model_parallel_group)
-                app_state.data_parallel_rank = torch.distributed.get_rank(group=app_state.data_parallel_group)
-                logging.info(f'mp_rank: {app_state.model_parallel_rank}')
-                logging.info(f'dp_rank: {app_state.data_parallel_rank}')
+            mpu.initialize_model_parallel(app_state.model_parallel_size)
+            app_state.model_parallel_group = mpu.get_model_parallel_group()
+            app_state.data_parallel_group = mpu.get_data_parallel_group()
+            app_state.model_parallel_rank = torch.distributed.get_rank(group=app_state.model_parallel_group)
+            app_state.data_parallel_rank = torch.distributed.get_rank(group=app_state.data_parallel_group)
+            logging.info(f'mp_rank: {app_state.model_parallel_rank}')
+            logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
     def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
         """ Override LightningModule ddp if using model parallel.
@@ -100,11 +97,19 @@ class NLPModel(ModelPT):
             stage (str): either 'fit' or 'test'
         """
 
+        # TODO: implement model parallel for test stage
         if stage == 'fit':
 
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
+
+                if app_state.model_parallel_group is None:
+                    self.init_model_parallel(app_state.global_rank, app_state.world_size)
+
+                # Update PTL trainer to use our configure_ddp
+                self._trainer.accelerator_backend.configure_ddp = self.configure_ddp
+
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
@@ -113,7 +118,7 @@ class NLPModel(ModelPT):
                     logging.info("replacing sampler with model parallel sampler")
                     mp_sampler = torch.utils.data.distributed.DistributedSampler(
                         self._train_dl.dataset,
-                        num_replicas=app_state.model_parallel_size,
+                        num_replicas=app_state.data_parallel_size,
                         rank=app_state.data_parallel_rank,
                     )
                     mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)

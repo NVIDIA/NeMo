@@ -20,7 +20,7 @@ import torch
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-from megatron.mpu import get_model_parallel_group
+from megatron.mpu import get_model_parallel_group, model_parallel_is_initialized
 from omegaconf import OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
@@ -145,7 +145,7 @@ class MegatronBertEncoder(BertModule):
             logging.info(f"weights restored from {restore_path}")
         elif os.path.isdir(restore_path):
             # need model parallel groups to restore model parallel checkpoints
-            if torch.distributed.is_initialized():
+            if model_parallel_is_initialized():
                 model_parallel_rank = torch.distributed.get_rank(group=get_model_parallel_group())
                 mp_restore_path = f'{restore_path}/mp_rank_{model_parallel_rank:02d}/model_optim_rng.pt'
                 logging.info(f'Restoring model parallel checkpoint from: {mp_restore_path}')
