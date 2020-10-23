@@ -30,8 +30,8 @@ from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import SpectrogramType, LabelsType, LengthsType, LogprobsType, NeuralType
 from nemo.core.classes.exportable import Exportable
+from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
 
@@ -244,7 +244,7 @@ class EncDecCTCModel(ASRModel, Exportable):
                 device_id=device_id,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                preprocessor_cfg=self._cfg.preprocessor
+                preprocessor_cfg=self._cfg.preprocessor,
             )
             return dataset
 

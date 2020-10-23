@@ -12,20 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.utils.decorators import experimental
-from nemo.collections.asr.parts import parsers
-from omegaconf import DictConfig
-from typing import Callable, List, Optional, Union
-from collections.abc import Iterator
-import numpy as np
 import math
+from collections.abc import Iterator
+from typing import Callable, List, Optional, Union
+
+import numpy as np
 import torch
+from omegaconf import DictConfig
+
+from nemo.collections.asr.parts import parsers
+from nemo.utils.decorators import experimental
 
 try:
     import nvidia.dali as dali
     from nvidia.dali.pipeline import Pipeline
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as DALIPytorchIterator
     from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
+
     HAVE_DALI = True
 except (ImportError, ModuleNotFoundError):
     HAVE_DALI = False
@@ -34,13 +37,14 @@ __all__ = [
     'AudioToCharDALIDataset',
 ]
 
+
 class DALIOutputs(object):
     def __init__(self, out_dict):
         self._outs = out_dict
-        self._has_processed_signal = ('processed_signal' in out_dict and 'processed_signal_len' in out_dict)
+        self._has_processed_signal = 'processed_signal' in out_dict and 'processed_signal_len' in out_dict
         if not self._has_processed_signal:
-            assert('audio' in out_dict and 'audio_len' in out_dict)
-        assert ('transcript' in out_dict and 'transcript_len' in out_dict)
+            assert 'audio' in out_dict and 'audio_len' in out_dict
+        assert 'transcript' in out_dict and 'transcript_len' in out_dict
 
     @property
     def has_processed_signal(self):
@@ -48,11 +52,20 @@ class DALIOutputs(object):
 
     def get(self):
         if self._has_processed_signal:
-            return self._outs['processed_signal'], self._outs['processed_signal_len'].reshape(-1), \
-                   self._outs['transcript'], self._outs['transcript_len'].reshape(-1)
+            return (
+                self._outs['processed_signal'],
+                self._outs['processed_signal_len'].reshape(-1),
+                self._outs['transcript'],
+                self._outs['transcript_len'].reshape(-1),
+            )
         else:
-            return self._outs['audio'], self._outs['audio_len'].reshape(-1), \
-                   self._outs['transcript'], self._outs['transcript_len'].reshape(-1)
+            return (
+                self._outs['audio'],
+                self._outs['audio_len'].reshape(-1),
+                self._outs['transcript'],
+                self._outs['transcript_len'].reshape(-1),
+            )
+
 
 @experimental
 class AudioToCharDALIDataset(Iterator):
@@ -88,28 +101,30 @@ class AudioToCharDALIDataset(Iterator):
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
     """
 
-    def __init__(self,
-                 manifest_filepath: str,
-                 device: str,
-                 batch_size: int,
-                 labels: Union[str, List[str]],
-                 sample_rate: int = 16000,
-                 num_threads: int = 4,
-                 max_duration: float = 0.0,
-                 min_duration: float = 0.0,
-                 blank_index: int = -1,
-                 unk_index: int = -1,
-                 normalize: bool = True,
-                 bos_id: Optional[int] = None,
-                 eos_id: Optional[int] = None,
-                 trim: bool = False,
-                 shuffle: bool = True,
-                 drop_last: bool = False,
-                 parser: Union[str, Callable] = 'en',
-                 device_id: int = 0,
-                 global_rank: int = 0,
-                 world_size: int = 1,
-                 preprocessor_cfg: DictConfig = None):
+    def __init__(
+        self,
+        manifest_filepath: str,
+        device: str,
+        batch_size: int,
+        labels: Union[str, List[str]],
+        sample_rate: int = 16000,
+        num_threads: int = 4,
+        max_duration: float = 0.0,
+        min_duration: float = 0.0,
+        blank_index: int = -1,
+        unk_index: int = -1,
+        normalize: bool = True,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        trim: bool = False,
+        shuffle: bool = True,
+        drop_last: bool = False,
+        parser: Union[str, Callable] = 'en',
+        device_id: int = 0,
+        global_rank: int = 0,
+        world_size: int = 1,
+        preprocessor_cfg: DictConfig = None,
+    ):
         if not HAVE_DALI:
             raise ModuleNotFoundError(
                 f"{self} requires NVIDIA DALI to be installed. "
@@ -145,8 +160,13 @@ class AudioToCharDALIDataset(Iterator):
         self.bos_id = bos_id
         self.sample_rate = sample_rate
 
-        self.pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=self.device_id,
-                             exec_async=True, exec_pipelined=True)
+        self.pipe = Pipeline(
+            batch_size=batch_size,
+            num_threads=num_threads,
+            device_id=self.device_id,
+            exec_async=True,
+            exec_pipelined=True,
+        )
 
         has_preprocessor = preprocessor_cfg is not None
         if has_preprocessor:
@@ -172,7 +192,7 @@ class AudioToCharDALIDataset(Iterator):
 
             normalize = params['normalize'] if 'normalize' in params else 'per_feature'
             if normalize == 'per_feature':  # Each freq channel independently
-                self.normalization_axes = (1, )
+                self.normalization_axes = (1,)
             elif normalize == 'all_features':
                 self.normalization_axes = (0, 1)
             else:
@@ -189,7 +209,7 @@ class AudioToCharDALIDataset(Iterator):
                 'bartlett': torch.bartlett_window,
             }
             if window_name is None or window_name == 'hann':
-                self.window = None   # Hann is DALI's default
+                self.window = None  # Hann is DALI's default
             elif window_name == 'ones':
                 self.window = torch.ones(self.window_size)
             else:
@@ -248,8 +268,7 @@ class AudioToCharDALIDataset(Iterator):
             self.mag_power = params['mag_power'] if 'mag_power' in params else 2
             if self.mag_power != 1.0 and self.mag_power != 2.0:
                 raise ValueError(
-                    f"{self} received {self.mag_power} for the mag_power parameter."
-                    f" It must be either 1.0 or 2.0."
+                    f"{self} received {self.mag_power} for the mag_power parameter." f" It must be either 1.0 or 2.0."
                 )
 
             self.pad_to = params['pad_to'] if 'pad_to' in params else 16
@@ -257,11 +276,19 @@ class AudioToCharDALIDataset(Iterator):
 
         with self.pipe:
             audio, transcript = dali.fn.nemo_asr_reader(
-                name="Reader", manifest_filepaths = manifest_filepath.split(','),
-                dtype = dali.types.FLOAT, downmix = True, sample_rate=float(self.sample_rate),
-                min_duration=min_duration, max_duration=max_duration,
-                read_sample_rate=False, read_text=True, random_shuffle=shuffle,
-                shard_id=self.shard_id, num_shards=self.num_shards, pad_last_batch=True
+                name="Reader",
+                manifest_filepaths=manifest_filepath.split(','),
+                dtype=dali.types.FLOAT,
+                downmix=True,
+                sample_rate=float(self.sample_rate),
+                min_duration=min_duration,
+                max_duration=max_duration,
+                read_sample_rate=False,
+                read_text=True,
+                random_shuffle=shuffle,
+                shard_id=self.shard_id,
+                num_shards=self.num_shards,
+                pad_last_batch=True,
             )
 
             transcript_len = dali.fn.shapes(dali.fn.reshape(transcript, shape=[-1]))
@@ -295,17 +322,18 @@ class AudioToCharDALIDataset(Iterator):
 
                 # Power spectrogram
                 spec = dali.fn.spectrogram(
-                    audio,
-                    nfft=self.n_fft,
-                    window_length=self.window_size,
-                    window_step=self.window_stride
+                    audio, nfft=self.n_fft, window_length=self.window_size, window_step=self.window_stride
                 )
 
                 if feature_type == 'mel_spectrogram' or feature_type == 'mfcc':
                     # Spectrogram to Mel Spectrogram
                     spec = dali.fn.mel_filter_bank(
-                        spec, sample_rate=self.sample_rate, nfilter=self.n_mels, normalize=True,
-                        freq_low=self.freq_low, freq_high=self.freq_high
+                        spec,
+                        sample_rate=self.sample_rate,
+                        nfilter=self.n_mels,
+                        normalize=True,
+                        freq_low=self.freq_low,
+                        freq_high=self.freq_high,
                     )
                     # Mel Spectrogram to MFCC
                     if feature_type == 'mfcc':
@@ -326,13 +354,16 @@ class AudioToCharDALIDataset(Iterator):
                 shape_start = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
                 shape_len = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
                 spec_len = dali.fn.slice(
-                    dali.fn.shapes(spec), shape_start, shape_len, normalized_anchor=False, normalized_shape=False, axes=(0,)
+                    dali.fn.shapes(spec),
+                    shape_start,
+                    shape_len,
+                    normalized_anchor=False,
+                    normalized_shape=False,
+                    axes=(0,),
                 )
 
                 # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
-                spec = dali.fn.pad(
-                    spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1)
-                )
+                spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1))
             self.pipe.set_outputs(spec, spec_len, transcript, transcript_len)
         # Building DALI pipeline
         self.pipe.build()
@@ -344,16 +375,22 @@ class AudioToCharDALIDataset(Iterator):
 
         last_batch_policy = LastBatchPolicy.DROP if drop_last else LastBatchPolicy.PARTIAL
         self._iter = DALIPytorchIterator(
-            [self.pipe], output_map=output_names, reader_name="Reader",
-            last_batch_policy=last_batch_policy, dynamic_shape=True, auto_reset=True
+            [self.pipe],
+            output_map=output_names,
+            reader_name="Reader",
+            last_batch_policy=last_batch_policy,
+            dynamic_shape=True,
+            auto_reset=True,
         )
 
         # TODO come up with a better solution
         class DummyDataset:
             def __init__(self, parent):
                 self.parent = parent
+
             def __len__(self):
                 return self.parent.size
+
         self.dataset = DummyDataset(self)  # Used by NeMo
 
     def reset(self):
@@ -374,7 +411,7 @@ class AudioToCharDALIDataset(Iterator):
 
     def __next__(self):
         outputs = self._iter.next()
-        assert(len(outputs) == 1)
+        assert len(outputs) == 1
         out = outputs[0]
         text_raw_len = out['transcript_raw_len'].numpy()
         text_raw = out['transcript_raw'].numpy()
