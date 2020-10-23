@@ -722,9 +722,8 @@ class ModelPT(LightningModule, Model):
             if 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
-            # log everything else
-            if len(output_dict) > 0:
-                self.log_dict(output_dict, on_epoch=True)
+            # return everything else
+            return output_dict
 
     def test_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
@@ -816,8 +815,8 @@ class ModelPT(LightningModule, Model):
             if 'log' in output_dict:
                 self.log_dict(output_dict.pop('log'), on_epoch=True)
 
-            if len(output_dict) > 0:
-                self.log_dict(output_dict, on_epoch=True)
+            # return everything else
+            return output_dict
 
     def multi_validation_epoch_end(
         self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
