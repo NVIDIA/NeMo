@@ -122,6 +122,7 @@ class TestOptimizersSchedulers:
 
         assert isinstance(opt, TempOpt)
 
+    @pytest.mark.unit
     def test_optim_config_parse_bypass(self):
         basic_optim_config = {'weight_decay': 0.001, 'betas': [0.8, 0.5]}
         parsed_params = optim.parse_optimizer_args('novograd', basic_optim_config)
@@ -135,6 +136,7 @@ class TestOptimizersSchedulers:
         assert parsed_params['betas'][0] == dict_config['betas'][0]
         assert parsed_params['betas'][1] == dict_config['betas'][1]
 
+    @pytest.mark.unit
     def test_optim_config_parse_arg_by_name(self):
         basic_optim_config = {'name': 'auto', 'weight_decay': 0.001, 'betas': [0.8, 0.5]}
         parsed_params = optim.parse_optimizer_args('novograd', basic_optim_config)
@@ -151,6 +153,7 @@ class TestOptimizersSchedulers:
         with pytest.raises(omegaconf.errors.ConfigKeyError):
             optim.parse_optimizer_args('sgd', dict_config)
 
+    @pytest.mark.unit
     def test_optim_config_parse_arg_by_target(self):
         basic_optim_config = {
             'target': 'nemo.core.config.NovogradParams',
@@ -177,6 +180,7 @@ class TestOptimizersSchedulers:
         assert set(output_config.keys()) != set(sgd_config.keys())
         assert set(output_config.keys()) == set(novograd_config)
 
+    @pytest.mark.unit
     def test_get_scheduler(self):
         model = TempModel()
         optimizer = optim.Novograd(model.parameters(), lr=self.INITIAL_LR)
@@ -216,6 +220,7 @@ class TestOptimizersSchedulers:
 
         assert isinstance(sched, TempSched)
 
+    @pytest.mark.unit
     def test_sched_config_parse_simple(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -229,6 +234,7 @@ class TestOptimizersSchedulers:
         scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
         assert isinstance(scheduler_setup['scheduler'], optim.lr_scheduler.CosineAnnealing)
 
+    @pytest.mark.unit
     def test_sched_config_parse_from_cls(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -246,6 +252,7 @@ class TestOptimizersSchedulers:
         scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
         assert isinstance(scheduler_setup['scheduler'], optim.lr_scheduler.CosineAnnealing)
 
+    @pytest.mark.unit
     def test_WarmupPolicy(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -286,6 +293,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_WarmupHoldPolicy(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -348,6 +356,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_WarmupAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -410,6 +419,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_SquareAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -451,6 +461,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_SquareRootAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -494,6 +505,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_CosineAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -535,6 +547,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_PolynomialDecayAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -580,6 +593,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_PolynomialHoldDecayAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -648,6 +662,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_InverseSquareRootAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
