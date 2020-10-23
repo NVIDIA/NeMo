@@ -349,8 +349,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 punct_label_ids = create_label_ids(punct_unique_labels)
                 capit_label_ids = create_label_ids(capit_unique_labels)
 
-                self._save_label_ids(punct_label_ids, self.punct_label_ids_file)
-                self._save_label_ids(capit_label_ids, self.capit_label_ids_file)
+            self._save_label_ids(punct_label_ids, self.punct_label_ids_file)
+            self._save_label_ids(capit_label_ids, self.capit_label_ids_file)
 
             features = get_features(
                 text_lines,

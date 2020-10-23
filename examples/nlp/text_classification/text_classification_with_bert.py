@@ -120,7 +120,7 @@ def main(cfg: DictConfig) -> None:
     # retrieve the path to the last checkpoint of the training
     if trainer.checkpoint_callback is not None:
         checkpoint_path = os.path.join(
-            trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt"
+            trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + ".nemo"
         )
     else:
         checkpoint_path = None
@@ -134,7 +134,7 @@ def main(cfg: DictConfig) -> None:
         logging.info("Starting the evaluating the the last checkpoint on a data file (validation set by default)...")
         # we use the the path of the checkpoint from last epoch from the training, you may update it to any checkpoint
         # Create an evaluation model and load the checkpoint
-        eval_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
+        eval_model = TextClassificationModel.restore_from(restore_path=checkpoint_path)
 
         # create a dataloader config for evaluation, the same data file provided in validation_ds is used here
         # file_path can get updated with any file
@@ -176,7 +176,7 @@ def main(cfg: DictConfig) -> None:
         ]
 
         # use the path of the last checkpoint from the training, you may update it to any other checkpoints
-        infer_model = TextClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
+        infer_model = TextClassificationModel.restore_from(restore_path=checkpoint_path)
 
         # move the model to the desired device for inference
         # we move the model to "cuda" if available otherwise "cpu" would be used
