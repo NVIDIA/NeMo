@@ -75,7 +75,11 @@ class TransformerDecoder(nn.Module):
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
         if decoder_mems_list is not None:
-            memory_states = torch.cat((decoder_mems_list[i], decoder_states), dim=1)
+            try:
+                memory_states = torch.cat((decoder_mems_list[i], decoder_states), dim=1)
+            except RuntimeError as e:
+                print("(TransformerDecoder._get_memory_states)decoder_mems_list[{i}].device, decoder_states.device:", decoder_mems_list[{i}].device, decoder_states.device)
+                raise e
         else:
             memory_states = decoder_states
         return memory_states
