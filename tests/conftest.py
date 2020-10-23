@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+import shutil
+
+
 import tarfile
 import urllib.request
 from os import mkdir
@@ -29,7 +33,7 @@ __TEST_DATA_SUBDIR = ".data"
 def pytest_addoption(parser):
     """
     Additional command-line arguments passed to pytest.
-    For now: 
+    For now:
         --cpu: use CPU during testing (DEFAULT: GPU)
         --use_local_test_data: use local test data/skip downloading from URL/GitHub (DEFAULT: False)
     """
@@ -63,6 +67,23 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "run_only_on(device): runs the test only on a given device [CPU | GPU]",
     )
+
+
+@pytest.fixture
+def cleanup_local_folder():
+    # Asserts in fixture are not recommended, but I'd rather stop users from deleting expensive training runs
+    assert not Path("./lightning_logs").exists()
+    assert not Path("./NeMo_experiments").exists()
+    assert not Path("./nemo_experiments").exists()
+
+    yield
+
+    if Path("./lightning_logs").exists():
+        shutil.rmtree('./lightning_logs')
+    if Path("./NeMo_experiments").exists():
+        shutil.rmtree('./NeMo_experiments')
+    if Path("./nemo_experiments").exists():
+        shutil.rmtree('./nemo_experiments')
 
 
 @pytest.fixture

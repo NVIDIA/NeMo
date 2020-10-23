@@ -708,7 +708,7 @@ class TestOptimizersSchedulers:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('CPU')
-    def test_max_step_computation(self):
+    def test_max_step_computation(self, cleanup_local_folder):
         def train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last):
             trainer = pl.Trainer(
                 max_epochs=max_epochs,

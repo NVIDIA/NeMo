@@ -28,23 +28,6 @@ from nemo.utils.exp_manager import (
 )
 
 
-@pytest.fixture
-def cleanup_local_folder():
-    # Asserts in fixture are not recommended, but I'd rather stop users from deleting expensive training runs
-    assert not Path("./lightning_logs").exists()
-    assert not Path("./NeMo_experiments").exists()
-    assert not Path("./nemo_experiments").exists()
-
-    yield
-
-    if Path("./lightning_logs").exists():
-        shutil.rmtree('./lightning_logs')
-    if Path("./NeMo_experiments").exists():
-        shutil.rmtree('./NeMo_experiments')
-    if Path("./nemo_experiments").exists():
-        shutil.rmtree('./nemo_experiments')
-
-
 class TestExpManager:
     @pytest.mark.unit
     def test_omegaconf(self):
