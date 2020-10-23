@@ -260,8 +260,8 @@ class RNNTBPEWER(Metric):
         self.blank_id = self.decoding.blank_id
         self.tokenizer = self.decoding.tokenizer
 
-        self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum')
-        self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum')
+        self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
     def update(
         self,
@@ -310,4 +310,5 @@ class RNNTBPEWER(Metric):
         # return torch.tensor([scores, words]).to(predictions.device)
 
     def compute(self):
-        return self.scores.float() / self.words
+        wer = self.scores.float() / self.words
+        return wer, self.scores.detach(), self.words.detach()
