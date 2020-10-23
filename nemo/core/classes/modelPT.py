@@ -124,6 +124,9 @@ class ModelPT(LightningModule, Model):
                     f"Test config : \n{OmegaConf.to_yaml(self._cfg.test_ds)}"
                 )
 
+        # ModelPT wrappers over subclass implementations
+        self.training_step = model_utils.wrap_training_step(self.training_step)
+
     def register_artifact(self, config_path: str, src: str):
         """
         Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
@@ -404,7 +407,7 @@ class ModelPT(LightningModule, Model):
             val_data_layer_config: validation data layer parameters.
         """
         # Set some placeholder overriden by helper method
-        self._validation_loss_idx = 0
+        self._val_dl_idx = 0
         self._validation_names = None
         self._validation_dl = None  # type: torch.utils.data.DataLoader
 
@@ -429,7 +432,7 @@ class ModelPT(LightningModule, Model):
             test_data_layer_config: test data layer parameters.
         """
         # Set some placeholder overriden by helper method
-        self._test_loss_idx = 0
+        self._test_dl_idx = 0
         self._test_names = None
         self._test_dl = None  # type: torch.utils.data.DataLoader
 
@@ -640,7 +643,7 @@ class ModelPT(LightningModule, Model):
         Note:
             If more than one data loader exists, and they all provide `val_loss`,
             only the `val_loss` of the first data loader will be used by default.
-            This default can be changed by passing the special key `val_loss_idx: int`
+            This default can be changed by passing the special key `val_dl_idx: int`
             inside the `validation_ds` config.
 
         Args:
@@ -656,7 +659,12 @@ class ModelPT(LightningModule, Model):
 
         # Case where we provide exactly 1 data loader
         if type(outputs[0]) == dict:
-            return self.multi_validation_epoch_end(outputs, dataloader_idx=0)
+            output_dict = self.multi_validation_epoch_end(outputs, dataloader_idx=0)
+
+            if output_dict is not None and 'log' in output_dict:
+                self.log_dict(output_dict.pop('log'), on_epoch=True)
+
+            return output_dict
 
         else:  # Case where we provide more than 1 data loader
             output_dict = {'log': {}}
@@ -672,7 +680,7 @@ class ModelPT(LightningModule, Model):
 
                 # Perform `val_loss` resolution first (if provided outside logs)
                 if 'val_loss' in dataloader_logs:
-                    if 'val_loss' not in output_dict and dataloader_idx == self._validation_loss_idx:
+                    if 'val_loss' not in output_dict and dataloader_idx == self._val_dl_idx:
                         output_dict['val_loss'] = dataloader_logs['val_loss']
 
                 # For every item in the result dictionary
@@ -683,23 +691,14 @@ class ModelPT(LightningModule, Model):
                         log_dict = {}
 
                         for k_log, v_log in v.items():
-                            # If we are logging the loss, but dont provide it at result level,
+                            # If we are logging the metric, but dont provide it at result level,
                             # store it twice - once in log and once in result level.
                             # Also mark log with prefix name to avoid log level clash with other data loaders
-                            if (
-                                k_log == 'val_loss'
-                                and 'val_loss' not in output_dict['log']
-                                and dataloader_idx == self._validation_loss_idx
-                            ):
-                                new_k_log = 'val_loss'
+                            if k_log not in output_dict['log'] and dataloader_idx == self._val_dl_idx:
+                                new_k_log = k_log
 
                                 # Also insert duplicate key with prefix for ease of comparison / avoid name clash
                                 log_dict[dataloader_prefix + k_log] = v_log
-
-                            elif k_log == 'val_loss' and dataloader_idx != self._validation_loss_idx:
-                                # replace all other "val_loss" with <prefix> + loss
-                                # this avoid duplication of the word <prefix> + "val_loss" which causes confusion
-                                new_k_log = dataloader_prefix + 'loss'
 
                             else:
                                 # Simply prepend prefix to key and save
@@ -720,6 +719,10 @@ class ModelPT(LightningModule, Model):
                         new_k = dataloader_prefix + k
                         output_dict[new_k] = v
 
+            if 'log' in output_dict:
+                self.log_dict(output_dict.pop('log'), on_epoch=True)
+
+            # return everything else
             return output_dict
 
     def test_epoch_end(
@@ -735,7 +738,7 @@ class ModelPT(LightningModule, Model):
         Note:
             If more than one data loader exists, and they all provide `test_loss`,
             only the `test_loss` of the first data loader will be used by default.
-            This default can be changed by passing the special key `test_loss_idx: int`
+            This default can be changed by passing the special key `test_dl_idx: int`
             inside the `test_ds` config.
 
         Args:
@@ -751,7 +754,12 @@ class ModelPT(LightningModule, Model):
 
         # Case where we provide exactly 1 data loader
         if type(outputs[0]) == dict:
-            return self.multi_test_epoch_end(outputs, dataloader_idx=0)
+            output_dict = self.multi_test_epoch_end(outputs, dataloader_idx=0)
+
+            if output_dict is not None and 'log' in output_dict:
+                self.log_dict(output_dict.pop('log'), on_epoch=True)
+
+            return output_dict
 
         else:  # Case where we provide more than 1 data loader
             output_dict = {'log': {}}
@@ -767,7 +775,7 @@ class ModelPT(LightningModule, Model):
 
                 # Perform `test_loss` resolution first (if provided outside logs)
                 if 'test_loss' in dataloader_logs:
-                    if 'test_loss' not in output_dict and dataloader_idx == self._test_loss_idx:
+                    if 'test_loss' not in output_dict and dataloader_idx == self._test_dl_idx:
                         output_dict['test_loss'] = dataloader_logs['test_loss']
 
                 # For every item in the result dictionary
@@ -780,20 +788,11 @@ class ModelPT(LightningModule, Model):
                             # If we are logging the loss, but dont provide it at result level,
                             # store it twice - once in log and once in result level.
                             # Also mark log with prefix name to avoid log level clash with other data loaders
-                            if (
-                                k_log == 'test_loss'
-                                and 'test_loss' not in output_dict['log']
-                                and dataloader_idx == self._test_loss_idx
-                            ):
-                                new_k_log = 'test_loss'
+                            if k_log not in output_dict['log'] and dataloader_idx == self._test_dl_idx:
+                                new_k_log = k_log
 
-                                # Also insert duplicate key with prefix for ease of comparison
+                                # Also insert duplicate key with prefix for ease of comparison / avoid name clash
                                 log_dict[dataloader_prefix + k_log] = v_log
-
-                            elif k_log == 'test_loss' and dataloader_idx != self._test_loss_idx:
-                                # replace all other "test_loss" with <prefix> + loss
-                                # this avoid duplication of the word <prefix> + "test_loss" which causes confusion
-                                new_k_log = dataloader_prefix + 'loss'
 
                             else:
                                 # Simply prepend prefix to key and save
@@ -813,6 +812,10 @@ class ModelPT(LightningModule, Model):
                         new_k = dataloader_prefix + k
                         output_dict[new_k] = v
 
+            if 'log' in output_dict:
+                self.log_dict(output_dict.pop('log'), on_epoch=True)
+
+            # return everything else
             return output_dict
 
     def multi_validation_epoch_end(
