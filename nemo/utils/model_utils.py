@@ -207,7 +207,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
         val_dl_idx = 0
 
     # Set val_loss_idx
-    model._validation_dl_idx = val_dl_idx
+    model._val_dl_idx = val_dl_idx
 
     ds_key = resolve_dataset_name_from_cfg(cfg.validation_ds)
 

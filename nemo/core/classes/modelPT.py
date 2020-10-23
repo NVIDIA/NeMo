@@ -407,7 +407,7 @@ class ModelPT(LightningModule, Model):
             val_data_layer_config: validation data layer parameters.
         """
         # Set some placeholder overriden by helper method
-        self._validation_dl_idx = 0
+        self._val_dl_idx = 0
         self._validation_names = None
         self._validation_dl = None  # type: torch.utils.data.DataLoader
 
@@ -680,7 +680,7 @@ class ModelPT(LightningModule, Model):
 
                 # Perform `val_loss` resolution first (if provided outside logs)
                 if 'val_loss' in dataloader_logs:
-                    if 'val_loss' not in output_dict and dataloader_idx == self._validation_dl_idx:
+                    if 'val_loss' not in output_dict and dataloader_idx == self._val_dl_idx:
                         output_dict['val_loss'] = dataloader_logs['val_loss']
 
                 # For every item in the result dictionary
@@ -694,7 +694,7 @@ class ModelPT(LightningModule, Model):
                             # If we are logging the metric, but dont provide it at result level,
                             # store it twice - once in log and once in result level.
                             # Also mark log with prefix name to avoid log level clash with other data loaders
-                            if k_log not in output_dict['log'] and dataloader_idx == self._validation_dl_idx:
+                            if k_log not in output_dict['log'] and dataloader_idx == self._val_dl_idx:
                                 new_k_log = k_log
 
                                 # Also insert duplicate key with prefix for ease of comparison / avoid name clash
