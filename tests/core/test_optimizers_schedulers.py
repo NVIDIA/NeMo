@@ -707,6 +707,7 @@ class TestOptimizersSchedulers:
         assert final_lr == self.MIN_LR
 
     @pytest.mark.unit
+    @pytest.mark.run_only_on('CPU')
     def test_max_step_computation(self):
         def train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last):
             trainer = pl.Trainer(
