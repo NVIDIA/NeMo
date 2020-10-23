@@ -137,9 +137,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.feat_out = d_model
             self.pre_encode = nn.Linear(feat_in, d_model)
 
-        self.u_bias = None
-        self.v_bias = None
-
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model, dropout_rate=dropout, dropout_emb_rate=dropout_emb, xscale=self.xscale
@@ -194,8 +191,6 @@ class ConformerEncoder(NeuralModule, Exportable):
                 x=audio_signal,
                 att_mask=xx_mask,
                 pos_emb=pos_emb,
-                u_bias=self.u_bias,
-                v_bias=self.v_bias,
                 pad_mask=pad_mask,
             )
 
