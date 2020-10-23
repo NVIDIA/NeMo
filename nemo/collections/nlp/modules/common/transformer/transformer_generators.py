@@ -310,9 +310,9 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             for j in range(len(decoder_mems_list)):
                 decoder_mems_list[j] = (
                     decoder_mems_list[j]
-                    .view(-1, self.beam_size, p_len - 1, hidden_size)
-                    .gather(1, mems_ids)
-                    .view(-1, p_len - 1, hidden_size)
+                        .view(-1, self.beam_size, p_len - 1, hidden_size)
+                        .gather(1, mems_ids)
+                        .view(-1, p_len - 1, hidden_size)
                 )
 
             # update prefixes_len and pad_profile
