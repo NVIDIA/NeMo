@@ -31,7 +31,7 @@ class TrainerConfig:
     https://pytorch-lightning.readthedocs.io/en/latest/trainer.html#
     """
 
-    _target_: str = "pytorch_lightning.Trainer"
+    # _target_: str = "pytorch_lightning.Trainer" # Commented: "__init__() got an unexpected keyword argument '_target_'
     logger: Any = True  # Union[LightningLoggerBase, Iterable[LightningLoggerBase], bool]
     checkpoint_callback: Any = True  # Union[ModelCheckpoint, bool]
     callbacks: Any = None  # Optional[List[Callback]]
@@ -77,7 +77,7 @@ class TrainerConfig:
     terminate_on_nan: bool = False
     auto_scale_batch_size: Any = False  # Union[str, bool]
     prepare_data_per_node: bool = True
-    plugins: Optional[list] = None
+    plugins: Optional[Any] = None
     amp_backend: str = "native"
     amp_level: str = "O2"
     distributed_backend: Optional[str] = None
