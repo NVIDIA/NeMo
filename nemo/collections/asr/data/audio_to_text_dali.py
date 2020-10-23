@@ -353,7 +353,7 @@ class AudioToCharDALIDataset(Iterator):
                 return self.parent.size
         self.dataset = DummyDataset(self)  # Used by NeMo
 
-    def reset():
+    def reset(self):
         self._iter.reset()
 
     def __iter__(self):
