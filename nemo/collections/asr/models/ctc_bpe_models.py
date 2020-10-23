@@ -303,13 +303,22 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         decoder_config = copy.deepcopy(self.decoder.to_config_dict())
         decoder_config.vocabulary = ListConfig(list(vocabulary.values()))
 
+        if "params" in decoder_config:
+            decoder_num_classes = decoder_config['params']['num_classes']
+        else:
+            decoder_num_classes = decoder_config['num_classes']
+
         # Override number of classes if placeholder provided
         logging.info(
             "\nReplacing old number of classes ({}) with new number of classes - {}".format(
-                decoder_config['params']['num_classes'], len(vocabulary)
+                decoder_num_classes, len(vocabulary)
             )
         )
-        decoder_config['params']['num_classes'] = len(vocabulary)
+
+        if "params" in decoder_config:
+            decoder_config['params']['num_classes'] = len(vocabulary)
+        else:
+            decoder_config['num_classes'] = len(vocabulary)
 
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
