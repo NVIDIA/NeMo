@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import random
 import math
+import random
 
 import omegaconf
 import pytest
+import pytorch_lightning as pl
 import torch
 import torch.optim
-import pytorch_lightning as pl
 
 from nemo.core import config, optim
 from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS
@@ -748,4 +748,3 @@ class TestOptimizersSchedulers:
             train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last)
 
         # Test drop_last = True, accumulate_grad_batches != 1 does not work
-
