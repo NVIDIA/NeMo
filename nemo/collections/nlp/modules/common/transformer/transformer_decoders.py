@@ -78,7 +78,7 @@ class TransformerDecoder(nn.Module):
             try:
                 memory_states = torch.cat((decoder_mems_list[i], decoder_states), dim=1)
             except RuntimeError as e:
-                print("(TransformerDecoder._get_memory_states)decoder_mems_list[{i}].device, decoder_states.device:", decoder_mems_list[{i}].device, decoder_states.device)
+                print(f"(TransformerDecoder._get_memory_states)decoder_mems_list[{i}].device, decoder_states.device:", decoder_mems_list[i].device, decoder_states.device)
                 raise e
         else:
             memory_states = decoder_states
