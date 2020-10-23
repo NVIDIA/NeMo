@@ -42,7 +42,7 @@ def form_attention_mask(input_mask, diagonal=None):
     attn_shape = (1, input_mask.shape[1], input_mask.shape[1])
     attn_mask = input_mask.bool().unsqueeze(1)
     if diagonal is not None:
-        future_mask = torch.tril(torch.ones(attn_shape).bool().to(input_mask.device), diagonal)
+        future_mask = torch.tril(torch.ones(attn_shape, dtype=torch.bool, device=input_mask.device), diagonal)
         attn_mask = attn_mask & future_mask
     attention_mask = (1 - attn_mask.to(torch.float)) * NEG_INF
     return attention_mask.unsqueeze(1)
