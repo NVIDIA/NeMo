@@ -270,7 +270,10 @@ class TalkNetSpectModel(SpectrogramGenerator):
     def parse(self, text: str, **kwargs) -> torch.Tensor:
         return torch.tensor(self.vocab.encode(text)).long()
 
-    def load_durs_predictor(self, checkpoint_path, hparams_file):
+    def load_durs_predictor(self, pretrained_model):
+        self.dn = TalkNetDursModel.from_pretrained(pretrained_model)
+
+    def load_durs_predictor_from_checkpoint(self, checkpoint_path, hparams_file):
         self.dn = TalkNetDursModel.load_from_checkpoint(checkpoint_path=checkpoint_path,
                                                         hparams_file=hparams_file).cuda()
 
