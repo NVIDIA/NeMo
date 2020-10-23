@@ -36,6 +36,61 @@ class TempModel(torch.nn.Module):
         return x
 
 
+class OptCounter(torch.optim.SGD):
+    def __init__(self, *args, **kwargs):
+        self.count = 0
+        super().__init__(*args, **kwargs)
+
+    def step(self, closure=None):
+        self.count += 1
+        super().step(closure)
+
+
+class RandomDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset_len):
+        super().__init__()
+        self.__dataset_len = dataset_len
+
+    def __getitem__(self, *args):
+        return torch.randn(2)
+
+    def __len__(self):
+        return self.__dataset_len
+
+
+class ExampleModel(pl.LightningModule):
+    def __init__(self, batch_size, dataset_len, drop_last, max_steps):
+        super().__init__()
+        self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
+        self.__batch_size = batch_size
+        self.__dataset_len = dataset_len
+        self.__drop_last = drop_last
+        self.max_steps = max_steps
+
+    def train_dataloader(self):
+        dataset = RandomDataset(self.__dataset_len)
+        return torch.utils.data.DataLoader(dataset, batch_size=self.__batch_size, drop_last=self.__drop_last)
+
+    def training_step(self, batch, batch_idx):
+        output = self.l1(batch)
+        output = torch.nn.functional.l1_loss(output, torch.ones(output.size()).to(output.device))
+        return {"loss": output}
+
+    def configure_optimizers(self):
+        self.my_opt = OptCounter(self.parameters(), lr=0.02)
+        return self.my_opt
+
+
+class Callback(pl.callbacks.Callback):
+    def on_train_end(self, trainer, module):
+        assert (
+            trainer.global_step == module.my_opt.count
+        ), f"{trainer.global_step} != {module.my_opt.count} != {module.max_steps}"
+        assert (
+            trainer.global_step == module.max_steps
+        ), f"{trainer.global_step} != {module.my_opt.count} != {module.max_steps}"
+
+
 class TestOptimizersSchedulers:
     INITIAL_LR = 0.1
     MIN_LR = 1e-3
@@ -638,57 +693,6 @@ class TestOptimizersSchedulers:
 
     @pytest.mark.unit
     def test_max_step_computation(self):
-        class OptCounter(torch.optim.SGD):
-            def __init__(self, *args, **kwargs):
-                self.count = 0
-                super().__init__(*args, **kwargs)
-
-            def step(self, closure=None):
-                self.count += 1
-                super().step(closure)
-
-        class RandomDataset(torch.utils.data.Dataset):
-            def __init__(self, dataset_len):
-                super().__init__()
-                self.__dataset_len = dataset_len
-
-            def __getitem__(self, *args):
-                return torch.randn(2)
-
-            def __len__(self):
-                return self.__dataset_len
-
-        class ExampleModel(torch.nn.Module):
-            def __init__(self, batch_size, dataset_len, drop_last, max_steps):
-                super().__init__()
-                self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
-                self.__batch_size = batch_size
-                self.__dataset_len = dataset_len
-                self.__drop_last = drop_last
-                self.max_steps = max_steps
-
-            def train_dataloader(self):
-                dataset = RandomDataset(self.__dataset_len)
-                return torch.utils.data.DataLoader(dataset, batch_size=self.__batch_size, drop_last=self.__drop_last)
-
-            def training_step(self, batch, batch_idx):
-                output = self.l1(batch)
-                output = torch.nn.functional.l1_loss(output, torch.ones(output.size()).to(output.device))
-                return {"loss": output}
-
-            def configure_optimizers(self):
-                self.my_opt = OptCounter(self.parameters(), lr=0.02)
-                return self.my_opt
-
-        class Callback(pl.callbacks.Callback):
-            def on_train_end(self, trainer, module):
-                assert (
-                    trainer.global_step == module.my_opt.count
-                ), f"{trainer.global_step} != {module.my_opt.count} != {module.max_steps}"
-                assert (
-                    trainer.global_step == module.max_steps
-                ), f"{trainer.global_step} != {module.my_opt.count} != {module.max_steps}"
-
         def train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last):
             trainer = pl.Trainer(
                 max_epochs=max_epochs,
@@ -707,23 +711,25 @@ class TestOptimizersSchedulers:
             trainer.fit(model)
 
         # Test drop_last = False, all other parameters free
-        for _ in range(5):
-            max_epochs = random.randint(25, 100)
-            accumulate_grad_batches = random.randint(1, 10)
-            num_processes = random.randint(1, 10)
-            dataset_len = random.randint(20, num_processes * 2500)
-            batch_size = random.randint(math.ceil(4.0 / num_processes), min(dataset_len // num_processes, 128))
+        for _ in range(3):
             drop_last = False
+            accumulate_grad_batches = random.randint(1, 10)
+
+            max_epochs = random.randint(4, 20)
+            num_processes = random.randint(1, 5)
+            dataset_len = random.randint(20, num_processes * 500)
+            batch_size = random.randint(math.ceil(5.0 / num_processes), min(dataset_len // num_processes, 128))
             train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last)
 
         # Test drop_last = True, accumulate_grad_batches = 1, all other parameters free
-        for _ in range(5):
-            max_epochs = random.randint(25, 100)
+        for _ in range(3):
+            drop_last = True
             accumulate_grad_batches = 1
-            num_processes = random.randint(1, 10)
-            dataset_len = random.randint(20, num_processes * 2500)
-            batch_size = random.randint(math.ceil(4.0 / num_processes), min(dataset_len // num_processes, 128))
-            drop_last = False
+
+            max_epochs = random.randint(4, 20)
+            num_processes = random.randint(1, 5)
+            dataset_len = random.randint(20, num_processes * 500)
+            batch_size = random.randint(math.ceil(5.0 / num_processes), min(dataset_len // num_processes, 128))
             train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last)
 
         # Test drop_last = True, accumulate_grad_batches != 1 does not work
