@@ -17,6 +17,8 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
+import pytorch_lightning as pl
+import wrapt
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.utils import logging
@@ -197,15 +199,15 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     # process val_loss_idx
-    if 'val_loss_idx' in cfg.validation_ds:
+    if 'val_dl_idx' in cfg.validation_ds:
         cfg = OmegaConf.to_container(cfg)
-        val_loss_idx = cfg['validation_ds'].pop('val_loss_idx')
+        val_dl_idx = cfg['validation_ds'].pop('val_dl_idx')
         cfg = OmegaConf.create(cfg)
     else:
-        val_loss_idx = 0
+        val_dl_idx = 0
 
     # Set val_loss_idx
-    model._validation_loss_idx = val_loss_idx
+    model._val_dl_idx = val_dl_idx
 
     ds_key = resolve_dataset_name_from_cfg(cfg.validation_ds)
 
@@ -266,15 +268,15 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     # process test_loss_idx
-    if 'test_loss_idx' in cfg.test_ds:
+    if 'test_dl_idx' in cfg.test_ds:
         cfg = OmegaConf.to_container(cfg)
-        test_loss_idx = cfg['test_ds'].pop('test_loss_idx')
+        test_dl_idx = cfg['test_ds'].pop('test_dl_idx')
         cfg = OmegaConf.create(cfg)
     else:
-        test_loss_idx = 0
+        test_dl_idx = 0
 
     # Set val_loss_idx
-    model._test_loss_idx = test_loss_idx
+    model._test_dl_idx = test_dl_idx
 
     ds_key = resolve_dataset_name_from_cfg(cfg.test_ds)
 
@@ -307,3 +309,14 @@ def resolve_test_dataloaders(model: 'ModelPT'):
         model._test_names = [parse_dataset_as_name(ds_values)]
 
         unique_names_check(name_list=model._test_names)
+
+
+@wrapt.decorator
+def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
+    output_dict = wrapped(*args, **kwargs)
+
+    if 'log' in output_dict:
+        log_dict = output_dict.pop('log')
+        instance.log_dict(log_dict, on_step=True)
+
+    return output_dict

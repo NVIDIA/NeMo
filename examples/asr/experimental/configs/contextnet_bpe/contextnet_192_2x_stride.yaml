@@ -369,6 +369,9 @@ exp_manager:
   name: *name
   create_tensorboard_logger: true
   create_checkpoint_callback: true
+  checkpoint_callback_params:
+    monitor: "val_wer"
+    mode: "min"
   create_wandb_logger: false
   wandb_logger_kwargs:
     name: null
