@@ -67,7 +67,10 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         vocabulary = self.tokenizer.tokenizer.get_vocab()
 
         # Set the new vocabulary
-        cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
+        if "params" in cfg.decoder:
+            cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+        else:
+            cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
 
         # Override number of classes if placeholder provided
         if "params" in cfg.decoder:
