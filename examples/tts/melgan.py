@@ -33,7 +33,9 @@ class MBMelGanModel(ModelPT):
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.generator = MelGANGenerator(**cfg.gen)
         self.discriminator = MelGANMultiScaleDiscriminator(**cfg.disc)
-        self.pqmf = PQMF()
+        self.pqmf = None
+        if cfg.pqmf:
+            self.pqmf = PQMF()
         self.loss = MultiResolutionSTFTLoss()
         self.subband_loss = MultiResolutionSTFTLoss(
             fft_sizes=[384, 683, 171], hop_sizes=[30, 60, 10], win_lengths=[150, 300, 60]
@@ -87,11 +89,13 @@ class MBMelGanModel(ModelPT):
 
         # train discriminator
         if optimizer_idx == 0 and self.train_disc:
-            audio_pred = self.pqmf.synthesis(mb_audio_pred)
+            audio_pred = mb_audio_pred
+            if self.pqmf is not None:
+                audio_pred = self.pqmf.synthesis(mb_audio_pred)
             fake_score = self.discriminator(audio_pred.detach())
             real_score = self.discriminator(audio.unsqueeze(1))
 
-            loss_disc = 0
+            # loss_disc = 0
             # for scale in fake_score:
             #     loss_disc += F.relu(1 + scale[-1]).mean()
 
@@ -101,7 +105,7 @@ class MBMelGanModel(ModelPT):
             loss_disc = 0.0
             for i in range(len(fake_score)):
                 loss_disc += self.mse_loss(real_score[i][-1], real_score[i][-1].new_ones(real_score[i][-1].size()))
-                loss_disc += self.mse_loss(fake_score[i][-1], fake_score[i][-1].new_zeros(fake_score[i][-1].size()))
+                loss_disc += fake_score[i][-1] ** 2
             loss_disc /= len(fake_score)
 
             if self.global_step % 1000 == 0:
@@ -114,19 +118,23 @@ class MBMelGanModel(ModelPT):
         # train generator
         elif optimizer_idx == 1:
             loss = 0
-            audio_pred = self.pqmf.synthesis(mb_audio_pred)
+            audio_pred = mb_audio_pred
+            if self.pqmf is not None:
+                audio_pred = self.pqmf.synthesis(mb_audio_pred)
 
             # full-band loss
             sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio)
             loss_feat = sc_loss + mag_loss
-            loss += 0.5 * loss_feat
+            loss += loss_feat
 
             # MB loss
-            audio_mb = self.pqmf.analysis(audio.unsqueeze(1))
-            mb_audio_pred = mb_audio_pred.view(-1, mb_audio_pred.size(2))
-            audio_mb = audio_mb.view(-1, audio_mb.size(2))
-            sub_sc_loss, sub_mag_loss = self.subband_loss(mb_audio_pred, audio_mb)
-            loss += 0.5 * (sub_sc_loss + sub_mag_loss)
+            if self.pqmf is not None:
+                loss *= 0.5
+                audio_mb = self.pqmf.analysis(audio.unsqueeze(1))
+                mb_audio_pred = mb_audio_pred.view(-1, mb_audio_pred.size(2))
+                audio_mb = audio_mb.view(-1, audio_mb.size(2))
+                sub_sc_loss, sub_mag_loss = self.subband_loss(mb_audio_pred, audio_mb)
+                loss += 0.5 * (sub_sc_loss + sub_mag_loss)
 
             if self.train_disc:
                 fake_score = self.discriminator(audio_pred)
@@ -157,7 +165,9 @@ class MBMelGanModel(ModelPT):
         audio_pred_mb = self.generator(spec)
 
         # return result
-        audio_pred = self.pqmf.synthesis(audio_pred_mb)
+        audio_pred = audio_pred_mb
+        if self.pqmf is not None:
+            audio_pred = self.pqmf.synthesis(audio_pred_mb)
         spec_pred, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
         return {
             # "loss": loss,
