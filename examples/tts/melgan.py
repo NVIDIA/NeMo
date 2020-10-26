@@ -56,7 +56,7 @@ class MBMelGanModel(ModelPT):
     def configure_optimizers(self):
         opt1 = torch.optim.Adam(self.discriminator.parameters(), lr=1e-3, eps=1e-07, amsgrad=True)
         opt2 = torch.optim.Adam(self.generator.parameters(), lr=1e-3, eps=1e-07, amsgrad=True)
-        num_procs = self._trainer.num_gpus * self._trainer.num_nodes * self._trainer.accumulate_grad_batches
+        num_procs = self._trainer.num_gpus * self._trainer.num_nodes
         num_samples = len(self._train_dl.dataset)
         batch_size = self._train_dl.batch_size
         iter_per_epoch = np.ceil(num_samples / (num_procs * batch_size))
@@ -189,7 +189,7 @@ class MBMelGanModel(ModelPT):
                 self.global_step,
                 dataformats="HWC",
             )
-        return {}
+        return None
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
