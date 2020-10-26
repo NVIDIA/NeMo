@@ -319,9 +319,9 @@ pipeline {
             model.dataset.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.test_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.train_ds.batch_size=8 \
-            model.train_ds.num_samples=8 \
-            model.validation_ds.batch_size=8 \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
             model.test_ds.batch_size=2 \
             trainer.max_epochs=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
@@ -341,9 +341,9 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
-            model.train_ds.batch_size=8 \
-            model.train_ds.num_samples=8 \
-            model.validation_ds.batch_size=8 \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
             trainer.max_epochs=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
@@ -402,7 +402,7 @@ pipeline {
         model.dataset.use_cache=false \
         model.train_ds.batch_size=1 \
         model.train_ds.num_samples=1 \
-        model.validation_ds.batch_size=8 \
+        model.validation_ds.batch_size=1 \
         trainer.accelerator=ddp \
         trainer.max_epochs=1 \
         model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
@@ -433,9 +433,9 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
-            model.train_ds.batch_size=8 \
-            model.train_ds.num_samples=8 \
-            model.validation_ds.batch_size=8 \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
             trainer.max_epochs=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.language_model.pretrained_model_name=roberta-base \
