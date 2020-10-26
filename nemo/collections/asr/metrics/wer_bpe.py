@@ -66,7 +66,7 @@ class WERBPE(Metric):
         log_prediction=True,
         dist_sync_on_step=False,
     ):
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        super().__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
         self.tokenizer = tokenizer
         self.batch_dim_index = batch_dim_index
         self.blank_id = tokenizer.tokenizer.vocab_size
@@ -134,9 +134,11 @@ class WERBPE(Metric):
             # Compute Levenstein's distance
             scores += editdistance.eval(h_list, r_list)
 
-        self.scores = torch.tensor(scores).to(predictions.device)
-        self.words = torch.tensor(words).to(predictions.device)
+        self.scores = torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
+        self.words = torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
         # return torch.tensor([scores, words]).to(predictions.device)
 
     def compute(self):
-        return self.scores / self.words
+        scores = self.scores.detach().float()
+        words = self.words.detach().float()
+        return scores / words, scores, words

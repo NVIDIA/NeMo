@@ -144,6 +144,36 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
+        stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            +model.train_ds.use_dali=True
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            +model.validation_ds.use_dali=True
+            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            model.preprocessor.params={} \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+        stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            +model.train_ds.use_dali=True
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            +model.validation_ds.use_dali=True
+            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+            model.preprocessor.params={} \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -463,36 +493,36 @@ pipeline {
         }
       }
     }
-    // TODO: Adding this back after upgrade
-    // stage('L2: Text Classification with Model Parallel Size 2 Megatron BERT') {
-    //   when {
-    //     anyOf{
-    //       branch 'main'
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   failFast true
-    //   steps{
-    //     sh 'cd examples/nlp/text_classification && \
-    //     python text_classification_with_bert.py \
-    //     exp_manager.create_checkpoint_callback=false \
-    //     exp_manager.exp_dir=exp_mp_2_megatron_bert \
-    //     trainer.gpus=[0,1] \
-    //     trainer.num_nodes=1 \
-    //     trainer.precision=16 \
-    //     ~trainer.amp_level \
-    //     +trainer.replace_sampler_ddp=false \
-    //     +trainer.fast_dev_run=true \
-    //     model.dataset.num_classes=6 \
-    //     model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
-    //     model.train_ds.batch_size=4 \
-    //     model.language_model.pretrained_model_name=megatron-bert-uncased \
-    //     model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
-    //     model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
-    //     '
-    //     sh 'rm -rf examples/nlp/text_classification/exp_mp_2_megatron_bert'
-    //   }
-    // }
+    stage('L2: Text Classification with Model Parallel Size 2 Megatron BERT') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/text_classification && \
+        python text_classification_with_bert.py \
+        exp_manager.create_checkpoint_callback=false \
+        exp_manager.exp_dir=exp_mp_2_megatron_bert \
+        trainer.gpus=[0,1] \
+        trainer.num_nodes=1 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        ~trainer.amp_level \
+        +trainer.replace_sampler_ddp=false \
+        +trainer.fast_dev_run=true \
+        model.dataset.num_classes=6 \
+        model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
+        model.train_ds.batch_size=4 \
+        model.language_model.pretrained_model_name=megatron-bert-uncased \
+        model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
+        model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
+        '
+        sh 'rm -rf examples/nlp/text_classification/exp_mp_2_megatron_bert'
+      }
+    }
 
     stage('L2: Parallel NLP Examples 2') {
       when {
