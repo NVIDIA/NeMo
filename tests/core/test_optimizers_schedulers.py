@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+import random
+
 import omegaconf
 import pytest
+import pytorch_lightning as pl
 import torch
 import torch.optim
 
@@ -30,6 +34,61 @@ class TempModel(torch.nn.Module):
     def forward(self, x):
         x = self.layer(x)
         return x
+
+
+class OptCounter(torch.optim.SGD):
+    def __init__(self, *args, **kwargs):
+        self.count = 0
+        super().__init__(*args, **kwargs)
+
+    def step(self, closure=None):
+        self.count += 1
+        super().step(closure)
+
+
+class RandomDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset_len):
+        super().__init__()
+        self.__dataset_len = dataset_len
+
+    def __getitem__(self, *args):
+        return torch.randn(2)
+
+    def __len__(self):
+        return self.__dataset_len
+
+
+class ExampleModel(pl.LightningModule):
+    def __init__(self, batch_size, dataset_len, drop_last, max_steps):
+        super().__init__()
+        self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
+        self.__batch_size = batch_size
+        self.__dataset_len = dataset_len
+        self.__drop_last = drop_last
+        self.max_steps = max_steps
+
+    def train_dataloader(self):
+        dataset = RandomDataset(self.__dataset_len)
+        return torch.utils.data.DataLoader(dataset, batch_size=self.__batch_size, drop_last=self.__drop_last)
+
+    def training_step(self, batch, batch_idx):
+        output = self.l1(batch)
+        output = torch.nn.functional.l1_loss(output, torch.ones(output.size()).to(output.device))
+        return {"loss": output}
+
+    def configure_optimizers(self):
+        self.my_opt = OptCounter(self.parameters(), lr=0.02)
+        return self.my_opt
+
+
+class Callback(pl.callbacks.Callback):
+    def on_train_end(self, trainer, module):
+        assert (
+            trainer.global_step == module.my_opt.count
+        ), f"{trainer.global_step} != {module.my_opt.count} != {module.max_steps}"
+        assert (
+            trainer.global_step == module.max_steps
+        ), f"{trainer.global_step} != {module.my_opt.count} != {module.max_steps}"
 
 
 class TestOptimizersSchedulers:
@@ -63,6 +122,7 @@ class TestOptimizersSchedulers:
 
         assert isinstance(opt, TempOpt)
 
+    @pytest.mark.unit
     def test_optim_config_parse_bypass(self):
         basic_optim_config = {'weight_decay': 0.001, 'betas': [0.8, 0.5]}
         parsed_params = optim.parse_optimizer_args('novograd', basic_optim_config)
@@ -76,6 +136,7 @@ class TestOptimizersSchedulers:
         assert parsed_params['betas'][0] == dict_config['betas'][0]
         assert parsed_params['betas'][1] == dict_config['betas'][1]
 
+    @pytest.mark.unit
     def test_optim_config_parse_arg_by_name(self):
         basic_optim_config = {'name': 'auto', 'weight_decay': 0.001, 'betas': [0.8, 0.5]}
         parsed_params = optim.parse_optimizer_args('novograd', basic_optim_config)
@@ -92,6 +153,7 @@ class TestOptimizersSchedulers:
         with pytest.raises(omegaconf.errors.ConfigKeyError):
             optim.parse_optimizer_args('sgd', dict_config)
 
+    @pytest.mark.unit
     def test_optim_config_parse_arg_by_target(self):
         basic_optim_config = {
             'target': 'nemo.core.config.NovogradParams',
@@ -118,6 +180,7 @@ class TestOptimizersSchedulers:
         assert set(output_config.keys()) != set(sgd_config.keys())
         assert set(output_config.keys()) == set(novograd_config)
 
+    @pytest.mark.unit
     def test_get_scheduler(self):
         model = TempModel()
         optimizer = optim.Novograd(model.parameters(), lr=self.INITIAL_LR)
@@ -157,6 +220,7 @@ class TestOptimizersSchedulers:
 
         assert isinstance(sched, TempSched)
 
+    @pytest.mark.unit
     def test_sched_config_parse_simple(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -170,6 +234,7 @@ class TestOptimizersSchedulers:
         scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
         assert isinstance(scheduler_setup['scheduler'], optim.lr_scheduler.CosineAnnealing)
 
+    @pytest.mark.unit
     def test_sched_config_parse_from_cls(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -187,6 +252,7 @@ class TestOptimizersSchedulers:
         scheduler_setup = optim.lr_scheduler.prepare_lr_scheduler(opt, dict_config)
         assert isinstance(scheduler_setup['scheduler'], optim.lr_scheduler.CosineAnnealing)
 
+    @pytest.mark.unit
     def test_WarmupPolicy(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -227,6 +293,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_WarmupHoldPolicy(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -289,6 +356,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_WarmupAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -351,6 +419,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_SquareAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -392,6 +461,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_SquareRootAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -435,6 +505,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_CosineAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -476,6 +547,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_PolynomialDecayAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -521,7 +593,8 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
-    def test_PolynomialDecayAnnealing(self):
+    @pytest.mark.unit
+    def test_PolynomialHoldDecayAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
         opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
@@ -589,6 +662,7 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+    @pytest.mark.unit
     def test_InverseSquareRootAnnealing(self):
         model = TempModel()
         opt_cls = optim.get_optimizer('novograd')
@@ -631,3 +705,47 @@ class TestOptimizersSchedulers:
         final_lr = policy.get_last_lr()[0]
 
         assert final_lr == self.MIN_LR
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('CPU')
+    def test_max_step_computation(self, cleanup_local_folder):
+        def train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last):
+            trainer = pl.Trainer(
+                max_epochs=max_epochs,
+                accelerator="ddp_cpu",
+                num_processes=num_processes,
+                accumulate_grad_batches=accumulate_grad_batches,
+                checkpoint_callback=False,
+                progress_bar_refresh_rate=0,
+                weights_summary=None,
+            )
+            max_steps = optim.lr_scheduler.compute_max_steps(
+                max_epochs, accumulate_grad_batches, num_processes, dataset_len, batch_size, drop_last
+            )
+            model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
+            trainer.callbacks.append(Callback())
+            trainer.fit(model)
+
+        # Test drop_last = False, all other parameters free
+        for _ in range(3):
+            drop_last = False
+            accumulate_grad_batches = random.randint(1, 10)
+
+            max_epochs = random.randint(4, 20)
+            num_processes = random.randint(1, 5)
+            dataset_len = random.randint(20, num_processes * 500)
+            batch_size = random.randint(math.ceil(5.0 / num_processes), min(dataset_len // num_processes, 128))
+            train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last)
+
+        # Test drop_last = True, accumulate_grad_batches = 1, all other parameters free
+        for _ in range(3):
+            drop_last = True
+            accumulate_grad_batches = 1
+
+            max_epochs = random.randint(4, 20)
+            num_processes = random.randint(1, 5)
+            dataset_len = random.randint(20, num_processes * 500)
+            batch_size = random.randint(math.ceil(5.0 / num_processes), min(dataset_len // num_processes, 128))
+            train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last)
+
+        # Test drop_last = True, accumulate_grad_batches != 1 does not work
