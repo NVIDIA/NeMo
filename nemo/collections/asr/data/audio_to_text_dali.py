@@ -40,31 +40,34 @@ __all__ = [
 
 class DALIOutputs(object):
     def __init__(self, out_dict):
-        self._outs = out_dict
         self._has_processed_signal = 'processed_signal' in out_dict and 'processed_signal_len' in out_dict
         if not self._has_processed_signal:
             assert 'audio' in out_dict and 'audio_len' in out_dict
         assert 'transcript' in out_dict and 'transcript_len' in out_dict
+        if self._has_processed_signal:
+            self._outs = (
+                out_dict['processed_signal'],
+                out_dict['processed_signal_len'].reshape(-1),
+                out_dict['transcript'],
+                out_dict['transcript_len'].reshape(-1),
+            )
+        else:
+            self._outs = (
+                out_dict['audio'],
+                out_dict['audio_len'].reshape(-1),
+                out_dict['transcript'],
+                out_dict['transcript_len'].reshape(-1),
+            )
 
     @property
     def has_processed_signal(self):
         return self._has_processed_signal
 
-    def get(self):
-        if self._has_processed_signal:
-            return (
-                self._outs['processed_signal'],
-                self._outs['processed_signal_len'].reshape(-1),
-                self._outs['transcript'],
-                self._outs['transcript_len'].reshape(-1),
-            )
-        else:
-            return (
-                self._outs['audio'],
-                self._outs['audio_len'].reshape(-1),
-                self._outs['transcript'],
-                self._outs['transcript_len'].reshape(-1),
-            )
+    def __getitem__(self, key):
+        return self._outs[key]
+
+    def __len__(self):
+        return len(self._outs)
 
 
 @experimental

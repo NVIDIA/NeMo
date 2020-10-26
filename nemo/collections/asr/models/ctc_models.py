@@ -31,7 +31,7 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
 
@@ -356,9 +356,15 @@ class EncDecCTCModel(ASRModel, Exportable):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        if hasattr(self.preprocessor, '_sample_rate'):
+            input_signal_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
+        else:
+            input_signal_eltype = AudioSignal()
         return {
-            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "processed_signal_length": NeuralType(tuple('B'), LengthsType()),
+            "input_signal": NeuralType(('B', 'T'), input_signal_eltype, optional=True),
+            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
+            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -369,31 +375,26 @@ class EncDecCTCModel(ASRModel, Exportable):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
-    def processed_batch(self, outputs):
-        need_processing = True
-        # Spec augment is not applied during evaluation/testing
-        need_augmenting = self.spec_augmentation is not None and self.training
-        if isinstance(outputs, DALIOutputs):
-            if outputs.has_processed_signal:
-                need_processing = False
-                processed_signal, processed_signal_len, transcript, transcript_len = outputs.get()
-            else:
-                audio_signal, audio_signal_len, transcript, transcript_len = outputs.get()
-        else:
-            audio_signal, audio_signal_len, transcript, transcript_len = outputs
-
-        if need_processing:
-            processed_signal, processed_signal_len = self.preprocessor(
-                input_signal=audio_signal, length=audio_signal_len,
+    @typecheck()
+    def forward(
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+    ):
+        has_input_signal = input_signal is not None and input_signal_length is not None
+        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        if (has_input_signal ^ has_processed_signal) == False:
+            raise ValueError(
+                f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
+                " with ``processed_signal`` and ``processed_signal_len`` arguments."
             )
 
-        if need_augmenting:
+        if not has_processed_signal:
+            processed_signal, processed_signal_length = self.preprocessor(
+                input_signal=input_signal, length=input_signal_length,
+            )
+
+        if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal)
 
-        return processed_signal, processed_signal_len, transcript, transcript_len
-
-    @typecheck()
-    def forward(self, processed_signal, processed_signal_length):
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
@@ -401,11 +402,14 @@ class EncDecCTCModel(ASRModel, Exportable):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        processed_signal, processed_signal_len, transcript, transcript_len = self.processed_batch(batch)
+        signal, signal_len, transcript, transcript_len = batch
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            log_probs, encoded_len, predictions = self.forward(
+                processed_signal=signal, processed_signal_length=signal_len
+            )
+        else:
+            log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
-        log_probs, encoded_len, predictions = self.forward(
-            processed_signal=processed_signal, processed_signal_length=processed_signal_len
-        )
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
@@ -424,11 +428,14 @@ class EncDecCTCModel(ASRModel, Exportable):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        processed_signal, processed_signal_len, transcript, transcript_len = self.processed_batch(batch)
+        signal, signal_len, transcript, transcript_len = batch
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            log_probs, encoded_len, predictions = self.forward(
+                processed_signal=signal, processed_signal_length=signal_len
+            )
+        else:
+            log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
-        log_probs, encoded_len, predictions = self.forward(
-            processed_signal=processed_signal, processed_signal_length=processed_signal_len
-        )
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
