@@ -429,7 +429,9 @@ def prepare_lr_scheduler(
                 interval = 'epoch'
 
             scheduler_args.pop('name', None)
-            scheduler_args.pop('iters_per_batch', None)
+            scheduler_args.pop('t_max_epochs', None)
+            scheduler_args.pop('t_accumulate_grad_batches', None)
+            scheduler_args.pop('t_num_workers', None)
             scheduler_args.pop('monitor', None)
             scheduler_args.pop('reduce_on_plateau', None)
 
@@ -501,20 +503,20 @@ def prepare_lr_scheduler(
     if 'max_steps' in scheduler_config and scheduler_config['max_steps'] is not None:
         max_steps = scheduler_config['max_steps']
 
-    elif 'iters_per_batch' in scheduler_config:
-        # Compute effective max_steps if iters_per_batch is provided
+    elif 't_max_epochs' in scheduler_config:
+        # Compute effective max_steps if t_max_epochs is provided
         if train_dataloader is None:
             logging.warning(
-                'As `iters_per_batch` is provided/computed, it is required to pass the train dataloader in order\n'
+                'As `t_max_epochs` is provided/computed, it is required to pass the train dataloader in order\n'
                 'to compute effective maximum number of steps.\n'
                 'Scheduler will not be instantiated !'
             )
             return None
 
-        # Raise exception if neither `max_steps` nor `iters_per_batch` is provided
-        if scheduler_config.get('iters_per_batch', None) is None:
+        # Raise exception if neither `max_steps` nor `t_max_epochs` is provided
+        if scheduler_config.get('t_max_epochs', None) is None:
             logging.warning(
-                "`iters_per_batch` cannot be None when `max_steps` is not not provided.\n"
+                "`t_max_epochs` cannot be None when `max_steps` is not not provided.\n"
                 "This can occur when `train dataloader` is not available to correctly "
                 "prepare the scheduler.\n"
                 "Scheduler will not be instantiated !"
@@ -522,12 +524,18 @@ def prepare_lr_scheduler(
             return None
 
         # Get iters_per_batch
-        iters_per_batch = scheduler_config.get('iters_per_batch')
+        max_epochs = scheduler_config.get('t_max_epochs')
+        accumulate_grad_batches = scheduler_config.get('t_accumulate_grad_batches')
+        num_workers = scheduler_config.get('t_num_workers')
 
         # Compute effective num max_steps
         num_samples = len(train_dataloader.dataset)
         batch_size = train_dataloader.batch_size
-        max_steps = round(num_samples * iters_per_batch / float(batch_size))
+        drop_last = train_dataloader.drop_last
+
+        max_steps = compute_max_steps(
+            max_epochs, accumulate_grad_batches, num_workers, num_samples, batch_size, drop_last,
+        )
 
     else:
         logging.warning(
@@ -569,6 +577,26 @@ def prepare_lr_scheduler(
         'reduce_on_plateau': reduce_lr_on_plateau,
     }
     return schedule_dict
+
+
+def compute_max_steps(max_epochs, accumulate_grad_batches, num_workers, num_samples, batch_size, drop_last):
+    _round = math.floor if drop_last else math.ceil
+    steps_per_epoch = _round(num_samples / (num_workers * batch_size))
+
+    # Check the special case if drop_last == True but worker_0 gets 1 more batch that other workers
+    if drop_last and num_samples % (num_workers * batch_size) > batch_size:
+        worker_0_num_samples = math.ceil(num_samples / num_workers)
+        steps_per_epoch = _round(worker_0_num_samples / batch_size)
+
+    if drop_last and accumulate_grad_batches > 1:
+        # Log warning as this formula does not always work for this case
+        logging.warning(
+            "While computing max_steps, LR Scheduler received both drop_last=True and accumulate_grad_batches > 1."
+            "Please note, that the computed max_steps may be off by a factor of +/- max_epochs. Passing max_steps"
+            "instead of max_epochs to the trainer is strongly recommended."
+        )
+
+    return _round(steps_per_epoch / accumulate_grad_batches) * max_epochs
 
 
 AVAILABLE_SCHEDULERS = {
