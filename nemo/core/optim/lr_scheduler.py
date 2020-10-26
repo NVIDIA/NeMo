@@ -192,26 +192,10 @@ def _poly_decay(initial_lr, step, decay_steps, power, min_lr, cycle):
 
 
 class SquareAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1):
-        assert not (
-            warmup_steps is not None and warmup_ratio is not None
-        ), "Either use particular number of step or ratio"
-        assert warmup_ratio is None or max_steps is not None, "If there is a ratio, there should be a total steps"
+    def __init__(self, optimizer, *, max_steps, min_lr=1e-5, last_epoch=-1, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
-        # It is necessary to assign all attributes *before* __init__,
-        # as class is wrapped by an inner class.
-        self.max_steps = max_steps
-        if warmup_steps is not None:
-            self.warmup_steps = warmup_steps
-        elif warmup_ratio is not None:
-            self.warmup_steps = int(warmup_ratio * max_steps)
-        else:
-            self.warmup_steps = 0
-
-        self.min_lr = min_lr
-        super().__init__(optimizer, last_epoch)
-
-    def get_lr(self, step):
+    def _get_lr(self, step):
         new_lrs = [
             _square_annealing(
                 initial_lr=initial_lr,
