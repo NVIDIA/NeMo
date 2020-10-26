@@ -26,6 +26,7 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
@@ -160,6 +161,7 @@ class ModelPT(LightningModule, Model):
         else:
             return src
 
+    @rank_zero_only
     def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file. You can use "restore_from" method to fully
