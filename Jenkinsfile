@@ -322,6 +322,8 @@ pipeline {
             model.train_ds.batch_size=2 \
             model.train_ds.num_samples=2 \
             model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
+            model.test_ds.num_samples=2 \
             model.test_ds.batch_size=2 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
@@ -345,6 +347,7 @@ pipeline {
             model.train_ds.batch_size=2 \
             model.train_ds.num_samples=2 \
             model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
@@ -405,6 +408,7 @@ pipeline {
         model.train_ds.batch_size=1 \
         model.train_ds.num_samples=1 \
         model.validation_ds.batch_size=1 \
+        model.validation_ds.num_samples=1 \
         trainer.accelerator=ddp \
         trainer.max_epochs=1 \
         +trainer.max_steps=1 \
@@ -439,6 +443,7 @@ pipeline {
             model.train_ds.batch_size=2 \
             model.train_ds.num_samples=2 \
             model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
