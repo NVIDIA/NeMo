@@ -18,8 +18,6 @@ import torch
 from pytorch_lightning.metrics import Metric
 from pytorch_lightning.metrics.utils import METRIC_EPS
 
-from nemo.utils import logging
-
 __all__ = ['ClassificationReport']
 
 
@@ -36,23 +34,30 @@ class ClassificationReport(Metric):
     Example:
         def validation_step(self, batch, batch_idx):
             ...
-            tp, fp, fn = self.punct_class_report(predictions, labels)
-            return {'val_loss': loss_value, 'val_tp': tp, 'val_fp': fp, 'val_fn': fn}
+            tp, fn, fp, _ = self.classification_report(preds, labels)
+
+            return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
         def validation_epoch_end(self, outputs):
             ...
-            tp = torch.sum(torch.stack([x['tp'] for x in outputs]), 0)
-            fn = torch.sum(torch.stack([x['fn'] for x in outputs]), 0)
-            fp = torch.sum(torch.stack([x['fp'] for x in outputs]), 0)
-            precision, recall, f1 = self.get_precision_recall_f1(tp, fn, fp, mode='macro')
-            tensorboard_logs = {'validation_loss': avg_loss, 'precision': precision, 'f1': f1, 'recall': recall}
-            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+            # calculate metrics and classification report
+            precision, recall, f1, report = self.classification_report.compute()
+
+            logging.info(report)
+
+            self.log('val_loss', avg_loss, prog_bar=True)
+            self.log('precision', precision)
+            self.log('f1', f1)
+            self.log('recall', recall)
 
     Args:
         num_classes: number of classes in the dataset
         label_ids (optional): label name to label id mapping
-    Returns:
-        res: a torch.Tensor object with three elements: [true positives, false positives, false negatives].
+        mode: how to compute the average
+        dist_sync_on_step: sync across ddp
+        process_group: which processes to sync across
+    Return:
+        aggregated precision, recall, f1, report
     """
 
     def __init__(
@@ -71,10 +76,12 @@ class ClassificationReport(Metric):
             self.ids_to_labels = None
         self.mode = mode
 
-        self.add_state("tp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
-        self.add_state("fn", default=torch.zeros(num_classes), dist_reduce_fx='sum')
-        self.add_state("fp", default=torch.zeros(num_classes), dist_reduce_fx='sum')
-        self.add_state("num_examples_per_class", default=torch.zeros(num_classes), dist_reduce_fx='sum')
+        self.add_state("tp", default=torch.zeros(num_classes), dist_reduce_fx='sum', persistent=False)
+        self.add_state("fn", default=torch.zeros(num_classes), dist_reduce_fx='sum', persistent=False)
+        self.add_state("fp", default=torch.zeros(num_classes), dist_reduce_fx='sum', persistent=False)
+        self.add_state(
+            "num_examples_per_class", default=torch.zeros(num_classes), dist_reduce_fx='sum', persistent=False
+        )
 
     def update(self, predictions: torch.Tensor, labels: torch.Tensor):
         TP = []
@@ -100,14 +107,10 @@ class ClassificationReport(Metric):
 
     def compute(self):
         """
-        Calculates and logs classification report similar to sklearn.metrics.classification_report
-        Args:
-            tp: Number of true positives per class
-            fn: Number of false negatives per class
-            fp: Number of false positives per class
-            mode: 'macro' to use macro averaging to combine f1 scores for classes
+        Aggregates and then calculates logs classification report similar to sklearn.metrics.classification_report.
+        Typically used during epoch_end.
         Return:
-            aggregated precision, recall, f1
+            aggregated precision, recall, f1, report
         """
         total_examples = torch.sum(self.num_examples_per_class)
         num_non_empty_classes = torch.nonzero(self.num_examples_per_class).size(0)
@@ -152,8 +155,6 @@ class ClassificationReport(Metric):
             )
             + '\n'
         )
-
-        # logging.info(report)
 
         if self.mode == 'macro':
             return macro_precision, macro_recall, macro_f1, report

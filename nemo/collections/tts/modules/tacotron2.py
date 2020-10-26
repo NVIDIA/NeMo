@@ -110,15 +110,6 @@ class Encoder(NeuralModule):
 
         return outputs
 
-    def save_to(self, save_path: str):
-        # TODO: Implement me!
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        # TODO: Implement me!
-        pass
-
 
 class Decoder(NeuralModule):
     def __init__(
@@ -381,15 +372,6 @@ class Decoder(NeuralModule):
 
         return mel_outputs, gate_outputs, alignments, mel_lengths
 
-    def save_to(self, save_path: str):
-        # TODO: Implement me!
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        # TODO: Implement me!
-        pass
-
 
 class Postnet(NeuralModule):
     def __init__(
@@ -483,12 +465,3 @@ class Postnet(NeuralModule):
         mel_spec_out = F.dropout(self.convolutions[-1](mel_spec_out), self.p_dropout, self.training)
 
         return mel_spec + mel_spec_out
-
-    def save_to(self, save_path: str):
-        # TODO: Implement me!
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        # TODO: Implement me!
-        pass

@@ -60,7 +60,7 @@ pipeline {
         }
       }
       steps {
-        sh 'pytest -m "unit and not pleasefixme" --cpu'
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
       }
     }
 
@@ -143,6 +143,36 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
+        stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            +model.train_ds.use_dali=True
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            +model.validation_ds.use_dali=True
+            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            model.preprocessor.params={} \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+        stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            +model.train_ds.use_dali=True
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            +model.validation_ds.use_dali=True
+            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+            model.preprocessor.params={} \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -151,8 +181,13 @@ pipeline {
             model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params={} \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
             exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
           }
@@ -224,8 +259,13 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
-            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params={} \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
             exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
           }
@@ -279,10 +319,10 @@ pipeline {
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.test_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.train_ds.batch_size=8 \
+            model.train_ds.num_samples=8 \
             model.validation_ds.batch_size=8 \
             model.test_ds.batch_size=2 \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
@@ -301,9 +341,9 @@ pipeline {
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
+            model.train_ds.num_samples=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=true \
@@ -360,10 +400,10 @@ pipeline {
         model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
         model.dataset.use_cache=false \
         model.train_ds.batch_size=1 \
-        model.validation_ds.batch_size=1 \
+        model.train_ds.num_samples=1 \
+        model.validation_ds.batch_size=8 \
         trainer.accelerator=ddp \
         trainer.max_epochs=1 \
-        +trainer.max_steps=1 \
         model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
         model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
         model.dataset.version_2_with_negative=true \
@@ -393,9 +433,9 @@ pipeline {
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
+            model.train_ds.num_samples=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.language_model.pretrained_model_name=roberta-base \
             model.dataset.version_2_with_negative=false \
@@ -452,36 +492,36 @@ pipeline {
         }
       }
     }
-    // TODO: Adding this back after upgrade
-    // stage('L2: Text Classification with Model Parallel Size 2 Megatron BERT') {
-    //   when {
-    //     anyOf{
-    //       branch 'main'
-    //       changeRequest target: 'main'
-    //     }
-    //   }
-    //   failFast true
-    //   steps{
-    //     sh 'cd examples/nlp/text_classification && \
-    //     python text_classification_with_bert.py \
-    //     exp_manager.create_checkpoint_callback=false \
-    //     exp_manager.exp_dir=exp_mp_2_megatron_bert \
-    //     trainer.gpus=[0,1] \
-    //     trainer.num_nodes=1 \
-    //     trainer.precision=16 \
-    //     ~trainer.amp_level \
-    //     +trainer.replace_sampler_ddp=false \
-    //     +trainer.fast_dev_run=true \
-    //     model.dataset.num_classes=6 \
-    //     model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
-    //     model.train_ds.batch_size=4 \
-    //     model.language_model.pretrained_model_name=megatron-bert-uncased \
-    //     model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
-    //     model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
-    //     '
-    //     sh 'rm -rf examples/nlp/text_classification/exp_mp_2_megatron_bert'
-    //   }
-    // }
+    stage('L2: Text Classification with Model Parallel Size 2 Megatron BERT') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/text_classification && \
+        python text_classification_with_bert.py \
+        exp_manager.create_checkpoint_callback=false \
+        exp_manager.exp_dir=exp_mp_2_megatron_bert \
+        trainer.gpus=[0,1] \
+        trainer.num_nodes=1 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        ~trainer.amp_level \
+        +trainer.replace_sampler_ddp=false \
+        +trainer.fast_dev_run=true \
+        model.dataset.num_classes=6 \
+        model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
+        model.train_ds.batch_size=4 \
+        model.language_model.pretrained_model_name=megatron-bert-uncased \
+        model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
+        model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
+        '
+        sh 'rm -rf examples/nlp/text_classification/exp_mp_2_megatron_bert'
+      }
+    }
 
     stage('L2: Parallel NLP Examples 2') {
       when {
@@ -606,19 +646,20 @@ pipeline {
             sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
           }
         }
-        stage('STS-b T5-small') {
-          steps {
-            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-            model.dataset.use_cache=false \
-            model.language_model.pretrained_model_name="t5-small" \
-            model.task_name=sts-b \
-            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
-            sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
-          }
-        }
+        // Disable T5 test as HF update broke it as of Oct 20, 2020
+        // stage('STS-b T5-small') {
+        //   steps {
+        //     sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+        //     model.dataset.use_cache=false \
+        //     model.language_model.pretrained_model_name="t5-small" \
+        //     model.task_name=sts-b \
+        //     model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+        //     trainer.gpus=[1] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
+        //     sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
+        //   }
+        // }
       }
     }
 

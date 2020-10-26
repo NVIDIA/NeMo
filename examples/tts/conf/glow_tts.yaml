@@ -51,66 +51,62 @@ model:
     cmu_dict_path: ${cmu_dict_path}
 
   parser:
-    cls: nemo.collections.tts.modules.glow_tts_parser.GlowTTSParser
-    params:
-      cmu_dict_path: ${cmu_dict_path}
+    _target_: nemo.collections.tts.modules.glow_tts_parser.GlowTTSParser
+    cmu_dict_path: ${cmu_dict_path}
 
   preprocessor:
-    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    params:
-      dither: 0.0
-      features: *n_mels
-      frame_splicing: 1
-      highfreq: *fmax
-      log: true
-      log_zero_guard_type: add
-      log_zero_guard_value: 1e-05
-      lowfreq: 0
-      mag_power: 1.0
-      n_fft: *n_fft
-      n_window_size: 1024
-      n_window_stride: 256
-      normalize: null
-      pad_to: 16
-      pad_value: *pad_value
-      preemph: null
-      sample_rate: *sr
-      stft_conv: true
-      window: hann
-      window_size: null
-      window_stride: null
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    dither: 0.0
+    features: *n_mels
+    frame_splicing: 1
+    highfreq: *fmax
+    log: true
+    log_zero_guard_type: add
+    log_zero_guard_value: 1e-05
+    lowfreq: 0
+    mag_power: 1.0
+    n_fft: *n_fft
+    n_window_size: 1024
+    n_window_stride: 256
+    normalize: null
+    pad_to: 16
+    pad_value: *pad_value
+    preemph: null
+    sample_rate: *sr
+    stft_conv: true
+    window: hann
+    window_size: null
+    window_stride: null
 
   encoder:
-    cls: nemo.collections.tts.modules.glow_tts.TextEncoder
-    params:
-      n_vocab: 148
-      out_channels: *n_mels
-      hidden_channels: 192
-      filter_channels: 768
-      filter_channels_dp: 256
-      kernel_size: 3
-      p_dropout: 0.1
-      n_layers: 6
-      n_heads: 2
-      window_size: 4
-      prenet: true
-      mean_only: true
-      gin_channels: *gin_channels
+    _target_: nemo.collections.tts.modules.glow_tts.TextEncoder
+    n_vocab: 148
+    out_channels: *n_mels
+    hidden_channels: 192
+    filter_channels: 768
+    filter_channels_dp: 256
+    kernel_size: 3
+    p_dropout: 0.1
+    n_layers: 6
+    n_heads: 2
+    window_size: 4
+    prenet: true
+    mean_only: true
+    gin_channels: *gin_channels
 
   decoder:
-    cls: nemo.collections.tts.modules.glow_tts.FlowSpecDecoder
-    params:
-      in_channels: *n_mels
-      hidden_channels: 192
-      kernel_size: 5
-      n_blocks: 12
-      n_layers: 4
-      n_sqz: 2
-      n_split: 4
-      sigmoid_scale: false
-      p_dropout: 0.05
-      dilation_rate: 1
-      gin_channels: *gin_channels
+    _target_: nemo.collections.tts.modules.glow_tts.FlowSpecDecoder
+    in_channels: *n_mels
+    hidden_channels: 192
+    kernel_size: 5
+    n_blocks: 12
+    n_layers: 4
+    n_sqz: 2
+    n_split: 4
+    sigmoid_scale: false
+    p_dropout: 0.05
+    dilation_rate: 1
+    gin_channels: *gin_channels
 
   optim:
     name: adam

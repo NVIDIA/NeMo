@@ -123,3 +123,7 @@ exp_manager:
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    save_top_k: null
+    monitor: null
+    save_last: null

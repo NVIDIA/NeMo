@@ -19,10 +19,9 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
-from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
+from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import Vocoder
-from nemo.collections.tts.modules.waveglow import OperationMode
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -36,20 +35,9 @@ from nemo.utils import logging
 
 
 @dataclass
-class PreprocessorParams:
-    pad_value: float = MISSING
-
-
-@dataclass
-class Preprocessor:
-    cls: str = MISSING
-    params: PreprocessorParams = PreprocessorParams()
-
-
-@dataclass
 class WaveglowConfig:
     waveglow: Dict[Any, Any] = MISSING
-    preprocessor: Preprocessor = Preprocessor()
+    preprocessor: Dict[Any, Any] = MISSING
     sigma: float = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
@@ -72,13 +60,25 @@ class WaveGlowModel(Vocoder):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.waveglow = instantiate(self._cfg.waveglow)
         self.mode = OperationMode.infer
         self.loss = WaveGlowLoss()
         self.removed_weightnorm = False
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, new_mode):
+        if new_mode == OperationMode.training:
+            self.train()
+        else:
+            self.eval()
+        self._mode = new_mode
+        self.waveglow.mode = new_mode
 
     @property
     def input_types(self):
@@ -128,9 +128,7 @@ class WaveGlowModel(Vocoder):
         if not self.removed_weightnorm:
             self.waveglow.remove_weightnorm()
             self.removed_weightnorm = True
-        self.eval()
         self.mode = OperationMode.infer
-        self.waveglow.mode = OperationMode.infer
 
         with torch.no_grad():
             audio = self.waveglow(spec=spec, run_inverse=True, audio=None, sigma=sigma)
@@ -139,7 +137,6 @@ class WaveGlowModel(Vocoder):
 
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
-        self.waveglow.mode = OperationMode.training
         audio, audio_len = batch
         z, log_s_list, log_det_W_list = self(audio=audio, audio_len=audio_len, run_inverse=False)
 
@@ -153,7 +150,6 @@ class WaveGlowModel(Vocoder):
 
     def validation_step(self, batch, batch_idx):
         self.mode = OperationMode.validation
-        self.waveglow.mode = OperationMode.validation
         audio, audio_len = batch
         z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self(
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)

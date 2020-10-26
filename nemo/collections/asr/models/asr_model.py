@@ -38,7 +38,7 @@ class ASRModel(ModelPT, ABC):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
         wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_wer': wer_num / wer_denom}
+        tensorboard_logs = {'val_loss': val_loss_mean, 'val_wer': wer_num / wer_denom}
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):

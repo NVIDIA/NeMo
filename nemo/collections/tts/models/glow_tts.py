@@ -34,22 +34,11 @@ from nemo.utils import logging
 
 
 @dataclass
-class PreprocessorParams:
-    pad_value: float = MISSING
-
-
-@dataclass
-class Preprocessor:
-    cls: str = MISSING
-    params: PreprocessorParams = PreprocessorParams()
-
-
-@dataclass
 class GlowTTSConfig:
     encoder: Dict[Any, Any] = MISSING
     decoder: Dict[Any, Any] = MISSING
     parser: Dict[Any, Any] = MISSING
-    preprocessor: Preprocessor = Preprocessor()
+    preprocessor: Dict[Any, Any] = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
     test_ds: Optional[Dict[Any, Any]] = None
