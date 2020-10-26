@@ -20,7 +20,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
+from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
@@ -207,21 +207,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
-            dataset = TarredAudioToBPEDataset(
-                audio_tar_filepaths=config['tarred_audio_filepaths'],
-                manifest_filepath=config['manifest_filepath'],
+            dataset = audio_to_text_dataset.get_tarred_bpe_dataset(
+                config=config,
                 tokenizer=self.tokenizer,
-                sample_rate=config['sample_rate'],
-                int_values=config.get('int_values', False),
-                augmentor=augmentor,
                 shuffle_n=shuffle_n,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                max_utts=config.get('max_utts', 0),
-                trim=config.get('trim_silence', True),
-                add_misc=config.get('add_misc', False),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
+                augmentor=augmentor,
             )
             shuffle = False
         else:
@@ -229,18 +221,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
 
-            dataset = AudioToBPEDataset(
-                manifest_filepath=config['manifest_filepath'],
-                tokenizer=self.tokenizer,
-                sample_rate=config['sample_rate'],
-                int_values=config.get('int_values', False),
-                augmentor=augmentor,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                max_utts=config.get('max_utts', 0),
-                trim=config.get('trim_silence', True),
-                load_audio=config.get('load_audio', True),
-                add_misc=config.get('add_misc', False),
+            dataset = audio_to_text_dataset.get_bpe_dataset(
+                config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
 
         return torch.utils.data.DataLoader(
