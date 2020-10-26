@@ -144,36 +144,36 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
-        stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
-          steps {
-            sh 'python examples/asr/speech_to_text.py \
-            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-            +model.train_ds.use_dali=True
-            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            +model.validation_ds.use_dali=True
-            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params={} \
-            trainer.gpus=[0] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/asr/speech_to_text_results'
-            sh 'rm -rf examples/asr/speech_to_text_results'
-          }
-        }
-        stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
-          steps {
-            sh 'python examples/asr/speech_to_text.py \
-            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-            +model.train_ds.use_dali=True
-            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            +model.validation_ds.use_dali=True
-            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-            model.preprocessor.params={} \
-            trainer.gpus=[0] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/asr/speech_to_text_results'
-            sh 'rm -rf examples/asr/speech_to_text_results'
-          }
-        }
+        // stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+        //   steps {
+        //     sh 'python examples/asr/speech_to_text.py \
+        //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //     +model.train_ds.use_dali=True \
+        //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //     +model.validation_ds.use_dali=True \
+        //     model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+        //     model.preprocessor.params={} \
+        //     trainer.gpus=[0] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //     sh 'rm -rf examples/asr/speech_to_text_results'
+        //   }
+        // }
+        // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+        //   steps {
+        //     sh 'python examples/asr/speech_to_text.py \
+        //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //     +model.train_ds.use_dali=True \
+        //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //     +model.validation_ds.use_dali=True \
+        //     model.preprocessor.cls=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+        //     model.preprocessor.params={} \
+        //     trainer.gpus=[0] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //     sh 'rm -rf examples/asr/speech_to_text_results'
+        //   }
+        // }
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -319,11 +319,14 @@ pipeline {
             model.dataset.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.test_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.train_ds.batch_size=8 \
-            model.train_ds.num_samples=8 \
-            model.validation_ds.batch_size=8 \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
+            model.test_ds.num_samples=2 \
             model.test_ds.batch_size=2 \
             trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
@@ -341,10 +344,12 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
-            model.train_ds.batch_size=8 \
-            model.train_ds.num_samples=8 \
-            model.validation_ds.batch_size=8 \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
             trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=true \
@@ -402,9 +407,11 @@ pipeline {
         model.dataset.use_cache=false \
         model.train_ds.batch_size=1 \
         model.train_ds.num_samples=1 \
-        model.validation_ds.batch_size=8 \
+        model.validation_ds.batch_size=1 \
+        model.validation_ds.num_samples=1 \
         trainer.accelerator=ddp \
         trainer.max_epochs=1 \
+        +trainer.max_steps=1 \
         model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
         model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
         model.dataset.version_2_with_negative=true \
@@ -433,10 +440,12 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
-            model.train_ds.batch_size=8 \
-            model.train_ds.num_samples=8 \
-            model.validation_ds.batch_size=8 \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
             trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.language_model.pretrained_model_name=roberta-base \
             model.dataset.version_2_with_negative=false \
