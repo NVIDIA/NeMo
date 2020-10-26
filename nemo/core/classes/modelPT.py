@@ -33,6 +33,7 @@ from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['ModelPT']
 
@@ -174,6 +175,9 @@ class ModelPT(LightningModule, Model):
         Args:
             save_path: Path to .nemo file where model instance should be saved
         """
+        # Add nemo rank check as well
+        if not is_global_rank_zero():
+            return
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
