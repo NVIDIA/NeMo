@@ -34,12 +34,13 @@ class MBMelGanModel(ModelPT):
         self.generator = MelGANGenerator(**cfg.gen)
         self.discriminator = MelGANMultiScaleDiscriminator(**cfg.disc)
         self.pqmf = None
+        self.subband_loss = None
         if cfg.pqmf:
             self.pqmf = PQMF()
+            self.subband_loss = MultiResolutionSTFTLoss(
+                fft_sizes=[384, 683, 171], hop_sizes=[30, 60, 10], win_lengths=[150, 300, 60]
+            )
         self.loss = MultiResolutionSTFTLoss()
-        self.subband_loss = MultiResolutionSTFTLoss(
-            fft_sizes=[384, 683, 171], hop_sizes=[30, 60, 10], win_lengths=[150, 300, 60]
-        )
         self.train_disc = False
         self.mse_loss = torch.nn.MSELoss()
         self.adv_coeff = self._cfg.init_adv_lambda
@@ -105,7 +106,7 @@ class MBMelGanModel(ModelPT):
             loss_disc = 0.0
             for i in range(len(fake_score)):
                 loss_disc += self.mse_loss(real_score[i][-1], real_score[i][-1].new_ones(real_score[i][-1].size()))
-                loss_disc += fake_score[i][-1] ** 2
+                loss_disc += torch.mean(fake_score[i][-1] ** 2)
             loss_disc /= len(fake_score)
 
             if self.global_step % 1000 == 0:

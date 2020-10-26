@@ -106,6 +106,7 @@ model:
     nonlinear_activation_params:      # Parameters of nonlinear activation function.
         negative_slope: 0.2
     use_weight_norm: True             # Whether to use weight norm.
+    use_spectral_norm: False             # Whether to use weight norm.
 
 trainer:
   gpus: 1 # number of gpus
