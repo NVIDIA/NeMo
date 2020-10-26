@@ -581,22 +581,19 @@ def prepare_lr_scheduler(
 
 def compute_max_steps(max_epochs, accumulate_grad_batches, num_workers, num_samples, batch_size, drop_last):
     _round = math.floor if drop_last else math.ceil
-    steps_per_epoch = _round(num_samples / (num_workers * batch_size))
 
-    # Check the special case if drop_last == True but worker_0 gets 1 more batch that other workers
-    if drop_last and num_samples % (num_workers * batch_size) > batch_size:
-        worker_0_num_samples = math.ceil(num_samples / num_workers)
-        steps_per_epoch = _round(worker_0_num_samples / batch_size)
+    sampler_num_samples = math.ceil(num_samples / num_workers)
 
-    if drop_last and accumulate_grad_batches > 1:
-        # Log warning as this formula does not always work for this case
+    if drop_last and num_workers > 1:
         logging.warning(
-            "While computing max_steps, LR Scheduler received both drop_last=True and accumulate_grad_batches > 1."
-            "Please note, that the computed max_steps may be off by a factor of +/- max_epochs. Passing max_steps"
-            "instead of max_epochs to the trainer is strongly recommended."
+            "Please note that drop_last is broken in pytorch 1.6.0. We will fix when pytorch 1.7.0 is released"
         )
+        # TODO: Master verion, not in pytorch 1.6.0
+        # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
 
-    return _round(steps_per_epoch / accumulate_grad_batches) * max_epochs
+    steps_per_epoch = _round(sampler_num_samples / batch_size)
+
+    return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
 
 
 AVAILABLE_SCHEDULERS = {
