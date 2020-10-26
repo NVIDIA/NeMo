@@ -124,7 +124,12 @@ class TestWordErrorRate:
             n2 = random.randint(1, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
-            assert (
-                abs(self.get_wer(wer, prediction=s1, reference=s2) - word_error_rate(hypotheses=[s1], references=[s2]))
-                < 1e-6
-            )
+            # skip empty strings as reference
+            if s2.strip():
+                assert (
+                    abs(
+                        self.get_wer(wer, prediction=s1, reference=s2)
+                        - word_error_rate(hypotheses=[s1], references=[s2])
+                    )
+                    < 1e-6
+                )
