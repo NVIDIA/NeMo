@@ -148,9 +148,9 @@ pipeline {
           steps {
             sh 'python examples/asr/speech_to_text.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-            +model.train_ds.use_dali=True
+            +model.train_ds.use_dali=True \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            +model.validation_ds.use_dali=True
+            +model.validation_ds.use_dali=True \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
             model.preprocessor.params={} \
             trainer.gpus=[0] \
@@ -163,9 +163,9 @@ pipeline {
           steps {
             sh 'python examples/asr/speech_to_text.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-            +model.train_ds.use_dali=True
+            +model.train_ds.use_dali=True \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            +model.validation_ds.use_dali=True
+            +model.validation_ds.use_dali=True \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
             model.preprocessor.params={} \
             trainer.gpus=[0] \
