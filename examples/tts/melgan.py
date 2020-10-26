@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
 from melgan_models import Discriminator, Generator, MultiResolutionSTFTLoss
-from pwg_melgan_models import MelGANGenerator, MelGANMultiScaleDiscriminator
+from pwg_melgan_models import MelGANGenerator, MelGANMultiScaleDiscriminator, MultiRWDDiscriminator
 from pqmf import PQMF
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.utilities import rank_zero_only
@@ -32,7 +32,10 @@ class MBMelGanModel(ModelPT):
 
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.generator = MelGANGenerator(**cfg.gen)
-        self.discriminator = MelGANMultiScaleDiscriminator(**cfg.disc)
+        if "input_lengths" in cfg.disc:
+            self.discriminator = MultiRWDDiscriminator(**cfg.disc)
+        else:
+            self.discriminator = MelGANMultiScaleDiscriminator(**cfg.disc)
         self.pqmf = None
         self.subband_loss = None
         if cfg.pqmf:
