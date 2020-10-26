@@ -583,16 +583,15 @@ def compute_max_steps(max_epochs, accumulate_grad_batches, num_workers, num_samp
     _round = math.floor if drop_last else math.ceil
 
     sampler_num_samples = math.ceil(num_samples / num_workers)
-    # if drop_last:
-    #     # TODO: Master verion, not in pytorch 1.6.0
-    #     # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
-    steps_per_epoch = _round(sampler_num_samples / num_workers)
 
     if drop_last and num_workers > 1:
-        # Log warning as this formula does not always work for this case
         logging.warning(
             "Please note that drop_last is broken in pytorch 1.6.0. We will fix when pytorch 1.7.0 is released"
         )
+        # TODO: Master verion, not in pytorch 1.6.0
+        # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
+
+    steps_per_epoch = _round(sampler_num_samples / num_workers)
 
     return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
 
