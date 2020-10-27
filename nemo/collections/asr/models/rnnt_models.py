@@ -30,7 +30,7 @@ from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType
+from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
 try:
@@ -68,10 +68,12 @@ class EncDecRNNTModel(ASRModel):
 
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.global_rank = 0
-        self.world_size = 0
+        self.world_size = 1
+        self.local_rank = 0
         if trainer is not None:
             self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
             self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.local_rank = trainer.local_rank
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecRNNTModel.from_config_dict(self.cfg.preprocessor)
@@ -337,12 +339,15 @@ class EncDecRNNTModel(ASRModel):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):
-            audio_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
+            input_signal_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
         else:
-            audio_eltype = AudioSignal()
+            input_signal_eltype = AudioSignal()
+
         return {
-            "input_signal": NeuralType(('B', 'T'), audio_eltype),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType()),
+            "input_signal": NeuralType(('B', 'T'), input_signal_eltype, optional=True),
+            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
+            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -353,22 +358,36 @@ class EncDecRNNTModel(ASRModel):
         }
 
     @typecheck()
-    def forward(self, input_signal, input_signal_length):
-        processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
-        )
+    def forward(self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None):
+        has_input_signal = input_signal is not None and input_signal_length is not None
+        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        if (has_input_signal ^ has_processed_signal) is False:
+            raise ValueError(
+                f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
+                " with ``processed_signal`` and ``processed_signal_len`` arguments."
+            )
+
+        if not has_processed_signal:
+            processed_signal, processed_signal_length = self.preprocessor(
+                input_signal=input_signal, length=input_signal_length,
+            )
+
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal)
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         return encoded, encoded_len
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        audio_signal, audio_signal_len, transcript, transcript_len = batch
-        encoded, encoded_len = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        del audio_signal
+        signal, signal_len, transcript, transcript_len = batch
+
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
+        else:
+            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+        del signal
 
         decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
 
@@ -418,9 +437,14 @@ class EncDecRNNTModel(ASRModel):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        audio_signal, audio_signal_len, transcript, transcript_len = batch
-        encoded, encoded_len = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        del audio_signal
+        signal, signal_len, transcript, transcript_len = batch
+
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
+
+        else:
+            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+        del signal
 
         tensorboard_logs = {}
 
