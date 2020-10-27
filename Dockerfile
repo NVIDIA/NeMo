@@ -44,7 +44,8 @@ COPY requirements .
 RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # build CTC beam search decoder
-RUN scripts/install_ctc_decoders.sh
+COPY scripts/install_ctc_decoders.sh .
+RUN ./install_ctc_decoders.sh
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
