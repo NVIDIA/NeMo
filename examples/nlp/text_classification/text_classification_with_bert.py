@@ -149,13 +149,10 @@ def main(cfg: DictConfig) -> None:
 
         # it is safer to perform evaluation on single GPU without ddp as we are creating second trainer in
         # the same script, and it can be a problem with multi-GPU training.
-        # We also need to reset the environment variable PL_TRAINER_GPUS to prevent PT from initializing ddp.
-        # When evaluation and training scripts are in separate files, no need for this resetting.
         eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
-        eval_trainer_cfg.accelerator = None
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
 
-        eval_trainer.test(model=eval_model, verbose=False)  # test_dataloaders=eval_dataloader,
+        eval_trainer.test(model=eval_model, verbose=False)
 
         logging.info("Evaluation the last checkpoint finished!")
         logging.info("===========================================================================================")
