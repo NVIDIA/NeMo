@@ -29,7 +29,7 @@ class Perplexity(Metric):
 
     def __init__(self, dist_sync_on_step=False):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
-        self.add_state('perplexity', default=torch.tensor(0), dist_reduce_fx='mean')
+        self.add_state('perplexity', default=torch.tensor(0), dist_reduce_fx='mean', persistent=False)
 
     def update(self, loss: torch.Tensor):
         self.perplexity = torch.exp(loss)

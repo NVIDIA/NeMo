@@ -48,11 +48,11 @@ def main(cfg: DictConfig) -> None:
     if trainer.checkpoint_callback is not None:
         # retrieve the path to the last checkpoint of the training (you can use the best checkpoint instead)
         checkpoint_path = os.path.join(
-            trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + "end.ckpt"
+            trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + ".nemo"
         )
 
         # load a model from the checkpoint
-        eval_model = IntentSlotClassificationModel.load_from_checkpoint(checkpoint_path=checkpoint_path)
+        eval_model = IntentSlotClassificationModel.restore_from(restore_path=checkpoint_path)
 
         # we will setup testing data reusing the same config (test section)
         eval_model.setup_test_data(test_data_config=cfg.model.test_ds)

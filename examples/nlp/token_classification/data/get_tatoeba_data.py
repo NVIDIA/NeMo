@@ -42,7 +42,7 @@ def __maybe_download_file(destination: str, source: str):
 
 
 def __process_english_sentences(
-    in_file: str, out_file: str, percent_to_cut: int = 0, num_to_combine: int = 1, num_samples: int = -1
+    in_file: str, out_file: str, percent_to_cut: float = 0, num_to_combine: int = 1, num_samples: int = -1
 ):
     """
     Extract English sentences from the Tatoeba dataset.
@@ -99,7 +99,7 @@ def __process_english_sentences(
         out_file.write(' '.join(lines_to_combine) + '\n')
 
 
-def __split_into_train_dev(in_file, train_file, dev_file, percent_dev):
+def __split_into_train_dev(in_file: str, train_file: str, dev_file: str, percent_dev: float):
     """
     Create train and dev split of the dataset.
     Args:
@@ -120,7 +120,7 @@ def __split_into_train_dev(in_file, train_file, dev_file, percent_dev):
     dev_file.write(' '.join(lines[-dev_size:]))
 
 
-def remove_punctuation(word):
+def remove_punctuation(word: str):
     """
     Removes all punctuation marks from a word except for '
     that is often a part of word: don't, it's, and so on
@@ -129,9 +129,15 @@ def remove_punctuation(word):
     return re.sub('[' + all_punct_marks + ']', '', word)
 
 
-def __create_text_and_labels(data_dir, file, punct_marks=',.?'):
-    '''
+def __create_text_and_labels(data_dir: str, file: str, punct_marks: str = ',.?'):
+    """
     Create datasets for training and evaluation.
+
+    Args:
+      data_dir: path to the output data directory
+      file: file name
+      punct_marks: supported punctuation marks
+
     The data will be splitted into 2 files: text.txt and labels.txt. \
     Each line of the text.txt file contains text sequences, where words\
     are separated with spaces. The labels.txt file contains \
@@ -140,7 +146,7 @@ def __create_text_and_labels(data_dir, file, punct_marks=',.?'):
     format:  \
     [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
     [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
-    '''
+    """
     f = open(os.path.join(data_dir, file), 'r')
     text_f = open(os.path.join(data_dir, 'text_' + file), 'w')
     labels_f = open(os.path.join(data_dir, 'labels_' + file), 'w')
@@ -166,7 +172,7 @@ def __create_text_and_labels(data_dir, file, punct_marks=',.?'):
         labels_f.write(labels.strip() + '\n')
 
 
-def __delete_file(file_to_del):
+def __delete_file(file_to_del: str):
     """
     Deletes the file
     Args:

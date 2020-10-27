@@ -35,10 +35,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import Enum
-
 import torch
 
+from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.collections.tts.modules.squeezewave_submodules import SqueezeWaveNet
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv
 from nemo.core.classes import NeuralModule, typecheck
@@ -52,15 +51,6 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 
 
-class OperationMode(Enum):
-    """Training or Inference (Evaluation) mode"""
-
-    training = 0
-    validation = 1
-    infer = 2
-
-
-# TODO: Implement save_to() and restore_from()
 class SqueezeWaveModule(NeuralModule):
     def __init__(
         self,
@@ -220,12 +210,3 @@ class SqueezeWaveModule(NeuralModule):
                 z = sigma * torch.randn(spec.size(0), self.n_early_size, l, device=spec.device).to(spec.dtype)
                 audio = torch.cat((z, audio), 1)
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
-
-    def save_to(self, save_path: str):
-        # TODO: Implement me!!!
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        # TODO: Implement me!!!
-        pass

@@ -111,8 +111,8 @@ class WER(Metric):
         self.ctc_decode = ctc_decode
         self.log_prediction = log_prediction
 
-        self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum')
-        self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum')
+        self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
     def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
         """
