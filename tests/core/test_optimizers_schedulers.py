@@ -726,26 +726,14 @@ class TestOptimizersSchedulers:
             trainer.callbacks.append(Callback())
             trainer.fit(model)
 
-        # Test drop_last = False, all other parameters free
-        for _ in range(3):
-            drop_last = False
+        # This test will break once we and lightning upgrade to pytorch 1.7.0 due to a bug fix in pytorch 1.7.0
+        train(31, accumulate_grad_batches=1, num_processes=9, batch_size=60, dataset_len=1613, drop_last=True)
+
+        for _ in range(5):
+            drop_last = bool(random.randint(0, 1))
             accumulate_grad_batches = random.randint(1, 10)
-
             max_epochs = random.randint(4, 20)
             num_processes = random.randint(1, 5)
             dataset_len = random.randint(20, num_processes * 500)
             batch_size = random.randint(math.ceil(5.0 / num_processes), min(dataset_len // num_processes, 128))
             train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last)
-
-        # Test drop_last = True, accumulate_grad_batches = 1, all other parameters free
-        for _ in range(3):
-            drop_last = True
-            accumulate_grad_batches = 1
-
-            max_epochs = random.randint(4, 20)
-            num_processes = random.randint(1, 5)
-            dataset_len = random.randint(20, num_processes * 500)
-            batch_size = random.randint(math.ceil(5.0 / num_processes), min(dataset_len // num_processes, 128))
-            train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last)
-
-        # Test drop_last = True, accumulate_grad_batches != 1 does not work

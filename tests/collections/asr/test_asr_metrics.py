@@ -80,15 +80,13 @@ class TestWordErrorRate:
         return torch.Tensor(string_in_id_form).unsqueeze(0)
 
     def get_wer(self, wer, prediction: str, reference: str):
-        res = (
-            wer(
-                predictions=self.__string_to_ctc_tensor(prediction),
-                targets=self.__reference_string_to_tensor(reference),
-                target_lengths=torch.tensor([len(reference)]),
-            )
-            .detach()
-            .cpu()
+        wer(
+            predictions=self.__string_to_ctc_tensor(prediction),
+            targets=self.__reference_string_to_tensor(reference),
+            target_lengths=torch.tensor([len(reference)]),
         )
+        res, _, _ = wer.compute()
+        res = res.detach().cpu()
         # return res[0] / res[1]
         return res.item()
 
@@ -126,7 +124,12 @@ class TestWordErrorRate:
             n2 = random.randint(1, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
-            assert (
-                abs(self.get_wer(wer, prediction=s1, reference=s2) - word_error_rate(hypotheses=[s1], references=[s2]))
-                < 1e-6
-            )
+            # skip empty strings as reference
+            if s2.strip():
+                assert (
+                    abs(
+                        self.get_wer(wer, prediction=s1, reference=s2)
+                        - word_error_rate(hypotheses=[s1], references=[s2])
+                    )
+                    < 1e-6
+                )
