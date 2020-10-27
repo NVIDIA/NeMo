@@ -223,6 +223,21 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_wpe_results'
           }
         }
+
+        stage('L2: Speech to Text WPE - Conformer') {
+          steps {
+            sh 'python examples/asr/speech_to_text_bpe.py \
+            --config-path="experimental/configs/conformer" --config-name="conformer_subword" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.tokenizer.dir="experimental/wpe_vocabs/1k/" \
+            model.tokenizer.type="wpe" \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
+            sh 'rm -rf examples/asr/speech_to_text_wpe_conformer_results'
+          }
+        }
       }
     }
 
