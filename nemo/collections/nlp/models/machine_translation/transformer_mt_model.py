@@ -120,7 +120,7 @@ class TransformerMTModel(ModelPT):
             max_delta_length=cfg.machine_translation.get("max_generation_delta", 50),
         )
 
-        std_init_range = 1 / cfg.machine_translation.hidden_size**0.75
+        std_init_range = 1 / cfg.machine_translation.hidden_size
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # tie weights of embedding and softmax matrices
