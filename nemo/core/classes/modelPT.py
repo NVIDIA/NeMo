@@ -192,7 +192,6 @@ class ModelPT(LightningModule, Model):
         cls,
         restore_path: str,
         override_config_path: Optional[str] = None,
-        override_data_dir: Optional[str] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
     ):
@@ -243,8 +242,6 @@ class ModelPT(LightningModule, Model):
                     # If override is top level config, extract just `model` from it
                     if 'model' in conf:
                         conf = conf.model
-                if override_data_dir is not None:
-                    conf.data_dir = override_data_dir
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 OmegaConf.set_struct(conf, True)
                 instance = cls.from_config_dict(config=conf)

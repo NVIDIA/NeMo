@@ -356,7 +356,6 @@ class Model(Typing, Serialization, FileIO):
         model_name: str,
         refresh_cache: bool = False,
         override_config_path: Optional[str] = None,
-        override_data_dir: Optional[str] = None,
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
     ):
@@ -403,7 +402,6 @@ class Model(Typing, Serialization, FileIO):
         instance = class_.restore_from(
             restore_path=nemo_model_file_in_cache,
             override_config_path=override_config_path,
-            override_data_dir=override_data_dir,
             map_location=map_location,
             strict=strict,
         )
