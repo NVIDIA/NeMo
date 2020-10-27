@@ -125,7 +125,17 @@ class TransformerMTModel(ModelPT):
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.tgt_embedding_layer.token_embedding.weight
-
+        for m in ["query_net", "key_net", "value_net"]:
+            torch.nn.init.normal_(
+                getattr(self.encoder.layers[0].first_sub_layer, m)\
+                    .weight,
+                std=1/cfg.machine_translation.hidden_size**0.5
+            )
+            torch.nn.init.normal_(
+                getattr(self.decoder.layers[0].first_sub_layer, m)\
+                    .weight,
+                std=1/cfg.machine_translation.hidden_size**0.5
+            )
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing)
 
@@ -139,8 +149,6 @@ class TransformerMTModel(ModelPT):
 
         # These attributes are added to bypass Illegal memory access error in PT1.6
         # https://github.com/pytorch/pytorch/issues/21819
-        self.src_embedding_factor = None
-        self.tgt_embedding_factor = None
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
@@ -149,13 +157,9 @@ class TransformerMTModel(ModelPT):
         in the `nn.Module` in vanilla PyTorch.
         """
         src_embeddings = self.src_embedding_layer(input_ids=src)
-        if self.src_embedding_factor is None:
-            self.src_embedding_factor = src_embeddings.new_tensor(src_embeddings.shape[2]**0.5)
-        src_hiddens = self.encoder(src_embeddings * self.src_embedding_factor, src_mask)
+        src_hiddens = self.encoder(src_embeddings, src_mask)
         tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
-        if self.tgt_embedding_factor is None:
-            self.tgt_embedding_factor = tgt_embeddings.new_tensor(tgt_embeddings.shape[2]**0.5)
-        tgt_hiddens = self.decoder(tgt_embeddings * self.tgt_embedding_factor, tgt_mask, src_hiddens, src_mask)
+        tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
         if not self.training:
