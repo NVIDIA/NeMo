@@ -1,4 +1,4 @@
-name: &name "Conformer-BPE"
+name: &name "Conformer-Subword"
 
 model:
   sample_rate: &sample_rate 16000
@@ -109,7 +109,6 @@ model:
   optim:
     name: novograd
     lr: 0.01
-
     # optimizer arguments
     betas: [0.8, 0.5]
     weight_decay: 0.001
@@ -117,7 +116,6 @@ model:
     # scheduler setup
     sched:
       name: CosineAnnealing
-
       # scheduler config override
       warmup_steps: 4000
       warmup_ratio: null

@@ -230,7 +230,7 @@ pipeline {
             --config-path="experimental/configs/conformer" --config-name="conformer_subword" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            model.tokenizer.dir="experimental/wpe_vocabs/1k/" \
+            model.tokenizer.dir="examples/asr/experimental/wpe_vocabs/1k/" \
             model.tokenizer.type="wpe" \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
