@@ -105,8 +105,12 @@ def main(cfg: DictConfig) -> None:
     logging.info("===========================================================================================")
 
     if cfg.model.nemo_path:
+        # ,nemo file contains the last checkpoint and the params to initialize the model
         model.save_to(cfg.model.nemo_path)
         logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
+        checkpoint_path = cfg.model.nemo_path
+    else:
+        checkpoint_path = None
 
     # We evaluate the trained model on the test set if test_ds is set in the config file
     if cfg.model.test_ds.file_path:
@@ -117,29 +121,21 @@ def main(cfg: DictConfig) -> None:
         logging.info("Testing finished!")
         logging.info("===========================================================================================")
 
-    # retrieve the path to the last checkpoint of the training
-    if trainer.checkpoint_callback is not None:
-        checkpoint_path = os.path.join(
-            trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + ".nemo"
-        )
-    else:
-        checkpoint_path = None
     """
-    After model training is done, if you have saved the checkpoints, you can create the model from
-    the checkpoint again and evaluate it on a data file.
-    You need to set or pass the test dataloader, and also create a trainer for this.
+    After training is done, if you have saved the model in a `.nemo` file, you can create the model from
+    the checkpoint again and evaluate it on a data file. You need to create a trainer and pass a test dataloader.
     """
-    if checkpoint_path and os.path.exists(checkpoint_path) and cfg.model.validation_ds.file_path:
+    if checkpoint_path and os.path.exists(checkpoint_path) and cfg.model.test_ds.file_path:
         logging.info("===========================================================================================")
-        logging.info("Starting the evaluating the the last checkpoint on a data file (validation set by default)...")
-        # we use the the path of the checkpoint from last epoch from the training, you may update it to any checkpoint
-        # Create an evaluation model and load the checkpoint
+        logging.info("Starting the evaluating the the last checkpoint on an evaluation file (test set by default)...")
+
+        # Create an evaluation model and load the .nemo file
         eval_model = TextClassificationModel.restore_from(restore_path=checkpoint_path)
 
         # create a dataloader config for evaluation, the same data file provided in validation_ds is used here
         # file_path can get updated with any file
         eval_config = OmegaConf.create(
-            {'file_path': cfg.model.validation_ds.file_path, 'batch_size': 64, 'shuffle': False}
+            {'file_path': cfg.model.test_ds.file_path, 'batch_size': 64, 'shuffle': False, 'num_workers': 3}
         )
         eval_model.setup_test_data(test_data_config=eval_config)
 
@@ -147,21 +143,19 @@ def main(cfg: DictConfig) -> None:
         # create a copy of the trainer config and update it to be used for final evaluation
         eval_trainer_cfg = cfg.trainer.copy()
 
-        # it is safer to perform evaluation on single GPU without ddp as we are creating second trainer in
-        # the same script, and it can be a problem with multi-GPU training.
-        # We also need to reset the environment variable PL_TRAINER_GPUS to prevent PT from initializing ddp.
-        # When evaluation and training scripts are in separate files, no need for this resetting.
+        # it is safer to perform evaluation on single GPU as we are creating another trainer in
+        # the same script, and it may cause problem with multi-GPU training.
         eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
         eval_trainer_cfg.accelerator = None
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
 
-        eval_trainer.test(model=eval_model, verbose=False)  # test_dataloaders=eval_dataloader,
+        eval_trainer.test(model=eval_model, verbose=False)
 
         logging.info("Evaluation the last checkpoint finished!")
         logging.info("===========================================================================================")
     else:
         logging.info(
-            "No file_path was set for validation_ds or no checkpoint was found, so final evaluation is skipped!"
+            "No file_path was set for test_ds or no `.nemo` checkpoint was found, so final evaluation is skipped!"
         )
 
     if checkpoint_path and os.path.exists(checkpoint_path):
