@@ -147,8 +147,8 @@ def main(cfg: DictConfig) -> None:
         # create a copy of the trainer config and update it to be used for final evaluation
         eval_trainer_cfg = cfg.trainer.copy()
 
-        # it is safer to perform evaluation on single GPU without ddp as we are creating second trainer in
-        # the same script, and it can be a problem with multi-GPU training.
+        # it is safer to perform evaluation on single GPU as we are creating another trainer in
+        # the same script, and it may cause problem with multi-GPU training.
         eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
 
