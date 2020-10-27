@@ -105,6 +105,7 @@ def main(cfg: DictConfig) -> None:
     logging.info("===========================================================================================")
 
     if cfg.model.nemo_path:
+        # ,nemo file contains the last checkpoint and the params to initialize the model
         model.save_to(cfg.model.nemo_path)
         logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
         checkpoint_path = cfg.model.nemo_path
@@ -121,15 +122,14 @@ def main(cfg: DictConfig) -> None:
         logging.info("===========================================================================================")
 
     """
-    After model training is done, if you have saved the checkpoints, you can create the model from
-    the checkpoint again and evaluate it on a data file.
-    You need to set or pass the test dataloader, and also create a trainer for this.
+    After training is done, if you have saved the model in a `.nemo` file, you can create the model from
+    the checkpoint again and evaluate it on a data file. You need to create a trainer and pass a test dataloader.
     """
     if checkpoint_path and os.path.exists(checkpoint_path) and cfg.model.test_ds.file_path:
         logging.info("===========================================================================================")
-        logging.info("Starting the evaluating the the last checkpoint on a data file (test set by default)...")
-        # we use the the path of the checkpoint from last epoch from the training, you may update it to any checkpoint
-        # Create an evaluation model and load the checkpoint
+        logging.info("Starting the evaluating the the last checkpoint on an evaluation file (test set by default)...")
+
+        # Create an evaluation model and load the .nemo file
         eval_model = TextClassificationModel.restore_from(restore_path=checkpoint_path)
 
         # create a dataloader config for evaluation, the same data file provided in validation_ds is used here
@@ -146,7 +146,6 @@ def main(cfg: DictConfig) -> None:
         # it is safer to perform evaluation on single GPU as we are creating another trainer in
         # the same script, and it may cause problem with multi-GPU training.
         eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
-        cfg.trainer.accelerator = None
 
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
 
@@ -156,7 +155,7 @@ def main(cfg: DictConfig) -> None:
         logging.info("===========================================================================================")
     else:
         logging.info(
-            "No file_path was set for test_ds or no checkpoint was found, so final evaluation is skipped!"
+            "No file_path was set for test_ds or no `.nemo` checkpoint was found, so final evaluation is skipped!"
         )
 
     if checkpoint_path and os.path.exists(checkpoint_path):
