@@ -135,7 +135,7 @@ def main(cfg: DictConfig) -> None:
         # create a dataloader config for evaluation, the same data file provided in validation_ds is used here
         # file_path can get updated with any file
         eval_config = OmegaConf.create(
-            {'file_path': cfg.model.test_ds.file_path, 'batch_size': 64, 'shuffle': False}
+            {'file_path': cfg.model.test_ds.file_path, 'batch_size': 64, 'shuffle': False, 'num_workers': 3}
         )
         eval_model.setup_test_data(test_data_config=eval_config)
 
