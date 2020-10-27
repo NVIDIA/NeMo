@@ -127,7 +127,7 @@ def main(cfg: DictConfig) -> None:
     """
     if checkpoint_path and os.path.exists(checkpoint_path) and cfg.model.test_ds.file_path:
         logging.info("===========================================================================================")
-        logging.info("Starting the evaluating the the last checkpoint on a data file (validation set by default)...")
+        logging.info("Starting the evaluating the the last checkpoint on a data file (test set by default)...")
         # we use the the path of the checkpoint from last epoch from the training, you may update it to any checkpoint
         # Create an evaluation model and load the checkpoint
         eval_model = TextClassificationModel.restore_from(restore_path=checkpoint_path)
@@ -146,6 +146,8 @@ def main(cfg: DictConfig) -> None:
         # it is safer to perform evaluation on single GPU as we are creating another trainer in
         # the same script, and it may cause problem with multi-GPU training.
         eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
+        cfg.trainer.accelerator = None
+
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
 
         eval_trainer.test(model=eval_model, verbose=False)
