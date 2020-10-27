@@ -146,7 +146,7 @@ def main(cfg: DictConfig) -> None:
         # it is safer to perform evaluation on single GPU as we are creating another trainer in
         # the same script, and it may cause problem with multi-GPU training.
         eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
-
+        eval_trainer_cfg.accelerator = None
         eval_trainer = pl.Trainer(**eval_trainer_cfg)
 
         eval_trainer.test(model=eval_model, verbose=False)
