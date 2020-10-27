@@ -62,8 +62,8 @@ def main(cfg):
 
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 
-    if cfg.model.get("load_from_checkpoint", None):
-        logging.info(f"Loading checkpoint '{cfg.model.load_from_checkpoint}' ...")
+    if cfg.model.get("load_weights_from_checkpoint", None):
+        logging.info(f"Loading checkpoint '{cfg.model.load_weights_from_checkpoint}' ...")
         asr_model.update_weights(checkpoint_path=cfg.model.load_weights_from_checkpoint)
 
     trainer.fit(asr_model)
