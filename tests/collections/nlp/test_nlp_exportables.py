@@ -72,7 +72,7 @@ class TestExportableClassifiers:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_IntentSlotClassificationModel(self):
+    def test_IntentSlotClassificationModel(self, dummy_data):
         with tempfile.TemporaryDirectory() as tmpdir:
             wget.download(
                 'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
@@ -81,7 +81,7 @@ class TestExportableClassifiers:
             )
             config_file = os.path.join(tmpdir, 'intent_slot_classification_config.yaml')
             config = OmegaConf.load(config_file)
-            config.model.data_dir = os.path.join(os.path.dirname(__file__), 'dummy_data')
+            config.model.data_dir = dummy_data
             config.trainer.gpus = 1
             config.trainer.precision = 32
             config.trainer.accelerator = None
@@ -100,3 +100,8 @@ class TestExportableClassifiers:
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'intent_logits'
             assert onnx_model.graph.output[1].name == 'slot_logits'
+
+
+@pytest.fixture()
+def dummy_data(test_data_dir):
+    return os.path.join(test_data_dir, 'nlp', 'dummy_data')
