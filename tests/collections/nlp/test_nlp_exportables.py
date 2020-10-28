@@ -20,6 +20,7 @@ import pytorch_lightning as pl
 import wget
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections import nlp as nemo_nlp
 from nemo.collections.nlp.models import IntentSlotClassificationModel
 from nemo.collections.nlp.modules.common import (
     BertPretrainingTokenClassifier,
@@ -100,6 +101,20 @@ class TestExportableClassifiers:
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'intent_logits'
             assert onnx_model.graph.output[1].name == 'slot_logits'
+
+    def test_TokenClassificationModel_export_to_onnx(self):
+        model = nemo_nlp.models.TokenClassificationModel.from_pretrained(model_name="NERModel")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'ner.onnx')
+            model.export(output=filename)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 1163
+            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
+            assert onnx_model.graph.node[1162].name == 'TKCLLogSoftmax_5'
+            assert onnx_model.graph.node[30].name == 'Add_30'
+            assert onnx_model.graph.input[0].name == 'input_ids'
+            assert onnx_model.graph.output[0].name == 'logits'
 
 
 @pytest.fixture()
