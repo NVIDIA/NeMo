@@ -309,6 +309,13 @@ class FilterbankFeatures(nn.Module):
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
         self.log_zero_guard_type = log_zero_guard_type
+        logging.debug(f"sr: {sample_rate}")
+        logging.debug(f"n_fft: {self.n_fft}")
+        logging.debug(f"win_length: {self.win_length}")
+        logging.debug(f"hop_length: {self.hop_length}")
+        logging.debug(f"n_mels: {nfilt}")
+        logging.debug(f"fmin: {lowfreq}")
+        logging.debug(f"fmax: {highfreq}")
 
     def log_zero_guard_value_fn(self, x):
         if isinstance(self.log_zero_guard_value, str):

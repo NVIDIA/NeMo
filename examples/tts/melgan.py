@@ -43,7 +43,10 @@ class MBMelGanModel(ModelPT):
             self.subband_loss = MultiResolutionSTFTLoss(
                 fft_sizes=[384, 683, 171], hop_sizes=[30, 60, 10], win_lengths=[150, 300, 60]
             )
-        self.loss = MultiResolutionSTFTLoss()
+        loss_cfg = {}
+        if "loss" in cfg:
+            loss_cfg = cfg.loss
+        self.loss = MultiResolutionSTFTLoss(**loss_cfg)
         self.train_disc = False
         self.mse_loss = torch.nn.MSELoss()
         self.adv_coeff = self._cfg.init_adv_lambda
