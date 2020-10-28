@@ -330,9 +330,7 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            exp_manager.exp_dir=exp_bert_squad_1.1 \
-            '
-            sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
+            exp_manager=null'
           }
         }
         stage('BERT SQUAD 2.0') {
@@ -354,9 +352,7 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
-            exp_manager.exp_dir=exp_bert_squad_2.0 \
-            '
-            sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
+            exp_manager=null'
           }
         }
       }
@@ -398,8 +394,7 @@ pipeline {
       }
       failFast true
       parallel {
-          stage('SQUAD v2.0 with Megatron with ckpt & config') {
-
+        stage('SQUAD v2.0 with Megatron with ckpt & config') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
             sh 'cd examples/nlp/question_answering && \
@@ -443,15 +438,13 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            exp_manager.exp_dir=exp_roberta_squad_1.1 \
-            '
-            sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
+            exp_manager.exp_dir=null'
           }
         }
       }
     }
 
-    stage('L2: Parallel NLP Examples 1') {
+    stage('L2: Parallel NLP Examples: Text Classification & Intent-Slot') {
       when {
         anyOf{
           branch 'main'
@@ -478,17 +471,15 @@ pipeline {
             sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
           }
         }
-        stage ('NER with BERT') {
+        stage('L2: Intent and Slot Classification') {
           steps {
-            sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=true \
-            model.dataset.use_cache=false \
-            exp_manager.exp_dir=examples/nlp/token_classification/ner_with_bert \
-            '
-            sh 'rm -rf examples/nlp/token_classification/ner_with_bert'
+            sh 'cd examples/nlp/intent_slot_classification && \
+            python intent_slot_classification.py \
+            model.data_dir=/home/TestData/nlp/retail \
+            model.validation_ds.prefix=dev \
+            model.test_ds.prefix=dev \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true'
           }
         }
       }
@@ -544,8 +535,7 @@ pipeline {
             model.dataset.use_cache=false \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
-            exp_manager.exp_dir=examples/nlp/token_classification/ner_from_pretrained'
-            sh 'rm -rf examples/nlp/token_classification/ner_from_pretrained'
+            exp_manager.exp_dir=null'
           }
         }
         stage ('Punctuation and capitalization finetuning from pretrained test') {
@@ -557,25 +547,22 @@ pipeline {
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
             model.dataset.use_cache=false \
-            exp_manager.exp_dir=examples/nlp/token_classification/pc_from_pretrained'
-            sh 'rm -rf examples/nlp/token_classification/pc_from_pretrained'
+            exp_manager.exp_dir=null'
           }
         }
-        stage('MRPC with RoBERTa') {
+        stage ('NER with TurkuNLP/bert-base-finnish-cased-v1') {
           steps {
-            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-            model.dataset.use_cache=false \
-            model.task_name=mrpc \
-            model.language_model.pretrained_model_name=roberta-base \
-            model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
+            sh 'cd examples/nlp/token_classification && \
+            python token_classification.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[0] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc \
-            model.output_dir=examples/nlp/glue_benchmark/mrpc'
-            sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
+            +trainer.fast_dev_run=true \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name="TurkuNLP/bert-base-finnish-cased-v1" \
+            exp_manager.exp_dir=null'
           }
         }
-        stage('STS-b') {
+        stage('GLUE STS-b with AlBERT') {
           steps {
             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
             model.dataset.use_cache=false \
@@ -588,109 +575,24 @@ pipeline {
             sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
           }
         }
-      }
-    }
-
-    stage('L2: Intent and Slot Classification') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-
-      steps {
-        sh 'cd examples/nlp/intent_slot_classification && \
-        python intent_slot_classification.py \
-        model.data_dir=/home/TestData/nlp/retail \
-        model.validation_ds.prefix=dev \
-        model.test_ds.prefix=dev \
-        trainer.gpus=[0] \
-        +trainer.fast_dev_run=true'
-      }
-    }
-
-//     stage('L2: Parallel GLUE Examples') {
-//       when {
-//         anyOf{
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//
-//       parallel {
-//         stage('MRPC with RoBERTa') {
-//           steps {
-//             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-//             model.dataset.use_cache=false \
-//             model.task_name=mrpc \
-//             model.language_model.pretrained_model_name=roberta-base \
-//             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc \
-//             model.output_dir=examples/nlp/glue_benchmark/mrpc'
-//             sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
-//           }
-//         }
-//         stage('STS-b') {
-//           steps {
-//             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-//             model.dataset.use_cache=false \
-//             model.task_name=sts-b \
-//             model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
-//             trainer.gpus=[1] \
-//             +trainer.fast_dev_run=True \
-//             model.language_model.pretrained_model_name=albert-base-v1 \
-//             exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
-//             sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
-//           }
-//         }
-//       }
-//     }
-
-    stage('L2: Parallel GLUE-AutoEncoder Examples') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-
-      parallel {
-        stage('MRPC TurkuNLP/bert-base-finnish-cased-v1') {
+        stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
           steps {
-            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+            sh 'cd examples/nlp/token_classification && \
+            python punctuation_capitalization.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            model.language_model.pretrained_model_name=distilbert-base-uncased \
             model.dataset.use_cache=false \
-            model.language_model.pretrained_model_name="TurkuNLP/bert-base-finnish-cased-v1" \
-            model.task_name=mrpc \
-            model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
-            trainer.gpus=[0] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc \
-            model.output_dir=examples/nlp/glue_benchmark/mrpc'
-            sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
+            trainer.gpus=[0,1] \
+            trainer.accelerator=ddp \
+            +trainer.fast_dev_run=true \
+            exp_manager.exp_dir=exp_distilbert_base_uncased \
+            '
+            sh 'rm -rf examples/nlp/token_classification/exp_distilbert_base_uncased'
           }
         }
-        // Disable T5 test as HF update broke it as of Oct 20, 2020
-        // stage('STS-b T5-small') {
-        //   steps {
-        //     sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-        //     model.dataset.use_cache=false \
-        //     model.language_model.pretrained_model_name="t5-small" \
-        //     model.task_name=sts-b \
-        //     model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
-        //     trainer.gpus=[1] \
-        //     +trainer.fast_dev_run=True \
-        //     exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
-        //     sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
-        //   }
-        // }
       }
     }
+
 
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
@@ -815,31 +717,6 @@ pipeline {
         }
       }
     }
-
-   stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh 'cd examples/nlp/token_classification && \
-        python punctuation_capitalization.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        model.language_model.pretrained_model_name=distilbert-base-uncased \
-        model.dataset.use_cache=false \
-        trainer.gpus=[0,1] \
-        trainer.accelerator=ddp \
-        +trainer.fast_dev_run=true \
-        exp_manager.exp_dir=exp_distilbert_base_uncased \
-        '
-        sh 'rm -rf examples/nlp/token_classification/exp_distilbert_base_uncased'
-      }
-    }
-
-
 
     stage('L2: TTS Fast dev runs 1') {
       when {
