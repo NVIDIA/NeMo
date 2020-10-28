@@ -291,7 +291,6 @@ class NoamAnnealing(_LRScheduler):
         out_lr = initial_lr * mult
         if step > self.warmup_steps:
             out_lr = max(out_lr, self.min_lr)
-        print(out_lr)
         return out_lr
 
 
