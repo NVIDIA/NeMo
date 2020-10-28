@@ -26,8 +26,8 @@ from pathlib import Path
 from typing import List
 
 import sox
-from sox import Transformer
 import wget
+from sox import Transformer
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='Downloads and processes Mozilla Common Voice dataset.')
@@ -35,33 +35,41 @@ parser.add_argument("--data_root", default='CommonVoice_dataset/', type=str, hel
 parser.add_argument('--manifest_dir', default='./', type=str, help='Output directory for manifests')
 parser.add_argument("--num_workers", default=multiprocessing.cpu_count(), type=int, help="Workers to process dataset.")
 parser.add_argument('--sample_rate', default=16000, type=int, help='Sample rate')
-parser.add_argument('--files_to_process', nargs='+', default=['test.tsv', 'dev.tsv', 'train.tsv'],
-                    type=str, help='list of *.csv file names to process')
-parser.add_argument('--version', default='cv-corpus-5.1-2020-06-22',
-                    type=str, help='Version of the dataset (obtainable via https://commonvoice.mozilla.org/en/datasets')
-parser.add_argument('--language', default='en',
-                    type=str, help='Which language to download.(default english,'
-                                   'check https://commonvoice.mozilla.org/en/datasets for more language codes')
+parser.add_argument(
+    '--files_to_process',
+    nargs='+',
+    default=['test.tsv', 'dev.tsv', 'train.tsv'],
+    type=str,
+    help='list of *.csv file names to process',
+)
+parser.add_argument(
+    '--version',
+    default='cv-corpus-5.1-2020-06-22',
+    type=str,
+    help='Version of the dataset (obtainable via https://commonvoice.mozilla.org/en/datasets',
+)
+parser.add_argument(
+    '--language',
+    default='en',
+    type=str,
+    help='Which language to download.(default english,'
+    'check https://commonvoice.mozilla.org/en/datasets for more language codes',
+)
 args = parser.parse_args()
-COMMON_VOICE_URL = f"https://voice-prod-bundler-ee1969a6ce8178826482b88e843c335139bd3fb4.s3.amazonaws.com/" \
-                   "{}/{}.tar.gz".format(args.version, args.language)
+COMMON_VOICE_URL = (
+    f"https://voice-prod-bundler-ee1969a6ce8178826482b88e843c335139bd3fb4.s3.amazonaws.com/"
+    "{}/{}.tar.gz".format(args.version, args.language)
+)
 
 
-def create_manifest(
-        data: List[tuple],
-        output_name: str,
-        manifest_path: str):
+def create_manifest(data: List[tuple], output_name: str, manifest_path: str):
     output_file = Path(manifest_path) / output_name
     output_file.parent.mkdir(exist_ok=True, parents=True)
 
     with output_file.open(mode='w') as f:
         for wav_path, duration, text in tqdm(data, total=len(data)):
             f.write(
-                json.dumps({
-                    'audio_filepath': os.path.abspath(wav_path),
-                    "duration": duration,
-                    'text': text
-                }) + '\n'
+                json.dumps({'audio_filepath': os.path.abspath(wav_path), "duration": duration, 'text': text}) + '\n'
             )
 
 
@@ -86,10 +94,7 @@ def process_files(csv_file, data_root, num_workers):
 
         tfm = Transformer()
         tfm.rate(samplerate=args.sample_rate)
-        tfm.build(
-            input_filepath=audio_path,
-            output_filepath=output_wav_path
-        )
+        tfm.build(input_filepath=audio_path, output_filepath=output_wav_path)
         duration = sox.file_info.duration(output_wav_path)
         return output_wav_path, duration, text
 
@@ -129,7 +134,7 @@ def main():
         data = process_files(
             csv_file=os.path.join(folder_path, csv_file),
             data_root=os.path.join(data_root, os.path.splitext(csv_file)[0]),
-            num_workers=args.num_workers
+            num_workers=args.num_workers,
         )
         logging.info('Creating manifests...')
         create_manifest(
