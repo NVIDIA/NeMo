@@ -384,7 +384,7 @@ pipeline {
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=megatron-bert-uncased  \
             model.language_model.lm_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
-            model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/config_file \
+            model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/config_file.json \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
