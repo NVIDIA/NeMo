@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import re
 from typing import List, Optional
 
 from transformers import (
