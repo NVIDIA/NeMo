@@ -35,6 +35,14 @@ from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
+try:
+    from eff import Archive, Runtimes, Origins, __format_version__
+
+    _EFF_PRESENT_ = True
+except ImportError:
+    _EFF_PRESENT_ = False
+
+
 __all__ = ['ModelPT']
 
 _MODEL_CONFIG_YAML = "model_config.yaml"
@@ -162,11 +170,10 @@ class ModelPT(LightningModule, Model):
         else:
             return src
 
-    @rank_zero_only
-    def save_to(self, save_path: str):
+    def _default_save_to(self, save_path: str):
         """
-        Saves model instance (weights and configuration) into .nemo file. You can use "restore_from" method to fully
-        restore instance from .nemo file.
+        Saves model instance (weights and configuration) into .nemo file. 
+        You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
             model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
@@ -175,9 +182,6 @@ class ModelPT(LightningModule, Model):
         Args:
             save_path: Path to .nemo file where model instance should be saved
         """
-        # Add nemo rank check as well
-        if not is_global_rank_zero():
-            return
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
@@ -193,8 +197,74 @@ class ModelPT(LightningModule, Model):
             torch.save(self.state_dict(), model_weights)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
+    def _eff_save_to(self, save_path: str):
+        """
+        Saves model instance (weights and configuration) into an EFF archive.
+
+        EFF file is an archive (tar.gz) with the following:
+            metadata.yaml - file describing the content of the archive.
+            model_config.yaml - model configuration in .yaml format. 
+                You can deserialize this into cfg argument for model's constructor
+            model_wights.chpt - model checkpoint
+
+        Note that for NeMo the EFF archives will use .nemo postfix.
+
+        Args:
+            save_path: Path to archive file where model instance should be saved.
+        """
+        # Create EFF archive.
+        with Archive.create(save_path=save_path, runtime=Runtimes.PyTorch, origin=Origins.NeMo) as effa:
+
+            # Add config file to archive.
+            config_yaml = effa.create_file_handle(
+                name=_MODEL_CONFIG_YAML, description="File containing model configuration"
+            )
+            self.to_config_file(path2yaml_file=config_yaml)
+
+            # Add model weights to archive.
+            model_weights = effa.create_file_handle(name=_MODEL_WEIGHTS, description="File containing model weights")
+            torch.save(self.state_dict(), model_weights)
+
+            # Add other artifacts to archive.
+            if hasattr(self, 'artifacts') and self.artifacts is not None:
+                # Iterate through artifact one by one.
+                for (conf_path, src) in self.artifacts:
+                    try:
+                        # Add artifact - save `conf_path` as description.
+                        _ = effa.create_file_handle(name=src, description=conf_path)
+                        # Copy file
+                        if os.path.exists(src):
+                            shutil.copy2(src, effa.tmpdir)
+                    except Exception:
+                        logging.error(f"Could not copy artifact {src} used in {conf_path}")
+
+    @rank_zero_only
+    def save_to(self, save_path: str):
+        """
+        Saves model instance (weights and configuration) into EFF archive or .
+         You can use "restore_from" method to fully
+        restore instance from .nemo file.
+
+        .nemo file is an archive (tar.gz) with the following:
+            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_wights.chpt - model checkpoint
+
+        Args:
+            save_path: Path to .nemo file where model instance should be saved
+        """
+        # Add nemo rank check as well
+        if not is_global_rank_zero():
+            return
+
+        if _EFF_PRESENT_:
+            # Save EFF archive.
+            self._eff_save_to(save_path)
+        else:
+            # Save .nemo tar archive.
+            self._default_save_to(save_path)
+
     @classmethod
-    def restore_from(
+    def _default_restore_from(
         cls,
         restore_path: str,
         override_config_path: Optional[str] = None,
@@ -220,9 +290,6 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls
         """
-        if not path.exists(restore_path):
-            raise FileExistsError(f"Can't find {restore_path}")
-
         cwd = os.getcwd()
 
         if map_location is None:
@@ -260,6 +327,126 @@ class ModelPT(LightningModule, Model):
                 os.chdir(cwd)
 
         return instance
+
+    @classmethod
+    def _eff_restore_from(
+        cls,
+        restore_path: str,
+        override_config_path: Optional[str] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = False,
+    ):
+        """
+        Restores model instance (weights and configuration) from EFF Archive.
+
+        Args:
+            restore_path: path to  file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict.
+
+        Returns:
+            An instance of type cls
+        """
+        if map_location is None:
+            if torch.cuda.is_available():
+                map_location = torch.device('cuda')
+            else:
+                map_location = torch.device('cpu')
+
+        # Restore the archive.
+        with Archive.restore_from(restore_path=restore_path) as restored_effa:
+
+            if not restored_effa.validate(runtime=Runtimes.PyTorch, format_version=__format_version__):
+                raise TypeError("EFF Archive doesn't have the required runtime and/or format version!")
+
+            # Retrieve the config file.
+            config_yaml = restored_effa.retrieve_file_handle(name=_MODEL_CONFIG_YAML)
+            # Override it - if required.
+            if override_config_path is not None:
+                config_yaml = override_config_path
+
+            conf = OmegaConf.load(config_yaml)
+            if override_config_path is not None:
+                # Resolve the override config
+                conf = OmegaConf.to_container(conf, resolve=True)
+                conf = OmegaConf.create(conf)
+                # If override is top level config, extract just `model` from it
+                if 'model' in conf:
+                    conf = conf.model
+
+            try:
+                cls.__set_model_restore_state(is_being_restored=True)
+                conf = OmegaConf.load(config_yaml)
+                if override_config_path is not None:
+                    # Resolve the override config
+                    conf = OmegaConf.to_container(conf, resolve=True)
+                    conf = OmegaConf.create(conf)
+                    # If override is top level config, extract just `model` from it
+                    if 'model' in conf:
+                        conf = conf.model
+
+                # Perform the rest of default configuration-related operations.
+                OmegaConf.set_struct(conf, True)
+                instance = cls.from_config_dict(config=conf)
+                instance = instance.to(map_location)
+
+                # Retrieve the model weights.
+                model_weights = restored_effa.retrieve_file_handle(name=_MODEL_WEIGHTS)
+                instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
+
+            finally:
+                cls.__set_model_restore_state(is_being_restored=False)
+
+        return instance
+
+    @classmethod
+    def restore_from(
+        cls,
+        restore_path: str,
+        override_config_path: Optional[str] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = False,
+    ):
+        """
+        Restores model instance (weights and configuration) from file.
+
+        The methods tries to load it as EFF archive.
+        If EFF library is not present in the system, or the indicated file is not EFF archive,
+        the function defaults to the original .nemo restore method.
+
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict.
+
+            Example:
+                ```
+                model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+                assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+                ```
+
+        Returns:
+            An instance of type cls
+        """
+        if not path.exists(restore_path):
+            raise FileNotFoundError(f"Can't find {restore_path}")
+
+        if _EFF_PRESENT_:
+            # Try to load the EFF archive.
+            try:
+                return cls._eff_restore_from(restore_path, override_config_path, map_location, strict)
+            except (FileNotFoundError, TypeError):
+                # Default to the old .nemo tar archive restore method.
+                return cls._default_restore_from(restore_path, override_config_path, map_location, strict)
+        else:
+            # Load .nemo tar archive using the old restore method.
+            return cls._default_restore_from(restore_path, override_config_path, map_location, strict)
 
     @classmethod
     def extract_state_dict_from(cls, restore_path: str, save_dir: str, split_by_module: bool = False):
