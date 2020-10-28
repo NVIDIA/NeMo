@@ -44,7 +44,7 @@ def create_manifest(
         for wav_path, duration, text in tqdm(data, total=len(data)):
             f.write(
                 json.dumps({
-                    'audio_filepath': wav_path,
+                    'audio_filepath': os.path.abspath(wav_path),
                     "duration": duration,
                     'text': text
                 }) + '\n'
