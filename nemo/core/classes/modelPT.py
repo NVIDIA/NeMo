@@ -48,6 +48,7 @@ __all__ = ['ModelPT']
 _MODEL_CONFIG_YAML = "model_config.yaml"
 _MODEL_WEIGHTS = "model_weights.ckpt"
 _MODEL_IS_RESTORED = False
+_MODEL_EFF_SAVE = True
 
 
 class ModelPT(LightningModule, Model):
@@ -256,7 +257,7 @@ class ModelPT(LightningModule, Model):
         if not is_global_rank_zero():
             return
 
-        if _EFF_PRESENT_:
+        if _EFF_PRESENT_ and self.__use_eff_save():
             # Save EFF archive.
             self._eff_save_to(save_path)
         else:
@@ -440,6 +441,7 @@ class ModelPT(LightningModule, Model):
         if _EFF_PRESENT_:
             # Try to load the EFF archive.
             try:
+                logging.error("_EFF_PRESENT_")
                 return cls._eff_restore_from(restore_path, override_config_path, map_location, strict)
             except (FileNotFoundError, TypeError):
                 # Default to the old .nemo tar archive restore method.
@@ -1206,3 +1208,13 @@ class ModelPT(LightningModule, Model):
     def __set_model_restore_state(is_being_restored: bool):
         global _MODEL_IS_RESTORED
         _MODEL_IS_RESTORED = is_being_restored
+
+    @staticmethod
+    def __set_eff_save(use_eff_restore: bool):
+        global _MODEL_EFF_SAVE
+        _MODEL_EFF_SAVE = use_eff_restore
+
+    @staticmethod
+    def __use_eff_save() -> bool:
+        global _MODEL_EFF_SAVE
+        return _MODEL_EFF_SAVE
