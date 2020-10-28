@@ -206,25 +206,6 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             pin_memory=config.get('pin_memory', False),
         )
 
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        if hasattr(self.preprocessor, '_sample_rate'):
-            audio_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
-        else:
-            audio_eltype = AudioSignal()
-        return {
-            "input_signal": NeuralType(('B', 'T'), audio_eltype),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType()),
-        }
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
-            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-            "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
-        }
-
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.

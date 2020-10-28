@@ -52,12 +52,9 @@ def main(cfg: DictConfig) -> None:
         model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
         data_dir = cfg.model.dataset.get('data_dir', None)
         if data_dir:
-            # we can also do finetunining of the pretrained model but it will require
-            # setting up train and validation Pytorch DataLoaders
-            model.setup_training_data(data_dir=data_dir)
-            # evaluation could be done on multiple files, use model.validation_ds.ds_items to specify multiple
-            # data directories if needed
-            model.setup_validation_data(data_dirs=data_dir)
+            model.update_data_dir(data_dir)
+            model.setup_training_data()
+            model.setup_validation_data()
             logging.info(f'Using config file of the pretrained model')
         else:
             do_training = False

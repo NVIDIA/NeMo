@@ -13,27 +13,35 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
+import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.collections.nlp.data.intent_slot_classification import IntentSlotClassificationDataset, IntentSlotDataDesc
+from nemo.collections.nlp.data.intent_slot_classification import (
+    IntentSlotClassificationDataset,
+    IntentSlotDataDesc,
+    IntentSlotInferenceDataset,
+)
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 
-class IntentSlotClassificationModel(NLPModel):
+class IntentSlotClassificationModel(NLPModel, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -270,6 +278,91 @@ class IntentSlotClassificationModel(NLPModel):
             collate_fn=dataset.collate_fn,
         )
 
+    def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a infer data loader.
+        Args:
+            queries: text
+            batch_size: batch size to use during inference
+        Returns:
+            A pytorch DataLoader.
+        """
+        dataset = IntentSlotInferenceDataset(
+            tokenizer=self.tokenizer, queries=queries, max_seq_length=-1, do_lower_case=False
+        )
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=self._cfg.test_ds.num_workers,
+            pin_memory=self._cfg.test_ds.pin_memory,
+            drop_last=False,
+        )
+
+    def predict_from_examples(self, queries: List[str], batch_size: int = 32) -> List[List[str]]:
+        """
+        Get prediction for the queries (intent and slots)
+        Args:
+            queries: text sequences
+            batch_size: batch size to use during inference
+        Returns:
+            predicted_intents, predicted_slots: model intent and slot predictions
+        """
+        predicted_intents = []
+        predicted_slots = []
+        mode = self.training
+        try:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            # Switch model to evaluation mode
+            self.eval()
+            self.to(device)
+            infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
+
+            # load intent and slot labels from the dictionary files (user should have them in a data directory)
+            intent_labels, slot_labels = IntentSlotDataDesc.intent_slot_dicts(self.data_dir)
+
+            for batch in infer_datalayer:
+                input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = batch
+
+                intent_logits, slot_logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    token_type_ids=input_type_ids.to(device),
+                    attention_mask=input_mask.to(device),
+                )
+
+                # predict intents and slots for these examples
+                # intents
+                intent_preds = tensor2list(torch.argmax(intent_logits, axis=-1))
+
+                # convert numerical outputs to Intent and Slot labels from the dictionaries
+                for intent_num in intent_preds:
+                    if intent_num < len(intent_labels):
+                        predicted_intents.append(intent_labels[intent_num])
+                    else:
+                        # should not happen
+                        predicted_intents.append("Unknown Intent")
+
+                # slots
+                slot_preds = torch.argmax(slot_logits, axis=-1)
+
+                for slot_preds_query, mask_query in zip(slot_preds, subtokens_mask):
+                    query_slots = ''
+                    for slot, mask in zip(slot_preds_query, mask_query):
+                        if mask == 1:
+                            if slot < len(slot_labels):
+                                query_slots += slot_labels[slot] + ' '
+                            else:
+                                query_slots += 'Unknown_slot '
+                    predicted_slots.append(query_slots.strip())
+
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+
+        return predicted_intents, predicted_slots
+
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """
@@ -286,3 +379,58 @@ class IntentSlotClassificationModel(NLPModel):
         )
         result.append(model)
         return result
+
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+    ):
+        if input_example is not None or output_example is not None:
+            logging.warning(
+                "Passed input and output examples will be ignored and recomputed since"
+                " IntentSlotClassificationModel consists of two separate models with different"
+                " inputs and outputs."
+            )
+
+        bert_model_onnx = self.bert_model.export(
+            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        classifier_onnx = self.classifier.export(
+            os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "ISC")
+        onnx.save(output_model, output)

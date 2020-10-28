@@ -26,6 +26,9 @@ import torch
 
 from nemo.collections.common.parts.utils import _compute_softmax
 from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing import (
+    EVALUATION_MODE,
+    INFERENCE_MODE,
+    TRAINING_MODE,
     SquadProcessor,
     apply_no_ans_threshold,
     convert_examples_to_features,
@@ -62,8 +65,8 @@ class SquadDataset(Dataset):
             does not exist. Defaults to None.
         num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        mode (str): Use "train", "eval" or "test" to define between
-            training and evaluation.
+        mode (str): Use TRAINING_MODE/EVALUATION_MODE/INFERENCE_MODE to define between
+            training, evaluation and inference dataset.
         use_cache (bool): Caches preprocessed data for future usage
     """
 
@@ -83,8 +86,10 @@ class SquadDataset(Dataset):
         self.version_2_with_negative = version_2_with_negative
         self.processor = SquadProcessor(data_file=data_file, mode=mode)
         self.mode = mode
-        if mode not in ["eval", "train", "test"]:
-            raise ValueError(f"mode should be either 'train', 'eval', or 'test' but got {mode}")
+        if mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
+            raise ValueError(
+                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {mode}"
+            )
         self.examples = self.processor.get_examples()
 
         vocab_size = getattr(tokenizer, "vocab_size", 0)
@@ -121,7 +126,7 @@ class SquadDataset(Dataset):
                 max_seq_length=max_seq_length,
                 doc_stride=doc_stride,
                 max_query_length=max_query_length,
-                has_groundtruth=mode != "test",
+                has_groundtruth=mode != INFERENCE_MODE,
             )
 
             if use_cache:
@@ -136,7 +141,7 @@ class SquadDataset(Dataset):
 
     def __getitem__(self, idx):
         feature = self.features[idx]
-        if self.mode == "test":
+        if self.mode == INFERENCE_MODE:
             return (
                 np.array(feature.input_ids),
                 np.array(feature.segment_ids),
@@ -180,7 +185,6 @@ class SquadDataset(Dataset):
         all_predictions = collections.OrderedDict()
         all_nbest_json = collections.OrderedDict()
         scores_diff_json = collections.OrderedDict()
-
         for (example_index, example) in enumerate(self.examples):
 
             features = example_index_to_features[example_index]
