@@ -172,7 +172,14 @@ def get_megatron_config(pretrained_model_name: str) -> Dict[str, int]:
     Returns:
         config (dict): contains model configuration: number of hidden layers, number of attention heads, etc
     """
+    _check_megatron_name(pretrained_model_name)
     return MEGATRON_CONFIG_MAP[pretrained_model_name]["config"]
+
+
+def _check_megatron_name(pretrained_model_name: str) -> None:
+    megatron_model_list = get_megatron_lm_models_list()
+    if pretrained_model_name not in megatron_model_list:
+        raise ValueError(f'For Megatron-LM models, choose from the following list: {megatron_model_list}')
 
 
 def get_megatron_vocab_file(pretrained_model_name: str) -> str:
@@ -185,6 +192,7 @@ def get_megatron_vocab_file(pretrained_model_name: str) -> str:
     Returns:
         path: path to the vocab file
     """
+    _check_megatron_name(pretrained_model_name)
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]["vocab"]
     path = cached_path(url, cache_dir=MEGATRON_CACHE)
 
@@ -203,6 +211,7 @@ def get_megatron_checkpoint(pretrained_model_name: str) -> str:
     Returns:
         path: path to model checkpoint
     """
+    _check_megatron_name(pretrained_model_name)
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]["checkpoint"]
     path = os.path.join(MEGATRON_CACHE, pretrained_model_name)
     return _download(path, url)
@@ -244,6 +253,7 @@ def is_lower_cased_megatron(pretrained_model_name):
     Returns:
         do_lower_cased (bool): whether the model uses lower cased data
     """
+    _check_megatron_name(pretrained_model_name)
     return MEGATRON_CONFIG_MAP[pretrained_model_name]["do_lower_case"]
 
 
@@ -257,4 +267,5 @@ def get_megatron_tokenizer(pretrained_model_name: str):
     Returns: 
         tokenizer name for tokenizer instantiating
     """
+    _check_megatron_name(pretrained_model_name)
     return MEGATRON_CONFIG_MAP[pretrained_model_name]["tokenizer_name"]

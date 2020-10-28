@@ -145,3 +145,19 @@ class IntentSlotDataDesc:
         lines = [line.strip() for line in lines if line.strip()]
         labels = {lines[i]: i for i in range(len(lines))}
         return labels
+
+    @staticmethod
+    def intent_slot_dicts(data_dir):
+        '''
+        Return Intent and slot dictionaries
+        '''
+        intent_dict_file = data_dir + '/dict.intents.csv'
+        slot_dict_file = data_dir + '/dict.slots.csv'
+
+        intents_labels = open(intent_dict_file, 'r').readlines()
+        intents_labels = [line.strip() for line in intents_labels if line.strip()]
+
+        slots_labels = open(slot_dict_file, 'r').readlines()
+        slots_labels = [line.strip() for line in slots_labels if line.strip()]
+
+        return intents_labels, slots_labels

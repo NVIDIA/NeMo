@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -188,16 +188,6 @@ class PunctuationCapitalizationModel(ModelPT):
         self.log('capit_f1', capit_f1)
         self.log('capit_recall', capit_recall)
 
-        return {
-            'val_loss': avg_loss,
-            'punct_precision': punct_precision,
-            'punct_f1': punct_f1,
-            'punct_recall': punct_recall,
-            'capit_precision': capit_precision,
-            'capit_f1': capit_f1,
-            'capit_recall': capit_recall,
-        }
-
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
@@ -207,11 +197,24 @@ class PunctuationCapitalizationModel(ModelPT):
         )
         self.tokenizer = tokenizer
 
-    def setup_training_data(self, train_data_config: Optional[DictConfig] = None, data_dir=None):
+    def update_data_dir(self, data_dir: str) -> None:
+        """
+        Update data directory
+
+        Args:
+            data_dir: path to data directory
+        """
+        if os.path.exists(data_dir):
+            logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
+            self._cfg.dataset.data_dir = data_dir
+        else:
+            raise ValueError(f'{data_dir} not found')
+
+    def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
+        """Setup training data"""
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
-        if data_dir:
-            self._cfg.dataset.data_dir = data_dir
+
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
@@ -222,19 +225,15 @@ class PunctuationCapitalizationModel(ModelPT):
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
             self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
 
-    def setup_validation_data(
-        self, val_data_config: Optional[Dict] = None, data_dirs: Optional[Union[List[str], str]] = None
-    ):
+    def setup_validation_data(self, val_data_config: Optional[Dict] = None):
         """
         Setup validaton data
 
         val_data_config: validation data config
-        data_dirs: path or paths to validation data dirs, used when setup up data for pretrained model
         """
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
-        if data_dirs:
-            self._cfg.validation_ds.ds_item = data_dirs
+
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Dict] = None):
