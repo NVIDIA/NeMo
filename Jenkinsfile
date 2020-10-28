@@ -411,21 +411,9 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            exp_manager.exp_dir=null'
+            exp_manager=null'
           }
         }
-      }
-    }
-
-    stage('L2: Parallel NLP Examples: Text Classification & Intent-Slot') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
         stage ('Text Classification with BERT Test') {
           steps {
             sh 'cd examples/nlp/text_classification && \
@@ -457,6 +445,7 @@ pipeline {
         }
       }
     }
+
     stage('L2: Model Parallel Size 2 Megatron Text Classification') {
       when {
         anyOf{
@@ -623,18 +612,6 @@ pipeline {
               sh 'ls -lha examples/nlp/language_modeling'
             }
         }
-      }
-    }
-
-    stage('L2: Parallel Pretraining BERT  using char/word tokenizer') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
         stage('L2: Pretraining BERT pretraining from Text with char tokenizer') {
             steps {
               sh 'cd examples/nlp/language_modeling && \
