@@ -294,8 +294,9 @@ def infer_pwg(cfg):
 
 
 def infer_pwg_batch(cfg):
-    checkpoint = list(Path(cfg.checkpoint_dir).glob("*end.ckpt"))[0]
-    model = MBMelGanModel.load_from_checkpoint(str(checkpoint))
+    checkpoint = list(Path(cfg.checkpoint_dir).glob("*nemo"))[0]
+    # model = MBMelGanModel.load_from_checkpoint(str(checkpoint))
+    model = MBMelGanModel.restore_from(str(checkpoint))
     model.setup_validation_data(cfg.model.validation_ds)
     model.cuda()
     model.eval()
@@ -307,7 +308,9 @@ def infer_pwg_batch(cfg):
             spec, _ = model.audio_to_melspec_precessor(audio, audio_len)
             print(spec.shape)
             mb_audio_pred = model.generator(spec)
-            audio_pred = model.pqmf.synthesis(mb_audio_pred)
+            audio_pred = mb_audio_pred
+            if model.pqmf is not None:
+                audio_pred = model.pqmf.synthesis(mb_audio_pred)
         for i, single_audio in enumerate(audio_pred):
             print(single_audio.cpu().numpy().squeeze())
             sf.write(f"{cfg.name}_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], samplerate=22050)
