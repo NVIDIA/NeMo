@@ -1,6 +1,7 @@
 # Question Answering with SQUAD
 name: &name QA
 
+pretrained_model: null # pretrained QAModel model from list_available_models()
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
   num_nodes: 1
@@ -34,68 +35,53 @@ model:
     # WordPiece tokenization. Sequences longer than this
     # will be truncated, and sequences shorter than this
     # will be padded.
+    max_answer_length: 30
+    # The maximum length of an answer that can be
+    # generated. This is needed because the start
+    # and end predictions are not conditioned
+    # on one another.
+    null_score_diff_threshold: 0.0
+    # If null_score - best_non_null is greater than the threshold predict null.
+    n_best_size: 20
+    # The total number of n-best predictions to generate at testing.
     use_cache: true
-    # if true does lower case
     do_lower_case: true
+    # if true does lower case
+
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
 
   train_ds:
-    mode: train
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: true
     num_samples: -1
-    # shared among dataloaders
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
+    # Default values for the following params are retrieved from dataset config section, but you may override them
+    num_workers: ${model.dataset.num_workers}
+    drop_last: ${model.dataset.drop_last}
+    pin_memory: ${model.dataset.pin_memory}
 
   validation_ds:
-    mode: eval
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: false
-    num_samples: -1
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
-    max_answer_length: 30
-    # The maximum length of an answer that can be
-    # generated. This is needed because the start
-    # and end predictions are not conditioned
-    # on one another.
-    output_prediction_file: null
-    # File to write predictions to. Only in evaluation or test mode,
-    output_nbest_file: null
-    # File to write nbest predictions to. Only in evaluation or test mode.
-    null_score_diff_threshold: 0.0
-    # If null_score - best_non_null is greater than the threshold predict null.
-    n_best_size: 20
-    # The total number of n-best predictions to generate at testing.
+    num_samples: -1    
+    # Default values for the following params are retrieved from dataset config section, but you may override them
+    num_workers: ${model.dataset.num_workers}
+    drop_last: ${model.dataset.drop_last}
+    pin_memory: ${model.dataset.pin_memory}
 
   test_ds:
-    mode: test
     file: null # .json file
     batch_size: 24 # per GPU
     shuffle: false
     num_samples: -1
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
-    max_answer_length: 30
-    # The maximum length of an answer that can be
-    # generated. This is needed because the start
-    # and end predictions are not conditioned
-    # on one another.
-    output_prediction_file: test_prediction.json
-    # File to write predictions to. Only in evaluation or test mode,
-    output_nbest_file: test_nbest.json
-    # File to write nbest predictions to. Only in evaluation or test mode.
-    null_score_diff_threshold: 0.0
-    # If null_score - best_non_null is greater than the threshold predict null.
-    n_best_size: 20
-    # The total number of n-best predictions to generate at testing.
-
-
+    # Default values for the following params are retrieved from dataset config section, but you may override them
+    num_workers: ${model.dataset.num_workers}
+    drop_last: ${model.dataset.drop_last}
+    pin_memory: ${model.dataset.pin_memory}
+    
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec
     vocab_file: null # path to vocab file

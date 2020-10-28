@@ -24,6 +24,8 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
+__all__ = ['IntentSlotClassificationDataset', 'IntentSlotInferenceDataset']
+
 
 def get_features(
     queries,
@@ -80,8 +82,9 @@ def get_features(
             slots.append(pad_label)
             all_slots.append(slots)
 
-    max_seq_length = min(max_seq_length, max(sent_lengths))
-    logging.info(f'Max length: {max_seq_length}')
+    max_seq_length_data = max(sent_lengths)
+    max_seq_length = min(max_seq_length, max_seq_length_data) if max_seq_length > 0 else max_seq_length_data
+    logging.info(f'Setting max length to: {max_seq_length}')
     get_stats(sent_lengths)
     too_long_count = 0
 
@@ -231,4 +234,59 @@ class IntentSlotClassificationDataset(Dataset):
             np.array(self.all_subtokens_mask[idx]),
             self.all_intents[idx],
             np.array(self.all_slots[idx]),
+        )
+
+
+class IntentSlotInferenceDataset(Dataset):
+    """
+    Creates dataset to use for the task of joint intent
+    and slot classification with pretrained model.
+    This is to be used during inference only.
+    It uses list of queries as the input.
+
+    Args:
+        queries (list): list of queries to run inference on
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (Tokenizer): such as NemoBertTokenizer
+        pad_label (int): pad value use for slot labels.
+            by default, it's the neutral label.
+
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """
+            Returns definitions of module output ports.
+        """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), MaskType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+        }
+
+    def __init__(self, queries, max_seq_length, tokenizer, do_lower_case):
+        if do_lower_case:
+            for idx, query in enumerate(queries):
+                queries[idx] = queries[idx].lower()
+
+        features = get_features(queries, max_seq_length, tokenizer)
+
+        self.all_input_ids = features[0]
+        self.all_segment_ids = features[1]
+        self.all_input_mask = features[2]
+        self.all_loss_mask = features[3]
+        self.all_subtokens_mask = features[4]
+
+    def __len__(self):
+        return len(self.all_input_ids)
+
+    def __getitem__(self, idx):
+        return (
+            np.array(self.all_input_ids[idx]),
+            np.array(self.all_segment_ids[idx]),
+            np.array(self.all_input_mask[idx], dtype=np.long),
+            np.array(self.all_loss_mask[idx]),
+            np.array(self.all_subtokens_mask[idx]),
         )

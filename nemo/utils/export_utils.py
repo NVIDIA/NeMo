@@ -227,6 +227,6 @@ def attach_onnx_to_onnx(model1: onnx.ModelProto, model2: onnx.ModelProto, prefix
     graph.value_info.extend(model2.graph.value_info)
     if model1.graph.doc_string:
         graph.doc_string = model1.graph.doc_string
-    output_model = onnx.helper.make_model(graph)
+    output_model = onnx.helper.make_model(graph, opset_imports=model1.opset_import)
     onnx.checker.check_model(output_model, full_check=True)
     return output_model
