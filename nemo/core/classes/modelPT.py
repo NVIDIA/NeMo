@@ -441,7 +441,6 @@ class ModelPT(LightningModule, Model):
         if _EFF_PRESENT_:
             # Try to load the EFF archive.
             try:
-                logging.error("_EFF_PRESENT_")
                 return cls._eff_restore_from(restore_path, override_config_path, map_location, strict)
             except (FileNotFoundError, TypeError):
                 # Default to the old .nemo tar archive restore method.
