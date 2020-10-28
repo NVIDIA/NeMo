@@ -47,23 +47,23 @@ pipeline {
       }
     }
 
-//     stage('L0: Unit Tests GPU') {
-//       steps {
-//         sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
-//       }
-//     }
-//
-//     stage('L0: Unit Tests CPU') {
-//       when {
-//         anyOf{
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       steps {
-//         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
-//       }
-//     }
+    stage('L0: Unit Tests GPU') {
+      steps {
+        sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
+      }
+    }
+
+    stage('L0: Unit Tests CPU') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
+      }
+    }
 
     stage('L0: Computer Vision Integration') {
       when {
@@ -544,8 +544,7 @@ pipeline {
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             model.language_model.pretrained_model_name=albert-base-v1 \
-            exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
-            sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
+            exp_manager=null'
           }
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
@@ -558,9 +557,7 @@ pipeline {
             trainer.gpus=[0,1] \
             trainer.accelerator=ddp \
             +trainer.fast_dev_run=true \
-            exp_manager.exp_dir=exp_distilbert_base_uncased \
-            '
-            sh 'rm -rf examples/nlp/token_classification/exp_distilbert_base_uncased'
+            exp_manager=null'
           }
         }
       }
