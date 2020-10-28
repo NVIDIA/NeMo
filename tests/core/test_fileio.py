@@ -113,7 +113,7 @@ class TestFileIO:
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
             w2 = next_instance.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
 
-            assert np.array_equal(w1, w2) == False
+            assert not np.array_equal(w1, w2)
 
     @pytest.mark.unit
     def test_save_restore_from_nemo_file(self, asr_model):
