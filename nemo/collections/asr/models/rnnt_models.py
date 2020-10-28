@@ -358,7 +358,9 @@ class EncDecRNNTModel(ASRModel):
         }
 
     @typecheck()
-    def forward(self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None):
+    def forward(
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+    ):
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) is False:
@@ -408,7 +410,7 @@ class EncDecRNNTModel(ASRModel):
             tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
             if (sample_id + 1) % log_every_n_steps == 0:
-                _ = self.wer.update(encoded, encoded_len, transcript, transcript_len)
+                self.wer.update(encoded, encoded_len, transcript, transcript_len)
                 _, scores, words = self.wer.compute()
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
