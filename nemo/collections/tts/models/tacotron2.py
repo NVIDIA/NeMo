@@ -19,8 +19,8 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from omegaconf.errors import ConfigAttributeError
-from torch import nn
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from torch import nn
 
 from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func

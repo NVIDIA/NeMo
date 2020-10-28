@@ -20,7 +20,6 @@ from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-
 from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import Vocoder
@@ -28,10 +27,10 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     LengthsType,
+    LogDeterminantType,
     MelSpectrogramType,
     NormalDistributionSamplesType,
     VoidType,
-    LogDeterminantType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
