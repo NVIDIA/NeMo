@@ -427,9 +427,7 @@ pipeline {
             model.dataset.use_cache=false \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
-            exp_manager.exp_dir=exp_bert_base_uncased \
-            '
-            sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
+            exp_manager=null'
           }
         }
         stage('L2: Intent and Slot Classification') {
@@ -440,7 +438,8 @@ pipeline {
             model.validation_ds.prefix=dev \
             model.test_ds.prefix=dev \
             trainer.gpus=[0] \
-            +trainer.fast_dev_run=true'
+            +trainer.fast_dev_run=true \
+            exp_manager=null'
           }
         }
       }
@@ -473,8 +472,7 @@ pipeline {
         model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
         model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
         model.nemo_path=null \
-        '
-        sh 'rm -rf examples/nlp/text_classification/exp_mp_2_megatron_bert'
+        exp_manager=null'
       }
     }
 
