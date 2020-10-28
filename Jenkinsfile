@@ -274,7 +274,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel NER with Megatron') {
+    stage('L2: Multi-GPU Megatron finetuning') {
      when {
         anyOf{
           branch 'main'
@@ -283,23 +283,21 @@ pipeline {
      }
      failFast true
      parallel {
-      stage('L2: NER with cased Megatron') {
+      stage('L2: Cased Megatron finetuning on MRPC') {
        steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        sh 'cd examples/nlp/glue_benchmark && \
+        python glue_benchmark.py \
+        model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
         trainer.gpus=[0,1] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-cased \
         trainer.accelerator=ddp \
-        exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
-        sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
-       }
+        exp_manager=null'
+        }
       }
-      }
-    }
-
+     }
+   }
 
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
@@ -364,67 +362,34 @@ pipeline {
       }
     }
 
-    // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
-    stage('L2: MegaBERT Token Classification') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
-        model.train_ds.batch_size=10 \
-        model.dataset.max_seq_length=50 \
-        model.dataset.use_cache=false \
-        trainer.accelerator=ddp \
-        trainer.precision=16 \
-        trainer.amp_level=O1 \
-        trainer.gpus=[1] \
-        +trainer.fast_dev_run=true \
-        exp_manager.exp_dir=exp_megabert_base_uncased \
-        '
-        sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
-      }
-    }
-    stage('L2: MegaBERT SQUAD v2.0') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      // Cannot do fast_dev_run because squad needs whole dev dataset
-      steps {
-        sh 'cd examples/nlp/question_answering && \
-        python question_answering_squad.py \
-        model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-        model.dataset.use_cache=false \
-        model.train_ds.batch_size=1 \
-        model.train_ds.num_samples=1 \
-        model.validation_ds.batch_size=1 \
-        model.validation_ds.num_samples=1 \
-        trainer.accelerator=ddp \
-        trainer.max_epochs=1 \
-        +trainer.max_steps=1 \
-        model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-        model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
-        model.dataset.version_2_with_negative=true \
-        trainer.precision=16 \
-        trainer.amp_level=O1 \
-        trainer.gpus=[1] \
-        exp_manager.exp_dir=exp_megabert_squad_2.0 \
-        '
-        sh 'rm -rf examples/nlp/question_answering/exp_megabert_squad_2.0'
-      }
-    }
-
-    stage('L2: Parallel RoBERTa SQUAD v1.1') {
+//     // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
+//     stage('L2: MegaBERT Token Classification') {
+//       when {
+//         anyOf{
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       steps {
+//         sh 'cd examples/nlp/token_classification && \
+//         python token_classification.py \
+//         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+//         model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
+//         model.train_ds.batch_size=10 \
+//         model.dataset.max_seq_length=50 \
+//         model.dataset.use_cache=false \
+//         trainer.accelerator=ddp \
+//         trainer.precision=16 \
+//         trainer.amp_level=O1 \
+//         trainer.gpus=[1] \
+//         +trainer.fast_dev_run=true \
+//         exp_manager.exp_dir=exp_megabert_base_uncased \
+//         '
+//         sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
+//       }
+//     }
+    stage('L2: Parallel SQUAD v1.1 & v2.0') {
       when {
         anyOf{
           branch 'main'
@@ -433,6 +398,32 @@ pipeline {
       }
       failFast true
       parallel {
+          stage('SQUAD v2.0 with Megatron with ckpt & config') {
+
+          // Cannot do fast_dev_run because squad needs whole dev dataset
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.dataset.use_cache=false \
+            model.train_ds.batch_size=1 \
+            model.train_ds.num_samples=1 \
+            model.validation_ds.batch_size=1 \
+            model.validation_ds.num_samples=1 \
+            trainer.accelerator=ddp \
+            trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.pretrained_model_name=megatron-bert-uncased  \
+            model.language_model.lm_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
+            model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/config_file \
+            model.dataset.version_2_with_negative=true \
+            trainer.precision=16 \
+            trainer.amp_level=O1 \
+            trainer.gpus=[1] \
+            exp_manager = null'
+          }
+        }
         stage('RoBERTa SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
@@ -502,7 +493,7 @@ pipeline {
         }
       }
     }
-    stage('L2: Text Classification with Model Parallel Size 2 Megatron BERT') {
+    stage('L2: Model Parallel Size 2 Megatron Text Classification') {
       when {
         anyOf{
           branch 'main'
@@ -570,39 +561,6 @@ pipeline {
             sh 'rm -rf examples/nlp/token_classification/pc_from_pretrained'
           }
         }
-      }
-    }
-
-    stage('L2: Intent and Slot Classification') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-
-      steps {
-        sh 'cd examples/nlp/intent_slot_classification && \
-        python intent_slot_classification.py \
-        model.data_dir=/home/TestData/nlp/retail \
-        model.validation_ds.prefix=dev \
-        model.test_ds.prefix=dev \
-        trainer.gpus=[0] \
-        +trainer.fast_dev_run=true'
-      }
-    }
-
-    stage('L2: Parallel GLUE Examples') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-
-      parallel {
         stage('MRPC with RoBERTa') {
           steps {
             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
@@ -632,6 +590,66 @@ pipeline {
         }
       }
     }
+
+    stage('L2: Intent and Slot Classification') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+
+      steps {
+        sh 'cd examples/nlp/intent_slot_classification && \
+        python intent_slot_classification.py \
+        model.data_dir=/home/TestData/nlp/retail \
+        model.validation_ds.prefix=dev \
+        model.test_ds.prefix=dev \
+        trainer.gpus=[0] \
+        +trainer.fast_dev_run=true'
+      }
+    }
+
+//     stage('L2: Parallel GLUE Examples') {
+//       when {
+//         anyOf{
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//
+//       parallel {
+//         stage('MRPC with RoBERTa') {
+//           steps {
+//             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+//             model.dataset.use_cache=false \
+//             model.task_name=mrpc \
+//             model.language_model.pretrained_model_name=roberta-base \
+//             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
+//             trainer.gpus=[0] \
+//             +trainer.fast_dev_run=True \
+//             exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc \
+//             model.output_dir=examples/nlp/glue_benchmark/mrpc'
+//             sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
+//           }
+//         }
+//         stage('STS-b') {
+//           steps {
+//             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+//             model.dataset.use_cache=false \
+//             model.task_name=sts-b \
+//             model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+//             trainer.gpus=[1] \
+//             +trainer.fast_dev_run=True \
+//             model.language_model.pretrained_model_name=albert-base-v1 \
+//             exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
+//             sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
+//           }
+//         }
+//       }
+//     }
 
     stage('L2: Parallel GLUE-AutoEncoder Examples') {
       when {
