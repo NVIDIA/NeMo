@@ -47,23 +47,23 @@ pipeline {
       }
     }
 
-    stage('L0: Unit Tests GPU') {
-      steps {
-        sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
-      }
-    }
-
-    stage('L0: Unit Tests CPU') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
-      }
-    }
+//     stage('L0: Unit Tests GPU') {
+//       steps {
+//         sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
+//       }
+//     }
+//
+//     stage('L0: Unit Tests CPU') {
+//       when {
+//         anyOf{
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       steps {
+//         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
+//       }
+//     }
 
     stage('L0: Computer Vision Integration') {
       when {
@@ -358,33 +358,6 @@ pipeline {
       }
     }
 
-//     // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
-//     stage('L2: MegaBERT Token Classification') {
-//       when {
-//         anyOf{
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       steps {
-//         sh 'cd examples/nlp/token_classification && \
-//         python token_classification.py \
-//         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-//         model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
-//         model.train_ds.batch_size=10 \
-//         model.dataset.max_seq_length=50 \
-//         model.dataset.use_cache=false \
-//         trainer.accelerator=ddp \
-//         trainer.precision=16 \
-//         trainer.amp_level=O1 \
-//         trainer.gpus=[1] \
-//         +trainer.fast_dev_run=true \
-//         exp_manager.exp_dir=exp_megabert_base_uncased \
-//         '
-//         sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
-//       }
-//     }
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
       when {
         anyOf{
@@ -416,7 +389,7 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
-            exp_manager = null'
+            exp_manager=null'
           }
         }
         stage('RoBERTa SQUAD 1.1') {
