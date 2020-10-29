@@ -210,11 +210,26 @@ class TransformerMTModel(ModelPT):
     def test_step(self, batch, batch_idx):
         return self.eval_step(batch, batch_idx, 'test')
 
+    def log_param_stats(self):
+        for p in self.parameters():
+            if p.requires_grad:
+                self.trainer.experiment.add_histogram(p.name + '_hist', p)
+                self.trainer.experiment.add_scalars(
+                    p.name,
+                    {
+                        'mean': p.mean(),
+                        'stddev': p.std(),
+                        'max': p.max(),
+                        'min': p.min()
+                    }
+                )
+
     def validation_step(self, batch, batch_idx):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
+        self.log_param_stats()
         return self.eval_step(batch, batch_idx, 'val')
 
     def eval_epoch_end(self, outputs, mode):
