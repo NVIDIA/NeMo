@@ -194,7 +194,8 @@ class TestFileIO:
             assert asr_model2.cfg.encoder.params.activation == 'swish'
 
             # Make sure that the artifact is present in the working folder.
-            # Only then using EFF - old .nemo restore wasn't restoring artifacts when added outside of constructor.
+            # Test this only when using EFF - the old .nemo restore wasn't restoring artifacts
+            # when added outside of constructor.
             if _EFF_PRESENT_:
                 assert os.path.exists(os.path.join(cwd, artifact_filename))
 

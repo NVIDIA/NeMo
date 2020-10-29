@@ -38,7 +38,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 try:
     from eff import Archive, Runtimes, Origins, __format_version__
 
-    _EFF_PRESENT_ = True
+    _EFF_PRESENT_ = False
 except ImportError:
     _EFF_PRESENT_ = False
 
