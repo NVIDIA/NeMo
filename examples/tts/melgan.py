@@ -120,7 +120,7 @@ class MBMelGanModel(ModelPT):
                 loss_disc_fake[i] += torch.mean(fake_score[i][-1] ** 2)
             sum_loss_dis = sum(loss_disc_real) + sum(loss_disc_fake)
 
-            if self.global_step % 1000 == 0:
+            if self.global_step % 1000 == 0 or self.global_step % 1000 == 1:
                 self.logger.experiment.add_scalar(f"loss_discriminator", sum_loss_dis, self.global_step)
                 for i in range(len(fake_score)):
                     self.logger.experiment.add_scalar(
@@ -172,7 +172,7 @@ class MBMelGanModel(ModelPT):
 
                 loss += sum_loss_gan
 
-            if self.global_step % 1000 == 0:
+            if self.global_step % 1000 == 0 or self.global_step % 1000 == 1:
                 self.log("loss_generator", loss, sync_dist=True)
                 if self.train_disc:
                     self.log(f"loss_generator_gan_loss", sum_loss_gan, sync_dist=True)
@@ -349,7 +349,6 @@ class MBMelGanModel(ModelPT):
             factor = 0.5
         loss_feat *= factor
         sc_loss = get_stack(outputs, "sc_loss")
-        print(sc_loss)
         mag_loss = get_stack(outputs, "mag_loss")
         loss_feat += (sum(mag_loss) + sum(sc_loss)) * factor
         self.log("val_loss_feat_loss", loss_feat, sync_dist=True)

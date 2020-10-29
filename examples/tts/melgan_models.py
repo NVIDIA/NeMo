@@ -240,6 +240,7 @@ class LogSTFTMagnitudeLoss(torch.nn.Module):
         if input_lengths is None:
             return F.l1_loss(torch.log(y_mag), torch.log(x_mag))
         loss = F.l1_loss(torch.log(y_mag), torch.log(x_mag), reduction='none')
+        loss = loss / loss.shape[2]
         loss = torch.sum(loss, dim=[1, 2])
         loss = loss / input_lengths
         return torch.sum(loss)
@@ -270,8 +271,9 @@ class STFTLoss(torch.nn.Module):
         x_mag = stft(x, self.fft_size, self.shift_size, self.win_length, self.window)
         y_mag = stft(y, self.fft_size, self.shift_size, self.win_length, self.window)
         sc_loss = self.spectral_convergence_loss(x_mag, y_mag)
-        input_lengths = torch.ceil(input_lengths / float(self.shift_size))
-        assert max(input_lengths) == x_mag.shape[1], f"{max(input_lengths)} != {x_mag.shape[-1]}"
+        if input_lengths is not None:
+            input_lengths = torch.ceil(input_lengths / float(self.shift_size))
+            assert max(input_lengths) == x_mag.shape[1], f"{max(input_lengths)} != {x_mag.shape[-1]}"
         mag_loss = self.log_stft_magnitude_loss(x_mag, y_mag, input_lengths)
 
         return sc_loss, mag_loss
