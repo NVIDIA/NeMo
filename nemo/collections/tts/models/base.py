@@ -24,9 +24,9 @@ class SpectrogramGenerator(ModelPT, ABC):
     @abstractmethod
     def parse(self, str_input: str, **kwargs) -> 'torch.tensor':
         """
-        A helper function that accepts raw pythong strings and turns it into a tensor. The tensor should have 2
+        A helper function that accepts raw python strings and turns it into a tensor. The tensor should have 2
         dimensions. The first is the batch, which should be of size 1. The second should represent time. The tensor
-        should represented either tokenized or embedded text, depending on the model.
+        should represent either tokenized or embedded text, depending on the model.
         """
 
     @abstractmethod
@@ -129,6 +129,44 @@ class MelToSpec(ModelPT, ABC):
 
         Returns:
             spec: A torch tensor representing the linears spectrograms ['B', 'n_freqs', 'T']
+        """
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        for subclass in cls.__subclasses__():
+            subclass_models = subclass.list_available_models()
+            if subclass_models is not None and len(subclass_models) > 0:
+                list_of_models.extend(subclass_models)
+        return list_of_models
+
+
+class TextToWaveform(ModelPT, ABC):
+    """ Base class for all end-to-end TTS models that generate a waveform from text """
+
+    @abstractmethod
+    def parse(self, str_input: str, **kwargs) -> 'torch.tensor':
+        """
+        A helper function that accepts raw python strings and turns it into a tensor. The tensor should have 2
+        dimensions. The first is the batch, which should be of size 1. The second should represent time. The tensor
+        should represent either tokenized or embedded text, depending on the model.
+        """
+
+    @abstractmethod
+    def convert_text_to_waveform(self, str_input: str, **kwargs) -> 'torch.tensor':
+        """
+        Accepts a batch of text and returns a batch of audio
+
+        Args:
+            tokens: A torch tensor representing the text to be converted to speech
+
+        Returns:
+            audio: A torch tensor representing the waveform output.
         """
 
     @classmethod
