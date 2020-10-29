@@ -282,7 +282,7 @@ def infer_pwg(cfg):
         mb_audio_pred = model.generator(spec[0].unsqueeze(0))
         audio_pred = model.pqmf.synthesis(mb_audio_pred)
     spec_out, _ = model.audio_to_melspec_precessor(audio_pred.squeeze(0), audio_len[0].unsqueeze(0))
-    librosa.output.write_wav("MB_MelGAN_0.wav", audio_pred[0].cpu().numpy().squeeze(), sr=22050)
+    librosa.output.write_wav("MB_MelGAN_0.wav", audio_pred[0].cpu().numpy().squeeze(), sr=cfg.sample_rate)
 
     from matplotlib import pyplot as plt
 
@@ -316,8 +316,33 @@ def infer_pwg_batch(cfg):
                 audio_pred = model.pqmf.synthesis(mb_audio_pred)
         for i, single_audio in enumerate(audio_pred):
             print(single_audio.cpu().numpy().squeeze())
-            sf.write(f"{cfg.name}_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], samplerate=22050)
+            sf.write(
+                f"{cfg.name}_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], samplerate=cfg.sample_rate
+            )
+        # for i, single_audio in enumerate(audio):
+        #     print(single_audio.cpu().numpy().squeeze())
+        #     sf.write(
+        #         f"Sally_real_{i}.wav", single_audio.cpu().numpy().squeeze()[: audio_len[i]], samplerate=cfg.sample_rate
+        #     )
         break
+
+
+def infer_pwg_batch_2(cfg):
+    checkpoint = list(Path(cfg.checkpoint_dir).glob("*nemo"))[0]
+    model = MBMelGanModel.restore_from(str(checkpoint))
+    model.cuda()
+    model.eval()
+    for i, mel in enumerate(Path("/home/jasoli/waveglow/mel_spectrograms/mel_spectrograms").glob("*.pt")):
+        with torch.no_grad():
+            spec = torch.load(mel)
+            spec = torch.unsqueeze(spec, 0).cuda()
+            print(spec.shape)
+            mb_audio_pred = model.generator(spec)
+            audio_pred = mb_audio_pred
+            if model.pqmf is not None:
+                audio_pred = model.pqmf.synthesis(mb_audio_pred)
+            print(audio_pred.cpu().numpy().squeeze())
+            sf.write(f"{cfg.name}_{i}.wav", audio_pred.cpu().numpy().squeeze(), samplerate=cfg.sample_rate)
 
 
 # @experimental
