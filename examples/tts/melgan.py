@@ -51,6 +51,7 @@ class MBMelGanModel(ModelPT):
         self.mse_loss = torch.nn.MSELoss()
         self.adv_coeff = self._cfg.init_adv_lambda
         self.increase_coeff = self._cfg.increase_lambda
+        self.add_gan_loss = self._cfg.get("add_gan_loss", True)
 
     @property
     def input_types(self):
@@ -109,17 +110,27 @@ class MBMelGanModel(ModelPT):
             # for scale in real_score:
             #     loss_disc += F.relu(1 - scale[-1]).mean()
 
-            loss_disc = 0.0
+            loss_disc_real = [0 * len(fake_score)]
+            loss_disc_fake = [0 * len(fake_score)]
             for i in range(len(fake_score)):
-                loss_disc += self.mse_loss(real_score[i][-1], real_score[i][-1].new_ones(real_score[i][-1].size()))
-                loss_disc += torch.mean(fake_score[i][-1] ** 2)
-            loss_disc /= len(fake_score)
+                loss_disc_real[i] += self.mse_loss(
+                    real_score[i][-1], real_score[i][-1].new_ones(real_score[i][-1].size())
+                )
+                loss_disc_fake[i] += torch.mean(fake_score[i][-1] ** 2)
+            sum_loss_dis = torch.sum(loss_disc_real) + torch.sum(loss_disc_fake)
 
             if self.global_step % 1000 == 0:
-                self.logger.experiment.add_scalar("loss_discriminator", loss_disc, self.global_step)
+                self.logger.experiment.add_scalar(f"loss_discriminator", sum_loss_dis, self.global_step)
+                for i in len(fake_score):
+                    self.logger.experiment.add_scalar(
+                        f"loss_discriminator_real_{i}", loss_disc_real[i], self.global_step
+                    )
+                    self.logger.experiment.add_scalar(
+                        f"loss_discriminator_fake_{i}", loss_disc_fake[i], self.global_step
+                    )
             return {
-                'loss': loss_disc,
-                'progress_bar': {'loss_disc': loss_disc},
+                'loss': sum_loss_dis,
+                'progress_bar': {'loss_disc': sum_loss_dis},
                 # 'log': {'loss_discriminator': loss_disc},
             }
         # train generator
@@ -151,14 +162,24 @@ class MBMelGanModel(ModelPT):
                 # for scale in fake_score:
                 #     loss_gen += -scale[-1].mean()
 
-                loss_gen = 0
-                for scale in fake_score:
-                    loss_gen += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
-                loss_gen /= len(fake_score)
+                loss_gen = [0 * len(fake_score)]
+                for i, scale in enumerate(fake_score):
+                    loss_gen[i] += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
 
-                loss += self.adv_coeff * loss_gen
+                loss += self.adv_coeff * loss_gen / len(fake_score)
             if self.global_step % 1000 == 0:
                 self.logger.experiment.add_scalar("loss_generator", loss, self.global_step)
+                if self.train_disc:
+                    for i in len(fake_score):
+                        self.logger.experiment.add_scalar(
+                            f"loss_generator_gan_{i}", self.adv_coeff * loss_gen[i] / len(fake_score), self.global_step
+                        )
+                self.logger.experiment.add_scalar("loss_generator_sc", sc_loss, self.global_step)
+                self.logger.experiment.add_scalar("loss_generator_mag", mag_loss, self.global_step)
+                if self.pqmf is not None:
+                    self.logger.experiment.add_scalar("loss_generator_sb_sc", sub_sc_loss, self.global_step)
+                    self.logger.experiment.add_scalar("loss_generator_sb_mag", sub_mag_loss, self.global_step)
+
             return {
                 'loss': loss,
                 'progress_bar': {'loss_gen': loss},
@@ -168,19 +189,55 @@ class MBMelGanModel(ModelPT):
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len = batch
-        spec, _ = self.audio_to_melspec_precessor(audio, audio_len)
-        audio_pred_mb = self.generator(spec)
+        with torch.no_grad():
+            spec, _ = self.audio_to_melspec_precessor(audio, audio_len)
+            mb_audio_pred = self.generator(spec)
 
-        # return result
-        audio_pred = audio_pred_mb
-        if self.pqmf is not None:
-            audio_pred = self.pqmf.synthesis(audio_pred_mb)
-        spec_pred, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
-        return {
-            # "loss": loss,
-            "spec": spec,
-            "spec_pred": spec_pred,
-        }
+            loss = 0
+            loss_dict = {}
+            audio_pred = mb_audio_pred
+            if self.pqmf is not None:
+                audio_pred = self.pqmf.synthesis(mb_audio_pred)
+            spec_pred, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
+
+            # full-band loss
+            sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio)
+            loss_feat = sc_loss + mag_loss
+            loss += loss_feat
+
+            loss_dict["sc_loss"] = sc_loss
+            loss_dict["mag_loss"] = mag_loss
+
+            # MB loss
+            if self.pqmf is not None:
+                loss *= 0.5
+                audio_mb = self.pqmf.analysis(audio.unsqueeze(1))
+                mb_audio_pred = mb_audio_pred.view(-1, mb_audio_pred.size(2))
+                audio_mb = audio_mb.view(-1, audio_mb.size(2))
+                sub_sc_loss, sub_mag_loss = self.subband_loss(mb_audio_pred, audio_mb)
+                loss += 0.5 * (sub_sc_loss + sub_mag_loss)
+                loss_dict["sub_sc_loss"] = sub_sc_loss
+                loss_dict["sub_mag_loss"] = sub_mag_loss
+
+            if self.train_disc:
+                fake_score = self.discriminator(audio_pred)
+                # real_score = self.discriminator(audio.unsqueeze(1))
+
+                # loss_gen = 0
+                # for scale in fake_score:
+                #     loss_gen += -scale[-1].mean()
+
+                loss_gen = [0 * len(fake_score)]
+                for i, scale in enumerate(fake_score):
+                    loss_gen[i] += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
+                    loss_dict[f"gan_loss_{i}"] = self.adv_coeff * loss_gen[i] / len(fake_score)
+
+                loss += self.adv_coeff * loss_gen / len(fake_score)
+
+        loss_dict["spec"] = spec
+        loss_dict["spec_pred"] = spec_pred
+        loss_dict["loss"] = loss
+        return loss_dict
 
     def validation_epoch_end(self, outputs):
         if self.logger is not None and self.logger.experiment is not None:
@@ -196,7 +253,11 @@ class MBMelGanModel(ModelPT):
                 self.global_step,
                 dataformats="HWC",
             )
-        return None
+
+        for key in outputs:
+            if "loss" in key:
+                loss = torch.stack([x[key] for x in outputs]).mean()
+                self.log(f"val_{key}", loss)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
@@ -235,7 +296,7 @@ class MBMelGanModel(ModelPT):
             self.logger.experiment.add_scalar("lr-Adam-1", lrs[1], self.global_step)
             self.logger.experiment.add_scalar("epoch", self.current_epoch, self.global_step)
 
-        if self.current_epoch >= np.ceil(0.2 * self._trainer.max_epochs):
+        if self.current_epoch >= np.ceil(0.2 * self._trainer.max_epochs) and self.add_gan_loss:
             self.train_disc = True
 
         # Add staircase increase for adv_coeff
