@@ -97,5 +97,3 @@ class MachineTranslationLogEvalCallback(Callback):
     @rank_zero_only
     def on_sanity_check_start(self, trainer, pl_module):
         self._on_eval_start(trainer, pl_module)
-
-

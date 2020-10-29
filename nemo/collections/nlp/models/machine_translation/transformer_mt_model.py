@@ -25,13 +25,17 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.nlp.metrics.sacrebleu import corpus_bleu
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
+from nemo.collections.nlp.metrics.sacrebleu import corpus_bleu
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerDecoder, \
-    TransformerEmbedding, TransformerEncoder
+from nemo.collections.nlp.modules.common.transformer import (
+    BeamSearchSequenceGenerator,
+    TransformerDecoder,
+    TransformerEmbedding,
+    TransformerEncoder,
+)
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 
@@ -49,7 +53,8 @@ class TransformerMTModel(ModelPT):
             if "src_tokenizer" in cfg.machine_translation or "tgt_tokenizer" in cfg.machine_translation:
                 raise ValueError(
                     "If 'tokenizer' is in 'machine_translation' section of config then this section should "
-                    "not contain 'src_tokenizer' and 'tgt_tokenizer' fields.")
+                    "not contain 'src_tokenizer' and 'tgt_tokenizer' fields."
+                )
             self.src_tokenizer = get_tokenizer(**cfg.machine_translation.tokenizer)
             self.tgt_tokenizer = self.src_tokenizer
             super().__init__(cfg=cfg, trainer=trainer)
@@ -85,7 +90,7 @@ class TransformerMTModel(ModelPT):
                 embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
                 learn_positional_encodings=False,
             )
-            
+
         # init superclass
         self.encoder = TransformerEncoder(
             hidden_size=cfg.machine_translation.hidden_size,
@@ -128,24 +133,23 @@ class TransformerMTModel(ModelPT):
         self.log_softmax.mlp.layer0.weight = self.tgt_embedding_layer.token_embedding.weight
         for m in ["query_net", "key_net", "value_net"]:
             torch.nn.init.normal_(
-                getattr(self.encoder.layers[0].first_sub_layer, m)\
-                    .weight,
-                std=1/cfg.machine_translation.hidden_size**0.5
+                getattr(self.encoder.layers[0].first_sub_layer, m).weight,
+                std=1 / cfg.machine_translation.hidden_size ** 0.5,
             )
             torch.nn.init.normal_(
-                getattr(self.decoder.layers[0].first_sub_layer, m)\
-                    .weight,
-                std=1/cfg.machine_translation.hidden_size**0.5
+                getattr(self.decoder.layers[0].first_sub_layer, m).weight,
+                std=1 / cfg.machine_translation.hidden_size ** 0.5,
             )
         self.loss_fn = SmoothedCrossEntropyLoss(
-            pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing)
+            pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
+        )
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
 
         self.num_examples = {
             "test": cfg.test_ds.get("num_examples", 3),
-            "val": cfg.validation_ds.get("num_examples", 3)
+            "val": cfg.validation_ds.get("num_examples", 3),
         }
 
         # These attributes are added to bypass Illegal memory access error in PT1.6
@@ -164,9 +168,7 @@ class TransformerMTModel(ModelPT):
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
         if not self.training:
-            beam_results = self.beam_search(
-                encoder_hidden_states=src_hiddens,
-                encoder_input_mask=src_mask)
+            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
         return log_probs, beam_results
 
     def training_step(self, batch, batch_idx):
@@ -206,7 +208,8 @@ class TransformerMTModel(ModelPT):
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
-            'log': tensorboard_logs}
+            'log': tensorboard_logs,
+        }
 
     def test_step(self, batch, batch_idx):
         return self.eval_step(batch, batch_idx, 'test')
@@ -218,13 +221,8 @@ class TransformerMTModel(ModelPT):
                 self.trainer.logger.experiment.add_histogram(name + '_hist', p, global_step=self.global_step)
                 self.trainer.logger.experiment.add_scalars(
                     name,
-                    {
-                        'mean': p.mean(),
-                        'stddev': p.std(),
-                        'max': p.max(),
-                        'min': p.min()
-                    },
-                    global_step=self.global_step
+                    {'mean': p.mean(), 'stddev': p.std(), 'max': p.max(), 'min': p.min()},
+                    global_step=self.global_step,
                 )
 
     def validation_step(self, batch, batch_idx):
@@ -242,11 +240,7 @@ class TransformerMTModel(ModelPT):
         assert len(translations) == len(ground_truths)
         token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
-        ans = {
-            f"{mode}_loss": eval_loss, 
-            f"{mode}_tokenBLEU": token_bleu.score, 
-            f"{mode}_sacreBLEU": sacre_bleu.score
-        }
+        ans = {f"{mode}_loss": eval_loss, f"{mode}_tokenBLEU": token_bleu.score, f"{mode}_sacreBLEU": sacre_bleu.score}
         ans['log'] = dict(ans)
         return ans
 

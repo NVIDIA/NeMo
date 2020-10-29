@@ -250,7 +250,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, 1), prefixes), dim=1)
         for j in range(len(decoder_mems_list)):
             decoder_mems_list[j] = decoder_mems_list[j].repeat(self.beam_size, 1, 1)
-        
+
         # repeat source sequence beam_size times for beam search
         if encoder_hidden_states is not None:
             _, src_length, hidden_size = encoder_hidden_states.size()
@@ -310,9 +310,9 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             for j in range(len(decoder_mems_list)):
                 decoder_mems_list[j] = (
                     decoder_mems_list[j]
-                        .view(-1, self.beam_size, p_len - 1, hidden_size)
-                        .gather(1, mems_ids)
-                        .view(-1, p_len - 1, hidden_size)
+                    .view(-1, self.beam_size, p_len - 1, hidden_size)
+                    .gather(1, mems_ids)
+                    .view(-1, p_len - 1, hidden_size)
                 )
 
             # update prefixes_len and pad_profile
