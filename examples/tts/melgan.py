@@ -21,6 +21,7 @@ from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.utils.exp_manager import exp_manager
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 
 
 @experimental
@@ -110,18 +111,18 @@ class MBMelGanModel(ModelPT):
             # for scale in real_score:
             #     loss_disc += F.relu(1 - scale[-1]).mean()
 
-            loss_disc_real = [0 * len(fake_score)]
-            loss_disc_fake = [0 * len(fake_score)]
+            loss_disc_real = [0] * len(fake_score)
+            loss_disc_fake = [0] * len(fake_score)
             for i in range(len(fake_score)):
                 loss_disc_real[i] += self.mse_loss(
                     real_score[i][-1], real_score[i][-1].new_ones(real_score[i][-1].size())
                 )
                 loss_disc_fake[i] += torch.mean(fake_score[i][-1] ** 2)
-            sum_loss_dis = torch.sum(loss_disc_real) + torch.sum(loss_disc_fake)
+            sum_loss_dis = sum(loss_disc_real) + sum(loss_disc_fake)
 
             if self.global_step % 1000 == 0:
                 self.logger.experiment.add_scalar(f"loss_discriminator", sum_loss_dis, self.global_step)
-                for i in len(fake_score):
+                for i in range(len(fake_score)):
                     self.logger.experiment.add_scalar(
                         f"loss_discriminator_real_{i}", loss_disc_real[i], self.global_step
                     )
@@ -142,17 +143,18 @@ class MBMelGanModel(ModelPT):
 
             # full-band loss
             sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio)
-            loss_feat = sc_loss + mag_loss
-            loss += loss_feat
+            loss_feat = sum(sc_loss) + sum(mag_loss)
 
             # MB loss
             if self.pqmf is not None:
-                loss *= 0.5
+                loss_feat *= 0.5
                 audio_mb = self.pqmf.analysis(audio.unsqueeze(1))
                 mb_audio_pred = mb_audio_pred.view(-1, mb_audio_pred.size(2))
                 audio_mb = audio_mb.view(-1, audio_mb.size(2))
                 sub_sc_loss, sub_mag_loss = self.subband_loss(mb_audio_pred, audio_mb)
-                loss += 0.5 * (sub_sc_loss + sub_mag_loss)
+                loss_feat += 0.5 * (sum(sub_sc_loss) + sum(sub_mag_loss))
+
+            loss += loss_feat
 
             if self.train_disc:
                 fake_score = self.discriminator(audio_pred)
@@ -162,28 +164,79 @@ class MBMelGanModel(ModelPT):
                 # for scale in fake_score:
                 #     loss_gen += -scale[-1].mean()
 
-                loss_gen = [0 * len(fake_score)]
+                loss_gan = [0] * len(fake_score)
                 for i, scale in enumerate(fake_score):
-                    loss_gen[i] += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
+                    loss_gan[i] += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
 
-                loss += self.adv_coeff * loss_gen / len(fake_score)
+                sum_loss_gan = self.adv_coeff * sum(loss_gan) / len(fake_score)
+
+                loss += sum_loss_gan
+
             if self.global_step % 1000 == 0:
-                self.logger.experiment.add_scalar("loss_generator", loss, self.global_step)
+                self.log("loss_generator", loss, sync_dist=True)
                 if self.train_disc:
-                    for i in len(fake_score):
-                        self.logger.experiment.add_scalar(
-                            f"loss_generator_gan_{i}", self.adv_coeff * loss_gen[i] / len(fake_score), self.global_step
+                    self.log(f"loss_generator_gan_loss", sum_loss_gan, sync_dist=True)
+                    for i in range(len(fake_score)):
+                        self.log(
+                            f"loss_generator_gan_loss_{i}",
+                            self.adv_coeff * loss_gan[i] / len(fake_score),
+                            sync_dist=True,
                         )
-                self.logger.experiment.add_scalar("loss_generator_sc", sc_loss, self.global_step)
-                self.logger.experiment.add_scalar("loss_generator_mag", mag_loss, self.global_step)
+                self.log("loss_generator_feat_loss", loss_feat, sync_dist=True)
+                factor = 0.5 if self.pqmf else 1.0
+                self.log("loss_generator_feat_loss_fb_sc", sum(sc_loss) * factor, sync_dist=True)
+                self.log("loss_generator_feat_loss_fb_mag", sum(mag_loss) * factor, sync_dist=True)
+                for i in range(len(sc_loss)):
+                    self.log(f"loss_generator_feat_loss_fb_sc_{i}", sc_loss[i] * factor, sync_dist=True)
+                    self.log(f"loss_generator_feat_loss_fb_mag_{i}", mag_loss[i] * factor, sync_dist=True)
                 if self.pqmf is not None:
-                    self.logger.experiment.add_scalar("loss_generator_sb_sc", sub_sc_loss, self.global_step)
-                    self.logger.experiment.add_scalar("loss_generator_sb_mag", sub_mag_loss, self.global_step)
+                    self.log("loss_generator_mb_sc", sum(sub_sc_loss) * factor, sync_dist=True)
+                    self.log("loss_generator_mb_mag", sum(sub_mag_loss) * factor, sync_dist=True)
+                    for i in range(len(sc_loss)):
+                        self.log(f"loss_generator_feat_loss_mb_sc_{i}", sc_loss[i] * factor, sync_dist=True)
+                        self.log(f"loss_generator_feat_loss_mb_mag_{i}", mag_loss[i] * factor, sync_dist=True)
+                # self.logger.experiment.add_scalar("loss_generator", loss, self.global_step)
+                # if self.train_disc:
+                #     self.logger.experiment.add_scalar(f"loss_generator_gan_loss", sum_loss_gan, self.global_step)
+                #     for i in len(fake_score):
+                #         self.logger.experiment.add_scalar(
+                #             f"loss_generator_gan_loss_{i}",
+                #             self.adv_coeff * loss_gan[i] / len(fake_score),
+                #             self.global_step,
+                #         )
+                # self.logger.experiment.add_scalar("loss_generator_feat_loss", loss_feat, self.global_step)
+                # factor = 0.5 if self.pqmf else 1.0
+                # self.logger.experiment.add_scalar(
+                #     "loss_generator_feat_loss_fb_sc", sum(sc_loss) * factor, self.global_step
+                # )
+                # self.logger.experiment.add_scalar(
+                #     "loss_generator_feat_loss_fb_mag", sum(mag_loss) * factor, self.global_step
+                # )
+                # for i in len(sc_loss):
+                #     self.logger.experiment.add_scalar(
+                #         f"loss_generator_feat_loss_fb_sc_{i}", sc_loss[i] * factor, self.global_step
+                #     )
+                #     self.logger.experiment.add_scalar(
+                #         f"loss_generator_feat_loss_fb_mag_{i}", mag_loss[i] * factor, self.global_step
+                #     )
+                # if self.pqmf is not None:
+                #     self.logger.experiment.add_scalar(
+                #         "loss_generator_mb_sc", sum(sub_sc_loss) * factor, self.global_step
+                #     )
+                #     self.logger.experiment.add_scalar(
+                #         "loss_generator_mb_mag", sum(sub_mag_loss) * factor, self.global_step
+                #     )
+                #     for i in len(sc_loss):
+                #         self.logger.experiment.add_scalar(
+                #             f"loss_generator_feat_loss_mb_sc_{i}", sc_loss[i] * factor, self.global_step
+                #         )
+                #         self.logger.experiment.add_scalar(
+                #             f"loss_generator_feat_loss_mb_mag_{i}", mag_loss[i] * factor, self.global_step
+                #         )
 
             return {
                 'loss': loss,
                 'progress_bar': {'loss_gen': loss},
-                # 'log': {'loss_generator': loss},
             }
         return None
 
@@ -200,38 +253,50 @@ class MBMelGanModel(ModelPT):
                 audio_pred = self.pqmf.synthesis(mb_audio_pred)
             spec_pred, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
 
-            # full-band loss
-            sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio)
-            loss_feat = sc_loss + mag_loss
-            loss += loss_feat
+            # Ensure that audio len is consistent between audio_pred and audio
+            # For SC Norm loss, we can just zero out
+            # For Mag L1 loss, we need to mask
+            if audio_pred.shape[-1] < audio.shape[-1]:
+                # prediction audio is less than audio, pad predicted audio to real audio
+                pad_amount = audio.shape[-1] - audio_pred.shape[-1]
+                audio_pred = torch.nn.functional.pad(audio_pred, (0, pad_amount), value=0.0)
+            else:
+                # prediction audio is larger than audio, slice predicted audio to real audio
+                audio_pred = audio_pred[:, :, : audio.shape[1]]
 
+            mask = ~get_mask_from_lengths(audio_len, max_len=torch.max(audio_len))
+            mask = mask.unsqueeze(1)
+            audio_pred.data.masked_fill_(mask, 0.0)
+
+            # full-band loss
+            sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio, audio_len)
+            loss_feat = sum(sc_loss) + sum(mag_loss)
             loss_dict["sc_loss"] = sc_loss
             loss_dict["mag_loss"] = mag_loss
 
             # MB loss
             if self.pqmf is not None:
-                loss *= 0.5
+                loss_feat *= 0.5
                 audio_mb = self.pqmf.analysis(audio.unsqueeze(1))
                 mb_audio_pred = mb_audio_pred.view(-1, mb_audio_pred.size(2))
                 audio_mb = audio_mb.view(-1, audio_mb.size(2))
-                sub_sc_loss, sub_mag_loss = self.subband_loss(mb_audio_pred, audio_mb)
-                loss += 0.5 * (sub_sc_loss + sub_mag_loss)
+                # TODO: This needs to be debugged
+                sub_sc_loss, sub_mag_loss = self.subband_loss(mb_audio_pred, audio_mb, audio_len)
+                loss_feat += 0.5 * (sum(sub_sc_loss) + sum(sub_mag_loss))
                 loss_dict["sub_sc_loss"] = sub_sc_loss
                 loss_dict["sub_mag_loss"] = sub_mag_loss
 
+            loss += loss_feat
+            loss_dict["loss_feat"] = loss_feat
+
             if self.train_disc:
                 fake_score = self.discriminator(audio_pred)
-                # real_score = self.discriminator(audio.unsqueeze(1))
-
-                # loss_gen = 0
-                # for scale in fake_score:
-                #     loss_gen += -scale[-1].mean()
 
                 loss_gen = [0 * len(fake_score)]
                 for i, scale in enumerate(fake_score):
                     loss_gen[i] += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
-                    loss_dict[f"gan_loss_{i}"] = self.adv_coeff * loss_gen[i] / len(fake_score)
 
+                loss_dict["gan_loss"] = loss_gen
                 loss += self.adv_coeff * loss_gen / len(fake_score)
 
         loss_dict["spec"] = spec
@@ -254,10 +319,51 @@ class MBMelGanModel(ModelPT):
                 dataformats="HWC",
             )
 
-        for key in outputs:
-            if "loss" in key:
-                loss = torch.stack([x[key] for x in outputs]).mean()
-                self.log(f"val_{key}", loss)
+        def get_stack(list_of_dict, key):
+            return_list = [[]] * len(list_of_dict[0][key])
+            for y in list_of_dict:
+                list_of_losses = y[key]
+                for i, loss in enumerate(list_of_losses):
+                    return_list[i].append(loss)
+            for i, loss in enumerate(return_list):
+                return_list[i] = torch.mean(torch.stack(loss))
+            return return_list
+
+        loss = torch.stack([x['loss'] for x in outputs]).mean()
+        self.log("val_loss", loss, sync_dist=True)
+
+        if self.train_disc:
+            gan_loss = get_stack(outputs, "gan_loss")
+            self.log(f"val_loss_gan_loss", self.adv_coeff / len(gan_loss) * sum(gan_loss), sync_dist=True)
+            for i in len(gan_loss):
+                self.log(
+                    f"val_loss_gan_loss_{i}", self.adv_coeff / len(gan_loss) * gan_loss[i], sync_dist=True,
+                )
+
+        loss_feat = 0
+        factor = 1
+        if self.pqmf is not None:
+            sub_sc_loss = get_stack(outputs, "sub_sc_loss")
+            sub_mag_loss = get_stack(outputs, "sub_mag_loss")
+            loss_feat += sum(sub_mag_loss) + sum(sub_sc_loss)
+            factor = 0.5
+        loss_feat *= factor
+        sc_loss = get_stack(outputs, "sc_loss")
+        print(sc_loss)
+        mag_loss = get_stack(outputs, "mag_loss")
+        loss_feat += (sum(mag_loss) + sum(sc_loss)) * factor
+        self.log("val_loss_feat_loss", loss_feat, sync_dist=True)
+        self.log("val_loss_feat_loss_fb_sc", sum(sc_loss) * factor, sync_dist=True)
+        self.log("val_loss_feat_loss_fb_mag", sum(mag_loss) * factor, sync_dist=True)
+        for i in range(len(sc_loss)):
+            self.log(f"val_loss_feat_loss_fb_sc_{i}", sc_loss[i] * factor, sync_dist=True)
+            self.log(f"val_loss_feat_loss_fb_mag_{i}", mag_loss[i] * factor, sync_dist=True)
+        if self.pqmf is not None:
+            self.log("val_loss_mb_sc", sum(sub_sc_loss) * factor, sync_dist=True)
+            self.log("val_loss_mb_mag", sum(sub_mag_loss) * factor, sync_dist=True)
+            for i in range(len(sub_sc_loss)):
+                self.log(f"val_loss_feat_loss_mb_sc_{i}", sc_loss[i] * factor, sync_dist=True)
+                self.log(f"val_loss_feat_loss_mb_mag_{i}", mag_loss[i] * factor, sync_dist=True)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
