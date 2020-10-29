@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -22,6 +22,11 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.nlp.data import SquadDataset
+from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing import (
+    EVALUATION_MODE,
+    INFERENCE_MODE,
+    TRAINING_MODE,
+)
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -81,44 +86,46 @@ class QAModel(NLPModel):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
-        lr = self._optimizer.param_groups[0]['lr']
 
+        lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
-
         return {'loss': loss, 'lr': lr}
 
     def validation_step(self, batch, batch_idx):
+        if self.testing:
+            prefix = 'test'
+        else:
+            prefix = 'val'
+
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, start_logits, end_logits = self.loss(
             logits=logits, start_positions=start_positions, end_positions=end_positions
         )
 
-        eval_tensors = {
+        tensors = {
             'unique_ids': unique_ids,
             'start_logits': start_logits,
             'end_logits': end_logits,
         }
-        self.log('val_loss', loss)
-        return {'val_loss': loss, 'eval_tensors': eval_tensors}
+        self.log(f'{prefix}_loss', loss)
+        return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
 
     def test_step(self, batch, batch_idx):
-        input_ids, input_type_ids, input_mask, unique_ids = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-
-        test_tensors = {
-            'unique_ids': unique_ids,
-            'logits': logits,
-        }
-        return {'test_tensors': test_tensors}
+        return self.validation_step(batch, batch_idx)
 
     def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        if self.testing:
+            prefix = 'test'
+        else:
+            prefix = 'val'
 
-        unique_ids = torch.cat([x['eval_tensors']['unique_ids'] for x in outputs])
-        start_logits = torch.cat([x['eval_tensors']['start_logits'] for x in outputs])
-        end_logits = torch.cat([x['eval_tensors']['end_logits'] for x in outputs])
+        avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
+
+        unique_ids = torch.cat([x[f'{prefix}_tensors']['unique_ids'] for x in outputs])
+        start_logits = torch.cat([x[f'{prefix}_tensors']['start_logits'] for x in outputs])
+        end_logits = torch.cat([x[f'{prefix}_tensors']['end_logits'] for x in outputs])
 
         all_unique_ids = []
         all_start_logits = []
@@ -150,76 +157,149 @@ class QAModel(NLPModel):
             for u in all_end_logits:
                 end_logits.extend(tensor2list(u))
 
-            exact_match, f1, all_predictions, all_nbest = self.validation_dataset.evaluate(
+            eval_dataset = self._test_dl.dataset if self.testing else self._validation_dl.dataset
+            exact_match, f1, all_predictions, all_nbest = eval_dataset.evaluate(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
                 end_logits=end_logits,
-                n_best_size=self._cfg.validation_ds.n_best_size,
-                max_answer_length=self._cfg.validation_ds.max_answer_length,
+                n_best_size=self._cfg.dataset.n_best_size,
+                max_answer_length=self._cfg.dataset.max_answer_length,
                 version_2_with_negative=self._cfg.dataset.version_2_with_negative,
-                null_score_diff_threshold=self._cfg.validation_ds.null_score_diff_threshold,
+                null_score_diff_threshold=self._cfg.dataset.null_score_diff_threshold,
                 do_lower_case=self._cfg.dataset.do_lower_case,
             )
 
-            if self._cfg.validation_ds.output_nbest_file is not None:
-                with open(self._cfg.validation_ds.output_nbest_file, "w") as writer:
-                    writer.write(json.dumps(all_nbest, indent=4) + "\n")
-            if self._cfg.validation_ds.output_prediction_file is not None:
-                with open(self._cfg.validation_ds.output_prediction_file, "w") as writer:
-                    writer.write(json.dumps(all_predictions, indent=4) + "\n")
+        logging.info(f"{prefix} exact match {exact_match}")
+        logging.info(f"{prefix} f1 {f1}")
 
-        logging.info(f"exact match {exact_match}")
-        logging.info(f"f1 {f1}")
-        self.log('val_loss', avg_loss)
-        self.log('exact_match', exact_match)
-        self.log('f1', f1)
+        self.log(f'{prefix}_loss', avg_loss)
+        self.log(f'{prefix}_exact_match', exact_match)
+        self.log(f'{prefix}_f1', f1)
 
     def test_epoch_end(self, outputs):
-        unique_ids = tensor2list(torch.cat([x['test_tensors']['unique_ids'] for x in outputs]))
-        logits = torch.cat([x['test_tensors']['logits'] for x in outputs])
-        s, e = logits.split(dim=-1, split_size=1)
-        start_logits = tensor2list(s.squeeze())
-        end_logits = tensor2list(e.squeeze())
-        (all_predictions, all_nbest, scores_diff) = self.test_dataset.get_predictions(
-            unique_ids=unique_ids,
-            start_logits=start_logits,
-            end_logits=end_logits,
-            n_best_size=self._cfg.test_ds.n_best_size,
-            max_answer_length=self._cfg.test_ds.max_answer_length,
-            version_2_with_negative=self._cfg.dataset.version_2_with_negative,
-            null_score_diff_threshold=self._cfg.test_ds.null_score_diff_threshold,
-            do_lower_case=self._cfg.dataset.do_lower_case,
-        )
+        return self.validation_epoch_end(outputs)
 
-        if self._cfg.test_ds.output_nbest_file is not None:
-            with open(self._cfg.test_ds.output_nbest_file, "w") as writer:
-                writer.write(json.dumps(all_nbest, indent=4) + "\n")
-        if self._cfg.test_ds.output_prediction_file is not None:
-            with open(self._cfg.test_ds.output_prediction_file, "w") as writer:
-                writer.write(json.dumps(all_predictions, indent=4) + "\n")
-        return {}
+    @torch.no_grad()
+    def inference(
+        self,
+        file: str,
+        batch_size: int = 1,
+        num_samples: int = -1,
+        output_nbest_file: Optional[str] = None,
+        output_prediction_file: Optional[str] = None,
+    ):
+        """
+        Get prediction for unlabeled inference data
+        Args:
+            file: inference data
+            batch_size: batch size to use during inference
+            num_samples: number of samples to use of inference data. Default: -1 if all data should be used.
+            output_nbest_file: optional output file for writing out nbest list
+            output_prediction_file: optional output file for writing out predictions
+        Returns:
+            all_predictions: model predictions
+            all_nbest: model nbest list
+        """
+        # store predictions for all queries in a single list
+        all_predictions = []
+        all_nbest = []
+        mode = self.training
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            self.to(device)
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            dataloader_cfg = {
+                "batch_size": batch_size,
+                "file": file,
+                "shuffle": False,
+                "num_samples": num_samples,
+                'num_workers': 2,
+                'pin_memory': False,
+                'drop_last': False,
+            }
+            dataloader_cfg = OmegaConf.create(dataloader_cfg)
+            infer_datalayer = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode=INFERENCE_MODE)
+
+            all_logits = []
+            all_unique_ids = []
+            for i, batch in enumerate(infer_datalayer):
+                input_ids, token_type_ids, attention_mask, unique_ids = batch
+                logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    token_type_ids=token_type_ids.to(device),
+                    attention_mask=attention_mask.to(device),
+                )
+                all_logits.append(logits)
+                all_unique_ids.append(unique_ids)
+            logits = torch.cat(all_logits)
+            unique_ids = tensor2list(torch.cat(all_unique_ids))
+            s, e = logits.split(dim=-1, split_size=1)
+            start_logits = tensor2list(s.squeeze())
+            end_logits = tensor2list(e.squeeze())
+            (all_predictions, all_nbest, scores_diff) = infer_datalayer.dataset.get_predictions(
+                unique_ids=unique_ids,
+                start_logits=start_logits,
+                end_logits=end_logits,
+                n_best_size=self._cfg.dataset.n_best_size,
+                max_answer_length=self._cfg.dataset.max_answer_length,
+                version_2_with_negative=self._cfg.dataset.version_2_with_negative,
+                null_score_diff_threshold=self._cfg.dataset.null_score_diff_threshold,
+                do_lower_case=self._cfg.dataset.do_lower_case,
+            )
+
+            if output_nbest_file is not None:
+                with open(output_nbest_file, "w") as writer:
+                    writer.write(json.dumps(all_nbest, indent=4) + "\n")
+            if output_prediction_file is not None:
+                with open(output_prediction_file, "w") as writer:
+                    writer.write(json.dumps(all_predictions, indent=4) + "\n")
+
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+            logging.set_verbosity(logging_level)
+        return all_predictions, all_nbest
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
-            tokenizer_model=cfg.tokenizer_model,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            vocab_file=cfg.vocab_file,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
         )
         self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
+        if not train_data_config or not train_data_config.file:
+            logging.info(
+                f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
+            )
+            self._test_dl = None
+            return
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode=TRAINING_MODE)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        if not val_data_config or not val_data_config.file:
+            logging.info(
+                f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
+            )
+            self._test_dl = None
+            return
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode=EVALUATION_MODE)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        if test_data_config.file is None:
+        if not test_data_config or test_data_config.file is None:
+            logging.info(
+                f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
+            )
+            self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode=EVALUATION_MODE)
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
+    def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.file,
@@ -228,21 +308,18 @@ class QAModel(NLPModel):
             max_seq_length=self._cfg.dataset.max_seq_length,
             version_2_with_negative=self._cfg.dataset.version_2_with_negative,
             num_samples=cfg.num_samples,
-            mode=cfg.mode,
+            mode=mode,
             use_cache=self._cfg.dataset.use_cache,
         )
-        if cfg.mode == "eval":
-            self.validation_dataset = dataset
-        elif cfg.mode == "test":
-            self.test_dataset = dataset
 
         dl = torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg.batch_size,
             collate_fn=dataset.collate_fn,
-            drop_last=cfg.get('drop_last', False),
+            drop_last=cfg.drop_last,
             shuffle=cfg.shuffle,
-            num_workers=cfg.get('num_workers', 0),
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
         )
         return dl
 
