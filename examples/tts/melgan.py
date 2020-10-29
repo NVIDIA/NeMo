@@ -240,7 +240,7 @@ class MBMelGanModel(ModelPT):
                     loss_gen[i] += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
 
                 loss_dict["gan_loss"] = loss_gen
-                loss += self.adv_coeff * loss_gen / len(fake_score)
+                loss += self.adv_coeff * sum(loss_gen) / len(fake_score)
 
         loss_dict["spec"] = spec
         loss_dict["spec_pred"] = spec_pred
