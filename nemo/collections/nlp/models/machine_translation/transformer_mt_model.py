@@ -215,7 +215,7 @@ class TransformerMTModel(ModelPT):
     def log_param_stats(self):
         for name, p in self.named_parameters():
             if p.requires_grad:
-                self.trainer.logger.experiment.add_histogram(name + '_hist', p)
+                self.trainer.logger.experiment.add_histogram(name + '_hist', p, global_step=self.global_step)
                 self.trainer.logger.experiment.add_scalars(
                     name,
                     {
@@ -223,7 +223,8 @@ class TransformerMTModel(ModelPT):
                         'stddev': p.std(),
                         'max': p.max(),
                         'min': p.min()
-                    }
+                    },
+                    global_step=self.global_step
                 )
 
     def validation_step(self, batch, batch_idx):
