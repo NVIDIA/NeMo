@@ -291,6 +291,8 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls
         """
+        # Get path where the command is executed - the artifacts will be "retrieved" there
+        # (original .nemo behavior)
         cwd = os.getcwd()
 
         if map_location is None:
@@ -351,8 +353,12 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls
         """
+        # Get path where the command is executed - the artifacts will be "retrieved" there.
+        # (original .nemo behavior)
+        cwd = os.getcwd()
+
         # Get directory to where the restored EFF file is located.
-        file_dir = os.path.dirname(restore_path)
+        # file_dir = os.path.dirname(restore_path)
 
         if map_location is None:
             if torch.cuda.is_available():
@@ -409,11 +415,10 @@ class ModelPT(LightningModule, Model):
                     try:
                         # Get artifact file handle.
                         file_handle, _ = restored_effa.retrieve_file_handle(name=name)
-                        # "Strip file handle"
                         # Copy artifact to folder where the restored model is located.
-                        shutil.copy2(file_handle, file_dir)
+                        shutil.copy2(file_handle, cwd)
                     except Exception:
-                        logging.error(f"Could not copy artifact `{file_handle}` to the `{file_dir}` working folder")
+                        logging.error(f"Could not copy artifact `{file_handle}` to the `{cwd}` working folder")
 
             finally:
                 cls.__set_model_restore_state(is_being_restored=False)

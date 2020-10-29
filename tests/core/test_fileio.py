@@ -157,6 +157,10 @@ class TestFileIO:
         # Name of the archive in tmp folder.
         filename = os.path.join(tmpdir, "eff.nemo")
 
+        # Get path where the command is executed - the artifacts will be "retrieved" there.
+        # (original .nemo behavior)
+        cwd = os.getcwd()
+
         with tempfile.NamedTemporaryFile(mode='a+') as conf_fp:
 
             # Create "random artifact".
@@ -189,10 +193,10 @@ class TestFileIO:
 
             assert asr_model2.cfg.encoder.params.activation == 'swish'
 
+            # Make sure that the artifact is present in the working folder.
+            # Only then using EFF - old .nemo restore wasn't restoring artifacts when added outside of constructor.
             if _EFF_PRESENT_:
-                # Make sure that the artifact is present in the same folder as model file.
-                assert os.path.exists(filename)
-                assert os.path.exists(os.path.join(tmpdir, artifact_filename))
+                assert os.path.exists(os.path.join(cwd, artifact_filename))
 
     @pytest.mark.unit
     def test_save_model_level_pt_ckpt(self, asr_model):
