@@ -22,6 +22,13 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
 
+try:
+    import eff
+
+    _EFF_PRESENT_ = True
+except ImportError:
+    _EFF_PRESENT_ = False
+
 
 @pytest.fixture()
 def asr_model():
@@ -140,17 +147,27 @@ class TestFileIO:
             assert np.array_equal(w1, w2)
 
     @pytest.mark.unit
-    def test_save_restore_from_nemo_file_with_override(self, asr_model):
+    def test_save_restore_from_nemo_file_with_override(self, asr_model, tmpdir):
         """" Test makes sure that the second instance created from the same configuration AND checkpoint
-        has the same weights. """
+        has the same weights.
 
-        with tempfile.NamedTemporaryFile() as fp, tempfile.NamedTemporaryFile(mode='a+') as conf_fp:
-            filename = fp.name
+        Args:
+            tmpdir: fixture providing a temporary directory unique to the test invocation.
+        """
+        # Name of the archive in tmp folder.
+        filename = os.path.join(tmpdir, "eff.nemo")
 
-            # Save model (with random artifact).
-            with tempfile.NamedTemporaryFile() as artifact:
-                asr_model.register_artifact(config_path=None, src=artifact.name)
-                asr_model.save_to(save_path=filename)
+        with tempfile.NamedTemporaryFile(mode='a+') as conf_fp:
+
+            # Create "random artifact".
+            with tempfile.NamedTemporaryFile(mode="w", delete=False) as artifact:
+                artifact.write("magic content 42")
+            # Remember the filename of the artifact.
+            _, artifact_filename = os.path.split(artifact.name)
+            # Add artifact to model.
+            asr_model.register_artifact(config_path=None, src=artifact.name)
+            # Save model (with "random artifact").
+            asr_model.save_to(save_path=filename)
 
             # Modify config slightly
             cfg = asr_model.cfg
@@ -171,6 +188,11 @@ class TestFileIO:
             assert np.array_equal(w1, w2)
 
             assert asr_model2.cfg.encoder.params.activation == 'swish'
+
+            if _EFF_PRESENT_:
+                # Make sure that the artifact is present in the same folder as model file.
+                assert os.path.exists(filename)
+                assert os.path.exists(os.path.join(tmpdir, artifact_filename))
 
     @pytest.mark.unit
     def test_save_model_level_pt_ckpt(self, asr_model):

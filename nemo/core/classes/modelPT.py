@@ -202,13 +202,13 @@ class ModelPT(LightningModule, Model):
         """
         Saves model instance (weights and configuration) into an EFF archive.
 
-        EFF file is an archive (tar.gz) with the following:
-            metadata.yaml - file describing the content of the archive.
+        Method creates an EFF-based file that is an archive (tar.gz) with the following:
+            manifest.yaml - yaml file describing the content of the archive.
             model_config.yaml - model configuration in .yaml format. 
                 You can deserialize this into cfg argument for model's constructor
             model_wights.chpt - model checkpoint
 
-        Note that for NeMo the EFF archives will use .nemo postfix.
+        Note that for NVIDIA NeMo the EFF archives will also use .nemo postfix.
 
         Args:
             save_path: Path to archive file where model instance should be saved.
@@ -228,14 +228,14 @@ class ModelPT(LightningModule, Model):
 
             # Add other artifacts to archive.
             if hasattr(self, 'artifacts') and self.artifacts is not None:
-                # Iterate through artifact one by one.
+                # Iterate through artifacts one by one.
                 for (conf_path, src) in self.artifacts:
                     try:
                         # Add artifact - save `conf_path` as description.
-                        _ = effa.create_file_handle(name=src, description=conf_path)
-                        # Copy file
+                        file_handle = effa.create_file_handle(name=src, description=conf_path, artifact=True)
+                        # Copy file to effa temporary directory.
                         if os.path.exists(src):
-                            shutil.copy2(src, effa.tmpdir)
+                            shutil.copy2(src, file_handle)
                     except Exception:
                         logging.error(f"Could not copy artifact {src} used in {conf_path}")
 
@@ -243,8 +243,7 @@ class ModelPT(LightningModule, Model):
     def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into EFF archive or .
-         You can use "restore_from" method to fully
-        restore instance from .nemo file.
+         You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
             model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
@@ -253,6 +252,7 @@ class ModelPT(LightningModule, Model):
         Args:
             save_path: Path to .nemo file where model instance should be saved
         """
+
         # Add nemo rank check as well
         if not is_global_rank_zero():
             return
@@ -351,6 +351,9 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls
         """
+        # Get directory to where the restored EFF file is located.
+        file_dir = os.path.dirname(restore_path)
+
         if map_location is None:
             if torch.cuda.is_available():
                 map_location = torch.device('cuda')
@@ -364,7 +367,7 @@ class ModelPT(LightningModule, Model):
                 raise TypeError("EFF Archive doesn't have the required runtime and/or format version!")
 
             # Retrieve the config file.
-            config_yaml = restored_effa.retrieve_file_handle(name=_MODEL_CONFIG_YAML)
+            config_yaml, _ = restored_effa.retrieve_file_handle(name=_MODEL_CONFIG_YAML)
             # Override it - if required.
             if override_config_path is not None:
                 config_yaml = override_config_path
@@ -395,8 +398,22 @@ class ModelPT(LightningModule, Model):
                 instance = instance.to(map_location)
 
                 # Retrieve the model weights.
-                model_weights = restored_effa.retrieve_file_handle(name=_MODEL_WEIGHTS)
+                model_weights, _ = restored_effa.retrieve_file_handle(name=_MODEL_WEIGHTS)
                 instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
+
+                # Iterate through artifacts one by one.
+                for (name, properties) in restored_effa.files.items():
+                    # Skip files that are not "nemo artifacts".
+                    if "artifact" not in properties.keys():
+                        continue
+                    try:
+                        # Get artifact file handle.
+                        file_handle, _ = restored_effa.retrieve_file_handle(name=name)
+                        # "Strip file handle"
+                        # Copy artifact to folder where the restored model is located.
+                        shutil.copy2(file_handle, file_dir)
+                    except Exception:
+                        logging.error(f"Could not copy artifact `{file_handle}` to the `{file_dir}` working folder")
 
             finally:
                 cls.__set_model_restore_state(is_being_restored=False)
