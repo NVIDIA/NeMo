@@ -22,6 +22,7 @@ import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.metrics.sacrebleu import corpus_bleu
@@ -210,12 +211,13 @@ class TransformerMTModel(ModelPT):
     def test_step(self, batch, batch_idx):
         return self.eval_step(batch, batch_idx, 'test')
 
+    @rank_zero_only
     def log_param_stats(self):
-        for p in self.parameters():
+        for name, p in self.named_parameters():
             if p.requires_grad:
-                self.trainer.experiment.add_histogram(p.name + '_hist', p)
-                self.trainer.experiment.add_scalars(
-                    p.name,
+                self.trainer.logger.experiment.add_histogram(name + '_hist', p)
+                self.trainer.logger.experiment.add_scalars(
+                    name,
                     {
                         'mean': p.mean(),
                         'stddev': p.std(),
@@ -229,7 +231,6 @@ class TransformerMTModel(ModelPT):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        self.log_param_stats()
         return self.eval_step(batch, batch_idx, 'val')
 
     def eval_epoch_end(self, outputs, mode):
@@ -253,6 +254,7 @@ class TransformerMTModel(ModelPT):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
+        self.log_param_stats()
         return self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
