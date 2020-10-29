@@ -198,7 +198,7 @@ class ModelPT(LightningModule, Model):
             torch.save(self.state_dict(), model_weights)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
-    def _eff_save_to(self, save_path: str):
+    def _eff_save_to(self, save_path: str, encryption_key: str = None):
         """
         Saves model instance (weights and configuration) into an EFF archive.
 
@@ -207,6 +207,7 @@ class ModelPT(LightningModule, Model):
             model_config.yaml - model configuration in .yaml format. 
                 You can deserialize this into cfg argument for model's constructor
             model_wights.chpt - model checkpoint
+            encryption_key: key to encrypt/decrypt model checkpoint (optional, DEFAULT: None)
 
         Note that for NVIDIA NeMo the EFF archives will also use .nemo postfix.
 
@@ -214,7 +215,9 @@ class ModelPT(LightningModule, Model):
             save_path: Path to archive file where model instance should be saved.
         """
         # Create EFF archive.
-        with Archive.create(save_path=save_path, runtime=Runtimes.PyTorch, origin=Origins.NeMo) as effa:
+        with Archive.create(
+            save_path=save_path, runtime=Runtimes.PyTorch, origin=Origins.NeMo, encryption_key=encryption_key
+        ) as effa:
 
             # Add config file to archive.
             config_yaml = effa.create_file_handle(
@@ -222,8 +225,12 @@ class ModelPT(LightningModule, Model):
             )
             self.to_config_file(path2yaml_file=config_yaml)
 
-            # Add model weights to archive.
-            model_weights = effa.create_file_handle(name=_MODEL_WEIGHTS, description="File containing model weights")
+            # Add model weights to archive - encrypt when the encryption key is provided.
+            model_weights = effa.create_file_handle(
+                name=_MODEL_WEIGHTS,
+                description="File containing model weights",
+                encrypted=(encryption_key is not None),
+            )
             torch.save(self.state_dict(), model_weights)
 
             # Add other artifacts to archive.
@@ -338,6 +345,7 @@ class ModelPT(LightningModule, Model):
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        encryption_key: str = None,
     ):
         """
         Restores model instance (weights and configuration) from EFF Archive.
@@ -349,6 +357,7 @@ class ModelPT(LightningModule, Model):
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
+            encryption_key: key to encrypt/decrypt model checkpoint (optional, DEFAULT: None)
 
         Returns:
             An instance of type cls
@@ -363,7 +372,7 @@ class ModelPT(LightningModule, Model):
                 map_location = torch.device('cpu')
 
         # Restore the archive.
-        with Archive.restore_from(restore_path=restore_path) as restored_effa:
+        with Archive.restore_from(restore_path=restore_path, encryption_key=encryption_key) as restored_effa:
 
             # Go to the tmp dir.
             os.chdir(restored_effa.tmpdir)

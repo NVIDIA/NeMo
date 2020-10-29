@@ -147,6 +147,28 @@ class TestFileIO:
             assert np.array_equal(w1, w2)
 
     @pytest.mark.unit
+    def test_eff_save_restore_from_nemo_file_encrypted(self, asr_model):
+        """" Test makes sure that after encrypted save-restore the model has the same weights. """
+
+        with tempfile.NamedTemporaryFile() as fp:
+            filename = fp.name
+
+            # Save model (with random artifact).
+            with tempfile.NamedTemporaryFile() as artifact:
+                asr_model.register_artifact(config_path=None, src=artifact.name)
+                asr_model._eff_save_to(save_path=filename, encryption_key="test_key")
+
+            # Try to read the encrypted file without encryption key.
+            with pytest.raises(PermissionError):
+                # Restore the model.
+                asr_model2 = EncDecCTCModel._eff_restore_from(restore_path=filename)
+
+            # Restore the model.
+            asr_model3 = EncDecCTCModel._eff_restore_from(restore_path=filename, encryption_key="test_key")
+
+            assert asr_model.num_weights == asr_model3.num_weights
+
+    @pytest.mark.unit
     def test_save_restore_from_nemo_file_with_override(self, asr_model, tmpdir):
         """" Test makes sure that the second instance created from the same configuration AND checkpoint
         has the same weights.
