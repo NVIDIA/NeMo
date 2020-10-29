@@ -38,7 +38,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 try:
     from eff import Archive, Runtimes, Origins, __format_version__
 
-    _EFF_PRESENT_ = False
+    _EFF_PRESENT_ = True
 except ImportError:
     _EFF_PRESENT_ = False
 
@@ -353,12 +353,8 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls
         """
-        # Get path where the command is executed - the artifacts will be "retrieved" there.
-        # (original .nemo behavior)
+        # Get path where the command is executed - the artifacts will be "retrieved" from there.
         cwd = os.getcwd()
-
-        # Get directory to where the restored EFF file is located.
-        # file_dir = os.path.dirname(restore_path)
 
         if map_location is None:
             if torch.cuda.is_available():
@@ -369,25 +365,28 @@ class ModelPT(LightningModule, Model):
         # Restore the archive.
         with Archive.restore_from(restore_path=restore_path) as restored_effa:
 
+            # Go to the tmp dir.
+            os.chdir(restored_effa.tmpdir)
+
             if not restored_effa.validate(runtime=Runtimes.PyTorch, format_version=__format_version__):
                 raise TypeError("EFF Archive doesn't have the required runtime and/or format version!")
 
-            # Retrieve the config file.
-            config_yaml, _ = restored_effa.retrieve_file_handle(name=_MODEL_CONFIG_YAML)
-            # Override it - if required.
-            if override_config_path is not None:
-                config_yaml = override_config_path
-
-            conf = OmegaConf.load(config_yaml)
-            if override_config_path is not None:
-                # Resolve the override config
-                conf = OmegaConf.to_container(conf, resolve=True)
-                conf = OmegaConf.create(conf)
-                # If override is top level config, extract just `model` from it
-                if 'model' in conf:
-                    conf = conf.model
-
             try:
+                # Retrieve the config file.
+                config_yaml, _ = restored_effa.retrieve_file_handle(name=_MODEL_CONFIG_YAML)
+                # Override it - if required.
+                if override_config_path is not None:
+                    config_yaml = override_config_path
+
+                conf = OmegaConf.load(config_yaml)
+                if override_config_path is not None:
+                    # Resolve the override config
+                    conf = OmegaConf.to_container(conf, resolve=True)
+                    conf = OmegaConf.create(conf)
+                    # If override is top level config, extract just `model` from it
+                    if 'model' in conf:
+                        conf = conf.model
+
                 cls.__set_model_restore_state(is_being_restored=True)
                 conf = OmegaConf.load(config_yaml)
                 if override_config_path is not None:
@@ -407,21 +406,10 @@ class ModelPT(LightningModule, Model):
                 model_weights, _ = restored_effa.retrieve_file_handle(name=_MODEL_WEIGHTS)
                 instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
-                # Iterate through artifacts one by one.
-                for (name, properties) in restored_effa.files.items():
-                    # Skip files that are not "nemo artifacts".
-                    if "artifact" not in properties.keys():
-                        continue
-                    try:
-                        # Get artifact file handle.
-                        file_handle, _ = restored_effa.retrieve_file_handle(name=name)
-                        # Copy artifact to folder where the restored model is located.
-                        shutil.copy2(file_handle, cwd)
-                    except Exception:
-                        logging.error(f"Could not copy artifact `{file_handle}` to the `{cwd}` working folder")
-
             finally:
                 cls.__set_model_restore_state(is_being_restored=False)
+                # Return to the working folder.
+                os.chdir(cwd)
 
         return instance
 

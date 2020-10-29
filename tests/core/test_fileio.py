@@ -163,7 +163,7 @@ class TestFileIO:
 
         with tempfile.NamedTemporaryFile(mode='a+') as conf_fp:
 
-            # Create "random artifact".
+            # Create a "random artifact".
             with tempfile.NamedTemporaryFile(mode="w", delete=False) as artifact:
                 artifact.write("magic content 42")
             # Remember the filename of the artifact.
@@ -192,12 +192,6 @@ class TestFileIO:
             assert np.array_equal(w1, w2)
 
             assert asr_model2.cfg.encoder.params.activation == 'swish'
-
-            # Make sure that the artifact is present in the working folder.
-            # Test this only when using EFF - the old .nemo restore wasn't restoring artifacts
-            # when added outside of constructor.
-            if _EFF_PRESENT_:
-                assert os.path.exists(os.path.join(cwd, artifact_filename))
 
     @pytest.mark.unit
     def test_save_model_level_pt_ckpt(self, asr_model):
