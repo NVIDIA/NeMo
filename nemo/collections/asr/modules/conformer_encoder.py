@@ -41,6 +41,34 @@ class ConformerEncoder(NeuralModule, Exportable):
     Based on this paper:
     'Conformer: Convolution-augmented Transformer for Speech Recognition' by Anmol Gulati et al.
     https://arxiv.org/abs/2005.08100
+
+    Args:
+        feat_in (int): the size of feature channels
+        n_layers (int): number of layers of ConformerBlock
+        d_model (int): the hidden size of the model
+        feat_out (int): the size of the output features
+            Defaults to -1 (means feat_out is d_model)
+        subsampling (str): the method of subsampling, choices=['vggnet', 'striding']
+        subsampling_factor (int): the subsampling factor which should be power of 2
+            Defaults to 4.
+        subsampling_conv_channels (int): the size of the convolutions in the subsampling module
+            Defaults to 64.
+        ff_expansion_factor (int): the expansion factor in feed forward layers
+            Defaults to 4.
+        self_attention_model (str): type of the attention layer and positional encoding
+            choices=['rel_pos', 'abs_pos'].
+        n_heads (int): number of heads in multi-headed attention layers
+            Defaults to 4.
+        xscaling (bool): enables scaling the inputs to the multi-headed attention layers by sqrt(d_model)
+            Defaults to True.
+        conv_kernel_size (int): the size of the convolutions in the convolutional modules
+            Defaults to 31.
+        dropout (float): the dropout rate used in all layers except the attention layers
+            Defaults to 0.1.
+        dropout_emb (float): the dropout rate used for the positional embeddings
+            Defaults to 0.1.
+        dropout_att (float): the dropout rate used for the attention layer
+            Defaults to 0.0.
     """
 
     def _prepare_for_export(self):
