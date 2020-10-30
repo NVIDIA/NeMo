@@ -80,4 +80,3 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
                 continue
             else:
                 raise
-        break
