@@ -14,6 +14,7 @@
 
 import os
 from pathlib import Path
+from time import sleep
 
 import wget
 
@@ -63,8 +64,20 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
     # download file
     wget_uri = url + filename
     logging.info(f"Downloading from: {wget_uri} to {str(destination_file)}")
-    wget.download(wget_uri, str(destination_file))
-    if os.path.exists(destination_file):
-        return destination_file
-    else:
-        return ""
+    # NGC links do not work everytime so we try and wait
+    max_attempts = 3
+    for i in range(max_attempts):
+        try:
+            wget.download(wget_uri, str(destination_file))
+            if os.path.exists(destination_file):
+                return destination_file
+            else:
+                return ""
+        except:
+            logging.info(f'attempt: {i}')
+            if i < max_attempts -1:
+                sleep(.05)
+                continue
+            else:
+                raise
+        break
