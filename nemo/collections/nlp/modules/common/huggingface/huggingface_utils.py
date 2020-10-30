@@ -66,9 +66,7 @@ HUGGINGFACE_MODELS = {
 
 
 def get_huggingface_lm_model(
-    pretrained_model_name: str,
-    config_dict: Optional[dict] = None,
-    config_file: Optional[str] = None,
+    pretrained_model_name: str, config_dict: Optional[dict] = None, config_file: Optional[str] = None,
 ):
     """
     Returns lm model instantiated with Huggingface
@@ -86,9 +84,7 @@ def get_huggingface_lm_model(
     try:
         automodel = AutoModel.from_pretrained(pretrained_model_name)
     except Exception as e:
-        raise ValueError(
-            f"{pretrained_model_name} is not supported by HuggingFace. {e}"
-        )
+        raise ValueError(f"{pretrained_model_name} is not supported by HuggingFace. {e}")
 
     model_type = type(automodel).__name__
     if model_type in HUGGINGFACE_MODELS:
@@ -107,14 +103,10 @@ def get_huggingface_lm_model(
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:
-        raise ValueError(
-            f"Use HuffingFace API directly in NeMo for {pretrained_model_name}"
-        )
+        raise ValueError(f"Use HuffingFace API directly in NeMo for {pretrained_model_name}")
 
 
-def get_huggingface_pretrained_lm_models_list(
-    include_external: bool = False,
-) -> List[str]:
+def get_huggingface_pretrained_lm_models_list(include_external: bool = False,) -> List[str]:
     """
     Returns the list of pretrained HuggingFace language models
     
