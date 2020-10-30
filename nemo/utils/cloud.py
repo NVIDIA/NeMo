@@ -21,7 +21,9 @@ import wget
 from nemo.utils import logging
 
 
-def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, refresh_cache=False) -> str:
+def maybe_download_from_cloud(
+    url, filename, subfolder=None, cache_dir=None, refresh_cache=False
+) -> str:
     """
     Helper function to download pre-trained weights from the cloud
     Args:
@@ -39,7 +41,7 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
     """
     # try:
     if cache_dir is None:
-        cache_location = Path.joinpath(Path.home(), '.cache/torch/NeMo')
+        cache_location = Path.joinpath(Path.home(), ".cache/torch/NeMo")
     else:
         cache_location = cache_dir
     if subfolder is not None:
@@ -65,8 +67,9 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
     wget_uri = url + filename
     logging.info(f"Downloading from: {wget_uri} to {str(destination_file)}")
     # NGC links do not work everytime so we try and wait
-    max_attempts = 3
-    for i in range(max_attempts):
+    i = 0
+    while i < 3:
+        i += 1
         try:
             wget.download(wget_uri, str(destination_file))
             if os.path.exists(destination_file):
@@ -74,9 +77,7 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
             else:
                 return ""
         except:
-            logging.info(f'Download from cloud failed. Attempt {i+1} of {max_attempts}')
-            if i < max_attempts - 1:
-                sleep(0.05)
-                continue
-            else:
-                raise
+            logging.info(f"Download from cloud failed. Attempt {i+1} of {3}")
+            sleep(0.05)
+            continue
+
