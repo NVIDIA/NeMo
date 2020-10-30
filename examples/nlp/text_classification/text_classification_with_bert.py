@@ -121,48 +121,6 @@ def main(cfg: DictConfig) -> None:
         logging.info("Testing finished!")
         logging.info("===========================================================================================")
 
-    """
-    After training is done, if you have saved the model in a `.nemo` file, you can create the model from
-    the checkpoint again and evaluate it on a data file. You need to create a trainer and pass a test dataloader.
-    """
-    if (
-        checkpoint_path
-        and os.path.exists(checkpoint_path)
-        and cfg.model.test_ds.file_path
-        and trainer.checkpoint_callback is not None
-    ):
-        logging.info("===========================================================================================")
-        logging.info("Starting the evaluating the the last checkpoint on an evaluation file (test set by default)...")
-
-        # Create an evaluation model and load the .nemo file
-        eval_model = TextClassificationModel.restore_from(restore_path=checkpoint_path)
-
-        # create a dataloader config for evaluation, the same data file provided in validation_ds is used here
-        # file_path can get updated with any file
-        eval_config = OmegaConf.create(
-            {'file_path': cfg.model.test_ds.file_path, 'batch_size': 64, 'shuffle': False, 'num_workers': 3}
-        )
-        eval_model.setup_test_data(test_data_config=eval_config)
-
-        # a new trainer is created to show how to evaluate a checkpoint from an already trained model
-        # create a copy of the trainer config and update it to be used for final evaluation
-        eval_trainer_cfg = cfg.trainer.copy()
-
-        # it is safer to perform evaluation on single GPU as we are creating another trainer in
-        # the same script, and it may cause problem with multi-GPU training.
-        eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
-        eval_trainer_cfg.accelerator = None
-        eval_trainer = pl.Trainer(**eval_trainer_cfg)
-
-        eval_trainer.test(model=eval_model, verbose=False)
-
-        logging.info("Evaluation the last checkpoint finished!")
-        logging.info("===========================================================================================")
-    else:
-        logging.info(
-            "No file_path was set for test_ds or no `.nemo` checkpoint was found, so final evaluation is skipped!"
-        )
-
     if checkpoint_path and os.path.exists(checkpoint_path):
         # You may create a model from a saved chechpoint and use the model.infer() method to
         # perform inference on a list of queries. There is no need of any trainer for inference.
