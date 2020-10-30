@@ -124,7 +124,7 @@ trainer:
   num_nodes: 1
   max_epochs: 100
   max_steps: null # computed at runtime if not set
-  val_check_interval: 0.5 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  val_check_interval: 1 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   distributed_backend: ddp
   accumulate_grad_batches: 2
   gradient_clip_val: 0.0
@@ -133,9 +133,8 @@ trainer:
   log_every_n_steps: 10  # Interval of logging.
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
-  check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
+  check_val_every_n_epoch: 10 # number of evaluations on validation every n epochs
   sync_batchnorm: true
-
   checkpoint_callback: false  # Provided by exp_manager
   logger: false  # Provided by exp_manager
 
