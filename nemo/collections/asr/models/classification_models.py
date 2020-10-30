@@ -21,6 +21,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
 from nemo.collections.asr.data.audio_to_text import AudioLabelDataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
@@ -74,6 +75,29 @@ class EncDecClassificationModel(ASRModel, Exportable):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
+
+        if 'vad_stream' in config and config['vad_stream']:
+            print("Perform streaming frame-level VAD")
+            dataset = AudioToSpeechLabelDataSet(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                featurizer=featurizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', True),
+                load_audio=config.get('load_audio', True),
+                time_length=config.get('time_length', 0.31),
+                shift_length=config.get('shift_length', 0.01),
+            )
+            return torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=config['batch_size'],
+                collate_fn=dataset.sliced_seq_collate_fn,  # dataset.collate_fn,
+                drop_last=config.get('drop_last', False),
+                shuffle=config['shuffle'],
+                num_workers=config.get('num_workers', 0),
+            )
+
         dataset = AudioLabelDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],

@@ -83,7 +83,8 @@ target_label_n, "offset": offset_in_sec_n}
         max_duration: Optional[float] = None,
         trim: bool = False,
         load_audio: bool = True,
-        time_length: Optional[int] = 8,
+        time_length: Optional[float] = 8,
+        shift_length: Optional[float] = 1,
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
@@ -93,7 +94,9 @@ target_label_n, "offset": offset_in_sec_n}
         self.featurizer = featurizer
         self.trim = trim
         self.load_audio = load_audio
-        self.time_length = time_length
+        self.time_length = time_length  # segment length in vad frame streaming
+        self.shift_length = shift_length
+
         logging.info("Timelength considered for collate func is {}".format(time_length))
 
         self.labels = labels if labels else self.collection.uniq_labels
@@ -162,10 +165,10 @@ target_label_n, "offset": offset_in_sec_n}
                 assumes the signals are 1d torch tensors (i.e. mono audio).
             fixed_length (Optional[int]): length of input signal to be considered
         """
-        slice_length = self.featurizer.sample_rate * self.time_length
+        slice_length = int(self.featurizer.sample_rate * self.time_length)
         _, audio_lengths, _, tokens_lengths = zip(*batch)
         slice_length = min(slice_length, max(audio_lengths))
-        shift = 1 * self.featurizer.sample_rate
+        shift = int(self.featurizer.sample_rate * self.shift_length)
         has_audio = audio_lengths[0] is not None
 
         audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
@@ -174,7 +177,6 @@ target_label_n, "offset": offset_in_sec_n}
                 sig_len = sig_len.item()
                 slices = sig_len // slice_length
                 if slices <= 0:
-
                     repeat = slice_length // sig_len
                     rem = slice_length % sig_len
                     sub = sig[-rem:] if rem > 0 else torch.tensor([])
