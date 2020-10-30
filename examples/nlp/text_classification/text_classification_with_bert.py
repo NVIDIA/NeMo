@@ -80,7 +80,7 @@ import os
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.core.config import hydra_runner
