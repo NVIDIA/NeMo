@@ -125,7 +125,12 @@ def main(cfg: DictConfig) -> None:
     After training is done, if you have saved the model in a `.nemo` file, you can create the model from
     the checkpoint again and evaluate it on a data file. You need to create a trainer and pass a test dataloader.
     """
-    if checkpoint_path and os.path.exists(checkpoint_path) and cfg.model.test_ds.file_path:
+    if (
+        checkpoint_path
+        and os.path.exists(checkpoint_path)
+        and cfg.model.test_ds.file_path
+        and trainer.checkpoint_callback is not None
+    ):
         logging.info("===========================================================================================")
         logging.info("Starting the evaluating the the last checkpoint on an evaluation file (test set by default)...")
 
