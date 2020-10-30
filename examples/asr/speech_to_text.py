@@ -66,6 +66,7 @@ Overide optimizer entirely
 
 @hydra_runner(config_path="conf", config_name="config")
 def main(cfg):
+    logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
