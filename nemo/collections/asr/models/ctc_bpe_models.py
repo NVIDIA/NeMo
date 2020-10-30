@@ -74,14 +74,14 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # Override number of classes if placeholder provided
         if "params" in cfg.decoder:
-            num_c = cfg.decoder["params"]["num_classes"]
+            num_classes = cfg.decoder["params"]["num_classes"]
         else:
-            num_c = cfg.decoder["num_classes"]
+            num_classes = cfg.decoder["num_classes"]
 
-        if num_c < 1:
+        if num_classes < 1:
             logging.info(
                 "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                    num_c, len(vocabulary)
+                    num_classes, len(vocabulary)
                 )
             )
             if "params" in cfg.decoder:
@@ -95,7 +95,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self._wer = WERBPE(
             tokenizer=self.tokenizer,
             batch_dim_index=0,
-            use_cer=False,
+            use_cer=self._cfg.get('use_cer', False),
             ctc_decode=True,
             dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
@@ -315,7 +315,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self._wer = WERBPE(
             tokenizer=self.tokenizer,
             batch_dim_index=0,
-            use_cer=False,
+            use_cer=self._cfg.get('use_cer', False),
             ctc_decode=True,
             log_prediction=self._cfg.get("log_prediction", False),
         )

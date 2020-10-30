@@ -104,12 +104,12 @@ class EncDecCTCModel(ASRModel, Exportable):
             if not self._cfg.decoder.params.feat_in and hasattr(self.encoder, 'feat_out'):
                 self._cfg.decoder.params.feat_in = self.encoder.feat_out
             else:
-                logging.error("param feat_in of the decoder's config is not set!")
+                raise ValueError("Parameter feat_in of the decoder's config is not set!")
         else:
             if not self._cfg.decoder.feat_in and hasattr(self.encoder, 'feat_out'):
                 self._cfg.decoder.feat_in = self.encoder.feat_out
             else:
-                logging.error("param feat_in of the decoder's config is not set!")
+                raise ValueError("param feat_in of the decoder's config is not set!")
 
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
 
@@ -128,7 +128,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         self._wer = WER(
             vocabulary=self.decoder.vocabulary,
             batch_dim_index=0,
-            use_cer=False,
+            use_cer=self._cfg.get('use_cer', False),
             ctc_decode=True,
             dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
@@ -228,7 +228,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             self._wer = WER(
                 vocabulary=self.decoder.vocabulary,
                 batch_dim_index=0,
-                use_cer=False,
+                use_cer=self._cfg.get('use_cer', False),
                 ctc_decode=True,
                 dist_sync_on_step=True,
                 log_prediction=self._cfg.get("log_prediction", False),

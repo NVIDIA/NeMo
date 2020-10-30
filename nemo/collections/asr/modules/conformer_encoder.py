@@ -55,22 +55,6 @@ class ConformerEncoder(NeuralModule, Exportable):
         input_example = torch.randn(16, self.__feat_in, 256).to(next(self.parameters()).device)
         return tuple([input_example])
 
-    @property
-    def disabled_deployment_input_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        return set(["length"])
-
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of output names disabled for export"""
-        return set(["encoded_lengths"])
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
 
     @property
     def input_types(self):

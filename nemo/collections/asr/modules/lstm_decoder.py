@@ -37,13 +37,6 @@ class LSTMDecoder(NeuralModule, Exportable):
         num_layers (int): default is 1. Number of LSTM layers stacked
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
     @property
     def input_types(self):
         return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
