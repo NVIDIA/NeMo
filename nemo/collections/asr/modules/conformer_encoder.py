@@ -55,7 +55,6 @@ class ConformerEncoder(NeuralModule, Exportable):
         input_example = torch.randn(16, self.__feat_in, 256).to(next(self.parameters()).device)
         return tuple([input_example])
 
-
     @property
     def input_types(self):
         """Returns definitions of module input ports.
