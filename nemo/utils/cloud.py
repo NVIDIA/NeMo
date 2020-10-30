@@ -78,7 +78,7 @@ def maybe_download_from_cloud(
             else:
                 return ""
         except:
-            logging.info(f"Download from cloud failed. Attempt {i+1} of {max_attempts}")
+            logging.info(f"Download from cloud failed. Attempt {i} of {max_attempts}")
             sleep(0.05)
             continue
     raise ValueError("Not able to download url right now, please try again.")
