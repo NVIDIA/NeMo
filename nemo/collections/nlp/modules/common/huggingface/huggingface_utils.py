@@ -84,26 +84,29 @@ def get_huggingface_lm_model(
     try:
         automodel = AutoModel.from_pretrained(pretrained_model_name)
     except Exception as e:
-        raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
+        raise ValueError(f"{pretrained_model_name} is not supported by HuggingFace. {e}")
 
     model_type = type(automodel).__name__
     if model_type in HUGGINGFACE_MODELS:
         model_class = HUGGINGFACE_MODELS[model_type]["class"]
         if config_file:
             if not os.path.exists(config_file):
-                logging.warning(f'Config file was not found at {config_file}')
-            config_class = HUGGINGFACE_MODELS[model_type]["config"]
-            return model_class(config_class.from_json_file(config_file))
+                logging.warning(
+                    f"Config file was not found at {config_file}. Will attempt to use config_dict or pretrained_model_name."
+                )
+            else:
+                config_class = HUGGINGFACE_MODELS[model_type]["config"]
+                return model_class(config_class.from_json_file(config_file))
         if config_dict:
             config_class = HUGGINGFACE_MODELS[model_type]["config"]
             return model_class(config=config_class(**config_dict))
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:
-        raise ValueError(f'Use HuffingFace API directly in NeMo for {pretrained_model_name}')
+        raise ValueError(f"Use HuffingFace API directly in NeMo for {pretrained_model_name}")
 
 
-def get_huggingface_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
+def get_huggingface_pretrained_lm_models_list(include_external: bool = False,) -> List[str]:
     """
     Returns the list of pretrained HuggingFace language models
     
