@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.core.config import hydra_runner
@@ -66,7 +67,7 @@ Overide optimizer entirely
 
 @hydra_runner(config_path="conf", config_name="config")
 def main(cfg):
-    logging.info(f'Hydra config: {cfg.pretty()}')
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)

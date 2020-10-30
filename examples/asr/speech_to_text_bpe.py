@@ -47,6 +47,7 @@ python speech_to_text_bpe.py \
 ```
 """
 import pytorch_lightning as pl
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.core.config import hydra_runner
@@ -56,7 +57,8 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="experimental/configs/", config_name="config_bpe")
 def main(cfg):
-    logging.info(f'Hydra config: {cfg.pretty()}')
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    print(OmegaConf.to_yaml(cfg))
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
