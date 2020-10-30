@@ -29,6 +29,9 @@ try:
 except ImportError:
     _EFF_PRESENT_ = False
 
+# A decorator marking the EFF requirement.
+requires_eff = pytest.mark.skipif(not _EFF_PRESENT_, reason="Export File Format library required to run test")
+
 
 @pytest.fixture()
 def asr_model():
@@ -146,6 +149,7 @@ class TestFileIO:
 
             assert np.array_equal(w1, w2)
 
+    @requires_eff
     @pytest.mark.unit
     def test_eff_save_restore_from_nemo_file_encrypted(self, asr_model):
         """" Test makes sure that after encrypted save-restore the model has the same weights. """

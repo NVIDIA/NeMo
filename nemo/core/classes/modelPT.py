@@ -1228,11 +1228,11 @@ class ModelPT(LightningModule, Model):
         _MODEL_IS_RESTORED = is_being_restored
 
     @staticmethod
-    def __set_eff_save(use_eff_save: bool):
+    def set_eff_save(use_eff_save: bool):
         global _MODEL_EFF_SAVE
         _MODEL_EFF_SAVE = use_eff_save
 
     @staticmethod
-    def __use_eff_save() -> bool:
+    def use_eff_save() -> bool:
         global _MODEL_EFF_SAVE
         return _MODEL_EFF_SAVE
