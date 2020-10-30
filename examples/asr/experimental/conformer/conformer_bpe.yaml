@@ -99,7 +99,7 @@ model:
 
   decoder:
     _target_: nemo.collections.asr.modules.LSTMDecoder
-    feat_in: null
+    feat_in: null # If not provided, the feat_out of the encoder would be used
     num_classes: -1  # filled with vocabulary size from tokenizer at runtime
     vocabulary: []  # filled with vocabulary from tokenizer at runtime
     lstm_hidden_size: 640

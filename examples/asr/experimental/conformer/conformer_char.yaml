@@ -96,7 +96,7 @@ model:
 
   decoder:
     _target_: nemo.collections.asr.modules.LSTMDecoder
-    feat_in: null
+    feat_in: null # If not provided, the feat_out of the encoder would be used
     num_classes: 28
     vocabulary: *labels
     lstm_hidden_size: 640

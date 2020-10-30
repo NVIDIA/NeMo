@@ -174,8 +174,11 @@ class ConvASREncoder(NeuralModule, Exportable):
             )
             feat_in = lcfg['filters']
 
+        self.__feat_out = feat_in
+
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
+
 
     @typecheck()
     def forward(self, audio_signal, length=None):
