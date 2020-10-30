@@ -34,7 +34,7 @@ trainer:
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: token_classification_model  # The name of your model
-  create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
+  create_tensorboard_logger: true  # Whether you want exp_manager to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
 
 model:
