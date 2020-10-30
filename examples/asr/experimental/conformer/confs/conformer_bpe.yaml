@@ -1,4 +1,4 @@
-name: &name "Conformer-Subword"
+name: &name "Conformer-BPE"
 
 model:
   sample_rate: &sample_rate 16000
