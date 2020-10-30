@@ -296,18 +296,18 @@ class MBMelGanModel(ModelPT):
             factor = 0.5
         sc_loss = get_stack(outputs, "sc_loss")
         mag_loss = get_stack(outputs, "mag_loss")
-        self.log("val_loss_feat_loss", loss=torch.stack([x['loss_feat'] for x in outputs]).mean(), sync_dist=True)
-        self.log("val_loss_feat_loss_fb_sc", sum(sc_loss) * factor/ len(sc_loss), sync_dist=True)
-        self.log("val_loss_feat_loss_fb_mag", sum(mag_loss) * factor/ len(sc_loss), sync_dist=True)
+        self.log("val_loss_feat_loss", torch.stack([x['loss_feat'] for x in outputs]).mean(), sync_dist=True)
+        self.log("val_loss_feat_loss_fb_sc", sum(sc_loss) * factor / len(sc_loss), sync_dist=True)
+        self.log("val_loss_feat_loss_fb_mag", sum(mag_loss) * factor / len(sc_loss), sync_dist=True)
         for i in range(len(sc_loss)):
-            self.log(f"val_loss_feat_loss_fb_sc_{i}", sc_loss[i] * factor/ len(sc_loss), sync_dist=True)
-            self.log(f"val_loss_feat_loss_fb_mag_{i}", mag_loss[i] * factor/ len(sc_loss), sync_dist=True)
+            self.log(f"val_loss_feat_loss_fb_sc_{i}", sc_loss[i] * factor / len(sc_loss), sync_dist=True)
+            self.log(f"val_loss_feat_loss_fb_mag_{i}", mag_loss[i] * factor / len(sc_loss), sync_dist=True)
         if self.pqmf is not None:
-            self.log("val_loss_mb_sc", sum(sub_sc_loss) * factor/ len(sub_sc_loss), sync_dist=True)
-            self.log("val_loss_mb_mag", sum(sub_mag_loss) * facto/ len(sub_sc_loss)r, sync_dist=True)
+            self.log("val_loss_mb_sc", sum(sub_sc_loss) * factor / len(sub_sc_loss), sync_dist=True)
+            self.log("val_loss_mb_mag", sum(sub_mag_loss) * factor / len(sub_sc_loss), sync_dist=True)
             for i in range(len(sub_sc_loss)):
-                self.log(f"val_loss_feat_loss_mb_sc_{i}", sc_loss[i] * factor/ len(sub_sc_loss), sync_dist=True)
-                self.log(f"val_loss_feat_loss_mb_mag_{i}", mag_loss[i] * factor/ len(sub_sc_loss), sync_dist=True)
+                self.log(f"val_loss_feat_loss_mb_sc_{i}", sc_loss[i] * factor / len(sub_sc_loss), sync_dist=True)
+                self.log(f"val_loss_feat_loss_mb_mag_{i}", mag_loss[i] * factor / len(sub_sc_loss), sync_dist=True)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
