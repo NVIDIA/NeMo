@@ -21,9 +21,7 @@ import wget
 from nemo.utils import logging
 
 
-def maybe_download_from_cloud(
-    url, filename, subfolder=None, cache_dir=None, refresh_cache=False
-) -> str:
+def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, refresh_cache=False) -> str:
     """
     Helper function to download pre-trained weights from the cloud
     Args:
@@ -82,4 +80,3 @@ def maybe_download_from_cloud(
             sleep(0.05)
             continue
     raise ValueError("Not able to download url right now, please try again.")
-
