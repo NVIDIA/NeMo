@@ -22,6 +22,8 @@ from nemo.utils import logging
 
 
 class ASRBPEMixin(ABC):
+    """ ASR BPE Mixin class that sets up a Tokenizer via a config """
+
     def _setup_tokenizer(self, tokenizer_cfg: DictConfig):
         self.tokenizer_cfg = OmegaConf.to_container(tokenizer_cfg, resolve=True)  # type: dict
         self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory

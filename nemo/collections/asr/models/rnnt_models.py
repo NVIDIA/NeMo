@@ -42,7 +42,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 class EncDecRNNTModel(ASRModel):
-    """Base class for encoder decoder CTC-based models."""
+    """Base class for encoder decoder RNNT-based models."""
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -56,7 +56,7 @@ class EncDecRNNTModel(ASRModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
+        # Required loss function
         if not WARP_RNNT_AVAILABLE:
             raise ImportError(
                 "Could not import `warprnnt_pytorch`.\n"
@@ -76,10 +76,12 @@ class EncDecRNNTModel(ASRModel):
             self.local_rank = trainer.local_rank
 
         super().__init__(cfg=cfg, trainer=trainer)
+
+        # Initialize components
         self.preprocessor = EncDecRNNTModel.from_config_dict(self.cfg.preprocessor)
         self.encoder = EncDecRNNTModel.from_config_dict(self.cfg.encoder)
 
-        # Update config values
+        # Update config values required by components dynamically
         with open_dict(self.cfg.decoder):
             self.cfg.decoder.vocab_size = len(self.cfg.labels)
 
@@ -92,6 +94,7 @@ class EncDecRNNTModel(ASRModel):
         self.decoder = EncDecRNNTModel.from_config_dict(self.cfg.decoder)
         self.joint = EncDecRNNTModel.from_config_dict(self.cfg.joint)
         self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
+
         if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecRNNTModel.from_config_dict(self.cfg.spec_augment)
         else:
@@ -101,11 +104,12 @@ class EncDecRNNTModel(ASRModel):
         self.decoding = RNNTDecoding(
             decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
-
+        # Setup WER calculation
         self.wer = RNNTWER(
             decoding=self.decoding, batch_dim_index=0, use_cer=False, log_prediction=True, dist_sync_on_step=True
         )
 
+        # Whether to compute loss during evaluation
         if 'compute_eval_loss' in self.cfg:
             self.compute_eval_loss = self.cfg.compute_eval_loss
         else:
@@ -169,17 +173,16 @@ class EncDecRNNTModel(ASRModel):
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
         """
-        Changes vocabulary used during CTC decoding process. Use this method when fine-tuning on from pre-trained model.
+        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
         use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
         model to learn capitalization, punctuation and/or special characters.
 
-        If new_vocabulary == self.decoder.vocabulary then nothing will be changed.
-
         Args:
-
             new_vocabulary: list with new vocabulary. Must contain at least 2 elements. Typically, \
-            this is target alphabet.
+                this is target alphabet.
+            decoding_cfg: A config for the decoder, which is optional. If the decoding type
+                needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
 
         Returns: None
 
@@ -385,12 +388,14 @@ class EncDecRNNTModel(ASRModel):
     def training_step(self, batch, batch_nb):
         signal, signal_len, transcript, transcript_len = batch
 
+        # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
         else:
             encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
         del signal
 
+        # During training, loss must be computed, so decoder forward is necessary
         decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
 
         if hasattr(self, '_trainer') and self._trainer is not None:
@@ -401,7 +406,9 @@ class EncDecRNNTModel(ASRModel):
             log_every_n_steps = 1
             sample_id = batch_nb
 
+        # If experimental fused Joint-Loss-WER is not used
         if not self.joint.fuse_loss_wer:
+            # Compute full joint and loss
             joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
             loss_value = self.loss(
                 log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
@@ -415,7 +422,7 @@ class EncDecRNNTModel(ASRModel):
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:
-            # Fused step
+            # If experimental fused Joint-Loss-WER is used
             if (sample_id + 1) % log_every_n_steps == 0:
                 compute_wer = True
             else:
@@ -441,15 +448,16 @@ class EncDecRNNTModel(ASRModel):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len = batch
 
+        # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
-
         else:
             encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
         del signal
 
         tensorboard_logs = {}
 
+        # If experimental fused Joint-Loss-WER is not used
         if not self.joint.fuse_loss_wer:
             if self.compute_eval_loss:
                 decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
@@ -469,6 +477,7 @@ class EncDecRNNTModel(ASRModel):
             tensorboard_logs['val_wer'] = wer
 
         else:
+            # If experimental fused Joint-Loss-WER is used
             compute_wer = True
 
             if self.compute_eval_loss:

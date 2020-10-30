@@ -52,7 +52,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
+        # Required loss function
         if not WARP_RNNT_AVAILABLE:
             raise ImportError(
                 "Could not import `warprnnt_pytorch`.\n"
@@ -62,6 +62,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 "container that supports RNN-T loss."
             )
 
+        # Tokenizer is necessary for this model
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
 
@@ -94,6 +95,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             decoding_cfg=self.cfg.decoding, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
 
+        # Setup wer object
         self.wer = RNNTBPEWER(
             decoding=self.decoding, batch_dim_index=0, use_cer=False, log_prediction=True, dist_sync_on_step=True
         )
@@ -107,17 +109,16 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         self, new_tokenizer_dir: str, new_tokenizer_type: str, decoding_cfg: Optional[DictConfig] = None
     ):
         """
-        Changes vocabulary used during CTC decoding process. Use this method when fine-tuning on from pre-trained model.
+        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
         use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
         model to learn capitalization, punctuation and/or special characters.
 
-        If new_vocabulary == self.decoder.vocabulary then nothing will be changed.
-
         Args:
-
-            new_vocabulary: list with new vocabulary. Must contain at least 2 elements. Typically, \
-            this is target alphabet.
+            new_tokenizer_dir: Directory path to tokenizer.
+            new_tokenizer_type: Type of tokenizer. Can be either `bpe` or `wpe`.
+            decoding_cfg: A config for the decoder, which is optional. If the decoding type
+                needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
 
         Returns: None
 
