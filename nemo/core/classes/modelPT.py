@@ -1019,19 +1019,3 @@ class ModelPT(LightningModule, Model):
     def __set_model_restore_state(is_being_restored: bool):
         global _MODEL_IS_RESTORED
         _MODEL_IS_RESTORED = is_being_restored
-
-    def update_weights(self, checkpoint_path):
-        if os.path.exists(checkpoint_path):
-            raise FileExistsError(f"Could not find checkpoint file '{checkpoint_path}'!")
-        checkpoint = torch.load(checkpoint_path)
-        model_dict = self.state_dict()
-        for weights_name, weights in model_dict.items():
-            if weights_name not in checkpoint['state_dict']:
-                logging.warning(f"Weights {weights_name} missing from the checkpoint!")
-        for weights_name, weights in checkpoint['state_dict'].items():
-            if weights_name not in model_dict:
-                logging.warning(f"Weights {weights_name} missing from the model while exists in the checkpoint!")
-        pretrained_dict = {k: v for k, v in checkpoint['state_dict'].items() if k in model_dict}
-        model_dict.update(pretrained_dict)
-        self.load_state_dict(model_dict)
-        return self
