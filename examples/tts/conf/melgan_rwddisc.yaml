@@ -8,7 +8,7 @@ validation_datasets: ???
 n_mels: 80
 
 model:
-  init_adv_lambda: 2.5
+  init_adv_lambda: 1.
   increase_lambda: False
   pqmf: False
 

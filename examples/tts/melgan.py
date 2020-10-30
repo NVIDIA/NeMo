@@ -112,11 +112,12 @@ class MBMelGanModel(ModelPT):
                 )
                 loss_disc_fake[i] += torch.mean(fake_score[i][-1] ** 2)
             sum_loss_dis = sum(loss_disc_real) + sum(loss_disc_fake)
+            sum_loss_dis /= len(fake_score)
 
             self.log(f"loss_discriminator", sum_loss_dis, prog_bar=True, sync_dist=True)
             for i in range(len(fake_score)):
-                self.log(f"loss_discriminator_real_{i}", loss_disc_real[i], sync_dist=True)
-                self.log(f"loss_discriminator_fake_{i}", loss_disc_fake[i], sync_dist=True)
+                self.log(f"loss_discriminator_real_{i}", loss_disc_real[i] / len(fake_score), sync_dist=True)
+                self.log(f"loss_discriminator_fake_{i}", loss_disc_fake[i] / len(fake_score), sync_dist=True)
             return sum_loss_dis
 
         # train generator
@@ -129,6 +130,7 @@ class MBMelGanModel(ModelPT):
             # full-band loss
             sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio)
             loss_feat = sum(sc_loss) + sum(mag_loss)
+            loss_feat /= len(sc_loss)
 
             # MB loss
             if self.pqmf is not None:
@@ -137,7 +139,7 @@ class MBMelGanModel(ModelPT):
                 mb_audio_pred = mb_audio_pred.view(-1, mb_audio_pred.size(2))
                 audio_mb = audio_mb.view(-1, audio_mb.size(2))
                 sub_sc_loss, sub_mag_loss = self.subband_loss(mb_audio_pred, audio_mb)
-                loss_feat += 0.5 * (sum(sub_sc_loss) + sum(sub_mag_loss))
+                loss_feat += 0.5 * (sum(sub_sc_loss) + sum(sub_mag_loss)) / len(sub_sc_loss)
 
             loss += loss_feat
 
@@ -166,18 +168,22 @@ class MBMelGanModel(ModelPT):
                     )
             self.log("loss_generator_feat_loss", loss_feat, sync_dist=True)
             factor = 0.5 if self.pqmf else 1.0
-            self.log("loss_generator_feat_loss_fb_sc", sum(sc_loss) * factor, sync_dist=True)
-            self.log("loss_generator_feat_loss_fb_mag", sum(mag_loss) * factor, sync_dist=True)
+            self.log("loss_generator_feat_loss_fb_sc", sum(sc_loss) * factor / len(sc_loss), sync_dist=True)
+            self.log("loss_generator_feat_loss_fb_mag", sum(mag_loss) * factor / len(sc_loss), sync_dist=True)
             for i in range(len(sc_loss)):
-                self.log(f"loss_generator_feat_loss_fb_sc_{i}", sc_loss[i] * factor, sync_dist=True)
-                self.log(f"loss_generator_feat_loss_fb_mag_{i}", mag_loss[i] * factor, sync_dist=True)
+                self.log(f"loss_generator_feat_loss_fb_sc_{i}", sc_loss[i] * factor / len(sc_loss), sync_dist=True)
+                self.log(f"loss_generator_feat_loss_fb_mag_{i}", mag_loss[i] * factor / len(sc_loss), sync_dist=True)
             if self.pqmf is not None:
-                self.log("loss_generator_mb_sc", sum(sub_sc_loss) * factor, sync_dist=True)
-                self.log("loss_generator_mb_mag", sum(sub_mag_loss) * factor, sync_dist=True)
+                self.log("loss_generator_mb_sc", sum(sub_sc_loss) * factor / len(sub_sc_loss), sync_dist=True)
+                self.log("loss_generator_mb_mag", sum(sub_mag_loss) * factor / len(sub_sc_loss), sync_dist=True)
                 for i in range(len(sc_loss)):
-                    self.log(f"loss_generator_feat_loss_mb_sc_{i}", sc_loss[i] * factor, sync_dist=True)
                     self.log(
-                        f"loss_generator_feat_loss_mb_mag_{i}", mag_loss[i] * factor, sync_dist=True,
+                        f"loss_generator_feat_loss_mb_sc_{i}", sc_loss[i] * factor / len(sub_sc_loss), sync_dist=True
+                    )
+                    self.log(
+                        f"loss_generator_feat_loss_mb_mag_{i}",
+                        mag_loss[i] * factor / len(sub_sc_loss),
+                        sync_dist=True,
                     )
 
             return loss
@@ -213,7 +219,7 @@ class MBMelGanModel(ModelPT):
 
             # full-band loss
             sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio, audio_len)
-            loss_feat = sum(sc_loss) + sum(mag_loss)
+            loss_feat = (sum(sc_loss) + sum(mag_loss)) / len(sc_loss)
             loss_dict["sc_loss"] = sc_loss
             loss_dict["mag_loss"] = mag_loss
 
@@ -225,7 +231,7 @@ class MBMelGanModel(ModelPT):
                 audio_mb = audio_mb.view(-1, audio_mb.size(2))
                 # TODO: This needs to be debugged
                 sub_sc_loss, sub_mag_loss = self.subband_loss(mb_audio_pred, audio_mb, audio_len)
-                loss_feat += 0.5 * (sum(sub_sc_loss) + sum(sub_mag_loss))
+                loss_feat += 0.5 * (sum(sub_sc_loss) + sum(sub_mag_loss)) / len(sub_sc_loss)
                 loss_dict["sub_sc_loss"] = sub_sc_loss
                 loss_dict["sub_mag_loss"] = sub_mag_loss
 
@@ -283,29 +289,25 @@ class MBMelGanModel(ModelPT):
                     f"val_loss_gan_loss_{i}", self.adv_coeff / len(gan_loss) * gan_loss[i], sync_dist=True,
                 )
 
-        loss_feat = 0
         factor = 1
         if self.pqmf is not None:
             sub_sc_loss = get_stack(outputs, "sub_sc_loss")
             sub_mag_loss = get_stack(outputs, "sub_mag_loss")
-            loss_feat += sum(sub_mag_loss) + sum(sub_sc_loss)
             factor = 0.5
-        loss_feat *= factor
         sc_loss = get_stack(outputs, "sc_loss")
         mag_loss = get_stack(outputs, "mag_loss")
-        loss_feat += (sum(mag_loss) + sum(sc_loss)) * factor
-        self.log("val_loss_feat_loss", loss_feat, sync_dist=True)
-        self.log("val_loss_feat_loss_fb_sc", sum(sc_loss) * factor, sync_dist=True)
-        self.log("val_loss_feat_loss_fb_mag", sum(mag_loss) * factor, sync_dist=True)
+        self.log("val_loss_feat_loss", loss=torch.stack([x['loss_feat'] for x in outputs]).mean(), sync_dist=True)
+        self.log("val_loss_feat_loss_fb_sc", sum(sc_loss) * factor/ len(sc_loss), sync_dist=True)
+        self.log("val_loss_feat_loss_fb_mag", sum(mag_loss) * factor/ len(sc_loss), sync_dist=True)
         for i in range(len(sc_loss)):
-            self.log(f"val_loss_feat_loss_fb_sc_{i}", sc_loss[i] * factor, sync_dist=True)
-            self.log(f"val_loss_feat_loss_fb_mag_{i}", mag_loss[i] * factor, sync_dist=True)
+            self.log(f"val_loss_feat_loss_fb_sc_{i}", sc_loss[i] * factor/ len(sc_loss), sync_dist=True)
+            self.log(f"val_loss_feat_loss_fb_mag_{i}", mag_loss[i] * factor/ len(sc_loss), sync_dist=True)
         if self.pqmf is not None:
-            self.log("val_loss_mb_sc", sum(sub_sc_loss) * factor, sync_dist=True)
-            self.log("val_loss_mb_mag", sum(sub_mag_loss) * factor, sync_dist=True)
+            self.log("val_loss_mb_sc", sum(sub_sc_loss) * factor/ len(sub_sc_loss), sync_dist=True)
+            self.log("val_loss_mb_mag", sum(sub_mag_loss) * facto/ len(sub_sc_loss)r, sync_dist=True)
             for i in range(len(sub_sc_loss)):
-                self.log(f"val_loss_feat_loss_mb_sc_{i}", sc_loss[i] * factor, sync_dist=True)
-                self.log(f"val_loss_feat_loss_mb_mag_{i}", mag_loss[i] * factor, sync_dist=True)
+                self.log(f"val_loss_feat_loss_mb_sc_{i}", sc_loss[i] * factor/ len(sub_sc_loss), sync_dist=True)
+                self.log(f"val_loss_feat_loss_mb_mag_{i}", mag_loss[i] * factor/ len(sub_sc_loss), sync_dist=True)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
@@ -441,10 +443,10 @@ def infer_pwg_batch_2(cfg):
     model = MBMelGanModel.restore_from(str(checkpoint))
     model.cuda()
     model.eval()
-    for i, mel in enumerate(Path("/home/jasoli/waveglow/mel_spectrograms/mel_spectrograms").glob("*.pt")):
+    for i, mel in enumerate(sorted(Path("/home/jasoli/waveglow/").glob("Taco2_mel_*"))):
         with torch.no_grad():
-            spec = torch.load(mel)
-            spec = torch.unsqueeze(spec, 0).cuda()
+            spec = torch.load(mel).cuda()
+            # spec = torch.unsqueeze(spec, 0).cuda()
             print(spec.shape)
             mb_audio_pred = model.generator(spec)
             audio_pred = mb_audio_pred
