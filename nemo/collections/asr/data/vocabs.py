@@ -17,9 +17,16 @@ import itertools
 import string
 from typing import List
 
-import g2p_en
-
 from nemo.collections.asr.parts import parsers
+
+try:
+    import g2p_en
+
+    HAVE_G2P = True
+except (FileNotFoundError, LookupError):
+    HAVE_G2P = False
+
+
 
 
 class Base(abc.ABC):
@@ -91,7 +98,7 @@ class Chars(Base):
 class Phonemes(Base):
     """Phonemes vocabulary."""
 
-    _G2P = g2p_en.G2p()
+    _G2P = None
 
     SEP = '|'  # To be able to distinguish between 2/3 letters codes.
     # fmt: off
@@ -111,6 +118,14 @@ class Phonemes(Base):
     def __init__(
         self, punct=True, stresses=False, spaces=True, *, space=' ', silence=None, oov=Base.OOV,
     ):
+        if HAVE_G2P:
+            Phonemes._G2P = g2p_en.G2p()
+        else:
+            raise ImportError(
+                f"G2P could not be imported properly. Please attempt to import `g2p_py` "
+                f"before using {self.__class__.__name__}."
+            )
+
         labels = []
         self.space, labels = len(labels), labels + [space]  # Space
         if silence:
