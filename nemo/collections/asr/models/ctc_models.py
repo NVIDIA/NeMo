@@ -107,7 +107,7 @@ class EncDecCTCModel(ASRModel, Exportable):
                 self._cfg.decoder.params.feat_in = self.encoder.__feat_out
         else:
             if "feat_in" not in self._cfg.decoder or (
-                not self._cfg.decoder.params.feat_in and not hasattr(self.encoder, '__feat_out')
+                not self._cfg.decoder.feat_in and not hasattr(self.encoder, '__feat_out')
             ):
                 self._cfg.decoder.feat_in = self.encoder.__feat_out
 
