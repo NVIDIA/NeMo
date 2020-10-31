@@ -209,7 +209,7 @@ pipeline {
           }
         }
 
-        stage('L2: Speech to Text WPE') {
+        stage('L2: Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
             --config-path="experimental/citrinet/" --config-name="config_bpe" \
@@ -230,7 +230,7 @@ pipeline {
             --config-path="experimental/conformer" --config-name="conformer_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            model.tokenizer.dir="examples/asr/experimental/wpe_vocabs/1k/" \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
             model.tokenizer.type="wpe" \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
