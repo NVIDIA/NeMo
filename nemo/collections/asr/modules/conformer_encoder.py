@@ -80,7 +80,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self.__feat_in, 256).to(next(self.parameters()).device)
+        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property
@@ -143,9 +143,9 @@ class ConformerEncoder(NeuralModule, Exportable):
                 conv_channels=subsampling_conv_channels,
                 activation=nn.ReLU(),
             )
-            self.__feat_out = d_model
+            self._feat_out = d_model
         else:
-            self.__feat_out = d_model
+            self._feat_out = d_model
             self.pre_encode = nn.Linear(feat_in, d_model)
 
         if self_attention_model == "rel_pos":
@@ -174,10 +174,10 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         if feat_out > 0 and feat_out != self.output_dim:
             self.out_proj = nn.Linear(self.feat_out, feat_out)
-            self.__feat_out = feat_out
+            self._feat_out = feat_out
         else:
             self.out_proj = None
-            self.__feat_out = d_model
+            self._feat_out = d_model
 
     @typecheck()
     def forward(self, audio_signal, length):
