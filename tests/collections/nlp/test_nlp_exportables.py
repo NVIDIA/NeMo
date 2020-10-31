@@ -116,6 +116,34 @@ class TestExportableClassifiers:
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
+    def test_PunctuationCapitalizationModel_export_to_onnx(self):
+        model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(
+            model_name="Punctuation_Capitalization_with_BERT"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'puncap.onnx')
+            punct_filename = os.path.join(tmpdir, 'punct_puncap.onnx')
+            capit_filename = os.path.join(tmpdir, 'capit_puncap.onnx')
+            model.export(output=filename)
+            onnx_model = onnx.load(punct_filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 1160
+            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
+            assert onnx_model.graph.node[1159].name == 'PTCLLogSoftmax_2'
+            assert onnx_model.graph.node[30].name == 'Add_30'
+            assert onnx_model.graph.input[0].name == 'input_ids'
+            assert onnx_model.graph.input[2].name == 'token_type_ids'
+            assert onnx_model.graph.output[0].name == 'logits'
+            onnx_model = onnx.load(capit_filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 1160
+            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
+            assert onnx_model.graph.node[1159].name == 'CPCLLogSoftmax_2'
+            assert onnx_model.graph.node[30].name == 'Add_30'
+            assert onnx_model.graph.input[0].name == 'input_ids'
+            assert onnx_model.graph.input[2].name == 'token_type_ids'
+            assert onnx_model.graph.output[0].name == 'logits'
+
 
 @pytest.fixture()
 def dummy_data(test_data_dir):
