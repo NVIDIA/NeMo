@@ -111,7 +111,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             ):
                 self._cfg.decoder.feat_in = self.encoder._feat_out
 
-        if "feat_in" not in self._cfg.deocder or not self._cfg.decoder.feat_in:
+        if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
             raise ValueError("param feat_in of the decoder's config is not set!")
 
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
