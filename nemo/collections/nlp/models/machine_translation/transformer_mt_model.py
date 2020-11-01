@@ -126,19 +126,19 @@ class TransformerMTModel(ModelPT):
             max_delta_length=cfg.machine_translation.get("max_generation_delta", 50),
         )
 
-        std_init_range = 1 / cfg.machine_translation.hidden_size
+        std_init_range = 1 / cfg.machine_translation.hidden_size ** 0.5
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.tgt_embedding_layer.token_embedding.weight
         for m in ["query_net", "key_net", "value_net"]:
-            torch.nn.init.normal_(
+            torch.nn.init.xavier_uniform_(
                 getattr(self.encoder.layers[0].first_sub_layer, m).weight,
-                std=1 / cfg.machine_translation.hidden_size ** 0.5,
+                gain=cfg.machine_translation.hidden_size ** 0.5,
             )
-            torch.nn.init.normal_(
+            torch.nn.init.xavier_uniform_(
                 getattr(self.decoder.layers[0].first_sub_layer, m).weight,
-                std=1 / cfg.machine_translation.hidden_size ** 0.5,
+                gain=cfg.machine_translation.hidden_size ** 0.5,
             )
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
