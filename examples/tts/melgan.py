@@ -289,11 +289,7 @@ class MBMelGanModel(ModelPT):
                     f"val_loss_gan_loss_{i}", self.adv_coeff / len(gan_loss) * gan_loss[i], sync_dist=True,
                 )
 
-        factor = 1
-        if self.pqmf is not None:
-            sub_sc_loss = get_stack(outputs, "sub_sc_loss")
-            sub_mag_loss = get_stack(outputs, "sub_mag_loss")
-            factor = 0.5
+        factor = 1 if self.pqmf is None else 0.5
         sc_loss = get_stack(outputs, "sc_loss")
         mag_loss = get_stack(outputs, "mag_loss")
         self.log("val_loss_feat_loss", torch.stack([x['loss_feat'] for x in outputs]).mean(), sync_dist=True)
@@ -303,6 +299,8 @@ class MBMelGanModel(ModelPT):
             self.log(f"val_loss_feat_loss_fb_sc_{i}", sc_loss[i] * factor / len(sc_loss), sync_dist=True)
             self.log(f"val_loss_feat_loss_fb_mag_{i}", mag_loss[i] * factor / len(sc_loss), sync_dist=True)
         if self.pqmf is not None:
+            sub_sc_loss = get_stack(outputs, "sub_sc_loss")
+            sub_mag_loss = get_stack(outputs, "sub_mag_loss")
             self.log("val_loss_mb_sc", sum(sub_sc_loss) * factor / len(sub_sc_loss), sync_dist=True)
             self.log("val_loss_mb_mag", sum(sub_mag_loss) * factor / len(sub_sc_loss), sync_dist=True)
             for i in range(len(sub_sc_loss)):
@@ -443,6 +441,24 @@ def infer_pwg_batch_2(cfg):
     model = MBMelGanModel.restore_from(str(checkpoint))
     model.cuda()
     model.eval()
+
+    if "denoise" in cfg:
+        from denoiser import Denoiser
+
+        waveglow = torch.load("/home/jasoli/waveglow/waveglow_256channels_ljs_v2_converted.pt")['model']
+        for m in waveglow.modules():
+            for sm in m.modules():
+                if not hasattr(m, "_non_persistent_buffers_set"):
+                    m._non_persistent_buffers_set = set()
+            if 'Conv' in str(type(m)):
+                setattr(m, 'padding_mode', 'zeros')
+        waveglow = waveglow.remove_weightnorm(waveglow)
+        waveglow.cuda().eval()
+
+        denoiser = Denoiser(waveglow).cuda()
+
+        del waveglow
+
     for i, mel in enumerate(sorted(Path("/home/jasoli/waveglow/").glob("Taco2_mel_*"))):
         with torch.no_grad():
             spec = torch.load(mel).cuda()
@@ -453,7 +469,16 @@ def infer_pwg_batch_2(cfg):
             if model.pqmf is not None:
                 audio_pred = model.pqmf.synthesis(mb_audio_pred)
             print(audio_pred.cpu().numpy().squeeze())
-            sf.write(f"{cfg.name}_{i}.wav", audio_pred.cpu().numpy().squeeze(), samplerate=cfg.sample_rate)
+            name = cfg.name.split("_")
+            name.insert(1, "Taco2")
+            name = "_".join(name)
+            sf.write(f"{name}_{i}.wav", audio_pred.cpu().numpy().squeeze(), samplerate=cfg.sample_rate)
+            if "denoise" in cfg:
+                print(audio_pred.squeeze(0).shape)
+                audio_pred_denoised = denoiser(audio_pred.squeeze(0), cfg.denoise)
+                sf.write(
+                    f"{name}_denoised_{i}.wav", audio_pred_denoised.cpu().numpy().squeeze(), samplerate=cfg.sample_rate
+                )
 
 
 # @experimental

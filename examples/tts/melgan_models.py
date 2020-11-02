@@ -243,7 +243,7 @@ class LogSTFTMagnitudeLoss(torch.nn.Module):
         loss = loss / loss.shape[2]
         loss = torch.sum(loss, dim=[1, 2])
         loss = loss / input_lengths
-        return torch.sum(loss)
+        return torch.sum(loss) / loss.shape[0]
 
 
 class STFTLoss(torch.nn.Module):
