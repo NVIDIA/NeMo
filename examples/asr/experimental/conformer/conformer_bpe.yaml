@@ -86,6 +86,7 @@ model:
 
     # Multi-headed Attention Module's params
     self_attention_model: rel_pos # rel_pos, abs_pos
+    pos_emb_max_len: 5000
     n_heads: 4
     xscaling: true
 

@@ -57,6 +57,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to 4.
         self_attention_model (str): type of the attention layer and positional encoding
             choices=['rel_pos', 'abs_pos'].
+        pos_emb_max_len (int): the maximum length of positional embeddings
+            Defaulst to 5000
         n_heads (int): number of heads in multi-headed attention layers
             Defaults to 4.
         xscaling (bool): enables scaling the inputs to the multi-headed attention layers by sqrt(d_model)
@@ -116,6 +118,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         subsampling_conv_channels=64,
         ff_expansion_factor=4,
         self_attention_model='rel_pos',
+        pos_emb_max_len=5000,
         n_heads=4,
         xscaling=True,
         conv_kernel_size=31,
@@ -150,11 +153,11 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, dropout_emb_rate=dropout_emb, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale, dropout_emb_rate=dropout_emb
             )
         elif self_attention_model == "abs_pos":
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=6000, reverse=False, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, reverse=False, xscale=self.xscale
             )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")

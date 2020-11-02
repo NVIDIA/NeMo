@@ -263,7 +263,7 @@ class PositionalEncoding(torch.nn.Module):
 
 
 class RelPositionalEncoding(PositionalEncoding):
-    """Relitive positional encoding module.
+    """Relative positional encoding module.
     See : Appendix B in https://arxiv.org/abs/1901.02860
     Args:
         d_model (int): embedding dim
@@ -271,7 +271,7 @@ class RelPositionalEncoding(PositionalEncoding):
         max_len (int): maximum input length
     """
 
-    def __init__(self, d_model, dropout_rate, max_len=5000, dropout_emb_rate=0.0, xscale=None):
+    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_emb_rate=0.0):
         super().__init__(d_model, dropout_rate, max_len, reverse=True, xscale=xscale)
 
         if dropout_emb_rate > 0:
