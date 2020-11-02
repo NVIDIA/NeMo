@@ -53,6 +53,7 @@ class MBMelGanModel(ModelPT):
         self.adv_coeff = self._cfg.init_adv_lambda
         self.increase_coeff = self._cfg.increase_lambda
         self.add_gan_loss = self._cfg.get("add_gan_loss", True)
+        self.logged_real_samples = False
 
     @property
     def input_types(self):
@@ -248,24 +249,41 @@ class MBMelGanModel(ModelPT):
                 loss_dict["gan_loss"] = loss_gen
                 loss += self.adv_coeff * sum(loss_gen) / len(fake_score)
 
-        loss_dict["spec"] = spec
+        if not self.logged_real_samples:
+            loss_dict["spec"] = spec
+            loss_dict["audio"] = audio
+        loss_dict["audio_pred"] = audio_pred
         loss_dict["spec_pred"] = spec_pred
         loss_dict["loss"] = loss
         return loss_dict
 
     def validation_epoch_end(self, outputs):
         if self.logger is not None and self.logger.experiment is not None:
-            self.logger.experiment.add_image(
-                "val_mel_target",
-                plot_spectrogram_to_numpy(outputs[0]["spec"][0].data.cpu().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
+            if not self.logged_real_samples:
+                self.logger.experiment.add_image(
+                    "val_mel_target",
+                    plot_spectrogram_to_numpy(outputs[0]["spec"][0].data.cpu().numpy()),
+                    self.global_step,
+                    dataformats="HWC",
+                )
+                self.logger.experiment.add_audio(
+                    "val_wav_target",
+                    outputs[0]["audio"][0].data.cpu().numpy(),
+                    self.global_step,
+                    sample_rate=self._cfg.sample_rate,
+                )
+                self.logged_real_samples = True
             self.logger.experiment.add_image(
                 "val_mel_predicted",
                 plot_spectrogram_to_numpy(outputs[0]["spec_pred"][0].data.cpu().numpy()),
                 self.global_step,
                 dataformats="HWC",
+            )
+            self.logger.experiment.add_audio(
+                "val_wav_predicted",
+                outputs[0]["audio_pred"][0].data.cpu().numpy(),
+                self.global_step,
+                sample_rate=self._cfg.sample_rate,
             )
 
         def get_stack(list_of_dict, key):
