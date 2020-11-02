@@ -2,7 +2,7 @@ name: &name "Conformer-BPE"
 
 model:
   sample_rate: &sample_rate 16000
-  log_predictions: true
+  log_prediction: true
   load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
 
