@@ -153,7 +153,11 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale, dropout_emb_rate=dropout_emb
+                d_model=d_model,
+                dropout_rate=dropout,
+                max_len=pos_emb_max_len,
+                xscale=self.xscale,
+                dropout_emb_rate=dropout_emb,
             )
         elif self_attention_model == "abs_pos":
             self.pos_enc = PositionalEncoding(
