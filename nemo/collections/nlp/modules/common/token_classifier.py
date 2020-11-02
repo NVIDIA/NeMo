@@ -67,6 +67,7 @@ class TokenClassifier(Classifier):
         )
         self.post_init(use_transformer_init=use_transformer_init)
 
+    @typecheck()
     def forward(self, hidden_states):
         """
         Performs the forward step of the module.
