@@ -19,8 +19,8 @@ import torch
 import torch.nn as nn
 from torch.nn.modules import LayerNorm
 
-from nemo.collections.asr.modules.conformer_modules import ConformerConvolution, ConformerFeedForward
-from nemo.collections.asr.modules.multi_head_attention import (
+from nemo.collections.asr.parts.conformer_modules import ConformerConvolution, ConformerFeedForward
+from nemo.collections.asr.parts.multi_head_attention import (
     MultiHeadAttention,
     PositionalEncoding,
     RelPositionalEncoding,

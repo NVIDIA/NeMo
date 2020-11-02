@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from nemo.collections.asr.modules.activations import Swish
+from nemo.collections.asr.parts.activations import Swish
 
 jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
 

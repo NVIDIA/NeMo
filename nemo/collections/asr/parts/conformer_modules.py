@@ -15,7 +15,7 @@
 
 import torch.nn as nn
 
-from nemo.collections.asr.modules.activations import Swish
+from nemo.collections.asr.parts.activations import Swish
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward']
 

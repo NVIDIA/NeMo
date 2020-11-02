@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.modules.activations import Swish
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessor,
     AudioToMFCCPreprocessor,
@@ -21,7 +20,6 @@ from nemo.collections.asr.modules.audio_preprocessing import (
 )
 from nemo.collections.asr.modules.beam_search_decoder import BeamSearchDecoderWithLM
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
-from nemo.collections.asr.modules.conformer_modules import ConformerConvolution, ConformerFeedForward
 from nemo.collections.asr.modules.conv_asr import (
     ConvASRDecoder,
     ConvASRDecoderClassification,
@@ -29,10 +27,4 @@ from nemo.collections.asr.modules.conv_asr import (
     SpeakerDecoder,
 )
 from nemo.collections.asr.modules.lstm_decoder import LSTMDecoder
-from nemo.collections.asr.modules.multi_head_attention import (
-    MultiHeadAttention,
-    PositionalEncoding,
-    RelPositionalEncoding,
-    RelPositionMultiHeadAttention,
-)
 from nemo.collections.asr.modules.subsampling import ConvSubsampling
