@@ -19,7 +19,6 @@ import torch
 import torch.nn as nn
 from torch.nn.modules import LayerNorm
 
-from nemo.collections.asr.modules.subsampling import ConvSubsampling
 from nemo.collections.asr.parts.conformer_modules import ConformerConvolution, ConformerFeedForward
 from nemo.collections.asr.parts.multi_head_attention import (
     MultiHeadAttention,
@@ -27,6 +26,7 @@ from nemo.collections.asr.parts.multi_head_attention import (
     RelPositionalEncoding,
     RelPositionMultiHeadAttention,
 )
+from nemo.collections.asr.parts.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
