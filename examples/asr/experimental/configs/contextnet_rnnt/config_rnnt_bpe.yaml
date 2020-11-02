@@ -235,10 +235,3 @@ exp_manager:
     project: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null

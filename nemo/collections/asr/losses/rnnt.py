@@ -60,7 +60,7 @@ class RNNTLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction='mean'):
+    def __init__(self, num_classes, reduction='mean_batch'):
         """
         RNN-T Loss function based on https://github.com/HawkAaron/warp-transducer.
 
@@ -99,12 +99,12 @@ class RNNTLoss(Loss):
                 "container that supports RNN-T loss."
             )
 
-        if reduction not in ['mean', 'sum']:
-            raise ValueError("`reduction` must be one of [mean, sum]")
+        if reduction not in [None, 'mean', 'sum', 'mean_batch']:
+            raise ValueError('`reduction` must be one of [mean, sum, mean_batch]')
 
         self._blank = num_classes
         self.reduction = reduction
-        self._loss = warprnnt.RNNTLoss(blank=self._blank, reduction=None)
+        self._loss = warprnnt.RNNTLoss(blank=self._blank, reduction='none')
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -135,12 +135,20 @@ class RNNTLoss(Loss):
         if targets.shape[1] != max_targets_len:
             targets = targets.narrow(dim=1, start=0, length=max_targets_len)
 
+        # Loss reduction can be dynamic, so set it prior to call
+        if self.reduction is not 'mean_batch':
+            self._loss.reduction = self.reduction
+
+        # Compute RNNT loss
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
 
-        if self.reduction == 'mean':
+        # Loss reduction can be dynamic, so reset it after call
+        if self.reduction is not 'mean_batch':
+            self._loss.reduction = 'none'
+
+        # Loss reduction only for mean_batch mode
+        if self.reduction == 'mean_batch':
             loss = torch.mean(loss)
-        elif self.reduction == 'sum':
-            loss = torch.sum(loss)
 
         # del new variables that may have been created
         del (

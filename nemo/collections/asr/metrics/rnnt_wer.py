@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
 from typing import List, Optional
 
 import editdistance
@@ -26,7 +27,7 @@ from nemo.utils import logging
 __all__ = ['RNNTDecoding', 'RNNTWER']
 
 
-class RNNTDecoding:
+class AbstractRNNTDecoding(ABC):
     """
     Used for performing RNN-T auto-regressive decoding of the Decoder+Joint network given the encoder state.
 
@@ -70,16 +71,13 @@ class RNNTDecoding:
 
         decoder: The Decoder/Prediction network module.
         joint: The Joint network module.
-        vocabulary: The vocabulary (excluding the RNNT blank token) which will be used for decoding.
+        blank_id: The id of the RNNT blank token.
     """
 
-    def __init__(
-        self, decoding_cfg, decoder, joint, vocabulary,
-    ):
-        super(RNNTDecoding, self).__init__()
+    def __init__(self, decoding_cfg, decoder, joint, blank_id):
+        super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
-        self.blank_id = len(vocabulary)
-        self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
+        self.blank_id = blank_id
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
         if self.cfg.strategy not in possible_strategies:
@@ -185,7 +183,7 @@ class RNNTDecoding:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
             return hypotheses, None
 
-    def decode_hypothesis(self, hypotheses_list):
+    def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[str]:
         """
         Decode a list of hypotheses into a list of strings.
 
@@ -205,10 +203,95 @@ class RNNTDecoding:
 
             # RNN-T sample level is already preprocessed by implicit CTC decoding
             # Simply remove any blank tokens
-            hypothesis = ''.join([self.labels_map[c] for c in prediction if c != self.blank_id])
+            prediction = [p for p in prediction if p != self.blank_id]
+
+            # De-tokenize the integer tokens
+            hypothesis = self.tokenizer.ids_to_text(prediction)
             hypotheses.append(hypothesis)
 
         return hypotheses
+
+    @abstractmethod
+    def decode_tokens_to_str(self, tokens: List[int]) -> str:
+        """
+        Implemented by subclass in order to decoder a token list into a string.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded string.
+        """
+        raise NotImplementedError()
+
+
+class RNNTDecoding(AbstractRNNTDecoding):
+    """
+    Used for performing RNN-T auto-regressive decoding of the Decoder+Joint network given the encoder state.
+
+    Args:
+        decoding_cfg: A dict-like object which contains the following key-value pairs.
+            strategy: str value which represents the type of decoding that can occur.
+                Possible values are :
+                -   greedy, greedy_batch (for greedy decoding).
+                -   beam, tsd, alsd (for beam search decoding).
+
+            The config may further contain the following sub-dictionaries:
+            "greedy":
+                max_symbols: int, describing the maximum number of target tokens to decode per
+                    timestep during greedy decoding. Setting to larger values allows longer sentences
+                    to be decoded, at the cost of increased execution time.
+
+            "beam":
+                beam_size: int, defining the beam size for beam search. Must be >= 1.
+                    If beam_size == 1, will perform cached greedy search. This might be slightly different
+                    results compared to the greedy search above.
+
+                score_norm: optional bool, whether to normalize the returned beam score in the hypotheses.
+                    Set to True by default.
+
+                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
+                    hypotheses after beam search has concluded. This flag is set by default.
+
+                tsd_max_sym_exp: optional int, determines number of symmetric expansions of the target symbols
+                    per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
+                    at increased cost to execution time.
+
+                alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
+                    If an integer is provided, it can decode sequences of that particular maximum length.
+                    If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
+                    where seq_len is the length of the acoustic model output (T).
+
+                    NOTE:
+                        If a float is provided, it can be greater than 1!
+                        By default, a float of 2.0 is used so that a target sequence can be at most twice
+                        as long as the acoustic model output length T.
+
+        decoder: The Decoder/Prediction network module.
+        joint: The Joint network module.
+        vocabulary: The vocabulary (excluding the RNNT blank token) which will be used for decoding.
+    """
+
+    def __init__(
+        self, decoding_cfg, decoder, joint, vocabulary,
+    ):
+        blank_id = len(vocabulary)
+        self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
+
+        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id)
+
+    def decode_tokens_to_str(self, tokens: List[int]) -> str:
+        """
+        Implemented by subclass in order to decoder a token list into a string.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded string.
+        """
+        hypothesis = ''.join([self.labels_map[c] for c in tokens if c != self.blank_id])
+        return hypothesis
 
 
 class RNNTWER(Metric):
@@ -278,7 +361,8 @@ class RNNTWER(Metric):
             for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
-                reference = ''.join([self.labels_map[c] for c in target if c != self.blank_id])
+
+                reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
 
             hypotheses, _ = self.decoding.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
@@ -286,7 +370,7 @@ class RNNTWER(Metric):
         if self.log_prediction:
             logging.info(f"\n")
             logging.info(f"reference :{references[0]}")
-            logging.info(f"decoded   :{hypotheses[0]}")
+            logging.info(f"predicted :{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:

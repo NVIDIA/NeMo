@@ -22,7 +22,20 @@ from nemo.utils import logging
 
 
 class ASRBPEMixin(ABC):
-    """ ASR BPE Mixin class that sets up a Tokenizer via a config """
+    """ ASR BPE Mixin class that sets up a Tokenizer via a config
+
+    This mixin class adds the method `_setup_tokenizer(...)`, which can be used by ASR models
+    which depend on subword tokenization.
+
+    The setup_tokenizer method adds the following parameters to the class -
+        -   tokenizer_cfg: The resolved config supplied to the tokenizer (with `dir` and `type` arguments).
+        -   tokenizer_dir: The directory path to the tokenizer vocabulary + additional metadata.
+        -   tokenizer_type: The type of the tokenizer. Currently supports `bpe` and `wpe`.
+        -   vocab_path: Resolved path to the vocabulary text file.
+
+    In addition to these variables, the method will also instantiate and preserve a tokenizer
+    (subclass of TokenizerSpec) if successful, and assign it to self.tokenizer.
+    """
 
     def _setup_tokenizer(self, tokenizer_cfg: DictConfig):
         self.tokenizer_cfg = OmegaConf.to_container(tokenizer_cfg, resolve=True)  # type: dict

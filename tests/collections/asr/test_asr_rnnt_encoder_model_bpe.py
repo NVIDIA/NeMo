@@ -113,16 +113,16 @@ class TestEncDecRNNTBPEModel:
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
         asr_model.train()
-        asr_model.save_to('./rnnt_bpe.nemo')
 
-        new_model = EncDecRNNTBPEModel.restore_from('./rnnt_bpe.nemo')
-        assert isinstance(new_model, type(asr_model))
-        assert new_model.vocab_path == 'vocab.txt'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, 'rnnt_bpe.nemo')
+            asr_model.save_to(path)
 
-        assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
+            new_model = EncDecRNNTBPEModel.restore_from(path)
+            assert isinstance(new_model, type(asr_model))
+            assert new_model.vocab_path == 'vocab.txt'
 
-        if os.path.exists('./rnnt_bpe.nemo'):
-            os.remove('./rnnt_bpe.nemo')
+            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
     @pytest.mark.skipif(
         not WARP_RNNT_AVAILABLE,

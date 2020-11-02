@@ -18,6 +18,7 @@ import editdistance
 import torch
 from pytorch_lightning.metrics import Metric
 
+from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
@@ -27,7 +28,7 @@ from nemo.utils import logging
 __all__ = ['RNNTBPEDecoding', 'RNNTBPEWER']
 
 
-class RNNTBPEDecoding:
+class RNNTBPEDecoding(AbstractRNNTDecoding):
     """
     Used for performing RNN-T auto-regressive decoding of the Decoder+Joint network given the encoder state.
 
@@ -75,139 +76,25 @@ class RNNTBPEDecoding:
     """
 
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
-        super(RNNTBPEDecoding, self).__init__()
-        self.cfg = decoding_cfg
+        blank_id = tokenizer.tokenizer.vocab_size
         self.tokenizer = tokenizer
-        self.blank_id = tokenizer.tokenizer.vocab_size
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
-        if self.cfg.strategy not in possible_strategies:
-            raise ValueError(f"Decodin strategy must be one of {possible_strategies}")
+        super(RNNTBPEDecoding, self).__init__(
+            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
+        )
 
-        if self.cfg.strategy == 'greedy':
-            self.decoding = greedy_decode.GreedyRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
-            )
-
-        elif self.cfg.strategy == 'greedy_batch':
-            self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                blank_index=self.blank_id,
-                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
-            )
-
-        elif self.cfg.strategy == 'beam':
-            self.decoding = beam_decode.BeamRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                beam_size=self.cfg.beam.beam_size,
-                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
-                search_type='default',
-                score_norm=self.cfg.beam.get('score_norm', True),
-            )
-
-        elif self.cfg.strategy == 'tsd':
-            self.decoding = beam_decode.BeamRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                beam_size=self.cfg.beam.beam_size,
-                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
-                search_type='tsd',
-                score_norm=self.cfg.beam.get('score_norm', True),
-                tsd_max_sym_exp_per_step=self.cfg.beam.get('tsd_max_sym_exp', 50),
-            )
-
-        elif self.cfg.strategy == 'alsd':
-            self.decoding = beam_decode.BeamRNNTInfer(
-                decoder_model=decoder,
-                joint_model=joint,
-                beam_size=self.cfg.beam.beam_size,
-                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
-                search_type='alsd',
-                score_norm=self.cfg.beam.get('score_norm', True),
-                alsd_max_target_len=self.cfg.beam.get('alsd_max_target_len', 2),
-            )
-
-    def rnnt_decoder_predictions_tensor(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
-    ) -> (List[str], Optional[List[List[str]]]):
+    def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
-        Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
+        Implemented by subclass in order to decoder a token list into a string.
 
         Args:
-            encoder_output: torch.Tensor of shape [B, D, T].
-            encoded_lengths: torch.Tensor containing lengths of the padded encoder outputs. Shape [B].
+            tokens: List of int representing the token ids.
 
         Returns:
-            If `return_best_hypothesis` is set:
-                A tuple (hypotheses, None):
-                hypotheses - list of Hypothesis (best hypothesis per sample).
-                    Look at rnnt_utils.Hypothesis for more information.
-
-            If `return_best_hypothesis` is not set:
-                A tuple(hypotheses, all_hypotheses)
-                hypotheses - list of Hypothesis (best hypothesis per sample).
-                    Look at rnnt_utils.Hypothesis for more information.
-                all_hypotheses - list of NBestHypotheses. Each NBestHypotheses further contains a sorted
-                    list of all the hypotheses of the model per sample.
-                    Look at rnnt_utils.NBestHypotheses for more information.
+            A decoded string.
         """
-        # Compute hypotheses
-        with torch.no_grad():
-            hypotheses_list = self.decoding(
-                encoder_output=encoder_output, encoded_lengths=encoded_lengths
-            )  # type: [List[Hypothesis]]
-
-            # extract the hypotheses
-            prediction_list = hypotheses_list[0]  # type: List[Hypothesis]
-
-        # Drop predictions to CPU
-
-        if isinstance(prediction_list[0], NBestHypotheses):
-            hypotheses = []
-            all_hypotheses = []
-            for nbest_hyp in prediction_list:  # type: NBestHypotheses
-                n_hyps = nbest_hyp.n_best_hypotheses  # Extract all hypotheses for this sample
-                decoded_hyps = self.decode_hypothesis(n_hyps)  # type: List[str]
-                hypotheses.append(decoded_hyps[0])  # best hypothesis
-                all_hypotheses.append(decoded_hyps)
-
-            return hypotheses, all_hypotheses
-        else:
-            hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
-            return hypotheses, None
-
-    def decode_hypothesis(self, hypotheses_list):
-        """
-        Decode a list of hypotheses into a list of strings.
-
-        Args:
-            hypotheses_list: List of Hypothesis.
-
-        Returns:
-            A list of strings.
-        """
-        hypotheses = []
-        for ind in range(len(hypotheses_list)):
-            # Extract the integer encoded hypothesis
-            prediction = hypotheses_list[ind].y_sequence
-
-            if type(prediction) != list:
-                prediction = prediction.tolist()
-
-            # RNN-T sample level is already preprocessed by implicit CTC decoding
-            # Simply remove any blank tokens
-            prediction = [p for p in prediction if p != self.blank_id]
-
-            # De-tokenize the integer tokens
-            hypothesis = self.tokenizer.ids_to_text(prediction)
-            hypotheses.append(hypothesis)
-
-        return hypotheses
+        hypothesis = self.tokenizer.ids_to_text(tokens)
+        return hypothesis
 
 
 class RNNTBPEWER(Metric):
@@ -282,7 +169,7 @@ class RNNTBPEWER(Metric):
             for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
-                reference = self.tokenizer.ids_to_text(target)
+                reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
 
             hypotheses, _ = self.decoding.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
@@ -290,7 +177,7 @@ class RNNTBPEWER(Metric):
         if self.log_prediction:
             logging.info(f"\n")
             logging.info(f"reference :{references[0]}")
-            logging.info(f"decoded   :{hypotheses[0]}")
+            logging.info(f"predicted :{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:
