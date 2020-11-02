@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Union
 
 import onnx
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
@@ -100,20 +100,21 @@ class EncDecCTCModel(ASRModel, Exportable):
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
 
-        if "params" in self._cfg.decoder:
-            if "feat_in" not in self._cfg.decoder.params or (
-                not self._cfg.decoder.params.feat_in and hasattr(self.encoder, '_feat_out')
-            ):
-                self._cfg.decoder.params.feat_in = self.encoder._feat_out
-            if "feat_in" not in self._cfg.decoder.params or not self._cfg.decoder.params.feat_in:
-                raise ValueError("param feat_in of the decoder's config is not set!")
-        else:
-            if "feat_in" not in self._cfg.decoder or (
-                not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
-            ):
-                self._cfg.decoder.feat_in = self.encoder._feat_out
-            if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
-                raise ValueError("param feat_in of the decoder's config is not set!")
+        with open_dict(self._cfg):
+            if "params" in self._cfg.decoder:
+                if "feat_in" not in self._cfg.decoder.params or (
+                    not self._cfg.decoder.params.feat_in and hasattr(self.encoder, '_feat_out')
+                ):
+                    self._cfg.decoder.params.feat_in = self.encoder._feat_out
+                if "feat_in" not in self._cfg.decoder.params or not self._cfg.decoder.params.feat_in:
+                    raise ValueError("param feat_in of the decoder's config is not set!")
+            else:
+                if "feat_in" not in self._cfg.decoder or (
+                    not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+                ):
+                    self._cfg.decoder.feat_in = self.encoder._feat_out
+                if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
+                    raise ValueError("param feat_in of the decoder's config is not set!")
 
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
 

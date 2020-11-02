@@ -17,7 +17,7 @@ import os
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -26,7 +26,6 @@ from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import *
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
@@ -67,10 +66,11 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         vocabulary = self.tokenizer.tokenizer.get_vocab()
 
         # Set the new vocabulary
-        if "params" in cfg.decoder:
-            cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
-        else:
-            cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
+        with open_dict(cfg):
+            if "params" in cfg.decoder:
+                cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+            else:
+                cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
 
         # Override number of classes if placeholder provided
         if "params" in cfg.decoder:
@@ -87,7 +87,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             if "params" in cfg.decoder:
                 cfg.decoder["params"]["num_classes"] = len(vocabulary)
             else:
-                cfg.decoder['num_classes'] = len(vocabulary)
+                cfg.decoder["num_classes"] = len(vocabulary)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
