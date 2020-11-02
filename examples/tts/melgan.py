@@ -354,7 +354,7 @@ class MBMelGanModel(ModelPT):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
     def training_epoch_end(self, outputs):
-        if self.current_epoch % 10 == 0:
+        if self.current_epoch % 100 == 0:
             lrs = []
             for scheduler in self._trainer.lr_schedulers:
                 param_groups = scheduler['scheduler'].optimizer.param_groups
