@@ -109,7 +109,7 @@ class TransformerLMModel(ModelPT):
         input_ids, input_mask, labels = batch
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        train_loss = self.training_loss(logits=log_probs, labels=labels)
+        train_loss = self.training_loss(logprobs=log_probs, labels=labels)
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': train_loss, 'log': tensorboard_logs}
@@ -122,7 +122,7 @@ class TransformerLMModel(ModelPT):
         input_ids, input_mask, labels = batch
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        val_loss = self.validation_loss(logits=log_probs, labels=labels)
+        val_loss = self.validation_loss(logprobs=log_probs, labels=labels)
 
         tensorboard_logs = {
             'val_loss': val_loss,

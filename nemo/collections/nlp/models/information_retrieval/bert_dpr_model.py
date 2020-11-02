@@ -100,7 +100,7 @@ class BertDPRModel(BaseIRModel):
         normalized_scores = torch.log_softmax(scores, dim=-1)
 
         labels = torch.arange(batch_size)[:, None].long().to(normalized_scores.device)
-        loss = self.loss(logits=normalized_scores, labels=labels, output_mask=torch.ones_like(labels))
+        loss = self.loss(logprobs=normalized_scores, labels=labels, output_mask=torch.ones_like(labels))
 
         scores = scores[:, 0]
         scores = torch.cat((torch.diag(scores)[:, None], scores[:, batch_size:]), dim=1,)
