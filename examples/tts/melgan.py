@@ -54,6 +54,7 @@ class MBMelGanModel(ModelPT):
         self.increase_coeff = self._cfg.increase_lambda
         self.add_gan_loss = self._cfg.get("add_gan_loss", True)
         self.logged_real_samples = False
+        self.sample_rate = self._cfg.preprocessor.sample_rate
 
     @property
     def input_types(self):
@@ -270,7 +271,7 @@ class MBMelGanModel(ModelPT):
                     "val_wav_target",
                     outputs[0]["audio"][0].data.cpu().numpy(),
                     self.global_step,
-                    sample_rate=self._cfg.sample_rate,
+                    sample_rate=self.sample_rate,
                 )
                 self.logged_real_samples = True
             self.logger.experiment.add_image(
@@ -283,7 +284,7 @@ class MBMelGanModel(ModelPT):
                 "val_wav_predicted",
                 outputs[0]["audio_pred"][0].data.cpu().numpy(),
                 self.global_step,
-                sample_rate=self._cfg.sample_rate,
+                sample_rate=self.sample_rate,
             )
 
         def get_stack(list_of_dict, key):
