@@ -46,7 +46,7 @@ def main(cfg: DictConfig) -> None:
 
     # run this only on the master thread in case of multi-gpu training, for single gpu no difference
     if trainer.checkpoint_callback is not None:
-        # retrieve the path to the last checkpoint of the training (you can use the best checkpoint instead)
+        # retrieve the path to the last checkpoint of the training in .nemo format
         checkpoint_path = os.path.join(
             trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + ".nemo"
         )
