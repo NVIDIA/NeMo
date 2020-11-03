@@ -12,12 +12,97 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from collections.asr.parts.multi_head_attention import MultiHeadAttention, RelPositionMultiHeadAttention
 
-import torch.nn as nn
+import torch
+from torch import nn as nn
+from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.activations import Swish
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward']
+
+
+class ConformerEncoderBlock(torch.nn.Module):
+    """A single block of the Conformer encoder.
+
+    Args:
+        d_model (int): input dimension of MultiheadAttentionMechanism and PositionwiseFeedForward
+        d_ff (int): hidden dimension of PositionwiseFeedForward
+        n_heads (int): number of heads for multi-head attention
+        conv_kernel_size (int): kernel size for depthwise convolution in convolution module
+        dropout (float): dropout probabilities for linear layers
+        dropout_att (float): dropout probabilities for attention distributions
+    """
+
+    def __init__(self, d_model, d_ff, conv_kernel_size, self_attention_model, n_heads, dropout, dropout_att):
+        super(ConformerEncoderBlock, self).__init__()
+
+        self.self_attention_model = self_attention_model
+        self.n_heads = n_heads
+        self.fc_factor = 0.5
+
+        # first feed forward module
+        self.norm_feed_forward1 = LayerNorm(d_model)
+        self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
+
+        # convolution module
+        self.norm_conv = LayerNorm(d_model)
+        self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size)
+
+        # multi-headed self-attention module
+        self.norm_self_att = LayerNorm(d_model)
+        if self_attention_model == 'rel_pos':
+            self.self_attn = RelPositionMultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
+        elif self_attention_model == 'abs_pos':
+            self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
+        else:
+            raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
+
+        # second feed forward module
+        self.norm_feed_forward2 = LayerNorm(d_model)
+        self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
+
+        self.dropout = nn.Dropout(dropout)
+        self.norm_out = LayerNorm(d_model)
+
+    def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None):
+        """
+        Args:
+            x (torch.Tensor): input signals (B, T, d_model)
+            att_mask (torch.Tensor): attention masks(B, T, T)
+            pos_emb (torch.Tensor): (L, 1, d_model)
+            pad_mask (torch.tensor): padding mask
+        Returns:
+            x (torch.Tensor): (B, T, d_model)
+        """
+        residual = x
+        x = self.norm_feed_forward1(x)
+        x = self.feed_forward1(x)
+        x = self.fc_factor * self.dropout(x) + residual
+
+        residual = x
+        x = self.norm_self_att(x)
+        if self.self_attention_model == 'rel_pos':
+            x = self.self_attn(query=x, key=x, value=x, pos_emb=pos_emb, mask=att_mask)
+        elif self.self_attention_model == 'abs_pos':
+            x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
+        else:
+            x = None
+        x = self.dropout(x) + residual
+
+        residual = x
+        x = self.norm_conv(x)
+        x = self.conv(x)
+        x = self.dropout(x) + residual
+
+        residual = x
+        x = self.norm_feed_forward2(x)
+        x = self.feed_forward2(x)
+        x = self.fc_factor * self.dropout(x) + residual
+
+        x = self.norm_out(x)
+        return x
 
 
 class ConformerConvolution(nn.Module):
