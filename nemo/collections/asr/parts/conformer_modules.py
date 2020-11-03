@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from nemo.collections.asr.parts.multi_head_attention import MultiHeadAttention, RelPositionMultiHeadAttention
-
 import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.activations import Swish
+from nemo.collections.asr.parts.multi_head_attention import MultiHeadAttention, RelPositionMultiHeadAttention
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward']
 
