@@ -131,7 +131,7 @@ class TransformerMTModel(ModelPT):
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.tgt_embedding_layer.token_embedding.weight
-        self.emb_scale = cfg.machine_translation.hidden_size ** 0.5,
+        self.emb_scale = cfg.machine_translation.hidden_size ** 0.5
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
         )
@@ -154,8 +154,10 @@ class TransformerMTModel(ModelPT):
         in the `nn.Module` in vanilla PyTorch.
         """
         src_embeddings = self.src_embedding_layer(input_ids=src)
+        src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
         src_hiddens = self.encoder(src_embeddings, src_mask)
         tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
+        tgt_embeddings *= tgt_embeddings.new_tensor(self.emb_scale)
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
