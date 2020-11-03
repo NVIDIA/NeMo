@@ -27,8 +27,6 @@ except (FileNotFoundError, LookupError):
     HAVE_G2P = False
 
 
-
-
 class Base(abc.ABC):
     """Vocabulary for turning str text to list of int tokens."""
 
