@@ -48,7 +48,7 @@ class BERTLMModel(ModelPT):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        output_types_dict = {"mlm_logits": self.mlm_classifier.output_types["logits"]}
+        output_types_dict = {"mlm_logits": self.mlm_classifier.output_types["log_probs"]}
         if not self.only_mlm_loss:
             output_types_dict["nsp_logits"] = self.nsp_classifier.output_types["logits"]
         return output_types_dict
