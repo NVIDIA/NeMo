@@ -144,6 +144,21 @@ class TestExportableClassifiers:
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
+    def test_QAModel_export_to_onnx(self):
+        model = nemo_nlp.models.QAModel.from_pretrained(model_name="BERTBaseUncasedSQuADv1.1")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'qa.onnx')
+            model.export(output=filename)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.node) == 1159
+            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
+            assert onnx_model.graph.node[1158].name == 'QAAdd_1'
+            assert onnx_model.graph.node[30].name == 'Add_30'
+            assert onnx_model.graph.input[0].name == 'input_ids'
+            assert onnx_model.graph.input[2].name == 'token_type_ids'
+            assert onnx_model.graph.output[0].name == 'logits'
+
 
 @pytest.fixture()
 def dummy_data(test_data_dir):
