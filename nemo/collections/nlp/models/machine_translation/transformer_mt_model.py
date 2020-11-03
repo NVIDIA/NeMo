@@ -131,15 +131,7 @@ class TransformerMTModel(ModelPT):
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.tgt_embedding_layer.token_embedding.weight
-        for m in ["query_net", "key_net", "value_net"]:
-            torch.nn.init.xavier_uniform_(
-                getattr(self.encoder.layers[0].first_sub_layer, m).weight,
-                gain=cfg.machine_translation.hidden_size ** 0.5,
-            )
-            torch.nn.init.xavier_uniform_(
-                getattr(self.decoder.layers[0].first_sub_layer, m).weight,
-                gain=cfg.machine_translation.hidden_size ** 0.5,
-            )
+        self.emb_scale = cfg.machine_translation.hidden_size ** 0.5,
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
         )
