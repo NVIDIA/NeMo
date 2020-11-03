@@ -165,7 +165,7 @@ class _AudioTextDataset(Dataset):
                 offset = 0
 
             features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr,
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr
             )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
@@ -270,7 +270,7 @@ class AudioToCharDataset(_AudioTextDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
         )
 
         super().__init__(
@@ -474,13 +474,14 @@ class AudioToBPEDataset(_AudioTextDataset):
         trim: bool = False,
         load_audio: bool = True,
         add_misc: bool = False,
+        use_start_end_token: bool = True,
     ):
-        if hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
@@ -553,7 +554,7 @@ class AudioLabelDataset(Dataset):
         load_audio=True,
     ):
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
+            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration
         )
 
         self.featurizer = featurizer
@@ -577,7 +578,7 @@ class AudioLabelDataset(Dataset):
                 offset = 0
 
             features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim,
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim
             )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
@@ -1029,13 +1030,14 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         add_misc: bool = False,
         global_rank: int = 0,
         world_size: int = 0,
+        use_start_end_token: bool = True,
     ):
-        if hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None

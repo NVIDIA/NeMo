@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.modules.audio_preprocessing import (
-    AudioToMelSpectrogramPreprocessor,
-    AudioToMFCCPreprocessor,
-    CropOrPadSpectrogramAugmentation,
-    SpectrogramAugmentation,
-)
-from nemo.collections.asr.modules.beam_search_decoder import BeamSearchDecoderWithLM
-from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
-from nemo.collections.asr.modules.conv_asr import (
-    ConvASRDecoder,
-    ConvASRDecoderClassification,
-    ConvASREncoder,
-    SpeakerDecoder,
-)
-from nemo.collections.asr.modules.lstm_decoder import LSTMDecoder
+import torch
+import torch.nn as nn
+
+__all__ = ['Swish']
+
+
+class Swish(nn.Module):
+    """
+    Swish activation function introduced in 'https://arxiv.org/abs/1710.05941'
+    """
+
+    def forward(self, x):
+        return x * torch.sigmoid(x)
