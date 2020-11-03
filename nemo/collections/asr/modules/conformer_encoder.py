@@ -14,7 +14,7 @@
 
 import math
 from collections import OrderedDict
-from collections.asr.parts.conformer_modules import ConformerEncoderBlock
+from nemo.collections.asr.parts.conformer_modules import ConformerEncoderBlock
 
 import torch
 import torch.nn as nn

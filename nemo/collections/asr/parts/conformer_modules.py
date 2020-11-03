@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from collections.asr.parts.multi_head_attention import MultiHeadAttention, RelPositionMultiHeadAttention
+from nemo.collections.asr.parts.multi_head_attention import MultiHeadAttention, RelPositionMultiHeadAttention
 
 import torch
 from torch import nn as nn
