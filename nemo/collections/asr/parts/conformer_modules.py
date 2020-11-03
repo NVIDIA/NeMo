@@ -19,7 +19,7 @@ from torch.nn import LayerNorm
 from nemo.collections.asr.parts.activations import Swish
 from nemo.collections.asr.parts.multi_head_attention import MultiHeadAttention, RelPositionMultiHeadAttention
 
-__all__ = ['ConformerConvolution', 'ConformerFeedForward']
+__all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerEncoderBlock']
 
 
 class ConformerEncoderBlock(torch.nn.Module):
