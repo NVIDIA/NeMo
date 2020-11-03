@@ -219,7 +219,7 @@ class SpectralConvergenceLoss(torch.nn.Module):
         Returns:
             Tensor: Spectral convergence loss value.
         """
-        loss = torch.norm(y_mag - x_mag, p="fro", axis=(1, 2)) / torch.norm(y_mag, p="fro", axis=(1, 2))
+        loss = torch.norm(y_mag - x_mag, p="fro", dim=(1, 2)) / torch.norm(y_mag, p="fro", dim=(1, 2))
         loss = torch.mean(loss)
         return loss
 
