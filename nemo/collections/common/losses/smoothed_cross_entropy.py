@@ -17,13 +17,7 @@ from typing import Optional
 import torch
 
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import (
-    LabelsType,
-    LogprobsType,
-    LossType,
-    MaskType,
-    NeuralType,
-)
+from nemo.core.neural_types import LabelsType, LogprobsType, LossType, MaskType, NeuralType
 
 __all__ = ["SmoothedCrossEntropyLoss"]
 
@@ -100,9 +94,7 @@ class SmoothedCrossEntropyLoss(Loss):
         target_log_probs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
 
         smoothing_log_probs = log_probs.mean(dim=-1)
-        neg_log_likelihood = (
-            1.0 - smoothing
-        ) * target_log_probs + smoothing * smoothing_log_probs
+        neg_log_likelihood = (1.0 - smoothing) * target_log_probs + smoothing * smoothing_log_probs
         neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k :]
         output_mask = output_mask[:, -self._predict_last_k :]
         neg_log_likelihood = -torch.sum(neg_log_likelihood * output_mask)
