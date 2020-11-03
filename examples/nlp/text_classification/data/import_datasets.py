@@ -21,7 +21,8 @@ python import_datasets.py \
         --source_data_dir "./thucnews_orig_data/" \
         --target_data_dir "./thucnews/"
 
-It reads the data from "source_data_dir" folder, processes and converts the data into NeMo's format. Then writes the results into "target_data_dir" folder.
+It reads the data from "source_data_dir" folder, processes and converts the data into NeMo's format.
+Then writes the results into "target_data_dir" folder.
 """
 
 import argparse
@@ -40,7 +41,8 @@ def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
         link = 'https://ai.stanford.edu/~amaas/data/sentiment/'
         raise ValueError(
             f'Data not found at {infold}. '
-            f'Please download IMDB reviews dataset from {link} and extract it into the folder specified by source_data_dir argument.'
+            f'Please download IMDB reviews dataset from {link} and '
+            f'extract it into the folder specified by source_data_dir argument.'
         )
 
     logging.info(f'Processing IMDB dataset and store at {outfold}')
@@ -153,9 +155,7 @@ def process_thucnews(infold, outfold):
 if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(description="Process and convert datasets into NeMo\'s format.")
-    parser.add_argument(
-        "--dataset_name", required=True, type=str, choices=['imdb', 'thucnews', 'chemprot'],
-    )
+    parser.add_argument("--dataset_name", required=True, type=str, choices=['imdb', 'thucnews', 'chemprot'])
     parser.add_argument(
         "--source_data_dir", required=True, type=str, help='The path to the folder containing the dataset files.'
     )
