@@ -249,7 +249,7 @@ class TransformerMTModel(ModelPT):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.log_param_stats()
+        # self.log_param_stats()
         return self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
