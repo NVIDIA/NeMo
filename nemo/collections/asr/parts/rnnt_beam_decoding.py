@@ -32,6 +32,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.core.classes import Typing, typecheck
@@ -56,8 +57,8 @@ class BeamRNNTInfer(Typing):
 
     def __init__(
         self,
-        decoder_model: rnnt_utils.AbstractRNNTDecoder,
-        joint_model: rnnt_utils.AbstractRNNTJoint,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
         beam_size: int,
         search_type: str = 'default',
         score_norm: bool = True,

@@ -30,6 +30,7 @@ from typing import Optional, Union
 
 import torch
 
+from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.asr.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
@@ -67,8 +68,8 @@ class _GreedyRNNTInfer(Typing):
 
     def __init__(
         self,
-        decoder_model: rnnt_utils.AbstractRNNTDecoder,
-        joint_model: rnnt_utils.AbstractRNNTJoint,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
     ):
@@ -163,8 +164,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
     def __init__(
         self,
-        decoder_model: rnnt_utils.AbstractRNNTDecoder,
-        joint_model: rnnt_utils.AbstractRNNTJoint,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
     ):
@@ -290,8 +291,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
     def __init__(
         self,
-        decoder_model: rnnt_utils.AbstractRNNTDecoder,
-        joint_model: rnnt_utils.AbstractRNNTJoint,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
     ):

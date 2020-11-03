@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 
+from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts import rnn, rnnt_utils
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import (
@@ -45,7 +46,7 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
+class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
     """A Recurrent Neural Network Transducer Decoder / Prediction Network (RNN-T Prediction Network).
     An RNN-T Decoder/Prediction network, comprised of a stateful LSTM model.
 
@@ -481,7 +482,7 @@ class RNNTDecoder(rnnt_utils.AbstractRNNTDecoder):
         return state_list
 
 
-class RNNTJoint(rnnt_utils.AbstractRNNTJoint):
+class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
     """A Recurrent Neural Network Transducer Joint Network (RNN-T Joint Network).
     An RNN-T Joint network, comprised of a feedforward model.
 
