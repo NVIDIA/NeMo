@@ -126,7 +126,7 @@ class TransformerMTModel(ModelPT):
             max_delta_length=cfg.machine_translation.get("max_generation_delta", 50),
         )
 
-        std_init_range = 1 / cfg.machine_translation.hidden_size ** -0.5
+        std_init_range = 1 / cfg.machine_translation.hidden_size ** 0.5
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # tie weights of embedding and softmax matrices
@@ -241,7 +241,7 @@ class TransformerMTModel(ModelPT):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.log_param_stats()
+        # self.log_param_stats()
         return self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
