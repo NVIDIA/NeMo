@@ -79,7 +79,7 @@ class TokenClassificationModel(NLPModel):
             num_classes=len(self._cfg.label_ids),
             num_layers=self._cfg.head.num_fc_layers,
             activation=self._cfg.head.activation,
-            log_softmax=self._cfg.head.log_softmax,
+            log_softmax=False,
             dropout=self._cfg.head.fc_dropout,
             use_transformer_init=self._cfg.head.use_transformer_init,
         )
