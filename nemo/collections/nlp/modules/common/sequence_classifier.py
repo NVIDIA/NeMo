@@ -18,7 +18,7 @@ from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.collections.nlp.modules.common.classifier import Classifier
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import LogitsType, LogprobsType, NeuralType
-from nemo.core.neural_types.elements import LogprobsType
+
 
 __all__ = ['SequenceClassifier']
 
