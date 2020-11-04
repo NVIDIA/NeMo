@@ -229,9 +229,10 @@ exp_manager:
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_wer"
+    mode: "min"
   create_wandb_logger: False
   wandb_logger_kwargs:
     name: null
     project: null
-  resume_if_exists: false
-  resume_ignore_no_checkpoint: false

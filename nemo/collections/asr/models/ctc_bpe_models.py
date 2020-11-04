@@ -19,7 +19,7 @@ from typing import Dict, Optional
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
-from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
+from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -116,7 +116,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 )
                 return None
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
             dataset = audio_to_text_dataset.get_tarred_bpe_dataset(
                 config=config,
                 tokenizer=self.tokenizer,

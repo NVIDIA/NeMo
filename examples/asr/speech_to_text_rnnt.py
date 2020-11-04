@@ -29,7 +29,7 @@ Basic run (on CPU for 50 epochs):
 
 
 Add PyTorch Lightning Trainer arguments from CLI:
-    python speech_to_text.py \
+    python speech_to_text_rnnt.py \
         ... \
         +trainer.fast_dev_run=true
 
@@ -37,7 +37,9 @@ Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")
 PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
 
 Override some args of optimizer:
-    python speech_to_text.py \
+    python speech_to_text_rnnt.py \
+    --config-path="experimental/contextnet_rnnt" \
+    --config-name="config_rnnt" \
     model.train_ds.manifest_filepath="./an4/train_manifest.json" \
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     hydra.run.dir="." \
@@ -48,7 +50,9 @@ Override some args of optimizer:
     model.optim.args.params.weight_decay=0.0001
 
 Overide optimizer entirely
-    python speech_to_text.py \
+    python speech_to_text_rnnt.py \
+    --config-path="experimental/contextnet_rnnt" \
+    --config-name="config_rnnt" \
     model.train_ds.manifest_filepath="./an4/train_manifest.json" \
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     hydra.run.dir="." \
@@ -64,7 +68,7 @@ Overide optimizer entirely
 """
 
 
-@hydra_runner(config_path="experimental/configs/contextnet_rnnt", config_name="config_rnnt")
+@hydra_runner(config_path="experimental/contextnet_rnnt", config_name="config_rnnt")
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
