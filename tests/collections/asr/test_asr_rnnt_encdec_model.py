@@ -96,7 +96,7 @@ class TestEncDecRNNTModel:
     @pytest.mark.skipif(
         not WARP_RNNT_AVAILABLE,
         reason='RNNTLoss has not been compiled. Please compile and install '
-               'RNNT Loss first before running this test',
+        'RNNT Loss first before running this test',
     )
     @pytest.mark.unit
     def test_constructor(self, asr_model):
@@ -110,7 +110,7 @@ class TestEncDecRNNTModel:
     @pytest.mark.skipif(
         not WARP_RNNT_AVAILABLE,
         reason='RNNTLoss has not been compiled. Please compile and install '
-               'RNNT Loss first before running this test',
+        'RNNT Loss first before running this test',
     )
     @pytest.mark.unit
     def test_vocab_change(self, asr_model):
