@@ -443,7 +443,10 @@ class EncDecRNNTModel(ASRModel):
             if compute_wer:
                 tensorboard_logs.update({'training_batch_wer': wer})
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        # Log items
+        self.log_dict(tensorboard_logs)
+
+        return {'loss': loss_value}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len = batch
