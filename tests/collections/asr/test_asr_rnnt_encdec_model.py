@@ -31,36 +31,13 @@ except (ImportError, ModuleNotFoundError):
 def asr_model():
     preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
 
-    labels = [
-        ' ',
-        'a',
-        'b',
-        'c',
-        'd',
-        'e',
-        'f',
-        'g',
-        'h',
-        'i',
-        'j',
-        'k',
-        'l',
-        'm',
-        'n',
-        'o',
-        'p',
-        'q',
-        'r',
-        's',
-        't',
-        'u',
-        'v',
-        'w',
-        'x',
-        'y',
-        'z',
-        "'",
-    ]
+    # fmt: off
+    labels = [' ', 'a', 'b', 'c', 'd', 'e', 'f',
+              'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+              'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+              'x', 'y', 'z', "'",
+              ]
+    # fmt: on
 
     model_defaults = {'enc_hidden': 1024, 'pred_hidden': 64}
 
@@ -119,7 +96,7 @@ class TestEncDecRNNTModel:
     @pytest.mark.skipif(
         not WARP_RNNT_AVAILABLE,
         reason='RNNTLoss has not been compiled. Please compile and install '
-        'RNNT Loss first before running this test',
+               'RNNT Loss first before running this test',
     )
     @pytest.mark.unit
     def test_constructor(self, asr_model):
@@ -133,7 +110,7 @@ class TestEncDecRNNTModel:
     @pytest.mark.skipif(
         not WARP_RNNT_AVAILABLE,
         reason='RNNTLoss has not been compiled. Please compile and install '
-        'RNNT Loss first before running this test',
+               'RNNT Loss first before running this test',
     )
     @pytest.mark.unit
     def test_vocab_change(self, asr_model):
