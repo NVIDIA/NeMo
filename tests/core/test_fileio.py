@@ -23,7 +23,7 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.collections.asr.models import EncDecCTCModel
 
 try:
-    import eff
+    from eff.archives import NeMoArchive
 
     _EFF_PRESENT_ = True
 except ImportError:
@@ -157,18 +157,25 @@ class TestFileIO:
         with tempfile.NamedTemporaryFile() as fp:
             filename = fp.name
 
+            # Set key - use checkpoint encryption.
+            NeMoArchive.set_encryption_key("test_key")
+
             # Save model (with random artifact).
             with tempfile.NamedTemporaryFile() as artifact:
                 asr_model.register_artifact(config_path=None, src=artifact.name)
-                asr_model._eff_save_to(save_path=filename, encryption_key="test_key")
+                asr_model.save_to(save_path=filename)
 
-            # Try to read the encrypted file without encryption key.
+            # Try to restore the encrypted archive (weights) without the encryption key.
+            NeMoArchive.set_encryption_key(None)
             with pytest.raises(PermissionError):
                 # Restore the model.
-                asr_model2 = EncDecCTCModel._eff_restore_from(restore_path=filename)
+                asr_model2 = EncDecCTCModel.restore_from(restore_path=filename)
 
             # Restore the model.
-            asr_model3 = EncDecCTCModel._eff_restore_from(restore_path=filename, encryption_key="test_key")
+            NeMoArchive.set_encryption_key("test_key")
+            asr_model3 = EncDecCTCModel.restore_from(restore_path=filename)
+            # Reset encryption so it won't mess up with other save/restore.
+            NeMoArchive.set_encryption_key(None)
 
             assert asr_model.num_weights == asr_model3.num_weights
 
