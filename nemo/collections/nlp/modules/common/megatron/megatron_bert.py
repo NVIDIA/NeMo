@@ -23,13 +23,9 @@ import torch
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-from megatron.mpu import (
-    get_model_parallel_group,
-    model_parallel_is_initialized,
-    get_data_parallel_group,
-)
-from pytorch_lightning.callbacks import ModelCheckpoint
+from megatron.mpu import get_data_parallel_group, get_model_parallel_group, model_parallel_is_initialized
 from omegaconf import OmegaConf
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
