@@ -116,7 +116,7 @@ def main(cfg: DictConfig) -> None:
     After model training is done, you can use the model for inference.
     You can either evaluate data from a text_file that follows training data format,
     or provide a list of queries you want to add entities to
-    
+
     During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU
     and no DDP to obtain accurate results
     """

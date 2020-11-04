@@ -19,6 +19,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from omegaconf.errors import ConfigAttributeError
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from torch import nn
 
 from nemo.collections.asr.parts import parsers
@@ -39,14 +40,9 @@ from nemo.utils import logging
 
 
 @dataclass
-class PreprocessorParams:
-    pad_value: float = MISSING
-
-
-@dataclass
 class Preprocessor:
-    cls: str = MISSING
-    params: PreprocessorParams = PreprocessorParams()
+    _target_: str = MISSING
+    pad_value: float = MISSING
 
 
 @dataclass
@@ -63,7 +59,6 @@ class Tacotron2Config:
 class Tacotron2Model(SpectrogramGenerator):
     """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
-    # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
@@ -76,9 +71,16 @@ class Tacotron2Model(SpectrogramGenerator):
         elif not isinstance(cfg, DictConfig):
             raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
         # Ensure passed cfg is compliant with schema
-        OmegaConf.merge(cfg, schema)
+        try:
+            OmegaConf.merge(cfg, schema)
+            self.pad_value = self._cfg.preprocessor.pad_value
+        except ConfigAttributeError:
+            self.pad_value = self._cfg.preprocessor.params.pad_value
+            logging.warning(
+                "Your config is using an old NeMo yaml configuration. Please ensure that the yaml matches the "
+                "current version in the main branch for future compatibility."
+            )
 
-        self.pad_value = self._cfg.preprocessor.params.pad_value
         self._parser = None
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
@@ -103,24 +105,24 @@ class Tacotron2Model(SpectrogramGenerator):
         # Try to get params from validation, test, and then train
         params = {}
         try:
-            params = self._cfg.validation_ds.dataset.params
+            params = self._cfg.validation_ds.dataset
         except ConfigAttributeError:
             pass
         if params == {}:
             try:
-                params = self._cfg.test_ds.dataset.params
+                params = self._cfg.test_ds.dataset
             except ConfigAttributeError:
                 pass
         if params == {}:
             try:
-                params = self._cfg.train_ds.dataset.params
+                params = self._cfg.train_ds.dataset
             except ConfigAttributeError:
                 pass
 
-        name = params.get('parser', None) or params.get('parser', None) or 'en'
-        unk_id = params.get('unk_index', None) or params.get('unk_index', None) or -1
-        blank_id = params.get('blank_index', None) or params.get('blank_index', None) or -1
-        do_normalize = params.get('normalize', None) or params.get('normalize', None) or False
+        name = params.get('parser', None) or 'en'
+        unk_id = params.get('unk_index', None) or -1
+        blank_id = params.get('blank_index', None) or -1
+        do_normalize = params.get('normalize', None) or False
         self._parser = parsers.make_parser(
             labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
         )
@@ -247,7 +249,7 @@ class Tacotron2Model(SpectrogramGenerator):
             pad_value=self.pad_value,
         )
         return {
-            "loss": loss,
+            "val_loss": loss,
             "mel_target": spec_target,
             "mel_postnet": spec_pred_postnet,
             "gate": gate_pred,
@@ -257,23 +259,23 @@ class Tacotron2Model(SpectrogramGenerator):
 
     def validation_epoch_end(self, outputs):
         if self.logger is not None and self.logger.experiment is not None:
+            tb_logger = self.logger.experiment
+            if isinstance(self.logger, LoggerCollection):
+                for logger in self.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
             tacotron2_log_to_tb_func(
-                self.logger.experiment,
-                outputs[0].values(),
-                self.global_step,
-                tag="val",
-                log_images=True,
-                add_audio=False,
+                tb_logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
             )
-        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        self.log('val_loss', avg_loss)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
-            raise ValueError(f"No dataset for {name}")  # TODO
+            raise ValueError(f"No dataset for {name}")
         if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
-            raise ValueError(f"No dataloder_params for {name}")  # TODO
+            raise ValueError(f"No dataloder_params for {name}")
         if shuffle_should_be:
             if 'shuffle' not in cfg.dataloader_params:
                 logging.warning(
@@ -287,9 +289,11 @@ class Tacotron2Model(SpectrogramGenerator):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        labels = cfg.dataset.params.labels
+        labels = self._cfg.labels
 
-        dataset = instantiate(cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2)
+        dataset = instantiate(
+            cfg.dataset, labels=labels, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2
+        )
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):

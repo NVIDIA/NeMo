@@ -56,6 +56,19 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 
 @dataclass
+class CallbackParams:
+    filepath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    monitor: Optional[str] = "val_loss"
+    verbose: Optional[bool] = True
+    save_last: Optional[bool] = True
+    save_top_k: Optional[int] = 3
+    save_weights_only: Optional[bool] = False
+    mode: Optional[str] = "auto"
+    period: Optional[int] = 1
+    prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+
+
+@dataclass
 class ExpManagerConfig:
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
@@ -73,6 +86,7 @@ class ExpManagerConfig:
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
+    checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
 
@@ -192,7 +206,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     if is_global_rank_zero():
         if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, log_dir, checkpoint_name)
+            configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
 
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
@@ -234,8 +248,9 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
     if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger):
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
-            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: {cfg.create_wandb_logger}"
-            " was set to True. These can only be used if trainer does not already have a logger."
+            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
+            f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
+            " logger."
         )
     if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
         logging.error(
@@ -274,6 +289,7 @@ def check_resume(
     checkpoint_dir = Path(Path(log_dir) / "checkpoints")
     checkpoint = None
     end_checkpoints = list(checkpoint_dir.glob("*end.ckpt"))
+    end_checkpoints.extend(list(checkpoint_dir.glob("*.nemo")))
     last_checkpoints = list(checkpoint_dir.glob("*last.ckpt"))
     if not checkpoint_dir.exists():
         if resume_ignore_no_checkpoint:
@@ -515,10 +531,19 @@ def configure_loggers(
     logger_list = (
         LoggerList(logger_list, nemo_name=name, nemo_version=version) if len(logger_list) > 1 else logger_list[0]
     )
-    trainer.configure_logger(logger_list)
+    trainer.logger_connector.configure_logger(logger_list)
 
 
-def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str):
+class NeMoModelCheckpoint(ModelCheckpoint):
+    """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
+    """
+
+    @rank_zero_only
+    def on_train_end(self, trainer, pl_module):
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + '.nemo'))
+
+
+def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
     """
@@ -536,22 +561,19 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
     else:
         logging.warning("trainer had a weights_save_path of cwd(). This was ignored.")
     # Create the callback and attach it to trainer
-    class NeMoModelCheckpoint(ModelCheckpoint):
-        @rank_zero_only
-        def on_train_end(self, trainer, pl_module):
-            filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
-            # TODO: Remove try, except block once lightning's ModelCheckpoint is stable
-            try:  # Try lightning master signature
-                self._save_model(filepath, trainer, pl_module)  # noqa pylint: disable=too-many-function-args
-            except TypeError:  # Fall back to lightning == 0.8.5 signature if failed
-                self._save_model(filepath)  # noqa
 
-    checkpoint_callback = NeMoModelCheckpoint(
-        filepath=Path(log_dir / 'checkpoints' / '{val_loss:.2f}-{epoch}'),
-        save_top_k=3,
-        save_last=True,
-        prefix=name + "--",
-    )
-    trainer.configure_checkpoint_callback(checkpoint_callback)
+    if params.filepath is None:
+        params.filepath = Path(log_dir / 'checkpoints' / f'--{{{params.monitor}:.2f}}-{{epoch}}')
+    if params.prefix is None:
+        params.prefix = name
+
+    if "val" in params.monitor and trainer.max_epochs != -1 and trainer.max_epochs < trainer.check_val_every_n_epoch:
+        logging.error(
+            "The checkpoint callback was told to monitor a validation value but trainer.max_epochs("
+            f"{trainer.max_epochs}) was less than trainer.check_val_every_n_epoch({trainer.check_val_every_n_epoch})."
+            f"It is very likely this run will fail with ModelCheckpoint(monitor='{params.monitor}') not found in the "
+            "returned metrics. Please ensure that validation is run within trainer.max_epochs."
+        )
+
+    checkpoint_callback = NeMoModelCheckpoint(**params)
     trainer.callbacks.append(checkpoint_callback)
-    trainer.checkpoint_callback = checkpoint_callback

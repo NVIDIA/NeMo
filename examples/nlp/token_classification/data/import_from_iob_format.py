@@ -28,9 +28,9 @@ def __convert_data(in_file: str, out_text_f: str, out_labels_f: str, max_length:
         in_file: input file name
         out_text_f: output file with text
         out_labels_f: output file with labels
-        max_length: use -1 to leave the examples' length as is, otherwise long examples will be splitted into multiple
+        max_length: use -1 to leave the examples' length as is, otherwise long examples will be split into multiple
             examples
-    After the conversion, the dataset is splitted into 2 files: text.txt
+    After the conversion, the dataset is split into 2 files: text.txt
     and labels.txt.
     Each line of the text.txt file contains text sequences, where words
     are separated with spaces. The labels.txt file contains corresponding
@@ -105,16 +105,14 @@ if __name__ == "__main__":
         default=-1,
         type=int,
         help='use -1 to leave the examples\'s length as is, '
-        'otherwise long examples will be splitted into '
-        'multiple examples',
+        'otherwise long examples will be split into multiple examples',
     )
     args = parser.parse_args()
 
-    data_dir = os.path.dirname(args.data_file)
-    basename = os.path.basename(args.data_file)
-    prefix, ext = os.path.splitext(basename)
+    data_dir, basename = os.path.split(args.data_file)
+    prefix = os.path.splitext(basename)[0]
     if not os.path.exists(args.data_file):
-        raise FileNotFoundError("{data_file} not found in {data_dir}")
+        raise FileNotFoundError(f"{args.data_file} not found")
 
     logging.info(f'Processing {args.data_file}')
     out_text = os.path.join(data_dir, 'text_' + prefix + '.txt')

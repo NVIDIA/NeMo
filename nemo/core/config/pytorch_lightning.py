@@ -37,7 +37,6 @@ class TrainerConfig:
 
     logger: Any = True
     checkpoint_callback: Any = True
-    early_stop_callback: Any = False
     callbacks: Optional[Any] = None
     default_root_dir: Optional[str] = None
     gradient_clip_val: float = 0
@@ -62,9 +61,9 @@ class TrainerConfig:
     limit_val_batches: Any = 1.0
     limit_test_batches: Any = 1.0
     val_check_interval: Any = 1.0
-    log_save_interval: int = 100
-    row_log_interval: int = 50
-    distributed_backend: Optional[str] = None
+    flush_logs_every_n_steps: int = 100
+    log_every_n_steps: int = 50
+    accelerator: Optional[str] = None
     sync_batchnorm: bool = False
     precision: int = 32
     weights_summary: Optional[str] = "full"  # ModelSummary.MODE_DEFAULT

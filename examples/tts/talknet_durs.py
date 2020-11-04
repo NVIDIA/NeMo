@@ -25,7 +25,7 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get('exp_manager', None))
     model = TalkNetDursModel(cfg=cfg.model, trainer=trainer)
-    lr_logger = pl.callbacks.LearningRateLogger()
+    lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
     trainer.fit(model)

@@ -16,7 +16,7 @@ from typing import List
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import TensorMetric
+from pytorch_lightning.metrics import Metric
 
 from nemo.utils import logging
 
@@ -59,7 +59,7 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
     return wer
 
 
-class WER(TensorMetric):
+class WER(Metric):
     """
     This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
     When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
@@ -94,14 +94,25 @@ class WER(TensorMetric):
         text word error rate, compute wer=wer_numerator/wer_denominator
     """
 
-    def __init__(self, vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True, log_prediction=True):
-        super(WER, self).__init__(name="WER")
+    def __init__(
+        self,
+        vocabulary,
+        batch_dim_index=0,
+        use_cer=False,
+        ctc_decode=True,
+        log_prediction=True,
+        dist_sync_on_step=False,
+    ):
+        super().__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
         self.batch_dim_index = batch_dim_index
         self.blank_id = len(vocabulary)
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
         self.use_cer = use_cer
         self.ctc_decode = ctc_decode
         self.log_prediction = log_prediction
+
+        self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
     def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
         """
@@ -124,7 +135,7 @@ class WER(TensorMetric):
             hypotheses.append(hypothesis)
         return hypotheses
 
-    def forward(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor) -> torch.Tensor:
+    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor) -> torch.Tensor:
         words = 0.0
         scores = 0.0
         references = []
@@ -147,7 +158,7 @@ class WER(TensorMetric):
         if self.log_prediction:
             logging.info(f"\n")
             logging.info(f"reference:{references[0]}")
-            logging.info(f"decoded  :{hypotheses[0]}")
+            logging.info(f"predicted:{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
             if self.use_cer:
@@ -159,4 +170,12 @@ class WER(TensorMetric):
             words += len(r_list)
             # Compute Levenstein's distance
             scores += editdistance.eval(h_list, r_list)
-        return torch.tensor([scores, words]).to(predictions.device)
+
+        self.scores = torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
+        self.words = torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
+        # return torch.tensor([scores, words]).to(predictions.device)
+
+    def compute(self):
+        scores = self.scores.detach().float()
+        words = self.words.detach().float()
+        return scores / words, scores, words

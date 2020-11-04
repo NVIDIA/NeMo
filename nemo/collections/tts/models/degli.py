@@ -126,10 +126,17 @@ class DegliModel(LinVocoder):
         self.loss_weight = nn.Parameter(torch.tensor([1.0 / i for i in range(len_weight, 0, -1)]), requires_grad=False)
         self.loss_weight /= self.loss_weight.sum()
 
-    def set_operation_mode(self, new_mode):
-        if not new_mode == OperationMode.training:
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, new_mode):
+        if new_mode == OperationMode.training:
+            self.train()
+        else:
             self.eval()
-        self.mode = new_mode
+        self._mode = new_mode
         self.degli.mode = new_mode
 
     @property
@@ -163,7 +170,7 @@ class DegliModel(LinVocoder):
         return tensors  # audio_pred
 
     def convert_linear_spectrogram_to_audio(self, spec: torch.Tensor, Ts=None, repeats: int = 32) -> torch.Tensor:
-        self.set_operation_mode(OperationMode.infer)
+        self.mode = OperationMode.infer
 
         batch_size = spec.shape[0]
         if len(spec.shape) == 3:
@@ -215,7 +222,7 @@ class DegliModel(LinVocoder):
         return loss
 
     def training_step(self, batch, batch_idx):
-        self.set_operation_mode(OperationMode.training)
+        self.mode = OperationMode.infer
 
         x, mag, max_length, y, T_ys, _, _ = batch
         output_loss, _, _ = self(x=x, mag=mag, max_length=max_length, repeats=self._cfg.train_params.repeat_training)
@@ -240,7 +247,7 @@ class DegliModel(LinVocoder):
         A validation step that also calculates the STOI/PESQ scores,
         and the scored for high repetition count (repeat_validation argument)
         """
-        self.set_operation_mode(OperationMode.validation)
+        self.mode = OperationMode.infer
         val_repeats = self._cfg.train_params.repeat_validation
 
         x, mag, max_length, y, T_ys, length, path_speech = batch

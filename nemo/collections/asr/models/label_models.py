@@ -18,6 +18,7 @@ import os
 import pickle as pkl
 from typing import Dict, List, Optional, Union
 
+import onnx
 import torch
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
@@ -28,23 +29,25 @@ from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
-from nemo.collections.common.metrics import TopKClassificationAccuracy, compute_topk_accuracy
+from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import *
 from nemo.utils import logging
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 
 
-class EncDecSpeakerLabelModel(ModelPT):
+class EncDecSpeakerLabelModel(ModelPT, Exportable):
     """Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
-    performing model forward pass. 
-    Expects config dict for 
+    performing model forward pass.
+    Expects config dict for
     * preprocessor
     * Jasper/Quartznet Encoder
-    * Speaker Decoder 
+    * Speaker Decoder
     """
 
     @classmethod
@@ -86,7 +89,7 @@ class EncDecSpeakerLabelModel(ModelPT):
             logging.info("Training with Softmax-CrossEntropy loss")
             self.loss = CELoss()
 
-        self._accuracy = TopKClassificationAccuracy(top_k=[1])
+        self._accuracy = TopKClassificationAccuracy(top_k=[1], dist_sync_on_step=True)
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -170,75 +173,92 @@ class EncDecSpeakerLabelModel(ModelPT):
     def training_step(self, batch, batch_idx):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        self.loss_value = self.loss(logits=logits, labels=labels)
+        loss = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {
-            'train_loss': self.loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+        self.log('loss', loss)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
-        correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
+        self._accuracy(logits=logits, labels=labels)
+        top_k = self._accuracy.compute()
+        for i, top_i in enumerate(top_k):
+            self.log(f'training_batch_accuracy_top@{i}', top_i)
 
-        for ki in range(correct_counts.shape[-1]):
-            correct_count = correct_counts[ki]
-            total_count = total_counts[ki]
-            top_k = self._accuracy.top_k[ki]
-            self.accuracy = (correct_count / float(total_count)) * 100
-
-            tensorboard_logs['training_batch_accuracy_top@{}'.format(top_k)] = self.accuracy
-
-        return {'loss': self.loss_value, 'log': tensorboard_logs}
+        return {'loss': loss}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        self.loss_value = self.loss(logits=logits, labels=labels)
-        correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
-        return {'val_loss': self.loss_value, 'val_correct_counts': correct_counts, 'val_total_counts': total_counts}
+        loss_value = self.loss(logits=logits, labels=labels)
+        acc_top_k = self._accuracy(logits=logits, labels=labels)
+        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+
+        return {
+            'val_loss': loss_value,
+            'val_correct_counts': correct_counts,
+            'val_total_counts': total_counts,
+            'val_acc_top_k': acc_top_k,
+        }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        self.val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        correct_counts = torch.stack([x['val_correct_counts'] for x in outputs])
-        total_counts = torch.stack([x['val_total_counts'] for x in outputs])
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        correct_counts = torch.stack([x['val_correct_counts'] for x in outputs]).sum(axis=0)
+        total_counts = torch.stack([x['val_total_counts'] for x in outputs]).sum(axis=0)
 
-        topk_scores = compute_topk_accuracy(correct_counts, total_counts)
-        logging.info("val_loss: {:.3f}".format(self.val_loss_mean))
-        tensorboard_log = {'val_loss': self.val_loss_mean}
+        self._accuracy.correct_counts_k = correct_counts
+        self._accuracy.total_counts_k = total_counts
+        topk_scores = self._accuracy.compute()
+
+        logging.info("val_loss: {:.3f}".format(val_loss_mean))
+        self.log('val_loss', val_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
-            self.accuracy = score * 100
+            self.log('val_epoch_accuracy_top@{}'.format(top_k), score)
 
-        return {'log': tensorboard_log}
+        return {
+            'val_loss': val_loss_mean,
+            'val_acc_top_k': topk_scores,
+        }
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        self.loss_value = self.loss(logits=logits, labels=labels)
-        correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
-        return {'test_loss': self.loss_value, 'test_correct_counts': correct_counts, 'test_total_counts': total_counts}
+        loss_value = self.loss(logits=logits, labels=labels)
+        acc_top_k = self._accuracy(logits=logits, labels=labels)
+        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+
+        return {
+            'test_loss': loss_value,
+            'test_correct_counts': correct_counts,
+            'test_total_counts': total_counts,
+            'test_acc_top_k': acc_top_k,
+        }
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        self.val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-        correct_counts = torch.stack([x['test_correct_counts'] for x in outputs])
-        total_counts = torch.stack([x['test_total_counts'] for x in outputs])
+        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        correct_counts = torch.stack([x['test_correct_counts'] for x in outputs]).sum(axis=0)
+        total_counts = torch.stack([x['test_total_counts'] for x in outputs]).sum(axis=0)
 
-        topk_scores = compute_topk_accuracy(correct_counts, total_counts)
-        logging.info("test_loss: {:.3f}".format(self.val_loss_mean))
-        tensorboard_log = {'test_loss': self.val_loss_mean}
+        self._accuracy.correct_counts_k = correct_counts
+        self._accuracy.total_counts_k = total_counts
+        topk_scores = self._accuracy.compute()
+
+        logging.info("test_loss: {:.3f}".format(test_loss_mean))
+        self.log('test_loss', test_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
-            self.accuracy = score * 100
+            self.log('test_epoch_accuracy_top@{}'.format(top_k), score)
 
-        return {'log': tensorboard_log}
+        return {
+            'test_loss': test_loss_mean,
+            'test_acc_top_k': topk_scores,
+        }
 
     def setup_finetune_model(self, model_config: DictConfig):
         """
         setup_finetune_model method sets up training data, validation data and test data with new
-        provided config, this checks for the previous labels set up during training from scratch, if None, 
+        provided config, this checks for the previous labels set up during training from scratch, if None,
         it sets up labels for provided finetune data from manifest files
 
         Args:
-        model_config: cfg which has train_ds, optional validation_ds, optional test_ds and 
+        model_config: cfg which has train_ds, optional validation_ds, optional test_ds and
         mandatory encoder and decoder model params
         make sure you set num_classes correctly for finetune data
 
@@ -260,8 +280,8 @@ class EncDecSpeakerLabelModel(ModelPT):
         if self.dataset.labels is None or len(self.dataset.labels) == 0:
             raise ValueError(f'New labels must be non-empty list of labels. But I got: {self.dataset.labels}')
 
-        if 'valid_ds' in model_config and model_config.valid_ds is not None:
-            self.setup_multiple_validation_data(model_config.valid_ds)
+        if 'validation_ds' in model_config and model_config.validation_ds is not None:
+            self.setup_multiple_validation_data(model_config.validation_ds)
 
         if 'test_ds' in model_config and model_config.test_ds is not None:
             self.setup_multiple_test_data(model_config.test_ds)
@@ -291,6 +311,61 @@ class EncDecSpeakerLabelModel(ModelPT):
             self._cfg.decoder = new_decoder_config
 
         logging.info(f"Changed decoder output to # {self.decoder._num_classes} classes.")
+
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+    ):
+        if input_example is not None or output_example is not None:
+            logging.warning(
+                "Passed input and output examples will be ignored and recomputed since"
+                " EncDecSpeakerModel consists of two separate models (encoder and decoder) with different"
+                " inputs and outputs."
+            )
+
+        encoder_onnx = self.encoder.export(
+            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        decoder_onnx = self.decoder.export(
+            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "SL")
+        onnx.save(output_model, output)
 
 
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):

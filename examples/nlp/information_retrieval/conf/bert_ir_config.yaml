@@ -8,8 +8,8 @@ trainer:
   accumulate_grad_batches: 1 # accumulates grads every k batches
   precision: 16 # 16 to use AMP
   amp_level: O1 # O1 or O2 if using AMP
-  distributed_backend: ddp
-  row_log_interval: 1  # Interval of logging.
+  accelerator: ddp
+  log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 0.05  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   checkpoint_callback: false  # provided by exp_manager
   logger: false  # provided by exp_manager
@@ -36,7 +36,7 @@ model:
     config_file: null # json file, precedence over config
 
   tokenizer:
-    tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec 
+    tokenizer_name: ${model.language_model.pretrained_model_name} # tokenizer that inherits from TokenizerSpec
     vocab_file: null # path to vocab file
     tokenizer_model: null # tokenizer model for sentencepiece
     special_tokens: null

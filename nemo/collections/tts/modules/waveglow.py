@@ -11,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from enum import Enum
-
 import torch
 
-from nemo.collections.tts.helpers.helpers import remove
+from nemo.collections.tts.helpers.helpers import OperationMode, remove
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
@@ -26,14 +24,6 @@ from nemo.core.neural_types.elements import (
     VoidType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-
-
-class OperationMode(Enum):
-    """Training or Inference (Evaluation) mode"""
-
-    training = 0
-    validation = 1
-    infer = 2
 
 
 class WaveGlowModule(NeuralModule, Exportable):
@@ -229,12 +219,3 @@ class WaveGlowModule(NeuralModule, Exportable):
             wavenet.in_layers = remove(wavenet.in_layers)
             wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
             wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
-
-    def save_to(self, save_path: str):
-        # TODO: Implement me!
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        # TODO: Implement me!
-        pass

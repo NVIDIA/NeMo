@@ -11,28 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from enum import Enum
 
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.tts.helpers.helpers import remove
+from nemo.collections.tts.helpers.helpers import OperationMode, remove
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, NormalDistributionSamplesType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import experimental
 
 
-class OperationMode(Enum):
-    """Training or Inference (Evaluation) mode"""
-
-    training = 0
-    validation = 1
-    infer = 2
-
-
-@experimental  # TODO: Implement save_to() and restore_from()
 class UniGlowModule(NeuralModule, Exportable):
     def __init__(
         self,
@@ -66,6 +55,7 @@ class UniGlowModule(NeuralModule, Exportable):
         self.conv = Invertible1x1Conv(n_group)
         self.wn = WaveNet(n_half, n_mel_channels, n_wn_layers, n_wn_channels, wn_kernel_size)
         self.upsample_factor = upsample_factor
+        self.mode = OperationMode.infer
 
     @typecheck()
     def forward(self, spec, audio=None, sigma=1.0):

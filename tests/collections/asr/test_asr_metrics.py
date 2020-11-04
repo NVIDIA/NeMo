@@ -80,16 +80,15 @@ class TestWordErrorRate:
         return torch.Tensor(string_in_id_form).unsqueeze(0)
 
     def get_wer(self, wer, prediction: str, reference: str):
-        res = (
-            wer(
-                predictions=self.__string_to_ctc_tensor(prediction),
-                targets=self.__reference_string_to_tensor(reference),
-                target_lengths=torch.tensor([len(reference)]),
-            )
-            .detach()
-            .cpu()
+        wer(
+            predictions=self.__string_to_ctc_tensor(prediction),
+            targets=self.__reference_string_to_tensor(reference),
+            target_lengths=torch.tensor([len(reference)]),
         )
-        return res[0] / res[1]
+        res, _, _ = wer.compute()
+        res = res.detach().cpu()
+        # return res[0] / res[1]
+        return res.item()
 
     @pytest.mark.unit
     def test_wer_function(self):
@@ -109,7 +108,7 @@ class TestWordErrorRate:
         assert self.get_wer(wer, 'g p u', 'gpu') == 3.0
         assert self.get_wer(wer, 'ducati motorcycle', 'motorcycle') == 1.0
         assert self.get_wer(wer, 'ducati motorcycle', 'ducuti motorcycle') == 0.5
-        assert self.get_wer(wer, 'a f c', 'a b c') == 1.0 / 3.0
+        assert abs(self.get_wer(wer, 'a f c', 'a b c') - 1.0 / 3.0) < 1e-6
 
     @pytest.mark.unit
     def test_wer_metric_randomized(self):
@@ -125,5 +124,12 @@ class TestWordErrorRate:
             n2 = random.randint(1, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
-            # Floating-point math doesn't seem to be an issue here. Leaving as ==
-            assert self.get_wer(wer, prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
+            # skip empty strings as reference
+            if s2.strip():
+                assert (
+                    abs(
+                        self.get_wer(wer, prediction=s1, reference=s2)
+                        - word_error_rate(hypotheses=[s1], references=[s2])
+                    )
+                    < 1e-6
+                )

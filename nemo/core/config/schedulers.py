@@ -81,6 +81,16 @@ class CosineAnnealingParams(WarmupSchedulerParams):
 
 
 @dataclass
+class NoamAnnealingParams(WarmupSchedulerParams):
+    """
+    Cosine Annealing parameter config
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+    """
+
+    min_lr: float = 0.0
+
+
+@dataclass
 class WarmupAnnealingParams(WarmupSchedulerParams):
     """
     Warmup Annealing parameter config
@@ -233,6 +243,7 @@ AVAILABLE_SCHEDULER_PARAMS = {
     'SquareRootAnnealingParams': SquareRootAnnealingParams,
     'InverseSquareRootAnnealingParams': InverseSquareRootAnnealingParams,
     'CosineAnnealingParams': CosineAnnealingParams,
+    'NoamAnnealingParams': NoamAnnealingParams,
     'WarmupAnnealingParams': WarmupAnnealingParams,
     'PolynomialDecayAnnealingParams': PolynomialDecayAnnealingParams,
     'PolynomialHoldDecayAnnealingParams': PolynomialHoldDecayAnnealingParams,
