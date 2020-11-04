@@ -91,7 +91,7 @@ class BertPretrainingTokenClassifier(Classifier):
         """
         Returns definitions of module output ports.
         """
-        if self.log_softmax == False:
+        if not self.log_softmax:
             return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
         else:
             return {"log_probs": NeuralType(('B', 'T', 'C'), LogprobsType())}

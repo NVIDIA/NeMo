@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.core.neural_types.elements import LogprobsType
 from typing import Dict, Optional
 
 from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.collections.nlp.modules.common.classifier import Classifier
 from nemo.core.classes import typecheck
-from nemo.core.neural_types import LogitsType, NeuralType
+from nemo.core.neural_types import LogitsType, LogprobsType, NeuralType
 
 __all__ = ['SequenceClassifier']
 
@@ -25,7 +26,10 @@ __all__ = ['SequenceClassifier']
 class SequenceClassifier(Classifier):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"logits": NeuralType(('B', 'D'), LogitsType())}
+        if not self.log_softmax:
+            return {"logits": NeuralType(('B', 'D'), LogitsType())}
+        else:
+            return {"log_probs": NeuralType(('B', 'D'), LogprobsType())}
 
     def __init__(
         self,
