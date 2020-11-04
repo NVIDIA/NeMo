@@ -15,6 +15,7 @@
 import os
 from typing import Dict, List, Optional, Union
 
+import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -34,13 +35,15 @@ from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['TokenClassificationModel']
 
 
-class TokenClassificationModel(NLPModel):
+class TokenClassificationModel(NLPModel, Exportable):
     """Token Classification Model with BERT, applicable for tasks such as Named Entity Recognition"""
 
     @property
@@ -488,3 +491,61 @@ class TokenClassificationModel(NLPModel):
         )
         result.append(model)
         return result
+
+    def _prepare_for_export(self):
+        return self.bert_model._prepare_for_export()
+
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+    ):
+        if input_example is not None or output_example is not None:
+            logging.warning(
+                "Passed input and output examples will be ignored and recomputed since"
+                " TokenClassificationModel consists of two separate models with different"
+                " inputs and outputs."
+            )
+
+        bert_model_onnx = self.bert_model.export(
+            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        classifier_onnx = self.classifier.export(
+            os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output)),
+            None,  # computed by input_example()
+            None,
+            verbose,
+            export_params,
+            do_constant_folding,
+            keep_initializers_as_inputs,
+            onnx_opset_version,
+            try_script,
+            set_eval,
+            check_trace,
+            use_dynamic_axes,
+        )
+
+        output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "TKCL")
+        onnx.save(output_model, output)

@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Union
 
 import onnx
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
@@ -99,8 +99,31 @@ class EncDecCTCModel(ASRModel, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
+
+        with open_dict(self._cfg):
+            if "params" in self._cfg.decoder:
+                if "feat_in" not in self._cfg.decoder.params or (
+                    not self._cfg.decoder.params.feat_in and hasattr(self.encoder, '_feat_out')
+                ):
+                    self._cfg.decoder.params.feat_in = self.encoder._feat_out
+                if "feat_in" not in self._cfg.decoder.params or not self._cfg.decoder.params.feat_in:
+                    raise ValueError("param feat_in of the decoder's config is not set!")
+            else:
+                if "feat_in" not in self._cfg.decoder or (
+                    not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+                ):
+                    self._cfg.decoder.feat_in = self.encoder._feat_out
+                if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
+                    raise ValueError("param feat_in of the decoder's config is not set!")
+
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
+
+        self.loss = CTCLoss(
+            num_classes=self.decoder.num_classes_with_blank - 1,
+            zero_infinity=True,
+            reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+        )
+
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
@@ -110,9 +133,10 @@ class EncDecCTCModel(ASRModel, Exportable):
         self._wer = WER(
             vocabulary=self.decoder.vocabulary,
             batch_dim_index=0,
-            use_cer=False,
+            use_cer=self._cfg.get('use_cer', False),
             ctc_decode=True,
             dist_sync_on_step=True,
+            log_prediction=self._cfg.get("log_prediction", False),
         )
 
     @torch.no_grad()
@@ -196,18 +220,23 @@ class EncDecCTCModel(ASRModel, Exportable):
                 raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
-            new_decoder_config['params']['vocabulary'] = new_vocabulary
-            new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            new_decoder_config['vocabulary'] = new_vocabulary
+            new_decoder_config['num_classes'] = len(new_vocabulary)
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             del self.loss
-            self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
+            self.loss = CTCLoss(
+                num_classes=self.decoder.num_classes_with_blank - 1,
+                zero_infinity=True,
+                reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            )
             self._wer = WER(
                 vocabulary=self.decoder.vocabulary,
                 batch_dim_index=0,
-                use_cer=False,
+                use_cer=self._cfg.get('use_cer', False),
                 ctc_decode=True,
                 dist_sync_on_step=True,
+                log_prediction=self._cfg.get("log_prediction", False),
             )
 
             # Update config

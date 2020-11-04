@@ -32,6 +32,7 @@ from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.core.config.schedulers import (
     CosineAnnealingParams,
     InverseSquareRootAnnealingParams,
+    NoamAnnealingParams,
     PolynomialDecayAnnealingParams,
     PolynomialHoldDecayAnnealingParams,
     SchedulerParams,
