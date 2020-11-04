@@ -41,8 +41,7 @@ _MODEL_WEIGHTS = "model_weights.ckpt"
 
 try:
     # Try to import strategies for .nemo archive.
-    from eff.strategy.nemo_archive import save_to as eff_save_to
-    from eff.strategy.nemo_archive import restore_from as eff_restore_from
+    from eff.archives import NeMoArchive
 
     _EFF_PRESENT_ = True
 except ImportError:
@@ -202,7 +201,7 @@ class ModelPT(LightningModule, Model):
             torch.save(self.state_dict(), model_weights)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
-    def _eff_save_to(self, save_path: str, encryption_key: str = None):
+    def _eff_save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into an EFF archive.
 
@@ -217,9 +216,8 @@ class ModelPT(LightningModule, Model):
 
         Args:
             save_path: Path to archive file where model instance should be saved.
-            encryption_key: key to encrypt/decrypt model checkpoint (optional, DEFAULT: None)
         """
-        eff_save_to(self, save_path, encryption_key)
+        NeMoArchive.save_to(self, save_path)
 
     @rank_zero_only
     def save_to(self, save_path: str):
@@ -320,7 +318,6 @@ class ModelPT(LightningModule, Model):
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
-        encryption_key: str = None,
     ):
         """
         Restores model instance (weights and configuration) from EFF Archive.
@@ -332,12 +329,11 @@ class ModelPT(LightningModule, Model):
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
-            encryption_key: key to encrypt/decrypt model checkpoint (optional, DEFAULT: None)
 
         Returns:
             An instance of type cls
         """
-        return eff_restore_from(cls, restore_path, override_config_path, map_location, strict, encryption_key)
+        return NeMoArchive.restore_from(cls, restore_path, override_config_path, map_location, strict)
 
     @classmethod
     def restore_from(
