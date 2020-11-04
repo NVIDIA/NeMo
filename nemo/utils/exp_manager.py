@@ -576,6 +576,6 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
         )
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
-    trainer.callback_connector.init_default_checkpoint_callback(checkpoint_callback)
+    trainer.callback_connector.configure_checkpoint_callbacks(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
-    trainer.checkpoint_callback = checkpoint_callback
+    trainer._checkpoint_callback = checkpoint_callback
