@@ -121,6 +121,8 @@ class BertPretrainingTokenClassifier(Classifier):
         """
         super().__init__(hidden_size=hidden_size, dropout=dropout)
 
+        self.log_softmax = log_softmax
+
         if activation not in ACT2FN:
             raise ValueError(f'activation "{activation}" not found')
         self.dense = nn.Linear(hidden_size, hidden_size)

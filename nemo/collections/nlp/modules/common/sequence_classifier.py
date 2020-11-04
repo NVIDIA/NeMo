@@ -55,6 +55,7 @@ class SequenceClassifier(Classifier):
             idx_conditioned_on: index of the token to use as the sequence representation for the classification task, default is the first token
         """
         super().__init__(hidden_size=hidden_size, dropout=dropout)
+        self.log_softmax = log_softmax
         self._idx_conditioned_on = idx_conditioned_on
         self.mlp = MultiLayerPerceptron(
             hidden_size=hidden_size,
