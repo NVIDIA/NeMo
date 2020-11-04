@@ -19,7 +19,7 @@ from torch import nn as nn
 from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.collections.nlp.modules.common.classifier import Classifier
 from nemo.core.classes import typecheck
-from nemo.core.neural_types import LogitsType, NeuralType
+from nemo.core.neural_types import LogitsType, LogprobsType, NeuralType
 
 __all__ = ['BertPretrainingTokenClassifier', 'TokenClassifier']
 
@@ -91,7 +91,10 @@ class BertPretrainingTokenClassifier(Classifier):
         """
         Returns definitions of module output ports.
         """
-        return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        if self.log_softmax == False:
+            return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        else:
+            return {"log_probs": NeuralType(('B', 'T', 'C'), LogprobsType())}
 
     def __init__(
         self,
