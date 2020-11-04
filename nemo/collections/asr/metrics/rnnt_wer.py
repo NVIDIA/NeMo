@@ -81,7 +81,7 @@ class AbstractRNNTDecoding(ABC):
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
         if self.cfg.strategy not in possible_strategies:
-            raise ValueError(f"Decodin strategy must be one of {possible_strategies}")
+            raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
         if self.cfg.strategy == 'greedy':
             self.decoding = greedy_decode.GreedyRNNTInfer(
@@ -380,7 +380,7 @@ class RNNTWER(Metric):
                 h_list = h.split()
                 r_list = r.split()
             words += len(r_list)
-            # Compute Levenstein's distance
+            # Compute Levenshtein's distance
             scores += editdistance.eval(h_list, r_list)
 
         self.scores += torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)

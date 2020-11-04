@@ -187,7 +187,7 @@ class RNNTBPEWER(Metric):
                 h_list = h.split()
                 r_list = r.split()
             words += len(r_list)
-            # Compute Levenstein's distance
+            # Compute Levenshtein's distance
             scores += editdistance.eval(h_list, r_list)
 
         del hypotheses
