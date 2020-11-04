@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 
-__all__ = ['TransformerLMModel']
+__all__ = ["TransformerLMModel"]
 
 
 class TransformerLMModel(ModelPT):
@@ -109,10 +109,13 @@ class TransformerLMModel(ModelPT):
         input_ids, input_mask, labels = batch
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        train_loss = self.training_loss(logits=log_probs, labels=labels)
+        train_loss = self.training_loss(log_probs=log_probs, labels=labels)
 
-        tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        return {'loss': train_loss, 'log': tensorboard_logs}
+        tensorboard_logs = {
+            "train_loss": train_loss,
+            "lr": self._optimizer.param_groups[0]["lr"],
+        }
+        return {"loss": train_loss, "log": tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
         """
@@ -122,13 +125,13 @@ class TransformerLMModel(ModelPT):
         input_ids, input_mask, labels = batch
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        val_loss = self.validation_loss(logits=log_probs, labels=labels)
+        val_loss = self.validation_loss(log_probs=log_probs, labels=labels)
 
         tensorboard_logs = {
-            'val_loss': val_loss,
+            "val_loss": val_loss,
         }
 
-        return {'val_loss': val_loss, 'log': tensorboard_logs}
+        return {"val_loss": val_loss, "log": tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """
@@ -136,9 +139,9 @@ class TransformerLMModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
 
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss, 'val_ppl': torch.exp(avg_loss)}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
+        tensorboard_logs = {"val_loss": avg_loss, "val_ppl": torch.exp(avg_loss)}
+        return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)

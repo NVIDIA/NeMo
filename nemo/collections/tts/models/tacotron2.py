@@ -19,6 +19,7 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from omegaconf.errors import ConfigAttributeError
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from torch import nn
 
 from nemo.collections.asr.parts import parsers
@@ -58,7 +59,6 @@ class Tacotron2Config:
 class Tacotron2Model(SpectrogramGenerator):
     """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
-    # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
@@ -259,22 +259,23 @@ class Tacotron2Model(SpectrogramGenerator):
 
     def validation_epoch_end(self, outputs):
         if self.logger is not None and self.logger.experiment is not None:
+            tb_logger = self.logger.experiment
+            if isinstance(self.logger, LoggerCollection):
+                for logger in self.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
             tacotron2_log_to_tb_func(
-                self.logger.experiment,
-                outputs[0].values(),
-                self.global_step,
-                tag="val",
-                log_images=True,
-                add_audio=False,
+                tb_logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
             )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         self.log('val_loss', avg_loss)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
-            raise ValueError(f"No dataset for {name}")  # TODO
+            raise ValueError(f"No dataset for {name}")
         if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
-            raise ValueError(f"No dataloder_params for {name}")  # TODO
+            raise ValueError(f"No dataloder_params for {name}")
         if shuffle_should_be:
             if 'shuffle' not in cfg.dataloader_params:
                 logging.warning(
