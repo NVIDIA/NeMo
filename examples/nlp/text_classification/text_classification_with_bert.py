@@ -134,14 +134,14 @@ def main(cfg: DictConfig) -> None:
         logging.info("===========================================================================================")
 
     # perform inference on a list of queries.
-    if "infer_queries" in cfg.model and cfg.model.infer_queries:
+    if "infer_samples" in cfg.model and cfg.model.infer_samples:
         logging.info("===========================================================================================")
         logging.info("Starting the inference on some sample queries...")
 
         # max_seq_length=512 is the maximum length BERT supports.
-        results = model.classifytext(queries=cfg.model.infer_queries, batch_size=16, max_seq_length=512)
+        results = model.classifytext(queries=cfg.model.infer_samples, batch_size=16, max_seq_length=512)
         logging.info('The prediction results of some sample queries with the trained model:')
-        for query, result in zip(cfg.model.infer_queries, results):
+        for query, result in zip(cfg.model.infer_samples, results):
             logging.info(f'Query : {query}')
             logging.info(f'Predicted label: {result}')
 
