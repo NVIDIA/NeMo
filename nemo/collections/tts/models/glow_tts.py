@@ -20,6 +20,7 @@ import torch.utils.data
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -171,34 +172,40 @@ class GlowTTSModel(SpectrogramGenerator):
             'val_logdet': avg_logdet,
         }
         if self.logger is not None and self.logger.experiment is not None:
+            tb_logger = self.logger.experiment
+            if isinstance(self.logger, LoggerCollection):
+                for logger in self.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
             separated_phonemes = "|".join([self.parser.symbols[c] for c in outputs[0]['x'][0]])
-            self.logger.experiment.add_text("separated phonemes", separated_phonemes, self.global_step)
-            self.logger.experiment.add_image(
+            tb_logger.add_text("separated phonemes", separated_phonemes, self.global_step)
+            tb_logger.add_image(
                 "real_spectrogram",
                 plot_spectrogram_to_numpy(outputs[0]['y'][0].data.cpu().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            self.logger.experiment.add_image(
+            tb_logger.add_image(
                 "generated_spectrogram",
                 plot_spectrogram_to_numpy(outputs[0]['y_gen'][0].data.cpu().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            self.logger.experiment.add_image(
+            tb_logger.add_image(
                 "alignment_for_real_sp",
                 plot_alignment_to_numpy(outputs[0]['attn'][0].data.cpu().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            self.logger.experiment.add_image(
+            tb_logger.add_image(
                 "alignment_for_generated_sp",
                 plot_alignment_to_numpy(outputs[0]['attn_gen'][0].data.cpu().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            log_audio_to_tb(self.logger.experiment, outputs[0]['y'][0], "true_audio_gf", self.global_step)
-            log_audio_to_tb(self.logger.experiment, outputs[0]['y_gen'][0], "generated_audio_gf", self.global_step)
+            log_audio_to_tb(tb_logger, outputs[0]['y'][0], "true_audio_gf", self.global_step)
+            log_audio_to_tb(tb_logger, outputs[0]['y_gen'][0], "generated_audio_gf", self.global_step)
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):

@@ -84,7 +84,6 @@ model:
     num_fc_layers: 2
     fc_dropout: 0.5
     activation: 'relu'
-    log_softmax: True
     use_transformer_init: True
 
   optim:
