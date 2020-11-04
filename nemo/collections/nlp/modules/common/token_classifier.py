@@ -19,7 +19,7 @@ from torch import nn as nn
 from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.collections.nlp.modules.common.classifier import Classifier
 from nemo.core.classes import typecheck
-from nemo.core.neural_types import LogitsType, NeuralType
+from nemo.core.neural_types import LogitsType, LogprobsType, NeuralType
 
 __all__ = ['BertPretrainingTokenClassifier', 'TokenClassifier']
 
@@ -36,7 +36,10 @@ class TokenClassifier(Classifier):
         """
         Returns definitions of module output ports.
         """
-        return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        if not self.log_softmax:
+            return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        else:
+            return {"log_probs": NeuralType(('B', 'T', 'C'), LogprobsType())}
 
     def __init__(
         self,
@@ -62,6 +65,7 @@ class TokenClassifier(Classifier):
             use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
         super().__init__(hidden_size=hidden_size, dropout=dropout)
+        self.log_softmax = log_softmax
         self.mlp = MultiLayerPerceptron(
             hidden_size, num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax
         )
@@ -91,7 +95,10 @@ class BertPretrainingTokenClassifier(Classifier):
         """
         Returns definitions of module output ports.
         """
-        return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        if not self.log_softmax:
+            return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        else:
+            return {"log_probs": NeuralType(('B', 'T', 'C'), LogprobsType())}
 
     def __init__(
         self,
@@ -117,6 +124,8 @@ class BertPretrainingTokenClassifier(Classifier):
             use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
         super().__init__(hidden_size=hidden_size, dropout=dropout)
+
+        self.log_softmax = log_softmax
 
         if activation not in ACT2FN:
             raise ValueError(f'activation "{activation}" not found')
