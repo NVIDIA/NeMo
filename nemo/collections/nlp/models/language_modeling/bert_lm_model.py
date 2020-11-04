@@ -134,15 +134,13 @@ class BERTLMModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        mlm_log_probs, nsp_logits = self.forward(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,
-        )
-        mlm_loss = self.mlm_loss(log_probs=mlm_log_probs, labels=output_ids, output_mask=output_mask)
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+        mlm_loss = self.mlm_loss(log_probs=logits[0], labels=output_ids, output_mask=output_mask)
 
         if self.only_mlm_loss:
             loss = mlm_loss
         else:
-            nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
+            nsp_loss = self.nsp_loss(logits=logits[1], labels=labels)
 
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
 
@@ -155,16 +153,14 @@ class BERTLMModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        mlm_log_probs, nsp_logits = self.forward(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,
-        )
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
 
-        mlm_loss = self.mlm_loss(log_probs=mlm_log_probs, labels=output_ids, output_mask=output_mask)
+        mlm_loss = self.mlm_loss(log_probs=logits[0], labels=output_ids, output_mask=output_mask)
 
         if self.only_mlm_loss:
             loss = mlm_loss
         else:
-            nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
+            nsp_loss = self.nsp_loss(logits=logits[1], labels=labels)
 
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
         perplexity = self.perplexity_metric(mlm_loss)
