@@ -122,7 +122,7 @@ class BERTLMModel(ModelPT):
         )
         mlm_log_probs = self.mlm_classifier(hidden_states=hidden_states)
         if self.only_mlm_loss:
-            return (mlm_log_probs,)
+            return mlm_log_probs, None
 
         nsp_logits = self.nsp_classifier(hidden_states=hidden_states)
         return mlm_log_probs, nsp_logits
