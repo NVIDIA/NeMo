@@ -134,24 +134,19 @@ def main(cfg: DictConfig) -> None:
         logging.info("===========================================================================================")
 
     # perform inference on a list of queries.
-    logging.info("===========================================================================================")
-    logging.info("Starting the inference on some sample queries...")
-    queries = [
-        'by the end of no such thing the audience , like beatrice , has a watchful affection for the monster .',
-        'director rob marshall went out gunning to make a great one .',
-        'uneasy mishmash of styles and genres .',
-    ]
+    if "infer_queries" in cfg.model and cfg.model.infer_queries:
+        logging.info("===========================================================================================")
+        logging.info("Starting the inference on some sample queries...")
 
-    # max_seq_length=512 is the maximum length BERT supports.
-    results = model.classifytext(queries=queries, batch_size=16, max_seq_length=512)
+        # max_seq_length=512 is the maximum length BERT supports.
+        results = model.classifytext(queries=cfg.model.infer_queries, batch_size=16, max_seq_length=512)
+        logging.info('The prediction results of some sample queries with the trained model:')
+        for query, result in zip(cfg.model.infer_queries, results):
+            logging.info(f'Query : {query}')
+            logging.info(f'Predicted label: {result}')
 
-    logging.info('The prediction results of some sample queries with the trained model:')
-    for query, result in zip(queries, results):
-        logging.info(f'Query : {query}')
-        logging.info(f'Predicted label: {result}')
-
-    logging.info("Inference finished!")
-    logging.info("===========================================================================================")
+        logging.info("Inference finished!")
+        logging.info("===========================================================================================")
 
 
 if __name__ == '__main__':
