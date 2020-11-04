@@ -59,6 +59,7 @@ class NLPModel(ModelPT):
             app_state.data_parallel_rank = torch.distributed.get_rank(group=app_state.data_parallel_group)
             logging.info(f'mp_rank: {app_state.model_parallel_rank}')
             logging.info(f'dp_rank: {app_state.data_parallel_rank}')
+            logging.info(f'global_rank: {self._trainer.global_rank}')
 
     def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
         """ Override LightningModule ddp if using model parallel.
@@ -91,7 +92,7 @@ class NLPModel(ModelPT):
 
     def setup(self, stage: str) -> None:
         """ PTL hook that is called after DDP is initialized.
-            Called at the beginning of fit and test. 
+            Called at the beginning of fit and test.
 
         Args:
             stage (str): either 'fit' or 'test'

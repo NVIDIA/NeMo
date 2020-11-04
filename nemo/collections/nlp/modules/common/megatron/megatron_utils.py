@@ -88,6 +88,7 @@ def get_megatron_lm_model(
     config_dict: Optional[dict] = None,
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
+    trainer=None,
 ) -> Tuple[MegatronBertEncoder, str]:
     """
     Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
@@ -135,21 +136,23 @@ def get_megatron_lm_model(
     vocab = get_megatron_vocab_file(pretrained_model_name)
 
     # if checkpoint path is a directory, then we automatically compute model parallel size
+    # TODO: This is a hack. There is no option to start from random weights
     if os.path.isdir(checkpoint_file):
         model_parallel_size = len(os.listdir(checkpoint_file))
         AppState.model_parallel_size = model_parallel_size
         logging.info(
-            (
-                f'restore_path: {checkpoint_file} is a directory. '
-                f'Assuming megatron model parallelism with '
-                f'model_parallel_size: {model_parallel_size}'
-            )
+            f'restore_path: {checkpoint_file} is a directory. Assuming megatron model parallelism with '
+            f'model_parallel_size: {model_parallel_size}'
         )
     else:
         model_parallel_size = None
 
     model = MegatronBertEncoder(
-        model_name=pretrained_model_name, config=config, vocab_file=vocab, model_parallel_size=model_parallel_size
+        model_name=pretrained_model_name,
+        config=config,
+        vocab_file=vocab,
+        model_parallel_size=model_parallel_size,
+        trainer=trainer,
     )
 
     return model, checkpoint_file
@@ -259,12 +262,12 @@ def is_lower_cased_megatron(pretrained_model_name):
 
 def get_megatron_tokenizer(pretrained_model_name: str):
     """
-    Takes a pretrained_model_name for megatron such as "megatron-bert-cased" and returns the according 
+    Takes a pretrained_model_name for megatron such as "megatron-bert-cased" and returns the according
     tokenizer name for tokenizer instantiating.
 
     Args:
         pretrained_model_name: pretrained_model_name for megatron such as "megatron-bert-cased"
-    Returns: 
+    Returns:
         tokenizer name for tokenizer instantiating
     """
     _check_megatron_name(pretrained_model_name)

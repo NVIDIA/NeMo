@@ -204,10 +204,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.wandb_logger_kwargs,
         )
 
-    if is_global_rank_zero():
-        if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
+    if cfg.create_checkpoint_callback:
+        configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
 
+    if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
             for _file in cfg.files_to_copy:
@@ -540,7 +540,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + '.nemo'))
+        Path(self.dirpath).mkdir(parents=True, exist_ok=True)
+        pl_module.save_to(save_path=Path(self.dirpath, self.prefix + '.nemo'))
 
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict):

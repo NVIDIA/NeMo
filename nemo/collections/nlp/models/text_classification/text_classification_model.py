@@ -64,6 +64,7 @@ class TextClassificationModel(NLPModel, Exportable):
             config_file=cfg.language_model.config_file,
             config_dict=cfg.language_model.config,
             checkpoint_file=cfg.language_model.lm_checkpoint,
+            trainer=trainer,
         )
 
         self.classifier = SequenceClassifier(
