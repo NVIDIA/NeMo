@@ -189,12 +189,12 @@ class MegatronBertEncoder(BertModule):
             # Could also use appstate
             if torch.distributed.get_rank(group=get_data_parallel_group()) == 0:
                 filepath = Path(filepath)
+                # Since apparently torch.distributed.get_rank(group=get_model_parallel_group()) != get_model_parallel_rank()
                 filepath = Path(
                     filepath.parent,
                     f"mp_rank_{torch.distributed.get_rank(group=get_model_parallel_group())}",
                     filepath.name,
                 )
-                # Since apparently torch.distributed.get_rank(group=get_model_parallel_group()) != get_model_parallel_rank()
                 logging.debug(f"Saving model to {filepath}")
                 with patch_global_zero(self_.trainer):
                     self_._save_checkpoint(filepath, weights_only)
@@ -203,11 +203,3 @@ class MegatronBertEncoder(BertModule):
         self._trainer.checkpoint_connector.save_checkpoint = partial(
             megatron_save_checkpoint, self._trainer.checkpoint_connector
         )
-        checkpoint_callback = None
-        for checkpoint in self._trainer.callbacks:
-            if isinstance(checkpoint, ModelCheckpoint):
-                checkpoint_callback = checkpoint
-                break
-        if checkpoint_callback is None:
-            logging.debug("There were no checkpoint callbacks?")
-            return
