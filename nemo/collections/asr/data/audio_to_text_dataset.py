@@ -77,6 +77,7 @@ def get_bpe_dataset(
         trim=config.get('trim_silence', True),
         load_audio=config.get('load_audio', True),
         add_misc=config.get('add_misc', False),
+        use_start_end_token=config.get('use_start_end_token', True),
     )
     return dataset
 
@@ -157,6 +158,7 @@ def get_tarred_bpe_dataset(
         max_utts=config.get('max_utts', 0),
         trim=config.get('trim_silence', True),
         add_misc=config.get('add_misc', False),
+        use_start_end_token=config.get('use_start_end_token', True),
         global_rank=global_rank,
         world_size=world_size,
     )
