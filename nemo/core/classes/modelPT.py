@@ -739,22 +739,13 @@ class ModelPT(LightningModule, Model):
         if self._train_dl is not None:
             return self._train_dl
 
-    def training_step(self, batch, batch_ix):
-        pass
-
     def val_dataloader(self):
         if self._validation_dl is not None:
             return self._validation_dl
 
-    def validation_step(self, batch, batch_ix):
-        return {}
-
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
-
-    def test_step(self, batch, batch_ix):
-        return {}
 
     def validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
