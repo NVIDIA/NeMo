@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-During inference, we performed frame-level prediction by two approaches: 
+During inference, we perform frame-level prediction by two approaches: 
     1) shift the window by 10ms to generate the frame and use the prediction of the window to represent the label for the frame;
        [this script demonstrate how to do this approach]
     2) generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
@@ -31,11 +31,9 @@ import json
 import os
 from argparse import ArgumentParser
 
-import numpy as np
 import torch
 
 from nemo.collections.asr.models import EncDecClassificationModel
-from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy, compute_topk_accuracy
 from nemo.utils import logging
 
 try:

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import glob
 import json
 import logging
 import os
@@ -133,7 +132,6 @@ def main():
 
     print("Start processing...")
     p = Pool(processes=18)
-    args_func = dict()
     args_func = {
         'output_path': output_path,
         'label': 'infer',
