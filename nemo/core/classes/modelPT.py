@@ -35,8 +35,13 @@ from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
+# Need to set them before EFF import as it is using them.
+_MODEL_CONFIG_YAML = "model_config.yaml"
+_MODEL_WEIGHTS = "model_weights.ckpt"
+
 try:
-    from eff import Archive, Runtimes, Origins, __format_version__
+    # Try to import strategies for .nemo archive.
+    from eff.archives import NeMoArchive
 
     _EFF_PRESENT_ = True
 except ImportError:
@@ -45,8 +50,6 @@ except ImportError:
 
 __all__ = ['ModelPT']
 
-_MODEL_CONFIG_YAML = "model_config.yaml"
-_MODEL_WEIGHTS = "model_weights.ckpt"
 _MODEL_IS_RESTORED = False
 _MODEL_EFF_SAVE = True
 
@@ -103,7 +106,7 @@ class ModelPT(LightningModule, Model):
             app_state = AppState()
             app_state.device_id = torch.cuda.current_device()
 
-        if self._cfg is not None and not self.__is_model_being_restored():
+        if self._cfg is not None and not self._is_model_being_restored():
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 self.setup_training_data(self._cfg.train_ds)
 
@@ -198,53 +201,23 @@ class ModelPT(LightningModule, Model):
             torch.save(self.state_dict(), model_weights)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
-    def _eff_save_to(self, save_path: str, encryption_key: str = None):
+    def _eff_save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into an EFF archive.
+
+        .. note::
+            For NVIDIA NeMo the EFF archives will also use .nemo postfix.
 
         Method creates an EFF-based file that is an archive (tar.gz) with the following:
             manifest.yaml - yaml file describing the content of the archive.
             model_config.yaml - model configuration in .yaml format. 
                 You can deserialize this into cfg argument for model's constructor
             model_wights.chpt - model checkpoint
-            encryption_key: key to encrypt/decrypt model checkpoint (optional, DEFAULT: None)
-
-        Note that for NVIDIA NeMo the EFF archives will also use .nemo postfix.
 
         Args:
             save_path: Path to archive file where model instance should be saved.
         """
-        # Create EFF archive.
-        with Archive.create(
-            save_path=save_path, runtime=Runtimes.PyTorch, origin=Origins.NeMo, encryption_key=encryption_key
-        ) as effa:
-
-            # Add config file to archive.
-            config_yaml = effa.create_file_handle(
-                name=_MODEL_CONFIG_YAML, description="File containing model configuration"
-            )
-            self.to_config_file(path2yaml_file=config_yaml)
-
-            # Add model weights to archive - encrypt when the encryption key is provided.
-            model_weights = effa.create_file_handle(
-                name=_MODEL_WEIGHTS,
-                description="File containing model weights",
-                encrypted=(encryption_key is not None),
-            )
-            torch.save(self.state_dict(), model_weights)
-
-            # Add other artifacts to archive.
-            if hasattr(self, 'artifacts') and self.artifacts is not None:
-                # Iterate through artifacts one by one.
-                for (conf_path, src) in self.artifacts:
-                    try:
-                        # Add artifact - save `conf_path` as description.
-                        file_handle = effa.create_file_handle(name=src, description=conf_path, artifact=True)
-                        # Copy file to effa temporary directory.
-                        if os.path.exists(src):
-                            shutil.copy2(src, file_handle)
-                    except Exception:
-                        logging.error(f"Could not copy artifact {src} used in {conf_path}")
+        NeMoArchive.save_to(self, save_path)
 
     @rank_zero_only
     def save_to(self, save_path: str):
@@ -264,7 +237,7 @@ class ModelPT(LightningModule, Model):
         if not is_global_rank_zero():
             return
 
-        if _EFF_PRESENT_ and self.__use_eff_save():
+        if _EFF_PRESENT_ and self.use_eff_save():
             # Save EFF archive.
             self._eff_save_to(save_path)
         else:
@@ -310,7 +283,7 @@ class ModelPT(LightningModule, Model):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                cls.__set_model_restore_state(is_being_restored=True)
+                cls._set_model_restore_state(is_being_restored=True)
                 cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
@@ -333,7 +306,7 @@ class ModelPT(LightningModule, Model):
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
-                cls.__set_model_restore_state(is_being_restored=False)
+                cls._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)
 
         return instance
@@ -345,7 +318,6 @@ class ModelPT(LightningModule, Model):
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
-        encryption_key: str = None,
     ):
         """
         Restores model instance (weights and configuration) from EFF Archive.
@@ -357,70 +329,11 @@ class ModelPT(LightningModule, Model):
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
-            encryption_key: key to encrypt/decrypt model checkpoint (optional, DEFAULT: None)
 
         Returns:
             An instance of type cls
         """
-        # Get path where the command is executed - the artifacts will be "retrieved" from there.
-        cwd = os.getcwd()
-
-        if map_location is None:
-            if torch.cuda.is_available():
-                map_location = torch.device('cuda')
-            else:
-                map_location = torch.device('cpu')
-
-        # Restore the archive.
-        with Archive.restore_from(restore_path=restore_path, encryption_key=encryption_key) as restored_effa:
-
-            # Go to the tmp dir.
-            os.chdir(restored_effa.tmpdir)
-
-            if not restored_effa.validate(runtime=Runtimes.PyTorch, format_version=__format_version__):
-                raise TypeError("EFF Archive doesn't have the required runtime and/or format version!")
-
-            try:
-                # Retrieve the config file.
-                config_yaml, _ = restored_effa.retrieve_file_handle(name=_MODEL_CONFIG_YAML)
-                # Override it - if required.
-                if override_config_path is not None:
-                    config_yaml = override_config_path
-
-                conf = OmegaConf.load(config_yaml)
-                if override_config_path is not None:
-                    # Resolve the override config
-                    conf = OmegaConf.to_container(conf, resolve=True)
-                    conf = OmegaConf.create(conf)
-                    # If override is top level config, extract just `model` from it
-                    if 'model' in conf:
-                        conf = conf.model
-
-                cls.__set_model_restore_state(is_being_restored=True)
-                conf = OmegaConf.load(config_yaml)
-                if override_config_path is not None:
-                    # Resolve the override config
-                    conf = OmegaConf.to_container(conf, resolve=True)
-                    conf = OmegaConf.create(conf)
-                    # If override is top level config, extract just `model` from it
-                    if 'model' in conf:
-                        conf = conf.model
-
-                # Perform the rest of default configuration-related operations.
-                OmegaConf.set_struct(conf, True)
-                instance = cls.from_config_dict(config=conf)
-                instance = instance.to(map_location)
-
-                # Retrieve the model weights.
-                model_weights, _ = restored_effa.retrieve_file_handle(name=_MODEL_WEIGHTS)
-                instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
-
-            finally:
-                cls.__set_model_restore_state(is_being_restored=False)
-                # Return to the working folder.
-                os.chdir(cwd)
-
-        return instance
+        return NeMoArchive.restore_from(cls, restore_path, override_config_path, map_location, strict)
 
     @classmethod
     def restore_from(
@@ -561,7 +474,7 @@ class ModelPT(LightningModule, Model):
         """
         checkpoint = None
         try:
-            cls.__set_model_restore_state(is_being_restored=True)
+            cls._set_model_restore_state(is_being_restored=True)
 
             checkpoint = super().load_from_checkpoint(
                 checkpoint_path=checkpoint_path,
@@ -573,7 +486,7 @@ class ModelPT(LightningModule, Model):
             )
 
         finally:
-            cls.__set_model_restore_state(is_being_restored=False)
+            cls._set_model_restore_state(is_being_restored=False)
 
         return checkpoint
 
@@ -853,7 +766,7 @@ class ModelPT(LightningModule, Model):
         If multi dataset support is not required, override this method entirely in base class.
         In such a case, there is no need to implement `multi_validation_epoch_end` either.
 
-        Note:
+        .. note::
             If more than one data loader exists, and they all provide `val_loss`,
             only the `val_loss` of the first data loader will be used by default.
             This default can be changed by passing the special key `val_dl_idx: int`
@@ -948,7 +861,7 @@ class ModelPT(LightningModule, Model):
         If multi dataset support is not required, override this method entirely in base class.
         In such a case, there is no need to implement `multi_test_epoch_end` either.
 
-        Note:
+        .. note::
             If more than one data loader exists, and they all provide `test_loss`,
             only the `test_loss` of the first data loader will be used by default.
             This default can be changed by passing the special key `test_dl_idx: int`
@@ -1218,12 +1131,12 @@ class ModelPT(LightningModule, Model):
         return out_folder
 
     @staticmethod
-    def __is_model_being_restored() -> bool:
+    def _is_model_being_restored() -> bool:
         global _MODEL_IS_RESTORED
         return _MODEL_IS_RESTORED
 
     @staticmethod
-    def __set_model_restore_state(is_being_restored: bool):
+    def _set_model_restore_state(is_being_restored: bool):
         global _MODEL_IS_RESTORED
         _MODEL_IS_RESTORED = is_being_restored
 
