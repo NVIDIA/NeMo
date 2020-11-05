@@ -21,23 +21,24 @@ __all__ = ['Perplexity']
 
 class Perplexity(Metric):
     """
-    This metric computes perplexity over the last dimension and averages it. It is a wrapper around
-    :meth:`pytorch.distributions.Categorical.perplexity`. You have to provide either `probs` or `logits` to
-    the :meth:`~nemo.collections.common.metrics.perplexity.Perplexity.update`. The class computes perplexities for
-    distributions passed to :meth:`~nemo.collections.common.metrics.perplexity.Perplexity.update` method in ``probs``
-    or ``logits`` arguments and averages the perplexities. Reducing results between all workers is done via SUM
-    operations.
+    This metric computes mean perplexity of distributions in the last dimension of inputs. It is a wrapper around
+    :meth:`pytorch.distributions.Categorical.perplexity`. You have to provide either ``probs`` or ``logits`` to
+    the :meth:`~nemo.collections.common.metrics.perplexity.Perplexity.update` method. The class computes perplexities
+    for distributions passed to :meth:`~nemo.collections.common.metrics.perplexity.Perplexity.update` method in
+    ``probs`` or ``logits`` arguments and averages the perplexities. Reducing results between all workers is done via
+    SUM operations.
 
     See :doc:`pytorch-lightning.metrics` for the metric usage instructions.
 
     Args:
         compute_on_step:
-            Forward only calls ``update()`` and returns None if this is set to False. default: True
+            Forward only calls ``update()`` and returns ``None`` if this is set to ``False``. default: ``True``
         dist_sync_on_step:
             Synchronize metric state across processes at each ``forward()``
             before returning the value at the step.
         process_group:
-            Specify the process group on which synchronization is called. default: None (which selects the entire world)
+            Specify the process group on which synchronization is called. default: ``None`` (which selects the entire
+                world)
         validate_args:
             If ``True`` values of :meth:`update` method parameters are checked. ``logits`` has to not contain NaNs and
             ``probs`` last dim has to be valid probability distribution.
