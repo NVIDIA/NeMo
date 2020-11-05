@@ -174,14 +174,9 @@ class ModelPT(LightningModule, Model):
         else:
             return src
 
-<<<<<<< HEAD
-    @rank_zero_only
-    def save_to(self, save_path: str):
-=======
     def _default_save_to(self, save_path: str):
->>>>>>> nvidia/main
         """
-        Saves model instance (weights and configuration) into .nemo file. 
+        Saves model instance (weights and configuration) into .nemo file.
         You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
@@ -215,7 +210,7 @@ class ModelPT(LightningModule, Model):
 
         Method creates an EFF-based file that is an archive (tar.gz) with the following:
             manifest.yaml - yaml file describing the content of the archive.
-            model_config.yaml - model configuration in .yaml format. 
+            model_config.yaml - model configuration in .yaml format.
                 You can deserialize this into cfg argument for model's constructor
             model_wights.chpt - model checkpoint
 
