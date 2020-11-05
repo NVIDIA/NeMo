@@ -173,9 +173,9 @@ class EncDecRNNTModel(ASRModel):
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
         """
-        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
+        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning a pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
-        use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
+        use it if you want to use pretrained encoder when fine-tuning on data in another language, or when you'd need
         model to learn capitalization, punctuation and/or special characters.
 
         Args:
@@ -527,7 +527,7 @@ class EncDecRNNTModel(ASRModel):
             val_loss_log = {}
         wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
         wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {**val_loss_log, 'validation_wer': wer_num.float() / wer_denom}
+        tensorboard_logs = {**val_loss_log, 'val_wer': wer_num.float() / wer_denom}
         return {**val_loss_log, 'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):

@@ -38,7 +38,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
-    """Base class for encoder decoder CTC-based models."""
+    """Base class for encoder decoder RNNT-based models with subword tokenization."""
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -111,7 +111,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         """
         Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
-        use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
+        use it if you want to use pretrained encoder when fine-tuning on data in another language, or when you'd need
         model to learn capitalization, punctuation and/or special characters.
 
         Args:
