@@ -563,9 +563,9 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
     # Create the callback and attach it to trainer
 
     if params.filepath is None:
-        params.filepath = Path(log_dir / 'checkpoints' / f'{{{params.monitor}:.2f}}-{{epoch}}')
+        params.filepath = Path(log_dir / 'checkpoints' / f'--{{{params.monitor}:.2f}}-{{epoch}}')
     if params.prefix is None:
-        params.prefix = name + "--"
+        params.prefix = name
 
     if "val" in params.monitor and trainer.max_epochs != -1 and trainer.max_epochs < trainer.check_val_every_n_epoch:
         logging.error(
@@ -576,6 +576,4 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
         )
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
-    trainer.callback_connector.init_default_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
-    trainer.checkpoint_callback = checkpoint_callback

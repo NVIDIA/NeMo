@@ -363,6 +363,7 @@ trainer:
   logger: false  # Provided by exp_manager
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  check_val_every_n_epoch: 1 # Number of epochs between validation checks
 
 exp_manager:
   exp_dir: null
