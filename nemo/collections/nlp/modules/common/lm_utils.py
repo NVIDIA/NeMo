@@ -46,7 +46,6 @@ def get_lm_model(
     config_dict: Optional[dict] = None,
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
-    trainer: 'pytorch_lightning.Trainer' = None,
 ) -> BertModule:
     """
     Helper function to instantiate a language model encoder, either from scratch or a pretrained model.
@@ -83,7 +82,6 @@ def get_lm_model(
             config_file=config_file,
             pretrained_model_name=pretrained_model_name,
             checkpoint_file=checkpoint_file,
-            trainer=trainer,
         )
     else:
         model = get_huggingface_lm_model(

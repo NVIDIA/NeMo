@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import partial
+from pathlib import Path
 from typing import List
 
 import torch
@@ -104,6 +106,11 @@ class NLPModel(ModelPT):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
+                if self._trainer.num_nodes > 1:
+                    logging.warning(
+                        "NeMo's model parallel does not currently support pytorch lighntning's slurm auto-resume "
+                        "features. Please patch hpc_save if interested in this feature."
+                    )
 
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
@@ -128,3 +135,27 @@ class NLPModel(ModelPT):
                     raise NotImplementedError(
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
+
+    def _patch_checkpointing(self):
+        def megatron_save_checkpoint(self_, filepath, weights_only: bool = False):
+            # Could also use appstate
+            if torch.distributed.get_rank(group=mpu.get_data_parallel_group()) == 0:
+                filepath = Path(filepath)
+                # Note: torch.distributed.get_rank(group=mpu.get_model_parallel_group()) != mpu.get_model_parallel_rank()
+                filepath = Path(
+                    filepath.parent,
+                    f"mp_rank_{torch.distributed.get_rank(group=mpu.get_model_parallel_group())}",
+                    filepath.name,
+                )
+                logging.debug(f"Saving model to {filepath}")
+                _old_global_rank = self_.trainer.global_rank
+                try:
+                    self_.trainer.global_rank = 0
+                    self_._save_checkpoint(filepath, weights_only)
+                finally:
+                    self_.trainer.global_rank = _old_global_rank
+
+        self._trainer.checkpoint_connector._save_checkpoint = self._trainer.checkpoint_connector.save_checkpoint
+        self._trainer.checkpoint_connector.save_checkpoint = partial(
+            megatron_save_checkpoint, self._trainer.checkpoint_connector
+        )

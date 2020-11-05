@@ -88,7 +88,6 @@ def get_megatron_lm_model(
     config_dict: Optional[dict] = None,
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
-    trainer=None,
 ) -> Tuple[MegatronBertEncoder, str]:
     """
     Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
@@ -136,8 +135,8 @@ def get_megatron_lm_model(
     vocab = get_megatron_vocab_file(pretrained_model_name)
 
     # if checkpoint path is a directory, then we automatically compute model parallel size
-    # TODO: This is a hack. There is no option to start from random weights
     if os.path.isdir(checkpoint_file):
+        # TODO: Setting model_parallel_size could be improved from len(os.listdir(checkpoint_file))
         model_parallel_size = len(os.listdir(checkpoint_file))
         AppState.model_parallel_size = model_parallel_size
         logging.info(
@@ -148,11 +147,7 @@ def get_megatron_lm_model(
         model_parallel_size = None
 
     model = MegatronBertEncoder(
-        model_name=pretrained_model_name,
-        config=config,
-        vocab_file=vocab,
-        model_parallel_size=model_parallel_size,
-        trainer=trainer,
+        model_name=pretrained_model_name, config=config, vocab_file=vocab, model_parallel_size=model_parallel_size,
     )
 
     return model, checkpoint_file

@@ -15,17 +15,13 @@
 # limitations under the License.
 
 import os
-from contextlib import contextmanager
-from functools import partial
-from pathlib import Path
 
 import torch
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-from megatron.mpu import get_data_parallel_group, get_model_parallel_group, model_parallel_is_initialized
+from megatron.mpu import get_model_parallel_group, model_parallel_is_initialized
 from omegaconf import OmegaConf
-from pytorch_lightning.callbacks import ModelCheckpoint
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
@@ -48,7 +44,7 @@ class MegatronBertEncoder(BertModule):
         tokenizer_type (str): tokenizer type, currently only 'BertWordPieceLowerCase' supported.
     """
 
-    def __init__(self, model_name, config, vocab_file, model_parallel_size=None, trainer=None):
+    def __init__(self, model_name, config, vocab_file, model_parallel_size=None):
 
         super().__init__()
 
@@ -102,7 +98,6 @@ class MegatronBertEncoder(BertModule):
         self.config = OmegaConf.create(config)
         # key used for checkpoints
         self._hidden_size = self.language_model.hidden_size
-        self._trainer = trainer
 
     @property
     def hidden_size(self):
@@ -118,7 +113,6 @@ class MegatronBertEncoder(BertModule):
     def forward(self, input_ids, attention_mask, token_type_ids):
         if self._lazy_init_fn is not None:
             self._lazy_init_fn()
-            self._patch_checkpointing()
             self._lazy_init_fn = None
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
@@ -163,39 +157,6 @@ class MegatronBertEncoder(BertModule):
                 else:
                     self.load_state_dict(state_dict)
             else:
-                logging.info(f'torch.distributed not initialized yet. Will not restore model parallel checkpoint')
+                logging.info('torch.distributed not initialized yet. Will not restore model parallel checkpoint')
         else:
             logging.error(f'restore_path: {restore_path} must be a file or directory.')
-
-    def _patch_checkpointing(self):
-        if self._trainer is None:
-            logging.error(f"{self} did not receive a lightning trainer. CHECKPOINTS WILL NOT BE SAVED")
-            return
-
-        @contextmanager
-        def patch_global_zero(trainer):
-            _old_global_rank = trainer.global_rank
-            trainer.global_rank = 0
-            try:
-                yield
-            finally:
-                trainer.global_rank = _old_global_rank
-
-        def megatron_save_checkpoint(self_, filepath, weights_only: bool = False):
-            # Could also use appstate
-            if torch.distributed.get_rank(group=get_data_parallel_group()) == 0:
-                filepath = Path(filepath)
-                # Since apparently torch.distributed.get_rank(group=get_model_parallel_group()) != get_model_parallel_rank()
-                filepath = Path(
-                    filepath.parent,
-                    f"mp_rank_{torch.distributed.get_rank(group=get_model_parallel_group())}",
-                    filepath.name,
-                )
-                logging.debug(f"Saving model to {filepath}")
-                with patch_global_zero(self_.trainer):
-                    self_._save_checkpoint(filepath, weights_only)
-
-        self._trainer.checkpoint_connector._save_checkpoint = self._trainer.checkpoint_connector.save_checkpoint
-        self._trainer.checkpoint_connector.save_checkpoint = partial(
-            megatron_save_checkpoint, self._trainer.checkpoint_connector
-        )

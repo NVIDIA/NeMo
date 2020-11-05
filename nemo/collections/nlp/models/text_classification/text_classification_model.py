@@ -64,7 +64,6 @@ class TextClassificationModel(NLPModel, Exportable):
             config_file=cfg.language_model.config_file,
             config_dict=cfg.language_model.config,
             checkpoint_file=cfg.language_model.lm_checkpoint,
-            trainer=trainer,
         )
 
         self.classifier = SequenceClassifier(
@@ -145,11 +144,6 @@ class TextClassificationModel(NLPModel, Exportable):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        if self.testing:
-            prefix = 'test'
-        else:
-            prefix = 'val'
-
         input_ids, input_type_ids, input_mask, labels = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
@@ -173,7 +167,7 @@ class TextClassificationModel(NLPModel, Exportable):
         else:
             prefix = 'val'
 
-        avg_loss = torch.stack([x[f'val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
@@ -202,7 +196,7 @@ class TextClassificationModel(NLPModel, Exportable):
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if not train_data_config or not train_data_config.file_path:
             logging.info(
-                f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
+                "Dataloader config or file_path for the train is missing, so no data loader for test is created!"
             )
             self._test_dl = None
             return
@@ -211,7 +205,7 @@ class TextClassificationModel(NLPModel, Exportable):
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.file_path:
             logging.info(
-                f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
+                "Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
             )
             self._test_dl = None
             return
@@ -220,7 +214,7 @@ class TextClassificationModel(NLPModel, Exportable):
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or not test_data_config.file_path:
             logging.info(
-                f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
+                "Dataloader config or file_path for the test is missing, so no data loader for test is created!"
             )
             self._test_dl = None
             return
