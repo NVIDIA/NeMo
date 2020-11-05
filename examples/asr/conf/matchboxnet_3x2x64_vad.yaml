@@ -1,0 +1,178 @@
+name: &name "MatchboxNet-3x2x64-vad"
+
+model:
+  sample_rate: &sample_rate 16000
+  timesteps: &timesteps 64
+  repeat: &repeat 2
+  dropout: &dropout 0.0
+  kernel_size_factor: &kfactor 1.0
+
+  labels: &labels ['background', 'speech']
+
+  train_ds:
+    manifest_filepath: '/home/fjia/data/ami/speech_train.json,/home/fjia/code/manifest64/background_training_manifest.json,/home/fjia/data/ava/balanced_train.json,/home/fjia/data/fisher/fisher_speech.json,/home/fjia/data/musan/musan_fs_train.json,/home/fjia/data/musan/musan_sndbible_train.json,/home/fjia/data/musan/musan_music_train.json'
+    sample_rate: *sample_rate
+    labels: *labels
+    batch_size: 128
+    num_workers: 20
+    shuffle: True
+    augmentor:
+      shift:
+        prob: 0.8
+        min_shift_ms: -5.0
+        max_shift_ms: 5.0
+      white_noise:
+        prob: 0.8
+        min_level: -90
+        max_level: -46
+
+  validation_ds:
+    manifest_filepath: '/home/fjia/data/ami/speech_validation.json,/home/fjia/code/manifest64/background_validation_manifest.json,/home/fjia/data/ava/balanced_validation.json'
+    sample_rate: *sample_rate
+    labels: *labels
+    batch_size: 128
+    shuffle: False
+    val_loss_idx: 0
+    num_workers: 20
+
+  test_ds:
+    manifest_filepath: null
+    sample_rate: *sample_rate
+    labels: *labels
+    batch_size: 128
+    shuffle: False
+    test_loss_idx: 0
+    num_workers: 20
+
+  preprocessor:
+    cls: nemo.collections.asr.modules.AudioToMFCCPreprocessor 
+    params:
+      window_size: 0.025
+      window_stride: 0.01
+      window: "hann"
+      n_mels: &n_mels 64
+      n_mfcc: *n_mels
+      n_fft: 512
+      
+
+  encoder:
+    cls: nemo.collections.asr.modules.ConvASREncoder
+    params:
+      feat_in: *n_mels
+      activation: relu
+      conv_mask: true
+
+      jasper:
+        - filters: 128
+          repeat: 1
+          kernel: [11]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: false
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: 64
+          repeat: *repeat
+          kernel: [13]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: 64
+          repeat: *repeat
+          kernel: [15]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: 64
+          repeat: *repeat
+          kernel: [17]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: 128
+          repeat: 1
+          kernel: [29]
+          stride: [1]
+          dilation: [2]
+          dropout: *dropout
+          residual: false
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: &enc_final_filters 128
+          repeat: 1
+          kernel: [1]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: false
+
+  decoder:
+    cls: nemo.collections.asr.modules.ConvASRDecoderClassification
+    params:
+      feat_in: *enc_final_filters
+      num_classes: 2
+      return_logits: true
+      pooling_type: 'avg'
+
+  optim:
+    name: sgd
+    # cls: nemo.core.optim.optimizers.Novograd
+    lr: 0.01
+#     optimizer arguments
+#     betas: [0.95, 0.5]
+    weight_decay: 0.001
+
+#     # scheduler setup
+    sched:
+      name: PolynomialHoldDecayAnnealing
+      # Scheduler params
+      power: 2.0
+      warmup_ratio: 0.05
+      hold_ratio: 0.45
+      min_lr: 0.001
+      last_epoch: -1
+
+trainer:
+  gpus: 0 # number of gpus
+  max_epochs: 150
+  max_steps: null # computed at runtime if not set
+  num_nodes: 1
+  distributed_backend: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+#   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  num_sanity_val_steps: 0
+  check_val_every_n_epoch: 20
+  
+exp_manager:
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+  create_wandb_logger: True
+  wandb_logger_kwargs:
+    name: null
+    project: null
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null

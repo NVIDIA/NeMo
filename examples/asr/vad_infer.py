@@ -22,7 +22,7 @@ During inference, we performed frame-level prediction by two approaches:
        to speech/no-speech segment in start and end times format in that script.]
    
 Usage:
-python vad_infer.py  --vad_model="MatchboxNet-VAD-3x2" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON>  --batch_size=1 --out_dir='frame/demo' --time_length=0.63
+python vad_infer.py  --vad_model="MatchboxNet-VAD-3x2" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
 
 """
 
@@ -60,12 +60,15 @@ def main():
     parser.add_argument("--out_dir", type=str, default="vad_frame", help="dir of your vad outputs")
     parser.add_argument("--time_length", type=float, default=0.63)
     parser.add_argument("--shift_length", type=float, default=0.01)
-    parser.add_argument("--batch_size", type=int, default=1)
     args = parser.parse_args()
 
     torch.set_grad_enabled(False)
 
     if args.vad_model.endswith('.nemo'):
+        logging.info(f"Using local VAD model from {args.vad_model}")
+        vad_model = EncDecClassificationModel.restore_from(restore_path=args.vad_model)
+        
+    elif args.vad_model.endswith('.ckpt'):
         logging.info(f"Using local VAD model from {args.vad_model}")
         vad_model = EncDecClassificationModel.restore_from(restore_path=args.vad_model)
     else:
@@ -82,7 +85,7 @@ def main():
             'sample_rate': 16000,
             'manifest_filepath': args.dataset,
             'labels': ['infer',],
-            'batch_size': args.batch_size,
+            'batch_size': 1,
             'num_workers': 20,
             'shuffle': False,
             'time_length': args.time_length,
@@ -108,6 +111,7 @@ def main():
             log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
             probs = torch.softmax(log_probs, dim=-1)
             to_save = probs[:, 1]
+            print(len(to_save))
 
             outpath = os.path.join(args.out_dir, data[i] + ".frame")
             with open(outpath, "a") as fout:
