@@ -19,15 +19,9 @@ from typing import Callable
 import pytest
 import torch
 
+from .perplexity_inputs import _only_probs, _only_logits1, _only_logits100, _probs_and_logits, _no_probs_no_logits
+from .pl_utils import PerplexityTester
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
-from .pl_utils import PerplexityTester, THRESHOLD
-from .perplexity_inputs import (
-    _only_probs,
-    _only_logits1,
-    _only_logits100,
-    _probs_and_logits,
-    _no_probs_no_logits,
-)
 
 
 class TestCommonMetrics:
@@ -133,8 +127,5 @@ class TestCommonMetrics:
 class TestPerplexity(PerplexityTester):
     def test_perplexity(self, ddp, dist_sync_on_step, probs, logits):
         self.run_class_perplexity_test(
-            ddp=ddp,
-            probs=probs,
-            logits=logits,
-            dist_sync_on_step=dist_sync_on_step,
+            ddp=ddp, probs=probs, logits=logits, dist_sync_on_step=dist_sync_on_step,
         )

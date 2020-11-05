@@ -30,36 +30,21 @@ from collections import namedtuple
 
 import torch
 
-from .pl_utils import (
-    NUM_BATCHES,
-    BATCH_SIZE,
-    NUM_CLASSES,
-)
+from .pl_utils import BATCH_SIZE, NUM_BATCHES, NUM_CLASSES
+
 
 Input = namedtuple('Input', ["probs", "logits"])
 
 
-_only_probs = Input(
-    probs=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES),
-    logits=None,
-)
+_only_probs = Input(probs=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES), logits=None)
 
-_only_logits1 = Input(
-    probs=None,
-    logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES),
-)
+_only_logits1 = Input(probs=None, logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES))
 
-_only_logits100 = Input(
-    probs=None,
-    logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES) * 200 - 100,
-)
+_only_logits100 = Input(probs=None, logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES) * 200 - 100)
 
 _probs_and_logits = Input(
     probs=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES),
     logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES) * 200 - 100,
 )
 
-_no_probs_no_logits = Input(
-    probs=None,
-    logits=None,
-)
+_no_probs_no_logits = Input(probs=None,logits=None)

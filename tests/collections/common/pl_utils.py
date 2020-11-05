@@ -35,12 +35,13 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 import torch
-from scipy.stats import entropy
 from pytorch_lightning.metrics import Metric
+from scipy.stats import entropy
 from torch.distributions.utils import logits_to_probs
 from torch.multiprocessing import Pool, set_start_method
 
 from nemo.collections.common.metrics import Perplexity
+
 
 NUM_PROCESSES = 2
 NUM_BATCHES = 10
@@ -131,7 +132,7 @@ def _functional_test(
     metric_functional: Callable,
     sk_metric: Callable,
     metric_args: dict = {},
-    atol: float = 1e-8
+    atol: float = 1e-8,
 ):
     """ Utility function doing the actual comparison between lightning functional metric
         and reference metric.
@@ -160,6 +161,7 @@ class MetricTester:
             `test_metric_name`
         where the method `self.run_metric_test` is called inside.
     """
+
     atol = 1e-8
 
     def setup_class(self):
@@ -185,7 +187,7 @@ class MetricTester:
         target: torch.Tensor,
         metric_functional: Callable,
         sk_metric: Callable,
-        metric_args: dict = {}
+        metric_args: dict = {},
     ):
         """ Main method that should be used for testing functions. Call this inside
             testing method
@@ -196,12 +198,14 @@ class MetricTester:
                 sk_metric: callable function that is used for comparison
                 metric_args: dict with additional arguments used for class initialization
         """
-        _functional_test(preds=preds,
-                         target=target,
-                         metric_functional=metric_functional,
-                         sk_metric=sk_metric,
-                         metric_args=metric_args,
-                         atol=self.atol)
+        _functional_test(
+            preds=preds,
+            target=target,
+            metric_functional=metric_functional,
+            sk_metric=sk_metric,
+            metric_args=metric_args,
+            atol=self.atol,
+        )
 
     def run_class_metric_test(
         self,

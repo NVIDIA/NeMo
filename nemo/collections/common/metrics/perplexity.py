@@ -42,18 +42,12 @@ class Perplexity(Metric):
             If ``True`` values of :meth:`update` method parameters are checked. ``logits`` has to not contain NaNs and
             ``probs`` last dim has to be valid probability distribution.
     """
-    def __init__(
-        self,
-        compute_on_step=True,
-        dist_sync_on_step=False,
-        process_group=None,
-        validate_args=True
-    ):
+    def __init__(self, compute_on_step=True, dist_sync_on_step=False, process_group=None, validate_args=True):
         super().__init__(
             compute_on_step=compute_on_step, dist_sync_on_step=dist_sync_on_step, process_group=process_group
         )
         self.validate_args = validate_args
-        self.add_state('perplexities_sum', torch.tensor(.0, dtype=torch.float64), dist_reduce_fx='sum')
+        self.add_state('perplexities_sum', torch.tensor(0.0, dtype=torch.float64), dist_reduce_fx='sum')
         # Total number of distributions seen since last reset
         self.add_state('num_distributions', torch.tensor(0, dtype=torch.int64), dist_reduce_fx='sum')
 
