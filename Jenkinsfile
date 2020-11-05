@@ -46,6 +46,7 @@ pipeline {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
       }
     }
+
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
