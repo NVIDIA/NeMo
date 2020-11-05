@@ -267,15 +267,20 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # Set the new vocabulary
         decoder_config = copy.deepcopy(self.decoder.to_config_dict())
-        decoder_config.params.vocabulary = ListConfig(list(vocabulary.values()))
+        if 'vocabulary' in decoder_config:
+            decoder_config['vocabulary'] = ListConfig(list(vocabulary.values()))
+            old_num_classes = decoder_config['num_classes']
+            decoder_config['num_classes'] = len(vocabulary)
+        else:
+            decoder_config['params']['vocabulary'] = ListConfig(list(vocabulary.values()))
+            old_num_classes = decoder_config['params']['num_classes']
+            decoder_config['params']['num_classes'] = len(vocabulary)
 
-        # Override number of classes if placeholder provided
         logging.info(
-            "\nReplacing old number of classes ({}) with new number of classes - {}".format(
-                decoder_config['params']['num_classes'], len(vocabulary)
+            "\nReplaced old number of classes ({}) with new number of classes - {}".format(
+                old_num_classes, len(vocabulary)
             )
         )
-        decoder_config['params']['num_classes'] = len(vocabulary)
 
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)

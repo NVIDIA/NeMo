@@ -196,8 +196,12 @@ class EncDecCTCModel(ASRModel, Exportable):
                 raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
-            new_decoder_config['params']['vocabulary'] = new_vocabulary
-            new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            if 'vocabulary' in new_decoder_config:
+                new_decoder_config['vocabulary'] = new_vocabulary
+                new_decoder_config['num_classes'] = len(new_vocabulary)
+            else:
+                new_decoder_config['params']['vocabulary'] = new_vocabulary
+                new_decoder_config['params']['num_classes'] = len(new_vocabulary)
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             del self.loss
