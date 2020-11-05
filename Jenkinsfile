@@ -497,8 +497,6 @@ pipeline {
       steps{
         sh 'cd examples/nlp/text_classification && \
         python text_classification_with_bert.py \
-        exp_manager.create_checkpoint_callback=false \
-        exp_manager.exp_dir=exp_mp_2_megatron_bert \
         trainer.gpus=[0,1] \
         trainer.num_nodes=1 \
         trainer.precision=16 \
@@ -513,7 +511,10 @@ pipeline {
         model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
         model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
         model.nemo_path=null \
-        exp_manager=null'
+        exp_manager.exp_dir=exp_mp_2_megatron_bert \
+        +exp_manager.checkpoint_callback_params.monitor=null \
+        +exp_manager.checkpoint_callback_params.save_top_k=null \
+        +exp_manager.checkpoint_callback_params.save_last=null'
       }
     }
 
