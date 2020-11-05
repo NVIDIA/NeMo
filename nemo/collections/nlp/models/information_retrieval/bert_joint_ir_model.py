@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import NeuralType
 
-__all__ = ['BertJointIRModel']
+__all__ = ["BertJointIRModel"]
 
 
 class BertJointIRModel(BaseIRModel):
@@ -61,7 +61,7 @@ class BertJointIRModel(BaseIRModel):
     def forward(self, input_ids, token_type_ids, attention_mask):
 
         hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
         )
         scores = self.sim_score_regressor(hidden_states=hidden_states)
 

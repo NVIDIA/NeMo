@@ -17,7 +17,7 @@ import os
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -26,7 +26,6 @@ from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import *
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
@@ -67,22 +66,39 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         vocabulary = self.tokenizer.tokenizer.get_vocab()
 
         # Set the new vocabulary
-        cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+        with open_dict(cfg):
+            if "params" in cfg.decoder:
+                cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+            else:
+                cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
 
         # Override number of classes if placeholder provided
-        if cfg.decoder.params['num_classes'] < 1:
+        if "params" in cfg.decoder:
+            num_classes = cfg.decoder["params"]["num_classes"]
+        else:
+            num_classes = cfg.decoder["num_classes"]
+
+        if num_classes < 1:
             logging.info(
                 "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                    cfg.decoder.params['num_classes'], len(vocabulary)
+                    num_classes, len(vocabulary)
                 )
             )
-            cfg.decoder.params['num_classes'] = len(vocabulary)
+            if "params" in cfg.decoder:
+                cfg.decoder["params"]["num_classes"] = len(vocabulary)
+            else:
+                cfg.decoder["num_classes"] = len(vocabulary)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup metric objects
         self._wer = WERBPE(
-            tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, dist_sync_on_step=True,
+            tokenizer=self.tokenizer,
+            batch_dim_index=0,
+            use_cer=self._cfg.get('use_cer', False),
+            ctc_decode=True,
+            dist_sync_on_step=True,
+            log_prediction=self._cfg.get("log_prediction", False),
         )
 
     def _setup_tokenizer(self):
@@ -175,6 +191,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
                 add_misc=config.get('add_misc', False),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
+                use_start_end_token=config.get('use_start_end_token', True),
             )
             shuffle = False
         else:
@@ -194,6 +211,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
                 trim=config.get('trim_silence', True),
                 load_audio=config.get('load_audio', True),
                 add_misc=config.get('add_misc', False),
+                use_start_end_token=config.get('use_start_end_token', True),
             )
 
         return torch.utils.data.DataLoader(
@@ -267,21 +285,40 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # Set the new vocabulary
         decoder_config = copy.deepcopy(self.decoder.to_config_dict())
-        decoder_config.params.vocabulary = ListConfig(list(vocabulary.values()))
+        decoder_config.vocabulary = ListConfig(list(vocabulary.values()))
+
+        if "params" in decoder_config:
+            decoder_num_classes = decoder_config['params']['num_classes']
+        else:
+            decoder_num_classes = decoder_config['num_classes']
 
         # Override number of classes if placeholder provided
         logging.info(
             "\nReplacing old number of classes ({}) with new number of classes - {}".format(
-                decoder_config['params']['num_classes'], len(vocabulary)
+                decoder_num_classes, len(vocabulary)
             )
         )
-        decoder_config['params']['num_classes'] = len(vocabulary)
+
+        if "params" in decoder_config:
+            decoder_config['params']['num_classes'] = len(vocabulary)
+        else:
+            decoder_config['num_classes'] = len(vocabulary)
 
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
         del self.loss
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
-        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        self.loss = CTCLoss(
+            num_classes=self.decoder.num_classes_with_blank - 1,
+            zero_infinity=True,
+            reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+        )
+        self._wer = WERBPE(
+            tokenizer=self.tokenizer,
+            batch_dim_index=0,
+            use_cer=self._cfg.get('use_cer', False),
+            ctc_decode=True,
+            log_prediction=self._cfg.get("log_prediction", False),
+        )
 
         # Update config
         OmegaConf.set_struct(self._cfg.decoder, False)

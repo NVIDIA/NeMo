@@ -63,7 +63,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self.__feat_in, 256).to(next(self.parameters()).device)
+        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property
@@ -124,7 +124,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         activation = jasper_activations[activation]()
         feat_in = feat_in * frame_splicing
 
-        self.__feat_in = feat_in
+        self._feat_in = feat_in
 
         residual_panes = []
         encoder_layers = []
@@ -173,6 +173,8 @@ class ConvASREncoder(NeuralModule, Exportable):
                 )
             )
             feat_in = lcfg['filters']
+
+        self._feat_out = feat_in
 
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
