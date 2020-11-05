@@ -44,10 +44,16 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, zero_infinity=False):
+    def __init__(self, num_classes, zero_infinity=False, reduction='mean_batch'):
         self._blank = num_classes
         # Don't forget to properly call base constructor
-        super().__init__(blank=self._blank, reduction='none', zero_infinity=zero_infinity)
+        if reduction == 'mean_batch':
+            ctc_reduction = 'none'
+            self._apply_batch_mean = True
+        elif reduction in ['sum', 'mean', 'none']:
+            ctc_reduction = reduction
+            self._apply_batch_mean = False
+        super().__init__(blank=self._blank, reduction=ctc_reduction, zero_infinity=zero_infinity)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -61,7 +67,8 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         loss = super().forward(
             log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
         )
-        loss = torch.mean(loss)
+        if self._apply_batch_mean:
+            loss = torch.mean(loss)
         return loss
 
 

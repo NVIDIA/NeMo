@@ -17,9 +17,9 @@ from typing import Optional
 import torch
 
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType
+from nemo.core.neural_types import LabelsType, LogprobsType, LossType, MaskType, NeuralType
 
-__all__ = ['SmoothedCrossEntropyLoss']
+__all__ = ["SmoothedCrossEntropyLoss"]
 
 
 class SmoothedCrossEntropyLoss(Loss):
@@ -48,9 +48,9 @@ class SmoothedCrossEntropyLoss(Loss):
         """Returns definitions of module input ports.
         """
         return {
-            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
-            "labels": NeuralType(('B', 'T'), LabelsType()),
-            "output_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
+            "labels": NeuralType(("B", "T"), LabelsType()),
+            "output_mask": NeuralType(("B", "T"), MaskType(), optional=True),
         }
 
     @property
@@ -73,10 +73,10 @@ class SmoothedCrossEntropyLoss(Loss):
         self._label_smoothing = label_smoothing
 
     @typecheck()
-    def forward(self, logits, labels, output_mask=None):
+    def forward(self, log_probs, labels, output_mask=None):
         """
         Args:
-            logits: float tensor of shape batch_size x seq_len x vocab_size, values should be log probabilities
+            log_probs: float tensor of shape batch_size x seq_len x vocab_size, values should be log probabilities
             labels: int tensor of shape batch_size x seq_len
             output_mask: binary tensor of shape batch_size x seq_len
             eps: epsilon param to avoid divide by zero in loss calculation
@@ -84,17 +84,17 @@ class SmoothedCrossEntropyLoss(Loss):
         if output_mask is None and self._pad_id is None:
             raise ValueError("Both output_mask and pad_id are None")
         if output_mask is None and self._pad_id is not None:
-            output_mask = (labels != self._pad_id).to(logits.dtype)
+            output_mask = (labels != self._pad_id).to(log_probs.dtype)
 
-        if output_mask.dtype is not logits.dtype:
-            output_mask = output_mask.to(logits.dtype)
+        if output_mask.dtype is not log_probs.dtype:
+            output_mask = output_mask.to(log_probs.dtype)
 
-        batch_size, seq_len, vocab_size = logits.size()
+        batch_size, seq_len, vocab_size = log_probs.size()
         smoothing = vocab_size * self._label_smoothing / (vocab_size - 1)
-        target_logits = logits.gather(2, labels.unsqueeze(2)).squeeze(2)
+        target_log_probs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
 
-        smoothing_logits = logits.mean(dim=-1)
-        neg_log_likelihood = (1.0 - smoothing) * target_logits + smoothing * smoothing_logits
+        smoothing_log_probs = log_probs.mean(dim=-1)
+        neg_log_likelihood = (1.0 - smoothing) * target_log_probs + smoothing * smoothing_log_probs
         neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k :]
         output_mask = output_mask[:, -self._predict_last_k :]
         neg_log_likelihood = -torch.sum(neg_log_likelihood * output_mask)

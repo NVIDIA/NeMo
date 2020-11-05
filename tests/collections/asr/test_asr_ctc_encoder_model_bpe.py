@@ -25,33 +25,33 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 
 @pytest.fixture()
 def asr_model(test_data_dir):
-    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
     encoder = {
-        'cls': 'nemo.collections.asr.modules.ConvASREncoder',
-        'params': {
-            'feat_in': 64,
-            'activation': 'relu',
-            'conv_mask': True,
-            'jasper': [
-                {
-                    'filters': 1024,
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
-                }
-            ],
-        },
+        '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
+        'feat_in': 64,
+        'activation': 'relu',
+        'conv_mask': True,
+        'jasper': [
+            {
+                'filters': 1024,
+                'repeat': 1,
+                'kernel': [1],
+                'stride': [1],
+                'dilation': [1],
+                'dropout': 0.0,
+                'residual': False,
+                'separable': True,
+                'se': True,
+                'se_context_size': -1,
+            }
+        ],
     }
 
     decoder = {
-        'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
-        'params': {'feat_in': 1024, 'num_classes': -1, 'vocabulary': None},
+        '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
+        'feat_in': 1024,
+        'num_classes': -1,
+        'vocabulary': None,
     }
 
     tokenizer = {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'}

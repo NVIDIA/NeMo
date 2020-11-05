@@ -62,7 +62,7 @@ class WarmupPolicy(_LRScheduler):
     def get_lr(self):
         if not self._get_lr_called_within_step:
             warnings.warn(
-                "To get the last learning rate computed by the scheduler, " "please use `get_last_lr()`.", UserWarning
+                "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning
             )
 
         step = self.last_epoch
@@ -214,7 +214,7 @@ class SquareRootAnnealing(WarmupPolicy):
 
     def _get_lr(self, step):
         new_lrs = [
-            _squareroot_annealing(initial_lr=initial_lr, step=step, max_steps=self.max_steps, min_lr=self.min_lr,)
+            _squareroot_annealing(initial_lr=initial_lr, step=step, max_steps=self.max_steps, min_lr=self.min_lr)
             for initial_lr in self.base_lrs
         ]
         return new_lrs
@@ -228,7 +228,7 @@ class CosineAnnealing(WarmupPolicy):
         for initial_lr in self.base_lrs:
             if initial_lr < self.min_lr:
                 raise ValueError(
-                    f"{self} received an initial learning rate that " f"was lower than the minimum learning rate."
+                    f"{self} received an initial learning rate that was lower than the minimum learning rate."
                 )
 
         new_lrs = [
@@ -241,6 +241,57 @@ class CosineAnnealing(WarmupPolicy):
             for initial_lr in self.base_lrs
         ]
         return new_lrs
+
+
+class NoamAnnealing(_LRScheduler):
+    def __init__(
+        self, optimizer, *, d_model, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
+    ):
+        self._normalize = d_model ** (-0.5)
+        assert not (
+            warmup_steps is not None and warmup_ratio is not None
+        ), "Either use particular number of step or ratio"
+        assert warmup_ratio is None or max_steps is not None, "If there is a ratio, there should be a total steps"
+
+        # It is necessary to assign all attributes *before* __init__,
+        # as class is wrapped by an inner class.
+        self.max_steps = max_steps
+        if warmup_steps is not None:
+            self.warmup_steps = warmup_steps
+        elif warmup_ratio is not None:
+            self.warmup_steps = int(warmup_ratio * max_steps)
+        else:
+            self.warmup_steps = 0
+
+        self.min_lr = min_lr
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        if not self._get_lr_called_within_step:
+            warnings.warn(
+                "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning
+            )
+
+        step = max(1, self.last_epoch)
+
+        if step > self.max_steps:
+            return [self.min_lr for _ in self.base_lrs]
+
+        for initial_lr in self.base_lrs:
+            if initial_lr < self.min_lr:
+                raise ValueError(
+                    f"{self} received an initial learning rate that was lower than the minimum learning rate."
+                )
+
+        new_lrs = [self._noam_annealing(initial_lr=initial_lr, step=step) for initial_lr in self.base_lrs]
+        return new_lrs
+
+    def _noam_annealing(self, initial_lr, step):
+        mult = self._normalize * min(step ** (-0.5), step * (self.warmup_steps ** (-1.5)))
+        out_lr = initial_lr * mult
+        if step > self.warmup_steps:
+            out_lr = max(out_lr, self.min_lr)
+        return out_lr
 
 
 class WarmupAnnealing(WarmupPolicy):
@@ -581,22 +632,19 @@ def prepare_lr_scheduler(
 
 def compute_max_steps(max_epochs, accumulate_grad_batches, num_workers, num_samples, batch_size, drop_last):
     _round = math.floor if drop_last else math.ceil
-    steps_per_epoch = _round(num_samples / (num_workers * batch_size))
 
-    # Check the special case if drop_last == True but worker_0 gets 1 more batch that other workers
-    if drop_last and num_samples % (num_workers * batch_size) > batch_size:
-        worker_0_num_samples = math.ceil(num_samples / num_workers)
-        steps_per_epoch = _round(worker_0_num_samples / batch_size)
+    sampler_num_samples = math.ceil(num_samples / num_workers)
 
-    if drop_last and accumulate_grad_batches > 1:
-        # Log warning as this formula does not always work for this case
+    if drop_last and num_workers > 1:
         logging.warning(
-            "While computing max_steps, LR Scheduler received both drop_last=True and accumulate_grad_batches > 1."
-            "Please note, that the computed max_steps may be off by a factor of +/- max_epochs. Passing max_steps"
-            "instead of max_epochs to the trainer is strongly recommended."
+            "Please note that drop_last is broken in pytorch 1.6.0. We will fix when pytorch 1.7.0 is released"
         )
+        # TODO: Master verion, not in pytorch 1.6.0
+        # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
 
-    return _round(steps_per_epoch / accumulate_grad_batches) * max_epochs
+    steps_per_epoch = _round(sampler_num_samples / batch_size)
+
+    return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
 
 
 AVAILABLE_SCHEDULERS = {
@@ -604,6 +652,7 @@ AVAILABLE_SCHEDULERS = {
     'WarmupHoldPolicy': WarmupHoldPolicy,
     'SquareAnnealing': SquareAnnealing,
     'CosineAnnealing': CosineAnnealing,
+    'NoamAnnealing': NoamAnnealing,
     'WarmupAnnealing': WarmupAnnealing,
     'InverseSquareRootAnnealing': InverseSquareRootAnnealing,
     'SquareRootAnnealing': SquareRootAnnealing,

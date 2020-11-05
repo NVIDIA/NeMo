@@ -80,7 +80,7 @@ import os
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.core.config import hydra_runner
@@ -105,8 +105,12 @@ def main(cfg: DictConfig) -> None:
     logging.info("===========================================================================================")
 
     if cfg.model.nemo_path:
+        # ,nemo file contains the last checkpoint and the params to initialize the model
         model.save_to(cfg.model.nemo_path)
         logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
+        checkpoint_path = cfg.model.nemo_path
+    else:
+        checkpoint_path = None
 
     # We evaluate the trained model on the test set if test_ds is set in the config file
     if cfg.model.test_ds.file_path:
@@ -116,53 +120,6 @@ def main(cfg: DictConfig) -> None:
         trainer.test(model=model, ckpt_path=None, verbose=False)
         logging.info("Testing finished!")
         logging.info("===========================================================================================")
-
-    # retrieve the path to the last checkpoint of the training
-    if trainer.checkpoint_callback is not None:
-        checkpoint_path = os.path.join(
-            trainer.checkpoint_callback.dirpath, trainer.checkpoint_callback.prefix + ".nemo"
-        )
-    else:
-        checkpoint_path = None
-    """
-    After model training is done, if you have saved the checkpoints, you can create the model from
-    the checkpoint again and evaluate it on a data file.
-    You need to set or pass the test dataloader, and also create a trainer for this.
-    """
-    if checkpoint_path and os.path.exists(checkpoint_path) and cfg.model.validation_ds.file_path:
-        logging.info("===========================================================================================")
-        logging.info("Starting the evaluating the the last checkpoint on a data file (validation set by default)...")
-        # we use the the path of the checkpoint from last epoch from the training, you may update it to any checkpoint
-        # Create an evaluation model and load the checkpoint
-        eval_model = TextClassificationModel.restore_from(restore_path=checkpoint_path)
-
-        # create a dataloader config for evaluation, the same data file provided in validation_ds is used here
-        # file_path can get updated with any file
-        eval_config = OmegaConf.create(
-            {'file_path': cfg.model.validation_ds.file_path, 'batch_size': 64, 'shuffle': False}
-        )
-        eval_model.setup_test_data(test_data_config=eval_config)
-
-        # a new trainer is created to show how to evaluate a checkpoint from an already trained model
-        # create a copy of the trainer config and update it to be used for final evaluation
-        eval_trainer_cfg = cfg.trainer.copy()
-
-        # it is safer to perform evaluation on single GPU without ddp as we are creating second trainer in
-        # the same script, and it can be a problem with multi-GPU training.
-        # We also need to reset the environment variable PL_TRAINER_GPUS to prevent PT from initializing ddp.
-        # When evaluation and training scripts are in separate files, no need for this resetting.
-        eval_trainer_cfg.gpus = 1 if torch.cuda.is_available() else 0
-        eval_trainer_cfg.accelerator = None
-        eval_trainer = pl.Trainer(**eval_trainer_cfg)
-
-        eval_trainer.test(model=eval_model, verbose=False)  # test_dataloaders=eval_dataloader,
-
-        logging.info("Evaluation the last checkpoint finished!")
-        logging.info("===========================================================================================")
-    else:
-        logging.info(
-            "No file_path was set for validation_ds or no checkpoint was found, so final evaluation is skipped!"
-        )
 
     if checkpoint_path and os.path.exists(checkpoint_path):
         # You may create a model from a saved chechpoint and use the model.infer() method to
