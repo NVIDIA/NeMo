@@ -25,7 +25,7 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataloader,
 )
-from nemo.collections.nlp.metrics.perplexity import Perplexity
+from nemo.collections.common.metrics import Perplexity
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -107,7 +107,7 @@ class BERTLMModel(ModelPT):
         # create extra bias
 
         # setup to track metrics
-        self.perplexity_metric = Perplexity(dist_sync_on_step=True)
+        self.validation_perplexity = Perplexity(compute_on_step=False)
 
         self.setup_optimization(cfg.optim)
 
@@ -163,8 +163,8 @@ class BERTLMModel(ModelPT):
             nsp_loss = self.nsp_loss(logits=logits[1], labels=labels)
 
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
-        perplexity = self.perplexity_metric(mlm_loss)
-        tensorboard_logs = {'val_loss': loss, 'perplexity': perplexity}
+        self.validation_perplexity(logits=logits)
+        tensorboard_logs = {'val_loss': loss}
         return {'val_loss': loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
@@ -178,9 +178,9 @@ class BERTLMModel(ModelPT):
         """
         if outputs:
             avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-            perplexity = torch.stack([x['log']['perplexity'] for x in outputs]).mean()
+            perplexity = self.validation_perplexity.compute()
             tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
-            logging.info(f"evaluation perplexity {perplexity.item()}")
+            logging.info(f"evaluation perplexity {perplexity.cpu().item()}")
             return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
