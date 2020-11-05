@@ -92,7 +92,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
             return torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=config['batch_size'],
-                collate_fn=dataset.sliced_seq_collate_fn,  # dataset.collate_fn,
+                collate_fn=dataset.vad_frame_seq_collate_fn,
                 drop_last=config.get('drop_last', False),
                 shuffle=config['shuffle'],
                 num_workers=config.get('num_workers', 0),

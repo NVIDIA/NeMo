@@ -53,8 +53,9 @@ target_label_n, "offset": offset_in_sec_n}
             Controls whether the dataloader loads the audio signal and
             transcript or just the transcript.
             Defaults to True.
+        time_length (float): max seconds to consider in a batch # Pass this only for speaker recognition and VAD task 
+        shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
         
-        time_length (int): max seconds to consider in a batch # Pass this only for speaker recognition task
     """
 
     @property
@@ -83,7 +84,8 @@ target_label_n, "offset": offset_in_sec_n}
         max_duration: Optional[float] = None,
         trim: bool = False,
         load_audio: bool = True,
-        time_length: Optional[int] = 8,
+        time_length: Optional[float] = 8,
+        shift_length: Optional[float] = 1,
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
@@ -93,9 +95,11 @@ target_label_n, "offset": offset_in_sec_n}
         self.featurizer = featurizer
         self.trim = trim
         self.load_audio = load_audio
-        self.time_length = time_length
+        self.time_length = time_length 
+        self.shift_length = shift_length
 
-        logging.info("Timelength considered for collate func is {}".format(time_length))
+        logging.info("Time length considered for collate func is {}".format(time_length))
+        logging.info("Shift length considered for collate func is {}".format(time_length))
 
         self.labels = labels if labels else self.collection.uniq_labels
         self.num_classes = len(self.labels)
@@ -161,7 +165,6 @@ target_label_n, "offset": offset_in_sec_n}
                 LongTensor):  A tuple of tuples of signal, signal lengths,
                 encoded tokens, and encoded tokens length.  This collate func
                 assumes the signals are 1d torch tensors (i.e. mono audio).
-            fixed_length (Optional[int]): length of input signal to be considered
         """
         slice_length = self.featurizer.sample_rate * self.time_length
         _, audio_lengths, _, tokens_lengths = zip(*batch)
@@ -206,6 +209,52 @@ target_label_n, "offset": offset_in_sec_n}
 
         return audio_signal, audio_lengths, tokens, tokens_lengths
 
+    def vad_frame_seq_collate_fn(self, batch):
+        """collate batch of audio sig, audio len, tokens, tokens len
+        Args:
+            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+                LongTensor):  A tuple of tuples of signal, signal lengths,
+                encoded tokens, and encoded tokens length.  This collate func
+                assumes the signals are 1d torch tensors (i.e. mono audio).
+                batch size equals to 1.      
+        """
+        slice_length = int(self.featurizer.sample_rate * self.time_length)
+        _, audio_lengths, _, tokens_lengths = zip(*batch)
+        slice_length = min(slice_length, max(audio_lengths))
+        shift = int(self.featurizer.sample_rate * self.shift_length)
+        has_audio = audio_lengths[0] is not None
+
+        audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
+      
+        append_len = int(slice_length/2)-1
+        for sig, sig_len, tokens_i, _ in batch:
+            start = torch.zeros(append_len) 
+            end = torch.zeros(append_len)
+            sig = torch.cat((start, sig, end))
+            sig_len +=  append_len * 2
+
+            if has_audio:
+                slices = (sig_len - slice_length) // shift + 1
+                for slice_id in range(slices):
+                    start_idx = slice_id * shift
+                    end_idx = start_idx + slice_length
+                    signal = sig[start_idx:end_idx]
+                    audio_signal.append(signal)
+
+                num_slices.append(slices)
+                tokens.extend([tokens_i] * slices)
+                audio_lengths.extend([slice_length] * slices)
+                
+        if has_audio:
+            audio_signal = torch.stack(audio_signal)
+            audio_lengths = torch.tensor(audio_lengths)
+        else:
+            audio_signal, audio_lengths = None, None
+            
+        tokens = torch.stack(tokens)
+        tokens_lengths = torch.tensor(num_slices)  
+        return audio_signal, audio_lengths, tokens, tokens_lengths
+    
     def __len__(self):
         return len(self.collection)
 
