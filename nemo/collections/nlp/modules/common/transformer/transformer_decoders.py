@@ -95,10 +95,8 @@ class TransformerDecoder(nn.Module):
             return_mems: bool, whether to return outputs of all decoder layers
                 or the last layer only
         """
-
         decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=0)
         encoder_attn_mask = form_attention_mask(encoder_mask)
-
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
         cached_mems_list = [memory_states]
 

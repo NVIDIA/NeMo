@@ -64,6 +64,7 @@ class GreedySequenceGenerator(nn.Module):
         self.max_seq_length = max_sequence_length
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
+        # TODO replace self.device attribute with defining device on the fly according to Pytorch Lightning recomendations
         self.device = next(self.decoder.parameters()).device
 
     @torch.no_grad()
@@ -106,7 +107,7 @@ class GreedySequenceGenerator(nn.Module):
             decoder_mems_list = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        log_probs = self.log_softmax.forward(decoder_mems_list[-1])
+        log_probs = self.log_softmax.forward(hidden_states=decoder_mems_list[-1])
         return log_probs, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
@@ -114,6 +115,8 @@ class GreedySequenceGenerator(nn.Module):
         Helper function which defines starting sequence to begin generating
         with and maximum allowed number of tokens to be generated.
         """
+
+        decoder_parameter = next(self.decoder.parameters())
 
         batch_size = self.batch_size
 
@@ -130,7 +133,7 @@ class GreedySequenceGenerator(nn.Module):
             tgt = decoder_input_ids
             batch_size, tgt_len = decoder_input_ids.size()
         else:
-            tgt = torch.zeros(batch_size, 1).long().fill_(self.bos).to(self.device)
+            tgt = torch.zeros(batch_size, 1).long().fill_(self.bos).to(decoder_parameter.device)
             tgt_len = 1
         max_generation_length = max_seq_length - tgt_len
 
@@ -230,8 +233,12 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         self.beam_size = beam_size
         self.len_pen = len_pen
 
-    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+    @staticmethod
+    def compute_len_penalty(lengths, alpha):
+        """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
+        return ((5 + lengths) / 6).pow(alpha)
 
+    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
         # generate initial buffer of beam_size prefixes-hypotheses
@@ -284,9 +291,10 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             scores = scores + scores_i * (1 - pad_mask).to(scores.dtype)
 
             # choose top-k hypotheses with length penalty applied
-            scores = scores / prefixes_len.pow(self.len_pen)
+            len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
+            scores = scores / len_penalties
             scores, indices_i = torch.topk(scores.view(-1, self.beam_size ** 2), self.beam_size, dim=1)
-            scores = scores.view(-1, 1) * prefixes_len.pow(self.len_pen)
+            scores = scores.view(-1, 1) * len_penalties
 
             # select prefixes which correspond to the chosen hypotheses
             prefixes = prefixes.unsqueeze(1).repeat(1, self.beam_size, 1)
@@ -317,7 +325,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
                 break
 
         # select best performing hypotheses in each element of the batch
-        scores = scores / prefixes_len.pow(self.len_pen)
+        len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
+        scores = scores / len_penalties
         best_guesses = (
             torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
         )

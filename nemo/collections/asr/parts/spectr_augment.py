@@ -66,7 +66,7 @@ class SpecAugment(nn.Module):
         else:
             time_width = self.time_width
 
-        mask = torch.zeros(x.shape).byte()
+        mask = torch.zeros(x.shape).bool()
 
         for idx in range(sh[0]):
             for i in range(self.freq_masks):
@@ -112,7 +112,7 @@ class SpecCutout(nn.Module):
     def forward(self, x):
         sh = x.shape
 
-        mask = torch.zeros(x.shape).byte()
+        mask = torch.zeros(x.shape).bool()
 
         for idx in range(sh[0]):
             for i in range(self.rect_masks):
