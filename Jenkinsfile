@@ -529,6 +529,7 @@ pipeline {
         model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
         model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
         model.nemo_path=null \
+        ~model.infer_samples \
         '
         sh 'rm -rf examples/nlp/text_classification/exp_mp_2_megatron_bert'
       }
