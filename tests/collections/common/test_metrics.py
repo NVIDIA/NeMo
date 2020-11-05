@@ -19,7 +19,7 @@ from typing import Callable
 import pytest
 import torch
 
-from .perplexity_inputs import _only_probs, _only_logits1, _only_logits100, _probs_and_logits, _no_probs_no_logits
+from .perplexity_inputs import _no_probs_no_logits, _only_logits1, _only_logits100, _only_probs, _probs_and_logits
 from .pl_utils import PerplexityTester
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
 

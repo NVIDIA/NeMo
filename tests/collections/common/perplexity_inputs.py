@@ -47,4 +47,4 @@ _probs_and_logits = Input(
     logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES) * 200 - 100,
 )
 
-_no_probs_no_logits = Input(probs=None,logits=None)
+_no_probs_no_logits = Input(probs=None, logits=None)
