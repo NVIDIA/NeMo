@@ -137,5 +137,4 @@ class TestPerplexity(PerplexityTester):
             probs=probs,
             logits=logits,
             dist_sync_on_step=dist_sync_on_step,
-            metric_args={"threshold": THRESHOLD},
         )

@@ -47,4 +47,4 @@ class Perplexity(Metric):
     def compute(self):
         if self.num_distributions.eq(0):
             return None
-        return self.perplexities_sums / self.num_distributions
+        return self.perplexities_sum / self.num_distributions

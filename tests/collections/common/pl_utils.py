@@ -298,18 +298,17 @@ def _perplexity_class_test(
     """
     # Instanciate lightning metric
     perplexity = Perplexity(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, **metric_args)
+    if (probs is None) == (logits is None):
+        with pytest.raises(ValueError):
+            perplexity(probs, logits)
+        return
 
     # verify metrics work after being loaded from pickled state
     pickled_metric = pickle.dumps(perplexity)
     perplexity = pickle.loads(pickled_metric)
 
     for i in range(rank, NUM_BATCHES, worldsize):
-        if probs is None == logits is None:
-            with pytest.raises(ValueError):
-                perplexity(probs, logits)
-            return
-        else:
-            batch_result = perplexity(probs[i], logits[i])
+        batch_result = perplexity(None if probs is None else probs[i], None if logits is None else logits[i])
 
         if perplexity.dist_sync_on_step:
             if rank == 0:
@@ -332,13 +331,13 @@ def _perplexity_class_test(
             if check_batch:
                 assert np.allclose(batch_result.numpy(), sk_batch_result, atol=atol)
 
-    assert probs is None != logits is None
+    assert (probs is None) != (logits is None)
     # check on all batches on all ranks
     result = perplexity.compute()
     assert isinstance(result, torch.Tensor)
 
     if probs is None:
-        probs = logits_to_probs(probs, is_binary=False)
+        probs = logits_to_probs(logits, is_binary=False)
     sk_result = reference_perplexity_func(probs)
 
     # assert after aggregation
