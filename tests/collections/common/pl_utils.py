@@ -288,6 +288,9 @@ def _perplexity_class_test(
         Args:
             rank: rank of current process
             worldsize: number of processes
+            probs: torch tensor with probabilities
+            logits: torch tensor with logits. The function checks ``probs`` and ``logits are mutually exclusive for
+                ``Perplexity`` metric.
             dist_sync_on_step: bool, if true will synchronize metric state across
                 processes at each ``forward()``
             metric_args: dict with additional arguments used for class initialization
@@ -303,7 +306,7 @@ def _perplexity_class_test(
             perplexity(probs, logits)
         return
 
-    # verify metrics work after being loaded from pickled state
+    # verify perplexity works after being loaded from pickled state
     pickled_metric = pickle.dumps(perplexity)
     perplexity = pickle.loads(pickled_metric)
 
@@ -359,6 +362,9 @@ class PerplexityTester(MetricTester):
             methods.
             Args:
                 ddp: bool, if running in ddp mode or not
+                probs: torch tensor with probabilities.
+                logits: torch tensor with logits. This test checks that probs and logits are mutually exclusive for
+                    ``Perplexity`` metric.
                 dist_sync_on_step: bool, if true will synchronize metric state across
                     processes at each ``forward()``
                 metric_args: dict with additional arguments used for class initialization
