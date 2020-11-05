@@ -16,3 +16,12 @@ Neural Types
     :members:
     :undoc-members:
     :show-inheritance:
+
+
+Metrics
+-------
+
+.. autoclass:: nemo.collections.common.metrics.Perplexity
+    :show-inheritance:
+    :members:
+    :undoc-members:
