@@ -143,7 +143,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
     def __init__(self, n_head, n_feat, dropout_rate):
         """Construct an RelPositionMultiHeadedAttention object."""
         super().__init__(n_head, n_feat, dropout_rate)
-        # linear transformation for positional ecoding
+        # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable bias are used in matrix c and matrix d
         # as described in https://arxiv.org/abs/1901.02860 Section 3.3
