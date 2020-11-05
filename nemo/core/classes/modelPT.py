@@ -237,7 +237,7 @@ class ModelPT(LightningModule, Model):
         if not is_global_rank_zero():
             return
 
-        if _EFF_PRESENT_ and self._use_eff_save():
+        if _EFF_PRESENT_ and self.use_eff_save():
             # Save EFF archive.
             self._eff_save_to(save_path)
         else:
@@ -1141,11 +1141,11 @@ class ModelPT(LightningModule, Model):
         _MODEL_IS_RESTORED = is_being_restored
 
     @staticmethod
-    def _set_eff_save(use_eff_save: bool):
+    def set_eff_save(use_eff_save: bool):
         global _MODEL_EFF_SAVE
         _MODEL_EFF_SAVE = use_eff_save
 
     @staticmethod
-    def _use_eff_save() -> bool:
+    def use_eff_save() -> bool:
         global _MODEL_EFF_SAVE
         return _MODEL_EFF_SAVE
