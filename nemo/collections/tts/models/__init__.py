@@ -21,6 +21,7 @@ from nemo.collections.tts.models.talknet import TalkNetDursModel, TalkNetSpectMo
 from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
 from nemo.collections.tts.models.uniglow import UniGlowModel
 from nemo.collections.tts.models.waveglow import WaveGlowModel
+from nemo.collections.tts.models.melgan import MelGanModel
 
 __all__ = [
     "GlowTTSModel",
@@ -35,4 +36,5 @@ __all__ = [
     "TalkNetDursModel",
     "TalkNetSpectModel",
     "UniGlowModel",
+    "MelGanModel",
 ]

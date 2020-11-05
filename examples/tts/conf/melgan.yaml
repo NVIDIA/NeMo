@@ -8,10 +8,6 @@ validation_datasets: ???
 n_mels: 80
 
 model:
-  init_adv_lambda: 1.
-  increase_lambda: False
-  pqmf: False
-
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
@@ -80,7 +76,6 @@ model:
     out_channels: 1                   # Number of output channels.
     kernel_sizes: [5, 3]              # List of kernel size.
     channels: 16                      # Number of channels of the initial conv layer.
-    input_lengths: [256, 512, 1024, 2048, 4096]
     max_downsample_channels: 512      # Maximum number of channels of downsampling layers.
     downsample_scales: [4, 4, 4]      # List of downsampling scales.
     nonlinear_activation: "LeakyReLU" # Nonlinear activation function.
@@ -90,6 +85,7 @@ model:
     use_spectral_norm: False             # Whether to use weight norm.
 
   loss:
+    _target_: nemo.collection.tts.loss.stftlosses.MultiResolutionSTFTLoss
     fft_sizes: [1024, 2048, 512]
     hop_sizes: [120, 240, 50]
     win_lengths: [600, 1200, 240]
