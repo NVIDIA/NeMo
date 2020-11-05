@@ -297,7 +297,7 @@ class MelGanModel(ModelPT):
             self.logger.experiment.add_scalar("epoch", self.current_epoch, self.global_step)
 
         # Start training discriminator after 20% of training
-        if self.current_epoch >= np.ceil(0.2 * self._trainer.max_epochs) and self.add_gan_loss:
+        if self.current_epoch >= np.ceil(0.2 * self._trainer.max_epochs):
             self.start_training_disc = True
 
         return super().training_epoch_end(outputs)
