@@ -568,7 +568,12 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
     if params.prefix is None:
         params.prefix = name
 
-    if "val" in params.monitor and trainer.max_epochs != -1 and trainer.max_epochs < trainer.check_val_every_n_epoch:
+    if (
+        params.monitor is not None
+        and "val" in params.monitor
+        and trainer.max_epochs != -1
+        and trainer.max_epochs < trainer.check_val_every_n_epoch
+    ):
         logging.error(
             "The checkpoint callback was told to monitor a validation value but trainer.max_epochs("
             f"{trainer.max_epochs}) was less than trainer.check_val_every_n_epoch({trainer.check_val_every_n_epoch})."

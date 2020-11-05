@@ -106,12 +106,7 @@ class NLPModel(ModelPT):
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
-                if self._trainer.num_nodes > 1:
-                    logging.warning(
-                        "NeMo's model parallel does not currently support pytorch lighntning's slurm auto-resume "
-                        "features. Please patch hpc_save if interested in this feature."
-                    )
-
+                self._patch_checkpointing()
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
@@ -154,6 +149,12 @@ class NLPModel(ModelPT):
                     self_._save_checkpoint(filepath, weights_only)
                 finally:
                     self_.trainer.global_rank = _old_global_rank
+
+        if self._trainer.num_nodes > 1:
+            logging.warning(
+                "NeMo's model parallel does not currently support pytorch lighntning's slurm auto-resume "
+                "features. Please patch hpc_save if interested in this feature."
+            )
 
         self._trainer.checkpoint_connector._save_checkpoint = self._trainer.checkpoint_connector.save_checkpoint
         self._trainer.checkpoint_connector.save_checkpoint = partial(
