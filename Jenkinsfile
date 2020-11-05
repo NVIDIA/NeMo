@@ -209,10 +209,10 @@ pipeline {
           }
         }
 
-        stage('L2: Speech to Text WPE') {
+        stage('L2: Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
-            --config-path="experimental/configs/" --config-name="config_bpe" \
+            --config-path="experimental/citrinet/" --config-name="config_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
@@ -221,6 +221,21 @@ pipeline {
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
             sh 'rm -rf examples/asr/speech_to_text_wpe_results'
+          }
+        }
+
+        stage('L2: Speech to Text WPE - Conformer') {
+          steps {
+            sh 'python examples/asr/speech_to_text_bpe.py \
+            --config-path="experimental/conformer" --config-name="conformer_bpe" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+            model.tokenizer.type="wpe" \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
+            sh 'rm -rf examples/asr/speech_to_text_wpe_conformer_results'
           }
         }
       }
@@ -357,7 +372,33 @@ pipeline {
         }
       }
     }
-
+    // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
+    stage('L2: MegaBERT Token Classification') {
+      when {
+        anyOf{
+          branch 'v1.0.0b2'
+          changeRequest target: 'v1.0.0b2'
+        }
+      }
+      failFast true
+      steps {
+        sh 'cd examples/nlp/token_classification && \
+        python token_classification.py \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
+        model.train_ds.batch_size=10 \
+        model.dataset.max_seq_length=50 \
+        model.dataset.use_cache=false \
+        trainer.accelerator=ddp \
+        trainer.precision=16 \
+        trainer.amp_level=O1 \
+        trainer.gpus=[1] \
+        +trainer.fast_dev_run=true \
+        exp_manager.exp_dir=exp_megabert_base_uncased \
+        '
+        sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
+      }
+    }
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
       when {
         anyOf{

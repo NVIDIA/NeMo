@@ -66,7 +66,6 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # initialize Bert model
-
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
@@ -108,8 +107,16 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             mode='micro',
         )
 
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
+    def update_data_dir(self, data_dir: str) -> None:
+        """
+        Update data directory and get data stats with Data Descriptor
+        Weights are later used to setup loss
+
+        Args:
+            data_dir: path to data directory
+        """
+        self.data_dir = data_dir
+        logging.info(f'Setting model.data_dir to {data_dir}.')
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
