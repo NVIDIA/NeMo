@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
-from nemo.collections.nlp.modules.common.huggingface.auto import AutoModelEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (

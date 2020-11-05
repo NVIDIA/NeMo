@@ -34,7 +34,7 @@ from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
-__all__ = ['BERTLMModel']
+__all__ = ["BERTLMModel"]
 
 
 class BERTLMModel(ModelPT):
@@ -48,9 +48,9 @@ class BERTLMModel(ModelPT):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        output_types_dict = {'mlm_logits': self.mlm_classifier.output_types['logits']}
+        output_types_dict = {"mlm_log_probs": self.mlm_classifier.output_types["log_probs"]}
         if not self.only_mlm_loss:
-            output_types_dict['nsp_logits'] = self.nsp_classifier.output_types['logits']
+            output_types_dict["nsp_logits"] = self.nsp_classifier.output_types["logits"]
         return output_types_dict
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -77,7 +77,7 @@ class BERTLMModel(ModelPT):
             hidden_size=self.hidden_size,
             num_classes=self.vocab_size,
             num_layers=cfg.num_tok_classification_layers,
-            activation='gelu',
+            activation="gelu",
             log_softmax=True,
             use_transformer_init=True,
         )
@@ -90,7 +90,7 @@ class BERTLMModel(ModelPT):
                 num_classes=2,
                 num_layers=cfg.num_seq_classification_layers,
                 log_softmax=False,
-                activation='tanh',
+                activation="tanh",
                 use_transformer_init=True,
             )
 
@@ -118,14 +118,14 @@ class BERTLMModel(ModelPT):
         in the `nn.Module` in vanilla PyTorch.
         """
         hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask,
         )
-        mlm_logits = self.mlm_classifier(hidden_states=hidden_states)
+        mlm_log_probs = self.mlm_classifier(hidden_states=hidden_states)
         if self.only_mlm_loss:
-            return (mlm_logits,)
+            return (mlm_log_probs,)
 
         nsp_logits = self.nsp_classifier(hidden_states=hidden_states)
-        return mlm_logits, nsp_logits
+        return mlm_log_probs, nsp_logits
 
     def training_step(self, batch, batch_idx):
         """
@@ -134,8 +134,8 @@ class BERTLMModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-        mlm_loss = self.mlm_loss(logits=logits[0], labels=output_ids, output_mask=output_mask)
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
+        mlm_loss = self.mlm_loss(log_probs=logits[0], labels=output_ids, output_mask=output_mask)
 
         if self.only_mlm_loss:
             loss = mlm_loss
@@ -144,8 +144,8 @@ class BERTLMModel(ModelPT):
 
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
 
-        tensorboard_logs = {'train_loss': loss}
-        return {'loss': loss, 'log': tensorboard_logs}
+        tensorboard_logs = {"train_loss": loss}
+        return {"loss": loss, "log": tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
         """
@@ -153,9 +153,9 @@ class BERTLMModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
 
-        mlm_loss = self.mlm_loss(logits=logits[0], labels=output_ids, output_mask=output_mask)
+        mlm_loss = self.mlm_loss(log_probs=logits[0], labels=output_ids, output_mask=output_mask)
 
         if self.only_mlm_loss:
             loss = mlm_loss
@@ -164,8 +164,8 @@ class BERTLMModel(ModelPT):
 
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
         perplexity = self.perplexity_metric(mlm_loss)
-        tensorboard_logs = {'val_loss': loss, 'perplexity': perplexity}
-        return {'val_loss': loss, 'log': tensorboard_logs}
+        tensorboard_logs = {"val_loss": loss, "perplexity": perplexity}
+        return {"val_loss": loss, "log": tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """Called at the end of validation to aggregate outputs.
@@ -177,11 +177,11 @@ class BERTLMModel(ModelPT):
             dict: Validation loss and tensorboard logs.
         """
         if outputs:
-            avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-            perplexity = torch.stack([x['log']['perplexity'] for x in outputs]).mean()
-            tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
+            avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
+            perplexity = torch.stack([x["log"]["perplexity"] for x in outputs]).mean()
+            tensorboard_logs = {"val_loss": avg_loss, "perplexity": perplexity}
             logging.info(f"evaluation perplexity {perplexity.item()}")
-            return {'val_loss': avg_loss, 'log': tensorboard_logs}
+            return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = (
@@ -211,7 +211,7 @@ class BERTLMModel(ModelPT):
             files = [dataset]
         files.sort()
         dl = BertPretrainingPreprocessedDataloader(
-            data_files=files, max_predictions_per_seq=max_predictions_per_seq, batch_size=batch_size
+            data_files=files, max_predictions_per_seq=max_predictions_per_seq, batch_size=batch_size,
         )
         return dl
 
@@ -236,9 +236,9 @@ class BERTLMModel(ModelPT):
             dataset=dataset,
             batch_size=cfg.batch_size,
             collate_fn=dataset.collate_fn,
-            drop_last=cfg.get('drop_last', False),
+            drop_last=cfg.get("drop_last", False),
             shuffle=cfg.shuffle,
-            num_workers=cfg.get('num_workers', 0),
+            num_workers=cfg.get("num_workers", 0),
         )
         return dl
 
