@@ -23,7 +23,7 @@ import pandas as pd
 
 
 """
-This script serves two propose:
+This script serves two purpose:
  
     1) gen_overlap_seq: 
         Generate predictions with overlapping input segments by using the frame level prediction from NeMo/examples/asr/vad_infer.py. 
@@ -135,9 +135,6 @@ def gen_seg_table(frame_filepath, per_args):
             threshold : threshold for prediction score (from 0 to 1).
             seg_len : Length of window for generating the frame.
             shift_len : Amount of shift of window for generating the frame.
-            has_all_frame: whether it contains frames in first half windows and very last half window.
-                           E.g. True if use frame prediction from NeMo/examples/asr/vad_infer.py;
-                                False if generate predictions with overlapping input segments.
             out_dir : Output dir of generated table/csv file.                   
     """
     threshold = per_args['threshold']
@@ -150,14 +147,10 @@ def gen_seg_table(frame_filepath, per_args):
     name = frame_filepath.split("/")[-1].split(".")[0]
 
     sequence = np.loadtxt(frame_filepath)
-    first = 0
-    if not has_all_frame:
-        # if not has_all_frame indicate that lack of frames in first half windows and very last half window
-        first = seg_len / 2
 
     start = 0
     end = 0
-    start_list = [first]
+    start_list = [0]
     end_list = []
     state_list = []
 
@@ -165,14 +158,14 @@ def gen_seg_table(frame_filepath, per_args):
         current_sate = "non-speech" if sequence[i] <= threshold else "speech"
         next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
         if next_state != current_sate:
-            end = first + i * shift_len + shift_len  # shift_len for handling joint
+            end =  i * shift_len + shift_len  # shift_len for handling joint
             state_list.append(current_sate)
             end_list.append(end)
 
-            start = first + (i + 1) * shift_len
+            start =  (i + 1) * shift_len
             start_list.append(start)
 
-    end_list.append((i + 1) * shift_len + first + shift_len)
+    end_list.append((i + 1) * shift_len + shift_len)
     state_list.append(current_sate)
 
     seg_table = pd.DataFrame({'start': start_list, 'end': end_list, 'vad': state_list})
@@ -186,7 +179,6 @@ if __name__ == '__main__':
     start = time.time()
 
     parser = ArgumentParser()
-    # functionanlity
     parser.add_argument("--gen_overlap_seq", default=False, action='store_true')
     parser.add_argument("--gen_seg_table", default=False, action='store_true')
 

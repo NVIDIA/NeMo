@@ -67,10 +67,6 @@ def main():
     if args.vad_model.endswith('.nemo'):
         logging.info(f"Using local VAD model from {args.vad_model}")
         vad_model = EncDecClassificationModel.restore_from(restore_path=args.vad_model)
-        
-    elif args.vad_model.endswith('.ckpt'):
-        logging.info(f"Using local VAD model from {args.vad_model}")
-        vad_model = EncDecClassificationModel.restore_from(restore_path=args.vad_model)
     else:
         logging.info(f"Using NGC cloud VAD model {args.vad_model}")
         vad_model = EncDecClassificationModel.from_pretrained(model_name=args.vad_model)
@@ -85,7 +81,6 @@ def main():
             'sample_rate': 16000,
             'manifest_filepath': args.dataset,
             'labels': ['infer',],
-            'batch_size': 1,
             'num_workers': 20,
             'shuffle': False,
             'time_length': args.time_length,
@@ -99,11 +94,11 @@ def main():
 
     data = []
     for line in open(args.dataset, 'r'):
-        data.append(json.loads(line)['audio_filepath'].split("/")[-1].split(".wav")[0])
+        sub_folder, file = json.loads(line)['audio_filepath'].split("/")[-2], json.loads(line)['audio_filepath'].split("/")[-1]
+        data.append(sub_folder + "-" +  file.split(".wav")[0])
     print(f"Inference on {len(data)} audio files/json lines!")
 
-    i = 0
-    for test_batch in vad_model.test_dataloader():
+    for i, test_batch in enumerate(vad_model.test_dataloader()):
         print(data[i])
         test_batch = [x.to(device) for x in test_batch]
 
@@ -111,14 +106,12 @@ def main():
             log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
             probs = torch.softmax(log_probs, dim=-1)
             to_save = probs[:, 1]
-            print(len(to_save))
-
             outpath = os.path.join(args.out_dir, data[i] + ".frame")
+                
             with open(outpath, "a") as fout:
                 for f in range(len(to_save)):
                     fout.write('{0:0.4f}\n'.format(to_save[f]))
         del test_batch
-        i += 1
 
 
 if __name__ == '__main__':

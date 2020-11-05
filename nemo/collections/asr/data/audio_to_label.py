@@ -226,7 +226,7 @@ target_label_n, "offset": offset_in_sec_n}
 
         audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
       
-        append_len = int(slice_length/2)-1
+        append_len = int(slice_length / 2) - 1
         for sig, sig_len, tokens_i, _ in batch:
             start = torch.zeros(append_len) 
             end = torch.zeros(append_len)
