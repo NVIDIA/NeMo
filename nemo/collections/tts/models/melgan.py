@@ -18,7 +18,6 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
-from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.core.classes import ModelPT
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
@@ -33,11 +32,8 @@ class MelGanModel(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
-        self.generator = MelGANGenerator(**cfg.gen)
-        if "input_lengths" in cfg.disc:
-            self.discriminator = MultiRWDDiscriminator(**cfg.disc)
-        else:
-            self.discriminator = MelGANMultiScaleDiscriminator(**cfg.disc)
+        self.generator = instantiate(self._cfg.generator)
+        self.discriminator = instantiate(self._cfg.discriminator)
 
         self.loss = instantiate(self._cfg.loss)
         self.mse_loss = torch.nn.MSELoss()  # Used for LSE GAN loss
@@ -155,8 +151,6 @@ class MelGanModel(ModelPT):
             loss = 0
             loss_dict = {}
             audio_pred = mb_audio_pred
-            if self.pqmf is not None:
-                audio_pred = self.pqmf.synthesis(mb_audio_pred)
             spec_pred, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
 
             # Ensure that audio len is consistent between audio_pred and audio

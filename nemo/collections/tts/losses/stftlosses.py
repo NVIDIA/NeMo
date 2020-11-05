@@ -68,10 +68,6 @@ def stft(x, fft_size, hop_size, win_length, window):
 class SpectralConvergenceLoss(torch.nn.Module):
     """Spectral convergence loss module."""
 
-    def __init__(self):
-        """Initilize spectral convergence loss module."""
-        super(SpectralConvergenceLoss, self).__init__()
-
     def forward(self, x_mag, y_mag):
         """Calculate forward propagation. It is assumed that x_mag and y_mag were padded to fit the maximum batch
         sequence length with silence, hence it is assumed that the norm of these extra padded values are 0. Therefore,
@@ -89,10 +85,6 @@ class SpectralConvergenceLoss(torch.nn.Module):
 
 class LogSTFTMagnitudeLoss(torch.nn.Module):
     """Log STFT magnitude loss module."""
-
-    def __init__(self):
-        """Initilize los STFT magnitude loss module."""
-        super(LogSTFTMagnitudeLoss, self).__init__()
 
     def forward(self, x_mag, y_mag, input_lengths=None):
         """Calculate forward propagation.

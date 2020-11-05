@@ -25,7 +25,9 @@ class UniGlowLoss(Loss):
 
     def __init__(self, stft_loss_coef):
         super(UniGlowLoss, self).__init__()
-        self.stft_loss = MultiResolutionSTFTLoss()
+        self.stft_loss = MultiResolutionSTFTLoss(
+            fft_sizes=[1024, 2048, 512], hop_sizes=[120, 240, 50], win_lengths=[600, 1200, 240], window="hann_window"
+        )
         self.stft_loss_coef = stft_loss_coef
 
     @property
