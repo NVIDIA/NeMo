@@ -15,9 +15,9 @@
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
+from nemo.collections.tts.models import MelGanModel
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
-from nemo.collections.tts.models import MelGanModel
 
 
 @hydra_runner(config_path="conf", config_name="multiband_melgan")

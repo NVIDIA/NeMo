@@ -14,10 +14,10 @@
 
 import torch
 
+from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types.elements import AudioSignal, LossType, NormalDistributionSamplesType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 
 
 class UniGlowLoss(Loss):
