@@ -247,7 +247,6 @@ class NLPModel(ModelPT):
             model = self._trainer.get_model()
             parameters = model.parameters()
             if mpu.model_parallel_is_initialized():
-                logging.info("Using model parallel gradient clipping.")
                 mpu.grads.clip_grad_norm(parameters=parameters, max_norm=clip_val)
             else:
                 raise ValueError('Model parallel groups must be intialized to use model parallel gradient clipping.')
