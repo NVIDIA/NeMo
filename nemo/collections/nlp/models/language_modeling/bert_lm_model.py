@@ -134,13 +134,15 @@ class BERTLMModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,)
-        mlm_loss = self.mlm_loss(log_probs=logits[0], labels=output_ids, output_mask=output_mask)
+        mlm_log_probs, nsp_logits = self.forward(
+            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,
+        )
+        mlm_loss = self.mlm_loss(log_probs=mlm_log_probs, labels=output_ids, output_mask=output_mask)
 
         if self.only_mlm_loss:
             loss = mlm_loss
         else:
-            nsp_loss = self.nsp_loss(logits=logits[1], labels=labels)
+            nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
 
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
 
@@ -153,17 +155,19 @@ class BERTLMModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        mlm_log_probs, nsp_logits = self.forward(
+            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
+        )
 
-        mlm_loss = self.mlm_loss(log_probs=logits[0], labels=output_ids, output_mask=output_mask)
+        mlm_loss = self.mlm_loss(log_probs=mlm_log_probs, labels=output_ids, output_mask=output_mask)
 
         if self.only_mlm_loss:
             loss = mlm_loss
         else:
-            nsp_loss = self.nsp_loss(logits=logits[1], labels=labels)
+            nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
 
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
-        self.validation_perplexity(logits=logits[0])
+        self.validation_perplexity(logits=mlm_log_probs)
         tensorboard_logs = {'val_loss': loss}
         return {'val_loss': loss, 'log': tensorboard_logs}
 
