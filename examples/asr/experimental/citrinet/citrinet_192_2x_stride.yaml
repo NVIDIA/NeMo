@@ -1,4 +1,4 @@
-name: &name "ContextNet-192-2x-Stride"
+name: &name "CitriNet-192-2x-Stride"
 
 model:
   sample_rate: &sample_rate 16000
