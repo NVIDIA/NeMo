@@ -23,7 +23,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="transformer_mt_config")
+@hydra_runner(config_path="conf", config_name="en_de_8gpu")
 def main(cfg: DictConfig) -> None:
     if cfg.model.test_checkpoint_path is None:
         raise ValueError("Not checkpoint for testing was provided")
