@@ -130,7 +130,7 @@ class BERTLMModel(ModelPT):
     def _compute_losses(self, mlm_log_probs, nsp_logits, output_ids, output_mask, labels):
         mlm_loss = self.mlm_loss(log_probs=mlm_log_probs, labels=output_ids, output_mask=output_mask)
         if self.only_mlm_loss:
-            loss = mlm_loss
+            loss, nsp_loss = mlm_loss, None
         else:
             nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
