@@ -38,6 +38,35 @@ RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.gi
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
+# build RNN-T loss
+WORKDIR /workspace/deps/rnnt
+RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
+    git clone https://github.com/HawkAaron/warp-transducer && \
+    cd warp-transducer && \
+    git checkout $COMMIT_SHA && \
+    # disable old compile flags (compute_30 arch)
+    sed -i 's/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30 -O2")/#set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30 -O2")/g' CMakeLists.txt && \
+    # enable Cuda 11 compilation if necessary
+    sed -i 's/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")/g' CMakeLists.txt && \
+    # build loss function
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make VERBOSE=1 && \
+    # set env flags
+    export CUDA_HOME="/usr/local/cuda" && \
+    export WARP_RNNT_PATH=`pwd` && \
+    export CUDA_TOOLKIT_ROOT_DIR=$CUDA_HOME && \
+    export LD_LIBRARY_PATH="$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH" && \
+    export LIBRARY_PATH=$CUDA_HOME/lib64:$LIBRARY_PATH && \
+    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH && \
+    export CFLAGS="-I$CUDA_HOME/include $CFLAGS" && \
+    # install pytorch binding
+    cd ../pytorch_binding && \
+    python3 setup.py install && \
+    rm -rf ../tests test ../tensorflow_binding
+
+
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
