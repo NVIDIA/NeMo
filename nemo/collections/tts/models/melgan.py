@@ -18,14 +18,15 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
-from nemo.core.classes import ModelPT
+from nemo.collections.tts.models.base import Vocoder
+from nemo.core.classes.common import typecheck
 from nemo.core.optim.lr_scheduler import CosineAnnealing
+from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
-@experimental
-class MelGanModel(ModelPT):
+class MelGanModel(Vocoder):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
@@ -33,7 +34,8 @@ class MelGanModel(ModelPT):
 
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.generator = instantiate(self._cfg.generator)
-        self.discriminator = instantiate(self._cfg.discriminator)
+        if "discriminator" in self._cfg:
+            self.discriminator = instantiate(self._cfg.discriminator)
 
         self.loss = instantiate(self._cfg.loss)
         self.mse_loss = torch.nn.MSELoss()  # Used for LSE GAN loss
@@ -41,14 +43,6 @@ class MelGanModel(ModelPT):
         self.start_training_disc = False
         self.logged_real_samples = False
         self.sample_rate = self._cfg.preprocessor.sample_rate
-
-    @property
-    def input_types(self):
-        pass
-
-    @property
-    def output_types(self):
-        pass
 
     def configure_optimizers(self):
         opt1 = torch.optim.Adam(self.discriminator.parameters(), lr=1e-3, eps=1e-07, amsgrad=True)
@@ -73,32 +67,49 @@ class MelGanModel(ModelPT):
         }
         return [opt1, opt2], [sch1_dict, sch2_dict]
 
-    def forward(self):
-        pass
+    @property
+    def input_types(self):
+        return {
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
+        }
+
+    @typecheck()
+    def forward(self, *, spec):
+        """
+        Runs the generator, for inputs and outputs see input_types, and output_types
+        """
+        return self.generator(spec=spec)
+
+    @typecheck(output_types=NeuralType(('B', 'T'), AudioSignal()))
+    def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
+        return self(spec=spec).squeeze()
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         audio, audio_len = batch
         spec, _ = self.audio_to_melspec_precessor(audio, audio_len)
-        mb_audio_pred = self.generator(spec)
+        audio_pred = self(spec=spec)
 
         # train discriminator
         if optimizer_idx == 0 and self.start_training_disc:
-            audio_pred = mb_audio_pred
-            fake_score = self.discriminator(audio_pred.detach())
-            real_score = self.discriminator(audio.unsqueeze(1))
+            fake_score = self.discriminator(x=audio_pred.detach())
+            real_score = self.discriminator(x=audio.unsqueeze(1))
 
             loss_disc_real = [0] * len(fake_score)
             loss_disc_fake = [0] * len(fake_score)
-            for i in range(len(fake_score)):
-                loss_disc_real[i] += self.mse_loss(
-                    real_score[i][-1], real_score[i][-1].new_ones(real_score[i][-1].size())
-                )
-                loss_disc_fake[i] += torch.mean(fake_score[i][-1] ** 2)
+            for i, _ in enumerate(fake_score):
+                loss_disc_real[i] += self.mse_loss(real_score[i], real_score[i].new_ones(real_score[i].size()))
+                loss_disc_fake[i] += torch.mean(fake_score[i] ** 2)
             sum_loss_dis = sum(loss_disc_real) + sum(loss_disc_fake)
             sum_loss_dis /= len(fake_score)
 
-            self.log(f"loss_discriminator", sum_loss_dis, prog_bar=True, sync_dist=True)
-            for i in range(len(fake_score)):
+            self.log("loss_discriminator", sum_loss_dis, prog_bar=True, sync_dist=True)
+            for i, _ in enumerate(fake_score):
                 self.log(f"loss_discriminator_real_{i}", loss_disc_real[i] / len(fake_score), sync_dist=True)
                 self.log(f"loss_discriminator_fake_{i}", loss_disc_fake[i] / len(fake_score), sync_dist=True)
             return sum_loss_dis
@@ -106,7 +117,6 @@ class MelGanModel(ModelPT):
         # train generator
         elif optimizer_idx == 1:
             loss = 0
-            audio_pred = mb_audio_pred
 
             # full-band loss
             sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio)
@@ -115,11 +125,11 @@ class MelGanModel(ModelPT):
             loss += loss_feat
 
             if self.start_training_disc:
-                fake_score = self.discriminator(audio_pred)
+                fake_score = self.discriminator(x=audio_pred)
 
                 loss_gan = [0] * len(fake_score)
                 for i, scale in enumerate(fake_score):
-                    loss_gan[i] += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
+                    loss_gan[i] += self.mse_loss(scale, scale.new_ones(scale.size()))
 
                 sum_loss_gan = sum(loss_gan) / len(fake_score)
 
@@ -127,15 +137,15 @@ class MelGanModel(ModelPT):
 
             self.log("loss_generator", loss, sync_dist=True, prog_bar=True)
             if self.start_training_disc:
-                self.log(f"loss_generator_gan_loss", sum_loss_gan, sync_dist=True)
-                for i in range(len(fake_score)):
+                self.log("loss_generator_gan_loss", sum_loss_gan, sync_dist=True)
+                for i, _ in enumerate(fake_score):
                     self.log(
                         f"loss_generator_gan_loss_{i}", loss_gan[i] / len(fake_score), sync_dist=True,
                     )
             self.log("loss_generator_feat_loss", loss_feat, sync_dist=True)
             self.log("loss_generator_feat_loss_fb_sc", sum(sc_loss) / len(sc_loss), sync_dist=True)
             self.log("loss_generator_feat_loss_fb_mag", sum(mag_loss) / len(sc_loss), sync_dist=True)
-            for i in range(len(sc_loss)):
+            for i, _ in enumerate(sc_loss):
                 self.log(f"loss_generator_feat_loss_fb_sc_{i}", sc_loss[i] / len(sc_loss), sync_dist=True)
                 self.log(f"loss_generator_feat_loss_fb_mag_{i}", mag_loss[i] / len(sc_loss), sync_dist=True)
 
@@ -146,11 +156,10 @@ class MelGanModel(ModelPT):
         audio, audio_len = batch
         with torch.no_grad():
             spec, _ = self.audio_to_melspec_precessor(audio, audio_len)
-            mb_audio_pred = self.generator(spec)
+            audio_pred = self(spec=spec)
 
             loss = 0
             loss_dict = {}
-            audio_pred = mb_audio_pred
             spec_pred, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
 
             # Ensure that audio len is consistent between audio_pred and audio
@@ -178,14 +187,14 @@ class MelGanModel(ModelPT):
             loss_dict["loss_feat"] = loss_feat
 
             if self.start_training_disc:
-                fake_score = self.discriminator(audio_pred)
+                fake_score = self.discriminator(x=audio_pred)
 
                 loss_gen = [0] * len(fake_score)
                 for i, scale in enumerate(fake_score):
-                    loss_gen[i] += self.mse_loss(scale[-1], scale[-1].new_ones(scale[-1].size()))
+                    loss_gen[i] += self.mse_loss(scale, scale.new_ones(scale.size()))
 
                 loss_dict["gan_loss"] = loss_gen
-                loss += self.adv_coeff * sum(loss_gen) / len(fake_score)
+                loss += sum(loss_gen) / len(fake_score)
 
         if not self.logged_real_samples:
             loss_dict["spec"] = spec
@@ -230,8 +239,8 @@ class MelGanModel(ModelPT):
             Helper function to take a list of losses and reduce across all validation batches
             """
             return_list = [[]] * len(list_of_dict[0][key])
-            for y in list_of_dict:
-                list_of_losses = y[key]
+            for dict_ in list_of_dict:
+                list_of_losses = dict_[key]
                 for i, loss in enumerate(list_of_losses):
                     return_list[i].append(loss)
             for i, loss in enumerate(return_list):
@@ -243,8 +252,8 @@ class MelGanModel(ModelPT):
 
         if self.start_training_disc:
             gan_loss = get_stack(outputs, "gan_loss")
-            self.log(f"val_loss_gan_loss", self.adv_coeff / len(gan_loss) * sum(gan_loss), sync_dist=True)
-            for i in range(len(gan_loss)):
+            self.log("val_loss_gan_loss", self.adv_coeff / len(gan_loss) * sum(gan_loss), sync_dist=True)
+            for i, _ in enumerate(gan_loss):
                 self.log(
                     f"val_loss_gan_loss_{i}", self.adv_coeff / len(gan_loss) * gan_loss[i], sync_dist=True,
                 )
@@ -254,15 +263,15 @@ class MelGanModel(ModelPT):
         self.log("val_loss_feat_loss", torch.stack([x['loss_feat'] for x in outputs]).mean(), sync_dist=True)
         self.log("val_loss_feat_loss_fb_sc", sum(sc_loss) / len(sc_loss), sync_dist=True)
         self.log("val_loss_feat_loss_fb_mag", sum(mag_loss) / len(sc_loss), sync_dist=True)
-        for i in range(len(sc_loss)):
+        for i, _ in enumerate(sc_loss):
             self.log(f"val_loss_feat_loss_fb_sc_{i}", sc_loss[i] / len(sc_loss), sync_dist=True)
             self.log(f"val_loss_feat_loss_fb_mag_{i}", mag_loss[i] / len(sc_loss), sync_dist=True)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
-            raise ValueError(f"No dataset for {name}")  # TODO
+            raise ValueError(f"No dataset for {name}")
         if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
-            raise ValueError(f"No dataloder_params for {name}")  # TODO
+            raise ValueError(f"No dataloder_params for {name}")
         if shuffle_should_be:
             if 'shuffle' not in cfg.dataloader_params:
                 logging.warning(

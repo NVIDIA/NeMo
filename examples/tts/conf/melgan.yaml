@@ -72,18 +72,15 @@ model:
     stack_kernel_size: 3                 # Kernel size of dilated conv layers in residual stack.
     stacks: 4                            # Number of stacks in a single residual stack module.
     use_weight_norm: True                # Whether to use weight normalization.
-    use_causal_conv: False
 
   discriminator:
     _target_: nemo.collections.tts.modules.melgan_modules.MelGANMultiScaleDiscriminator
+    scales: 3
     out_channels: 1                      # Number of output channels.
     kernel_sizes: [5, 3]                 # List of kernel size.
     channels: 16                         # Number of channels of the initial conv layer.
     max_downsample_channels: 512         # Maximum number of channels of downsampling layers.
     downsample_scales: [4, 4, 4]         # List of downsampling scales.
-    nonlinear_activation: "LeakyReLU"    # Nonlinear activation function.
-    nonlinear_activation_params:         # Parameters of nonlinear activation function.
-        negative_slope: 0.2
     use_weight_norm: True                # Whether to use weight norm.
     use_spectral_norm: False             # Whether to use spectral norm.
 
