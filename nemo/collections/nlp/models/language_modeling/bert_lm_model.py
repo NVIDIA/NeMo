@@ -145,7 +145,7 @@ class BERTLMModel(ModelPT):
         mlm_log_probs, nsp_logits = self.forward(
             input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,
         )
-        _, _, loss = self._computed_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
+        _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
         tensorboard_logs = {"train_loss": loss}
         return {"loss": loss, "log": tensorboard_logs}
 
@@ -158,7 +158,7 @@ class BERTLMModel(ModelPT):
         mlm_log_probs, nsp_logits = self.forward(
             input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
         )
-        _, _, loss = self._computed_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
+        _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
         self.validation_perplexity(logits=mlm_log_probs)
         tensorboard_logs = {'val_loss': loss}
         return {'val_loss': loss, 'log': tensorboard_logs}
