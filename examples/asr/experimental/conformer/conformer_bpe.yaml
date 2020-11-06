@@ -128,7 +128,7 @@ trainer:
   num_nodes: 1
   max_epochs: 100
   max_steps: null # computed at runtime if not set
-  val_check_interval: 1 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   distributed_backend: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
