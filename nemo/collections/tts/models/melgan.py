@@ -20,9 +20,9 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
 from nemo.collections.tts.models.base import Vocoder
 from nemo.core.classes.common import typecheck
-from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
 
 
