@@ -105,7 +105,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
 
         # Put together WebDataset
         self._dataset = (
-            wd.Dataset(tarpath, shard_selection=lambda urls: urls)
+            wd.Dataset(tarpath)
             .shuffle(shuffle_n)
             .rename(npy='npy', key='__key__')
             .to_tuple('npy', 'key')
@@ -131,7 +131,14 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         return src_ids, src_mask, labels
 
     def __iter__(self):
-        return self._dataset.__iter__()
+        dl_iter = iter(self._dataset)
+        while True:
+            try:
+                batch = next(dl_iter)
+                yield batch
+            except StopIteration:
+                dl_iter = iter(self._dataset)
+                continue
 
     def __len__(self):
         return (self.metadata['num_text'] - self.max_seq_length) // self.batch_step
