@@ -31,7 +31,9 @@ def main(cfg: DictConfig) -> None:
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
     trainer.fit(transformer_mt)
     transformer_mt.save_to("transformer.nemo")
-    translation = transformer_mt.translate(text=['Schulen werden zu größerem Fokus auf Mathematik, Rechtschreibung und Grammatik angehalten'])
+    translation = transformer_mt.translate(
+        text=['Schulen werden zu größerem Fokus auf Mathematik, Rechtschreibung und Grammatik angehalten']
+    )
     print('AAAAAAAAAAAAAAAAAAAAAAAAAAA')
     print(translation)
 

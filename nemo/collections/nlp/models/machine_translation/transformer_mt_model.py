@@ -14,9 +14,10 @@
 
 import itertools
 import math
-from pathlib import Path
-from typing import Dict, Optional, List
 import random
+from pathlib import Path
+from typing import Dict, List, Optional
+
 import numpy as np
 import torch
 import torch.utils.data as pt_data
@@ -38,7 +39,7 @@ from nemo.collections.nlp.modules.common.transformer import (
 )
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.utils import  logging
+from nemo.utils import logging
 
 __all__ = ['TransformerMTModel']
 
@@ -141,7 +142,7 @@ class TransformerMTModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
         self.num_examples = {
-            #"test": cfg.test_ds.get("num_examples", 3),
+            # "test": cfg.test_ds.get("num_examples", 3),
             "val": cfg.validation_ds.get("num_examples", 3),
         }
 
@@ -261,7 +262,7 @@ class TransformerMTModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
         self.log_dict(self.eval_epoch_end(outputs, 'val'))
-        #return self.eval_epoch_end(outputs, 'val')
+        # return self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
@@ -312,7 +313,7 @@ class TransformerMTModel(ModelPT):
             src = torch.unsqueeze(src, 0)
             src_embeddings = self.src_embedding_layer(input_ids=src)
             src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
-            src_mask = (src != self.src_tokenizer.pad_id)
+            src_mask = src != self.src_tokenizer.pad_id
             src_hiddens = self.encoder(src_embeddings, src_mask)
             beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
             translation_ids = beam_results.cpu()[0].numpy()

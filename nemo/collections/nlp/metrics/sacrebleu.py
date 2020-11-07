@@ -51,7 +51,6 @@ from typing import Iterable, List, Tuple, Union
 from nemo.collections.common.tokenizers.fairseq_tokenizer import tokenize_en
 from nemo.utils import logging
 
-
 VERSION = '1.3.5'
 
 try:
