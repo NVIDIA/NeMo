@@ -19,7 +19,7 @@ import json
 import webdataset as wd
 import io
 import pickle
-from torch.utils.data import Dataset,IterableDataset
+from torch.utils.data import Dataset, IterableDataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils import dataset_to_ids
@@ -105,7 +105,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
 
         # Put together WebDataset
         self._dataset = (
-            wd.Dataset(tarpath)
+            wd.Dataset(tarpath, shard_selection=lambda urls: urls)
             .shuffle(shuffle_n)
             .rename(npy='npy', key='__key__')
             .to_tuple('npy', 'key')
@@ -119,7 +119,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         npy.close()
 
         # flatten data
-        idx = np.random.randint(0, (len(data) - self.max_seq_length) // self.batch_step + 1)
+        idx = np.random.randint(0, (len(data) - self.max_seq_length) // self.batch_step)
 
         # random slice of data
         left = idx * self.batch_step
