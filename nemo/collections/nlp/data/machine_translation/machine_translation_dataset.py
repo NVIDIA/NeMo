@@ -17,9 +17,9 @@
 from collections import OrderedDict
 
 import numpy as np
-from torch.utils.data import Dataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
+from nemo.core import Dataset
 
 __all__ = ['TranslationDataset']
 
