@@ -20,6 +20,7 @@ import random
 import re
 import string
 from collections import Counter
+from tqdm.auto import tqdm
 
 import numpy as np
 
@@ -372,7 +373,7 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
         logging.info("Tokenizing dataset ...")
         data = open(dataset, "rb").readlines()
         ids = []
-        for sentence in data:
+        for sentence in tqdm(data, desc='Tokenizing sentence'):
             sent_ids = tokenizer.text_to_ids(sentence.decode("utf-8"))
             if add_bos_eos:
                 sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
