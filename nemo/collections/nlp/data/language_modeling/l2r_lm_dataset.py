@@ -42,11 +42,12 @@ class L2RLanguageModelingDataset(Dataset):
         dataset: str,
         max_seq_length: Optional[int] = 512,
         batch_step: Optional[int] = None,
+        cache_ids: bool = False
     ):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
         self.batch_step = batch_step or self.max_seq_length
-        ids = dataset_to_ids(dataset, tokenizer, add_bos_eos=False)
+        ids = dataset_to_ids(dataset, tokenizer, cache_ids=cache_ids, add_bos_eos=False)
         self.ids = np.array([j for i in ids for j in i])
 
     def __len__(self):

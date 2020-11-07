@@ -28,6 +28,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
+from nemo.utils import logging
 
 __all__ = ["TransformerLMModel"]
 
@@ -163,11 +164,15 @@ class TransformerLMModel(ModelPT):
         )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, predict_last_k=0):
+        if cfg.get('cache_ids', False):
+            logging.info("Constructing tokenized dataset cache...")
+
         dataset = L2RLanguageModelingDataset(
             tokenizer=self.tokenizer,
             dataset=cfg.file_name,
             max_seq_length=self.dataset_cfg.max_seq_length,
             batch_step=predict_last_k,
+            cache_ids=cfg.get('cache_ids', False)
         )
         return torch.utils.data.DataLoader(
             dataset=dataset,
