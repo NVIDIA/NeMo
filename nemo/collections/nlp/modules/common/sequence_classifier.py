@@ -19,7 +19,6 @@ from nemo.collections.nlp.modules.common.classifier import Classifier
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import LogitsType, LogprobsType, NeuralType
 
-
 __all__ = ['SequenceClassifier']
 
 

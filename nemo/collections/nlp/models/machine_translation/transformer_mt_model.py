@@ -14,8 +14,9 @@
 
 import itertools
 import math
+import random
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -38,6 +39,7 @@ from nemo.collections.nlp.modules.common.transformer import (
 )
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
+from nemo.utils import logging
 
 __all__ = ['TransformerMTModel']
 
@@ -140,7 +142,7 @@ class TransformerMTModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
         self.num_examples = {
-            "test": cfg.test_ds.get("num_examples", 3),
+            # "test": cfg.test_ds.get("num_examples", 3),
             "val": cfg.validation_ds.get("num_examples", 3),
         }
 
@@ -150,8 +152,15 @@ class TransformerMTModel(ModelPT):
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         """
-        No special modification required for Lightning, define it as you normally would
-        in the `nn.Module` in vanilla PyTorch.
+        torch.nn.Module.forward method.
+        Args:
+            src: source ids
+            src_mask: src mask (mask padding)
+            tgt: target ids
+            tgt_mask: target mask
+
+        Returns:
+
         """
         src_embeddings = self.src_embedding_layer(input_ids=src)
         src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
@@ -234,6 +243,15 @@ class TransformerMTModel(ModelPT):
         assert len(translations) == len(ground_truths)
         token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+        logging.info(f"\n\n\n\nEval set size: {len(translations)}")
+        logging.info(f"Eval Token BLEU = {token_bleu}")
+        logging.info(f"Eval Sacre BLEU = {sacre_bleu}")
+        logging.info("EVAL TRANSLATION EXAMPLES:")
+        for i in range(0, 3):
+            ind = random.randint(0, len(translations))
+            logging.info(f"\n    Prediction:   {translations[ind]}")
+            logging.info(f"    Ground Truth: {ground_truths[ind]}")
+
         ans = {f"{mode}_loss": eval_loss, f"{mode}_tokenBLEU": token_bleu.score, f"{mode}_sacreBLEU": sacre_bleu.score}
         ans['log'] = dict(ans)
         return ans
@@ -243,8 +261,8 @@ class TransformerMTModel(ModelPT):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        # self.log_param_stats()
-        return self.eval_epoch_end(outputs, 'val')
+        self.log_dict(self.eval_epoch_end(outputs, 'val'))
+        # return self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
@@ -278,6 +296,29 @@ class TransformerMTModel(ModelPT):
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
         )
+
+    def translate(self, text: List[str]) -> List[str]:
+        """
+        Translates list of sentences from source language to target language.
+        Should be regular text, this method performs its own tokenization/de-tokenization
+        Args:
+            text: list of strings to translate
+
+        Returns:
+            list of translated strings
+        """
+        res = []
+        for txt in text:
+            src = torch.tensor(self.src_tokenizer.text_to_ids(txt), device=self.device)
+            src = torch.unsqueeze(src, 0)
+            src_embeddings = self.src_embedding_layer(input_ids=src)
+            src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
+            src_mask = src != self.src_tokenizer.pad_id
+            src_hiddens = self.encoder(src_embeddings, src_mask)
+            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+            translation_ids = beam_results.cpu()[0].numpy()
+            res.append(self.tgt_tokenizer.ids_to_text(translation_ids))
+        return res
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

@@ -27,3 +27,4 @@ from nemo.collections.asr.modules.conv_asr import (
     SpeakerDecoder,
 )
 from nemo.collections.asr.modules.lstm_decoder import LSTMDecoder
+from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint
