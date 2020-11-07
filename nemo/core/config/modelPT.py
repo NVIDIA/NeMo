@@ -52,7 +52,7 @@ class OptimConfig:
 @dataclass
 class ModelConfig:
     """
-
+    Model component inside ModelPT
     """
 
     # ...
