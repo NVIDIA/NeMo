@@ -73,7 +73,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         tarpath: str,
         metadata_path: str,
         tokenizer,
-        shuffle_n: int = 512,
+        shuffle_n: int = 64,
         max_seq_length: int = 512,
         batch_step: int = None,
     ):
@@ -113,24 +113,32 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         )
 
     def _build_sample(self, tup):
+        # Load file
         npy, filepath = tup
         npy = io.BytesIO(npy)
         data = np.load(npy)
         npy.close()
 
-        # flatten data
+        # Select random contiguous subsegment
         idx = np.random.randint(0, (len(data) - self.max_seq_length) // self.batch_step)
 
-        # random slice of data
+        # Slice of data chunk
         left = idx * self.batch_step
         right = left + self.max_seq_length
         data = data[left:right + 1]
+
+        # Create batch
         src_ids = data[:-1]
         labels = data[1:]
         src_mask = (src_ids != self.tokenizer.pad_id).astype(np.float32)
         return src_ids, src_mask, labels
 
     def __iter__(self):
+        # We need to wrap an infinite generator since the actual files
+        # within the tar files contains large chunks of contiguous data.
+        # This prevents PTL from early exiting the train loop after exhausting
+        # all of the files in one iteration (though the actual dataset is many
+        # times larger due to each file containing a large chunk of data).
         dl_iter = iter(self._dataset)
         while True:
             try:
