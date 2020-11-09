@@ -12,7 +12,7 @@ model:
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
-    shard_strategy: "scatter"
+    tarred_shard_strategy: "scatter"
 
   validation_ds:
     manifest_filepath: ???
