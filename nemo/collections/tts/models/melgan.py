@@ -307,6 +307,7 @@ class MelGanModel(Vocoder):
 
         # Start training discriminator after 20% of training
         if self.current_epoch >= np.ceil(0.2 * self._trainer.max_epochs):
+            logging.info(f"MelGAN discriminator was enabled at epoch: {self.current_epoch}")
             self.start_training_disc = True
 
         return super().training_epoch_end(outputs)

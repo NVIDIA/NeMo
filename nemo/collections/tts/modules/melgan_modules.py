@@ -352,7 +352,7 @@ class MelGANDiscriminator(NeuralModule):
     @property
     def input_types(self):
         return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "x": NeuralType(('B', 'S', 'T'), AudioSignal()),
         }
 
     @property
@@ -453,7 +453,7 @@ class MelGANMultiScaleDiscriminator(NeuralModule):
     @property
     def input_types(self):
         return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "x": NeuralType(('B', 'S', 'T'), AudioSignal()),
         }
 
     @property
