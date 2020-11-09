@@ -51,6 +51,11 @@ class TransformerMTModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # shared params for dataset and data loaders
+        self.num_examples = {
+            "test": 3,
+            "val": 3,
+        }
+
         if "tokenizer" in cfg.machine_translation:
             if "src_tokenizer" in cfg.machine_translation or "tgt_tokenizer" in cfg.machine_translation:
                 raise ValueError(
@@ -141,10 +146,6 @@ class TransformerMTModel(ModelPT):
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
 
-        self.num_examples = {
-            "test": 3,
-            "val": 3,
-        }
         # These attributes are added to bypass Illegal memory access error in PT1.6
         # https://github.com/pytorch/pytorch/issues/21819
 

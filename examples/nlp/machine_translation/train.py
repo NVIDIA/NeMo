@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import os
+
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
@@ -31,8 +33,7 @@ def main(cfg: DictConfig) -> None:
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
     trainer.fit(transformer_mt)
     if is_global_rank_zero():
-        with open("best_checkpoint_path.txt", 'w') as f:
-            f.write(trainer.checkpoint_callback.best_model_path)
+        os.symlink(trainer.checkpoint_callback.best_model_path, 'best.ckpt')
 
 
 if __name__ == '__main__':
