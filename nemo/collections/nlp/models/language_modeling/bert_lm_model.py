@@ -122,7 +122,7 @@ class BERTLMModel(ModelPT):
         )
         mlm_log_probs = self.mlm_classifier(hidden_states=hidden_states)
         if self.only_mlm_loss:
-            return mlm_log_probs, None
+            return (mlm_log_probs,)
         nsp_logits = self.nsp_classifier(hidden_states=hidden_states)
         return mlm_log_probs, nsp_logits
 
@@ -135,6 +135,12 @@ class BERTLMModel(ModelPT):
             loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
         return mlm_loss, nsp_loss, loss
 
+    def _parse_forward_outputs(self, forward_outputs):
+        if self.only_mlm_loss:
+            return forward_outputs[0], None
+        else:
+            return forward_outputs
+
     def training_step(self, batch, batch_idx):
         """
         Lightning calls this inside the training loop with the data from the training dataloader
@@ -142,9 +148,8 @@ class BERTLMModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        mlm_log_probs, nsp_logits = self.forward(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask,
-        )
+        forward_outputs = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        mlm_log_probs, nsp_logits = self._parse_forward_outputs(forward_outputs)
         _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
         tensorboard_logs = {"train_loss": loss}
         return {"loss": loss, "log": tensorboard_logs}
@@ -155,9 +160,8 @@ class BERTLMModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        mlm_log_probs, nsp_logits = self.forward(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-        )
+        forward_outputs = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        mlm_log_probs, nsp_logits = self._parse_forward_outputs(forward_outputs)
         _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
         self.validation_perplexity(logits=mlm_log_probs)
         tensorboard_logs = {'val_loss': loss}
