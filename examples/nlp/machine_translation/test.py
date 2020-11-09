@@ -16,7 +16,6 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.common.callbacks import MachineTranslationLogEvalCallback
 from nemo.collections.nlp.models.machine_translation import TransformerMTModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -28,7 +27,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.model.test_checkpoint_path is None:
         raise ValueError("Not checkpoint for testing was provided")
     logging.info(f'Config: {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.trainer, callbacks=[MachineTranslationLogEvalCallback()])
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     transformer_mt = TransformerMTModel.load_from_checkpoint(cfg.model.test_checkpoint_path)
     transformer_mt.setup_test_data(cfg.model.test_ds)

@@ -24,11 +24,11 @@ import torch.utils.data as pt_data
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
+from sacrebleu import corpus_bleu
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
-from nemo.collections.nlp.metrics.sacrebleu import corpus_bleu
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.transformer import (
@@ -142,7 +142,7 @@ class TransformerMTModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
         self.num_examples = {
-            # "test": cfg.test_ds.get("num_examples", 3),
+            "test": cfg.test_ds.get("num_examples", 3),
             "val": cfg.validation_ds.get("num_examples", 3),
         }
 
@@ -243,11 +243,12 @@ class TransformerMTModel(ModelPT):
         assert len(translations) == len(ground_truths)
         token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
-        logging.info(f"\n\n\n\nEval set size: {len(translations)}")
-        logging.info(f"Eval Token BLEU = {token_bleu}")
-        logging.info(f"Eval Sacre BLEU = {sacre_bleu}")
-        logging.info("EVAL TRANSLATION EXAMPLES:")
-        for i in range(0, 3):
+        dataset_name = "Validation" if mode == 'val' else "Test"
+        logging.info(f"\n\n\n\n{dataset_name} set size: {len(translations)}")
+        logging.info(f"{dataset_name} Token BLEU = {token_bleu}")
+        logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu}")
+        logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
+        for i in range(0, self.num_examples[mode]):
             ind = random.randint(0, len(translations))
             logging.info(f"\n    Prediction:   {translations[ind]}")
             logging.info(f"    Ground Truth: {ground_truths[ind]}")

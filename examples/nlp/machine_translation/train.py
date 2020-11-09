@@ -16,7 +16,6 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.common.callbacks import MachineTranslationLogEvalCallback
 from nemo.collections.nlp.models.machine_translation import TransformerMTModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -27,7 +26,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 @hydra_runner(config_path="conf", config_name="en_de_8gpu")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.trainer, callbacks=[MachineTranslationLogEvalCallback()])
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
     trainer.fit(transformer_mt)
