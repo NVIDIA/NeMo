@@ -17,7 +17,7 @@ import numpy as np
 from pytorch_lightning.callbacks.base import Callback
 from pytorch_lightning.utilities import rank_zero_only
 
-from nemo.collections.nlp.metrics.sacrebleu import corpus_bleu
+from sacrebleu import corpus_bleu
 
 
 class LogEpochTimeCallback(Callback):
@@ -39,7 +39,6 @@ class MachineTranslationLogEvalCallback(Callback):
     def _on_eval_end(self, trainer, pl_module, mode):
         counts = np.array(self._non_pad_tokens)
         eval_loss = np.sum(np.array(self._losses) * counts) / np.sum(counts)
-        token_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(self._translations, [self._ground_truths], tokenize="13a")
         print(f"{mode} results for process with global rank {pl_module.global_rank}".upper())
         for i in range(pl_module.num_examples[mode]):
@@ -50,7 +49,6 @@ class MachineTranslationLogEvalCallback(Callback):
             print()
         print("-" * 50)
         print(f"loss: {eval_loss:.3f}")
-        print(f"TokenBLEU: {token_bleu}")
         print(f"SacreBLEU: {sacre_bleu}")
         print("-" * 50)
 

@@ -142,10 +142,9 @@ class TransformerMTModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
         self.num_examples = {
-            "test": cfg.test_ds.get("num_examples", 3),
-            "val": cfg.validation_ds.get("num_examples", 3),
+            "test": 3,
+            "val": 3,
         }
-
         # These attributes are added to bypass Illegal memory access error in PT1.6
         # https://github.com/pytorch/pytorch/issues/21819
 
@@ -241,19 +240,18 @@ class TransformerMTModel(ModelPT):
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
         assert len(translations) == len(ground_truths)
-        token_bleu = corpus_bleu(translations, [ground_truths], tokenize="fairseq")
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
         dataset_name = "Validation" if mode == 'val' else "Test"
         logging.info(f"\n\n\n\n{dataset_name} set size: {len(translations)}")
-        logging.info(f"{dataset_name} Token BLEU = {token_bleu}")
         logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu}")
         logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
         for i in range(0, self.num_examples[mode]):
             ind = random.randint(0, len(translations))
-            logging.info(f"\n    Prediction:   {translations[ind]}")
+            logging.info("    " + '\u0332'.join(f"EXAMPLE {i}:"))
+            logging.info(f"    Prediction:   {translations[ind]}")
             logging.info(f"    Ground Truth: {ground_truths[ind]}")
 
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_tokenBLEU": token_bleu.score, f"{mode}_sacreBLEU": sacre_bleu.score}
+        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score}
         ans['log'] = dict(ans)
         return ans
 
@@ -273,9 +271,11 @@ class TransformerMTModel(ModelPT):
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self.num_examples['val'] = val_data_config.get('num_examples', self.num_examples['val'])
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self.num_examples['test'] = test_data_config.get('num_examples', self.num_examples['test'])
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = TranslationDataset(
