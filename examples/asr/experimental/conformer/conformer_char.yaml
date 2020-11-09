@@ -19,6 +19,7 @@ model:
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
     num_workers: 4
     pin_memory: true
 
