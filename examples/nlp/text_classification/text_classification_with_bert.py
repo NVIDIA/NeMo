@@ -105,7 +105,7 @@ def main(cfg: DictConfig) -> None:
     logging.info("===========================================================================================")
 
     if cfg.model.nemo_path:
-        # ,nemo file contains the last checkpoint and the params to initialize the model
+        # `.nemo` file contains the last checkpoint and the params to initialize the model
         model.save_to(cfg.model.nemo_path)
         logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
         checkpoint_path = cfg.model.nemo_path
