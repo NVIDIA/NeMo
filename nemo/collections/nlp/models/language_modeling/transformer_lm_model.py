@@ -119,8 +119,9 @@ class TransformerLMModel(ModelPT):
         tensorboard_logs = {
             "train_loss": train_loss,
             "lr": self._optimizer.param_groups[0]["lr"],
+            "train_ppl": training_perplexity
         }
-        return {"loss": train_loss, "log": tensorboard_logs, "train_ppl": training_perplexity}
+        return {"loss": train_loss, "log": tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
         """
