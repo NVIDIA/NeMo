@@ -116,6 +116,7 @@ def get_tarred_char_dataset(
         trim=config.get('trim_silence', True),
         parser=config.get('parser', 'en'),
         add_misc=config.get('add_misc', False),
+        shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         global_rank=global_rank,
         world_size=world_size,
     )
@@ -159,6 +160,7 @@ def get_tarred_bpe_dataset(
         trim=config.get('trim_silence', True),
         add_misc=config.get('add_misc', False),
         use_start_end_token=config.get('use_start_end_token', True),
+        shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         global_rank=global_rank,
         world_size=world_size,
     )
