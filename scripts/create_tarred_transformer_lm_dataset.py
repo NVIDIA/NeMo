@@ -165,9 +165,9 @@ def __tokenize_text(data, tokenizer, tokenized_cachedir, chunk_size=8192, write_
 
                     global_chunk_idx += 1
 
-                logging.info(f"Wrote a buffer size of {chunk_idx} chunks to file...")
+                logging.info(f"Wrote a total of {global_chunk_idx} chunks to file...")
 
-                # reset caches
+                # reset buffers
                 data_cache.clear()
                 del data_cache
 
