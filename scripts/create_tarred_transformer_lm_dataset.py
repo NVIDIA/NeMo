@@ -16,10 +16,10 @@
 Execution :
 
 python create_tarred_tokenized_text_lm_dataset.py \
-    --data_root="/media/smajumdar/data/Datasets/Librispeech_LM/tokenized_dataset/" \
-    --text_path="/media/smajumdar/data/Datasets/Librispeech_LM/librispeech-lm-norm.txt" \
+    --text_path=<comma seperated text filepaths> \
+    --data_root=<path to output directory> \
     --tokenizer_name="bert-base-cased" \
-    --tokenizer_vocab_file="/home/smajumdar/PycharmProjects/nemo-eval/nemo_eval/librispeech/manifests/full/LibriSpeechTokenizer/librispeech_tokenizer_wpe_v1024/vocab.txt" \
+    --tokenizer_vocab_file=<path to vocab file for tokenizer> \
     --num_shards=64 \
     --chunk_size=8192 \
     --chunk_write_buffer=512 \
@@ -36,7 +36,6 @@ import os
 import numpy as np
 import joblib
 import glob
-from pathlib import Path
 
 from tqdm import tqdm
 
@@ -56,7 +55,7 @@ parser.add_argument(
     help='Number of chunks of `chunk_size` to buffer for parallel tokenization and serial write to disk',
 )
 parser.add_argument('--lower_case', action='store_true', help='Whether to lower case the corpus')
-parser.add_argument('--log', action='store_true')
+parser.add_argument('--log', action='store_true', help='Whether to print logs to terminal')
 
 # Tokenizer arguments
 parser.add_argument('--tokenizer_name', required=False, default=None, type=str, help='Tokenizer name for resolution')
@@ -127,7 +126,7 @@ def __tokenize_text(data, tokenizer, tokenized_cachedir, chunk_size=8192, write_
     if write_buffer < 1:
         write_buffer = max(os.cpu_count() - write_buffer, 1)
 
-    logging.info(f"Using chunk write buffer of size {write_buffer}")
+    logging.info(f"Using write chunk buffer of size {write_buffer}")
 
     if not os.path.exists(tokenized_cachedir):
         os.makedirs(tokenized_cachedir)
