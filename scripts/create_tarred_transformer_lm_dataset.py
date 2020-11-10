@@ -29,14 +29,14 @@ python create_tarred_tokenized_text_lm_dataset.py \
 
 
 import argparse
+import glob
 import json
-import tarfile
 import logging
 import os
-import numpy as np
-import joblib
-import glob
+import tarfile
 
+import joblib
+import numpy as np
 from tqdm import tqdm
 
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer

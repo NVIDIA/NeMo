@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
+import json
+import pickle
 from typing import Optional
 
 import numpy as np
-import json
 import webdataset as wd
-import io
-import pickle
 from torch.utils.data import Dataset, IterableDataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -47,7 +47,7 @@ class L2RLanguageModelingDataset(Dataset):
         dataset: str,
         max_seq_length: Optional[int] = 512,
         batch_step: Optional[int] = None,
-        cache_ids: bool = False
+        cache_ids: bool = False,
     ):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length

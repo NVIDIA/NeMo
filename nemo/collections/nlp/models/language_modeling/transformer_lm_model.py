@@ -209,7 +209,7 @@ class TransformerLMModel(ModelPT):
                 shuffle_n=shuffle_n,
                 shard_strategy=cfg.get("tarred_shard_strategy", "scatter"),
                 global_rank=self.global_rank,
-                world_size=self.world_size
+                world_size=self.world_size,
             )
 
             shuffle = False
@@ -220,7 +220,7 @@ class TransformerLMModel(ModelPT):
                 dataset=cfg.file_name,
                 max_seq_length=self.dataset_cfg.max_seq_length,
                 batch_step=predict_last_k,
-                cache_ids=cfg.get('cache_ids', False)
+                cache_ids=cfg.get('cache_ids', False),
             )
 
         return torch.utils.data.DataLoader(

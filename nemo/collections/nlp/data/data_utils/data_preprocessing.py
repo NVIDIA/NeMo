@@ -20,9 +20,9 @@ import random
 import re
 import string
 from collections import Counter
-from tqdm.auto import tqdm
 
 import numpy as np
+from tqdm.auto import tqdm
 
 from nemo.utils import logging
 
