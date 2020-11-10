@@ -97,8 +97,8 @@ class MelGanModel(Vocoder):
 
         # train discriminator
         if optimizer_idx == 0 and self.start_training_disc:
-            fake_score = self.discriminator(x=audio_pred.detach())
-            real_score = self.discriminator(x=audio.unsqueeze(1))
+            fake_score = self.discriminator(x=audio_pred.detach())[0]
+            real_score = self.discriminator(x=audio.unsqueeze(1))[0]
 
             loss_disc_real = [0] * len(fake_score)
             loss_disc_fake = [0] * len(fake_score)
@@ -125,7 +125,7 @@ class MelGanModel(Vocoder):
             loss += loss_feat
 
             if self.start_training_disc:
-                fake_score = self.discriminator(x=audio_pred)
+                fake_score = self.discriminator(x=audio_pred)[0]
 
                 loss_gan = [0] * len(fake_score)
                 for i, scale in enumerate(fake_score):
@@ -187,7 +187,7 @@ class MelGanModel(Vocoder):
             loss_dict["loss_feat"] = loss_feat
 
             if self.start_training_disc:
-                fake_score = self.discriminator(x=audio_pred)
+                fake_score = self.discriminator(x=audio_pred)[0]
 
                 loss_gen = [0] * len(fake_score)
                 for i, scale in enumerate(fake_score):
@@ -252,10 +252,10 @@ class MelGanModel(Vocoder):
 
         if self.start_training_disc:
             gan_loss = get_stack(outputs, "gan_loss")
-            self.log("val_loss_gan_loss", self.adv_coeff / len(gan_loss) * sum(gan_loss), sync_dist=True)
+            self.log("val_loss_gan_loss", sum(gan_loss) / len(gan_loss), sync_dist=True)
             for i, _ in enumerate(gan_loss):
                 self.log(
-                    f"val_loss_gan_loss_{i}", self.adv_coeff / len(gan_loss) * gan_loss[i], sync_dist=True,
+                    f"val_loss_gan_loss_{i}", gan_loss[i] / len(gan_loss), sync_dist=True,
                 )
 
         sc_loss = get_stack(outputs, "sc_loss")

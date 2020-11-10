@@ -48,7 +48,7 @@ import torch
 from nemo.core.classes import NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, VoidType
-from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.neural_types.neural_type import NeuralType, AxisType, AxisKind
 from nemo.utils import logging
 
 __all__ = ['MelGANGenerator', 'MelGANDiscriminator', 'MelGANMultiScaleDiscriminator']
@@ -358,7 +358,7 @@ class MelGANDiscriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "decision": NeuralType(('B'), VoidType()),
+            "decision": NeuralType(('B', 'S', 'T'), VoidType()),
         }
 
     @typecheck()
@@ -459,7 +459,7 @@ class MelGANMultiScaleDiscriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "decision": NeuralType([('B')], VoidType()),
+            "decision": NeuralType((('B', 'S', 'T')), VoidType()),
         }
 
     @typecheck()
@@ -478,7 +478,7 @@ class MelGANMultiScaleDiscriminator(NeuralModule):
             outs += [disc(x=x)]
             x = self.pooling(x)
 
-        return outs
+        return (outs,)
 
     def remove_weight_norm(self):
         """Remove weight normalization module from all of the layers."""
