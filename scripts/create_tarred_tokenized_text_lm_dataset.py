@@ -145,7 +145,6 @@ def __tokenize_text(data, tokenizer, tokenized_cachedir, chunk_size=8192, write_
 
             # Update counters
             chunk_idx += 1
-            global_chunk_idx += 1
 
             if (chunk_idx == write_buffer) or (idx + chunk_size) >= dataset_len:
                 # write the chunks into disk after parallel tokenization
@@ -161,6 +160,8 @@ def __tokenize_text(data, tokenizer, tokenized_cachedir, chunk_size=8192, write_
 
                     chunk_paths.append(fp)
                     chunk_lens.append(len(chunk))
+
+                    global_chunk_idx += 1
 
                 logging.info(f"Wrote a buffer size of {chunk_idx} chunks to file...")
 
