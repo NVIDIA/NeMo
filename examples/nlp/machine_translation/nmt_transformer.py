@@ -23,7 +23,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="toy_config")
+@hydra_runner(config_path="conf", config_name="de_en_4gpu")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
@@ -31,11 +31,7 @@ def main(cfg: DictConfig) -> None:
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
     trainer.fit(transformer_mt)
     transformer_mt.save_to("transformer.nemo")
-    translation = transformer_mt.translate(
-        text=['Schulen werden zu größerem Fokus auf Mathematik, Rechtschreibung und Grammatik angehalten']
-    )
-    print('AAAAAAAAAAAAAAAAAAAAAAAAAAA')
-    print(translation)
+    print("Model saved to: transformer.nemo")
 
 
 if __name__ == '__main__':

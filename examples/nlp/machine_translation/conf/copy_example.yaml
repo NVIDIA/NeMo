@@ -1,0 +1,76 @@
+# Config file for training left-to-right Transformer language model
+name: &name TransformerMT
+
+trainer:
+  gpus: 1
+  max_epochs: 30
+  distributed_backend: ddp
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+  log_every_n_steps: 5  # Interval of logging.
+  check_val_every_n_epoch: 10
+
+model:
+  test_checkpoint_path: null
+  machine_translation:
+    tokenizer:
+      tokenizer_name: yttm
+      tokenizer_model: ./toy_data/copy_tokenizer.BPE.1024.model
+    hidden_size: 256
+    num_layers: 2
+    num_attn_heads: 2
+    inner_size: 512
+    max_seq_length: 512  # maximum allowed length in embedding layer
+    embedding_dropout: 0.1
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    label_smoothing: 0.1
+    beam_size: 1
+    len_pen: 0.6
+    max_generation_delta: 50
+
+  train_ds:
+    src_file_name: ./toy_data/wmt14-de-en.ref
+    tgt_file_name: ./toy_data/wmt14-de-en.ref
+    tokens_in_batch: 8000  # This is limit per gpu. Total limit is 50000
+    clean: true
+    max_seq_length: 512
+    shuffle: true
+    num_samples: -1 # number of samples to be considered, -1 means all the dataset
+    drop_last: false # drops the last last batch if it is smaller than the batch size
+    pin_memory: true # enables pin_memory feature of the data loaders
+    num_workers: 8 # number of workers for data loaders
+
+  validation_ds:
+    src_file_name: ./toy_data/wmt13-de-en.ref
+    tgt_file_name: ./toy_data/wmt13-de-en.ref
+    tokens_in_batch: 8000
+    shuffle: false
+    num_samples: -1 # number of samples to be considered, -1 means all the dataset
+    predict_last_k: 0
+    drop_last: false # drops the last last batch if it is smaller than the batch size
+    pin_memory: true # enables pin_memory feature of the data loaders
+    num_workers: 8 # number of workers for data loaders
+
+  optim:
+    name: adam
+    lr: 0.002
+    betas: [0.9, 0.98]
+    weight_decay: 0
+
+    sched:
+      name: InverseSquareRootAnnealing
+      warmup_steps: null
+      warmup_ratio: 0.04
+      last_epoch: -1
+
+      # pytorch lightning args
+      monitor: val_loss
+      reduce_on_plateau: false
+
+exp_manager:
+  exp_dir: NMT  # where to store logs and checkpoints
+  name: Learn2Copy  # name of experiment
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
