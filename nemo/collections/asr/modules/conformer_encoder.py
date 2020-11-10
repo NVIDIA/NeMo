@@ -204,8 +204,6 @@ class ConformerEncoder(NeuralModule, Exportable):
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
 
-        audio_signal.masked_fill_(pad_mask, 0.0)
-
         audio_signal = torch.transpose(audio_signal, 1, 2)
         return audio_signal, length
 

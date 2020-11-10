@@ -188,7 +188,7 @@ class EncDecCTCModel(ASRModel, Exportable):
                         for idx in range(logits.shape[0]):
                             hypotheses.append(logits[idx][: logits_len[idx]])
                     else:
-                        hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
+                        hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions) #, predictions_len=logits_len)
                     del test_batch
         finally:
             # set mode back to its original value
@@ -398,14 +398,14 @@ class EncDecCTCModel(ASRModel, Exportable):
     def training_step(self, batch, batch_nb):
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            log_probs, encoded_len, predictions = self.forward(
+            log_probs, predictions_len, predictions = self.forward(
                 processed_signal=signal, processed_signal_length=signal_len
             )
         else:
-            log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
+            log_probs, predictions_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
         loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+            log_probs=log_probs, targets=transcript, input_lengths=predictions_len, target_lengths=transcript_len
         )
 
         tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
@@ -416,7 +416,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             log_every_n_steps = 1
 
         if (batch_nb + 1) % log_every_n_steps == 0:
-            self._wer.update(predictions, transcript, transcript_len)
+            self._wer.update(predictions=predictions, transcript=transcript, transcript_len=transcript_len, predictions_len=predictions_len)
             wer, _, _ = self._wer.compute()
             tensorboard_logs.update({'training_batch_wer': wer})
 
@@ -434,7 +434,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        self._wer.update(predictions, transcript, transcript_len)
+        self._wer.update(predictions=predictions, transcript=transcript, transcript_len=transcript_len, predictions_len=predictions_len)
         wer, wer_num, wer_denom = self._wer.compute()
         return {
             'val_loss': loss_value,

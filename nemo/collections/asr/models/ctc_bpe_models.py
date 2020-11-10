@@ -64,9 +64,9 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         # Set the new vocabulary
         with open_dict(cfg):
             if "params" in cfg.decoder:
-                cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+                cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.keys()))
             else:
-                cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
+                cfg.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
 
         # Override number of classes if placeholder provided
         if "params" in cfg.decoder:
