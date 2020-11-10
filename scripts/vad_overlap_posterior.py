@@ -23,7 +23,7 @@ import pandas as pd
 
 
 """
-This script serves two purpose:
+This script serves two purposes:
  
     1) gen_overlap_seq: 
         Generate predictions with overlapping input segments by using the frame level prediction from NeMo/examples/asr/vad_infer.py. 
@@ -171,11 +171,9 @@ def gen_seg_table(frame_filepath, per_args):
 
 if __name__ == '__main__':
     start = time.time()
-
     parser = ArgumentParser()
     parser.add_argument("--gen_overlap_seq", default=False, action='store_true')
     parser.add_argument("--gen_seg_table", default=False, action='store_true')
-
     parser.add_argument("--frame_folder", type=str, required=True)
     parser.add_argument(
         "--method",
