@@ -285,6 +285,11 @@ class TransformerMTModel(ModelPT):
             dataset_src=str(Path(cfg.src_file_name).expanduser()),
             dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
             tokens_in_batch=cfg.tokens_in_batch,
+            clean=cfg.get("clean", False),
+            max_seq_length=cfg.get("max_seq_length", 512),
+            min_seq_length=cfg.get("min_seq_length", 1),
+            max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+            max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
         )
         if cfg.shuffle:
             sampler = pt_data.RandomSampler(dataset)
