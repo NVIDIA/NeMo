@@ -70,9 +70,9 @@ def gen_overlap_seq(frame_filepath, per_args):
         jump_on_frame = int(jump_on_target / shift)  # jump on input frame sequence
 
         if jump_on_frame <= 1:
-            raise Error("Not valid jump on frame sequence. Try different shift and overlap choices")
+            raise ValueError("Not valid jump on frame sequence. Try different shift and overlap choices")
 
-        target_len = int(len(frame) * shift) + int(seg_len / 0.01)
+        target_len = int(len(frame) * shift)
 
         if method == 'mean':
             preds = np.zeros(target_len)
@@ -90,36 +90,32 @@ def gen_overlap_seq(frame_filepath, per_args):
             last_non_zero_pred = preds[pred_count != 0][-1]
             preds[pred_count == 0] = last_non_zero_pred
 
-            preds = preds[:-1]
-
         elif method == 'median':
             preds = [[] for _ in range(target_len)]
             for i, og_pred in enumerate(frame):
                 if i % jump_on_frame != 0:
                     continue
+
                 start = i * shift
                 end = start + seg
                 for i in range(start, end):
-                    preds[i].append(og_pred)
+                    if i <= target_len - 1:
+                        preds[i].append(og_pred)
 
             preds = np.array([np.median(l) for l in preds])
-
             nan_idx = np.isnan(preds)
             last_non_nan_pred = preds[~nan_idx][-1]
             preds[nan_idx] = last_non_nan_pred
-            preds = preds[:-1]
 
         else:
-            raise Error("method should be either mean or median")
+            raise ValueError("method should be either mean or median")
 
         round_final = np.round(preds, 4)
         np.savetxt(overlap_filepath, round_final, delimiter='\n')
         print(f"Finished! {overlap_filepath}!")
 
     except Exception as e:
-        with open(os.path.join(out_dir, "error.log"), "a") as f:
-            f.write(f"{name}: {e}")
-            f.write("\n")
+        raise (e)
 
 
 def gen_seg_table(frame_filepath, per_args):
@@ -140,14 +136,12 @@ def gen_seg_table(frame_filepath, per_args):
     threshold = per_args['threshold']
     seg_len = per_args['seg_len']
     shift_len = per_args['shift_len']
-    has_all_frame = per_args['has_all_frame']
     out_dir = per_args['out_dir']
 
     print(f"process {frame_filepath}")
     name = frame_filepath.split("/")[-1].split(".")[0]
 
     sequence = np.loadtxt(frame_filepath)
-
     start = 0
     end = 0
     start_list = [0]
@@ -158,11 +152,11 @@ def gen_seg_table(frame_filepath, per_args):
         current_sate = "non-speech" if sequence[i] <= threshold else "speech"
         next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
         if next_state != current_sate:
-            end =  i * shift_len + shift_len  # shift_len for handling joint
+            end = i * shift_len + shift_len  # shift_len for handling joint
             state_list.append(current_sate)
             end_list.append(end)
 
-            start =  (i + 1) * shift_len
+            start = (i + 1) * shift_len
             start_list.append(start)
 
     end_list.append((i + 1) * shift_len + shift_len)
@@ -183,7 +177,12 @@ if __name__ == '__main__':
     parser.add_argument("--gen_seg_table", default=False, action='store_true')
 
     parser.add_argument("--frame_folder", type=str, required=True)
-    parser.add_argument("--method", type=str, required=True)
+    parser.add_argument(
+        "--method",
+        type=str,
+        required=True,
+        help="Use mean/median for overlapped prediction. Use frame for gen_seg_table of frame prediction",
+    )
     parser.add_argument("--overlap_out_dir", type=str)
     parser.add_argument("--table_out_dir", type=str)
     parser.add_argument("--overlap", type=float, default=0.875, help="Overlap percentatge. Default is 0.875")
@@ -199,7 +198,7 @@ if __name__ == '__main__':
         frame_filepathlist = glob.glob(args.frame_folder + "/*.frame")
 
         if not args.overlap_out_dir:
-            overlap_out_dir = "overlap_smoothing_output" + "_" + args.method + "_" + str(args.overlap)
+            overlap_out_dir = "./overlap_smoothing_output" + "_" + args.method + "_" + str(args.overlap)
         else:
             overlap_out_dir = args.overlap_out_dir
         if not os.path.exists(overlap_out_dir):
@@ -228,13 +227,13 @@ if __name__ == '__main__':
         if args.gen_overlap_seq:
             print("Use overlap prediction. Change if you want to use basic frame level prediction")
             frame_filepath = overlap_out_dir
-            has_all_frame = True
+            shift_len = 0.01
         else:
             print("Use basic frame level prediction")
             frame_filepath = args.frame_folder
-            has_all_frame = False
+            shift_len = args.shift_len
 
-        frame_filepathlist = glob.glob(frame_filepath + "/*.frame")
+        frame_filepathlist = glob.glob(frame_filepath + "/*." + args.method)
 
         if not args.table_out_dir:
             table_out_dir = "table_output_" + str(args.threshold)
@@ -247,8 +246,7 @@ if __name__ == '__main__':
         per_args = {
             "threshold": args.threshold,
             "seg_len": args.seg_len,
-            "shift_len": args.shift_len,
-            "has_all_frame": has_all_frame,
+            "shift_len": shift_len,
             "out_dir": table_out_dir,
         }
 

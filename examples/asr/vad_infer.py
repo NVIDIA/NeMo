@@ -92,24 +92,59 @@ def main():
 
     data = []
     for line in open(args.dataset, 'r'):
-        sub_folder, file = json.loads(line)['audio_filepath'].split("/")[-2], json.loads(line)['audio_filepath'].split("/")[-1]
-        data.append(sub_folder + "-" +  file.split(".wav")[0])
+        sub_folder, file = (
+            json.loads(line)['audio_filepath'].split("/")[-2],
+            json.loads(line)['audio_filepath'].split("/")[-1],
+        )
+        data.append(sub_folder + "-" + file.split(".wav")[0])
     print(f"Inference on {len(data)} audio files/json lines!")
 
-    for i, test_batch in enumerate(vad_model.test_dataloader()):
-        print(data[i])
-        test_batch = [x.to(device) for x in test_batch]
+    time_unit = int(args.time_length / args.shift_length)
+    trunc = int(time_unit / 2)
+    trunc_l = time_unit - trunc
+    all_len = 0
 
+    for i, test_batch in enumerate(vad_model.test_dataloader()):
+        if i == 0:
+            status = 'start' if data[i] == data[i + 1] else 'single'
+        elif i == len(data) - 1:
+            status = 'end' if data[i] == data[i - 1] else 'single'
+        else:
+            if data[i] != data[i - 1] and data[i] == data[i + 1]:
+                status = 'start'
+            elif data[i] == data[i - 1] and data[i] == data[i + 1]:
+                status = 'next'
+            elif data[i] == data[i - 1] and data[i] != data[i + 1]:
+                status = 'end'
+            else:
+                status = 'single'
+        print(data[i], status)
+
+        test_batch = [x.to(device) for x in test_batch]
         with autocast():
             log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
             probs = torch.softmax(log_probs, dim=-1)
             to_save = probs[:, 1]
+
+            if status == 'start':
+                to_save = to_save[:-trunc]
+            elif status == 'next':
+                to_save = to_save[trunc:-trunc_l]
+            elif status == 'end':
+                to_save = to_save[trunc_l:]
+            else:
+                to_save = to_save
+            all_len += len(to_save)
+
             outpath = os.path.join(args.out_dir, data[i] + ".frame")
-                
             with open(outpath, "a") as fout:
                 for f in range(len(to_save)):
                     fout.write('{0:0.4f}\n'.format(to_save[f]))
+
         del test_batch
+        if status == 'end' or status == 'single':
+            print(f"Overall length of prediction of {data[i]} is {all_len}!")
+            all_len = 0
 
 
 if __name__ == '__main__':

@@ -13,10 +13,10 @@
 # limitations under the License.
 import json
 import logging
+import multiprocessing
 import os
 from argparse import ArgumentParser
 from itertools import repeat
-from multiprocessing import Pool
 
 import librosa
 
@@ -40,59 +40,71 @@ def write_manifest(file, args_func):
     Given a list of files, write them to manifest with restrictions.
     Args:
         files : file to be processed
-        output_path : path of generated manifest
+        label : label for audio snippet.
         split_duration : Max duration of each audio clip (each line in json)
         shift : Used for taking care of joint.
                 Amount of shift of window for generating the frame.
         time_length : Used for taking care of joint.
                 Length of window for generating the frame.
     Returns:
-        output_path : path of generated manifest
+        res : list of generated metadata line of json for file
     """
 
-    output_path = args_func['output_path']
     label = args_func['label']
     split_duration = args_func['split_duration']
     shift = args_func['shift']
     time_length = args_func['time_length']
 
-    # take care of joint of seperate json line for an audio file
-    overlap = (time_length / shift - 1) * shift
+    res = []
+    try:
+        sr = 16000
+        x, _sr = librosa.load(file, sr=sr)
+        duration = librosa.get_duration(x, sr=sr)
 
-    with open(output_path, 'a') as fout:
-        try:
-            sr = 16000
-            x, _sr = librosa.load(file, sr=sr)
-            duration = librosa.get_duration(x, sr=sr)
+        left = duration
+        current_offset = 0
+        status = 'single'
 
-            left = duration
-            current_offset = 0
-            while current_offset < duration:
-                if left <= split_duration:
-                    write_duration = left
-                    offset_inc = left
+        while left > 0:
+            if left <= split_duration:
+                status = 'end'
+                write_duration = left + time_length
+                current_offset -= time_length
+                offset_inc = left
+                left = 0
+            else:
+                if status == 'start' or status == 'next':
+                    status = 'next'
                 else:
-                    left -= split_duration
-                    write_duration = split_duration + overlap
+                    status = 'start'
+
+                if status == 'start':
+                    write_duration = split_duration
                     offset_inc = split_duration
+                else:
+                    write_duration = split_duration + time_length
+                    current_offset -= time_length
+                    offset_inc = split_duration + time_length
 
-                metadata = {
-                    'audio_filepath': file,
-                    'duration': write_duration,
-                    'label': label,
-                    'text': '_',
-                    'offset': current_offset,
-                }
-                json.dump(metadata, fout)
-                fout.write('\n')
-                fout.flush()
+                left -= split_duration
 
-                current_offset += offset_inc
+            metadata = {
+                'audio_filepath': file,
+                'duration': write_duration,
+                'label': label,
+                'text': '_',
+                'offset': current_offset,
+            }
+            res.append(metadata)
 
-        except Exception as e:
-            err_file = "error.log"
-            with open(err_file, 'w') as fout:
-                fout.write(file + ":" + str(e))
+            current_offset += offset_inc
+
+    except Exception as e:
+        err_file = "error.log"
+        with open(err_file, 'w') as fout:
+            fout.write(file + ":" + str(e))
+
+    return res
 
 
 def main():
@@ -119,28 +131,38 @@ def main():
                 input_audios.append(filename)
 
     print(f"Number of wav files in this folder: {len(input_audios)}")
+
     output_path = os.path.join(args.out_dir, args.manifest_name + '.json')
     print(f"Save generate manifest to {output_path}!")
-
+    if not os.path.exists(args.out_dir):
+        logging.info(f'Outdir {args.out_dir} does not exist. Creat directory.')
+        os.mkdir(args.out_dir)
     if os.path.exists(output_path):
         print(f"Manifest {output_path} exists! Overwriting")
         os.remove(output_path)
 
-    if not os.path.exists(args.out_dir):
-        logging.info(f'Outdir {args.out_dir} does not exist. Creat directory.')
-        os.mkdir(args.out_dir)
-
     print("Start processing...")
-    p = Pool(processes=18)
+    p = multiprocessing.Pool(processes=args.num_workers)
+
     args_func = {
-        'output_path': output_path,
         'label': 'infer',
         'split_duration': args.split_duration,
         'shift': args.shift,
         'time_length': args.time_length,
     }
-    p.starmap(write_manifest, zip(input_audios, repeat(args_func)))
+
+    results = p.starmap(write_manifest, zip(input_audios, repeat(args_func)))
+
+    with open(output_path, 'a') as fout:
+        for res in results:
+            for r in res:
+                json.dump(r, fout)
+                fout.write('\n')
+                fout.flush()
+
     p.close()
+
+    print(f"Done! Save to {output_path}")
 
 
 if __name__ == '__main__':

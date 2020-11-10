@@ -95,11 +95,11 @@ target_label_n, "offset": offset_in_sec_n}
         self.featurizer = featurizer
         self.trim = trim
         self.load_audio = load_audio
-        self.time_length = time_length 
+        self.time_length = time_length
         self.shift_length = shift_length
 
         logging.info("Time length considered for collate func is {}".format(time_length))
-        logging.info("Shift length considered for collate func is {}".format(time_length))
+        logging.info("Shift length considered for collate func is {}".format(shift_length))
 
         self.labels = labels if labels else self.collection.uniq_labels
         self.num_classes = len(self.labels)
@@ -225,16 +225,17 @@ target_label_n, "offset": offset_in_sec_n}
         has_audio = audio_lengths[0] is not None
 
         audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
-      
-        append_len = int(slice_length / 2) - 1
+
+        append_len_start = slice_length // 2
+        append_len_end = slice_length - slice_length // 2
         for sig, sig_len, tokens_i, _ in batch:
-            start = torch.zeros(append_len) 
-            end = torch.zeros(append_len)
+            start = torch.zeros(append_len_start)
+            end = torch.zeros(append_len_end)
             sig = torch.cat((start, sig, end))
-            sig_len +=  append_len * 2
+            sig_len += slice_length
 
             if has_audio:
-                slices = (sig_len - slice_length) // shift + 1
+                slices = (sig_len - slice_length) // shift
                 for slice_id in range(slices):
                     start_idx = slice_id * shift
                     end_idx = start_idx + slice_length
@@ -244,17 +245,17 @@ target_label_n, "offset": offset_in_sec_n}
                 num_slices.append(slices)
                 tokens.extend([tokens_i] * slices)
                 audio_lengths.extend([slice_length] * slices)
-                
+
         if has_audio:
             audio_signal = torch.stack(audio_signal)
             audio_lengths = torch.tensor(audio_lengths)
         else:
             audio_signal, audio_lengths = None, None
-            
+
         tokens = torch.stack(tokens)
-        tokens_lengths = torch.tensor(num_slices)  
+        tokens_lengths = torch.tensor(num_slices)
         return audio_signal, audio_lengths, tokens, tokens_lengths
-    
+
     def __len__(self):
         return len(self.collection)
 
