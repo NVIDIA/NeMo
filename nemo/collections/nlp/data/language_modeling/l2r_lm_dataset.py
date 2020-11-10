@@ -68,14 +68,68 @@ class L2RLanguageModelingDataset(Dataset):
 
 
 class TarredL2RLanguageModelingDataset(IterableDataset):
+    """
+    A similar Dataset to the L2RLanguageModelingDataset, but which loads tarred tokenized numpy files.
+    Accepts a single JSON metadata manifest file as well as the path(s) to the tarball(s) containing the wav files. 
+    The manifest should contain information such as the number of shards, the number of tokens in the corpus,
+    and the number of tokens contained within each shard of the tarfile(s).
+
+    Valid formats for the audio_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['text_1.tar', 'text_2.tar', ...].
+
+    Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
+    This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
+    Supported opening braces - { <=> (, [, < and the special tag _OP_.
+    Supported closing braces - } <=> ), ], > and the special tag _CL_.
+    For SLURM based tasks, we suggest the use of the special tags for ease of use.
+    See the WebDataset documentation for more information about accepted data and input formats.
+
+    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    even split among workers. If it is not divisible, logging will give a warning but training will proceed.
+
+    Additionally, please note that the len() of this DataLayer is assumed to be the number of tokens
+    of the text data. An incorrect manifest length may lead to some DataLoader issues down the line.
+
+    Args:
+        text_tar_filepaths: Either a list of tokenized text tarball filepaths, or a
+            string (can be brace-expandable).
+        metadata_path (str): Path to the metadata manifest.
+        tokenizer: tokenizer, such as WordTokenizer or CharTokenizer
+        dataset: path to data
+        max_seq_length: maximum sequence length (in tokens) of input tensors
+        batch_step: distance (in tokens) between two successive sequences of
+            the text. By default, it is equal to max_seq_length which corresponds
+            to splitting text into disjoint segments covering full dataset
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
+        shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+            -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
+                a unique set of shards, which are permanently pre-allocated and never changed at runtime.
+            -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
+                available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
+                The benefit of replication is that it allows each node to sample data points from the entire
+                dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
+                and therefore more than one node may sample the same tarfile, and even sample the same
+                data points! As such, there is no assured guarantee that all samples in the dataset will be
+                sampled at least once during 1 epoch.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+    """
+
     def __init__(
         self,
-        tarpath: str,
+        text_tar_filepaths: str,
         metadata_path: str,
         tokenizer,
-        shuffle_n: int = 64,
         max_seq_length: int = 512,
         batch_step: int = None,
+        shuffle_n: int = 1,
+        shard_strategy: str = "scatter",
+        global_rank: int = 0,
+        world_size: int = 0,
     ):
         super(TarredL2RLanguageModelingDataset, self).__init__()
 
@@ -83,29 +137,55 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         self.max_seq_length = max_seq_length
         self.batch_step = batch_step or self.max_seq_length
 
+        valid_shard_strategies = ['scatter', 'replicate']
+        if shard_strategy not in valid_shard_strategies:
+            raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
+
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)
 
         self.metadata = metadata
 
-        if isinstance(tarpath, str):
+        if isinstance(text_tar_filepaths, str):
             # Replace '(' and '[' with '{'
             brace_keys_open = ['(', '[', '<', '_OP_']
             for bkey in brace_keys_open:
-                if bkey in tarpath:
-                    tarpath = tarpath.replace(bkey, "{")
+                if bkey in text_tar_filepaths:
+                    text_tar_filepaths = text_tar_filepaths.replace(bkey, "{")
 
             # Replace ')' and ']' with '}'
             brace_keys_close = [')', ']', '>', '_CL_']
             for bkey in brace_keys_close:
-                if bkey in tarpath:
-                    tarpath = tarpath.replace(bkey, "}")
+                if bkey in text_tar_filepaths:
+                    text_tar_filepaths = text_tar_filepaths.replace(bkey, "}")
 
-        self.tarpath = tarpath
+        if shard_strategy == 'scatter':
+            logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
+
+            if len(text_tar_filepaths) % world_size != 0:
+                logging.warning(
+                    f"Number of shards in tarred dataset ({len(text_tar_filepaths)}) is not divisible "
+                    f"by number of distributed workers ({world_size})."
+                )
+
+            begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
+            end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
+            audio_tar_filepaths = text_tar_filepaths[begin_idx:end_idx]
+            logging.info(
+                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
+            )
+
+        elif shard_strategy == 'replicate':
+            logging.info("All tarred dataset shards will be replicated across all nodes.")
+
+        else:
+            raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
+
+        self.tarpath = text_tar_filepaths
 
         # Put together WebDataset
         self._dataset = (
-            wd.Dataset(tarpath)
+            wd.Dataset(text_tar_filepaths)
             .shuffle(shuffle_n)
             .rename(npy='npy', key='__key__')
             .to_tuple('npy', 'key')
@@ -116,7 +196,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         # Load file
         npy, filepath = tup
         npy = io.BytesIO(npy)
-        data = np.load(npy)
+        data = np.load(npy)  # loads np.int64 vector
         npy.close()
 
         # Select random contiguous subsegment
@@ -125,7 +205,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         # Slice of data chunk
         left = idx * self.batch_step
         right = left + self.max_seq_length
-        data = data[left:right + 1]
+        data = data[left : right + 1]
 
         # Create batch
         src_ids = data[:-1]

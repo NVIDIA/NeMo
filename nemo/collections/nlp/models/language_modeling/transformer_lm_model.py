@@ -41,8 +41,10 @@ class TransformerLMModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        self.global_rank = 0
         self.world_size = 1
         if trainer is not None:
+            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         # shared params for dataset and data loaders
@@ -199,12 +201,15 @@ class TransformerLMModel(ModelPT):
 
             shuffle_n = cfg.get('shuffle_n', 4 * cfg['batch_size']) if shuffle else 0
             dataset = TarredL2RLanguageModelingDataset(
-                tarpath=cfg['tarred_text_filepaths'],
+                text_tar_filepaths=cfg['tarred_text_filepaths'],
                 metadata_path=cfg['file_name'],
                 tokenizer=self.tokenizer,
-                shuffle_n=shuffle_n,
                 max_seq_length=self.dataset_cfg.max_seq_length,
                 batch_step=predict_last_k,
+                shuffle_n=shuffle_n,
+                shard_strategy=cfg.get("tarred_shard_strategy", "scatter"),
+                global_rank=self.global_rank,
+                world_size=self.world_size
             )
 
             shuffle = False
