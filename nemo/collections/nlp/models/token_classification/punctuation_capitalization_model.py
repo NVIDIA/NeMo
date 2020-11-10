@@ -445,8 +445,9 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
                 " inputs and outputs."
             )
 
+        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
         bert_model_onnx = self.bert_model.export(
-            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -460,8 +461,9 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'punct_classifier_' + os.path.basename(output))
         punct_classifier_onnx = self.punct_classifier.export(
-            os.path.join(os.path.dirname(output), 'punct_classifier_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -475,8 +477,9 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
             use_dynamic_axes,
         )
 
+        output3 = os.path.join(os.path.dirname(output), 'capit_classifier_' + os.path.basename(output))
         capit_classifier_onnx = self.capit_classifier.export(
-            os.path.join(os.path.dirname(output), 'capit_classifier_' + os.path.basename(output)),
+            output3,
             None,  # computed by input_example()
             None,
             verbose,
@@ -491,6 +494,9 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
         )
 
         punct_output_model = attach_onnx_to_onnx(bert_model_onnx, punct_classifier_onnx, "PTCL")
-        onnx.save(punct_output_model, os.path.join(os.path.dirname(output), 'punct_' + os.path.basename(output)))
+        output4 = os.path.join(os.path.dirname(output), 'punct_' + os.path.basename(output))
+        onnx.save(punct_output_model, output4)
         capit_output_model = attach_onnx_to_onnx(bert_model_onnx, capit_classifier_onnx, "CPCL")
-        onnx.save(capit_output_model, os.path.join(os.path.dirname(output), 'capit_' + os.path.basename(output)))
+        output5 = os.path.join(os.path.dirname(output), 'capit_' + os.path.basename(output))
+        onnx.save(capit_output_model, output5)
+        return [output1, output2, output3, output4, output5]

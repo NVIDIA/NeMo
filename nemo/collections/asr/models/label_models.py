@@ -334,8 +334,9 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
                 " inputs and outputs."
             )
 
+        output1 = os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output))
         encoder_onnx = self.encoder.export(
-            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -349,8 +350,9 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output))
         decoder_onnx = self.decoder.export(
-            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -366,6 +368,7 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
 
         output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "SL")
         onnx.save(output_model, output)
+        return [output, output1, output2]
 
 
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):

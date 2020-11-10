@@ -353,8 +353,9 @@ class TextClassificationModel(NLPModel, Exportable):
                 " inputs and outputs."
             )
 
+        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
         bert_model_onnx = self.bert_model.export(
-            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -368,8 +369,9 @@ class TextClassificationModel(NLPModel, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output))
         classifier_onnx = self.classifier.export(
-            os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -385,3 +387,4 @@ class TextClassificationModel(NLPModel, Exportable):
 
         output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "CL")
         onnx.save(output_model, output)
+        return [output, output1, output2]
