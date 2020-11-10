@@ -124,16 +124,16 @@ def main():
         with autocast():
             log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
             probs = torch.softmax(log_probs, dim=-1)
-            to_save = probs[:, 1]
+            pred = probs[:, 1]
 
             if status == 'start':
-                to_save = to_save[:-trunc]
+                to_save = pred[:-trunc]
             elif status == 'next':
-                to_save = to_save[trunc:-trunc_l]
+                to_save = pred[trunc:-trunc_l]
             elif status == 'end':
-                to_save = to_save[trunc_l:]
+                to_save = pred[trunc_l:]
             else:
-                to_save = to_save
+                to_save = pred
             all_len += len(to_save)
 
             outpath = os.path.join(args.out_dir, data[i] + ".frame")

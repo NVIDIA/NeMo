@@ -98,9 +98,9 @@ def gen_overlap_seq(frame_filepath, per_args):
 
                 start = i * shift
                 end = start + seg
-                for i in range(start, end):
-                    if i <= target_len - 1:
-                        preds[i].append(og_pred)
+                for j in range(start, end):
+                    if j <= target_len - 1:
+                        preds[j].append(og_pred)
 
             preds = np.array([np.median(l) for l in preds])
             nan_idx = np.isnan(preds)
@@ -129,12 +129,10 @@ def gen_seg_table(frame_filepath, per_args):
         frame_filepath : frame prediction file to be processed.
         per_args : 
             threshold : threshold for prediction score (from 0 to 1).
-            seg_len : Length of window for generating the frame.
-            shift_len : Amount of shift of window for generating the frame.
+            shift_len : Amount of shift of window for generating the frame. 
             out_dir : Output dir of generated table/csv file.                   
     """
     threshold = per_args['threshold']
-    seg_len = per_args['seg_len']
     shift_len = per_args['shift_len']
     out_dir = per_args['out_dir']
 
@@ -243,7 +241,6 @@ if __name__ == '__main__':
 
         per_args = {
             "threshold": args.threshold,
-            "seg_len": args.seg_len,
             "shift_len": shift_len,
             "out_dir": table_out_dir,
         }

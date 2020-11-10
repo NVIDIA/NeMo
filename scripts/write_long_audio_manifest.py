@@ -42,8 +42,6 @@ def write_manifest(file, args_func):
         files : file to be processed
         label : label for audio snippet.
         split_duration : Max duration of each audio clip (each line in json)
-        shift : Used for taking care of joint.
-                Amount of shift of window for generating the frame.
         time_length : Used for taking care of joint.
                 Length of window for generating the frame.
     Returns:
@@ -52,7 +50,6 @@ def write_manifest(file, args_func):
 
     label = args_func['label']
     split_duration = args_func['split_duration']
-    shift = args_func['shift']
     time_length = args_func['time_length']
 
     res = []
@@ -118,7 +115,6 @@ def main():
     parser.add_argument(
         "--time_length", type=float, default=0.63, help="[Optional] time length of segment, default is 0.63s"
     )
-    parser.add_argument("--shift", type=float, default=0.01, help="[Optional] shift length, default is 0.01s")
     parser.add_argument("--num_workers", type=int, default=4, help="[Optional] number of workers for multiprocessing")
     args = parser.parse_args()
 
@@ -147,7 +143,6 @@ def main():
     args_func = {
         'label': 'infer',
         'split_duration': args.split_duration,
-        'shift': args.shift,
         'time_length': args.time_length,
     }
 
