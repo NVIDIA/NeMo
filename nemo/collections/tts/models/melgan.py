@@ -119,7 +119,7 @@ class MelGanModel(Vocoder):
             loss = 0
 
             # full-band loss
-            sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio)
+            sc_loss, mag_loss = self.loss(x=audio_pred.squeeze(1), y=audio)
             loss_feat = sum(sc_loss) + sum(mag_loss)
             loss_feat /= len(sc_loss)
             loss += loss_feat
@@ -178,7 +178,7 @@ class MelGanModel(Vocoder):
             audio_pred.data.masked_fill_(mask, 0.0)
 
             # full-band loss
-            sc_loss, mag_loss = self.loss(audio_pred.squeeze(1), audio, audio_len)
+            sc_loss, mag_loss = self.loss(x=audio_pred.squeeze(1), y=audio, input_lengths=audio_len)
             loss_feat = (sum(sc_loss) + sum(mag_loss)) / len(sc_loss)
             loss_dict["sc_loss"] = sc_loss
             loss_dict["mag_loss"] = mag_loss

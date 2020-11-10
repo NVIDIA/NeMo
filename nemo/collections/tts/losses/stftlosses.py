@@ -45,6 +45,10 @@
 import torch
 import torch.nn.functional as F
 
+from nemo.core.classes import Loss, typecheck
+from nemo.core.neural_types.elements import LossType, AudioSignal, LengthsType, SpectrogramType
+from nemo.core.neural_types.neural_type import NeuralType
+
 
 def stft(x, fft_size, hop_size, win_length, window):
     """Perform STFT and convert to magnitude spectrogram.
@@ -65,10 +69,24 @@ def stft(x, fft_size, hop_size, win_length, window):
     return torch.sqrt(torch.clamp(real ** 2 + imag ** 2, min=1e-7)).transpose(2, 1)
 
 
-class SpectralConvergenceLoss(torch.nn.Module):
+class SpectralConvergenceLoss(Loss):
     """Spectral convergence loss module."""
 
-    def forward(self, x_mag, y_mag):
+    @property
+    def input_types(self):
+        return {
+            "x_mag": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "y_mag": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, *, x_mag, y_mag):
         """Calculate forward propagation. It is assumed that x_mag and y_mag were padded to fit the maximum batch
         sequence length with silence, hence it is assumed that the norm of these extra padded values are 0. Therefore,
         input_lengths is not a argument unlike in LogSTFTMagnitudeLoss.
@@ -83,10 +101,25 @@ class SpectralConvergenceLoss(torch.nn.Module):
         return loss
 
 
-class LogSTFTMagnitudeLoss(torch.nn.Module):
+class LogSTFTMagnitudeLoss(Loss):
     """Log STFT magnitude loss module."""
 
-    def forward(self, x_mag, y_mag, input_lengths=None):
+    @property
+    def input_types(self):
+        return {
+            "x_mag": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "y_mag": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "input_lengths": NeuralType(('B'), LengthsType(), optional=True),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, *, x_mag, y_mag, input_lengths=None):
         """Calculate forward propagation.
         Args:
             x_mag (Tensor): Magnitude spectrogram of predicted signal (B, #frames, #freq_bins).
@@ -104,7 +137,7 @@ class LogSTFTMagnitudeLoss(torch.nn.Module):
         return torch.sum(loss) / loss.shape[0]
 
 
-class STFTLoss(torch.nn.Module):
+class STFTLoss(Loss):
     """STFT loss module."""
 
     def __init__(self, fft_size=1024, shift_size=120, win_length=600, window="hann_window"):
@@ -117,7 +150,23 @@ class STFTLoss(torch.nn.Module):
         self.spectral_convergence_loss = SpectralConvergenceLoss()
         self.log_stft_magnitude_loss = LogSTFTMagnitudeLoss()
 
-    def forward(self, x, y, input_lengths=None):
+    @property
+    def input_types(self):
+        return {
+            "x": NeuralType(('B', 'T'), AudioSignal()),
+            "y": NeuralType(('B', 'T'), AudioSignal()),
+            "input_lengths": NeuralType(('B'), LengthsType(), optional=True),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "sc_loss": NeuralType(elements_type=LossType()),
+            "mag_loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, *, x, y, input_lengths=None):
         """Calculate forward propagation.
         Args:
             x (Tensor): Predicted signal (B, T).
@@ -129,16 +178,16 @@ class STFTLoss(torch.nn.Module):
         """
         x_mag = stft(x, self.fft_size, self.shift_size, self.win_length, self.window)
         y_mag = stft(y, self.fft_size, self.shift_size, self.win_length, self.window)
-        sc_loss = self.spectral_convergence_loss(x_mag, y_mag)
+        sc_loss = self.spectral_convergence_loss(x_mag=x_mag, y_mag=y_mag)
         if input_lengths is not None:
             input_lengths = torch.ceil(input_lengths / float(self.shift_size))
             assert max(input_lengths) == x_mag.shape[1], f"{max(input_lengths)} != {x_mag.shape[-1]}"
-        mag_loss = self.log_stft_magnitude_loss(x_mag, y_mag, input_lengths)
+        mag_loss = self.log_stft_magnitude_loss(x_mag=x_mag, y_mag=y_mag, input_lengths=input_lengths)
 
         return sc_loss, mag_loss
 
 
-class MultiResolutionSTFTLoss(torch.nn.Module):
+class MultiResolutionSTFTLoss(Loss):
     """Multi resolution STFT loss module."""
 
     def __init__(self, fft_sizes, hop_sizes, win_lengths, window="hann_window"):
@@ -155,7 +204,23 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
         for fs, ss, wl in zip(fft_sizes, hop_sizes, win_lengths):
             self.stft_losses += [STFTLoss(fs, ss, wl, window)]
 
-    def forward(self, x, y, input_lengths=None):
+    @property
+    def input_types(self):
+        return {
+            "x": NeuralType(('B', 'T'), AudioSignal()),
+            "y": NeuralType(('B', 'T'), AudioSignal()),
+            "input_lengths": NeuralType(('B'), LengthsType(), optional=True),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "sc_loss": NeuralType(elements_type=LossType()),
+            "mag_loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, *, x, y, input_lengths=None):
         """Calculate forward propagation.
         Args:
             x (Tensor): Predicted signal (B, T).
@@ -168,7 +233,7 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
         sc_loss = [0.0] * len(self.stft_losses)
         mag_loss = [0.0] * len(self.stft_losses)
         for i, f in enumerate(self.stft_losses):
-            sc_l, mag_l = f(x, y, input_lengths)
+            sc_l, mag_l = f(x=x, y=y, input_lengths=input_lengths)
             sc_loss[i] = sc_l
             mag_loss[i] = mag_l
 
