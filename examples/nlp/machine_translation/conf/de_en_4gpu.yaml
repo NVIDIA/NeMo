@@ -4,14 +4,14 @@ name: &name TransformerMT
 trainer:
   gpus: 4
   num_nodes: 1
-  max_epochs: 50
+  max_epochs: 300
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   distributed_backend: ddp
   checkpoint_callback: False
   logger: False
   log_every_n_steps: 50  # Interval of logging.
-  val_check_interval: 0.25  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  check_val_every_n_epoch: 50
 
 model:
   test_checkpoint_path: null
@@ -38,23 +38,24 @@ model:
     tgt_file_name: /raid2/NMT/wmt16_de_en/train.clean.en.shuffled
     tokens_in_batch: 12500  # This is limit per gpu. Total limit is 50000
     clean: true
-    max_seq_length: 512
+    max_seq_length: 256
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     drop_last: false # drops the last last batch if it is smaller than the batch size
     pin_memory: true # enables pin_memory feature of the data loaders
-    num_workers: 8 # number of workers for data loaders
+    num_workers: 0 # number of workers for data loaders
 
   validation_ds:
     src_file_name: /raid2/NMT/wmt16_de_en/wmt14-en-de.ref # path to file with validation data
     tgt_file_name: /raid2/NMT/wmt16_de_en/wmt14-en-de.src
+    clean: true
     tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     predict_last_k: 0
     drop_last: false # drops the last last batch if it is smaller than the batch size
     pin_memory: true # enables pin_memory feature of the data loaders
-    num_workers: 8 # number of workers for data loaders
+    num_workers: 0 # number of workers for data loaders
 
   optim:
     name: adam
@@ -65,7 +66,7 @@ model:
     sched:
       name: InverseSquareRootAnnealing
       warmup_steps: null
-      warmup_ratio: 0.04
+      warmup_ratio: 0.1
       last_epoch: -1
 
       # pytorch lightning args

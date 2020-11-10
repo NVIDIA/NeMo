@@ -246,8 +246,8 @@ class TransformerMTModel(ModelPT):
         logging.info(f"\n\n\n\n{dataset_name} set size: {len(translations)}")
         logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu}")
         logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
-        for i in range(0, self.num_examples[mode]):
-            ind = random.randint(0, len(translations))
+        for i in range(0, 3):
+            ind = random.randint(0, len(translations)-1)
             logging.info("    " + '\u0332'.join(f"EXAMPLE {i}:"))
             logging.info(f"    Prediction:   {translations[ind]}")
             logging.info(f"    Ground Truth: {ground_truths[ind]}")
