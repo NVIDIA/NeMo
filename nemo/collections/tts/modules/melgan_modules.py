@@ -48,7 +48,7 @@ import torch
 from nemo.core.classes import NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, VoidType
-from nemo.core.neural_types.neural_type import NeuralType, AxisType, AxisKind
+from nemo.core.neural_types.neural_type import AxisKind, AxisType, NeuralType
 from nemo.utils import logging
 
 __all__ = ['MelGANGenerator', 'MelGANDiscriminator', 'MelGANMultiScaleDiscriminator']
