@@ -60,6 +60,9 @@ parser.add_argument('--log', action='store_true')
 
 # Tokenizer arguments
 parser.add_argument('--tokenizer_name', required=False, default=None, type=str, help='Tokenizer name for resolution')
+parser.add_argument(
+    '--tokenizer_model', required=False, default=None, type=str, help='Path to tokenizer model for sentencepiece'
+)
 parser.add_argument('--tokenizer_vocab_file', required=False, type=str, default=None, help='Path to a vocab file')
 parser.add_argument(
     '--tokenizer_special_tokens', default=None, type=str, nargs='+', help='List of special tokens for the tokenizer'
@@ -265,6 +268,7 @@ def main():
 
         tokenizer = get_tokenizer(
             tokenizer_name=args.tokenizer_name,
+            tokenizer_model=args.tokenizer_model,
             vocab_file=args.tokenizer_vocab_file,
             special_tokens=args.tokenizer_special_tokens,
         )
