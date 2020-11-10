@@ -29,6 +29,7 @@ __all__ = [
     'MFCCSpectrogramType',
     'LogitsType',
     'LabelsType',
+    'HypothesisType',
     'LossType',
     'RegressionValuesType',
     'CategoricalValuesType',
@@ -148,6 +149,11 @@ class LogprobsType(ElementType):
 class LabelsType(ElementType):
     """Element type to represent some sort of labels. This is often used as a base class to create
     a more concrete types such as RegressionValuesType, etc."""
+
+
+class HypothesisType(LabelsType):
+    """Element type to represent some decoded hypothesis, which may further be processed to obtain
+    a concrete label."""
 
 
 class LengthsType(ElementType):
