@@ -26,6 +26,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules import BertEncoder, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.core.classes import ModelPT
 from nemo.utils import AppState, logging
 
@@ -70,6 +71,11 @@ class NLPModel(ModelPT):
             tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
         )
         self.tokenizer = tokenizer
+        if isinstance(self.tokenizer, AutoTokenizer):
+            vocab_dict = self.tokenizer.tokenizer.get_vocab()
+            with open('tokenizer_vocab.json', 'w', encoding='utf-8') as f:
+                f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
+            self.register_artifact('tokenizer_vocab.json', 'tokenizer_vocab.json')
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Override for LightningModule DDP initialization.
