@@ -147,13 +147,13 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         self.metadata = metadata
 
         if isinstance(text_tar_filepaths, str):
-            # Replace '(' and '[' with '{'
+            # Replace '(', '[', '<' and '_OP_' with '{'
             brace_keys_open = ['(', '[', '<', '_OP_']
             for bkey in brace_keys_open:
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "{")
 
-            # Replace ')' and ']' with '}'
+            # Replace ')', ']', '>' and '_CL_' with '}'
             brace_keys_close = [')', ']', '>', '_CL_']
             for bkey in brace_keys_close:
                 if bkey in text_tar_filepaths:
