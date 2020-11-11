@@ -50,8 +50,8 @@ class NeuralType(object):
     def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
         if not isinstance(elements_type, ElementType):
             raise ValueError(
-                f"elements_type of NeuralType must be an instance of a class derived from ElementType."
-                f"Did you pass a class instead?"
+                "elements_type of NeuralType must be an instance of a class derived from ElementType. "
+                "Did you pass a class instead?"
             )
         self.elements_type = elements_type
         if axes is not None:
@@ -63,7 +63,7 @@ class NeuralType(object):
                 elif isinstance(axis, AxisType):
                     axes_list.append(axis)
                 else:
-                    raise ValueError(f"axis type must be either str or AxisType instance")
+                    raise ValueError("axis type must be either str or AxisType instance")
             self.axes = tuple(axes_list)
         else:
             self.axes = None
@@ -202,14 +202,13 @@ class NeuralType(object):
 class NeuralTypeError(Exception):
     """Base class for neural type related exceptions."""
 
-    pass
-
 
 class NeuralPortNameMismatchError(NeuralTypeError):
     """Exception raised when neural module is called with incorrect port
     names."""
 
     def __init__(self, input_port_name):
+        super().__init__()
         self.message = "Wrong input port name: {0}".format(input_port_name)
 
 
@@ -218,6 +217,7 @@ class NeuralPortNmTensorMismatchError(NeuralTypeError):
     type."""
 
     def __init__(self, class_name, port_name, first_type, second_type, type_comatibility):
+        super().__init__()
         self.message = "\nIn {}. \nPort: {} and a NmTensor it was fed are \n".format(class_name, port_name)
         self.message += "of incompatible neural types:\n\n{} \n\n and \n\n{}".format(first_type, second_type)
         self.message += "\n\nType comparison result: {}".format(type_comatibility)
