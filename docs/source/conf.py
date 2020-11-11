@@ -95,7 +95,13 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinxcontrib.bibtex",
     "sphinx.ext.inheritance_diagram",
+    "sphinx.ext.intersphinx",
 ]
+
+intersphinx_mapping = {
+    'pytorch': ('https://pytorch.org/docs/stable', None),
+    'pytorch-lightning': ('https://pytorch-lightning.readthedocs.io/en/latest/', None),
+}
 
 # Set default flags for all classes.
 autodoc_default_options = {'members': None, 'undoc-members': None, 'show-inheritance': True}
