@@ -180,6 +180,7 @@ class TransformerMTModel(ModelPT):
         beam_results = None
         if not self.training:
             beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+            beam_results = self.filter_predicted_ids(beam_results)
         return log_probs, beam_results
 
     def training_step(self, batch, batch_idx):
@@ -212,7 +213,6 @@ class TransformerMTModel(ModelPT):
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
-        beam_results = self.filter_predicted_ids(beam_results)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels).cpu().numpy()
         self.eval_perplexity(logits=log_probs)
         translations = [self.tgt_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
@@ -338,7 +338,6 @@ class TransformerMTModel(ModelPT):
             src_mask = src != self.src_tokenizer.pad_id
             src_hiddens = self.encoder(src_embeddings, src_mask)
             beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-            beam_results = self.filter_predicted_ids(beam_results)
             translation_ids = beam_results.cpu()[0].numpy()
             res.append(self.tgt_tokenizer.ids_to_text(translation_ids))
         return res
