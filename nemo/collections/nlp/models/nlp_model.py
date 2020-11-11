@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
 import json
+from typing import List
 
 import torch
 from megatron import mpu
@@ -24,7 +24,7 @@ from pytorch_lightning.overrides.data_parallel import LightningDistributedDataPa
 from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.collections.nlp.modules import MegatronBertEncoder, BertEncoder
+from nemo.collections.nlp.modules import BertEncoder, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
 from nemo.utils import AppState, logging
