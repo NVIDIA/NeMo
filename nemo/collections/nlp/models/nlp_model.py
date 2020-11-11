@@ -60,7 +60,7 @@ class NLPModel(ModelPT):
                 self.register_artifact('nn_config.json', 'nn_config.json')
             else:
                 logging.info(
-                    f'Registering BERT model: {self.bert_model} is not yet supported. Please override this method.'
+                    f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
                 )
 
     def _setup_tokenizer(self, cfg: DictConfig):
@@ -76,6 +76,10 @@ class NLPModel(ModelPT):
             with open('tokenizer_vocab.json', 'w', encoding='utf-8') as f:
                 f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
             self.register_artifact('tokenizer_vocab.json', 'tokenizer_vocab.json')
+        else:
+            logging.info(
+                f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
+            )
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Override for LightningModule DDP initialization.
