@@ -168,7 +168,7 @@ def gen_seg_table(frame_filepath, per_args):
 
     seg_table = pd.DataFrame({'start': start_list, 'end': end_list, 'vad': state_list})
 
-    save_name = name + ".table"
+    save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
     seg_table.to_csv(save_path, sep='\t', index=False, header=False)
 
