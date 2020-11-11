@@ -71,11 +71,7 @@ class ResidualStack(torch.nn.Module):
             channels (int): Number of channels of convolution layers.
             dilation (int): Dilation factor.
             bias (bool): Whether to add bias parameter in convolution layers.
-            nonlinear_activation (str): Activation function module name.
-            nonlinear_activation_params (dict): Hyperparameters for activation function.
-            pad (str): Padding function module name before dilated convolution layer.
-            pad_params (dict): Hyperparameters for padding function.
-            use_causal_conv (bool): Whether to use causal convolution.
+            nonlinear_activation (torch.nn.Module): Activation function.
         """
         super().__init__()
 
@@ -130,15 +126,10 @@ class MelGANGenerator(NeuralModule):
             upsample_scales (list): List of upsampling scales.
             stack_kernel_size (int): Kernel size of dilated conv layers in residual stack.
             stacks (int): Number of stacks in a single residual stack.
-            nonlinear_activation (str): Activation function module name.
-            nonlinear_activation_params (dict): Hyperparameters for activation function.
-            pad (str): Padding function module name before dilated convolution layer.
-            pad_params (dict): Hyperparameters for padding function.
-            use_final_nonlinear_activation (torch.nn.Module): Activation function for the final layer.
+            nonlinear_activation (torch.nn.Module): Activation function.
+            use_final_nonlinear_activation (bool): Whether to add an activation function for the final layer.
             use_weight_norm (bool): Whether to use weight norm.
                 If set to true, it will be applied to all of the conv layers.
-            use_causal_conv (bool): Whether to use causal convolution.
-
         """
         super().__init__()
 
@@ -294,11 +285,7 @@ class MelGANDiscriminator(NeuralModule):
             max_downsample_channels (int): Maximum number of channels for downsampling layers.
             bias (bool): Whether to add bias parameter in convolution layers.
             downsample_scales (list): List of downsampling scales.
-            nonlinear_activation (str): Activation function module name.
-            nonlinear_activation_params (dict): Hyperparameters for activation function.
-            pad (str): Padding function module name before dilated convolution layer.
-            pad_params (dict): Hyperparameters for padding function.
-
+            nonlinear_activation (torch.nn.Module): Activation function.
         """
         super().__init__()
         self.layers = torch.nn.ModuleList()
@@ -401,20 +388,13 @@ class MelGANMultiScaleDiscriminator(NeuralModule):
         Args:
             in_channels (int): Number of input channels.
             out_channels (int): Number of output channels.
-            downsample_pooling (str): Pooling module name for downsampling of the inputs.
-            downsample_pooling_params (dict): Parameters for the above pooling module.
             kernel_sizes (list): List of two kernel sizes. The sum will be used for the first conv layer,
                 and the first and the second kernel sizes will be used for the last two layers.
             channels (int): Initial number of channels for conv layer.
             max_downsample_channels (int): Maximum number of channels for downsampling layers.
             bias (bool): Whether to add bias parameter in convolution layers.
             downsample_scales (list): List of downsampling scales.
-            nonlinear_activation (str): Activation function module name.
-            nonlinear_activation_params (dict): Hyperparameters for activation function.
-            pad (str): Padding function module name before dilated convolution layer.
-            pad_params (dict): Hyperparameters for padding function.
-            use_causal_conv (bool): Whether to use causal convolution.
-
+            nonlinear_activation (torch.nn.Module): Activation function. If None, defaults to leaky ReLU
         """
         super().__init__()
 

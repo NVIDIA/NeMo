@@ -28,6 +28,8 @@ from nemo.utils import logging
 
 class MelGanModel(Vocoder):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        """NeMo Model that implement Full-band MelGAN as described in https://arxiv.org/abs/2005.05106
+        """
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)

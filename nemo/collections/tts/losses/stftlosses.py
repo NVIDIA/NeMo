@@ -75,8 +75,8 @@ class SpectralConvergenceLoss(Loss):
     @property
     def input_types(self):
         return {
-            "x_mag": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "y_mag": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "x_mag": NeuralType(('B', 'T', 'D'), SpectrogramType()),
+            "y_mag": NeuralType(('B', 'T', 'D'), SpectrogramType()),
         }
 
     @property
@@ -96,7 +96,9 @@ class SpectralConvergenceLoss(Loss):
         Returns:
             Tensor: Spectral convergence loss value.
         """
+        # Mean across time and freq_bins first
         loss = torch.norm(y_mag - x_mag, p="fro", dim=(1, 2)) / torch.norm(y_mag, p="fro", dim=(1, 2))
+        # Mean across batches
         loss = torch.mean(loss)
         return loss
 
@@ -107,8 +109,8 @@ class LogSTFTMagnitudeLoss(Loss):
     @property
     def input_types(self):
         return {
-            "x_mag": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "y_mag": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "x_mag": NeuralType(('B', 'T', 'D'), SpectrogramType()),
+            "y_mag": NeuralType(('B', 'T', 'D'), SpectrogramType()),
             "input_lengths": NeuralType(('B'), LengthsType(), optional=True),
         }
 
@@ -129,11 +131,14 @@ class LogSTFTMagnitudeLoss(Loss):
             Tensor: Log STFT magnitude loss value.
         """
         if input_lengths is None:
+            # During training, we used fixed sequence length, so just average across all dimensions
             return F.l1_loss(torch.log(y_mag), torch.log(x_mag))
         loss = F.l1_loss(torch.log(y_mag), torch.log(x_mag), reduction='none')
-        loss = loss / loss.shape[2]
+        # First sum and average across time and freq bins
         loss = torch.sum(loss, dim=[1, 2])
+        loss = loss / loss.shape[2]
         loss = loss / input_lengths
+        # Last average across batch
         return torch.sum(loss) / loss.shape[0]
 
 
