@@ -16,13 +16,15 @@ from typing import List
 
 import torch
 from megatron import mpu
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
+from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.collections.nlp.modules import MegatronBertEncoder
+from nemo.collections.nlp.modules import MegatronBertEncoder, BertEncoder
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
 from nemo.utils import AppState, logging
 
@@ -37,6 +39,29 @@ class NLPModel(ModelPT):
         super().__init__(cfg, trainer)
         self.bert_model = None  # Pretrained BERT encoder
         self.set_world_size(trainer)
+
+    @rank_zero_only
+    def register_bert_model(self):
+        # check if there is an encoder, warn if not
+        if self.bert_model is None:
+            raise ValueError('Instantiate self.bert_model before registering it.')
+        else:
+            # get encoder config
+            if isinstance(self.bert_model, BertEncoder):
+                # HuggingFace Transformer Config
+                config = self.bert_model.config.to_diff_dict()  # removes default HuggingFace configs
+                config = OmegaConf.create(config)
+                OmegaConf.save(config, 'bert_model_config.yaml')
+                self.register_artifact('bert_model_config.yaml', 'bert_model_config.yaml')
+
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
+        )
+        self.tokenizer = tokenizer
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Override for LightningModule DDP initialization.

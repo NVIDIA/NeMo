@@ -66,6 +66,9 @@ class TextClassificationModel(NLPModel, Exportable):
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
+        # adds self.bert_model config to .nemo file
+        self.register_bert_model()
+
         self.classifier = SequenceClassifier(
             hidden_size=self.bert_model.config.hidden_size,
             num_classes=cfg.dataset.num_classes,
@@ -96,15 +99,6 @@ class TextClassificationModel(NLPModel, Exportable):
         self.classification_report = ClassificationReport(
             num_classes=cfg.dataset.num_classes, mode='micro', dist_sync_on_step=True
         )
-
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
-        )
-        self.tokenizer = tokenizer
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
