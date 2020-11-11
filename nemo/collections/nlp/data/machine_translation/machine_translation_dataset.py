@@ -100,7 +100,7 @@ class TranslationDataset(Dataset):
         buckets = {}
         for i, src_id in enumerate(src_ids):
             src_len, tgt_len = len(src_id), len(tgt_ids[i])
-            if src_len not in buckets.keys():
+            if src_len not in buckets:
                 buckets[src_len] = [(tgt_len, i)]
             else:
                 buckets[src_len].append((tgt_len, i))
