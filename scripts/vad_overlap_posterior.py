@@ -143,7 +143,7 @@ def gen_seg_table(frame_filepath, per_args):
     out_dir = per_args['out_dir']
 
     print(f"process {frame_filepath}")
-    name = frame_filepath.split("/")[-1].split(".")[0]
+    name = frame_filepath.split("/")[-1].rsplit(".", 1)[0]
 
     sequence = np.loadtxt(frame_filepath)
     start = 0
