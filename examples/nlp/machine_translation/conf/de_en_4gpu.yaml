@@ -4,14 +4,14 @@ name: &name TransformerMT
 trainer:
   gpus: 4
   num_nodes: 1
-  max_epochs: 300
+  max_epochs: 200
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   distributed_backend: ddp
   checkpoint_callback: False
   logger: False
   log_every_n_steps: 50  # Interval of logging.
-  check_val_every_n_epoch: 50
+  check_val_every_n_epoch: 5
 
 model:
   test_checkpoint_path: null
@@ -23,7 +23,7 @@ model:
     num_layers: 6
     num_attn_heads: 8
     inner_size: 2048
-    max_seq_length: 600  # maximum allowed length in embedding layer
+    max_seq_length: 512  # maximum allowed length in embedding layer
     embedding_dropout: 0.1
     ffn_dropout: 0.1
     attn_score_dropout: 0.1
@@ -36,14 +36,14 @@ model:
   train_ds:
     src_file_name: /raid2/NMT/wmt16_de_en/train.clean.de.shuffled
     tgt_file_name: /raid2/NMT/wmt16_de_en/train.clean.en.shuffled
-    tokens_in_batch: 12500  # This is limit per gpu. Total limit is 50000
+    tokens_in_batch: 16000  # This is limit per gpu. Total limit is 50000
     clean: true
-    max_seq_length: 256
+    max_seq_length: 512
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
     drop_last: false # drops the last last batch if it is smaller than the batch size
     pin_memory: true # enables pin_memory feature of the data loaders
-    num_workers: 0 # number of workers for data loaders
+    num_workers: 8 # number of workers for data loaders
 
   validation_ds:
     src_file_name: /raid2/NMT/wmt16_de_en/wmt14-en-de.ref # path to file with validation data
@@ -55,11 +55,11 @@ model:
     predict_last_k: 0
     drop_last: false # drops the last last batch if it is smaller than the batch size
     pin_memory: true # enables pin_memory feature of the data loaders
-    num_workers: 0 # number of workers for data loaders
+    num_workers: 8 # number of workers for data loaders
 
   optim:
     name: adam
-    lr: 7e-4
+    lr: 0.001
     betas: [0.9, 0.98]
     weight_decay: 0
 
