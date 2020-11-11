@@ -15,6 +15,7 @@
 import argparse
 import glob
 import json
+import os
 
 from nemo.utils import logging
 
@@ -40,8 +41,8 @@ def write_manifest(vad_directory, audio_directory, manifest_file):
                 vad_out = line.strip().split()
                 start, dur, activity = float(vad_out[0]), float(vad_out[1]) - float(vad_out[0]), vad_out[2]
                 if activity.lower() == 'speech':
-                    audio_name = os.path.join(audio_directory, audio_name + '.wav')
-                    meta = {"audio_filepath": audio_name, "offset": start, "duration": dur, "label": 'UNK'}
+                    audio_path = os.path.join(audio_directory, audio_name + '.wav')
+                    meta = {"audio_filepath": audio_path, "offset": start, "duration": dur, "label": 'UNK'}
                     json.dump(meta, outfile)
                     outfile.write("\n")
 
@@ -61,5 +62,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     vad_directory, audio_directory, manifest_file = (args.vad_directory, args.audio_directory, args.manifest_file)
-    wite_manifest(vad_directory, audio_directory, manifest_file)
+    write_manifest(vad_directory, audio_directory, manifest_file)
     logging.info("wrote {} file from vad output files present in {}".format(manifest_file, vad_directory))
