@@ -315,7 +315,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
 def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
     output_dict = wrapped(*args, **kwargs)
 
-    if 'log' in output_dict:
+    if isinstance(output_dict, dict) and output_dict is not None and 'log' in output_dict:
         log_dict = output_dict.pop('log')
         instance.log_dict(log_dict, on_step=True)
 

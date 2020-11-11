@@ -43,6 +43,7 @@ class AxisKind(AxisKindAbstract):
     Any = 5
     Sequence = 6
     FlowGroup = 7
+    Singleton = 8  # Used to represent a axis that has size 1
 
     def __repr__(self):
         return self.__str__()
@@ -64,6 +65,8 @@ class AxisKind(AxisKindAbstract):
             return AxisKind.Width
         elif _label == "h" or _label == "height":
             return AxisKind.Height
+        elif _label == "s" or _label == "singleton":
+            return AxisKind.Singleton
         elif _label == "flowgroup":
             return AxisKind.FlowGroup
         elif _label == "any":
