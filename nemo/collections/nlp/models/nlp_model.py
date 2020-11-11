@@ -49,10 +49,8 @@ class NLPModel(ModelPT):
             # get encoder config
             if isinstance(self.bert_model, BertEncoder):
                 # HuggingFace Transformer Config
-                config = self.bert_model.config.to_diff_dict()  # removes default HuggingFace configs
-                config = OmegaConf.create(config)
-                OmegaConf.save(config, 'bert_model_config.yaml')
-                self.register_artifact('bert_model_config.yaml', 'bert_model_config.yaml')
+                self.bert_model.to_json_file('nn_config.json')  # name requested by jarvis team
+                self.register_artifact('nn_config.json', 'nn_config.json')
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
