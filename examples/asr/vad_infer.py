@@ -54,8 +54,13 @@ def main():
     parser.add_argument(
         "--vad_model", type=str, default="MatchboxNet-VAD-3x2", required=False, help="Pass: 'MatchboxNet-VAD-3x2'"
     )
-    parser.add_argument("--dataset", type=str, required=True, help="path of json file of evaluation data")
-    parser.add_argument("--out_dir", type=str, default="vad_frame", help="dir of your vad outputs")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
+        help="Path of json file of evaluation data. Audio files should have unique names.",
+    )
+    parser.add_argument("--out_dir", type=str, default="vad_frame", help="Dir of your vad outputs")
     parser.add_argument("--time_length", type=float, default=0.63)
     parser.add_argument("--shift_length", type=float, default=0.01)
     args = parser.parse_args()
@@ -92,11 +97,8 @@ def main():
 
     data = []
     for line in open(args.dataset, 'r'):
-        sub_folder, file = (
-            json.loads(line)['audio_filepath'].split("/")[-2],
-            json.loads(line)['audio_filepath'].split("/")[-1],
-        )
-        data.append(sub_folder + "-" + file.split(".wav")[0])
+        file = json.loads(line)['audio_filepath'].split("/")[-1]
+        data.append(file.split(".wav")[0])
     print(f"Inference on {len(data)} audio files/json lines!")
 
     time_unit = int(args.time_length / args.shift_length)
