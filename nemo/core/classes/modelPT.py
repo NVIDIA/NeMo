@@ -505,7 +505,7 @@ class ModelPT(LightningModule, Model):
     @abstractmethod
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """
-        (Optionally) Setups data loader to be used in validation
+        Setups data loader to be used in validation
         Args:
 
             val_data_layer_config: validation data layer parameters.
