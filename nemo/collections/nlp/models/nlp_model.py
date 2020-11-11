@@ -49,7 +49,7 @@ class NLPModel(ModelPT):
             # get encoder config
             if isinstance(self.bert_model, BertEncoder):
                 # HuggingFace Transformer Config
-                self.bert_model.to_json_file('nn_config.json')  # name requested by jarvis team
+                self.bert_model.config.to_json_file('nn_config.json')  # name requested by jarvis team
                 self.register_artifact('nn_config.json', 'nn_config.json')
 
     def _setup_tokenizer(self, cfg: DictConfig):
