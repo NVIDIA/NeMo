@@ -89,29 +89,25 @@ class EncDecClassificationModel(ASRModel, Exportable):
                 time_length=config.get('time_length', 0.31),
                 shift_length=config.get('shift_length', 0.01),
             )
-            return torch.utils.data.DataLoader(
-                dataset=dataset,
-                batch_size=1,
-                collate_fn=dataset.vad_frame_seq_collate_fn,
-                drop_last=config.get('drop_last', False),
-                shuffle=config['shuffle'],
-                num_workers=config.get('num_workers', 0),
+            batch_size = 1
+            collate_func = dataset.vad_frame_seq_collate_fn
+        else:
+            dataset = AudioLabelDataset(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                featurizer=featurizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', True),
+                load_audio=config.get('load_audio', True),
             )
-
-        dataset = AudioLabelDataset(
-            manifest_filepath=config['manifest_filepath'],
-            labels=config['labels'],
-            featurizer=featurizer,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            trim=config.get('trim_silence', True),
-            load_audio=config.get('load_audio', True),
-        )
+            batch_size = config['batch_size']
+            collate_func = dataset.collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
-            collate_fn=dataset.collate_fn,
+            batch_size=batch_size,
+            collate_fn=collate_func,
             drop_last=config.get('drop_last', False),
             shuffle=config['shuffle'],
             num_workers=config.get('num_workers', 0),
