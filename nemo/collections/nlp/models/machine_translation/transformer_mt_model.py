@@ -154,8 +154,7 @@ class TransformerMTModel(ModelPT):
         # https://github.com/pytorch/pytorch/issues/21819
 
     def filter_predicted_ids(self, ids):
-        ids = ids.copy()
-        ids[ids >= self.vocab_size] = self.tgt_tokenizer.unk_id
+        ids[ids >= self.tgt_tokenizer.vocab_size] = self.tgt_tokenizer.unk_id
         return ids
 
     @typecheck()
