@@ -69,8 +69,14 @@ def gen_overlap_seq(frame_filepath, per_args):
         jump_on_target = int(seg * (1 - overlap))  # jump on target generated sequence
         jump_on_frame = int(jump_on_target / shift)  # jump on input frame sequence
 
-        if jump_on_frame <= 1:
-            raise ValueError("Not valid jump on frame sequence. Try different shift and overlap choices")
+        if jump_on_frame < 1:
+            raise ValueError(
+                f"Note we jump over frame sequence to generate overlapping input segments. \n \
+            Your input makes jump_on_fram={jump_on_frame} < 1 which is invalid because it cannot jump and will stuck.\n \
+            Please try different seg_len, shift_len and overlap choices. \n \
+            jump_on_target = int(seg * (1 - overlap)) \n \
+            jump_on_frame  = int(jump_on_frame/shift) "
+            )
 
         target_len = int(len(frame) * shift)
 

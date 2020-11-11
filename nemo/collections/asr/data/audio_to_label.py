@@ -53,7 +53,7 @@ target_label_n, "offset": offset_in_sec_n}
             Controls whether the dataloader loads the audio signal and
             transcript or just the transcript.
             Defaults to True.
-        time_length (float): max seconds to consider in a batch # Pass this only for speaker recognition and VAD task 
+        time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task 
         shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
         
     """
