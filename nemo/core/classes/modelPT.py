@@ -41,7 +41,7 @@ _MODEL_WEIGHTS = "model_weights.ckpt"
 
 try:
     # Try to import strategies for .nemo archive.
-    from eff.archives import NeMoArchive
+    from eff.cookbooks import NeMoCookbook
 
     _EFF_PRESENT_ = True
 except ImportError:
@@ -203,7 +203,8 @@ class ModelPT(LightningModule, Model):
 
     def _eff_save_to(self, save_path: str):
         """
-        Saves model instance (weights and configuration) into an EFF archive.
+        Saves model instance (weights, configuration and artifacts) into an EFF archive using
+        the default `save_to` recipe from NeMoCookbook.
 
         .. note::
             For NVIDIA NeMo the EFF archives will also use .nemo postfix.
@@ -217,7 +218,7 @@ class ModelPT(LightningModule, Model):
         Args:
             save_path: Path to archive file where model instance should be saved.
         """
-        NeMoArchive.save_to(self, save_path)
+        NeMoCookbook().save_to(obj=self, save_path=save_path)
 
     @rank_zero_only
     def save_to(self, save_path: str):
@@ -320,7 +321,8 @@ class ModelPT(LightningModule, Model):
         strict: bool = False,
     ):
         """
-        Restores model instance (weights and configuration) from EFF Archive.
+        Restores model instance (weights, configuration and artifacts) from EFF Archive using
+        the default `restore_from` recipe from NeMoCookbook.
 
         Args:
             restore_path: path to  file from which model should be instantiated
@@ -333,7 +335,13 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls
         """
-        return NeMoArchive.restore_from(cls, restore_path, override_config_path, map_location, strict)
+        return NeMoCookbook().restore_from(
+            restore_path=restore_path,
+            obj_cls=cls,
+            override_config_path=override_config_path,
+            map_location=map_location,
+            strict=strict,
+        )
 
     @classmethod
     def restore_from(
