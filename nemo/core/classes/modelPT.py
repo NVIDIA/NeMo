@@ -176,7 +176,7 @@ class ModelPT(LightningModule, Model):
 
     def _default_save_to(self, save_path: str):
         """
-        Saves model instance (weights and configuration) into .nemo file. 
+        Saves model instance (weights and configuration) into .nemo file.
         You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
@@ -210,7 +210,7 @@ class ModelPT(LightningModule, Model):
 
         Method creates an EFF-based file that is an archive (tar.gz) with the following:
             manifest.yaml - yaml file describing the content of the archive.
-            model_config.yaml - model configuration in .yaml format. 
+            model_config.yaml - model configuration in .yaml format.
                 You can deserialize this into cfg argument for model's constructor
             model_wights.chpt - model checkpoint
 
@@ -505,7 +505,7 @@ class ModelPT(LightningModule, Model):
     @abstractmethod
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """
-        (Optionally) Setups data loader to be used in validation
+        Setups data loader to be used in validation
         Args:
 
             val_data_layer_config: validation data layer parameters.
@@ -739,22 +739,13 @@ class ModelPT(LightningModule, Model):
         if self._train_dl is not None:
             return self._train_dl
 
-    def training_step(self, batch, batch_ix):
-        pass
-
     def val_dataloader(self):
         if self._validation_dl is not None:
             return self._validation_dl
 
-    def validation_step(self, batch, batch_ix):
-        return {}
-
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
-
-    def test_step(self, batch, batch_ix):
-        return {}
 
     def validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
