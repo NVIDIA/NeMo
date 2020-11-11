@@ -18,6 +18,7 @@ model:
     shuffle: True
     is_tarred: False
     tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
 
   validation_ds:
     manifest_filepath: ???

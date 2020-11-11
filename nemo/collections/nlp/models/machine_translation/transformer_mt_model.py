@@ -163,10 +163,10 @@ class TransformerMTModel(ModelPT):
 
         """
         src_embeddings = self.src_embedding_layer(input_ids=src)
-        #src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
+        # src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
         src_hiddens = self.encoder(src_embeddings, src_mask)
         tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
-        #tgt_embeddings *= tgt_embeddings.new_tensor(self.emb_scale)
+        # tgt_embeddings *= tgt_embeddings.new_tensor(self.emb_scale)
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
@@ -285,6 +285,11 @@ class TransformerMTModel(ModelPT):
             dataset_src=str(Path(cfg.src_file_name).expanduser()),
             dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
             tokens_in_batch=cfg.tokens_in_batch,
+            clean=cfg.get("clean", False),
+            max_seq_length=cfg.get("max_seq_length", 512),
+            min_seq_length=cfg.get("min_seq_length", 1),
+            max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+            max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
         )
         if cfg.shuffle:
             sampler = pt_data.RandomSampler(dataset)
