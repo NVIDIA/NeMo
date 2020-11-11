@@ -33,6 +33,8 @@ def main(cfg: DictConfig) -> None:
     transformer_mt = TransformerMTModel(cfg.model, trainer=trainer)
     trainer.fit(transformer_mt)
     if is_global_rank_zero():
+        if os.path.exists('best.ckpt'):
+            os.remove('best.ckpt')
         os.symlink(trainer.checkpoint_callback.best_model_path, 'best.ckpt')
 
 
