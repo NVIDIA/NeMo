@@ -56,7 +56,6 @@ class TextClassificationModel(NLPModel, Exportable):
         # as dataloaders and datasets need it to process the data
         self._setup_tokenizer(cfg.tokenizer)
 
-        # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(

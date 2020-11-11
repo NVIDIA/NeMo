@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import List
+import json
 
 import torch
 from megatron import mpu
@@ -51,6 +52,15 @@ class NLPModel(ModelPT):
                 # HuggingFace Transformer Config
                 self.bert_model.config.to_json_file('nn_config.json')  # name requested by jarvis team
                 self.register_artifact('nn_config.json', 'nn_config.json')
+            elif isinstance(self.bert_model, MegatronBertEncoder):
+                config_for_json = OmegaConf.to_container(self.bert_model.config)
+                with open('nn_config.json', 'w', encoding='utf-8') as f:
+                    f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
+                self.register_artifact('nn_config.json', 'nn_config.json')
+            else:
+                logging.info(
+                    f'Registering BERT model: {self.bert_model} is not yet supported. Please override this method.'
+                )
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
