@@ -5,7 +5,7 @@ trainer:
   gpus: 8
   num_nodes: 1
   max_epochs: 1000
-  max_steps: 300000 # precedence over max_epochs
+  max_steps: 100000 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
@@ -45,9 +45,9 @@ model:
     max_generation_delta: 50
 
   train_ds:
-    src_file_name: /data/train.de
-    tgt_file_name: /data/train.en
-    tokens_in_batch: 16000  # This is limit per gpu. Total limit is 50000
+    src_file_name: /data/train.en
+    tgt_file_name: /data/train.de
+    tokens_in_batch: 6250  # This is limit per gpu. Total limit is 50000
     clean: true
     max_seq_length: 512
     shuffle: true
@@ -57,8 +57,8 @@ model:
     num_workers: 8 # number of workers for data loaders
 
   validation_ds:
-    src_file_name: /data/valid.de # path to file with validation data
-    tgt_file_name: /data/valid.en
+    src_file_name: /data/valid.en # path to file with validation data
+    tgt_file_name: /data/valid.de
     tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
@@ -66,10 +66,11 @@ model:
     drop_last: false # drops the last last batch if it is smaller than the batch size
     pin_memory: false # enables pin_memory feature of the data loaders
     num_workers: 8 # number of workers for data loaders
+    num_examples: 10 # number of examples of translation
 
   test_ds:
-    src_file_name: /data/test.de # path to file with validation data
-    tgt_file_name: /data/test.en
+    src_file_name: /data/test.en # path to file with validation data
+    tgt_file_name: /data/test.de
     tokens_in_batch: 512
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
@@ -77,17 +78,18 @@ model:
     drop_last: false # drops the last last batch if it is smaller than the batch size
     pin_memory: false # enables pin_memory feature of the data loaders
     num_workers: 8 # number of workers for data loaders
+    num_examples: 10 # number of examples of translation
 
   optim:
     name: adam
-    lr: 1e-3
+    lr: 7e-4
     betas: [0.9, 0.98]
     weight_decay: 0
 
     sched:
       name: InverseSquareRootAnnealing
       warmup_steps: null
-      warmup_ratio: 0.1
+      warmup_ratio: 0.04
       last_epoch: -1
 
       # pytorch lightning args

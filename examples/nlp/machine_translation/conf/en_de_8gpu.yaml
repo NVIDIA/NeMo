@@ -5,7 +5,7 @@ trainer:
   gpus: 8
   num_nodes: 1
   max_epochs: 1000
-  max_steps: 100000 # precedence over max_epochs
+  max_steps: 300000 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
@@ -47,7 +47,7 @@ model:
   train_ds:
     src_file_name: /data/train.en
     tgt_file_name: /data/train.de
-    tokens_in_batch: 6250  # This is limit per gpu. Total limit is 50000
+    tokens_in_batch: 16000  # This is limit per gpu. Total limit is 50000
     clean: true
     max_seq_length: 512
     shuffle: true
@@ -82,14 +82,14 @@ model:
 
   optim:
     name: adam
-    lr: 7e-4
+    lr: 1e-3
     betas: [0.9, 0.98]
     weight_decay: 0
 
     sched:
       name: InverseSquareRootAnnealing
       warmup_steps: null
-      warmup_ratio: 0.04
+      warmup_ratio: 0.1
       last_epoch: -1
 
       # pytorch lightning args
