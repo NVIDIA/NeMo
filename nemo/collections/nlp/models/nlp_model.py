@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
+import os
 from typing import List
 
 import torch
@@ -26,9 +26,9 @@ from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertEncoder, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.core.classes import ModelPT
 from nemo.utils import AppState, logging
 
