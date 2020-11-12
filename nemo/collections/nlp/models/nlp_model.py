@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import json
 from typing import List
 
@@ -23,6 +24,7 @@ from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.parallel import DistributedDataParallel
+from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.nlp.modules import BertEncoder, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -31,6 +33,10 @@ from nemo.core.classes import ModelPT
 from nemo.utils import AppState, logging
 
 __all__ = ['NLPModel']
+
+NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_tmp")
+
+os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 
 
 class NLPModel(ModelPT):
@@ -48,16 +54,17 @@ class NLPModel(ModelPT):
         if self.bert_model is None:
             raise ValueError('Instantiate self.bert_model before registering it.')
         else:
+            config_json_path = os.path.join(NEMO_NLP_TMP, 'nn_config.json')
             # get encoder config
             if isinstance(self.bert_model, BertEncoder):
                 # HuggingFace Transformer Config
-                self.bert_model.config.to_json_file('nn_config.json')  # name requested by jarvis team
-                self.register_artifact('nn_config.json', 'nn_config.json')
+                self.bert_model.config.to_json_file(config_json_path)  # name requested by jarvis team
+                self.register_artifact('nn_config.json', config_json_path)
             elif isinstance(self.bert_model, MegatronBertEncoder):
                 config_for_json = OmegaConf.to_container(self.bert_model.config)
                 with open('nn_config.json', 'w', encoding='utf-8') as f:
                     f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
-                self.register_artifact('nn_config.json', 'nn_config.json')
+                self.register_artifact('nn_config.json', config_json_path)
             else:
                 logging.info(
                     f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
@@ -71,11 +78,12 @@ class NLPModel(ModelPT):
             tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
         )
         self.tokenizer = tokenizer
+        vocab_json_path = os.path.join(NEMO_NLP_TMP, 'tokenizer_vocab.json')
         if isinstance(self.tokenizer, AutoTokenizer):
             vocab_dict = self.tokenizer.tokenizer.get_vocab()
-            with open('tokenizer_vocab.json', 'w', encoding='utf-8') as f:
+            with open(vocab_json_path, 'w', encoding='utf-8') as f:
                 f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
-            self.register_artifact('tokenizer_vocab.json', 'tokenizer_vocab.json')
+            self.register_artifact('tokenizer_vocab.json', vocab_json_path)
         else:
             logging.info(
                 f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
