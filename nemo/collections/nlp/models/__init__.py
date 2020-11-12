@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from nemo.collections.nlp.models.glue_benchmark.glue_benchmark_model import GLUEModel
 from nemo.collections.nlp.models.information_retrieval import BertDPRModel, BertJointIRModel
 from nemo.collections.nlp.models.intent_slot_classification import IntentSlotClassificationModel
 from nemo.collections.nlp.models.language_modeling.bert_lm_model import BERTLMModel
 from nemo.collections.nlp.models.language_modeling.transformer_lm_model import TransformerLMModel
+from nemo.collections.nlp.models.machine_translation import TransformerMTModel
 from nemo.collections.nlp.models.neural_machine_translation.neural_machine_translation_model import (
     NeuralMachineTranslationModel,
 )
