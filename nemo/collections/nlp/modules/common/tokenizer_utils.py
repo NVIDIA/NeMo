@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os.path
+from os import path
 from typing import Dict, List, Optional
 
 import nemo
@@ -54,6 +56,10 @@ def get_tokenizer(
         special_tokens_dict = {}
     else:
         special_tokens_dict = special_tokens
+
+    # Hacky hack
+    if not path.exists(tokenizer_model):
+        tokenizer_model = tokenizer_model.split("/")[-1]
 
     if 'megatron' in tokenizer_name:
         if vocab_file is None:
