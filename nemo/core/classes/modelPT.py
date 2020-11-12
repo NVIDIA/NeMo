@@ -620,6 +620,9 @@ class ModelPT(LightningModule, Model):
                 # Store information needed to calculate max_steps
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
+                import ipdb
+
+                ipdb.set_trace()
                 if self._trainer.distributed_backend is None:
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
                 elif self._trainer.distributed_backend is "ddp_cpu":
@@ -628,7 +631,7 @@ class ModelPT(LightningModule, Model):
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
                 else:
                     logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.distributed_backend }. We "
+                        f"The lightning trainer received accelerator: {self._trainer.distributed_backend}. We "
                         "recommend to use 'ddp' instead."
                     )
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
