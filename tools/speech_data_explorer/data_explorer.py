@@ -414,7 +414,7 @@ def plot_signal(idx, data):
         figs.update_yaxes(title_text='Amplitude', row=1, col=1)
         figs.update_xaxes(title_text='Time, s', row=2, col=1)
         figs.update_yaxes(title_text='Frequency, kHz', row=2, col=1)
-    except:
+    except Exception:
         pass
 
     return figs
@@ -428,7 +428,7 @@ def update_player(idx, data):
         filename = data[idx[0]]['audio_filepath']
         encoded = base64.b64encode(open(filename, 'rb').read())
         return 'data:audio/wav;base64,{}'.format(encoded.decode())
-    except:
+    except Exception:
         return ''
 
 
