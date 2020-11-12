@@ -135,8 +135,8 @@ class LogSTFTMagnitudeLoss(Loss):
             return F.l1_loss(torch.log(y_mag), torch.log(x_mag))
         loss = F.l1_loss(torch.log(y_mag), torch.log(x_mag), reduction='none')
         # First sum and average across time and freq bins
-        loss = torch.sum(loss, dim=[1, 2])
         loss = loss / loss.shape[2]
+        loss = torch.sum(loss, dim=[1, 2])
         loss = loss / input_lengths
         # Last average across batch
         return torch.sum(loss) / loss.shape[0]
