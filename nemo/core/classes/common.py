@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union, List
 
 import hydra
 import wrapt
@@ -104,11 +104,16 @@ class Typing(ABC):
                     NeuralTypeComparisonResult.SAME,
                     NeuralTypeComparisonResult.GREATER,
                 ):
-                    raise TypeError(
-                        f"{input_types[key].compare(value.neural_type)} : \n"
-                        f"Input type expected = {input_types[key]} | \n"
-                        f"Input type found : {value.neural_type}"
-                    )
+                    error_msg = [
+                        f"{input_types[key].compare(value.neural_type)} :",
+                        f"Input type expected : {input_types[key]}",
+                        f"Input type found : {value.neural_type}",
+                    ]
+                    for i, dict_tuple in enumerate(input_types[key].elements_type.type_parameters.items()):
+                        error_msg.insert(i + 2, f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
+                    for i, dict_tuple in enumerate(value.neural_type.elements_type.type_parameters.items()):
+                        error_msg.append(f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
+                    raise TypeError("\n".join(error_msg))
 
                 # Perform input ndim check
                 if hasattr(value, 'shape'):
@@ -355,7 +360,6 @@ class Model(Typing, Serialization, FileIO):
         """
         Returns the list of model names available via NVIDIA NGC cloud,
         to get the complete model description use list_available_models()
-
         Returns:
             A list of model names
         """
