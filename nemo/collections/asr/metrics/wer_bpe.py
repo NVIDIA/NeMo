@@ -100,7 +100,7 @@ class WERBPE(Metric):
             hypotheses.append(hypothesis)
         return hypotheses
 
-    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, predictions_len=None):
+    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, predictions_lengths=None):
         words = 0.0
         scores = 0.0
         references = []
@@ -116,7 +116,7 @@ class WERBPE(Metric):
                 reference = self.tokenizer.ids_to_text(target)
                 references.append(reference)
             if self.ctc_decode:
-                hypotheses = self.ctc_decoder_predictions_tensor(predictions, predictions_len)
+                hypotheses = self.ctc_decoder_predictions_tensor(predictions, predictions_lengths)
             else:
                 raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
 

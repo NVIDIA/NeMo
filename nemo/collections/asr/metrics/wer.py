@@ -137,7 +137,7 @@ class WER(Metric):
             hypotheses.append(hypothesis)
         return hypotheses
 
-    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, predictions_len=None) -> torch.Tensor:
+    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, predictions_lengths=None) -> torch.Tensor:
         words = 0.0
         scores = 0.0
         references = []
@@ -153,7 +153,7 @@ class WER(Metric):
                 reference = ''.join([self.labels_map[c] for c in target])
                 references.append(reference)
             if self.ctc_decode:
-                hypotheses = self.ctc_decoder_predictions_tensor(predictions, predictions_len)
+                hypotheses = self.ctc_decoder_predictions_tensor(predictions, predictions_lengths)
             else:
                 raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
 

@@ -424,7 +424,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             log_every_n_steps = 1
 
         if (batch_nb + 1) % log_every_n_steps == 0:
-            self._wer.update(predictions=predictions, transcript=transcript, transcript_len=transcript_len, predictions_len=predictions_len)
+            self._wer.update(predictions=predictions, targets=transcript, target_lengths=transcript_len, predictions_len=predictions_len)
             wer, _, _ = self._wer.compute()
             tensorboard_logs.update({'training_batch_wer': wer})
 
