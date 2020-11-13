@@ -56,12 +56,12 @@ if __name__ == '__main__':
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, f'ctc_segmentation_{args.window_len}.log')
     level = 'DEBUG' if args.debug else 'INFO'
-    if True:  # args.no_parallel:
-        logger = logging.getLogger('CTC')
-        file_handler = logging.FileHandler(filename=log_file)
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        handlers = [file_handler, stdout_handler]
-        logging.basicConfig(handlers=handlers, level=level)
+
+    logger = logging.getLogger('CTC')
+    file_handler = logging.FileHandler(filename=log_file)
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    handlers = [file_handler, stdout_handler]
+    logging.basicConfig(handlers=handlers, level=level)
 
     if os.path.exists(args.model):
         asr_model = nemo_asr.models.EncDecCTCModel.restore_from(args.model)
@@ -105,7 +105,7 @@ if __name__ == '__main__':
             sample_rate, signal = wav.read(path_audio)
             if sample_rate != args.sample_rate:
                 raise ValueError(
-                    f'Sampling rate of the audio file {path_audio} doesn\'t match ' f'--sample_rate={args.sample_rate}'
+                    f'Sampling rate of the audio file {path_audio} doesn\'t match --sample_rate={args.sample_rate}'
                 )
         except ValueError:
             logging.error(

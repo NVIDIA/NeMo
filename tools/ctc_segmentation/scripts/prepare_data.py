@@ -147,7 +147,7 @@ def split_text(
     sentences = re.split(split_pattern, transcript)
     sentences_comb = []
     min_length = 20
-    # combine short sentences to the previous sentence
+    # adds a short sentence to the previous one
     for i in range(len(sentences)):
         if len(sentences[i]) < min_length and len(sentences_comb) > 0:
             sentences_comb[-1] += ' ' + sentences[i].strip()

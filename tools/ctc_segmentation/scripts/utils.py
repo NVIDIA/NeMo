@@ -66,9 +66,7 @@ def get_segments(
         text_no_preprocessing = [t.strip() for t in text_no_preprocessing if t.strip()]
 
     if len(text_no_preprocessing) != len(text):
-        import pdb
-
-        pdb.set_trace()
+        raise ValueError(f'{transcript_file} and {transcript_file_no_preprocessing} do not match')
 
     ground_truth_mat, utt_begin_indices = cs.prepare_text(config, text)
     logging.debug(f"Syncing {transcript_file}")
