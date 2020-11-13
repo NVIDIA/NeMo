@@ -88,7 +88,7 @@ class WERBPE(Metric):
         for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
             prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
             if predictions_len is not None:
-                prediction = prediction[:predictions_len[ind]]
+                prediction = prediction[: predictions_len[ind]]
             # CTC decoding procedure
             decoded_prediction = []
             previous = self.blank_id
@@ -100,7 +100,9 @@ class WERBPE(Metric):
             hypotheses.append(hypothesis)
         return hypotheses
 
-    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, predictions_lengths=None):
+    def update(
+        self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, predictions_lengths=None
+    ):
         words = 0.0
         scores = 0.0
         references = []

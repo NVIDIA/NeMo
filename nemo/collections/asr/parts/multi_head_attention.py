@@ -37,13 +37,13 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-
 import torch.nn.functional as F
 
 __all__ = [
     'RelPositionMultiHeadAttention',
     'RelPositionalEncoding',
     'PositionalEncoding',
+    'RelPositionMultiHeadAttention2' 'RelPositionalEncoding2',
 ]
 
 
@@ -101,7 +101,7 @@ class MultiHeadAttention(nn.Module):
         """
         n_batch = value.size(0)
         if mask is not None:
-            mask = mask.unsqueeze(1) #.eq(0)  # (batch, 1, time1, time2)
+            mask = mask.unsqueeze(1)  # .eq(0)  # (batch, 1, time1, time2)
             if scores.dtype == torch.float16:
                 dtype = np.float16
             else:
@@ -182,24 +182,10 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         """
         qlen = x.size(2)
         pos_len = x.size(-1)
-        x_flatten = x.view(x.size(0), x.size(1), -1)
-        x_padded = torch.nn.functional.pad(x_flatten, pad=(0, qlen))
-        x = x_padded.view(x_padded.size(0), x_padded.size(1), qlen, pos_len + 1)
+        x = x.view(x.size(0), x.size(1), -1)
+        x = torch.nn.functional.pad(x, pad=(0, qlen))
+        x = x.view(x.size(0), x.size(1), qlen, pos_len + 1)
         return x[:, :, :, 0:qlen].flip(dims=[-1])
-        # zero_pad = torch.zeros((*x.size()[:3], 1), device=x.device, dtype=x.dtype)
-        # x_padded = torch.cat([zero_pad, x], dim=-1)
-        #
-        # x_padded = x_padded.view(*x.size()[:2], x.size(3) + 1, x.size(2))
-        # x = x_padded[:, :, 1:].view_as(x)
-        #
-        # # x = x.squeeze(0)
-        # # x = torch.tril(x) + torch.triu(x.transpose(1,2), diagonal=1)
-        # # x = x.unsqueeze(0)
-        # if zero_triu:
-        #     ones = torch.ones((x.size(2), x.size(3)))
-        #     x = x * torch.tril(ones, x.size(3) - x.size(2))[None, None, :, :]
-        #
-        # return x
 
     def forward(self, query, key, value, mask, pos_emb):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
@@ -328,223 +314,134 @@ class RelPositionalEncoding(PositionalEncoding):
         if self.xscale:
             x = x * self.xscale
 
-        start_pos = (self.pe.size(1) + 1)//2 - x.size(1)
-        pos_emb = self.pe[:, start_pos: -start_pos]
+        start_pos = (self.pe.size(1) + 1) // 2 - x.size(1)
+        pos_emb = self.pe[:, start_pos:-start_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
         return self.dropout(x), pos_emb
 
 
-# # New ones
-# class RelPositionMultiHeadAttention2(nn.Module):
-#     """Multi-Head Attention layer with relative position encoding.
-#     Paper: https://arxiv.org/abs/1901.02860
-#     Args:
-#         n_head (int): number of heads
-#         n_feat (int): size of the features
-#         dropout_rate (float): dropout rate
-#     """
-#
-#     def __init__(self, n_head, n_feat, dropout_rate):
-#         """Construct an RelPositionMultiHeadedAttention object."""
-#         # super().__init__(n_head, n_feat, dropout_rate)
-#         super().__init__()
-#
-#         # linear transformation for positional encoding
-#         self.d_head = n_feat // n_head
-#         self.n_head = n_head
-#         self.d_model = n_feat
-#         self.qkv_net = nn.Linear(n_feat, 3 * n_head * self.d_head, bias=False)
-#         self.o_net = nn.Linear(n_head * self.d_head, n_feat, bias=False)
-#
-#         self.r_r_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
-#         self.r_w_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
-#
-#         self.r_net = nn.Linear(self.d_model, self.n_head * self.d_head, bias=False)
-#         self.scale = 1.0
-#
-#
-#     # def __init__(self, n_head, n_feat, dropout_rate):
-#     #     """Construct an RelPositionMultiHeadedAttention object."""
-#     #     super().__init__(n_head, n_feat, dropout_rate)
-#     #     # linear transformation for positional encoding
-#     #     self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
-#     #     # these two learnable bias are used in matrix c and matrix d
-#     #     # as described in https://arxiv.org/abs/1901.02860 Section 3.3
-#     #     self.pos_bias_u = nn.Parameter(torch.Tensor(self.h, self.d_k))
-#     #     self.pos_bias_v = nn.Parameter(torch.Tensor(self.h, self.d_k))
-#     #     torch.nn.init.xavier_uniform_(self.pos_bias_u)
-#     #     torch.nn.init.xavier_uniform_(self.pos_bias_v)
-#
-#     # def rel_shift(self, x, zero_triu=False):
-#     #     """Compute relative positinal encoding.
-#     #     Args:
-#     #         x (torch.Tensor): (batch, time, size)
-#     #         zero_triu (bool): return the lower triangular part of the matrix
-#     #     """
-#     #     zero_pad = torch.zeros((*x.size()[:3], 1), device=x.device, dtype=x.dtype)
-#     #     x_padded = torch.cat([zero_pad, x], dim=-1)
-#     #
-#     #     x_padded = x_padded.view(*x.size()[:2], x.size(3) + 1, x.size(2))
-#     #     x = x_padded[:, :, 1:].view_as(x)
-#     #
-#     #     x = x.squeeze(0)
-#     #     x = torch.tril(x) + torch.triu(x.transpose(1,2), diagonal=1)
-#     #     x = x.unsqueeze(0)
-#     #     if zero_triu:
-#     #         ones = torch.ones((x.size(2), x.size(3)))
-#     #         x = x * torch.tril(ones, x.size(3) - x.size(2))[None, None, :, :]
-#     #
-#     #     return x
-#
-#     # def _rel_shift(self, x):
-#     #     x = x.permute(2, 3, 0, 1)
-#     #     zero_pad_shape = (x.size(0), 1) + x.size()[2:]
-#     #     zero_pad = torch.zeros(zero_pad_shape, device=x.device, dtype=x.dtype)
-#     #     x_padded = torch.cat([zero_pad, x], dim=1)
-#     #
-#     #     x_padded_shape = (x.size(1) + 1, x.size(0)) + x.size()[2:]
-#     #     x_padded = x_padded.view(*x_padded_shape)
-#     #
-#     #     x = x_padded[1:].view_as(x)
-#     #
-#     #     x = x.permute(2, 3, 0, 1)
-#     #
-#     #     return x
-#     #
-#     # def forward(self, query, key, value, mask, pos_emb):
-#     #     """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
-#     #     Args:
-#     #         query (torch.Tensor): (batch, time1, size)
-#     #         key (torch.Tensor): (batch, time2, size)
-#     #         value(torch.Tensor): (batch, time2, size)
-#     #         mask (torch.Tensor): (batch, time1, time2)
-#     #         pos_emb (torch.Tensor) : (batch, time1, size)
-#     #     Returns:
-#     #         output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
-#     #     """
-#     #     q, k, v = self.forward_qkv(query, key, value)
-#     #     q = q.transpose(1, 2)  # (batch, time1, head, d_k)
-#     #
-#     #     n_batch_pos = pos_emb.size(0)
-#     #     p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k)
-#     #     p = p.transpose(1, 2)  # (batch, head, time1, d_k)
-#     #
-#     #     # (batch, head, time1, d_k)
-#     #     q_with_bias_u = (q + self.pos_bias_u).transpose(1, 2)
-#     #     # (batch, head, time1, d_k)
-#     #     q_with_bias_v = (q + self.pos_bias_v).transpose(1, 2)
-#     #
-#     #     # compute attention score
-#     #     # first compute matrix a and matrix c
-#     #     # as described in https://arxiv.org/abs/1901.02860 Section 3.3
-#     #     # (batch, head, time1, time2)
-#     #     matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
-#     #
-#     #     # compute matrix b and matrix d
-#     #     # (batch, head, time1, time2)
-#     #     matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
-#     #     matrix_bd = self.rel_shift(matrix_bd)
-#     #
-#     #     scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
-#     #
-#     #     return self.forward_attention(v, scores, mask)
-#
-#     def _rel_shift(self, x):
-#         zero_pad_shape = (x.size(0), 1) + x.size()[2:]
-#         zero_pad = torch.zeros(zero_pad_shape, device=x.device, dtype=x.dtype)
-#         x_padded = torch.cat([zero_pad, x], dim=1)
-#
-#         x_padded_shape = (x.size(1) + 1, x.size(0)) + x.size()[2:]
-#         x_padded = x_padded.view(*x_padded_shape)
-#
-#         x = x_padded[1:].view_as(x)
-#
-#         x = x.permute(2, 3, 0, 1).squeeze(0)
-#         x = torch.tril(x) + torch.triu(x.transpose(1, 2), diagonal=1)
-#         x = x.permute(1, 2, 0).unsqueeze(2)
-#         return x
-#
-#     def forward(self, query, key, value, mask, pos_emb):
-#     # def forward(self, w, r, attn_mask=None, mems=None, head_mask=None, output_attentions=False):
-#         # query :(qlen, batch)
-#         w = query.transpose(0, 1)
-#         r = pos_emb #.squeeze(0)
-#
-#         qlen, rlen, bsz = w.size(0), r.size(0), w.size(1)
-#
-#         w_heads = self.qkv_net(w)
-#         r_head_k = self.r_net(r)
-#
-#         w_head_q, w_head_k, w_head_v = torch.chunk(w_heads, 3, dim=-1)
-#
-#         klen = w_head_k.size(0)
-#
-#         w_head_q = w_head_q.view(qlen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
-#         w_head_k = w_head_k.view(klen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
-#         w_head_v = w_head_v.view(klen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
-#
-#         r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)  # qlen x n_head x d_head
-#
-#         # compute attention score
-#         rw_head_q = w_head_q + self.r_w_bias  # qlen x bsz x n_head x d_head
-#         AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))  # qlen x klen x bsz x n_head
-#
-#         rr_head_q = w_head_q + self.r_r_bias
-#         BD = torch.einsum("ibnd,jnd->ijbn", (rr_head_q, r_head_k))  # qlen x klen x bsz x n_head
-#         BD = self._rel_shift(BD)
-#
-#         # [qlen x klen x bsz x n_head]
-#         attn_score = AC + BD
-#         attn_score.mul_(self.scale)
-#
-#         attn_mask = (mask == False).transpose(0, 2)
-#
-#         attn_score = attn_score.float().masked_fill(attn_mask[:, :, :, None], -1e30).type_as(attn_score)
-#
-#         attn_prob = F.softmax(attn_score, dim=1)
-#
-#         attn_vec = torch.einsum("ijbn,jbnd->ibnd", (attn_prob, w_head_v))
-#
-#         attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
-#
-#         attn_out = self.o_net(attn_vec)
-#
-#         attn_out = attn_out.transpose(0, 1).contiguous()
-#         return attn_out
-#
-#
-# class RelPositionalEncoding2(nn.Module):
-#
-#     def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_emb_rate=0.0):
-#         super().__init__()
-#
-#         self.demb = d_model
-#         demb = d_model
-#
-#         inv_freq = 1 / (10000 ** (torch.arange(0.0, demb, 2.0) / demb))
-#         self.register_buffer('inv_freq', inv_freq)
-#
-#         if dropout_emb_rate > 0:
-#             self.dropout_emb = nn.Dropout(dropout_emb_rate)
-#         else:
-#             self.dropout_emb = None
-#
-#         self.xscale = xscale
-#         self.dropout = torch.nn.Dropout(p=dropout_rate)
-#
-#     def forward(self, x: torch.Tensor):
-#         klen = x.size(1)
-#         pos_seq = torch.arange(klen - 1, -1, -1.0, device=x.device, dtype=x.dtype)
-#         sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
-#         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
-#
-#         if self.dropout_emb:
-#             pos_emb = self.dropout_emb(pos_emb)
-#         if self.xscale:
-#             x = x * self.xscale
-#
-#         return self.dropout(x), pos_emb[:,None,:]
-#
-#         #return x, pos_emb[:,None,:]
-#
+# New ones
+class RelPositionMultiHeadAttention2(nn.Module):
+    """Multi-Head Attention layer with relative position encoding.
+    Paper: https://arxiv.org/abs/1901.02860
+    Args:
+        n_head (int): number of heads
+        n_feat (int): size of the features
+        dropout_rate (float): dropout rate
+    """
+
+    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v):
+        """Construct an RelPositionMultiHeadedAttention object."""
+        super().__init__()
+
+        # linear transformation for positional encoding
+        self.d_head = n_feat // n_head
+        self.n_head = n_head
+        self.d_model = n_feat
+        self.qkv_net = nn.Linear(n_feat, 3 * n_head * self.d_head, bias=False)
+        self.o_net = nn.Linear(n_head * self.d_head, n_feat, bias=False)
+
+        # self.r_r_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
+        # self.r_w_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
+        self.r_r_bias = pos_bias_u
+        self.r_w_biad = pos_bias_v
+
+        self.r_net = nn.Linear(self.d_model, self.n_head * self.d_head, bias=False)
+        self.scale = math.sqrt(self.d_head)
+        self.dropout = nn.Dropout(p=dropout_rate)
+
+    def rel_shift(self, x):
+        zero_pad_shape = (x.size(0), 1) + x.size()[2:]
+        zero_pad = torch.zeros(zero_pad_shape, device=x.device, dtype=x.dtype)
+        x_padded = torch.cat([zero_pad, x], dim=1)
+
+        x_padded_shape = (x.size(1) + 1, x.size(0)) + x.size()[2:]
+        x_padded = x_padded.view(*x_padded_shape)
+
+        x = x_padded[1:].view_as(x)
+
+        x = x.permute(2, 3, 0, 1).squeeze(0)
+        x = torch.tril(x) + torch.triu(x.transpose(1, 2), diagonal=1)
+        x = x.permute(1, 2, 0).unsqueeze(2)
+        return x
+
+    def forward(self, query, key, value, mask, pos_emb):
+        # def forward(self, w, r, attn_mask=None, mems=None, head_mask=None, output_attentions=False):
+        # query :(qlen, batch)
+        w = query.transpose(0, 1)
+        r = pos_emb  # .squeeze(0)
+
+        qlen, rlen, bsz = w.size(0), r.size(0), w.size(1)
+
+        w_heads = self.qkv_net(w)
+        r_head_k = self.r_net(r)
+
+        w_head_q, w_head_k, w_head_v = torch.chunk(w_heads, 3, dim=-1)
+
+        klen = w_head_k.size(0)
+
+        w_head_q = w_head_q.view(qlen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
+        w_head_k = w_head_k.view(klen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
+        w_head_v = w_head_v.view(klen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
+
+        r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)  # qlen x n_head x d_head
+
+        # compute attention score
+        rw_head_q = w_head_q + self.r_w_bias  # qlen x bsz x n_head x d_head
+        AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))  # qlen x klen x bsz x n_head
+
+        rr_head_q = w_head_q + self.r_r_bias
+        BD = torch.einsum("ibnd,jnd->ijbn", (rr_head_q, r_head_k))  # qlen x klen x bsz x n_head
+        BD = self.rel_shift(BD)
+
+        # [qlen x klen x bsz x n_head]
+        attn_score = AC + BD
+        attn_score.mul_(self.scale)
+
+        attn_mask = mask.transpose(0, 2)
+
+        attn_score = attn_score.float().masked_fill(attn_mask[:, :, :, None], -1e30).type_as(attn_score)
+
+        attn_prob = F.softmax(attn_score, dim=1)
+
+        attn_vec = torch.einsum("ijbn,jbnd->ibnd", (attn_prob, w_head_v))
+
+        attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
+
+        attn_out = self.o_net(attn_vec)
+
+        attn_out = attn_out.transpose(0, 1).contiguous()
+        return attn_out
+
+
+class RelPositionalEncoding2(nn.Module):
+    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_emb_rate=0.0):
+        super().__init__()
+
+        self.demb = d_model
+        demb = d_model
+
+        inv_freq = 1 / (10000 ** (torch.arange(0.0, demb, 2.0) / demb))
+        self.register_buffer('inv_freq', inv_freq)
+
+        if dropout_emb_rate > 0:
+            self.dropout_emb = nn.Dropout(dropout_emb_rate)
+        else:
+            self.dropout_emb = None
+
+        self.xscale = xscale
+        self.dropout = torch.nn.Dropout(p=dropout_rate)
+
+    def forward(self, x: torch.Tensor):
+        klen = x.size(1)
+        pos_seq = torch.arange(klen - 1, -1, -1.0, device=x.device, dtype=x.dtype)
+        sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
+        pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
+
+        if self.dropout_emb:
+            pos_emb = self.dropout_emb(pos_emb)
+        if self.xscale:
+            x = x * self.xscale
+
+        return self.dropout(x), pos_emb[:, None, :]
