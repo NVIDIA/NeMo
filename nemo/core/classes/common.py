@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import hydra
 import wrapt
@@ -354,6 +354,19 @@ class Model(Typing, Serialization, FileIO):
             A list of PretrainedModelInfo entries
         """
         pass
+
+    @classmethod
+    def get_available_model_names(cls) -> List[str]:
+        """
+        Returns the list of model names available via NVIDIA NGC cloud,
+        to get the complete model description use list_available_models()
+        Returns:
+            A list of model names
+        """
+        model_names = []
+        if cls.list_available_models() is not None:
+            model_names = [model.pretrained_model_name for model in cls.list_available_models()]
+        return model_names
 
     @classmethod
     def from_pretrained(
