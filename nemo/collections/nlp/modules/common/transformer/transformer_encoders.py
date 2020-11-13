@@ -48,17 +48,36 @@ class TransformerEncoderBlock(nn.Module):
         attn_layer_dropout=0,
         ffn_dropout=0,
         hidden_act="relu",
+        pre_ln=False
     ):
         super().__init__()
-
+        self.pre_ln = pre_ln
+        self.layer_norm_1 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.first_sub_layer = MultiHeadAttention(
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
+        self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.second_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
     def forward(self, encoder_query, encoder_mask, encoder_keys):
+
+        # Pre-LN: LN -> Attn -> Drop -> Residual -> LN -> FFN
+        # Post-LN: Attn -> Drop -> Residual -> LN -> FFN -> Residual -> LN
+        if self.pre_ln:
+            # Share same LN params for query, key (self-attn)
+            encoder_query = self.layer_norm_1(encoder_query)
+            encoder_keys = self.layer_norm_1(encoder_keys)
+
         self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        self_attn_output += encoder_query
+
+        self_attn_output = self.layer_norm_2(self_attn_output) \
+            if self.pre_ln else self.layer_norm_1(self_attn_output)
+
         output_states = self.second_sub_layer(self_attn_output)
+
+        if not self.pre_ln:
+            output_states = self.layer_norm_2(output_states + self_attn_output)
         return output_states
 
 
