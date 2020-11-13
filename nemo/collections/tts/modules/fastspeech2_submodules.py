@@ -25,6 +25,8 @@ import torch.nn.functional as F
 from common.utils import mask_from_lens
 from common.text.symbols import pad_idx, symbols
 
+from nemo.utils import logging
+
 
 class PositionalEmbedding(nn.Module):
     def __init__(self, demb):
@@ -350,62 +352,127 @@ class LengthRegulator(nn.Module):
         out = torch.stack(out_list)
 
 
-class GatedActivationUnit(nn.Module):
-    # Probably doesn't need to be its own module
-    def __init__(self):
+class DilatedResidualConvBlock(nn.Module):
+    def __init__(self, residual_channels, skip_channels, dilation, kernel_size):
+        """
+        Dilated residual convolutional block for the waveform decoder.
+        residual_channels = input dimension. Input: (batch, residual_channels, time)
+        """
         super().__init__()
 
-        self.W_f = nn.Conv1d(kernel size???)
-        self.W_g = nn.Conv1d(kernel size???)
+        self.n_channels = residual_channels
+
+        # Dilated conv
+        padding = int((kernel_size * dilation - dilation) / 2)
+        self.dilated_conv = nn.Conv1d(
+            in_channels=self.n_channels,
+            out_channels=(2 * self.n_channels),
+            kernel_size=kernel_size,
+            dilation=dilation,
+            padding=padding
+        )
+
+        # Pointwise conv for residual
+        self.pointwise_conv_residual = nn.Conv1d(
+            in_channels=self.n_channels,
+            out_channels=residual_channels,
+            kernel_size=1
+        )
+
+        # Pointwise conv for skip connection (this is separate from resids but not mentioned in the WaveNet paper)
+        self.pointwise_conv_skip = nn.Conv1d(
+            in_channels=self.n_channels,
+            out_channels=skip_channels,
+            kernel_size=1
+        )
 
     def forward(self, x):
-        # out = tanh(W_{f,k} * x) (hadamard product) sigmoid(W_{g,k} * x)
-        out = nn.tanh(self.W_f(x)) * torch.sigmoid(self.W_g(x))
-        return out
+        residual = x
+        out = self.dilated_conv(x)
+        out = nn.tanh(out[:, :self.n_channels, :]) * torch.sigmoid(out[:, self.n_channels:, :])
+
+        # Skip connection
+        skip_out = self.pointwise_conv_skip(out)
+
+        # Residual connection
+        out = (out + residual) * torch.sqrt(0.5)
+
+        return skip_out, out
 
 
-class DilatedResidualConvBlocks(nn.Module):
-    def __init__(self, n_layers, n_channels, kernel_size):
+def WaveformGenerator(nn.Module):
+    def __init__(
+        self,
+        in_channels=256,
+        out_channels=256,
+        trans_kernel_size=64
+        n_layers=30,
+        dilation_cycle=3,
+        dilated_kernel_size=3,
+        residual_channels=64,
+        skip_channels=64,
+    ):
         """
-        Repeated dilated residual convolutional blocks for the waveform decoder.
-        n_channels = input dimension (batch, n_channels, time)
+        Waveform generator based on WaveNet and Parallel WaveGAN.
         """
-        super().__init__()
-
-        self.dilated_layers = nn.ModuleList()
-        dilation = 1
-        self.pointwise_layers = nn.ModuleList()
-
-        for i in range(n_layers):
-            # Dilated conv
-            padding = int((kernel_size * dilation - dilation) / 2)
-            dilated_conv = nn.Conv1d(
-                in_channels=n_channels,
-                out_channels=(2 * n_channels),
-                kernel_size=kernel_size,
-                dilation=dilation)
-
-            self.dilated_layers.append(dilated_conv)
-
-            pointwise_conv = nn.Conv1d(
-                in_channels=n_channels,
-                out_channels=n_channels,
-                kernel_size=1
+        if n_layers // dilation_cycle != 0:
+            logging.error(
+                f"Number of layers in dilated residual convolution blocks should be divisible by dilation cycle."
+                f" Have {n_layers} layers and cycle size {dilation_cycle}, which are not divisible."
             )
 
-            self.pointwise_layers.append(pointwise_conv)
+        self.n_layers = n_layers
 
-            dilation = 1 if dilation == 512 else (dilation * 2)
+        # Transposed 1D convolution to upsample slices of hidden reps to a longer audio length
+        #TODO: double-check transposed conv args.
+        self.transposed_conv = nn.ConvTranspose1d(
+            in_channels=in_channels,
+            out_channels=residual_channels,
+            kernel_size=trans_kernel_size,
+            stride=in_channels  # To upsample one to many w/o overlap
+        )
 
-    def forward(self, x):
-        prev_out = x
+        # Repeated dilated residual convolution blocks
+        self.dilated_res_conv_blocks = nn.ModuleList()
+        dilation = 1
+
         for i in range(n_layers):
-            out = self.dilated_layers[i](prev_out)
-            out = nn.tanh(out[:, :n_channels, :]) * torch.sigmoid(out[:, n_channels:, :])
-            out = self.pointwise_layers[i](out)
+            self.dilated_res_conv_blocks.append(
+                DilatedResidualConvBlock(
+                    residual_channels=residual_channels,
+                    skip_channels=skip_channels,
+                    dilation=dilation,
+                    kernel_size=dilated_kernel_size
+                )
+            )
+            # Increase dilation by a factor of 2 every {dilation_cycle}-layers.
+            if (i+1) % dilation_cycle == 0:
+                dilation *= 2
 
-            # Residual connection
-            prev_out += out
+        # Output activations and pointwise convolutions
+        self.out_layers = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv1d(skip_channels, skip_channels, kernel_size=1),    # output dim is a guess.
+            nn.ReLU(),
+            nn.Conv1D(skip_channels, 256, kernel_size=1),
+        )
 
-        #TODO: there's some funkiness/confusion wrt how the output gets used. Need to revisit.
+    def forward(self, x, use_softmax=False):
+        # Expand via upsampling
+        x = self.transposed_conv(x)
+
+        # Dilated conv blocks
+        skip_outs = 0
+        for i in range(self.n_layers):
+            skip_out, x = self.dilated_res_conv_blocks[i](x)
+            skip_outs += skip_out
+        skip_outs *= torch.sqrt(1. / self.n_layers)
+
+        # Output layers
+        out = self.out_layers(skip_outs)
+
+        if use_softmax:
+            out = nn.Softmax(out, dim=1)
+
         return out
+
