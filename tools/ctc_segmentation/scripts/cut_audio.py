@@ -41,7 +41,7 @@ parser.add_argument(
     help='Path to model checkpoint or pre-trained CTC-based ASR model name',
 )
 parser.add_argument('--offset', type=int, default=0, help='Offset in seconds')
-parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--batch_size", type=int, default=64, help='Batch size for inference')
 
 
 def add_transcript_to_manifest(
@@ -286,5 +286,4 @@ if __name__ == '__main__':
             f.write(stats)
 
         total_time = time.time() - start_time
-        print(f'Total execution time: ~{round(total_time / 60)}min')
         print(f'Total execution time: ~{round(total_time / 60)}min')

@@ -37,6 +37,7 @@ parser.add_argument(
 parser.add_argument(
     '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
 )
+parser.add_argument('--min_length', type=int, default=20, help='Minimal sentence length.')
 
 
 def convert_mp3_to_wav(mp3_file: str, wav_file: str = None, sample_rate: int = 16000) -> str:
@@ -85,6 +86,7 @@ def split_text(
     language='eng',
     remove_square_brackets=True,
     do_lower_case=True,
+    min_length=20,
 ):
     """
     Breaks down the in_file into sentences. Each sentence will be on a separate line.
@@ -146,7 +148,7 @@ def split_text(
 
     sentences = re.split(split_pattern, transcript)
     sentences_comb = []
-    min_length = 20
+
     # adds a short sentence to the previous one
     for i in range(len(sentences)):
         if len(sentences[i]) < min_length and len(sentences_comb) > 0:
@@ -223,7 +225,7 @@ if __name__ == '__main__':
             base_name = os.path.basename(text)[:-4]
             out_text_file = os.path.join(args.output_dir, base_name + '.txt')
 
-            split_text(text, out_text_file, vocabulary=vocabulary, language=args.language)
+            split_text(text, out_text_file, vocabulary=vocabulary, language=args.language, min_length=args.min_length)
         print(f'Processed text saved at {args.output_dir}')
 
     if args.audio_dir:

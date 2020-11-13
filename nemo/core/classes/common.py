@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional, Union, List
+from typing import Dict, List, Optional, Union
 
 import hydra
 import wrapt
