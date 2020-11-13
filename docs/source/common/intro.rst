@@ -29,3 +29,11 @@ Losses
 .. automodule:: nemo.collections.common.losses.SpanningLoss
     :special-members: __init__
 
+
+Metrics
+-------
+
+.. autoclass:: nemo.collections.common.metrics.Perplexity
+    :show-inheritance:
+    :members:
+    :undoc-members:

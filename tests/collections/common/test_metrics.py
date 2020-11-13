@@ -12,9 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+from functools import partial
+from typing import Callable
+
 import pytest
 import torch
 
+from .perplexity_inputs import _no_probs_no_logits, _only_logits1, _only_logits100, _only_probs, _probs_and_logits
+from .pl_utils import PerplexityTester
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
 
 
@@ -104,3 +110,22 @@ class TestCommonMetrics:
         acc_top1 = acc_topk[0]
 
         assert abs(acc_top1 - 0.6) < 1e-3  # 3/5
+
+
+@pytest.mark.parametrize("ddp", [True, False])
+@pytest.mark.parametrize("dist_sync_on_step", [True, False])
+@pytest.mark.parametrize(
+    "probs, logits",
+    [
+        (_only_probs.probs, _only_probs.logits),
+        (_only_logits1.probs, _only_logits1.logits),
+        (_only_logits100.probs, _only_logits100.logits),
+        (_probs_and_logits.probs, _probs_and_logits.logits),
+        (_no_probs_no_logits.probs, _no_probs_no_logits.logits),
+    ],
+)
+class TestPerplexity(PerplexityTester):
+    def test_perplexity(self, ddp, dist_sync_on_step, probs, logits):
+        self.run_class_perplexity_test(
+            ddp=ddp, probs=probs, logits=logits, dist_sync_on_step=dist_sync_on_step,
+        )

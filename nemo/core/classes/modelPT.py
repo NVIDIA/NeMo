@@ -41,7 +41,7 @@ _MODEL_WEIGHTS = "model_weights.ckpt"
 
 try:
     # Try to import strategies for .nemo archive.
-    from eff.archives import NeMoArchive
+    from eff.cookbooks import NeMoCookbook
 
     _EFF_PRESENT_ = True
 except ImportError:
@@ -176,7 +176,7 @@ class ModelPT(LightningModule, Model):
 
     def _default_save_to(self, save_path: str):
         """
-        Saves model instance (weights and configuration) into .nemo file. 
+        Saves model instance (weights and configuration) into .nemo file.
         You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
@@ -203,21 +203,22 @@ class ModelPT(LightningModule, Model):
 
     def _eff_save_to(self, save_path: str):
         """
-        Saves model instance (weights and configuration) into an EFF archive.
+        Saves model instance (weights, configuration and artifacts) into an EFF archive using
+        the default `save_to` recipe from NeMoCookbook.
 
         .. note::
             For NVIDIA NeMo the EFF archives will also use .nemo postfix.
 
         Method creates an EFF-based file that is an archive (tar.gz) with the following:
             manifest.yaml - yaml file describing the content of the archive.
-            model_config.yaml - model configuration in .yaml format. 
+            model_config.yaml - model configuration in .yaml format.
                 You can deserialize this into cfg argument for model's constructor
             model_wights.chpt - model checkpoint
 
         Args:
             save_path: Path to archive file where model instance should be saved.
         """
-        NeMoArchive.save_to(self, save_path)
+        NeMoCookbook().save_to(obj=self, save_path=save_path)
 
     @rank_zero_only
     def save_to(self, save_path: str):
@@ -320,7 +321,8 @@ class ModelPT(LightningModule, Model):
         strict: bool = False,
     ):
         """
-        Restores model instance (weights and configuration) from EFF Archive.
+        Restores model instance (weights, configuration and artifacts) from EFF Archive using
+        the default `restore_from` recipe from NeMoCookbook.
 
         Args:
             restore_path: path to  file from which model should be instantiated
@@ -333,7 +335,13 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls
         """
-        return NeMoArchive.restore_from(cls, restore_path, override_config_path, map_location, strict)
+        return NeMoCookbook().restore_from(
+            restore_path=restore_path,
+            obj_cls=cls,
+            override_config_path=override_config_path,
+            map_location=map_location,
+            strict=strict,
+        )
 
     @classmethod
     def restore_from(
@@ -505,7 +513,7 @@ class ModelPT(LightningModule, Model):
     @abstractmethod
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """
-        (Optionally) Setups data loader to be used in validation
+        Setups data loader to be used in validation
         Args:
 
             val_data_layer_config: validation data layer parameters.
@@ -739,22 +747,13 @@ class ModelPT(LightningModule, Model):
         if self._train_dl is not None:
             return self._train_dl
 
-    def training_step(self, batch, batch_ix):
-        pass
-
     def val_dataloader(self):
         if self._validation_dl is not None:
             return self._validation_dl
 
-    def validation_step(self, batch, batch_ix):
-        return {}
-
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
-
-    def test_step(self, batch, batch_ix):
-        return {}
 
     def validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
