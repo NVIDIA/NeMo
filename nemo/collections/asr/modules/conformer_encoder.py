@@ -146,6 +146,14 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.pre_encode = nn.Linear(feat_in, d_model)
 
         if self_attention_model == "rel_pos":
+            d_head = d_model // n_heads
+            pos_bias_u = nn.Parameter(torch.Tensor(n_heads, d_head))
+            pos_bias_v = nn.Parameter(torch.Tensor(n_heads, d_head))
+            nn.init.normal_(pos_bias_u, 0.0, 0.02)
+            nn.init.normal_(pos_bias_v, 0.0, 0.02)
+            # torch.nn.init.xavier_uniform_(self.pos_bias_u)
+            # torch.nn.init.xavier_uniform_(self.pos_bias_v)
+
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
                 dropout_rate=dropout,
@@ -154,6 +162,8 @@ class ConformerEncoder(NeuralModule, Exportable):
                 dropout_emb_rate=dropout_emb,
             )
         elif self_attention_model == "abs_pos":
+            pos_bias_u = None
+            pos_bias_v = None
             self.pos_enc = PositionalEncoding(
                 d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, reverse=False, xscale=self.xscale
             )
@@ -170,6 +180,8 @@ class ConformerEncoder(NeuralModule, Exportable):
                 n_heads=n_heads,
                 dropout=dropout,
                 dropout_att=dropout_att,
+                pos_bias_u=pos_bias_u,
+                pos_bias_v=pos_bias_v
             )
             self.layers.append(layer)
 
@@ -195,7 +207,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         # Create the self-attention and padding masks
         pad_mask = self.make_pad_mask(length, max_time=xmax, device=audio_signal.device)
         xx_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
-        xx_mask = xx_mask & xx_mask.transpose(1, 2)
+        xx_mask = ~ (xx_mask & xx_mask.transpose(1, 2))
         pad_mask = ~pad_mask
 
         for lth, layer in enumerate(self.layers):

@@ -34,7 +34,7 @@ class ConformerEncoderBlock(torch.nn.Module):
         dropout_att (float): dropout probabilities for attention distributions
     """
 
-    def __init__(self, d_model, d_ff, conv_kernel_size, self_attention_model, n_heads, dropout, dropout_att):
+    def __init__(self, d_model, d_ff, conv_kernel_size, self_attention_model, n_heads, dropout, dropout_att, pos_bias_u, pos_bias_v):
         super(ConformerEncoderBlock, self).__init__()
 
         self.self_attention_model = self_attention_model
@@ -52,7 +52,7 @@ class ConformerEncoderBlock(torch.nn.Module):
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
         if self_attention_model == 'rel_pos':
-            self.self_attn = RelPositionMultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
+            self.self_attn = RelPositionMultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v)
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
         else:

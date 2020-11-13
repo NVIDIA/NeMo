@@ -389,13 +389,13 @@ class EncDecCTCModel(ASRModel, Exportable):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal)
 
-        # REMOVE
-        import torch
-        torch.manual_seed(0)
-
-        processed_signal = torch.rand(processed_signal.shape).cuda()
-        self.encoder(audio_signal=processed_signal[0:1,:,:400], length=processed_signal_length[0:1])[0][0:1,:,0:78]
-        self.encoder(audio_signal=processed_signal[0:1,:,:500], length=processed_signal_length[0:1])[0][0:1,:,0:78]
+        # # REMOVE DEBUGGING
+        # import torch
+        # torch.manual_seed(0)
+        #
+        # processed_signal = torch.rand(processed_signal.shape).cuda()
+        # self.encoder(audio_signal=processed_signal[0:1,:,:400], length=processed_signal_length[0:1])[0][0:1,:,0:78]
+        # self.encoder(audio_signal=processed_signal[0:1,:,:500], length=processed_signal_length[0:1])[0][0:1,:,0:78]
         # self.encoder(audio_signal=processed_signal[0:1,:,:], length=processed_signal_length[0:1])[0][0:1,:,0:78]
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)

@@ -101,7 +101,7 @@ class MultiHeadAttention(nn.Module):
         """
         n_batch = value.size(0)
         if mask is not None:
-            mask = mask.unsqueeze(1).eq(0)  # (batch, 1, time1, time2)
+            mask = mask.unsqueeze(1) #.eq(0)  # (batch, 1, time1, time2)
             if scores.dtype == torch.float16:
                 dtype = np.float16
             else:
@@ -142,17 +142,17 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         dropout_rate (float): dropout rate
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate):
+    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v):
         """Construct an RelPositionMultiHeadedAttention object."""
         super().__init__(n_head, n_feat, dropout_rate)
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable bias are used in matrix c and matrix d
         # as described in https://arxiv.org/abs/1901.02860 Section 3.3
-        self.pos_bias_u = nn.Parameter(torch.Tensor(self.h, self.d_k))
-        self.pos_bias_v = nn.Parameter(torch.Tensor(self.h, self.d_k))
-        torch.nn.init.xavier_uniform_(self.pos_bias_u)
-        torch.nn.init.xavier_uniform_(self.pos_bias_v)
+        # self.pos_bias_u = nn.Parameter(torch.Tensor(self.h, self.d_k))
+        # self.pos_bias_v = nn.Parameter(torch.Tensor(self.h, self.d_k))
+        self.pos_bias_u = pos_bias_u
+        self.pos_bias_v = pos_bias_v
 
     # def rel_shift(self, x, zero_triu=False):
     #     """Compute relative positinal encoding.
@@ -254,7 +254,7 @@ class PositionalEncoding(torch.nn.Module):
         super(PositionalEncoding, self).__init__()
         self.d_model = d_model
         self.reverse = reverse
-        self.xscale = xscale  # math.sqrt(self.d_model)
+        self.xscale = xscale
         self.dropout = torch.nn.Dropout(p=dropout_rate)
         self.pe = None
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
