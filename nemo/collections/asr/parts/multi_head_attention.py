@@ -352,22 +352,28 @@ class RelPositionMultiHeadAttention2(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
 
     def rel_shift(self, x):
-        zero_pad_shape = (x.size(0), 1) + x.size()[2:]
-        zero_pad = torch.zeros(zero_pad_shape, device=x.device, dtype=x.dtype)
-        x_padded = torch.cat([zero_pad, x], dim=1)
+        qlen = x.size(2)
+        pos_len = x.size(-1)
+        x = x.view(x.size(0), x.size(1), -1)
+        x = torch.nn.functional.pad(x, pad=(0, qlen))
+        x = x.view(x.size(0), x.size(1), qlen, pos_len + 1)
+        return x[:, :, :, 0:qlen].flip(dims=[-1])
 
-        x_padded_shape = (x.size(1) + 1, x.size(0)) + x.size()[2:]
-        x_padded = x_padded.view(*x_padded_shape)
-
-        x = x_padded[1:].view_as(x)
-
-        x = x.permute(2, 3, 0, 1).squeeze(0)
-        x = torch.tril(x) + torch.triu(x.transpose(1, 2), diagonal=1)
-        x = x.permute(1, 2, 0).unsqueeze(2)
-        return x
+        # zero_pad_shape = (x.size(0), 1) + x.size()[2:]
+        # zero_pad = torch.zeros(zero_pad_shape, device=x.device, dtype=x.dtype)
+        # x_padded = torch.cat([zero_pad, x], dim=1)
+        #
+        # x_padded_shape = (x.size(1) + 1, x.size(0)) + x.size()[2:]
+        # x_padded = x_padded.view(*x_padded_shape)
+        #
+        # x = x_padded[1:].view_as(x)
+        #
+        # x = x.permute(2, 3, 0, 1).squeeze(0)
+        # x = torch.tril(x) + torch.triu(x.transpose(1, 2), diagonal=1)
+        # x = x.permute(1, 2, 0).unsqueeze(2)
+        # return x
 
     def forward(self, query, key, value, mask, pos_emb):
-        # def forward(self, w, r, attn_mask=None, mems=None, head_mask=None, output_attentions=False):
         # query :(qlen, batch)
         w = query.transpose(0, 1)
         r = pos_emb  # .squeeze(0)
