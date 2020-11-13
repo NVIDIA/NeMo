@@ -178,11 +178,11 @@ def __tokenize_text(data, tokenizer, tokenized_cachedir, chunk_size=8192, write_
 
 
 def __create_chunk(data_root, chunk_path, shard_id, compute_metrics=False):
-    """Creates a tarball containing the audio files from `entries`.
+    """Creates a tarball containing the tokenized text chunks.
        """
     tar = tarfile.open(os.path.join(data_root, f'text_{shard_id}.tar'), mode='a')
 
-    # We squash the filename since we do not preserve directory structure of audio files in the tarball.
+    # We squash the filename since we do not preserve directory structure of tokenized text in the tarball.
     base, ext = os.path.splitext(chunk_path)
     base = base.replace(os.pathsep, '_')
     # Need the following replacement as long as WebDataset splits on first period
@@ -236,16 +236,16 @@ def main():
     if args.log:
         logging.basicConfig(level=logging.INFO)
 
-    if os.path.exists(data_root):
+    tokenized_cachedir = os.path.join(data_root, '_tokenized_dataset_cachedir')
+
+    if os.path.exists(tokenized_cachedir):
         logging.warning(
-            f'Data root {data_root} already potentially contains files. In such a case,'
-            f'please be aware that the tarfiles will be **appended** instead of overridden!'
+            f'Tokenized cache directory {tokenized_cachedir} already potentially contains files.'
+            f'In such a case, please be aware that the tarfiles will be **appended** instead of overridden!'
         )
 
     if not os.path.exists(data_root):
         os.makedirs(data_root)
-
-    tokenized_cachedir = os.path.join(data_root, '_tokenized_dataset_cachedir')
 
     chunk_paths = None
     chunk_lens = None
