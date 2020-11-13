@@ -409,7 +409,9 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
         output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
+        output1_descr = qual_name + ' BERT exported to ONNX'
         bert_model_onnx = self.bert_model.export(
             output1,
             None,  # computed by input_example()
@@ -426,6 +428,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         )
 
         output2 = os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output))
+        output2_descr = qual_name + ' Classifier exported to ONNX'
         classifier_onnx = self.classifier.export(
             output2,
             None,  # computed by input_example()
@@ -442,5 +445,6 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "ISC")
+        output_descr = qual_name + ' BERT+Classifier exported to ONNX'
         onnx.save(output_model, output)
-        return [output, output1, output2]
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])
