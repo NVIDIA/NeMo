@@ -82,8 +82,6 @@ class ConformerEncoderBlock(torch.nn.Module):
 
         residual = x
         x = self.norm_self_att(x)
-        #x.masked_fill_(pad_mask, 0.0)
-
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(query=x, key=x, value=x, pos_emb=pos_emb, mask=att_mask)
         elif self.self_attention_model == 'abs_pos':
@@ -142,10 +140,8 @@ class ConformerConvolution(nn.Module):
 
         x = nn.functional.glu(x, dim=1)
 
-        x = x.transpose(1, 2)
         if pad_mask is not None:
-            x.masked_fill_(pad_mask, 0.0)
-        x = x.transpose(1, 2)
+            x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
         x = self.depthwise_conv(x)
 
         x = self.batch_norm(x)

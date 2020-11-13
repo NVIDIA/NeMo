@@ -196,7 +196,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         pad_mask = self.make_pad_mask(length, max_time=xmax, device=audio_signal.device)
         xx_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
         xx_mask = xx_mask & xx_mask.transpose(1, 2)
-        pad_mask = (~pad_mask).unsqueeze(2)
+        pad_mask = ~pad_mask
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(x=audio_signal, att_mask=xx_mask, pos_emb=pos_emb, pad_mask=pad_mask)
