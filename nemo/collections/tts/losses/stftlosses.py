@@ -185,8 +185,8 @@ class STFTLoss(Loss):
         y_mag = stft(y, self.fft_size, self.shift_size, self.win_length, self.window)
         sc_loss = self.spectral_convergence_loss(x_mag=x_mag, y_mag=y_mag)
         if input_lengths is not None:
-            input_lengths = torch.ceil(input_lengths / float(self.shift_size))
-            assert max(input_lengths) == x_mag.shape[1], f"{max(input_lengths)} != {x_mag.shape[-1]}"
+            input_lengths = torch.floor(input_lengths / float(self.shift_size)) + 1
+            assert max(input_lengths) == x_mag.shape[1], f"{max(input_lengths)} != {x_mag.shape[1]}"
         mag_loss = self.log_stft_magnitude_loss(x_mag=x_mag, y_mag=y_mag, input_lengths=input_lengths)
 
         return sc_loss, mag_loss
