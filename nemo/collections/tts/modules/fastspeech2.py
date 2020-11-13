@@ -199,7 +199,7 @@ class MelSpecDecoder(NeuralModule):
         self.decoder = fastspeech2_modules.FFTransformer(
             n_layer=4,
             n_head=2,
-            d_model=384,    # Some paragraphs say 256, the table says 384
+            d_model=384,    # Some paragraphs say 256, the table in the appendix says 384
             d_head=384,
             d_inner=1024,
             kernel_size=(9, 1),
@@ -228,10 +228,35 @@ class MelSpecDecoder(NeuralModule):
 
 @experimental
 class WaveformDecoder(NeuralModule):
-    def__init__(self, n_layers=30, in_channels=256):
+    def __init__(
+        self,
+        in_channels=256,
+        out_channels=256,   # See WaveNet Section 2.2 regarding waveform quantization
+        gen_trans_kernel_size=64,
+        gen_n_layers=30,
+        gen_dilation_cycle=3,
+        gen_dilated_kernel_size=3,
+        gen_residual_channels=64,
+        gen_skip_channels=64,
+        dis_n_layers=10,
+        dis_relu_alpha=0.2,
+        dis_conv_channels=64,
+        dis_kernel_size=3,
+    ):
         """
         FastSpeech 2 waveform decoder. Converts adapted hidden sequence to a waveform sequence.
         Consists of one transposed conv1d layer, and 30 layers of dilated residual conv blocks.
+
+        Args:
+            in_channels (int): Number of input channels to the waveform decoder
+            out_channels (int)
+            gen_trans_kernel_size (int): Filter size of the upsampling transposed 1D convolution in the generator
+            gen_n_layers (int): Number of layers of dilated residual convolutional blocks in the generator
+            gen_dilation_cycle (int): The number of layers with a given dilation before moving up by a power of two.
+                `n_layers` should be divisible by `dilation_cycle`.
+            gen_dilated_kernel_size (int): Kernel size for the dilated conv1Ds in the generator
+            gen_residual_channels (int)
+            gen_skip_channels (int)
         """
         super().__init__()
 
@@ -240,25 +265,17 @@ class WaveformDecoder(NeuralModule):
         64 and 30 layers of dilated residual convolution blocks, whose skip channel size and kernel size of
         1D-convolution are set to 64 and 3
         """
-        """
-        Note: the architecture of the waveform decoder is unclear to me.
-        I'm doing some paper reading and may eventually email the authors to ask for clarification on:
-        - Input conv transforms channel dim from 256 -> 64?
-            (Is 64 the channel dim for each block’s input/output?)
-        - Dilations go 1,2,4,...512,1,2... like in WaveNet? or something else?
-        - Dilated conv dimension goes from 64 -> 128, then gated activation back to 64, then 1x1 outputs 64 again?
-        - Need a better understanding of the output pipeline. (Read Parallel WaveGAN paper)
-        """
-        # Transposed 1D convolution to upsample slices of hidden reps to a longer audio length
-        self.transposed_conv = nn.ConvTranspose1d(in_channels=256, out_channels=64, kernel_size=64)
-        # ?, "skip channel size", tr1dconv kernel size
-
-        #TODO: check dimensionality of input
-        self.dilated_res_conv_blocks = fastspeech2_modules.DilatedResidualConvBlocks(
-            n_layers=30, n_channels=64, kernel_size=3
+        # Waveform generator
+        self.generator = fastspeech2_submodules.WaveformGenerator(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            trans_kernel_size=gen_trans_kernel_size,
+            n_layers=gen_n_layers,
+            dilation_cycle=gen_dilation_cycle,
+            dilated_kernel_size=gen_dilated_kernel_size,
+            residual_channels=gen_residual_channels,
+            skip_channels=gen_skip_channels,
         )
-        #TODO: what are these conv1d params??
-        self.out_conv = nn.Conv1d()
 
     @property
     def input_types(self):
@@ -272,11 +289,5 @@ class WaveformDecoder(NeuralModule):
 
     @typecheck()
     def forward(self, *, decoder_input):
-        """
-        Currently a rough guess of part of the pipeline. Definitely needs work.
-        """
-        expanded = self.transposed_conv(decoder_input)
-        dilated_conv_out = self.dilated_res_conv_blocks(expanded)
-        out = self.out_conv(dilated_conv_out)
-
-        return out
+        generator_output = self.generator(decoder_input)
+        pass
