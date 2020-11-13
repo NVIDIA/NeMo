@@ -149,10 +149,17 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable bias are used in matrix c and matrix d
         # as described in https://arxiv.org/abs/1901.02860 Section 3.3
-        # self.pos_bias_u = nn.Parameter(torch.Tensor(self.h, self.d_k))
-        # self.pos_bias_v = nn.Parameter(torch.Tensor(self.h, self.d_k))
-        self.pos_bias_u = pos_bias_u
-        self.pos_bias_v = pos_bias_v
+        if pos_bias_u is None or pos_bias_v is None:
+            self.pos_bias_u = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
+            self.pos_bias_v = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
+            #nn.init.normal_(self.pos_bias_u, 0.0, 0.02)
+            #nn.init.normal_(self.pos_bias_v, 0.0, 0.02)
+            nn.init.zeros_(self.pos_bias_u)
+            nn.init.zeros_(self.pos_bias_v)
+
+        else:
+            self.pos_bias_u = pos_bias_u
+            self.pos_bias_v = pos_bias_v
 
     # def rel_shift(self, x, zero_triu=False):
     #     """Compute relative positinal encoding.
@@ -342,10 +349,16 @@ class RelPositionMultiHeadAttention2(nn.Module):
         self.qkv_net = nn.Linear(n_feat, 3 * n_head * self.d_head, bias=False)
         self.o_net = nn.Linear(n_head * self.d_head, n_feat, bias=False)
 
-        # self.r_r_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
-        # self.r_w_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
-        self.r_r_bias = pos_bias_u
-        self.r_w_biad = pos_bias_v
+        if pos_bias_u is None or pos_bias_v is None:
+            self.r_r_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
+            self.r_w_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
+            #nn.init.normal_(self.r_r_bias, 0.0, 0.02)
+            #nn.init.normal_(self.r_w_bias, 0.0, 0.02)
+            nn.init.zeros_(self.r_r_bias)
+            nn.init.zeros_(self.r_w_bias)
+        else:
+            self.r_r_bias = pos_bias_u
+            self.r_w_biad = pos_bias_v
 
         self.r_net = nn.Linear(self.d_model, self.n_head * self.d_head, bias=False)
         self.scale = math.sqrt(self.d_head)

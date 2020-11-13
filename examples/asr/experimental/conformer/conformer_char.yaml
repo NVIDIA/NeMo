@@ -87,6 +87,7 @@ model:
     pos_emb_max_len: 5000
     n_heads: 4
     xscaling: true
+    untie_biases: false
 
     # Convolution module's params
     conv_kernel_size: 31

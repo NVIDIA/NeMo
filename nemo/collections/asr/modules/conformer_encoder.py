@@ -119,6 +119,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         pos_emb_max_len=5000,
         n_heads=4,
         xscaling=True,
+        untie_biases=False,
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
@@ -149,12 +150,14 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
             self.pre_encode = nn.Linear(feat_in, d_model)
 
-        if self_attention_model == "rel_pos" or self_attention_model == "rel_pos2":
+        if not untie_biases and (self_attention_model == "rel_pos" or self_attention_model == "rel_pos2"):
             d_head = d_model // n_heads
             pos_bias_u = nn.Parameter(torch.Tensor(n_heads, d_head))
             pos_bias_v = nn.Parameter(torch.Tensor(n_heads, d_head))
-            nn.init.normal_(pos_bias_u, 0.0, 0.02)
-            nn.init.normal_(pos_bias_v, 0.0, 0.02)
+            nn.init.zeros_(pos_bias_u)
+            nn.init.zeros_(pos_bias_v)
+            #nn.init.normal_(pos_bias_u, 0.0, 0.02)
+            #nn.init.normal_(pos_bias_v, 0.0, 0.02)
             # torch.nn.init.xavier_uniform_(self.pos_bias_u)
             # torch.nn.init.xavier_uniform_(self.pos_bias_v)
         else:
