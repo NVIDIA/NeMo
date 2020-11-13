@@ -39,6 +39,9 @@ class L2RLanguageModelingDataset(Dataset):
         batch_step: distance (in tokens) between two successive sequences of
             the text. By default, it is equal to max_seq_length which corresponds
             to splitting text into disjoint segments covering full dataset
+        cache_ids: bool value, defaults to False. Determines whether the preprocessed,
+            tokenized dataset should be cached into a pickle file. If true, cache is saved
+            at the path provided in `dataset`.
     """
 
     def __init__(
