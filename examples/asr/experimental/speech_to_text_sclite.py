@@ -1,7 +1,7 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-t# you may not use this file except in compliance with the License.
+t  # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
@@ -19,13 +19,13 @@ Hypotheses and references are first saved in trn format and are scored after app
 file (if provided).
 """
 
+import errno
+import json
+import os
+import subprocess
 from argparse import ArgumentParser
 
 import torch
-import os
-import errno
-import json
-import subprocess
 
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models import EncDecCTCModel
@@ -41,25 +41,23 @@ except ImportError:
         yield
 
 
-def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm = "", fmt = "trn"):
+def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm="", fmt="trn"):
     sclite_path = os.path.join(sctk_dir, "bin", "sclite")
     if not os.path.exists(sclite_path):
-        raise FileNotFoundError(
-            errno.ENOENT, os.strerror(errno.ENOENT), sclite_path)
-    if fmt !=trn:
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), sclite_path)
+    if fmt != trn:
         raise ValueError("Only trn format is supported for scoring with sctk")
-    #apply glm
+    # apply glm
     if os.path.exists(glm):
         rfilter_path = os.path.join(sctk_dir, "bin", "rfilter1")
         if not os.path.exists(rfilter_path):
-            raise FileNotFoundError(
-                errno.ENOENT, os.strerror(errno.ENOENT), rfilter_path)
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), rfilter_path)
         hypglm = os.path.join(out_dir, os.path.basename(hyp_fname)) + ".glm"
         rfilt_cmd = [rfilter_path] + [glm]
-        with open(hypglm, "w") as hypf, open(hyp_fname,"r") as hyp_in:
+        with open(hypglm, "w") as hypf, open(hyp_fname, "r") as hyp_in:
             subprocess.run(rfilt_cmd, stdin=hyp_in, stdout=hypf)
         refglm = os.path.join(out_dir, os.path.basename(ref_fname)) + ".glm"
-        with open(refglm, "w") as reff, open(ref_fname,"r") as ref_in:
+        with open(refglm, "w") as reff, open(ref_fname, "r") as ref_in:
             subprocess.run(rfilt_cmd, stdin=ref_in, stdout=reff)
     else:
         refglm = ref_fname
@@ -67,7 +65,10 @@ def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm = "", fmt = "tr
 
     _ = subprocess.check_output(f"{sclite_path} -h {hypglm}  -r {refglm} -i wsj -o all", shell=True)
 
+
 can_gpu = torch.cuda.is_available()
+
+
 def get_utt_info(manifest_path):
     info_list = []
     with open(manifest_path, "r") as utt_f:
@@ -77,6 +78,7 @@ def get_utt_info(manifest_path):
 
     return info_list
 
+
 def main():
     parser = ArgumentParser()
     parser.add_argument(
@@ -85,7 +87,8 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument(
-        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English.")
+        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
+    )
     parser.add_argument(
         "--sclite_fmt", default="trn", type=str, help="sclite output format. Only trn and ctm are supported"
     )
@@ -151,7 +154,8 @@ def main():
             ref_f.write(" " + references[i] + " (" + utt_id + ")" + "\n")
 
     if use_sctk:
-        score_with_sctk(args.sctk_dir, reffile, hypfile, args.out_dir, glm=args.glm,  fmt="trn")
+        score_with_sctk(args.sctk_dir, reffile, hypfile, args.out_dir, glm=args.glm, fmt="trn")
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
