@@ -75,7 +75,7 @@ parser.set_defaults(log=False, lower_case=False)
 args = parser.parse_args()
 
 
-def __build_dataset_from_text(texts: str, lower_case: bool):
+def __build_dataset_from_text(texts: str, lower_case: bool, chunk_size: int):
     if ',' in texts:
         texts = texts.split(',')
     else:
@@ -102,11 +102,18 @@ def __build_dataset_from_text(texts: str, lower_case: bool):
                     if num_lines % 100000 == 0:
                         reader.set_description(f"Read {num_lines} lines")
 
+                    if num_lines % chunk_size == 0:
+                        yield text_dataset, num_lines
+
+                        # Empty cache
+                        text_dataset = []
+
             logging.info(f"Finished extracting manifest : {text}")
 
         logging.info("Finished extracting all manifests ! Number of sentences : {}".format(num_lines))
 
-    return text_dataset
+    if len(text_dataset) != 0:
+        yield text_dataset, num_lines
 
 
 def __tokenize_str(texts, tokenizer):
@@ -117,11 +124,11 @@ def __tokenize_str(texts, tokenizer):
     return tokenized_text
 
 
-def __tokenize_text(data, tokenizer, tokenized_cachedir, chunk_size=8192, write_buffer: int = -1):
-    dataset_len = len(data)
-    logging.info(
-        f"Chunking {dataset_len} rows into {dataset_len // chunk_size} tasks (each chunk contains {chunk_size} elements)"
-    )
+def __tokenize_text(
+    text_paths, tokenizer, tokenized_cachedir, lower_case: bool = False, chunk_size=8192, write_buffer: int = -1
+):
+    # dataset_len = len(data)
+    #
 
     if write_buffer < 1:
         write_buffer = max(os.cpu_count() - write_buffer, 1)
@@ -140,15 +147,26 @@ def __tokenize_text(data, tokenizer, tokenized_cachedir, chunk_size=8192, write_
     data_cache = []
     chunk_idx = 0
 
+    text_generator = iter(__build_dataset_from_text(text_paths, lower_case=lower_case, chunk_size=chunk_size))
+    idx = 0
+    global_num_lines = 0
+    last_batch = False
+
     with joblib.Parallel(n_jobs=-2, verbose=10) as parallel:
 
-        for idx in range(0, dataset_len, chunk_size):
-            data_cache.append(data[idx : idx + chunk_size])
+        while True:
+            try:
+                data, num_lines = next(text_generator)
+                data_cache.append(data)
+
+                global_num_lines = num_lines
+            except StopIteration:
+                last_batch = True
 
             # Update counters
             chunk_idx += 1
 
-            if (chunk_idx == write_buffer) or (idx + chunk_size) >= dataset_len:
+            if (chunk_idx == write_buffer) or last_batch:
                 # write the chunks into disk after parallel tokenization
                 tokenized_data_list = parallel(
                     joblib.delayed(__tokenize_str)(chunk, tokenizer) for chunk in data_cache
@@ -174,6 +192,13 @@ def __tokenize_text(data, tokenizer, tokenized_cachedir, chunk_size=8192, write_
                 data_cache = []
                 chunk_idx = 0
 
+                if last_batch:
+                    logging.info("Finished tokenizing last chunk")
+                    break
+
+    logging.info(
+        f"Chunking {global_num_lines} rows into {global_num_lines // chunk_size} tasks (each chunk contains {chunk_size} elements)"
+    )
     return chunk_paths, chunk_lens
 
 
@@ -274,22 +299,16 @@ def main():
 
         logging.info("Built tokenizer")
 
-        # load the text into memory
-        text_dataset = __build_dataset_from_text(texts=text_path, lower_case=args.lower_case)
-        logging.info("Loaded the text dataset into memory")
-
         # tokenize text data into sub-words
         chunk_paths, chunk_lens = __tokenize_text(
-            text_dataset,
+            text_paths=text_path,
             tokenizer=tokenizer,
             tokenized_cachedir=tokenized_cachedir,
+            lower_case=args.lower_case,
             chunk_size=args.chunk_size,
             write_buffer=args.chunk_write_buffer,
         )
         logging.info(f"Tokenized dataset into sub-words and serialized cache at {tokenized_cachedir}")
-
-        # free up memory
-        del text_dataset
 
     # Write tarred dataset
     __write_tarred_tokenized_text_dataset(
