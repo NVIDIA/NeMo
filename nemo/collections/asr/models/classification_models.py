@@ -21,6 +21,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
 from nemo.collections.asr.data.audio_to_text import AudioLabelDataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
@@ -74,20 +75,39 @@ class EncDecClassificationModel(ASRModel, Exportable):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
-        dataset = AudioLabelDataset(
-            manifest_filepath=config['manifest_filepath'],
-            labels=config['labels'],
-            featurizer=featurizer,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            trim=config.get('trim_silence', True),
-            load_audio=config.get('load_audio', True),
-        )
+
+        if 'vad_stream' in config and config['vad_stream']:
+            print("Perform streaming frame-level VAD")
+            dataset = AudioToSpeechLabelDataSet(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                featurizer=featurizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', True),
+                load_audio=config.get('load_audio', True),
+                time_length=config.get('time_length', 0.31),
+                shift_length=config.get('shift_length', 0.01),
+            )
+            batch_size = 1
+            collate_func = dataset.vad_frame_seq_collate_fn
+        else:
+            dataset = AudioLabelDataset(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                featurizer=featurizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', True),
+                load_audio=config.get('load_audio', True),
+            )
+            batch_size = config['batch_size']
+            collate_func = dataset.collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
-            collate_fn=dataset.collate_fn,
+            batch_size=batch_size,
+            collate_fn=collate_func,
             drop_last=config.get('drop_last', False),
             shuffle=config['shuffle'],
             num_workers=config.get('num_workers', 0),
@@ -370,8 +390,11 @@ class EncDecClassificationModel(ASRModel, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output))
+        output1_descr = qual_name + ' Encoder exported to ONNX'
         encoder_onnx = self.encoder.export(
-            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -385,8 +408,10 @@ class EncDecClassificationModel(ASRModel, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output))
+        output2_descr = qual_name + ' Decoder exported to ONNX'
         decoder_onnx = self.decoder.export(
-            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -401,7 +426,9 @@ class EncDecClassificationModel(ASRModel, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "EDC")
+        output_descr = qual_name + ' Encoder+Decoder exported to ONNX'
         onnx.save(output_model, output)
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])
 
 
 class MatchboxNet(EncDecClassificationModel):
