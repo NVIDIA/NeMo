@@ -160,6 +160,7 @@ class Exportable(ABC):
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:
             typecheck.set_typecheck_enabled(enabled=True)
+        return [output]  # Subclasses may create more than one file.
 
     @property
     def disabled_deployment_input_names(self):

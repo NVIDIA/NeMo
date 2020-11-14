@@ -19,11 +19,9 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-jasper_activations = {
-    "hardtanh": nn.Hardtanh,
-    "relu": nn.ReLU,
-    "selu": nn.SELU,
-}
+from nemo.collections.asr.parts.activations import Swish
+
+jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
 
 
 def init_weights(m, mode='xavier_uniform'):
@@ -255,11 +253,6 @@ class SqueezeExcite(nn.Module):
         y = torch.sigmoid(y)
 
         return x * y
-
-
-class Swish(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(x)
 
 
 class JasperBlock(nn.Module):
@@ -561,7 +554,3 @@ class JasperBlock(nn.Module):
             return xs + [out], lens
 
         return [out], lens
-
-
-# Register swish activation function
-jasper_activations['swish'] = Swish

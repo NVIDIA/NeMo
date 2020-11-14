@@ -17,22 +17,21 @@ import os
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
-from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, TarredAudioToBPEDataset
+from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.collections.common import tokenizers
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import *
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
 
 
-class EncDecCTCModelBPE(EncDecCTCModel):
+class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
     """Encoder decoder CTC-based models with Byte Pair Encoding."""
 
     @classmethod
@@ -56,88 +55,46 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
 
-        self.tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer, resolve=True)  # type: dict
-        self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
-        self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
-
         # Setup the tokenizer
-        self._setup_tokenizer()
+        self._setup_tokenizer(cfg.tokenizer)
 
         # Initialize a dummy vocabulary
         vocabulary = self.tokenizer.tokenizer.get_vocab()
 
         # Set the new vocabulary
-        cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+        with open_dict(cfg):
+            if "params" in cfg.decoder:
+                cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+            else:
+                cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
 
         # Override number of classes if placeholder provided
-        if cfg.decoder.params['num_classes'] < 1:
+        if "params" in cfg.decoder:
+            num_classes = cfg.decoder["params"]["num_classes"]
+        else:
+            num_classes = cfg.decoder["num_classes"]
+
+        if num_classes < 1:
             logging.info(
                 "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                    cfg.decoder.params['num_classes'], len(vocabulary)
+                    num_classes, len(vocabulary)
                 )
             )
-            cfg.decoder.params['num_classes'] = len(vocabulary)
+            if "params" in cfg.decoder:
+                cfg.decoder["params"]["num_classes"] = len(vocabulary)
+            else:
+                cfg.decoder["num_classes"] = len(vocabulary)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup metric objects
         self._wer = WERBPE(
-            tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True, dist_sync_on_step=True,
-        )
-
-    def _setup_tokenizer(self):
-        if self.tokenizer_type not in ['bpe', 'wpe']:
-            raise ValueError(
-                "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
-                "`wpe` for BERT based tokenizer"
-            )
-
-        if self.tokenizer_type == 'bpe':
-            # This is a BPE Tokenizer
-            model_path = os.path.join(self.tokenizer_dir, 'tokenizer.model')
-            model_path = self.register_artifact('tokenizer.model_path', model_path)
-            self.model_path = model_path
-
-            if 'special_tokens' in self.tokenizer_cfg:
-                special_tokens = self.tokenizer_cfg['special_tokens']
-            else:
-                special_tokens = None
-
-            # Update special tokens
-            self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path, special_tokens=special_tokens)
-
-            vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
-            vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
-            self.vocab_path = vocab_path
-
-            vocabulary = {0: '<unk>'}
-            with open(vocab_path) as f:
-                for i, piece in enumerate(f):
-                    piece = piece.replace('\n', '')
-                    vocabulary[i + 1] = piece
-
-            # wrapper method to get vocabulary conveniently
-            def get_vocab():
-                return vocabulary
-
-            # attach utility values to the tokenizer wrapper
-            self.tokenizer.tokenizer.vocab_size = len(vocabulary)
-            self.tokenizer.tokenizer.get_vocab = get_vocab
-            self.tokenizer.tokenizer.all_special_tokens = self.tokenizer.special_token_to_id
-
-        else:
-            # This is a WPE Tokenizer
-            vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
-            self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
-            self.vocab_path = self.tokenizer_dir
-
-            self.tokenizer = tokenizers.AutoTokenizer(
-                pretrained_model_name='bert-base-cased', vocab_file=self.tokenizer_dir, **self.tokenizer_cfg
-            )
-        logging.info(
-            "Tokenizer {} initialized with {} tokens".format(
-                self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
-            )
+            tokenizer=self.tokenizer,
+            batch_dim_index=0,
+            use_cer=self._cfg.get('use_cer', False),
+            ctc_decode=True,
+            dist_sync_on_step=True,
+            log_prediction=self._cfg.get("log_prediction", False),
         )
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -159,22 +116,14 @@ class EncDecCTCModelBPE(EncDecCTCModel):
                 )
                 return None
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
-            dataset = TarredAudioToBPEDataset(
-                audio_tar_filepaths=config['tarred_audio_filepaths'],
-                manifest_filepath=config['manifest_filepath'],
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            dataset = audio_to_text_dataset.get_tarred_bpe_dataset(
+                config=config,
                 tokenizer=self.tokenizer,
-                sample_rate=config['sample_rate'],
-                int_values=config.get('int_values', False),
-                augmentor=augmentor,
                 shuffle_n=shuffle_n,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                max_utts=config.get('max_utts', 0),
-                trim=config.get('trim_silence', True),
-                add_misc=config.get('add_misc', False),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
+                augmentor=augmentor,
             )
             shuffle = False
         else:
@@ -182,18 +131,8 @@ class EncDecCTCModelBPE(EncDecCTCModel):
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
 
-            dataset = AudioToBPEDataset(
-                manifest_filepath=config['manifest_filepath'],
-                tokenizer=self.tokenizer,
-                sample_rate=config['sample_rate'],
-                int_values=config.get('int_values', False),
-                augmentor=augmentor,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                max_utts=config.get('max_utts', 0),
-                trim=config.get('trim_silence', True),
-                load_audio=config.get('load_audio', True),
-                add_misc=config.get('add_misc', False),
+            dataset = audio_to_text_dataset.get_bpe_dataset(
+                config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
 
         return torch.utils.data.DataLoader(
@@ -256,32 +195,50 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
             raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
 
-        self.tokenizer_dir = new_tokenizer_dir  # Remove tokenizer directory
-        self.tokenizer_type = new_tokenizer_type.lower()  # Remove tokenizer_type
+        tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
 
         # Setup the tokenizer
-        self._setup_tokenizer()
+        self._setup_tokenizer(tokenizer_cfg)
 
         # Initialize a dummy vocabulary
         vocabulary = self.tokenizer.tokenizer.get_vocab()
 
         # Set the new vocabulary
         decoder_config = copy.deepcopy(self.decoder.to_config_dict())
-        decoder_config.params.vocabulary = ListConfig(list(vocabulary.values()))
+        decoder_config.vocabulary = ListConfig(list(vocabulary.values()))
+
+        if "params" in decoder_config:
+            decoder_num_classes = decoder_config['params']['num_classes']
+        else:
+            decoder_num_classes = decoder_config['num_classes']
 
         # Override number of classes if placeholder provided
         logging.info(
             "\nReplacing old number of classes ({}) with new number of classes - {}".format(
-                decoder_config['params']['num_classes'], len(vocabulary)
+                decoder_num_classes, len(vocabulary)
             )
         )
-        decoder_config['params']['num_classes'] = len(vocabulary)
+
+        if "params" in decoder_config:
+            decoder_config['params']['num_classes'] = len(vocabulary)
+        else:
+            decoder_config['num_classes'] = len(vocabulary)
 
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
         del self.loss
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
-        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        self.loss = CTCLoss(
+            num_classes=self.decoder.num_classes_with_blank - 1,
+            zero_infinity=True,
+            reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+        )
+        self._wer = WERBPE(
+            tokenizer=self.tokenizer,
+            batch_dim_index=0,
+            use_cer=self._cfg.get('use_cer', False),
+            ctc_decode=True,
+            log_prediction=self._cfg.get("log_prediction", False),
+        )
 
         # Update config
         OmegaConf.set_struct(self._cfg.decoder, False)

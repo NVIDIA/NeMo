@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
 
-__all__ = ['BertDPRModel']
+__all__ = ["BertDPRModel"]
 
 
 class BertDPRModel(BaseIRModel):
@@ -38,17 +38,17 @@ class BertDPRModel(BaseIRModel):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "q_input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "q_attention_mask": NeuralType(('B', 'T'), MaskType()),
-            "q_token_type_ids": NeuralType(('B', 'T'), ChannelType()),
-            "p_input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "p_attention_mask": NeuralType(('B', 'T'), MaskType()),
-            "p_token_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "q_input_ids": NeuralType(("B", "T"), ChannelType()),
+            "q_attention_mask": NeuralType(("B", "T"), MaskType()),
+            "q_token_type_ids": NeuralType(("B", "T"), ChannelType()),
+            "p_input_ids": NeuralType(("B", "T"), ChannelType()),
+            "p_attention_mask": NeuralType(("B", "T"), MaskType()),
+            "p_token_type_ids": NeuralType(("B", "T"), ChannelType()),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"logits": NeuralType(('B', 'D'), LogitsType())}
+        return {"logits": NeuralType(("B", "D"), LogitsType())}
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
@@ -63,29 +63,29 @@ class BertDPRModel(BaseIRModel):
 
     @typecheck()
     def forward(
-        self, q_input_ids, q_token_type_ids, q_attention_mask, p_input_ids, p_token_type_ids, p_attention_mask
+        self, q_input_ids, q_token_type_ids, q_attention_mask, p_input_ids, p_token_type_ids, p_attention_mask,
     ):
 
         q_vectors = self.q_encoder(
-            input_ids=q_input_ids, token_type_ids=q_token_type_ids, attention_mask=q_attention_mask
+            input_ids=q_input_ids, token_type_ids=q_token_type_ids, attention_mask=q_attention_mask,
         )
         q_vectors = q_vectors[:, 0]
         batch_size, hidden_size = q_vectors.size()
 
         p_vectors = self.p_encoder(
-            input_ids=p_input_ids, token_type_ids=p_token_type_ids, attention_mask=p_attention_mask
+            input_ids=p_input_ids, token_type_ids=p_token_type_ids, attention_mask=p_attention_mask,
         )
         num_passages = p_vectors.shape[0] // batch_size
         p_vectors = p_vectors[:, 0].view(-1, num_passages, hidden_size)
         p_positives, p_negatives = p_vectors[:, 0], p_vectors[:, 1:]
         scores = torch.cat(
-            (torch.matmul(q_vectors, p_positives.T), torch.einsum("ij,ipj->ip", q_vectors, p_negatives)), dim=1
+            (torch.matmul(q_vectors, p_positives.T), torch.einsum("ij,ipj->ip", q_vectors, p_negatives),), dim=1,
         )
 
         return scores
 
     def compute_scores_and_loss(self, inputs):
-        q_input_ids, q_input_mask, q_input_type_ids, p_input_ids, p_input_mask, p_input_type_ids = inputs
+        (q_input_ids, q_input_mask, q_input_type_ids, p_input_ids, p_input_mask, p_input_type_ids,) = inputs
         batch_size, num_passages, p_seq_length = p_input_ids.size()
         q_seq_length = q_input_ids.size()[-1]
 
@@ -100,7 +100,7 @@ class BertDPRModel(BaseIRModel):
         normalized_scores = torch.log_softmax(scores, dim=-1)
 
         labels = torch.arange(batch_size)[:, None].long().to(normalized_scores.device)
-        loss = self.loss(logits=normalized_scores, labels=labels, output_mask=torch.ones_like(labels))
+        loss = self.loss(log_probs=normalized_scores, labels=labels, output_mask=torch.ones_like(labels),)
 
         scores = scores[:, 0]
         scores = torch.cat((torch.diag(scores)[:, None], scores[:, batch_size:]), dim=1,)
