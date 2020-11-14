@@ -14,7 +14,6 @@
 
 import io
 import json
-import pickle
 from typing import Optional
 
 import numpy as np
@@ -77,7 +76,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
     The manifest should contain information such as the number of shards, the number of tokens in the corpus,
     and the number of tokens contained within each shard of the tarfile(s).
 
-    Valid formats for the audio_tar_filepaths argument include:
+    Valid formats for the text_tar_filepaths argument include:
     (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar.gz', or
     (2) a list of file paths that will not be brace-expanded, e.g. ['text_1.tar', 'text_2.tar', ...].
 
@@ -173,7 +172,7 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
 
             begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
             end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
-            audio_tar_filepaths = text_tar_filepaths[begin_idx:end_idx]
+            text_tar_filepaths = text_tar_filepaths[begin_idx:end_idx]
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
             )
