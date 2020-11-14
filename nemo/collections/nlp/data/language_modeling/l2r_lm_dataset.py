@@ -38,7 +38,7 @@ class L2RLanguageModelingDataset(Dataset):
         batch_step: distance (in tokens) between two successive sequences of
             the text. By default, it is equal to max_seq_length which corresponds
             to splitting text into disjoint segments covering full dataset
-        cache_ids: bool value, defaults to False. Determines whether the preprocessed,
+        use_cache: bool value, defaults to False. Determines whether the preprocessed,
             tokenized dataset should be cached into a pickle file. If true, cache is saved
             at the path provided in `dataset`.
     """
@@ -49,12 +49,12 @@ class L2RLanguageModelingDataset(Dataset):
         dataset: str,
         max_seq_length: Optional[int] = 512,
         batch_step: Optional[int] = None,
-        cache_ids: bool = False,
+        use_cache: bool = False,
     ):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
         self.batch_step = batch_step or self.max_seq_length
-        ids = dataset_to_ids(dataset, tokenizer, cache_ids=cache_ids, add_bos_eos=False)
+        ids = dataset_to_ids(dataset, tokenizer, cache_ids=use_cache, add_bos_eos=False)
         self.ids = np.array([j for i in ids for j in i])
 
     def __len__(self):

@@ -184,7 +184,7 @@ class TransformerLMModel(ModelPT):
         )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, predict_last_k=0):
-        if cfg.get('cache_ids', False):
+        if cfg.get('use_cache', False):
             logging.info("Constructing tokenized dataset cache...")
 
         shuffle = cfg.shuffle
@@ -220,7 +220,7 @@ class TransformerLMModel(ModelPT):
                 dataset=cfg.file_name,
                 max_seq_length=self.dataset_cfg.max_seq_length,
                 batch_step=predict_last_k,
-                cache_ids=cfg.get('cache_ids', False),
+                use_cache=cfg.get('use_cache', False),
             )
 
         return torch.utils.data.DataLoader(
