@@ -20,11 +20,11 @@ from typing import Dict, List, Optional, Union
 
 import onnx
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
+from nemo.collections.asr.data import audio_to_text_dataset
+from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -99,8 +99,31 @@ class EncDecCTCModel(ASRModel, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
+
+        with open_dict(self._cfg):
+            if "params" in self._cfg.decoder:
+                if "feat_in" not in self._cfg.decoder.params or (
+                    not self._cfg.decoder.params.feat_in and hasattr(self.encoder, '_feat_out')
+                ):
+                    self._cfg.decoder.params.feat_in = self.encoder._feat_out
+                if "feat_in" not in self._cfg.decoder.params or not self._cfg.decoder.params.feat_in:
+                    raise ValueError("param feat_in of the decoder's config is not set!")
+            else:
+                if "feat_in" not in self._cfg.decoder or (
+                    not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+                ):
+                    self._cfg.decoder.feat_in = self.encoder._feat_out
+                if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
+                    raise ValueError("param feat_in of the decoder's config is not set!")
+
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
+
+        self.loss = CTCLoss(
+            num_classes=self.decoder.num_classes_with_blank - 1,
+            zero_infinity=True,
+            reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+        )
+
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
@@ -110,9 +133,10 @@ class EncDecCTCModel(ASRModel, Exportable):
         self._wer = WER(
             vocabulary=self.decoder.vocabulary,
             batch_dim_index=0,
-            use_cer=False,
+            use_cer=self._cfg.get('use_cer', False),
             ctc_decode=True,
             dist_sync_on_step=True,
+            log_prediction=self._cfg.get("log_prediction", False),
         )
 
     @torch.no_grad()
@@ -140,7 +164,12 @@ class EncDecCTCModel(ASRModel, Exportable):
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
+        dither_value = self.preprocessor.featurizer.dither
+        pad_to_value = self.preprocessor.featurizer.pad_to
+
         try:
+            self.preprocessor.featurizer.dither = 0.0
+            self.preprocessor.featurizer.pad_to = 0
             # Switch model to evaluation mode
             self.eval()
             logging_level = logging.get_verbosity()
@@ -169,6 +198,8 @@ class EncDecCTCModel(ASRModel, Exportable):
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            self.preprocessor.featurizer.dither = dither_value
+            self.preprocessor.featurizer.pad_to = pad_to_value
             logging.set_verbosity(logging_level)
         return hypotheses
 
@@ -196,18 +227,28 @@ class EncDecCTCModel(ASRModel, Exportable):
                 raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
-            new_decoder_config['params']['vocabulary'] = new_vocabulary
-            new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            if 'vocabulary' in new_decoder_config:
+                new_decoder_config['vocabulary'] = new_vocabulary
+                new_decoder_config['num_classes'] = len(new_vocabulary)
+            else:
+                new_decoder_config['params']['vocabulary'] = new_vocabulary
+                new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             del self.loss
-            self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1, zero_infinity=True)
+            self.loss = CTCLoss(
+                num_classes=self.decoder.num_classes_with_blank - 1,
+                zero_infinity=True,
+                reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            )
             self._wer = WER(
                 vocabulary=self.decoder.vocabulary,
                 batch_dim_index=0,
-                use_cer=False,
+                use_cer=self._cfg.get('use_cer', False),
                 ctc_decode=True,
                 dist_sync_on_step=True,
+                log_prediction=self._cfg.get("log_prediction", False),
             )
 
             # Update config
@@ -227,19 +268,8 @@ class EncDecCTCModel(ASRModel, Exportable):
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
         if config.get('use_dali', False):
             device_id = self.local_rank if device == 'gpu' else None
-            dataset = AudioToCharDALIDataset(
-                manifest_filepath=config['manifest_filepath'],
-                device=device,
-                batch_size=config['batch_size'],
-                labels=config['labels'],
-                sample_rate=config['sample_rate'],
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                blank_index=config.get('blank_index', -1),
-                unk_index=config.get('unk_index', -1),
-                normalize=config.get('normalize_transcripts', False),
-                trim=config.get('trim_silence', True),
-                parser=config.get('parser', 'en'),
+            dataset = audio_to_text_dataset.get_dali_char_dataset(
+                config=config,
                 shuffle=shuffle,
                 device_id=device_id,
                 global_rank=self.global_rank,
@@ -259,26 +289,13 @@ class EncDecCTCModel(ASRModel, Exportable):
                 )
                 return None
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
-            dataset = TarredAudioToCharDataset(
-                audio_tar_filepaths=config['tarred_audio_filepaths'],
-                manifest_filepath=config['manifest_filepath'],
-                labels=config['labels'],
-                sample_rate=config['sample_rate'],
-                int_values=config.get('int_values', False),
-                augmentor=augmentor,
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            dataset = audio_to_text_dataset.get_tarred_char_dataset(
+                config=config,
                 shuffle_n=shuffle_n,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                max_utts=config.get('max_utts', 0),
-                blank_index=config.get('blank_index', -1),
-                unk_index=config.get('unk_index', -1),
-                normalize=config.get('normalize_transcripts', False),
-                trim=config.get('trim_silence', True),
-                parser=config.get('parser', 'en'),
-                add_misc=config.get('add_misc', False),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
+                augmentor=augmentor,
             )
             shuffle = False
         else:
@@ -286,23 +303,7 @@ class EncDecCTCModel(ASRModel, Exportable):
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
 
-            dataset = AudioToCharDataset(
-                manifest_filepath=config['manifest_filepath'],
-                labels=config['labels'],
-                sample_rate=config['sample_rate'],
-                int_values=config.get('int_values', False),
-                augmentor=augmentor,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                max_utts=config.get('max_utts', 0),
-                blank_index=config.get('blank_index', -1),
-                unk_index=config.get('unk_index', -1),
-                normalize=config.get('normalize_transcripts', False),
-                trim=config.get('trim_silence', True),
-                load_audio=config.get('load_audio', True),
-                parser=config.get('parser', 'en'),
-                add_misc=config.get('add_misc', False),
-            )
+            dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -513,8 +514,11 @@ class EncDecCTCModel(ASRModel, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output))
+        output1_descr = qual_name + ' Encoder exported to ONNX'
         encoder_onnx = self.encoder.export(
-            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -528,8 +532,10 @@ class EncDecCTCModel(ASRModel, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output))
+        output2_descr = qual_name + ' Decoder exported to ONNX'
         decoder_onnx = self.decoder.export(
-            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -544,7 +550,9 @@ class EncDecCTCModel(ASRModel, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "DC")
+        output_descr = qual_name + ' Encoder+Decoder exported to ONNX'
         onnx.save(output_model, output)
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])
 
 
 class JasperNet(EncDecCTCModel):

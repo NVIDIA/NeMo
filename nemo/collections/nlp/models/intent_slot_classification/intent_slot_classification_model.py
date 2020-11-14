@@ -66,7 +66,6 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # initialize Bert model
-
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
@@ -108,8 +107,16 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             mode='micro',
         )
 
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
+    def update_data_dir(self, data_dir: str) -> None:
+        """
+        Update data directory and get data stats with Data Descriptor
+        Weights are later used to setup loss
+
+        Args:
+            data_dir: path to data directory
+        """
+        self.data_dir = data_dir
+        logging.info(f'Setting model.data_dir to {data_dir}.')
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -402,8 +409,11 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
+        output1_descr = qual_name + ' BERT exported to ONNX'
         bert_model_onnx = self.bert_model.export(
-            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -417,8 +427,10 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output))
+        output2_descr = qual_name + ' Classifier exported to ONNX'
         classifier_onnx = self.classifier.export(
-            os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -433,4 +445,6 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "ISC")
+        output_descr = qual_name + ' BERT+Classifier exported to ONNX'
         onnx.save(output_model, output)
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])

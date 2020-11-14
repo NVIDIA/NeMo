@@ -12,27 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
-
 import torch
-from pytorch_lightning.metrics import Metric
+import torch.nn as nn
 
-from nemo.utils import logging
-
-__all__ = ['Perplexity']
+__all__ = ['Swish']
 
 
-class Perplexity(Metric):
+class Swish(nn.Module):
     """
-    This metric computes the perplexity given the language model loss.
+    Swish activation function introduced in 'https://arxiv.org/abs/1710.05941'
     """
 
-    def __init__(self, dist_sync_on_step=False):
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
-        self.add_state('perplexity', default=torch.tensor(0), dist_reduce_fx='mean', persistent=False)
-
-    def update(self, loss: torch.Tensor):
-        self.perplexity = torch.exp(loss)
-
-    def compute(self):
-        return self.perplexity
+    def forward(self, x):
+        return x * torch.sigmoid(x)

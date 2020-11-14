@@ -20,6 +20,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
+from nemo.collections.common.metrics import Perplexity
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import L2RLanguageModelingDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -28,7 +29,7 @@ from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 
-__all__ = ['TransformerLMModel']
+__all__ = ["TransformerLMModel"]
 
 
 class TransformerLMModel(ModelPT):
@@ -85,6 +86,9 @@ class TransformerLMModel(ModelPT):
             pad_id=self.tokenizer.pad_id, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
         )
 
+        self.training_perplexity = Perplexity(dist_sync_on_step=True)
+        self.validation_perplexity = Perplexity(compute_on_step=False)
+
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
 
@@ -109,10 +113,15 @@ class TransformerLMModel(ModelPT):
         input_ids, input_mask, labels = batch
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        train_loss = self.training_loss(logits=log_probs, labels=labels)
+        train_loss = self.training_loss(log_probs=log_probs, labels=labels)
+        training_perplexity = self.training_perplexity(logits=log_probs)
 
-        tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
-        return {'loss': train_loss, 'log': tensorboard_logs}
+        tensorboard_logs = {
+            "train_loss": train_loss,
+            "lr": self._optimizer.param_groups[0]["lr"],
+            "train_ppl": training_perplexity,
+        }
+        return {"loss": train_loss, "log": tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
         """
@@ -122,13 +131,12 @@ class TransformerLMModel(ModelPT):
         input_ids, input_mask, labels = batch
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        val_loss = self.validation_loss(logits=log_probs, labels=labels)
+        val_loss = self.validation_loss(log_probs=log_probs, labels=labels)
+        self.validation_perplexity(logits=log_probs)
 
-        tensorboard_logs = {
-            'val_loss': val_loss,
-        }
+        tensorboard_logs = {"val_loss": val_loss}
 
-        return {'val_loss': val_loss, 'log': tensorboard_logs}
+        return {"val_loss": val_loss, "log": tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """
@@ -136,9 +144,10 @@ class TransformerLMModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
 
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss, 'val_ppl': torch.exp(avg_loss)}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
+        validation_perplexity = self.validation_perplexity.compute()
+        tensorboard_logs = {"val_loss": avg_loss, "val_ppl": validation_perplexity}
+        return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)

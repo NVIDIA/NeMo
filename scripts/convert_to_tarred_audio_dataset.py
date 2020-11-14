@@ -49,6 +49,12 @@ parser.add_argument(
     help='Maximum duration of audio clip in the dataset. By default, it is None and will not filter files.',
 )
 parser.add_argument(
+    '--min_duration',
+    default=None,
+    type=float,
+    help='Minimum duration of audio clip in the dataset. By default, it is None and will not filter files.',
+)
+parser.add_argument(
     "--shuffle",
     action='store_true',
     help="Whether or not to randomly shuffle the samples in the manifest before tarring/sharding.",
@@ -87,6 +93,7 @@ def main():
     target_dir = args.target_dir
     num_shards = args.num_shards
     max_duration = args.max_duration
+    min_duration = args.min_duration
     shuffle = args.shuffle
     seed = args.shuffle_seed
 
@@ -99,13 +106,15 @@ def main():
     with open(manifest_path, 'r') as m:
         for line in m:
             entry = json.loads(line)
-            if max_duration is not None and entry['duration'] < max_duration:
+            if (max_duration is None or entry['duration'] < max_duration) and (
+                min_duration is None or entry['duration'] > min_duration
+            ):
                 entries.append(entry)
             else:
                 filtered_entries += 1
 
     if filtered_entries > 0:
-        print(f"Filtered {filtered_entries} files with maximum duration > {max_duration} seconds.")
+        print(f"Filtered {filtered_entries} files.")
 
     if shuffle:
         random.seed(seed)
