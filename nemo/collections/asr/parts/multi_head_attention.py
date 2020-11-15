@@ -118,7 +118,7 @@ class MultiHeadAttention(nn.Module):
 
         return self.linear_out(x)  # (batch, time1, d_model)
 
-    def forward(self, query, key, value, mask):
+    def forward(self, query, key, value, mask, pos_emb=None):
         """Compute 'Scaled Dot Product Attention'.
         Args:
             query (torch.Tensor): (batch, time1, size)
@@ -160,7 +160,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         else:
             self.pos_bias_u = pos_bias_u
             self.pos_bias_v = pos_bias_v
-
+    # buggy one
     # def rel_shift(self, x, zero_triu=False):
     #     """Compute relative positinal encoding.
     #     Args:
@@ -328,6 +328,9 @@ class RelPositionalEncoding(PositionalEncoding):
         return self.dropout(x), pos_emb
 
 
+
+
+
 # New ones
 class RelPositionMultiHeadAttention2(nn.Module):
     """Multi-Head Attention layer with relative position encoding.
@@ -371,7 +374,7 @@ class RelPositionMultiHeadAttention2(nn.Module):
         x = torch.nn.functional.pad(x, pad=(0, qlen))
         x = x.view(x.size(0), x.size(1), qlen, pos_len + 1)
         return x[:, :, :, 0:qlen].flip(dims=[-1])
-
+        # buggy code
         # zero_pad_shape = (x.size(0), 1) + x.size()[2:]
         # zero_pad = torch.zeros(zero_pad_shape, device=x.device, dtype=x.dtype)
         # x_padded = torch.cat([zero_pad, x], dim=1)
@@ -387,6 +390,7 @@ class RelPositionMultiHeadAttention2(nn.Module):
         # return x
 
     def forward(self, query, key, value, mask, pos_emb):
+        # key and values are ignored
         # query :(qlen, batch)
         w = query.transpose(0, 1)
         r = pos_emb  # .squeeze(0)
@@ -435,7 +439,7 @@ class RelPositionMultiHeadAttention2(nn.Module):
 
 
 class RelPositionalEncoding2(nn.Module):
-    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_emb_rate=0.0):
+    def __init__(self, d_model, dropout_rate, max_len=None, xscale=None, dropout_emb_rate=0.0):
         super().__init__()
 
         self.demb = d_model
@@ -454,7 +458,8 @@ class RelPositionalEncoding2(nn.Module):
 
     def forward(self, x: torch.Tensor):
         klen = x.size(1)
-        pos_seq = torch.arange(klen - 1, -1, -1.0, device=x.device, dtype=x.dtype)
+        #pos_seq = torch.arange(klen - 1, -1, -1.0, device=x.device, dtype=x.dtype)
+        pos_seq = torch.arange(-(klen - 1), -(klen - 1), 1.0, device=x.device, dtype=x.dtype)
         sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
 
