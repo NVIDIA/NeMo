@@ -64,8 +64,6 @@ class GreedySequenceGenerator(nn.Module):
         self.max_seq_length = max_sequence_length
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
-        # TODO replace self.device attribute with defining device on the fly according to Pytorch Lightning recomendations
-        self.device = next(self.decoder.parameters()).device
 
     @torch.no_grad()
     def _forward(
@@ -117,7 +115,6 @@ class GreedySequenceGenerator(nn.Module):
         """
 
         decoder_parameter = next(self.decoder.parameters())
-
         batch_size = self.batch_size
 
         # for encoder-decoder generation, maximum length of generated sequence
@@ -145,7 +142,8 @@ class GreedySequenceGenerator(nn.Module):
 
         # pad profile tracks sequences ending with <eos> token to replace
         # everything after <eos> with <pad> token
-        pad_profile = torch.zeros(batch_size, 1).long().to(self.device)
+        decoder_parameter = next(self.decoder.parameters())
+        pad_profile = torch.zeros(batch_size, 1).long().to(decoder_parameter.device)
 
         decoder_mems_list = None
         for i in range(max_generation_length):
