@@ -22,8 +22,6 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 
-from nemo.utils.env_var_parsing import get_envint
-
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     fill_class_weights,
@@ -35,6 +33,7 @@ from nemo.collections.nlp.parts.utils_funcs import list2str
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.env_var_parsing import get_envint
 
 __all__ = ['TextClassificationDataset', 'calc_class_weights']
 
