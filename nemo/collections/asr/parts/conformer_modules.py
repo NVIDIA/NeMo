@@ -103,8 +103,8 @@ class ConformerEncoderBlock(torch.nn.Module):
 
         residual = x
         x = self.norm_self_att(x)
-        if self.self_attention_model == 'rel_pos':
-            x = self.self_attn(query=x, key=x, value=x, pos_emb=pos_emb, mask=att_mask)
+        if self.self_attention_model == 'rel_pos' or self.self_attention_model == 'rel_pos2':
+            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
