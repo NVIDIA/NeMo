@@ -445,8 +445,11 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
+        output1_descr = qual_name + ' BERT exported to ONNX'
         bert_model_onnx = self.bert_model.export(
-            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -460,8 +463,10 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'punct_classifier_' + os.path.basename(output))
+        output2_descr = qual_name + ' Punctuation Classifier exported to ONNX'
         punct_classifier_onnx = self.punct_classifier.export(
-            os.path.join(os.path.dirname(output), 'punct_classifier_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -475,8 +480,10 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
             use_dynamic_axes,
         )
 
+        output3 = os.path.join(os.path.dirname(output), 'capit_classifier_' + os.path.basename(output))
+        output3_descr = qual_name + ' Capitalization Classifier exported to ONNX'
         capit_classifier_onnx = self.capit_classifier.export(
-            os.path.join(os.path.dirname(output), 'capit_classifier_' + os.path.basename(output)),
+            output3,
             None,  # computed by input_example()
             None,
             verbose,
@@ -491,6 +498,14 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
         )
 
         punct_output_model = attach_onnx_to_onnx(bert_model_onnx, punct_classifier_onnx, "PTCL")
-        onnx.save(punct_output_model, os.path.join(os.path.dirname(output), 'punct_' + os.path.basename(output)))
+        output4 = os.path.join(os.path.dirname(output), 'punct_' + os.path.basename(output))
+        output4_descr = qual_name + ' Punctuation BERT+Classifier exported to ONNX'
+        onnx.save(punct_output_model, output4)
         capit_output_model = attach_onnx_to_onnx(bert_model_onnx, capit_classifier_onnx, "CPCL")
-        onnx.save(capit_output_model, os.path.join(os.path.dirname(output), 'capit_' + os.path.basename(output)))
+        output5 = os.path.join(os.path.dirname(output), 'capit_' + os.path.basename(output))
+        output5_descr = qual_name + ' Capitalization BERT+Classifier exported to ONNX'
+        onnx.save(capit_output_model, output5)
+        return (
+            [output1, output2, output3, output4, output5],
+            [output1_descr, output2_descr, output3_descr, output4_descr, output5_descr],
+        )
