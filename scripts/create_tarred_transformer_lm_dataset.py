@@ -127,9 +127,6 @@ def __tokenize_str(texts, tokenizer):
 def __tokenize_text(
     text_paths, tokenizer, tokenized_cachedir, lower_case: bool = False, chunk_size=8192, write_buffer: int = -1
 ):
-    # dataset_len = len(data)
-    #
-
     if write_buffer < 1:
         write_buffer = max(os.cpu_count() - write_buffer, 1)
 
@@ -148,7 +145,6 @@ def __tokenize_text(
     chunk_idx = 0
 
     text_generator = iter(__build_dataset_from_text(text_paths, lower_case=lower_case, chunk_size=chunk_size))
-    idx = 0
     global_num_lines = 0
     last_batch = False
 
