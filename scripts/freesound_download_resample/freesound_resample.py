@@ -21,7 +21,7 @@ import sox
 from joblib import Parallel, delayed
 
 
-def resample_file(resampled_dir, filepath, ext):
+def resample_file(resampled_dir, filepath, ext, sample_rate):
     """
     Resample an audio file to 16kHZ and transform to monochannel
     Remove incompatible files.
@@ -52,7 +52,7 @@ def resample_file(resampled_dir, filepath, ext):
 
     transform = sox.Transformer()
     transform.set_output_format(file_type='wav')
-    transform.convert(samplerate=16000, n_channels=1)
+    transform.convert(samplerate=sample_rate, n_channels=1)
 
     try:
         transform.build(filepath, new_path)
@@ -80,21 +80,25 @@ def main():
     parser = argparse.ArgumentParser(description='Freesound data resample')
     parser.add_argument("--data_dir", required=True, default=None, type=str)
     parser.add_argument('--resampled_dir', required=True, default=None, type=str)
+    parser.add_argument('--sample_rate', default=16000, type=int)
     args = parser.parse_args()
 
     data_dir = args.data_dir
     resampled_dir = args.resampled_dir
+    sample_rate = args.sample_rate
 
     wav_files = sorted(glob.glob(os.path.join(data_dir, '*/*.wav')))
     flac_files = sorted(glob.glob(os.path.join(data_dir, '*/*.flac')))
 
     with Parallel(n_jobs=-1, verbose=10) as parallel:
         wav_files_failed = parallel(
-            delayed(resample_file)(resampled_dir, filepath, ext='wav') for filepath in wav_files
+            delayed(resample_file)(resampled_dir, filepath, ext='wav', sample_rate=sample_rate)
+            for filepath in wav_files
         )
 
         flac_files_failed = parallel(
-            delayed(resample_file)(resampled_dir, filepath, ext='flac') for filepath in flac_files
+            delayed(resample_file)(resampled_dir, filepath, ext='flac', sample_rate=sample_rate)
+            for filepath in flac_files
         )
 
     with open('dataset_conversion_logs.txt', 'w') as f:
