@@ -29,6 +29,7 @@ __all__ = [
     'AdamWParams',
     'RMSpropParams',
     'RpropParams',
+    'FusedAdamParams',
 ]
 
 
@@ -203,6 +204,17 @@ class NovogradParams(OptimizerParams):
     luc_eps: float = 1e-8
 
 
+@dataclass
+class FusedAdamParams(OptimizerParams):
+    bias_correction: bool = True
+    betas: Tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-8
+    adam_w_mode: bool = True
+    weight_decay: float = 0
+    amsgrad: bool = False
+    set_grad_none: bool = True
+
+
 def register_optimizer_params(name: str, optimizer_params: OptimizerParams):
     """
     Checks if the optimizer param name exists in the registry, and if it doesnt, adds it.
@@ -260,4 +272,5 @@ AVAILABLE_OPTIMIZER_PARAMS = {
     'adamw_params': AdamWParams,
     'rmsprop_params': RMSpropParams,
     'rprop_params': RpropParams,
+    'fused_adam_params': FusedAdamParams,
 }

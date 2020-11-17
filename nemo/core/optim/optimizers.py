@@ -24,6 +24,7 @@ from torch.optim.optimizer import Optimizer
 
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.novograd import Novograd
+from nemo.utils import logging
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
@@ -39,6 +40,15 @@ AVAILABLE_OPTIMIZERS = {
     'rprop': rprop.Rprop,
     'novograd': Novograd,
 }
+
+
+try:
+    from apex.optimizers import FusedAdam
+
+    AVAILABLE_OPTIMIZERS['fused_adam'] = FusedAdam
+
+except:
+    logging.info("Apex not installed. fused_adam not available.")
 
 
 def parse_optimizer_args(
