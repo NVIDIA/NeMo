@@ -172,6 +172,13 @@ class ConformerEncoder(NeuralModule, Exportable):
                 xscale=self.xscale,
                 dropout_emb_rate=dropout_emb,
             )
+            # self.pos_enc2 = RelPositionalEncoding2(
+            #     d_model=d_model,
+            #     dropout_rate=dropout,
+            #     max_len=pos_emb_max_len,
+            #     xscale=self.xscale,
+            #     dropout_emb_rate=dropout_emb,
+            # )
         elif self_attention_model == "rel_pos2":
             self.pos_enc = RelPositionalEncoding2(
                 d_model=d_model,
@@ -221,6 +228,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal = self.embed(audio_signal)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
+        #audio_signal, pos_emb = self.pos_enc2(audio_signal)
         bs, xmax, idim = audio_signal.size()
 
         # Create the self-attention and padding masks

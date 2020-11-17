@@ -396,7 +396,7 @@ class RelPositionMultiHeadAttention2(nn.Module):
         # key and values are ignored
         # query :(qlen, batch)
         w = query.transpose(0, 1)
-        r = pos_emb
+        r = pos_emb.squeeze(0).unsqueeze(1)
 
         qlen, rlen, bsz = w.size(0), r.size(0), w.size(1)
 
@@ -478,7 +478,7 @@ class RelPositionalEncoding2(nn.Module):
     def forward(self, x: torch.Tensor):
         klen = x.size(1)
         # pos_seq = torch.arange(klen - 1, -1, -1.0, device=x.device, dtype=x.dtype)
-        pos_seq = torch.arange(-(klen - 1), (klen - 1), 1.0, device=x.device, dtype=x.dtype)
+        pos_seq = torch.arange(-(klen - 1), (klen - 1) + 1, 1.0, device=x.device, dtype=x.dtype)
         sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
 
@@ -487,4 +487,4 @@ class RelPositionalEncoding2(nn.Module):
         if self.xscale:
             x = x * self.xscale
 
-        return self.dropout(x), pos_emb[:, None, :]
+        return self.dropout(x), pos_emb[None, :, :]
