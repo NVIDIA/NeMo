@@ -638,8 +638,9 @@ def prepare_lr_scheduler(
     return schedule_dict
 
 
-def compute_max_steps(max_epochs, accumulate_grad_batches, limit_train_batches,
-                      num_workers, num_samples, batch_size, drop_last):
+def compute_max_steps(
+    max_epochs, accumulate_grad_batches, limit_train_batches, num_workers, num_samples, batch_size, drop_last
+):
     _round = math.floor if drop_last else math.ceil
 
     sampler_num_samples = math.ceil(num_samples / num_workers)
