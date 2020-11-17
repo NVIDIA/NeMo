@@ -482,6 +482,7 @@ def prepare_lr_scheduler(
             scheduler_args.pop('name', None)
             scheduler_args.pop('t_max_epochs', None)
             scheduler_args.pop('t_accumulate_grad_batches', None)
+            scheduler_args.pop('t_limit_train_batches', None)
             scheduler_args.pop('t_num_workers', None)
             scheduler_args.pop('monitor', None)
             scheduler_args.pop('reduce_on_plateau', None)
@@ -577,6 +578,7 @@ def prepare_lr_scheduler(
         # Get iters_per_batch
         max_epochs = scheduler_config.get('t_max_epochs')
         accumulate_grad_batches = scheduler_config.get('t_accumulate_grad_batches')
+        limit_train_batches = scheduler_config.get('t_limit_train_batches')
         num_workers = scheduler_config.get('t_num_workers')
 
         # Compute effective num max_steps
@@ -585,7 +587,13 @@ def prepare_lr_scheduler(
         drop_last = train_dataloader.drop_last
 
         max_steps = compute_max_steps(
-            max_epochs, accumulate_grad_batches, num_workers, num_samples, batch_size, drop_last,
+            max_epochs=max_epochs,
+            accumulate_grad_batches=accumulate_grad_batches,
+            limit_train_batches=limit_train_batches,
+            num_workers=num_workers,
+            num_samples=num_samples,
+            batch_size=batch_size,
+            drop_last=drop_last,
         )
 
     else:
@@ -630,7 +638,9 @@ def prepare_lr_scheduler(
     return schedule_dict
 
 
-def compute_max_steps(max_epochs, accumulate_grad_batches, num_workers, num_samples, batch_size, drop_last):
+def compute_max_steps(
+    max_epochs, accumulate_grad_batches, limit_train_batches, num_workers, num_samples, batch_size, drop_last
+):
     _round = math.floor if drop_last else math.ceil
 
     sampler_num_samples = math.ceil(num_samples / num_workers)
@@ -643,6 +653,12 @@ def compute_max_steps(max_epochs, accumulate_grad_batches, num_workers, num_samp
         # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
 
     steps_per_epoch = _round(sampler_num_samples / batch_size)
+
+    if isinstance(limit_train_batches, int) or limit_train_batches == 0.0:
+        steps_per_epoch = min(steps_per_epoch, int(limit_train_batches))
+    elif steps_per_epoch != float('inf'):
+        # limit_train_batches is a percentage of batches per epoch
+        steps_per_epoch = int(steps_per_epoch * limit_train_batches)
 
     return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
 
