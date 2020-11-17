@@ -152,14 +152,15 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         if pos_bias_u is None or pos_bias_v is None:
             self.pos_bias_u = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
             self.pos_bias_v = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
-            #nn.init.normal_(self.pos_bias_u, 0.0, 0.02)
-            #nn.init.normal_(self.pos_bias_v, 0.0, 0.02)
+            # nn.init.normal_(self.pos_bias_u, 0.0, 0.02)
+            # nn.init.normal_(self.pos_bias_v, 0.0, 0.02)
             nn.init.zeros_(self.pos_bias_u)
             nn.init.zeros_(self.pos_bias_v)
 
         else:
             self.pos_bias_u = pos_bias_u
             self.pos_bias_v = pos_bias_v
+
     # buggy one
     # def rel_shift(self, x, zero_triu=False):
     #     """Compute relative positinal encoding.
@@ -328,9 +329,6 @@ class RelPositionalEncoding(PositionalEncoding):
         return self.dropout(x), pos_emb
 
 
-
-
-
 # New ones
 class RelPositionMultiHeadAttention2(nn.Module):
     """Multi-Head Attention layer with relative position encoding.
@@ -355,8 +353,8 @@ class RelPositionMultiHeadAttention2(nn.Module):
         if pos_bias_u is None or pos_bias_v is None:
             self.r_r_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
             self.r_w_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
-            #nn.init.normal_(self.r_r_bias, 0.0, 0.02)
-            #nn.init.normal_(self.r_w_bias, 0.0, 0.02)
+            # nn.init.normal_(self.r_r_bias, 0.0, 0.02)
+            # nn.init.normal_(self.r_w_bias, 0.0, 0.02)
             nn.init.zeros_(self.r_r_bias)
             nn.init.zeros_(self.r_w_bias)
         else:
@@ -370,14 +368,14 @@ class RelPositionMultiHeadAttention2(nn.Module):
     def rel_shift(self, x):
         # x: (qlen x klen x bsz x n_head)
         # batch, nheads, time, 2 * time - 1
-        #x = x.permute(2, 3, 0, 1)
+        # x = x.permute(2, 3, 0, 1)
         qlen = x.size(2)
         pos_len = x.size(-1)
         x = x.view(x.size(0), x.size(1), -1)
         x = torch.nn.functional.pad(x, pad=(0, qlen))
         x = x.view(x.size(0), x.size(1), qlen, pos_len + 1)
         x = x[:, :, :, 0:qlen].flip(dims=[-1])
-        #x = x.permute(2, 3, 0, 1)
+        # x = x.permute(2, 3, 0, 1)
         return x
         # buggy code
         # zero_pad_shape = (x.size(0), 1) + x.size()[2:]
@@ -417,12 +415,12 @@ class RelPositionMultiHeadAttention2(nn.Module):
 
         # compute attention score
         rw_head_q = w_head_q + self.r_w_bias  # qlen x bsz x n_head x d_head
-        #AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))  # qlen x klen x bsz x n_head
+        # AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))  # qlen x klen x bsz x n_head
         AC = torch.einsum("ibnd,jbnd->bnij", (rw_head_q, w_head_k))  # bsz x n_head x qlen x klen
 
         rr_head_q = w_head_q + self.r_r_bias
-        #BD = torch.einsum("ibnd,jnd->ijbn", (rr_head_q, r_head_k))  # qlen x klen x bsz x n_head
-        BD = torch.einsum('ibnd,jnd->bnij', (rr_head_q, r_head_k))     # bsz x n_head x qlen x klen
+        # BD = torch.einsum("ibnd,jnd->ijbn", (rr_head_q, r_head_k))  # qlen x klen x bsz x n_head
+        BD = torch.einsum('ibnd,jnd->bnij', (rr_head_q, r_head_k))  # bsz x n_head x qlen x klen
 
         BD = self.rel_shift(BD)
 
@@ -431,9 +429,9 @@ class RelPositionMultiHeadAttention2(nn.Module):
         attn_score = AC + BD
         attn_score.mul_(self.scale)
 
-        #attn_mask = mask.transpose(0, 2)
+        # attn_mask = mask.transpose(0, 2)
 
-        #attn_score = attn_score.float().masked_fill(attn_mask[:, :, :, None], -1e30).type_as(attn_score)
+        # attn_score = attn_score.float().masked_fill(attn_mask[:, :, :, None], -1e30).type_as(attn_score)
         if attn_score.dtype == torch.float16:
             dtype = np.float16
         else:
@@ -442,20 +440,20 @@ class RelPositionMultiHeadAttention2(nn.Module):
 
         attn_score = attn_score.masked_fill(mask[:, None, :, :], min_value)
 
-        #attn_prob = F.softmax(attn_score, dim=1)
+        # attn_prob = F.softmax(attn_score, dim=1)
         attn_prob = F.softmax(attn_score, dim=-1).masked_fill(mask[:, None, :, :], 0.0)
 
         attn_prob = self.dropout(attn_prob)
 
-        #attn_vec = torch.einsum("ijbn,jbnd->ibnd", (attn_prob, w_head_v))
+        # attn_vec = torch.einsum("ijbn,jbnd->ibnd", (attn_prob, w_head_v))
         attn_vec = torch.einsum("bnij,jbnd->bind", (attn_prob, w_head_v))
 
-        #attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
+        # attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
         attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
 
         attn_out = self.o_net(attn_vec)
 
-        #attn_out = attn_out.transpose(0, 1).contiguous()
+        # attn_out = attn_out.transpose(0, 1).contiguous()
         return attn_out
 
 
@@ -479,7 +477,7 @@ class RelPositionalEncoding2(nn.Module):
 
     def forward(self, x: torch.Tensor):
         klen = x.size(1)
-        #pos_seq = torch.arange(klen - 1, -1, -1.0, device=x.device, dtype=x.dtype)
+        # pos_seq = torch.arange(klen - 1, -1, -1.0, device=x.device, dtype=x.dtype)
         pos_seq = torch.arange(-(klen - 1), (klen - 1), 1.0, device=x.device, dtype=x.dtype)
         sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)

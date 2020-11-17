@@ -156,8 +156,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_v = nn.Parameter(torch.Tensor(n_heads, d_head))
             nn.init.zeros_(pos_bias_u)
             nn.init.zeros_(pos_bias_v)
-            #nn.init.normal_(pos_bias_u, 0.0, 0.02)
-            #nn.init.normal_(pos_bias_v, 0.0, 0.02)
+            # nn.init.normal_(pos_bias_u, 0.0, 0.02)
+            # nn.init.normal_(pos_bias_v, 0.0, 0.02)
             # torch.nn.init.xavier_uniform_(self.pos_bias_u)
             # torch.nn.init.xavier_uniform_(self.pos_bias_v)
         else:
