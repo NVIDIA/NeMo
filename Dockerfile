@@ -27,6 +27,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y \
     libsndfile1 sox \
+    libfreetype6 \
     python-setuptools swig \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
@@ -53,7 +54,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.0.0b1
+ARG NEMO_VERSION=1.0.0b2
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
