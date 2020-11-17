@@ -749,7 +749,10 @@ class TestOptimizersSchedulers:
         for _ in range(5):
             drop_last = bool(random.randint(0, 1))
             accumulate_grad_batches = random.randint(1, 10)
-            limit_train_batches = random.randint(1, 10)
+
+            limit_train_batches_int = random.randint(1, 10)
+            limit_train_batches_float = random.uniform(0, 1)
+            limit_train_batches = random.choice([limit_train_batches_int, limit_train_batches_float])
             max_epochs = random.randint(4, 20)
             num_processes = random.randint(1, 5)
             dataset_len = random.randint(20, num_processes * 500)
