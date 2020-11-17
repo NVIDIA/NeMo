@@ -68,7 +68,7 @@ class TextClassificationModel(NLPModel, Exportable):
             hidden_size=self.bert_model.config.hidden_size,
             num_classes=cfg.dataset.num_classes,
             num_layers=cfg.classifier_head.num_output_layers,
-            activation='relu',
+            activation=cfg.classifier_head.activation,
             log_softmax=False,
             dropout=cfg.classifier_head.fc_dropout,
             use_transformer_init=True,
