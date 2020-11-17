@@ -111,6 +111,13 @@ model:
       monitor: val_loss
       reduce_on_plateau: false
 
+  # List of some sample queries for inference after training is done
+  infer_samples: [
+    'by the end of no such thing the audience , like beatrice , has a watchful affection for the monster .',
+    'director rob marshall went out gunning to make a great one .',
+    'uneasy mishmash of styles and genres .',
+  ]
+
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: "TextClassification"  # The name of your model
