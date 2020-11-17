@@ -733,7 +733,7 @@ class TestOptimizersSchedulers:
         train(31, accumulate_grad_batches=1, limit_train_batches=1.0,
               num_processes=9, batch_size=60, dataset_len=1613, drop_last=True)
 
-        for _ in range(1):
+        for _ in range(5):
             drop_last = bool(random.randint(0, 1))
             accumulate_grad_batches = random.randint(1, 10)
             limit_train_batches = random.randint(1, 10)
