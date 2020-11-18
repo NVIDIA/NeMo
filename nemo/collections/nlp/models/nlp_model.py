@@ -82,15 +82,18 @@ class NLPModel(ModelPT):
 
     def register_tokenizer(self, vocab_dict_config_path: str = 'tokenizer.vocab_file'):
         vocab_json_src = os.path.join(NEMO_NLP_TMP, 'tokenizer_vocab_dict.json')
-        if isinstance(self.tokenizer, AutoTokenizer):
-            vocab_dict = self.tokenizer.tokenizer.get_vocab()
-            with open(vocab_json_src, 'w', encoding='utf-8') as f:
-                f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
-            self.register_artifact(vocab_dict_config_path, vocab_json_src)
+        if self.tokenizer is None:
+            raise ValueError('Instantiate self.tokenizer before registering it.')
         else:
-            logging.info(
-                f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
-            )
+            if isinstance(self.tokenizer, AutoTokenizer):
+                vocab_dict = self.tokenizer.tokenizer.get_vocab()
+                with open(vocab_json_src, 'w', encoding='utf-8') as f:
+                    f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
+                self.register_artifact(vocab_dict_config_path, vocab_json_src)
+            else:
+                logging.info(
+                    f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
+                )
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Override for LightningModule DDP initialization.
