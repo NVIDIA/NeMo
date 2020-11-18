@@ -102,13 +102,13 @@ class NLPModel(ModelPT):
                 vocab_dict = self.tokenizer.tokenizer.vocab
                 with open(vocab_json_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
-                self.register_artifact(vocab_dict_config_path, vocab_json_src)
+                self.register_artifact(config_path=vocab_dict_config_path, src=vocab_json_src)
                 # create vocab file
                 vocab_file_src = os.path.join(NEMO_NLP_TMP, vocab_file_config_path)
                 with open(vocab_file_src, 'w', encoding='utf-8') as f:
                     for key in vocab_dict:
                         f.write(key + '\n')
-                self.register_artifact(config_path=vocab_file_config_path, src=cfg.vocab_file)
+                self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
                 logging.info(
                     f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
