@@ -37,6 +37,7 @@ our experiments in Appendix A."""
 # Very WIP.
 # Hyperparams hard-coded for now to the best of my understanding
 
+
 @experimental
 class Encoder(NeuralModule):
     def __init__(self):
@@ -47,7 +48,7 @@ class Encoder(NeuralModule):
 
         Args:
         """
-        #TODO: documentation of params
+        # TODO: documentation of params
         super().__init__()
 
         self.encoder = fastspeech2_modules.FFTransformer(
@@ -58,16 +59,13 @@ class Encoder(NeuralModule):
             d_inner=1024,
             kernel_size=(9, 1),
             dropout=0.2,
-            dropatt=0.1,    #??? Not sure if this is right, don't see it in paper
-            embed_input=True    # For the encoder, need to do embedding lookup
+            dropatt=0.1,  # ??? Not sure if this is right, don't see it in paper
+            embed_input=True,  # For the encoder, need to do embedding lookup
         )
 
     @property
     def input_types(self):  # phonemes
-        return {
-            "text": NeuralType(('B', 'T'), TokenIndex()),
-            "text_lengths": NeuralType(('B'), LengthsType())
-        }
+        return {"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())}
 
     @property
     def output_types(self):
@@ -89,52 +87,40 @@ class VarianceAdaptor(NeuralModuel):
 
         Args:
         """
-        #TODO: documentation of params
+        # TODO: documentation of params
         super().__init__()
-        #TODO: need to set all the other default min/max params - based on dataset?
+        # TODO: need to set all the other default min/max params - based on dataset?
 
         """In the variance predictor, the kernel sizes of the
         1D-convolution are set to 3, with input/output sizes of 256/256 for both layers and the dropout rate
         is set to 0.5."""
         # -- Duration Setup --
-        #TODO: what should this max duration be? should this be set at all?
-        self.max_duration = max_duration    
+        # TODO: what should this max duration be? should this be set at all?
+        self.max_duration = max_duration
         self.duration_predictor = fastspeech2_modules.VariancePredictor(
-            d_model=256,
-            d_inner=256,
-            kernel_size=3,
-            dropout=0.5
+            d_model=256, d_inner=256, kernel_size=3, dropout=0.5
         )
         self.length_regulator = fastspeech2_modules.LengthRegulator()
 
         # -- Pitch Setup --
-        self.register_buffer(   # Log scale bins
+        self.register_buffer(  # Log scale bins
             "pitch_bins",
-            torch.exp(
-                torch.linspace(start=np.log(pitch_min), end=np.log(pitch_max), steps=255)   # n_f0_bins - 1
-            )
+            torch.exp(torch.linspace(start=np.log(pitch_min), end=np.log(pitch_max), steps=255)),  # n_f0_bins - 1
         )
         self.pitch_predictor = fastspeech2_modules.VariancePredictor(
-            d_model=256,    # va_hidden_size
-            d_inner=256,    # n_f0_bins
-            kernel_size=3,
-            dropout=0.5
+            d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size  # n_f0_bins
         )
         # Predictor outputs values directly rather than one-hot vectors, therefore Embedding
-        self.pitch_lookup = nn.Embedding(256, 256) # f0_bins, va_hidden_size
+        self.pitch_lookup = nn.Embedding(256, 256)  # f0_bins, va_hidden_size
 
         # -- Energy Setup --
-        self.register_buffer(    # Linear scale bins
-            "energy_bins",
-            torch.linspace(start=energy_min, end=energy_max, steps=255)     # n_energy_bins - 1
+        self.register_buffer(  # Linear scale bins
+            "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=255)  # n_energy_bins - 1
         )
         self.energy_predictor = fastspeech2_modules.VariancePredictor(
-            d_model=256,    # va_hidden_size
-            d_inner=256,    # n_energy_bins
-            kernel_size=3,
-            dropout=0.5
+            d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size, n_energy_bins, kernel size, dropout
         )
-        self.energy_lookup = nn.Embedding(256, 256) # n_energy_bins, va_hidden_size
+        self.energy_lookup = nn.Embedding(256, 256)  # n_energy_bins, va_hidden_size
 
     @property
     def input_types(self):
@@ -155,8 +141,8 @@ class VarianceAdaptor(NeuralModuel):
         Args:
             dur_target: Needs to be passed in during training. Duration targets for the duration predictor.
         """
-        #TODO: no_grad instead of self.training?
-        #TODO: or maybe condition on a new parameter like is_inference?
+        # TODO: no_grad instead of self.training?
+        # TODO: or maybe condition on a new parameter like is_inference?
 
         # Duration predictions (or ground truth) fed into Length Regulator to
         # expand the hidden states of the encoder embedding
@@ -199,24 +185,24 @@ class MelSpecDecoder(NeuralModule):
         self.decoder = fastspeech2_modules.FFTransformer(
             n_layer=4,
             n_head=2,
-            d_model=384,    # Some paragraphs say 256, the table in the appendix says 384
+            d_model=384,  # Some paragraphs say 256, the table in the appendix says 384
             d_head=384,
             d_inner=1024,
             kernel_size=(9, 1),
             dropout=0.2,
-            dropatt=0.1,    #??? Not mentioned? Or am I just blind?
-            embed_input=False
+            dropatt=0.1,  # ??? Not mentioned? Or am I just blind?
+            embed_input=False,
         )
         self.linear = nn.Linear(384, 80)
 
     @property
     def input_types(self):
-        #TODO
+        # TODO
         pass
 
     @property
     def output_types(self):
-        #TODO
+        # TODO
         pass
 
     @typecheck()
@@ -289,12 +275,12 @@ class WaveformDecoder(NeuralModule):
 
     @property
     def input_types(self):
-        #TODO
+        # TODO
         pass
 
     @property
     def output_types(self):
-        #TODO
+        # TODO
         pass
 
     @typecheck()

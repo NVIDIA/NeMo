@@ -53,7 +53,8 @@ class PositionwiseFF(nn.Module):
         self.dropout = dropout
 
         self.CoreNet = nn.Sequential(
-            nn.Linear(d_model, d_inner), nn.ReLU(),
+            nn.Linear(d_model, d_inner),
+            nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(d_inner, d_model),
             nn.Dropout(dropout),
@@ -122,8 +123,7 @@ class PositionwiseConvFF(nn.Module):
 
 
 class MultiHeadAttn(nn.Module):
-    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1,
-                 pre_lnorm=False):
+    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1, pre_lnorm=False):
         super(MultiHeadAttn, self).__init__()
 
         self.n_head = n_head
@@ -172,8 +172,7 @@ class MultiHeadAttn(nn.Module):
         attn_vec = torch.bmm(attn_prob, v)
 
         attn_vec = attn_vec.view(n_head, inp.size(0), inp.size(1), d_head)
-        attn_vec = attn_vec.permute(1, 2, 0, 3).contiguous().view(
-            inp.size(0), inp.size(1), n_head * d_head)
+        attn_vec = attn_vec.permute(1, 2, 0, 3).contiguous().view(inp.size(0), inp.size(1), n_head * d_head)
 
         # linear projection
         attn_out = self.o_net(attn_vec)
@@ -217,11 +216,10 @@ class MultiHeadAttn(nn.Module):
         attn_prob = F.softmax(attn_score, dim=3)
         attn_prob = self.dropatt(attn_prob)
 
-        # [bsz x n_head x qlen x klen] * [klen x bsz x n_head x d_head] 
+        # [bsz x n_head x qlen x klen] * [klen x bsz x n_head x d_head]
         #     -> [qlen x bsz x n_head x d_head]
         attn_vec = torch.einsum('bnij,bjnd->bind', (attn_prob, head_v))
-        attn_vec = attn_vec.contiguous().view(
-            attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
+        attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
 
         # linear projection
         attn_out = self.o_net(attn_vec)
@@ -238,13 +236,11 @@ class MultiHeadAttn(nn.Module):
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout,
-                 **kwargs):
+    def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout, **kwargs):
         super(TransformerLayer, self).__init__()
 
         self.dec_attn = MultiHeadAttn(n_head, d_model, d_head, dropout, **kwargs)
-        self.pos_ff = PositionwiseConvFF(d_model, d_inner, kernel_size, dropout,
-                                         pre_lnorm=kwargs.get('pre_lnorm'))
+        self.pos_ff = PositionwiseConvFF(d_model, d_inner, kernel_size, dropout, pre_lnorm=kwargs.get('pre_lnorm'))
 
     def forward(self, dec_inp, mask=None):
         output = self.dec_attn(dec_inp, attn_mask=~mask.squeeze(2))
@@ -255,17 +251,28 @@ class TransformerLayer(nn.Module):
 
 
 class FFTransformer(nn.Module):
-    def __init__(self, n_layer, n_head, d_model, d_head, d_inner, kernel_size,
-                 dropout, dropatt, dropemb=0.0, embed_input=True, d_embed=None,
-                 pre_lnorm=False):
+    def __init__(
+        self,
+        n_layer,
+        n_head,
+        d_model,
+        d_head,
+        d_inner,
+        kernel_size,
+        dropout,
+        dropatt,
+        dropemb=0.0,
+        embed_input=True,
+        d_embed=None,
+        pre_lnorm=False,
+    ):
         super(FFTransformer, self).__init__()
         self.d_model = d_model
         self.n_head = n_head
         self.d_head = d_head
 
         if embed_input:
-            self.word_emb = nn.Embedding(len(symbols), d_embed or d_model,
-                                         padding_idx=pad_idx)
+            self.word_emb = nn.Embedding(len(symbols), d_embed or d_model, padding_idx=pad_idx)
         else:
             self.word_emb = None
 
@@ -276,8 +283,8 @@ class FFTransformer(nn.Module):
         for _ in range(n_layer):
             self.layers.append(
                 TransformerLayer(
-                    n_head, d_model, d_head, d_inner, kernel_size, dropout,
-                    dropatt=dropatt, pre_lnorm=pre_lnorm)
+                    n_head, d_model, d_head, d_inner, kernel_size, dropout, dropatt=dropatt, pre_lnorm=pre_lnorm
+                )
             )
 
     def forward(self, dec_inp, seq_lens=None):
@@ -318,7 +325,7 @@ class VariancePredictor(nn.Module):
             nn.ReLu(),
             nn.LayerNorm(d_inner),
             nn.Dropout(dropout),
-            nn.Linear(d_inner, 1)
+            nn.Linear(d_inner, 1),
         )
 
     def forward(self, vp_input):
@@ -343,9 +350,7 @@ class LengthRegulator(nn.Module):
         out_list = []
         for x, d in zip(hiddens, durations):
             # For frame i of a single batch element x, repeats each the frame d[i] times.
-            repeated = torch.cat(
-                [x[i].repeat(d[i], 1) for i in range(d.numel()) if d[i] != 0]
-            )
+            repeated = torch.cat([x[i].repeat(d[i], 1) for i in range(d.numel()) if d[i] != 0])
             repeated = F.pad(repeated, (0, 0, 0, max_len - repeated.shape[0]), "constant", value=0.0)
             out_list.append(repeated)
 
@@ -369,27 +374,21 @@ class DilatedResidualConvBlock(nn.Module):
             out_channels=(2 * self.n_channels),
             kernel_size=kernel_size,
             dilation=dilation,
-            padding=padding
+            padding=padding,
         )
 
         # Pointwise conv for residual
         self.pointwise_conv_residual = nn.Conv1d(
-            in_channels=self.n_channels,
-            out_channels=residual_channels,
-            kernel_size=1
+            in_channels=self.n_channels, out_channels=residual_channels, kernel_size=1
         )
 
         # Pointwise conv for skip connection (this is separate from resids but not mentioned in the WaveNet paper)
-        self.pointwise_conv_skip = nn.Conv1d(
-            in_channels=self.n_channels,
-            out_channels=skip_channels,
-            kernel_size=1
-        )
+        self.pointwise_conv_skip = nn.Conv1d(in_channels=self.n_channels, out_channels=skip_channels, kernel_size=1)
 
     def forward(self, x):
         residual = x
         out = self.dilated_conv(x)
-        out = nn.tanh(out[:, :self.n_channels, :]) * torch.sigmoid(out[:, self.n_channels:, :])
+        out = nn.tanh(out[:, : self.n_channels, :]) * torch.sigmoid(out[:, self.n_channels :, :])
 
         # Skip connection
         skip_out = self.pointwise_conv_skip(out)
@@ -400,7 +399,7 @@ class DilatedResidualConvBlock(nn.Module):
         return skip_out, out
 
 
-def WaveformGenerator(nn.Module):
+class WaveformGenerator(nn.Module):
     def __init__(
         self,
         in_channels=256,
@@ -416,7 +415,7 @@ def WaveformGenerator(nn.Module):
         """
         Waveform generator for FastSpeech 2s, based on WaveNet and Parallel WaveGAN.
         """
-        #TODO: weight norm to all conv layers
+        # TODO: weight norm to all conv layers
 
         if n_layers // dilation_cycle != 0:
             logging.error(
@@ -427,13 +426,10 @@ def WaveformGenerator(nn.Module):
         self.n_layers = n_layers
 
         # Transposed 1D convolution to upsample slices of hidden reps to a longer audio length
-        #TODO: double-check transposed conv args. -- kernel size in particular.
+        # TODO: double-check transposed conv args. -- kernel size in particular.
         #       The FastSpeech 2 paper says "filter size 64," Huihan's repo uses kernel_size=3.
         self.transposed_conv = nn.ConvTranspose1d(
-            in_channels=in_channels,
-            out_channels=residual_channels,
-            kernel_size=trans_kernel_size,
-            stride=hop_size,
+            in_channels=in_channels, out_channels=residual_channels, kernel_size=trans_kernel_size, stride=hop_size,
         )
 
         # Repeated dilated residual convolution blocks
@@ -446,17 +442,17 @@ def WaveformGenerator(nn.Module):
                     residual_channels=residual_channels,
                     skip_channels=skip_channels,
                     dilation=dilation,
-                    kernel_size=dilated_kernel_size
+                    kernel_size=dilated_kernel_size,
                 )
             )
             # Increase dilation by a factor of 2 every {dilation_cycle}-layers.
-            if (i+1) % dilation_cycle == 0:
+            if (i + 1) % dilation_cycle == 0:
                 dilation *= 2
 
         # Output activations and pointwise convolutions
         self.out_layers = nn.Sequential(
             nn.ReLU(),
-            nn.Conv1d(skip_channels, skip_channels, kernel_size=1),    #TODO: output dim here is a guess.
+            nn.Conv1d(skip_channels, skip_channels, kernel_size=1),  # TODO: output dim here is a guess.
             nn.ReLU(),
             nn.Conv1D(skip_channels, out_channels, kernel_size=1),
         )
@@ -470,7 +466,7 @@ def WaveformGenerator(nn.Module):
         for i in range(self.n_layers):
             skip_out, x = self.dilated_res_conv_blocks[i](x)
             skip_outs += skip_out
-        skip_outs *= torch.sqrt(1. / self.n_layers)
+        skip_outs *= torch.sqrt(1.0 / self.n_layers)
 
         # Output layers
         out = self.out_layers(skip_outs)
@@ -493,9 +489,9 @@ class WaveformDiscriminator(nn.Module):
         relu_alpha=0.2,
     ):
         """
-        Waveform discriminator for FastSpeech 2s, based on Parallel WaveGAN.
-        """
-        #TODO: weight norm to all conv layers
+       Waveform discriminator for FastSpeech 2s, based on Parallel WaveGAN.
+       """
+        # TODO: weight norm to all conv layers
 
         # Layers of non-causal dilated 1D convolutions and leaky ReLU
         self.layers = nn.ModuleList()
@@ -526,8 +522,8 @@ class WaveformDiscriminator(nn.Module):
             nn.Conv1d(
                 in_channels=prev_channels,
                 out_channels=out_channels,
-                kernel_size=kernel_size,            #TODO: dilation=1 or (n_layers-2)?
-                padding=int((kernel_size - 1)/2),
+                kernel_size=kernel_size,  # TODO: dilation=1 or (n_layers-2)?
+                padding=int((kernel_size - 1) / 2),
             )
         )
 
