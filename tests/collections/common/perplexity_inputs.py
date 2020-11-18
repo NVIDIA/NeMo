@@ -32,7 +32,6 @@ import torch
 
 from .pl_utils import BATCH_SIZE, NUM_BATCHES, NUM_CLASSES
 
-
 Input = namedtuple('Input', ["probs", "logits"])
 
 
