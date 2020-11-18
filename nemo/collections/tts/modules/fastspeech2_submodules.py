@@ -399,6 +399,15 @@ class DilatedResidualConvBlock(nn.Module):
         return skip_out, out
 
 
+def _conv_weight_norm(module):
+    """
+    Function to apply weight norm to only convolutional layers in the waveform decoder.
+    """
+    # TODO: Should convtranspose1d also be included?
+    if isinstance(module, nn.Conv1d) or isinstance(module, nn.ConvTranspose1d):
+        nn.utils.weight_norm(module)
+
+
 class WaveformGenerator(nn.Module):
     def __init__(
         self,
@@ -415,8 +424,6 @@ class WaveformGenerator(nn.Module):
         """
         Waveform generator for FastSpeech 2s, based on WaveNet and Parallel WaveGAN.
         """
-        # TODO: weight norm to all conv layers
-
         if n_layers // dilation_cycle != 0:
             logging.error(
                 f"Number of layers in dilated residual convolution blocks should be divisible by dilation cycle."
@@ -457,6 +464,9 @@ class WaveformGenerator(nn.Module):
             nn.Conv1D(skip_channels, out_channels, kernel_size=1),
         )
 
+        # Apply weight norm to conv layers
+        self.apply(_conv_weight_norm)
+
     def forward(self, x, use_softmax=False):
         # Expand via upsampling
         x = self.transposed_conv(x)
@@ -491,8 +501,6 @@ class WaveformDiscriminator(nn.Module):
         """
        Waveform discriminator for FastSpeech 2s, based on Parallel WaveGAN.
        """
-        # TODO: weight norm to all conv layers
-
         # Layers of non-causal dilated 1D convolutions and leaky ReLU
         self.layers = nn.ModuleList()
         prev_channels = in_channels
@@ -526,6 +534,9 @@ class WaveformDiscriminator(nn.Module):
                 padding=int((kernel_size - 1) / 2),
             )
         )
+
+        # Apply weight norm to conv layers
+        self.apply(_conv_weight_norm)
 
         def forward(self, x):
             for layer in self.layers:
