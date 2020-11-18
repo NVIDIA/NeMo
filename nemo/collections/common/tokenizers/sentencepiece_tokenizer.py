@@ -248,5 +248,5 @@ def create_spt_model(
     vocab_file = f'{output_dir}/vocab.txt'
     with open(vocab_file, "w") as f:
         for token in vocab:
-            f.write(f"{token}\n".format())
+            f.write(f"{token}\n")
     return f'{output_dir}/tokenizer.model', vocab_file
