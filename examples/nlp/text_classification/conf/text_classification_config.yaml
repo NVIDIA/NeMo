@@ -15,7 +15,7 @@
 # Config file for text classification with pre-trained BERT models
 
 trainer:
-  gpus: 1 # number of GPUs  (0 for CPU), or list of the GPUs to use e.g. [0, 1]
+  gpus: 1 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
   num_nodes: 1
   max_epochs: 100
   max_steps: null # precedence over max_epochs
@@ -123,10 +123,3 @@ exp_manager:
   name: "TextClassification"  # The name of your model
   create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null
