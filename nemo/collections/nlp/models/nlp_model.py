@@ -46,6 +46,7 @@ class NLPModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
         self.bert_model = None  # Pretrained BERT encoder
+
         self.set_world_size(trainer)
 
     @rank_zero_only
@@ -79,27 +80,41 @@ class NLPModel(ModelPT):
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
-            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
+            vocab_file=cfg.vocab_file,
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
+            tokenizer_model=cfg.tokenizer_model,
         )
         self.tokenizer = tokenizer
-        self.register_tokenizer()
+        self.register_tokenizer(cfg)
 
-    def register_tokenizer(self, vocab_dict_config_path: str = 'tokenizer.vocab_file'):
-        vocab_json_src = os.path.join(NEMO_NLP_TMP, 'tokenizer_vocab_dict.json')
+    @rank_zero_only
+    def register_tokenizer(self, cfg: DictConfig):
+        vocab_file_config_path = 'tokenizer.vocab_file'
+        vocab_dict_config_path = 'tokenizer_vocab_dict.json'
         if self.tokenizer is None:
             raise ValueError('Instantiate self.tokenizer before registering it.')
         else:
-            if isinstance(self.tokenizer, AutoTokenizer):
-                vocab_dict = self.tokenizer.tokenizer.get_vocab()
+            if cfg.vocab_file is not None:
+                self.register_artifact(config_path=vocab_file_config_path, src=cfg.vocab_file)
+            elif isinstance(self.tokenizer, AutoTokenizer):
+                # extract vocab from tokenizer
+                vocab_json_src = os.path.join(NEMO_NLP_TMP, vocab_dict_config_path)
+                vocab_dict = self.tokenizer.tokenizer.vocab
                 with open(vocab_json_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
                 self.register_artifact(vocab_dict_config_path, vocab_json_src)
+                # create vocab file
+                vocab_file_src = os.path.join(NEMO_NLP_TMP, vocab_file_config_path)
+                with open(vocab_file_src, 'w', encoding='utf-8') as f:
+                    for key in vocab_dict:
+                        f.write(key + '\n')
+                self.register_artifact(config_path=vocab_file_config_path, src=cfg.vocab_file)
             else:
                 logging.info(
                     f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
                 )
+            if cfg.tokenizer_model is not None:
+                self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model)
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Override for LightningModule DDP initialization.
