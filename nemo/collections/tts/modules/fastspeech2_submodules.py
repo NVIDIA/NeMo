@@ -405,7 +405,7 @@ def WaveformGenerator(nn.Module):
         self,
         in_channels=256,
         out_channels=256,
-        trans_kernel_size=64
+        trans_kernel_size=64,
         n_layers=30,
         dilation_cycle=3,
         dilated_kernel_size=3,
@@ -413,8 +413,10 @@ def WaveformGenerator(nn.Module):
         skip_channels=64,
     ):
         """
-        Waveform generator based on WaveNet and Parallel WaveGAN.
+        Waveform generator for FastSpeech 2s, based on WaveNet and Parallel WaveGAN.
         """
+        #TODO: weight norm to all conv layers
+
         if n_layers // dilation_cycle != 0:
             logging.error(
                 f"Number of layers in dilated residual convolution blocks should be divisible by dilation cycle."
@@ -476,3 +478,58 @@ def WaveformGenerator(nn.Module):
 
         return out
 
+
+class WaveformDiscriminator(nn.Module):
+    def __init__(
+        self,
+        in_channels=256,
+        out_channels=1,
+        n_layers=10,
+        kernel_size=3,
+        conv_channels=64,
+        conv_stride=1,
+        relu_alpha=0.2,
+    ):
+        """
+        Waveform discriminator for FastSpeech 2s, based on Parallel WaveGAN.
+        """
+        #TODO: weight norm to all conv layers
+
+        # Layers of non-causal dilated 1D convolutions and leaky ReLU
+        self.layers = nn.ModuleList()
+        prev_channels = in_channels
+        channels = conv_channels
+
+        for i in range(n_layers - 1):
+            # Dilated 1D conv
+            dilation = i if i > 0 else 1
+            padding = int((kernel_size * dilation - dilation) / 2)
+            self.layers.append(
+                nn.Conv1d(
+                    in_channels=prev_channels,
+                    out_channels=channels,
+                    kernel_size=kernel_size,
+                    dilation=dilation,
+                    padding=padding,
+                    stride=conv_stride,
+                )
+            )
+            prev_channels = channels
+
+            # Leaky ReLU
+            self.layers.append(nn.LeakyReLU(negative_slope=relu_alpha, inplace=True))
+
+        # Last layer
+        self.layer.append(
+            nn.Conv1d(
+                in_channels=prev_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,            #TODO: dilation=1 or (n_layers-2)?
+                padding=int((kernel_size - 1)/2),
+            )
+        )
+
+        def forward(self, x):
+            for layer in self.layers:
+                x = layer(x)
+            return x
