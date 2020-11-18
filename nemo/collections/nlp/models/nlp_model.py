@@ -49,22 +49,22 @@ class NLPModel(ModelPT):
         self.set_world_size(trainer)
 
     @rank_zero_only
-    def register_bert_model(self):
+    def register_bert_model(self, encoder_config_path='encoder_config.json'):
         # check if there is an encoder, warn if not
         if self.bert_model is None:
             raise ValueError('Instantiate self.bert_model before registering it.')
         else:
-            config_json_path = os.path.join(NEMO_NLP_TMP, 'nn_config.json')
-            # get encoder config
+            # get encoder config and create source for artifact
+            encoder_config_src = os.path.join(NEMO_NLP_TMP, 'encoder_config.json')
             if isinstance(self.bert_model, BertEncoder):
                 # HuggingFace Transformer Config
-                self.bert_model.config.to_json_file(config_json_path)  # name requested by jarvis team
-                self.register_artifact('nn_config.json', config_json_path)
+                self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
+                self.register_artifact(encoder_config_path, encoder_config_src)
             elif isinstance(self.bert_model, MegatronBertEncoder):
                 config_for_json = OmegaConf.to_container(self.bert_model.config)
-                with open('nn_config.json', 'w', encoding='utf-8') as f:
+                with open(encoder_config_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
-                self.register_artifact('nn_config.json', config_json_path)
+                self.register_artifact(encoder_config_path, encoder_config_src)
             else:
                 logging.info(
                     f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
@@ -78,12 +78,15 @@ class NLPModel(ModelPT):
             tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
         )
         self.tokenizer = tokenizer
-        vocab_json_path = os.path.join(NEMO_NLP_TMP, 'tokenizer_vocab.json')
+        self.register_tokenizer()
+
+    def register_tokenizer(self, vocab_dict_config_path: str = 'tokenizer.vocab_file'):
+        vocab_json_src = os.path.join(NEMO_NLP_TMP, 'tokenizer_vocab_dict.json')
         if isinstance(self.tokenizer, AutoTokenizer):
             vocab_dict = self.tokenizer.tokenizer.get_vocab()
-            with open(vocab_json_path, 'w', encoding='utf-8') as f:
+            with open(vocab_json_src, 'w', encoding='utf-8') as f:
                 f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
-            self.register_artifact('tokenizer_vocab.json', vocab_json_path)
+            self.register_artifact(vocab_dict_config_path, vocab_json_src)
         else:
             logging.info(
                 f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
