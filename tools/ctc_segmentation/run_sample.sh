@@ -42,19 +42,19 @@ fi
 # STEP #1
 # Prepare text and audio data for segmentation
 python $SCRIPTS_DIR/prepare_data.py \
---in_text=$DATA_DIR \
+--in_text=$DATA_DIR/text \
 --output_dir=$OUTPUT_DIR/processed/ \
 --language=$LANGUAGE \
 --cut_prefix=$CUT_PREFIX \
 --model=$MODEL_NAME_OR_PATH \
---audio_dir=$DATA_DIR || exit
+--audio_dir=$DATA_DIR/audio || exit
 
 # STEP #2
 # Run CTC-segmenatation
 # one might want to perform alignment with various window sizes
 # note if the alignment with the initial window size isn't found, the window size will be double to re-attempt
 # alignment
-for WINDOW in 8000 12000
+for WINDOW in 8000 10000 12000
 do
   python $SCRIPTS_DIR/run_ctc_segmentation.py \
   --output_dir=$OUTPUT_DIR \

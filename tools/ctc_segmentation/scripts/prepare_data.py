@@ -116,12 +116,15 @@ def split_text(
         .replace("\\", "")
         .replace("”", "")
         .replace("„", "")
+        .replace("´", "")
     )
     # remove extra space
     transcript = re.sub(r' +', ' ', transcript)
 
     if remove_square_brackets:
         transcript = re.sub(r'(\[.*?\])', ' ', transcript)
+        # remove text in curly brackets
+        transcript = re.sub(r'(\{.*?\})', ' ', transcript)
 
     # Read and split transcript by utterance (roughly, sentences)
     split_pattern = "(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<![A-Z]\.)(?<=\.|\?|\!)\s"
