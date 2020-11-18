@@ -163,7 +163,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
     # buggy one
     # def rel_shift(self, x, zero_triu=False):
-    #     """Compute relative positinal encoding.
+    #     """Compute relative positional encoding.
     #     Args:
     #         x (torch.Tensor): (batch, time, size)
     #         zero_triu (bool): return the lower triangular part of the matrix
@@ -184,7 +184,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
     #     return x
 
     def rel_shift(self, x):
-        """Compute relative positinal encoding.
+        """Compute relative positional encoding.
         Args:
             x (torch.Tensor): (batch, nheads, time, 2*time-1)
         """
@@ -343,26 +343,39 @@ class RelPositionMultiHeadAttention2(nn.Module):
         """Construct an RelPositionMultiHeadedAttention object."""
         super().__init__()
 
+        # self.d_k = n_feat // n_head
+        # self.h = n_head
+        # self.linear_q = nn.Linear(n_feat, n_feat)
+        # self.linear_k = nn.Linear(n_feat, n_feat)
+        # self.linear_v = nn.Linear(n_feat, n_feat)
+        # self.linear_out = nn.Linear(n_feat, n_feat)
+        # self.attn = None
+        # self.dropout = nn.Dropout(p=dropout_rate)
+
         # linear transformation for positional encoding
-        self.d_head = n_feat // n_head
-        self.n_head = n_head
+        self.d_k = n_feat // n_head
+        self.h = n_head
         self.d_model = n_feat
-        self.qkv_net = nn.Linear(n_feat, 3 * n_head * self.d_head, bias=False)
-        self.o_net = nn.Linear(n_head * self.d_head, n_feat, bias=False)
+        #self.qkv_net = nn.Linear(n_feat, 3 * n_head * self.d_k, bias=False)
+        self.linear_q = nn.Linear(n_feat, n_feat)
+        self.linear_k = nn.Linear(n_feat, n_feat)
+        self.linear_v = nn.Linear(n_feat, n_feat)
+
+        self.linear_out = nn.Linear(n_head * self.d_k, n_feat, bias=False)
 
         if pos_bias_u is None or pos_bias_v is None:
-            self.r_r_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
-            self.r_w_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
+            self.pos_bias_u = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
+            self.pos_bias_v = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
             # nn.init.normal_(self.r_r_bias, 0.0, 0.02)
             # nn.init.normal_(self.r_w_bias, 0.0, 0.02)
-            nn.init.zeros_(self.r_r_bias)
-            nn.init.zeros_(self.r_w_bias)
+            nn.init.zeros_(self.pos_bias_u)
+            nn.init.zeros_(self.pos_bias_v)
         else:
-            self.r_r_bias = pos_bias_u
-            self.r_w_bias = pos_bias_v
+            self.pos_bias_u = pos_bias_u
+            self.pos_bias_v = pos_bias_v
 
-        self.r_net = nn.Linear(self.d_model, self.n_head * self.d_head, bias=False)
-        self.scale = math.sqrt(self.d_head)
+        self.linear_pos = nn.Linear(self.d_model, self.h * self.d_k, bias=False)
+        self.scale = math.sqrt(self.d_k)
         self.dropout = nn.Dropout(p=dropout_rate)
 
     def rel_shift(self, x):
@@ -401,24 +414,24 @@ class RelPositionMultiHeadAttention2(nn.Module):
         qlen, rlen, bsz = w.size(0), r.size(0), w.size(1)
 
         w_heads = self.qkv_net(w)
-        r_head_k = self.r_net(r)
+        r_head_k = self.linear_pos(r)
 
         w_head_q, w_head_k, w_head_v = torch.chunk(w_heads, 3, dim=-1)
 
         klen = w_head_k.size(0)
 
-        w_head_q = w_head_q.view(qlen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
-        w_head_k = w_head_k.view(klen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
-        w_head_v = w_head_v.view(klen, bsz, self.n_head, self.d_head)  # qlen x bsz x n_head x d_head
+        w_head_q = w_head_q.view(qlen, bsz, self.h, self.d_k)  # qlen x bsz x n_head x d_head
+        w_head_k = w_head_k.view(klen, bsz, self.h, self.d_k)  # qlen x bsz x n_head x d_head
+        w_head_v = w_head_v.view(klen, bsz, self.h, self.d_k)  # qlen x bsz x n_head x d_head
 
-        r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)  # qlen x n_head x d_head
+        r_head_k = r_head_k.view(rlen, self.h, self.d_k)  # qlen x n_head x d_head
 
         # compute attention score
-        rw_head_q = w_head_q + self.r_w_bias  # qlen x bsz x n_head x d_head
+        rw_head_q = w_head_q + self.pos_bias_v  # qlen x bsz x n_head x d_head
         # AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))  # qlen x klen x bsz x n_head
         AC = torch.einsum("ibnd,jbnd->bnij", (rw_head_q, w_head_k))  # bsz x n_head x qlen x klen
 
-        rr_head_q = w_head_q + self.r_r_bias
+        rr_head_q = w_head_q + self.pos_bias_u
         # BD = torch.einsum("ibnd,jnd->ijbn", (rr_head_q, r_head_k))  # qlen x klen x bsz x n_head
         BD = torch.einsum('ibnd,jnd->bnij', (rr_head_q, r_head_k))  # bsz x n_head x qlen x klen
 
@@ -449,9 +462,9 @@ class RelPositionMultiHeadAttention2(nn.Module):
         attn_vec = torch.einsum("bnij,jbnd->bind", (attn_prob, w_head_v))
 
         # attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
-        attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
+        attn_vec = attn_vec.contiguous().view(attn_vec.size(0), attn_vec.size(1), self.h * self.d_k)
 
-        attn_out = self.o_net(attn_vec)
+        attn_out = self.linear_out(attn_vec)
 
         # attn_out = attn_out.transpose(0, 1).contiguous()
         return attn_out
