@@ -404,8 +404,9 @@ def WaveformGenerator(nn.Module):
     def __init__(
         self,
         in_channels=256,
-        out_channels=256,
+        out_channels=1,
         trans_kernel_size=64,
+        hop_size=256,
         n_layers=30,
         dilation_cycle=3,
         dilated_kernel_size=3,
@@ -426,12 +427,13 @@ def WaveformGenerator(nn.Module):
         self.n_layers = n_layers
 
         # Transposed 1D convolution to upsample slices of hidden reps to a longer audio length
-        #TODO: double-check transposed conv args.
+        #TODO: double-check transposed conv args. -- kernel size in particular.
+        #       The FastSpeech 2 paper says "filter size 64," Huihan's repo uses kernel_size=3.
         self.transposed_conv = nn.ConvTranspose1d(
             in_channels=in_channels,
             out_channels=residual_channels,
             kernel_size=trans_kernel_size,
-            stride=in_channels  # To upsample one to many w/o overlap
+            stride=hop_size,
         )
 
         # Repeated dilated residual convolution blocks
@@ -454,9 +456,9 @@ def WaveformGenerator(nn.Module):
         # Output activations and pointwise convolutions
         self.out_layers = nn.Sequential(
             nn.ReLU(),
-            nn.Conv1d(skip_channels, skip_channels, kernel_size=1),    # output dim is a guess.
+            nn.Conv1d(skip_channels, skip_channels, kernel_size=1),    #TODO: output dim here is a guess.
             nn.ReLU(),
-            nn.Conv1D(skip_channels, 256, kernel_size=1),
+            nn.Conv1D(skip_channels, out_channels, kernel_size=1),
         )
 
     def forward(self, x, use_softmax=False):
@@ -482,7 +484,7 @@ def WaveformGenerator(nn.Module):
 class WaveformDiscriminator(nn.Module):
     def __init__(
         self,
-        in_channels=256,
+        in_channels=1,
         out_channels=1,
         n_layers=10,
         kernel_size=3,
