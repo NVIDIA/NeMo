@@ -231,8 +231,9 @@ class WaveformDecoder(NeuralModule):
     def __init__(
         self,
         in_channels=256,
-        gen_out_channels=256,   # See WaveNet Section 2.2 regarding waveform quantization
+        gen_out_channels=1,
         gen_trans_kernel_size=64,
+        gen_hop_size=256,
         gen_n_layers=30,
         gen_dilation_cycle=3,
         gen_dilated_kernel_size=3,
@@ -267,6 +268,7 @@ class WaveformDecoder(NeuralModule):
             in_channels=in_channels,
             out_channels=gen_out_channels,
             trans_kernel_size=gen_trans_kernel_size,
+            hop_size=gen_hop_size,
             n_layers=gen_n_layers,
             dilation_cycle=gen_dilation_cycle,
             dilated_kernel_size=gen_dilated_kernel_size,
