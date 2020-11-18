@@ -231,17 +231,19 @@ class WaveformDecoder(NeuralModule):
     def __init__(
         self,
         in_channels=256,
-        out_channels=256,   # See WaveNet Section 2.2 regarding waveform quantization
+        gen_out_channels=256,   # See WaveNet Section 2.2 regarding waveform quantization
         gen_trans_kernel_size=64,
         gen_n_layers=30,
         gen_dilation_cycle=3,
         gen_dilated_kernel_size=3,
         gen_residual_channels=64,
         gen_skip_channels=64,
+        dis_out_channels=1,
         dis_n_layers=10,
-        dis_relu_alpha=0.2,
-        dis_conv_channels=64,
         dis_kernel_size=3,
+        dis_conv_channels=64,
+        dis_conv_stride=1,
+        dis_relu_alpha=0.2,
     ):
         """
         FastSpeech 2 waveform decoder. Converts adapted hidden sequence to a waveform sequence.
@@ -260,21 +262,27 @@ class WaveformDecoder(NeuralModule):
         """
         super().__init__()
 
-        """ From the paper:
-        Our waveform decoder consists of 1-layer transposed 1D-convolution with filter size
-        64 and 30 layers of dilated residual convolution blocks, whose skip channel size and kernel size of
-        1D-convolution are set to 64 and 3
-        """
-        # Waveform generator
+        # WaveNet-based waveform generator
         self.generator = fastspeech2_submodules.WaveformGenerator(
             in_channels=in_channels,
-            out_channels=out_channels,
+            out_channels=gen_out_channels,
             trans_kernel_size=gen_trans_kernel_size,
             n_layers=gen_n_layers,
             dilation_cycle=gen_dilation_cycle,
             dilated_kernel_size=gen_dilated_kernel_size,
             residual_channels=gen_residual_channels,
             skip_channels=gen_skip_channels,
+        )
+
+        # Parallel WaveGAN-based discriminator
+        self.discriminator = fastspeech2_submodules.WaveformDiscriminator(
+            in_channels=gen_out_channels,
+            out_channels=dis_out_channels,
+            n_layers=dis_n_layers,
+            kernel_size=dis_kernel_size,
+            conv_channels=dis_conv_channels,
+            conv_stride=dis_conv_stride,
+            relu_alpha=dis_relu_alpha,
         )
 
     @property
