@@ -141,6 +141,10 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
         self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
+    def test_dataloader(self):
+        if self._test_dl is not None:
+            return self._test_dl
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):

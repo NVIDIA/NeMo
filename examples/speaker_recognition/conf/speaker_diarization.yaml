@@ -1,0 +1,20 @@
+name: &name "ClusterDiarizer"
+sample_rate: &sample_rate 16000
+
+model:
+  vad:
+    model_path: "/data3/sdtest/models/MatchboxNet_VAD_3x2.nemo"
+    time_length: 0.63
+    shift_length: 0.01
+  speaker_embeddings:
+    model_path: "/data3/sdtest/models/MatchboxNet_VAD_3x2.nemo"
+    time_length: 8
+    shift_length: 0.01
+  diarizer:
+    cluster_method: SpectralClustering
+    num_speakers: 2
+    out_dir: "/data3/sdtest/out"
+    shuffle: False
+  manifest_filepath: "/data3/sdtest/test.json"
+  sample_rate: 16000
+
