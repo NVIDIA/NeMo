@@ -57,7 +57,7 @@ parser.add_argument(
     type=float,
     default=1.0,
     help="Character coverage percentage for SentencePiece tokenization. For languages "
-         "with large vocabulary, should be close to 0.9995, otherwise kept as 1.0",
+    "with large vocabulary, should be close to 0.9995, otherwise kept as 1.0",
 )
 parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
 parser.add_argument("--log", action='store_true')
