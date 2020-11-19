@@ -54,7 +54,7 @@ class ClusteringSDModel(DiarizationModel):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
         # init vad model
-        self._vad_model = EncDecClassificationModel.restore_from(self._cfg.vad.model_path)
+        # self._vad_model = EncDecClassificationModel.restore_from(self._cfg.vad.model_path)
         self._vad_time_length = self._cfg.vad.time_length
         self._vad_shift_length = self._cfg.vad.shift_length
 
@@ -227,7 +227,8 @@ class ClusteringSDModel(DiarizationModel):
 
     def _extract_embeddings(self):
         # create unique labels
-        manifest_file = self._vad_out_file
+        # manifest_file = self._vad_out_file
+        manifest_file = "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/test_diarize.json"
         #add assert
         self._setup_spkr_test_data(manifest_file)
         uniq_names=[]
@@ -292,6 +293,11 @@ class ClusteringSDModel(DiarizationModel):
         # get manifest for speaker embeddings
 
         self._extract_embeddings()
-        DER = get_score(self._embeddings_file, self.emb_window, self._emb_shift, self._num_speakers, self._rttm_dir,
-                        write_labels=True)
+        reco2num = 4
+        SR=16000
+        manifest = "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/test_diarize.json"
+        RTTM_DIR= '/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/disk8_RTTMs'
+        DER = get_score(self._embeddings_file, reco2num, manifest, self._cfg.sample_rate,
+            self._cfg.speaker_embeddings.time_length,
+            self._cfg.speaker_embeddings.shift_length, RTTM_DIR)
         logging.info("Cumulative DER of all the files is {:.3f}".format(DER))

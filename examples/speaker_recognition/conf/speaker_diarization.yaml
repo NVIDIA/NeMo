@@ -15,13 +15,13 @@ model:
     threshold: 0.5
     num_workers: 4
   speaker_embeddings:
-    model_path: "/data3/sdtest/models/SpeakerNet-M.nemo"
+    model_path: "/data/samsungSSD/NVIDIA/repos/NeMo/examples/speaker_recognition/embeddings/SpeakerNet-L.nemo"
     time_length: 8
     shift_length: 0.01
   diarizer:
     cluster_method: "SpectralClustering"
     num_speakers: 2
-    out_dir: "/data3/sdtest/out"
+    out_dir: "//data/samsungSSD/NVIDIA/repos/NeMo/examples/speaker_recognition/embeddings"
     shuffle: False
   manifest_filepath: "/data3/sdtest/test.json"
   sample_rate: 16000
