@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 import itertools
 import math
+from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
 from nemo.collections.nlp.models.nlp_model import EncDecNLPModel
 import random
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -46,60 +48,48 @@ from nemo.utils import logging
 __all__ = ['MTEncDecModel']
 
 
+@dataclass
+class MTEncDecModelConfig(EncDecNLPModelConfig):
+    num_val_examples: int = 3
+    num_test_examples: int = 3
+
+
 class MTEncDecModel(EncDecNLPModel):
     """
     Left-to-right Transformer language model.
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.setup_enc
-        # shared params for dataset and data loaders
-        self.num_examples = {
-            "test": 3,
-            "val": 3,
-        }
+    def __init__(self, cfg: MTEncDecModelConfig, trainer: Trainer = None):
 
-        if "tokenizer" in cfg.machine_translation:
-            if "src_tokenizer" in cfg.machine_translation or "tgt_tokenizer" in cfg.machine_translation:
-                raise ValueError(
-                    "If 'tokenizer' is in 'machine_translation' section of config then this section should "
-                    "not contain 'src_tokenizer' and 'tgt_tokenizer' fields."
-                )
-            self.enc_tokenizer = get_tokenizer(**cfg.machine_translation.tokenizer)
-            self.dec_tokenizer = self.enc_tokenizer
-            super().__init__(cfg=cfg, trainer=trainer)
-            # make vocabulary size divisible by 8 for fast fp16 training
-            src_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
-            tgt_vocab_size = src_vocab_size
-            self.src_embedding_layer = TransformerEmbedding(
-                vocab_size=src_vocab_size,
-                hidden_size=cfg.machine_translation.hidden_size,
-                max_sequence_length=cfg.machine_translation.max_seq_length,
-                embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
-                learn_positional_encodings=False,
-            )
-            self.tgt_embedding_layer = self.src_embedding_layer
-        else:
-            self.enc_tokenizer = get_tokenizer(**cfg.machine_translation.src_tokenizer)
-            self.dec_tokenizer = get_tokenizer(**cfg.machine_translation.tgt_tokenizer)
-            super().__init__(cfg=cfg, trainer=trainer)
-            # make vocabulary size divisible by 8 for fast fp16 training
-            src_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
-            tgt_vocab_size = 8 * math.ceil(self.dec_tokenizer.vocab_size / 8)
-            self.src_embedding_layer = TransformerEmbedding(
-                vocab_size=src_vocab_size,
-                hidden_size=cfg.machine_translation.hidden_size,
-                max_sequence_length=cfg.machine_translation.max_seq_length,
-                embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
-                learn_positional_encodings=False,
-            )
-            self.tgt_embedding_layer = TransformerEmbedding(
-                vocab_size=tgt_vocab_size,
-                hidden_size=cfg.machine_translation.hidden_size,
-                max_sequence_length=cfg.machine_translation.max_seq_length,
-                embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
-                learn_positional_encodings=False,
-            )
+        self.setup_enc_dec_tokenizers(cfg)
+
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        self.enc_tokenizer = get_tokenizer(**cfg.machine_translation.src_tokenizer)
+        self.dec_tokenizer = get_tokenizer(**cfg.machine_translation.tgt_tokenizer)
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        # TODO: optionally make vocabulary size divisible by 8 for fast fp16 training
+        if MTEncDecModelConfig.vocab_divisibile_by_eight:
+            enc_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
+            dec_vocab_size = 8 * math.ceil(self.dec_tokenizer.vocab_size / 8)
+
+        self.src_embedding_layer = TransformerEmbedding(
+            vocab_size=enc_vocab_size,
+            hidden_size=cfg.machine_translation.hidden_size,
+            max_sequence_length=cfg.machine_translation.max_seq_length,
+            embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
+            learn_positional_encodings=False,
+        )
+        self.tgt_embedding_layer = TransformerEmbedding(
+            vocab_size=dec_vocab_size,
+            hidden_size=cfg.machine_translation.hidden_size,
+            max_sequence_length=cfg.machine_translation.max_seq_length,
+            embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
+            learn_positional_encodings=False,
+        )
+
+        # TODO: Optionally tie Embedding weights
 
         # init superclass
         self.encoder = TransformerEncoder(
