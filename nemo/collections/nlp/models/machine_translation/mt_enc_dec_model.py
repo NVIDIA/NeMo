@@ -14,7 +14,7 @@
 
 import itertools
 import math
-from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.models.nlp_model import EncDecNLPModel
 import random
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -46,12 +46,13 @@ from nemo.utils import logging
 __all__ = ['MTEncDecModel']
 
 
-class MTEncDecModel(NLPModel):
+class MTEncDecModel(EncDecNLPModel):
     """
     Left-to-right Transformer language model.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        self.setup_enc
         # shared params for dataset and data loaders
         self.num_examples = {
             "test": 3,
@@ -64,11 +65,11 @@ class MTEncDecModel(NLPModel):
                     "If 'tokenizer' is in 'machine_translation' section of config then this section should "
                     "not contain 'src_tokenizer' and 'tgt_tokenizer' fields."
                 )
-            self.src_tokenizer = get_tokenizer(**cfg.machine_translation.tokenizer)
-            self.tgt_tokenizer = self.src_tokenizer
+            self.enc_tokenizer = get_tokenizer(**cfg.machine_translation.tokenizer)
+            self.dec_tokenizer = self.enc_tokenizer
             super().__init__(cfg=cfg, trainer=trainer)
             # make vocabulary size divisible by 8 for fast fp16 training
-            src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
+            src_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
             tgt_vocab_size = src_vocab_size
             self.src_embedding_layer = TransformerEmbedding(
                 vocab_size=src_vocab_size,
@@ -79,12 +80,12 @@ class MTEncDecModel(NLPModel):
             )
             self.tgt_embedding_layer = self.src_embedding_layer
         else:
-            self.src_tokenizer = get_tokenizer(**cfg.machine_translation.src_tokenizer)
-            self.tgt_tokenizer = get_tokenizer(**cfg.machine_translation.tgt_tokenizer)
+            self.enc_tokenizer = get_tokenizer(**cfg.machine_translation.src_tokenizer)
+            self.dec_tokenizer = get_tokenizer(**cfg.machine_translation.tgt_tokenizer)
             super().__init__(cfg=cfg, trainer=trainer)
             # make vocabulary size divisible by 8 for fast fp16 training
-            src_vocab_size = 8 * math.ceil(self.src_tokenizer.vocab_size / 8)
-            tgt_vocab_size = 8 * math.ceil(self.tgt_tokenizer.vocab_size / 8)
+            src_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
+            tgt_vocab_size = 8 * math.ceil(self.dec_tokenizer.vocab_size / 8)
             self.src_embedding_layer = TransformerEmbedding(
                 vocab_size=src_vocab_size,
                 hidden_size=cfg.machine_translation.hidden_size,
@@ -128,9 +129,9 @@ class MTEncDecModel(NLPModel):
             log_softmax=self.log_softmax,
             max_sequence_length=cfg.machine_translation.max_seq_length,
             beam_size=cfg.machine_translation.beam_size,
-            bos=self.tgt_tokenizer.bos_id,
-            pad=self.tgt_tokenizer.pad_id,
-            eos=self.tgt_tokenizer.eos_id,
+            bos=self.dec_tokenizer.bos_id,
+            pad=self.dec_tokenizer.pad_id,
+            eos=self.dec_tokenizer.eos_id,
             len_pen=cfg.machine_translation.len_pen,
             max_delta_length=cfg.machine_translation.get("max_generation_delta", 50),
         )
@@ -142,7 +143,7 @@ class MTEncDecModel(NLPModel):
         self.log_softmax.mlp.layer0.weight = self.tgt_embedding_layer.token_embedding.weight
         self.emb_scale = cfg.machine_translation.hidden_size ** 0.5
         self.loss_fn = SmoothedCrossEntropyLoss(
-            pad_id=self.tgt_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
+            pad_id=self.dec_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
         )
 
         # Optimizer setup needs to happen after all model weights are ready
@@ -155,7 +156,7 @@ class MTEncDecModel(NLPModel):
         # https://github.com/pytorch/pytorch/issues/21819
 
     def filter_predicted_ids(self, ids):
-        ids[ids >= self.tgt_tokenizer.vocab_size] = self.tgt_tokenizer.unk_id
+        ids[ids >= self.dec_tokenizer.vocab_size] = self.dec_tokenizer.unk_id
         return ids
 
     @typecheck()
@@ -216,10 +217,10 @@ class MTEncDecModel(NLPModel):
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels).cpu().numpy()
         self.eval_perplexity(logits=log_probs)
-        translations = [self.tgt_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+        translations = [self.dec_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
-        ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
-        num_non_pad_tokens = np.not_equal(np_tgt, self.tgt_tokenizer.pad_id).sum().item()
+        ground_truths = [self.dec_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+        num_non_pad_tokens = np.not_equal(np_tgt, self.dec_tokenizer.pad_id).sum().item()
         tensorboard_logs = {f'{mode}_loss': eval_loss}
         return {
             f'{mode}_loss': eval_loss,
@@ -296,8 +297,8 @@ class MTEncDecModel(NLPModel):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = TranslationDataset(
-            tokenizer_src=self.src_tokenizer,
-            tokenizer_tgt=self.tgt_tokenizer,
+            tokenizer_src=self.enc_tokenizer,
+            tokenizer_tgt=self.dec_tokenizer,
             dataset_src=str(Path(cfg.src_file_name).expanduser()),
             dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
             tokens_in_batch=cfg.tokens_in_batch,
@@ -336,8 +337,8 @@ class MTEncDecModel(NLPModel):
             self.eval()
             res = []
             for txt in text:
-                ids = self.src_tokenizer.text_to_ids(txt)
-                ids = [self.src_tokenizer.bos_id] + ids + [self.src_tokenizer.eos_id]
+                ids = self.enc_tokenizer.text_to_ids(txt)
+                ids = [self.enc_tokenizer.bos_id] + ids + [self.enc_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
                 src_mask = torch.ones_like(src)
                 src_embeddings = self.src_embedding_layer(input_ids=src)
@@ -346,7 +347,7 @@ class MTEncDecModel(NLPModel):
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
-                res.append(self.tgt_tokenizer.ids_to_text(translation_ids))
+                res.append(self.dec_tokenizer.ids_to_text(translation_ids))
         finally:
             self.train(mode=mode)
         return res
