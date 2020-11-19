@@ -61,6 +61,8 @@ class NLPModel(ModelPT):
             if isinstance(self.bert_model, BertEncoder):
                 # HuggingFace Transformer Config
                 pretrained_model_name = self.bert_model.name_or_path
+                # Some HF names have "/" in them so we replace with _
+                pretrained_model_name = pretrained_model_name.replace("/", "_")
                 encoder_config_path = pretrained_model_name + '_encoder_config.json'
                 encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
                 self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
