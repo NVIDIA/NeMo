@@ -18,21 +18,8 @@ from typing import Any, Dict, Optional
 from omegaconf import MISSING
 
 from nemo.core import config
+from nemo.core.classes.dataset import DatasetConfig
 from nemo.utils import exp_manager
-
-
-@dataclass
-class DatasetConfig:
-    """
-
-    """
-
-    # ...
-    batch_size: int = 32
-    drop_last: bool = False
-    shuffle: bool = False
-    num_workers: Optional[int] = None
-    pin_memory: bool = True
 
 
 @dataclass

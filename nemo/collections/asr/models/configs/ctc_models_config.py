@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from omegaconf import MISSING
 
+import nemo.core.classes.dataset
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessorConfig,
     SpectrogramAugmentationConfig,
@@ -26,7 +27,7 @@ from nemo.core.config import modelPT as model_cfg
 
 
 @dataclass
-class EncDecCTCDatasetConfig(model_cfg.DatasetConfig):
+class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     manifest_filepath: Optional[str] = None
     sample_rate: int = MISSING
     labels: List[str] = MISSING
