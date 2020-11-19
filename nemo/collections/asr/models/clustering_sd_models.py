@@ -14,6 +14,7 @@
 
 import json
 import os
+from collections import defaultdict
 import shutil
 
 from typing import Dict, List, Optional, Union
@@ -227,17 +228,17 @@ class ClusteringSDModel(DiarizationModel):
     def _extract_embeddings(self):
         # create unique labels
         manifest_file = self._vad_out_file
+        #add assert
         self._setup_spkr_test_data(manifest_file)
         uniq_names=[]
-        out_embeddings = {}
+        out_embeddings = defaultdict(list)
         self._speaker_model = self._speaker_model.to(self._device)
         self._speaker_model.eval()
         with open(manifest_file, 'r') as manifest:
             for idx, line in enumerate(manifest.readlines()):
                 line = line.strip()
                 dic = json.loads(line)
-                structure = dic['audio_filepath'].split('/')[-3:]
-                uniq_names.append('@'.join(structure))
+                uniq_names.append(dic['audio_filepath'].split('/')[-1].split('.')[0])
 
         for i, test_batch in enumerate(self._speaker_model.test_dataloader()):
             test_batch = [x.to(self._device) for x in test_batch]
@@ -247,7 +248,7 @@ class ClusteringSDModel(DiarizationModel):
                                                       input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
                 embs = embs.view(-1, emb_shape).cpu().detach().numpy()
-                out_embeddings[uniq_names[i]] = embs[start_idx:end_idx]
+                out_embeddings[uniq_names[i]].extend(embs)
             del test_batch
 
         embedding_dir = os.path.join(self._out_dir, 'embeddings')
@@ -285,8 +286,8 @@ class ClusteringSDModel(DiarizationModel):
 
         config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'manifest': mfst_file}
 
-        self._setup_vad_test_data(config)
-        self._eval_vad(mfst_file)
+        #self._setup_vad_test_data(config)
+        #self._eval_vad(mfst_file)
 
         # get manifest for speaker embeddings
 

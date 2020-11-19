@@ -105,7 +105,7 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
             featurizer=featurizer,
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
-            trim=config.get('trim_silence', True),
+            trim=False,
             load_audio=config.get('load_audio', True),
             time_length=config.get('time_length', 8),
         )
@@ -115,12 +115,14 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
             _collate_func = self.dataset.sliced_seq_collate_fn
             self.dataset.time_length = self.window
             self.dataset.shift = self.shift
+            batch_size = 1
         else:
             _collate_func = self.dataset.fixed_seq_collate_fn
+            batch_size = config['batch_size']
 
         return torch.utils.data.DataLoader(
             dataset=self.dataset,
-            batch_size=config['batch_size'],
+            batch_size=batch_size,
             collate_fn=_collate_func,
             drop_last=config.get('drop_last', False),
             shuffle=config['shuffle'],
