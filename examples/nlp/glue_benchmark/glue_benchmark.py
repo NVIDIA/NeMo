@@ -54,7 +54,7 @@ def main(cfg: DictConfig) -> None:
         logging.info(f'Setting task_name to {exp_manager_cfg.name} in exp_manager')
     exp_manager(trainer, exp_manager_cfg)
 
-    if os.path.exists(cfg.model.nemo_path):
+    if cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path):
         model = GLUEModel.restore_from(cfg.model.nemo_path)
         logging.info(f'Restoring model from {cfg.model.nemo_path}')
         model.update_data_dir(data_dir=cfg.model.dataset.data_dir)
