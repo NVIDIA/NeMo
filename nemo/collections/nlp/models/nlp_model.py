@@ -79,6 +79,11 @@ class NLPModel(ModelPT):
                 )
 
     def _setup_tokenizer(self, cfg: DictConfig):
+        """Instantiates tokenizer based on config and registers tokenizer artifacts.
+
+        Args:
+            cfg (DictConfig): Tokenizer config
+        """
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             vocab_file=cfg.vocab_file,
@@ -90,6 +95,11 @@ class NLPModel(ModelPT):
 
     @rank_zero_only
     def register_tokenizer(self, cfg: DictConfig):
+        """Adds tokenizer vocab file and model to .nemo archive.
+
+        Args:
+            cfg (DictConfig): Tokenizer config.
+        """
         vocab_file_config_path = 'tokenizer.vocab_file'
         vocab_dict_config_path = 'tokenizer_vocab_dict.json'
         if self.tokenizer is None:
