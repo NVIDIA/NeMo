@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import math
-from nemo.collections.nlp.models.nlp_model import NLPModel
 from typing import Dict, Optional
 
 import numpy as np
@@ -22,6 +21,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data import BertInformationRetrievalDataset
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
