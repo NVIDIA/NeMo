@@ -14,8 +14,13 @@
 
 import json
 import os
+import shutil
 
 from typing import Dict, List, Optional, Union
+
+import glob
+from itertools import repeat
+from multiprocessing import Pool
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -27,7 +32,8 @@ from sklearn.cluster import SpectralClustering
 
 from nemo.collections.asr.models.diarization_model import DiarizationModel
 from nemo.utils import logging
-from nemo.collections.asr.models import EncDecClassificationModel
+from nemo.collections.asr.models import EncDecClassificationModel, ExtractSpeakerEmbeddingsModel
+from nemo.collections.asr.parts.vad_utils import gen_overlap_seq, gen_seg_table, write_manifest
 
 try:
     from torch.cuda.amp import autocast
@@ -41,99 +47,6 @@ except ImportError:
 
 __all__ = ['ClusteringSDModel']
 
-def combine_stamps(stamps):
-    combine = []
-    idx, end, speaker = (0, 0, 'unknown')
-    prev_start, prev_end, prev_speaker = stamps[idx].split()
-    while idx < len(stamps) - 1:
-        idx += 1
-        start, end, speaker = stamps[idx].split()
-        if speaker == prev_speaker and start <= prev_end:
-            prev_end = end
-        else:
-            combine.append("{} {} {}".format(prev_start, prev_end, prev_speaker))
-            prev_start = start
-            prev_end = end
-            prev_speaker = speaker
-
-    combine.append("{} {} {}".format(prev_start, end, speaker))
-    return combine
-
-
-def write_label_file(labels, filename):
-    with open(filename, 'w') as f:
-        for line in labels:
-            start, end, speaker = line.strip().split()
-            f.write("{}\t{}\t{}\n".format(start, end, speaker))
-    print("wrote labels to audacity type label file at ", filename)
-
-
-def rttm_to_labels(rttm_filename, write=False):
-    outname = rttm_filename.split('/')[-1]
-    outname = outname[:-5] + '.txt'
-    labels = []
-    if write:
-        g = open(outname, 'w')
-    with open(rttm_filename, 'r') as f:
-        for line in f.readlines():
-            rttm = line.strip().split()
-            start, end, speaker = float(rttm[3]), float(rttm[4]) + float(rttm[3]), rttm[7]
-            labels.append('{} {} {}'.format(start, end, speaker))
-            if write:
-                g.write("{}\t{}\t{}\n".format(start, end, speaker))
-    if write:
-        logging.info("wrote to {}".format(outname))
-        g.close()
-    else:
-        return labels
-
-
-def labels_to_pyannote_object(labels, identifier='file1'):
-    annotation = Annotation(uri=identifier)
-    for label in labels:
-        start, end, speaker = label.strip().split()
-        start, end = float(start), float(end)
-        annotation[Segment(start, end)] = speaker
-
-    return annotation
-
-
-def get_score(embeddings_file, window, shift, num_speakers, truth_rttm_dir, write_labels=True):
-    window = window
-    shift = shift
-    embeddings = pkl.load(open(embeddings_file, 'rb'))
-    embeddings_dir = os.path.dirname(embeddings_file)
-    num_speakers = num_speakers
-    metric = DiarizationErrorRate(collar=0.0)
-    DER = 0
-
-    for uniq_key in embeddings.keys():
-        logging.info("Diarizing {}".format(uniq_key))
-        identifier = uniq_key.split('@')[-1].split('.')[0]
-        emb = embeddings[uniq_key]
-        cluster_method = SpectralClustering(n_clusters=num_speakers, random_state=42)
-        cluster_method.fit(emb)
-        lines = []
-        for idx, label in enumerate(cluster_method.labels_):
-            start_time = idx * shift
-            end_time = start_time + window
-            tag = 'speaker_' + str(label)
-            line = "{} {} {}".format(start_time, end_time, tag)
-            lines.append(line)
-        # ReSegmentation -> VAD and Segmented Results
-        labels = combine_stamps(lines)
-        if os.path.exists(truth_rttm_dir):
-            truth_rttm = os.path.join(truth_rttm_dir, identifier + '.rttm')
-            truth_labels = rttm_to_labels(truth_rttm)
-            reference = labels_to_pyannote_object(truth_labels, identifier=identifier)
-            DER = metric(reference, hypothesis)
-        hypothesis = labels_to_pyannote_object(labels, identifier=identifier)
-        if write_labels:
-            filename = os.path.join(embeddings_dir, identifier + '.txt')
-            write_label_file(labels, filename)
-            logging.info("Wrote {} to {}".format(uniq_key, filename))
-
-    return abs(DER)
 
 
 class ClusteringSDModel(DiarizationModel):
@@ -147,7 +60,7 @@ class ClusteringSDModel(DiarizationModel):
         self._vad_shift_length = self._cfg.vad.shift_length
 
         # init speaker model
-        self._speaker_model = EncDecClassificationModel.restore_from(
+        self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
             self._cfg.speaker_embeddings.model_path)
 
         # Clustering method
@@ -155,6 +68,7 @@ class ClusteringSDModel(DiarizationModel):
         self._num_speakers = self._cfg.diarizer.num_speakers
 
         self._out_dir = self._cfg.diarizer.out_dir
+        self._vad_out_file = os.path.join(self._out_dir, "vad_out.json")
 
         self._manifest_file = self._cfg.manifest_filepath
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -169,7 +83,7 @@ class ClusteringSDModel(DiarizationModel):
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         pass
 
-    def _setup_test_data(self, config):
+    def _setup_vad_test_data(self, config):
         vad_dl_config = {
             'manifest_filepath': config['manifest'],
             'sample_rate': self._cfg.sample_rate,
@@ -181,22 +95,30 @@ class ClusteringSDModel(DiarizationModel):
             'trim_silence': False,
         }
 
-        self._vad_model.setup_test_data(
-            test_data_config=vad_dl_config
-        )
-        # spk_dl_config = {
-        #     'manifest_filepath': config['manifest'],
-        #     'sample_rate': self._cfg.sample_rate,
-        #     'batch_size': 1,
-        #     'time_length': self._cfg.speaker_emb.time_length,
-        #     'shift_length': self._cfg.speaker_emb.shift_length,
-        #     'trim_silence': False,
-        # }
-        # speaker_model.setup_test_data(spk_dl_config)
+        self._vad_model.setup_test_data(test_data_config=vad_dl_config)
+
+    def _setup_spkr_test_data(self, manifest_file):
+
+        spk_dl_config = {
+             'manifest_filepath': manifest_file,
+             'sample_rate': self._cfg.sample_rate,
+             'batch_size': 1,
+             'time_length': self._cfg.speaker_embeddings.time_length,
+             'shift_length': self._cfg.speaker_embeddings.shift_length,
+             'trim_silence': False,
+             'embedding_dir': self._out_dir,
+             'labels': None,
+             'task': "diarization",
+        }
+        self._speaker_model.setup_test_data(spk_dl_config)
 
     def _eval_vad(self, manifest_file):
+        out_dir = os.path.join(self._out_dir, "frame_vad")
+        shutil.rmtree(out_dir, ignore_errors=True)
+        os.mkdir(out_dir)
         self._vad_model = self._vad_model.to(self._device)
         self._vad_model.eval()
+
 
         time_unit = int(self._cfg.vad.time_length / self._cfg.vad.shift_length)
         trunc = int(time_unit / 2)
@@ -238,7 +160,7 @@ class ClusteringSDModel(DiarizationModel):
                     to_save = pred
                 all_len += len(to_save)
 
-                outpath = os.path.join(self._out_dir, data[i] + ".frame")
+                outpath = os.path.join(out_dir, data[i] + ".frame")
                 with open(outpath, "a") as fout:
                     for f in range(len(to_save)):
                         fout.write('{0:0.4f}\n'.format(to_save[f]))
@@ -248,26 +170,87 @@ class ClusteringSDModel(DiarizationModel):
                 print(f"Overall length of prediction of {data[i]} is {all_len}!")
                 all_len = 0
 
-    def _extract_embeddings(self, manifest_file):
+        vad_out_dir = self.generate_vad_timestamps()
+        write_manifest(vad_out_dir, self._out_dir, self._vad_out_file)
+
+    def generate_vad_timestamps(self):
+        if self._cfg.vad.gen_overlap_seq:
+            p = Pool(processes=self._cfg.vad.num_workers)
+            logging.info("Generating predictions with overlapping input segments")
+            frame_filepathlist = glob.glob(self._out_dir + "/frame_vad/*.frame")
+            overlap_out_dir = self._out_dir + "/overlap_smoothing_output" + "_" + self._cfg.vad.overlap_method + "_" +\
+                              str(self._cfg.vad.overlap)
+            if not os.path.exists(overlap_out_dir):
+                os.mkdir(overlap_out_dir)
+
+            per_args = {
+                "method": self._cfg.vad.overlap_method,
+                "overlap": self._cfg.vad.overlap,
+                "seg_len": self._cfg.vad.seg_len,
+                "shift_len": self._cfg.vad.shift_len,
+                "out_dir": overlap_out_dir,
+            }
+
+            p.starmap(gen_overlap_seq, zip(frame_filepathlist, repeat(per_args)))
+            p.close()
+            p.join()
+
+
+        if self._cfg.vad.gen_seg_table:
+            p = Pool(processes=self._cfg.vad.num_workers)
+            logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
+
+            if self._cfg.vad.gen_overlap_seq:
+                logging.info("Use overlap prediction. Change if you want to use basic frame level prediction")
+                frame_filepath = overlap_out_dir
+                shift_len = 0.01
+            else:
+                logging.info("Use basic frame level prediction")
+                frame_filepath = self._out_dir
+                shift_len = self._cfg.vad.shift_len
+
+            frame_filepathlist = glob.glob(frame_filepath + "/*." + self._cfg.vad.overlap_method)
+
+            table_out_dir = os.path.join(self._out_dir, "table_output_" + str(self._cfg.vad.threshold))
+            if not os.path.exists(table_out_dir):
+                os.mkdir(table_out_dir)
+
+            per_args = {
+                "threshold": self._cfg.vad.threshold,
+                "shift_len": shift_len,
+                "out_dir": table_out_dir,
+            }
+
+            p.starmap(gen_seg_table, zip(frame_filepathlist, repeat(per_args)))
+            p.close()
+            p.join()
+        return table_out_dir
+
+    def _extract_embeddings(self):
         # create unique labels
+        manifest_file = self._vad_out_file
+        self._setup_spkr_test_data(manifest_file)
         uniq_names=[]
         out_embeddings = {}
-        with open(self.test_manifest, 'r') as manifest:
+        self._speaker_model = self._speaker_model.to(self._device)
+        self._speaker_model.eval()
+        with open(manifest_file, 'r') as manifest:
             for idx, line in enumerate(manifest.readlines()):
                 line = line.strip()
                 dic = json.loads(line)
                 structure = dic['audio_filepath'].split('/')[-3:]
                 uniq_names.append('@'.join(structure))
-                if uniq_names[-1] in out_embeddings:
-                    raise KeyError("Embeddings for label {} already present in emb dictionary".format(uniq_name))
 
         for i, test_batch in enumerate(self._speaker_model.test_dataloader()):
+            test_batch = [x.to(self._device) for x in test_batch]
+            audio_signal, audio_signal_len, labels, slices = test_batch
             with autocast():
-                audio_signal, audio_signal_len, labels, slices = test_batch
-                _, embs = self._speaker_model(input_signal=audio_signal, input_signal_length=audio_signal_len)
+                _, embs = self._speaker_model.forward(input_signal=audio_signal,
+                                                      input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
-                embs = embs.view(-1, emb_shape).cpu().numpy()
-                out_embeddings[uniq_names[i]] = embs.mean(axis=0)
+                embs = embs.view(-1, emb_shape).cpu().detach().numpy()
+                out_embeddings[uniq_names[i]] = embs[start_idx:end_idx]
+            del test_batch
 
         embedding_dir = os.path.join(self._out_dir, 'embeddings')
         if not os.path.exists(embedding_dir):
@@ -280,7 +263,6 @@ class ClusteringSDModel(DiarizationModel):
         pkl.dump(out_embeddings, open(self._embeddings_file, 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
-    @torch.no_grad()
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 1) -> List[str]:
         """
         """
@@ -305,12 +287,12 @@ class ClusteringSDModel(DiarizationModel):
 
         config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'manifest': mfst_file}
 
-        self._setup_test_data(config)
-        self._eval_vad(mfst_file)
+        #self._setup_vad_test_data(config)
+        #self._eval_vad(mfst_file)
 
         # get manifest for speaker embeddings
 
-        self._extract_embeddings("vad_output_file")
+        self._extract_embeddings()
         DER = get_score(self._embeddings_file, self.emb_window, self._emb_shift, self._num_speakers, self._rttm_dir,
                         write_labels=True)
         logging.info("Cumulative DER of all the files is {:.3f}".format(DER))
