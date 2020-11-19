@@ -63,8 +63,8 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     labels: List[str] = MISSING
 
     # Dataset configs
-    train_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(shuffle=True, trim_silence=True)
-    validation_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(shuffle=False)
+    train_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=True, trim_silence=True)
+    validation_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
     test_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
 
     # Optimizer / Scheduler config
