@@ -98,14 +98,14 @@ def main():
 
     # train ds
     cfg.model.train_ds.manifest_filepath = (
-        "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/train_manifest.json"
+        "<path to train dataset>"
     )
     cfg.model.train_ds.labels = LABELS
     cfg.model.train_ds.sample_rate = cfg.model.sample_rate
 
     # validation ds
     cfg.model.validation_ds.manifest_filepath = (
-        "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/test_manifest.json"
+        "<path to test dataset>"
     )
     cfg.model.validation_ds.labels = LABELS
     cfg.model.validation_ds.sample_rate = cfg.model.sample_rate
