@@ -31,36 +31,15 @@ cfg = configs.EncDecCTCModelConfig()
 cfg.model.repeat = 5
 cfg.model.separable = True
 
+# fmt: off
 LABELS = [
-    " ",
-    "a",
-    "b",
-    "c",
-    "d",
-    "e",
-    "f",
-    "g",
-    "h",
-    "i",
-    "j",
-    "k",
-    "l",
-    "m",
-    "n",
-    "o",
-    "p",
-    "q",
-    "r",
-    "s",
-    "t",
-    "u",
-    "v",
-    "w",
-    "x",
-    "y",
-    "z",
-    "'",
+    " ", "a", "b", "c", "d", "e",
+    "f", "g", "h", "i", "j", "k",
+    "l", "m", "n", "o", "p", "q",
+    "r", "s", "t", "u", "v", "w",
+    "x", "y", "z", "'",
 ]
+# fmt: on
 
 qn_15x5 = [
     nemo_asr.modules.conv_asr.JasperEncoderConfig(
