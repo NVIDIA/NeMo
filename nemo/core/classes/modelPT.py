@@ -1120,49 +1120,6 @@ class ModelPT(LightningModule, Model):
         self._set_hparams(cfg)
 
     @staticmethod
-    def update_model_dataclass(model_cls: ModelPTConfig, update_cfg: DictConfig, drop_missing_subconfigs: bool = True):
-        """
-        Accepts a ModelPT dataclass and a DictConfig which mirrors the structure of the
-        dataclass, so as to update the dataclass with the values from the DictConfig.
-
-        Essentially, the update_cfg is obtained via hydra overrides or via manual construction,
-        and used to override the default values set in the dataclass.
-
-        # Usage
-        @hydra_runner(config_path="conf", config_name="config")
-        def main(cfg):
-            # Create the data class with valid defaults
-            model_dataclass = ModelPTConfig()
-
-            # Override the defaults with hydra / external DictConfig which mirrors the structure
-            cfg = ModelPT.update_model_dataclass(model_dataclass, cfg)
-
-            trainer = pl.Trainer(**cfg.trainer)
-            exp_manager(trainer, cfg.get("exp_manager", None))
-            asr_model = ModelPT(cfg=cfg.model, trainer=trainer)
-
-            trainer.fit(asr_model)
-
-        Args:
-            model_cls: A sub-class of ModelPTConfig describing the entire NeMo Model,
-                as well as its supporting infrastructure.
-
-            update_cfg: A DictConfig with override values for the model_cls above.
-                Can be obtained via hydra command line, or explicitly defined via OmegaConf.
-                Structure should mirror the Model dataclass.
-
-            drop_missing_subconfigs: Bool which determins whether to drop certain sub-configs from the ModelPTConfig
-                class, if the corresponding sub-config is missing from `update_cfg`.
-
-        Returns:
-            A DictConfig which is the merger of the ModelPT dataclass and the override config.
-        """
-        model_cfg = config_utils.update_model_config(
-            model_cls=model_cls, update_cfg=update_cfg, drop_missing_subconfigs=drop_missing_subconfigs
-        )
-        return model_cfg
-
-    @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
             # tar.add(source_dir, arcname=path.basename(source_dir))

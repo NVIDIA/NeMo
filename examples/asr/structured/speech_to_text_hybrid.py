@@ -16,6 +16,7 @@ import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecCTCModel, configs
 from nemo.core.config import hydra_runner
+from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -41,7 +42,7 @@ def main(cfg):
     # model_utils.resolve_test_dataloaders(model=self) (used for multi data loader support).
     # In general, any operation that tries to use a DictConfig with MISSING in it will fail,
     # other than explicit update operations to change MISSING to some actual value.
-    asr_model_config = EncDecCTCModel.update_model_dataclass(asr_model_config, cfg, drop_missing_subconfigs=True)
+    asr_model_config = update_model_config(asr_model_config, cfg, drop_missing_subconfigs=True)
 
     # From here on out, its a general OmegaConf DictConfig, directly usable by our code.
     trainer = pl.Trainer(**asr_model_config.trainer)
