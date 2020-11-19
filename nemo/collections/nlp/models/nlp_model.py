@@ -112,7 +112,7 @@ class NLPModel(ModelPT):
             elif isinstance(self.tokenizer, AutoTokenizer):
                 # extract vocab from tokenizer
                 vocab_json_src = os.path.join(NEMO_NLP_TMP, vocab_dict_config_path)
-                vocab_dict = self.tokenizer.tokenizer.vocab
+                vocab_dict = self.tokenizer.tokenizer.get_vocab()
                 with open(vocab_json_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
                 self.register_artifact(config_path=vocab_dict_config_path, src=vocab_json_src)
