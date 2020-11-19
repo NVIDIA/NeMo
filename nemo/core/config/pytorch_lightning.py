@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.config_store import ConfigStore
+from pytorch_lightning import Trainer
 
 __all__ = ['TrainerConfig']
 
@@ -35,6 +36,7 @@ class TrainerConfig:
         https://pytorch-lightning.readthedocs.io/en/latest/trainer.html#
     """
 
+    _target_: str = 'pytorch_lightning.Trainer'
     logger: Any = True
     checkpoint_callback: Any = True
     callbacks: Optional[Any] = None

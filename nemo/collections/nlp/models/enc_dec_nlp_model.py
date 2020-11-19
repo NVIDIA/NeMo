@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass, asdict
 import math
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from typing import Dict, Optional, Union
@@ -11,7 +11,7 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 
 @dataclass
 class TokenizerConfig:
-    tokenizer_name: str
+    tokenizer_name: str = MISSING
     tokenizer_model: Optional[str] = None
     vocab_file: Optional[str] = None
     special_tokens: Optional[Dict[str, str]] = None
@@ -19,8 +19,8 @@ class TokenizerConfig:
 
 @dataclass
 class EncDecNLPModelConfig:
-    enc_tokenizer: TokenizerConfig
-    dec_tokenizer: TokenizerConfig
+    enc_tokenizer: TokenizerConfig = MISSING
+    dec_tokenizer: TokenizerConfig = MISSING
     vocab_divisibile_by_eight: bool = True
 
 
@@ -66,10 +66,9 @@ class EncDecNLPModel(NLPModel):
     def dec_vocab_size(self, size: int):
         self._dec_vocab_size = size
 
-    @abstractmethod
     def setup_enc_dec_tokenizers(self, cfg: EncDecNLPModelConfig):
-        self.enc_tokenizer = get_tokenizer(**cfg.enc_tokenizer)
-        self.dec_tokenizer = get_tokenizer(**cfg.dec_tokenizer)
+        self.enc_tokenizer = get_tokenizer(**asdict(cfg.enc_tokenizer))
+        self.dec_tokenizer = get_tokenizer(**asdict(cfg.dec_tokenizer))
         self.enc_vocab_size = self.enc_tokenizer.vocab_size
         self.dec_vocab_size = self.dec_tokenizer.vocab_size
         # optionally make vocabulary size divisible by 8 for fast fp16 training

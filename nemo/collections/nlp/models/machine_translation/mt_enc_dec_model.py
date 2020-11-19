@@ -15,8 +15,7 @@
 from dataclasses import dataclass
 import itertools
 import math
-from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
-from nemo.collections.nlp.models.nlp_model import EncDecNLPModel
+from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig, EncDecNLPModel
 import random
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -65,24 +64,15 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.enc_tokenizer = get_tokenizer(**cfg.machine_translation.src_tokenizer)
-        self.dec_tokenizer = get_tokenizer(**cfg.machine_translation.tgt_tokenizer)
-        super().__init__(cfg=cfg, trainer=trainer)
-
-        # TODO: optionally make vocabulary size divisible by 8 for fast fp16 training
-        if MTEncDecModelConfig.vocab_divisibile_by_eight:
-            enc_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
-            dec_vocab_size = 8 * math.ceil(self.dec_tokenizer.vocab_size / 8)
-
         self.src_embedding_layer = TransformerEmbedding(
-            vocab_size=enc_vocab_size,
+            vocab_size=self.enc_vocab_size,
             hidden_size=cfg.machine_translation.hidden_size,
             max_sequence_length=cfg.machine_translation.max_seq_length,
             embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
             learn_positional_encodings=False,
         )
         self.tgt_embedding_layer = TransformerEmbedding(
-            vocab_size=dec_vocab_size,
+            vocab_size=self.dec_vocab_size,
             hidden_size=cfg.machine_translation.hidden_size,
             max_sequence_length=cfg.machine_translation.max_seq_length,
             embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
