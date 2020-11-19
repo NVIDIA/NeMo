@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import pickle
 from typing import Dict
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
@@ -89,7 +90,8 @@ def get_label_ids(
         logging.info(f'Labels mapping {label_ids_dict} saved to : {label_ids_filename}')
 
     # calculate label statistics
-    stats_file = os.path.join(data_dir, os.path.splitext(os.path.basename(label_file))[0] + '_label_stats.tsv')
+    base_name = os.path.splitext(os.path.basename(label_file))[0]
+    stats_file = os.path.join(data_dir, f'{base_name}_label_stats.tsv')
     if os.path.exists(stats_file) and not is_training and not get_weights:
         logging.info(f'{stats_file} found, skipping stats calculation.')
     else:
@@ -99,9 +101,17 @@ def get_label_ids(
         logging.info(f'Total labels: {total_labels}. Label frequencies - {label_frequencies}')
 
     if get_weights:
-        class_weights_dict = get_freq_weights(label_frequencies)
-        logging.info(f'Class Weights: {class_weights_dict}')
-        class_weights = fill_class_weights(class_weights_dict, max_id)
+        class_weights_pkl = os.path.join(data_dir, f'{base_name}_weights.p')
+        if os.path.exists(class_weights_pkl):
+            class_weights = pickle.load(open(class_weights_pkl, 'rb'))
+            logging.info(f'Class weights restored from {class_weights_pkl}')
+        else:
+            class_weights_dict = get_freq_weights(label_frequencies)
+            logging.info(f'Class Weights: {class_weights_dict}')
+            class_weights = fill_class_weights(class_weights_dict, max_id)
+
+            pickle.dump(class_weights, open(class_weights_pkl, "wb"))
+            logging.info(f'Class weights saved to {class_weights_pkl}')
     else:
         class_weights = None
 

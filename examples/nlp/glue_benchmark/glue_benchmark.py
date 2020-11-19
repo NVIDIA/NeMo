@@ -33,6 +33,8 @@ Supported task names:
 Note, MNLI task includes both matched and mismatched dev sets
 """
 
+import os
+
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
@@ -51,10 +53,19 @@ def main(cfg: DictConfig) -> None:
         exp_manager_cfg.name = cfg.model.task_name
         logging.info(f'Setting task_name to {exp_manager_cfg.name} in exp_manager')
     exp_manager(trainer, exp_manager_cfg)
-    model = GLUEModel(cfg.model, trainer=trainer)
-    trainer.fit(model)
-    if cfg.model.nemo_path:
-        model.save_to(cfg.model.nemo_path)
+
+    if os.path.exists(cfg.model.nemo_path):
+        model = GLUEModel.restore_from(cfg.model.nemo_path)
+        logging.info(f'Restoring model from {cfg.model.nemo_path}')
+        model.update_data_dir(data_dir=cfg.model.dataset.data_dir)
+        model.setup_training_data()
+        model.setup_multiple_validation_data()
+        trainer.fit(model)
+    else:
+        model = GLUEModel(cfg.model, trainer=trainer)
+        trainer.fit(model)
+        if cfg.model.nemo_path:
+            model.save_to(cfg.model.nemo_path)
 
 
 if __name__ == '__main__':
