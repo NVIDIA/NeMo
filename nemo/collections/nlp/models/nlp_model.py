@@ -58,19 +58,20 @@ class NLPModel(ModelPT):
             raise ValueError('Instantiate self.bert_model before registering it.')
         else:
             # get encoder config and create source for artifact
-            encoder_config_src = os.path.join(NEMO_NLP_TMP, 'encoder_config.json')
             if isinstance(self.bert_model, BertEncoder):
                 # HuggingFace Transformer Config
-                self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
                 pretrained_model_name = self.bert_model.name_or_path
                 encoder_config_path = pretrained_model_name + '_encoder_config.json'
+                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
+                self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
                 self.register_artifact(encoder_config_path, encoder_config_src)
             elif isinstance(self.bert_model, MegatronBertEncoder):
+                pretrained_model_name = self.bert_model._model_name
+                encoder_config_path = pretrained_model_name + '_encoder_config.json'
+                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
                 config_for_json = OmegaConf.to_container(self.bert_model.config)
                 with open(encoder_config_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
-                pretrained_model_name = self.bert_model._model_name
-                encoder_config_path = pretrained_model_name + '_encoder_config.json'
                 self.register_artifact(encoder_config_path, encoder_config_src)
             else:
                 logging.info(
@@ -177,6 +178,9 @@ class NLPModel(ModelPT):
 
         # TODO: implement model parallel for test stage
         if stage == 'fit':
+
+            # adds self.bert_model config to .nemo file
+            self.register_bert_model()
 
             app_state = AppState()
 
