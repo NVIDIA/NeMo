@@ -26,14 +26,12 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 import pickle as pkl
 
-# from pyannote.core import Annotation, Segment
-# from pyannote.metrics.diarization import DiarizationErrorRate
-from sklearn.cluster import SpectralClustering
 
 from nemo.collections.asr.models.diarization_model import DiarizationModel
 from nemo.utils import logging
 from nemo.collections.asr.models import EncDecClassificationModel, ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.vad_utils import gen_overlap_seq, gen_seg_table, write_manifest
+from nemo.collections.asr.parts.speaker_utils  import get_score
 
 try:
     from torch.cuda.amp import autocast
@@ -287,8 +285,8 @@ class ClusteringSDModel(DiarizationModel):
 
         config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'manifest': mfst_file}
 
-        #self._setup_vad_test_data(config)
-        #self._eval_vad(mfst_file)
+        self._setup_vad_test_data(config)
+        self._eval_vad(mfst_file)
 
         # get manifest for speaker embeddings
 
