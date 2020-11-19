@@ -6,12 +6,20 @@ model:
     model_path: "/data3/sdtest/models/MatchboxNet_VAD_3x2.nemo"
     time_length: 0.63
     shift_length: 0.01
+    gen_overlap_seq: True
+    gen_seg_table: True
+    overlap_method: "mean"
+    overlap: 0.875
+    seg_len: 0.63
+    shift_len: 0.01
+    threshold: 0.5
+    num_workers: 4
   speaker_embeddings:
-    model_path: "/data3/sdtest/models/MatchboxNet_VAD_3x2.nemo"
+    model_path: "/data3/sdtest/models/SpeakerNet-M.nemo"
     time_length: 8
     shift_length: 0.01
   diarizer:
-    cluster_method: SpectralClustering
+    cluster_method: "SpectralClustering"
     num_speakers: 2
     out_dir: "/data3/sdtest/out"
     shuffle: False
