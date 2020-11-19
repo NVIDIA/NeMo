@@ -207,15 +207,6 @@ class TokenClassificationModel(NLPModel, Exportable):
         self.log('f1', f1)
         self.log('recall', recall)
 
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
-        )
-        self.tokenizer = tokenizer
-
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
