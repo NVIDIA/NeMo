@@ -107,6 +107,10 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             mode='micro',
         )
 
+        # add intent and slot dictionaries into config file
+        self.cfg.intent_labels = list(self.data_desc.intents_label_ids.keys())
+        self.cfg.slot_labels = list(self.data_desc.slots_label_ids.keys())
+
     def update_data_dir(self, data_dir: str) -> None:
         """
         Update data directory and get data stats with Data Descriptor
@@ -271,8 +275,8 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             max_seq_length=self.max_seq_length,
             num_samples=cfg.num_samples,
             pad_label=self.data_desc.pad_label,
-            ignore_extra_tokens=self._cfg.ignore_extra_tokens,
-            ignore_start_end=self._cfg.ignore_start_end,
+            ignore_extra_tokens=self.cfg.ignore_extra_tokens,
+            ignore_start_end=self.cfg.ignore_start_end,
         )
 
         return DataLoader(
@@ -298,13 +302,21 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             tokenizer=self.tokenizer, queries=queries, max_seq_length=-1, do_lower_case=False
         )
 
+        # take these params from the saved model either from test or train dataset configs
+        if 'test_ds' in self.cfg:
+            num_workers = self.cfg.test_ds.num_workers
+            pin_memory = self.cfg.test_ds.pin_memory
+        else:
+            num_workers = self.cfg.train_ds.num_workers
+            pin_memory = self.cfg.train_ds.pin_memory
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=self._cfg.test_ds.num_workers,
-            pin_memory=self._cfg.test_ds.pin_memory,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
             drop_last=False,
         )
 
@@ -327,8 +339,12 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             self.to(device)
             infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
 
-            # load intent and slot labels from the dictionary files (user should have them in a data directory)
-            intent_labels, slot_labels = IntentSlotDataDesc.intent_slot_dicts(self.data_dir)
+            # load intent and slot labels from config or from the dictionary files from data directory
+            if self.cfg.intent_labels and self.cfg.slot_labels:
+                intent_labels = list(self.cfg.intent_labels)
+                slot_labels = list(self.cfg.slot_labels)
+            else:
+                intent_labels, slot_labels = IntentSlotDataDesc.intent_slot_dicts(self.data_dir)
 
             for batch in infer_datalayer:
                 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = batch
