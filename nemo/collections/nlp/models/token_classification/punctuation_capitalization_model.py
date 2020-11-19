@@ -26,6 +26,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -40,7 +41,7 @@ from nemo.utils.export_utils import attach_onnx_to_onnx
 __all__ = ['PunctuationCapitalizationModel']
 
 
-class PunctuationCapitalizationModel(ModelPT, Exportable):
+class PunctuationCapitalizationModel(NLPModel, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -190,15 +191,6 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
         self.log('capit_precision', capit_precision)
         self.log('capit_f1', capit_f1)
         self.log('capit_recall', capit_recall)
-
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
-        )
-        self.tokenizer = tokenizer
 
     def update_data_dir(self, data_dir: str) -> None:
         """
