@@ -51,6 +51,7 @@ class MegatronBertEncoder(BertModule):
         self._model_parallel_size = model_parallel_size
         self._restore_path = None
         self._app_state = None
+        self._model_name = model_name
 
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')

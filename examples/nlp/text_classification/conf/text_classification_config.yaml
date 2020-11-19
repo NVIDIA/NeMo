@@ -15,7 +15,7 @@
 # Config file for text classification with pre-trained BERT models
 
 trainer:
-  gpus: 1 # number of GPUs  (0 for CPU), or list of the GPUs to use e.g. [0, 1]
+  gpus: 1 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
   num_nodes: 1
   max_epochs: 100
   max_steps: null # precedence over max_epochs
@@ -111,15 +111,15 @@ model:
       monitor: val_loss
       reduce_on_plateau: false
 
+  # List of some sample queries for inference after training is done
+  infer_samples: [
+    'by the end of no such thing the audience , like beatrice , has a watchful affection for the monster .',
+    'director rob marshall went out gunning to make a great one .',
+    'uneasy mishmash of styles and genres .',
+  ]
+
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: "TextClassification"  # The name of your model
   create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null

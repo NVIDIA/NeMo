@@ -41,7 +41,7 @@ _MODEL_WEIGHTS = "model_weights.ckpt"
 
 try:
     # Try to import strategies for .nemo archive.
-    from eff.archives import NeMoArchive
+    from eff.cookbooks import NeMoCookbook
 
     _EFF_PRESENT_ = True
 except ImportError:
@@ -203,7 +203,8 @@ class ModelPT(LightningModule, Model):
 
     def _eff_save_to(self, save_path: str):
         """
-        Saves model instance (weights and configuration) into an EFF archive.
+        Saves model instance (weights, configuration and artifacts) into an EFF archive using
+        the default `save_to` recipe from NeMoCookbook.
 
         .. note::
             For NVIDIA NeMo the EFF archives will also use .nemo postfix.
@@ -217,7 +218,7 @@ class ModelPT(LightningModule, Model):
         Args:
             save_path: Path to archive file where model instance should be saved.
         """
-        NeMoArchive.save_to(self, save_path)
+        NeMoCookbook().save_to(obj=self, save_path=save_path)
 
     @rank_zero_only
     def save_to(self, save_path: str):
@@ -320,7 +321,8 @@ class ModelPT(LightningModule, Model):
         strict: bool = False,
     ):
         """
-        Restores model instance (weights and configuration) from EFF Archive.
+        Restores model instance (weights, configuration and artifacts) from EFF Archive using
+        the default `restore_from` recipe from NeMoCookbook.
 
         Args:
             restore_path: path to  file from which model should be instantiated
@@ -333,7 +335,13 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls
         """
-        return NeMoArchive.restore_from(cls, restore_path, override_config_path, map_location, strict)
+        return NeMoCookbook().restore_from(
+            restore_path=restore_path,
+            obj_cls=cls,
+            override_config_path=override_config_path,
+            map_location=map_location,
+            strict=strict,
+        )
 
     @classmethod
     def restore_from(
@@ -620,15 +628,16 @@ class ModelPT(LightningModule, Model):
                 # Store information needed to calculate max_steps
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
+                optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
                 if self._trainer.distributed_backend is None:
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
-                elif self._trainer.distributed_backend is "ddp_cpu":
+                elif self._trainer.distributed_backend == "ddp_cpu":
                     optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
-                elif self._trainer.distributed_backend is "ddp":
+                elif self._trainer.distributed_backend == "ddp":
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
                 else:
                     logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.distributed_backend }. We "
+                        f"The lightning trainer received accelerator: {self._trainer.distributed_backend}. We "
                         "recommend to use 'ddp' instead."
                     )
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes

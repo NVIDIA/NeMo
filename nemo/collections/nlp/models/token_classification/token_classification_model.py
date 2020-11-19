@@ -193,15 +193,6 @@ class TokenClassificationModel(NLPModel, Exportable):
         """
         return self.validation_epoch_end(outputs)
 
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
-        )
-        self.tokenizer = tokenizer
-
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
@@ -517,8 +508,11 @@ class TokenClassificationModel(NLPModel, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
+        output1_descr = qual_name + ' BERT exported to ONNX'
         bert_model_onnx = self.bert_model.export(
-            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -532,8 +526,10 @@ class TokenClassificationModel(NLPModel, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output))
+        output2_descr = qual_name + ' Classifier exported to ONNX'
         classifier_onnx = self.classifier.export(
-            os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -548,4 +544,6 @@ class TokenClassificationModel(NLPModel, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "TKCL")
+        output_descr = qual_name + ' BERT+Classifier exported to ONNX'
         onnx.save(output_model, output)
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])

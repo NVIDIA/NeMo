@@ -110,6 +110,7 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
             entry['audio_filepath'] = rir_file
             entry['duration'] = float(duration)
             entry['offset'] = 0
+            entry['text'] = '_'
             man_f.write(json.dumps(entry) + "\n")
 
     print('Done!')

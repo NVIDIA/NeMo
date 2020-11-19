@@ -42,7 +42,6 @@ from torch.multiprocessing import Pool, set_start_method
 
 from nemo.collections.common.metrics import Perplexity
 
-
 NUM_PROCESSES = 2
 NUM_BATCHES = 10
 BATCH_SIZE = 16
