@@ -16,6 +16,7 @@ from dataclasses import asdict
 
 import pytorch_lightning as pl
 
+import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import EncDecCTCModel, configs
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
@@ -62,7 +63,7 @@ LABELS = [
 ]
 
 qn_15x5 = [
-    configs.JasperEncoderConfig(
+    nemo_asr.modules.conv_asr.JasperEncoderConfig(
         filters=256,
         repeat=1,
         kernel=[33],
@@ -72,7 +73,7 @@ qn_15x5 = [
         dropout=cfg.model.dropout,
         residual=False,
     ),
-    configs.JasperEncoderConfig(
+    nemo_asr.modules.conv_asr.JasperEncoderConfig(
         filters=256,
         repeat=1,
         kernel=[33],
@@ -83,7 +84,7 @@ qn_15x5 = [
         residual=True,
     ),
     # ... repeat 14 more times
-    configs.JasperEncoderConfig(
+    nemo_asr.modules.conv_asr.JasperEncoderConfig(
         filters=1024, repeat=1, kernel=[1], stride=[1], dilation=[1], dropout=cfg.model.dropout, residual=False,
     ),
 ]

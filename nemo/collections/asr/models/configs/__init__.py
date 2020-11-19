@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from nemo.collections.asr.models.configs.ctc_models_config import (
-    AudioToMelSpectrogramPreprocessorConfig,
-    ConvASRDecoderConfig,
-    ConvASREncoderConfig,
     EncDecCTCConfig,
     EncDecCTCDatasetConfig,
     EncDecCTCModelConfig,
-    JasperEncoderConfig,
-    SpecAugmentConfig,
 )
+from nemo.collections.asr.modules.audio_preprocessing import (
+    AudioToMelSpectrogramPreprocessorConfig,
+    SpectrogramAugmentationConfig,
+)
+from nemo.collections.asr.modules.conv_asr import ConvASRDecoderConfig, ConvASREncoderConfig, JasperEncoderConfig

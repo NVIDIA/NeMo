@@ -16,6 +16,7 @@ import copy
 import pytest
 from omegaconf import DictConfig, OmegaConf, open_dict
 
+import nemo.collections.asr.modules.conv_asr
 from nemo.collections.asr.models import EncDecCTCModel, configs
 
 
@@ -123,7 +124,7 @@ class TestEncDecCTCModel:
         model_cfg.model.encoder.activation = 'relu'
         model_cfg.model.encoder.feat_in = 64
         model_cfg.model.encoder.jasper = [
-            configs.JasperEncoderConfig(
+            nemo.collections.asr.modules.conv_asr.JasperEncoderConfig(
                 filters=1024,
                 repeat=1,
                 kernel=[1],
