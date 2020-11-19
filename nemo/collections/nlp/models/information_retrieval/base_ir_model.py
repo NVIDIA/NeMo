@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from typing import Dict, Optional
 
 import numpy as np
@@ -29,7 +30,7 @@ from nemo.core.classes.modelPT import ModelPT
 __all__ = ['BaseIRModel']
 
 
-class BaseIRModel(ModelPT):
+class BaseIRModel(NLPModel):
     """
     Base class for information retrieval models.
     """
@@ -174,15 +175,6 @@ class BaseIRModel(ModelPT):
         }
 
         return {"log": tensorboard_logs}
-
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            tokenizer_model=cfg.tokenizer_model,
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            vocab_file=cfg.vocab_file,
-        )
-        self.tokenizer = tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
