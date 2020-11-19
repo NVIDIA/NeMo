@@ -14,6 +14,7 @@
 from typing import Dict, List, Optional
 
 import torch
+import math
 
 from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset
@@ -168,36 +169,29 @@ target_label_n, "offset": offset_in_sec_n}
         """
         slice_length = self.featurizer.sample_rate * self.time_length
         _, audio_lengths, _, tokens_lengths = zip(*batch)
-        shift = self.shift * self.featurizer.sample_rate
+        shift = self.shift_length * self.featurizer.sample_rate
         has_audio = audio_lengths[0] is not None
 
         audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
         for sig, sig_len, tokens_i, _ in batch:
             if has_audio:
                 sig_len = sig_len.item()
-                slices = sig_len // slice_length
-                if slices <= 0:
-
-                    repeat = slice_length // sig_len
-                    rem = slice_length % sig_len
-                    sub = sig[-rem:] if rem > 0 else torch.tensor([])
-                    rep_sig = torch.cat(repeat * [sig])
-                    signal = torch.cat((rep_sig, sub))
+                dur = sig_len/self.featurizer.sample_rate
+                base = math.ceil((dur-self.time_length)/self.shift_length)
+                slice_length = int(slice_length)
+                shift = int(shift)
+                slices = 1 if base < 0 else base + 1
+                for slice_id in range(slices):
+                    start_idx = slice_id * shift
+                    end_idx = start_idx + slice_length
+                    signal = sig[start_idx:end_idx]
+                    if len(signal) < slice_length:
+                        signal = repeat_signal(signal,len(signal),slice_length)
                     audio_signal.append(signal)
-                    num_slices.append(1)  # single embedding
-                    tokens.extend([tokens_i] * 1)
-                    audio_lengths.extend([slice_length] * 1)
-                else:
-                    slices = int((sig_len - slice_length) // shift) + 1
-                    for slice_id in range(slices):
-                        start_idx = int(slice_id * shift)
-                        end_idx = int(start_idx + slice_length)
-                        signal = sig[start_idx:end_idx]
-                        audio_signal.append(signal)
 
-                    num_slices.append(slices)
-                    tokens.extend([tokens_i] * slices)
-                    audio_lengths.extend([slice_length] * slices)
+                num_slices.append(slices)
+                tokens.extend([tokens_i] * slices)
+                audio_lengths.extend([slice_length] * slices)
 
         if has_audio:
             audio_signal = torch.stack(audio_signal)
@@ -278,3 +272,11 @@ target_label_n, "offset": offset_in_sec_n}
         tl = 1  # For compatibility with collate_fn used later
 
         return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+def repeat_signal(signal,sig_len,required_length):
+    repeat = required_length // sig_len
+    rem = required_length % sig_len
+    sub = signal[-rem:] if rem > 0 else torch.tensor([])
+    rep_sig = torch.cat(repeat * [signal])
+    signal = torch.cat((rep_sig, sub))
+    return signal
