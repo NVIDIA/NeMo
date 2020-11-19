@@ -14,6 +14,7 @@
 
 import itertools
 import math
+from nemo.collections.nlp.models.nlp_model import NLPModel
 import random
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -42,10 +43,10 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging
 
-__all__ = ['TransformerMTModel']
+__all__ = ['MTEncDecModel']
 
 
-class TransformerMTModel(ModelPT):
+class MTEncDecModel(NLPModel):
     """
     Left-to-right Transformer language model.
     """
