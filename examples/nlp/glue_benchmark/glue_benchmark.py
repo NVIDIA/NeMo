@@ -49,6 +49,7 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager_cfg = cfg.get("exp_manager", None)
+
     if exp_manager_cfg:
         exp_manager_cfg.name = cfg.model.task_name
         logging.info(f'Setting task_name to {exp_manager_cfg.name} in exp_manager')
