@@ -76,16 +76,12 @@ def main():
     cfg.model.labels = LABELS
 
     # train ds
-    cfg.model.train_ds.manifest_filepath = (
-        "<path to train dataset>"
-    )
+    cfg.model.train_ds.manifest_filepath = "<path to train dataset>"
     cfg.model.train_ds.labels = LABELS
     cfg.model.train_ds.sample_rate = cfg.model.sample_rate
 
     # validation ds
-    cfg.model.validation_ds.manifest_filepath = (
-        "<path to test dataset>"
-    )
+    cfg.model.validation_ds.manifest_filepath = "<path to test dataset>"
     cfg.model.validation_ds.labels = LABELS
     cfg.model.validation_ds.sample_rate = cfg.model.sample_rate
 
