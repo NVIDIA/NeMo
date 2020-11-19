@@ -18,7 +18,7 @@ import pytorch_lightning as pl
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import EncDecCTCModel, configs
-from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
+from nemo.utils.exp_manager import exp_manager
 
 """
 python speech_to_text_structured.py
