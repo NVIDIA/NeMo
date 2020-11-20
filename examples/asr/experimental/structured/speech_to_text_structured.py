@@ -114,10 +114,15 @@ def main():
     cfg.model.optim.name = 'novograd'
     cfg.model.optim.lr = 0.01
 
+    # `betas` dont exist inside the base config,
+    # so they cannot be added as such!
+    # Same for `weight_decay`.
     cfg.model.optim.betas = [0.8, 0.5]
     cfg.model.optim.weight_decay = 0.001
 
     # sched
+    # As parameters such as warmup_steps and warmup_ratio
+    # dont exist inside the shell config, these values are not added!
     cfg.model.optim.sched.name = "CosineAnnealing"
     cfg.model.optim.sched.warmup_steps = None
     cfg.model.optim.sched.warmup_ratio = 0.01
