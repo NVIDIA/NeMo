@@ -53,37 +53,55 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """ Initializes BERT Joint Intent and Slot model.
         """
-
-        self.data_dir = cfg.data_dir
         self.max_seq_length = cfg.language_model.max_seq_length
 
-        self.data_desc = IntentSlotDataDesc(
-            data_dir=cfg.data_dir, modes=[cfg.train_ds.prefix, cfg.validation_ds.prefix]
-        )
+        # Check the presence of data_dir.
+        if not cfg.data_dir:
+            # Disable setup methods.
+            IntentSlotClassificationModel._set_model_restore_state(is_being_restored=True)
+        else:
+            # Conditional initialization of datadesc.
+            self._init_data_desc_when_dir_set(cfg.data_dir, cfg.tokenizer, cfg.train_ds, cfg.validation_ds)
 
-        self._setup_tokenizer(cfg.tokenizer)
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
+        # Enable setup methods.
+        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
+
+        # Check the presence of data_dir.
+        if cfg.data_dir:
+            # Conditional initialization of modules.
+            self._init_modules_when_data_dir_set()
+
+    def _init_data_desc_when_dir_set(self, data_dir, tokenizer_cfg, train_ds, validation_ds):
+        # Store data_dir - not sure why, but before it was stored.
+        self.data_dir = data_dir
+        self.data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
+        self._setup_tokenizer(tokenizer_cfg)
+
+    def _init_modules_when_data_dir_set(self):
 
         # initialize Bert model
         self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.config_file,
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
+            pretrained_model_name=self.cfg.language_model.pretrained_model_name,
+            config_file=self.cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(self.cfg.language_model.config)
+            if self.cfg.language_model.config
+            else None,
+            checkpoint_file=self.cfg.language_model.lm_checkpoint,
         )
 
         self.classifier = SequenceTokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
             num_intents=self.data_desc.num_intents,
             num_slots=self.data_desc.num_slots,
-            dropout=cfg.head.fc_dropout,
-            num_layers=cfg.head.num_output_layers,
+            dropout=self.cfg.head.fc_dropout,
+            num_layers=self.cfg.head.num_output_layers,
             log_softmax=False,
         )
 
         # define losses
-        if cfg.class_balancing == 'weighted_loss':
+        if self.cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.data_desc.intent_weights)
             self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.slot_weights)
@@ -91,7 +109,9 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             self.intent_loss = CrossEntropyLoss(logits_ndim=2)
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
 
-        self.total_loss = AggregatorLoss(num_inputs=2, weights=[cfg.intent_loss_weight, 1.0 - cfg.intent_loss_weight])
+        self.total_loss = AggregatorLoss(
+            num_inputs=2, weights=[self.cfg.intent_loss_weight, 1.0 - self.cfg.intent_loss_weight]
+        )
 
         # setup to track metrics
         self.intent_classification_report = ClassificationReport(
@@ -107,7 +127,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             mode='micro',
         )
 
-    def update_data_dir(self, data_dir: str) -> None:
+    def update_data_dir(self, data_dir: str, train_ds, validation_ds) -> None:
         """
         Update data directory and get data stats with Data Descriptor
         Weights are later used to setup loss
@@ -115,8 +135,10 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         Args:
             data_dir: path to data directory
         """
-        self.data_dir = data_dir
         logging.info(f'Setting model.data_dir to {data_dir}.')
+        # Finish the "conditional initialization" by passing the new data_dir.
+        self._init_data_desc_when_dir_set(data_dir, self.cfg.tokenizer, train_ds, validation_ds)
+        self._init_modules_when_data_dir_set()
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
