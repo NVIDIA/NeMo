@@ -53,7 +53,7 @@ class ClusteringSDModel(DiarizationModel):
         super().__init__(cfg=cfg)
         # init vad model
         if not cfg.speaker_embeddings.oracle_vad.ignore_vad:
-            self._vad_model = EncDecClassificationModel.from_pretrained("MatchboxNet-VAD-3x2")
+            self._vad_model = EncDecClassificationModel.restore_from(cfg.vad.model_path)
         # restore_from(self._cfg.vad.model_path)
         self._vad_time_length = self._cfg.vad.time_length
         self._vad_shift_length = self._cfg.vad.shift_length
