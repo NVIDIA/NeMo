@@ -93,12 +93,12 @@ def main(cfg: DictConfig) -> None:
             # setting up train and validation Pytorch DataLoaders
             # setup the data dir to get class weights statistics
             model.update_data_dir(data_dir=data_dir)
-            # then we're setting up loss, use model.dataset.class_balancing,
-            # if you want to add class weights to the CrossEntropyLoss
-            model.setup_loss(class_balancing=cfg.model.dataset.class_balancing)
             # finally, setup train and validation Pytorch DataLoaders
             model.setup_training_data()
             model.setup_validation_data()
+            # then we're setting up loss, use model.dataset.class_balancing,
+            # if you want to add class weights to the CrossEntropyLoss
+            model.setup_loss(class_balancing=cfg.model.dataset.class_balancing)
             logging.info(f'Using config file of the pretrained model')
         else:
             do_training = False
