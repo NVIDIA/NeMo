@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import OrderedDict
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -108,14 +109,14 @@ class ConvASREncoder(NeuralModule, Exportable):
     def __init__(
         self,
         jasper,
-        activation,
-        feat_in,
-        normalization_mode="batch",
-        residual_mode="add",
-        norm_groups=-1,
-        conv_mask=True,
-        frame_splicing=1,
-        init_mode='xavier_uniform',
+        activation: str,
+        feat_in: int,
+        normalization_mode: str = "batch",
+        residual_mode: str = "add",
+        norm_groups: int = -1,
+        conv_mask: bool = True,
+        frame_splicing: int = 1,
+        init_mode: Optional[str] = 'xavier_uniform',
     ):
         super().__init__()
         if isinstance(jasper, ListConfig):
@@ -288,7 +289,14 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
     def output_types(self):
         return OrderedDict({"logits": NeuralType(('B', 'D'), LogitsType())})
 
-    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", return_logits=True, pooling_type='avg'):
+    def __init__(
+        self,
+        feat_in: int,
+        num_classes: int,
+        init_mode: Optional[str] = "xavier_uniform",
+        return_logits: bool = True,
+        pooling_type='avg',
+    ):
         super().__init__()
 
         self._feat_in = feat_in
