@@ -108,25 +108,27 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
             trim=False,
             load_audio=config.get('load_audio', True),
             time_length=config.get('time_length', 8),
+            shift_length=config.get('shift_length', 0.75),
         )
 
         if self.task == 'diarization':
             logging.info("Setting up diarization parameters")
             _collate_func = self.dataset.sliced_seq_collate_fn
-            self.dataset.time_length = self.window
-            self.dataset.shift = self.shift
             batch_size = 1
+            shuffle = False
         else:
+            logging.info("Setting up identification parameters")
             _collate_func = self.dataset.fixed_seq_collate_fn
             batch_size = config['batch_size']
+            shuffle = config.get('shuffle', False)
 
         return torch.utils.data.DataLoader(
             dataset=self.dataset,
             batch_size=batch_size,
             collate_fn=_collate_func,
             drop_last=config.get('drop_last', False),
-            shuffle=config['shuffle'],
-            num_workers=config.get('num_workers', 1),
+            shuffle=shuffle,
+            num_workers=config.get('num_workers', 0),
             pin_memory=config.get('pin_memory', False),
         )
 
@@ -136,22 +138,18 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in val_data_layer_config:
-            val_data_layer_config['shuffle'] = False
         val_data_layer_config['labels'] = self.dataset.labels
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in test_data_layer_params:
-            test_data_layer_params['shuffle'] = False
         if hasattr(self, 'dataset'):
             test_data_layer_params['labels'] = self.dataset.labels
 
         if 'task' in test_data_layer_params and test_data_layer_params['task']:
             logging.info("Extracting embeddings for Diarization")
             self.task = test_data_layer_params['task'].lower()
-            self.window = test_data_layer_params.get('window', 8)
-            self.shift = test_data_layer_params.get('shift', 1)
+            self.time_length = test_data_layer_params.get('time_length', 1.5)
+            self.shift_length = test_data_layer_params.get('shift_length', 0.75)
         else:
             self.task = 'verification'
 
@@ -418,10 +416,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
                     raise KeyError("Embeddings for label {} already present in emb dictionary".format(uniq_name))
                 num_slices = slices[idx]
                 end_idx = start_idx + num_slices
-                if self.task == 'diarization':
-                    out_embeddings[uniq_name] = embs[start_idx:end_idx]
-                else:
-                    out_embeddings[uniq_name] = embs[start_idx:end_idx].mean(axis=0)
+                out_embeddings[uniq_name] = embs[start_idx:end_idx].mean(axis=0)
                 start_idx = end_idx
 
         embedding_dir = os.path.join(self.embedding_dir, 'embeddings')

@@ -48,5 +48,6 @@ def main(cfg):
     sd_model = ClusteringSDModel(cfg=cfg.model)
     sd_model.diarize()
 
+
 if __name__ == '__main__':
     main()

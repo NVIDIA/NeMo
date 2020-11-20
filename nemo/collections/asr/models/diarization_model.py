@@ -33,4 +33,3 @@ class DiarizationModel(ModelPT, ABC):
             Speaker labels
         """
         pass
-
