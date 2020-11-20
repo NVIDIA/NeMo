@@ -146,7 +146,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             mode='micro',
         )
 
-    def update_data_dir(self, data_dir: str, train_ds, validation_ds) -> None:
+    def update_data_dir_for_training(self, data_dir: str, train_ds, validation_ds) -> None:
         """
         Update data directory and get data stats with Data Descriptor
         Weights are later used to setup loss
@@ -156,7 +156,8 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         """
         logging.info(f'Setting data_dir to {data_dir}.')
         # Finish the "conditional initialization" by passing the new data_dir.
-        self._init_data_desc_when_dir_set(data_dir, self.cfg.tokenizer, train_ds, validation_ds)
+        self._init_data_desc_when_dir_set(data_dir, self.cfg.tokenizer)
+        self._copy_data_desc_to_cfg(self.cfg, data_dir, train_ds, validation_ds)
         self._init_modules_when_tokenizer_set()
 
     def update_data_dir_for_testing(self, data_dir) -> None:
