@@ -15,13 +15,17 @@ model:
     threshold: 0.5
     num_workers: 4
   speaker_embeddings:
-    model_path: "/data/samsungSSD/NVIDIA/repos/NeMo/examples/speaker_recognition/embeddings/SpeakerNet-L.nemo"
-    time_length: 8
-    shift_length: 0.01
+    model_path: "./embeddings/spkr.nemo"
+    time_length: 1.5
+    shift_length: 0.75
+    oracle_vad: 
+      ignore_vad: True
+      manifest_filepath: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/test_diarize.json"
   diarizer:
     cluster_method: "SpectralClustering"
-    num_speakers: 2
-    out_dir: "//data/samsungSSD/NVIDIA/repos/NeMo/examples/speaker_recognition/embeddings"
+    reco2num: 4
+    out_dir: "./diarization"
+    groundtruth_RTTM_dir: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/disk8_RTTMs"
     shuffle: False
   manifest_filepath: "/data3/sdtest/test.json"
   sample_rate: 16000

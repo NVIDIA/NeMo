@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 from typing import Dict, List, Optional
 
 import torch
-import math
 
 from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset
@@ -176,8 +176,8 @@ target_label_n, "offset": offset_in_sec_n}
         for sig, sig_len, tokens_i, _ in batch:
             if has_audio:
                 sig_len = sig_len.item()
-                dur = sig_len/self.featurizer.sample_rate
-                base = math.ceil((dur-self.time_length)/self.shift_length)
+                dur = sig_len / self.featurizer.sample_rate
+                base = math.ceil((dur - self.time_length) / self.shift_length)
                 slice_length = int(slice_length)
                 shift = int(shift)
                 slices = 1 if base < 0 else base + 1
@@ -186,7 +186,7 @@ target_label_n, "offset": offset_in_sec_n}
                     end_idx = start_idx + slice_length
                     signal = sig[start_idx:end_idx]
                     if len(signal) < slice_length:
-                        signal = repeat_signal(signal,len(signal),slice_length)
+                        signal = repeat_signal(signal, len(signal), slice_length)
                     audio_signal.append(signal)
 
                 num_slices.append(slices)
@@ -273,7 +273,8 @@ target_label_n, "offset": offset_in_sec_n}
 
         return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
-def repeat_signal(signal,sig_len,required_length):
+
+def repeat_signal(signal, sig_len, required_length):
     repeat = required_length // sig_len
     rem = required_length % sig_len
     sub = signal[-rem:] if rem > 0 else torch.tensor([])

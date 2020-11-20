@@ -12,40 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import json
 import os
-from collections import defaultdict
+import pickle as pkl
 import shutil
-
-from typing import Dict, List, Optional, Union
-
-import glob
+from collections import defaultdict
 from itertools import repeat
 from multiprocessing import Pool
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
-import pickle as pkl
 
-
+from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.diarization_model import DiarizationModel
-from nemo.utils import logging
-from nemo.collections.asr.models import EncDecClassificationModel, ExtractSpeakerEmbeddingsModel
+from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
+from nemo.collections.asr.parts.speaker_utils import get_score
 from nemo.collections.asr.parts.vad_utils import gen_overlap_seq, gen_seg_table, write_manifest
-from nemo.collections.asr.parts.speaker_utils  import get_score
+from nemo.utils import logging
+from nemo.utils.exp_manager import NotFoundError
 
 try:
     from torch.cuda.amp import autocast
 except ImportError:
     from contextlib import contextmanager
 
-
     @contextmanager
     def autocast(enabled=None):
         yield
 
-__all__ = ['ClusteringSDModel']
 
+__all__ = ['ClusteringSDModel']
 
 
 class ClusteringSDModel(DiarizationModel):
@@ -59,15 +57,16 @@ class ClusteringSDModel(DiarizationModel):
         self._vad_shift_length = self._cfg.vad.shift_length
 
         # init speaker model
-        self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
-            self._cfg.speaker_embeddings.model_path)
+        self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(self._cfg.speaker_embeddings.model_path)
 
         # Clustering method
         self._clustering_method = self._cfg.diarizer.cluster_method
-        self._num_speakers = self._cfg.diarizer.num_speakers
+        self._reco2num = self._cfg.diarizer.reco2num
 
         self._out_dir = self._cfg.diarizer.out_dir
-        self._vad_out_file = os.path.join(self._out_dir, "vad_out.json")
+        self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
+        self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
+        self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
 
         self._manifest_file = self._cfg.manifest_filepath
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -88,7 +87,7 @@ class ClusteringSDModel(DiarizationModel):
             'sample_rate': self._cfg.sample_rate,
             'batch_size': 1,
             'vad_stream': True,
-            'labels': ['infer', ],
+            'labels': ['infer',],
             'time_length': self._cfg.vad.time_length,
             'shift_length': self._cfg.vad.shift_length,
             'trim_silence': False,
@@ -99,25 +98,24 @@ class ClusteringSDModel(DiarizationModel):
     def _setup_spkr_test_data(self, manifest_file):
 
         spk_dl_config = {
-             'manifest_filepath': manifest_file,
-             'sample_rate': self._cfg.sample_rate,
-             'batch_size': 1,
-             'time_length': self._cfg.speaker_embeddings.time_length,
-             'shift_length': self._cfg.speaker_embeddings.shift_length,
-             'trim_silence': False,
-             'embedding_dir': self._out_dir,
-             'labels': None,
-             'task': "diarization",
+            'manifest_filepath': manifest_file,
+            'sample_rate': self._cfg.sample_rate,
+            'batch_size': 1,
+            'time_length': self._cfg.speaker_embeddings.time_length,
+            'shift_length': self._cfg.speaker_embeddings.shift_length,
+            'trim_silence': False,
+            'embedding_dir': self._speaker_dir,
+            'labels': None,
+            'task': "diarization",
         }
         self._speaker_model.setup_test_data(spk_dl_config)
 
     def _eval_vad(self, manifest_file):
-        out_dir = os.path.join(self._out_dir, "frame_vad")
+        out_dir = os.path.join(self._vad_dir, "frame_vad")
         shutil.rmtree(out_dir, ignore_errors=True)
         os.mkdir(out_dir)
         self._vad_model = self._vad_model.to(self._device)
         self._vad_model.eval()
-
 
         time_unit = int(self._cfg.vad.time_length / self._cfg.vad.shift_length)
         trunc = int(time_unit / 2)
@@ -169,7 +167,7 @@ class ClusteringSDModel(DiarizationModel):
                 print(f"Overall length of prediction of {data[i]} is {all_len}!")
                 all_len = 0
 
-        vad_out_dir = self.generate_vad_timestamps()
+        vad_out_dir = self.generate_vad_timestamps()  # TODO confirm directory structure here
         write_manifest(vad_out_dir, self._out_dir, self._vad_out_file)
 
     def generate_vad_timestamps(self):
@@ -177,8 +175,14 @@ class ClusteringSDModel(DiarizationModel):
             p = Pool(processes=self._cfg.vad.num_workers)
             logging.info("Generating predictions with overlapping input segments")
             frame_filepathlist = glob.glob(self._out_dir + "/frame_vad/*.frame")
-            overlap_out_dir = self._out_dir + "/overlap_smoothing_output" + "_" + self._cfg.vad.overlap_method + "_" +\
-                              str(self._cfg.vad.overlap)
+            overlap_out_dir = (
+                self._out_dir
+                + "/overlap_smoothing_output"
+                + "_"
+                + self._cfg.vad.overlap_method
+                + "_"
+                + str(self._cfg.vad.overlap)
+            )
             if not os.path.exists(overlap_out_dir):
                 os.mkdir(overlap_out_dir)
 
@@ -194,10 +198,11 @@ class ClusteringSDModel(DiarizationModel):
             p.close()
             p.join()
 
-
         if self._cfg.vad.gen_seg_table:
             p = Pool(processes=self._cfg.vad.num_workers)
-            logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
+            logging.info(
+                "Converting frame level prediction to speech/no-speech segment in start and end times format."
+            )
 
             if self._cfg.vad.gen_overlap_seq:
                 logging.info("Use overlap prediction. Change if you want to use basic frame level prediction")
@@ -225,18 +230,16 @@ class ClusteringSDModel(DiarizationModel):
             p.join()
         return table_out_dir
 
-    def _extract_embeddings(self):
+    def _extract_embeddings(self, manifest_file):
         # create unique labels
-        # manifest_file = self._vad_out_file
-        manifest_file = "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/test_diarize.json"
-        #add assert
+        # add assert
         self._setup_spkr_test_data(manifest_file)
-        uniq_names=[]
+        uniq_names = []
         out_embeddings = defaultdict(list)
         self._speaker_model = self._speaker_model.to(self._device)
         self._speaker_model.eval()
         with open(manifest_file, 'r') as manifest:
-            for idx, line in enumerate(manifest.readlines()):
+            for line in manifest.readlines():
                 line = line.strip()
                 dic = json.loads(line)
                 uniq_names.append(dic['audio_filepath'].split('/')[-1].split('.')[0])
@@ -245,16 +248,15 @@ class ClusteringSDModel(DiarizationModel):
             test_batch = [x.to(self._device) for x in test_batch]
             audio_signal, audio_signal_len, labels, slices = test_batch
             with autocast():
-                _, embs = self._speaker_model.forward(input_signal=audio_signal,
-                                                      input_signal_length=audio_signal_len)
+                _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
                 embs = embs.view(-1, emb_shape).cpu().detach().numpy()
                 out_embeddings[uniq_names[i]].extend(embs)
             del test_batch
 
-        embedding_dir = os.path.join(self._out_dir, 'embeddings')
+        embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
         if not os.path.exists(embedding_dir):
-            os.mkdir(embedding_dir)
+            os.makedirs(embedding_dir, exist_ok=True)
 
         prefix = manifest_file.split('/')[-1].split('.')[-2]
 
@@ -273,8 +275,6 @@ class ClusteringSDModel(DiarizationModel):
             os.mkdir(self._out_dir)
 
         # setup_test_data
-
-        logging.set_verbosity(logging.WARNING)
         # Work in tmp directory - will store manifest file there
         if paths2audio_files is not None:
             mfst_file = os.path.join(self._out_dir, 'manifest.json')
@@ -287,17 +287,35 @@ class ClusteringSDModel(DiarizationModel):
 
         config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'manifest': mfst_file}
 
-        #self._setup_vad_test_data(config)
-        #self._eval_vad(mfst_file)
+        if not self._cfg.speaker_embeddings.oracle_vad.ignore_vad:
+            logging.info("Performing VAD")
+            self._setup_vad_test_data(config)
+            self._eval_vad(mfst_file)
+            manifest = self._vad_out_file
 
-        # get manifest for speaker embeddings
+        else:
+            logging.info("Provided option as orcale vad, checking for vad output based manifest file")
+            if os.path.exists(self._cfg.speaker_embeddings.oracle_vad.manifest_filepath):
+                manifest = self._cfg.speaker_embeddings.oracle_vad.manifest_filepath
+            else:
+                raise NotFoundError("Oracle VAD based manifest file not found")
 
-        self._extract_embeddings()
-        reco2num = 4
-        SR=16000
-        manifest = "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/test_diarize.json"
-        RTTM_DIR= '/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/disk8_RTTMs'
-        DER = get_score(self._embeddings_file, reco2num, manifest, self._cfg.sample_rate,
-            self._cfg.speaker_embeddings.time_length,
-            self._cfg.speaker_embeddings.shift_length, RTTM_DIR)
-        logging.info("Cumulative DER of all the files is {:.3f}".format(DER))
+        self._extract_embeddings(manifest)
+        reco2num = self._reco2num
+        RTTM_DIR = self._cfg.diarizer.groundtruth_RTTM_dir
+        OUT_RTTM_DIR = os.path.join(self._cfg.diarizer.out_dir, 'pred_rttms')
+        os.makedirs(OUT_RTTM_DIR, exist_ok=True)
+        DER, CER = get_score(
+            embeddings_file=self._embeddings_file,
+            reco2num=reco2num,
+            manifest_path=manifest,
+            SAMPLE_RATE=self._cfg.sample_rate,
+            WINDOW=self._cfg.speaker_embeddings.time_length,
+            SHIFT=self._cfg.speaker_embeddings.shift_length,
+            GT_RTTM_DIR=RTTM_DIR,
+            OUT_RTTM_DIR=OUT_RTTM_DIR,
+        )
+
+        logging.info(
+            "Cumulative Diarization ER and Cofusion ER of all the files is {:.3f} and {:.3f}".format(DER, CER)
+        )

@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import glob
+import json
 import os
 
 import numpy as np
 import pandas as pd
-import glob
-import json
+
 
 def gen_overlap_seq(frame_filepath, per_args):
     """
@@ -102,6 +103,7 @@ def gen_overlap_seq(frame_filepath, per_args):
     except Exception as e:
         raise (e)
 
+
 def gen_seg_table(frame_filepath, per_args):
 
     """
@@ -149,6 +151,7 @@ def gen_seg_table(frame_filepath, per_args):
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
     seg_table.to_csv(save_path, sep='\t', index=False, header=False)
+
 
 def write_manifest(vad_directory, audio_directory, manifest_file):
     vad_files = glob.glob(vad_directory + "/*.txt")
