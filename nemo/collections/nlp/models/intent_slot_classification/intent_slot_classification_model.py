@@ -61,39 +61,42 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             IntentSlotClassificationModel._set_model_restore_state(is_being_restored=True)
         else:
             # Conditional initialization of datadesc.
-            self._init_data_desc_when_dir_set(cfg.data_dir, cfg.tokenizer, cfg.train_ds, cfg.validation_ds)
+            self._init_data_desc_when_dir_set(cfg.data_dir, cfg.tokenizer)
+            self._copy_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-        # Enable setup methods.
-        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
 
         # Check the presence of data_dir.
         if cfg.data_dir:
             # Conditional initialization of modules.
             self._init_modules_when_tokenizer_set()
 
-    def _init_data_desc_when_dir_set(self, data_dir, tokenizer_cfg, train_ds, validation_ds):
+        # Enable setup methods.
+        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
+
+    def _init_data_desc_when_dir_set(self, data_dir, tokenizer_cfg):
         # Store data_dir - not sure why, but before it was stored.
         self.data_dir = data_dir
         # Setup tokenizer.
         self._setup_tokenizer(tokenizer_cfg)
 
+    def _copy_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
         data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
-        OmegaConf.set_struct(self.cfg, False)
-        self.cfg.data_desc = {}
+        OmegaConf.set_struct(cfg, False)
+        cfg.data_desc = {}
         # Intents.
-        self.cfg.data_desc.intent_labels = list(data_desc.intents_label_ids.keys())
-        self.cfg.data_desc.intent_label_ids = data_desc.intents_label_ids
-        self.cfg.data_desc.intent_weights = data_desc.intent_weights
+        cfg.data_desc.intent_labels = list(data_desc.intents_label_ids.keys())
+        cfg.data_desc.intent_label_ids = data_desc.intents_label_ids
+        cfg.data_desc.intent_weights = data_desc.intent_weights
         # Slots.
-        self.cfg.data_desc.slot_labels = list(data_desc.slots_label_ids.keys())
-        self.cfg.data_desc.slot_label_ids = data_desc.slots_label_ids
-        self.cfg.data_desc.slot_weights = data_desc.slot_weights
+        cfg.data_desc.slot_labels = list(data_desc.slots_label_ids.keys())
+        cfg.data_desc.slot_label_ids = data_desc.slots_label_ids
+        cfg.data_desc.slot_weights = data_desc.slot_weights
 
-        self.cfg.data_desc.pad_label = data_desc.pad_label
-        OmegaConf.set_struct(self.cfg, True)
+        cfg.data_desc.pad_label = data_desc.pad_label
+        OmegaConf.set_struct(cfg, True)
 
     def _init_modules_when_tokenizer_set(self):
 
@@ -151,9 +154,23 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         Args:
             data_dir: path to data directory
         """
-        logging.info(f'Setting model.data_dir to {data_dir}.')
+        logging.info(f'Setting data_dir to {data_dir}.')
         # Finish the "conditional initialization" by passing the new data_dir.
         self._init_data_desc_when_dir_set(data_dir, self.cfg.tokenizer, train_ds, validation_ds)
+        self._init_modules_when_tokenizer_set()
+
+    def update_data_dir_for_testing(self, data_dir) -> None:
+        """
+        Update data directory.
+        Weights are later used to setup loss
+
+        Args:
+            data_dir: path to data directory
+        """
+        logging.info(f'Setting data_dir to {data_dir}.')
+        self.data_dir = data_dir
+        # Setup tokenizer.
+        self._setup_tokenizer(self.cfg.tokenizer)
         self._init_modules_when_tokenizer_set()
 
     @typecheck()
