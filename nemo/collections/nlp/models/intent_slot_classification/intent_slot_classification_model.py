@@ -289,13 +289,21 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             tokenizer=self.tokenizer, queries=queries, max_seq_length=-1, do_lower_case=False
         )
 
+        # take these params from the saved model either from test or train dataset configs
+        if 'test_ds' in self.cfg:
+            num_workers = self.cfg.test_ds.num_workers
+            pin_memory = self.cfg.test_ds.pin_memory
+        else:
+            num_workers = self.cfg.train_ds.num_workers
+            pin_memory = self.cfg.train_ds.pin_memory
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=self._cfg.test_ds.num_workers,
-            pin_memory=self._cfg.test_ds.pin_memory,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
             drop_last=False,
         )
 
