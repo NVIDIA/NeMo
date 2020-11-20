@@ -16,8 +16,9 @@ import copy
 import pytest
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-import nemo.collections.asr.modules.conv_asr
+import nemo.collections.asr.modules.conv_as
 from nemo.collections.asr.models import EncDecCTCModel, configs
+from nemo.utils.config_utils import update_model_config
 
 
 @pytest.fixture()
@@ -159,7 +160,7 @@ class TestEncDecCTCModel:
 
         # Construct the model, without dropping additional keys
         asr_cfg = OmegaConf.create({'model': asr_model.cfg})
-        model_cfg_v2 = EncDecCTCModel.update_model_dataclass(model_cfg, asr_cfg, drop_missing_subconfigs=False)
+        model_cfg_v2 = update_model_config(model_cfg, asr_cfg, drop_missing_subconfigs=False)
 
         # Assert all components are in config
         assert 'trainer' in model_cfg_v2
