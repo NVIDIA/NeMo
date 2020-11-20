@@ -60,9 +60,11 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             # Disable setup methods.
             IntentSlotClassificationModel._set_model_restore_state(is_being_restored=True)
         else:
-            # Conditional initialization of datadesc.
-            self._init_data_desc_when_dir_set(cfg.data_dir, cfg.tokenizer)
+            # Update configuration with new data.
             self._copy_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
+            # Conditional initialization of tokenizer.
+            self.data_dir = cfg.data_dir
+            self._setup_tokenizer(cfg.tokenizer)
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
@@ -74,12 +76,6 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
 
         # Enable setup methods.
         IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
-
-    def _init_data_desc_when_dir_set(self, data_dir, tokenizer_cfg):
-        # Store data_dir - not sure why, but before it was stored.
-        self.data_dir = data_dir
-        # Setup tokenizer.
-        self._setup_tokenizer(tokenizer_cfg)
 
     def _copy_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
@@ -155,9 +151,11 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             data_dir: path to data directory
         """
         logging.info(f'Setting data_dir to {data_dir}.')
-        # Finish the "conditional initialization" by passing the new data_dir.
-        self._init_data_desc_when_dir_set(data_dir, self.cfg.tokenizer)
+        self.data_dir = data_dir
+        # Update configuration with new data.
         self._copy_data_desc_to_cfg(self.cfg, data_dir, train_ds, validation_ds)
+        # Finish the "conditional initialization" by passing the new data_dir.
+        self._setup_tokenizer(self.cfg.tokenizer)
         self._init_modules_when_tokenizer_set()
 
     def update_data_dir_for_testing(self, data_dir) -> None:
@@ -170,7 +168,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         """
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
-        # Setup tokenizer.
+        # Finish the "conditional initialization" by passing the new data_dir.
         self._setup_tokenizer(self.cfg.tokenizer)
         self._init_modules_when_tokenizer_set()
 
