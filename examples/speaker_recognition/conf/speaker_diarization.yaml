@@ -20,13 +20,13 @@ model:
     shift_length: 0.75
     oracle_vad: 
       ignore_vad: True
-      manifest_filepath: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/test_diarize.json"
+      manifest_filepath: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/vad_oracle_manifest.json"
   diarizer:
     cluster_method: "SpectralClustering"
     reco2num: 4
     out_dir: "./diarization"
     groundtruth_RTTM_dir: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/disk8_RTTMs"
     shuffle: False
-  manifest_filepath: "/data3/sdtest/test.json"
+  manifest_filepath: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/vad_manifest.json"
   sample_rate: 16000
 

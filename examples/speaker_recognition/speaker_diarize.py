@@ -23,19 +23,8 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 """
-Basic run (on GPU for 10 epochs for 2 class training):
-EXP_NAME=sample_run
-python ./speaker_reco.py --config-path='conf' --config-name='SpeakerNet_recognition_3x2x512.yaml' \
-    trainer.max_epochs=10  \
-    model.train_ds.batch_size=64 model.validation_ds.batch_size=64 \
-    model.train_ds.manifest_filepath="<train_manifest>" model.validation_ds.manifest_filepath="<dev_manifest>" \
-    model.test_ds.manifest_filepath="<test_manifest>" \
-    trainer.gpus=1 \
-    model.decoder.params.num_classes=2 \
-    exp_manager.name=$EXP_NAME +exp_manager.use_datetime_version=False \
-    exp_manager.exp_dir='./speaker_exps'
-
-See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb for notebook tutorial
+Basic run 
+python speaker_diarize.py
 """
 
 seed_everything(42)
