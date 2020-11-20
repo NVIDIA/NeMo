@@ -52,7 +52,7 @@ class ClusteringSDModel(DiarizationModel):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
         # init vad model
-        # self._vad_model = EncDecClassificationModel.restore_from(self._cfg.vad.model_path)
+        self._vad_model = EncDecClassificationModel.restore_from(self._cfg.vad.model_path)
         self._vad_time_length = self._cfg.vad.time_length
         self._vad_shift_length = self._cfg.vad.shift_length
 
@@ -110,10 +110,9 @@ class ClusteringSDModel(DiarizationModel):
         }
         self._speaker_model.setup_test_data(spk_dl_config)
 
-    def _eval_vad(self, manifest_file):
-        out_dir = os.path.join(self._vad_dir, "frame_vad")
-        shutil.rmtree(out_dir, ignore_errors=True)
-        os.mkdir(out_dir)
+    def _run_vad(self, manifest_file):
+        shutil.rmtree(self._vad_dir, ignore_errors=True)
+        os.mkdir(self._vad_dir)
         self._vad_model = self._vad_model.to(self._device)
         self._vad_model.eval()
 
@@ -157,7 +156,7 @@ class ClusteringSDModel(DiarizationModel):
                     to_save = pred
                 all_len += len(to_save)
 
-                outpath = os.path.join(out_dir, data[i] + ".frame")
+                outpath = os.path.join(self._vad_dir, data[i] + ".frame")
                 with open(outpath, "a") as fout:
                     for f in range(len(to_save)):
                         fout.write('{0:0.4f}\n'.format(to_save[f]))
@@ -168,15 +167,15 @@ class ClusteringSDModel(DiarizationModel):
                 all_len = 0
 
         vad_out_dir = self.generate_vad_timestamps()  # TODO confirm directory structure here
-        write_manifest(vad_out_dir, self._out_dir, self._vad_out_file)
+        write_manifest(vad_out_dir, self._vad_dir, self._vad_out_file)
 
     def generate_vad_timestamps(self):
         if self._cfg.vad.gen_overlap_seq:
             p = Pool(processes=self._cfg.vad.num_workers)
             logging.info("Generating predictions with overlapping input segments")
-            frame_filepathlist = glob.glob(self._out_dir + "/frame_vad/*.frame")
+            frame_filepathlist = glob.glob(self._vad_dir + "/*.frame")
             overlap_out_dir = (
-                self._out_dir
+                self._vad_dir
                 + "/overlap_smoothing_output"
                 + "_"
                 + self._cfg.vad.overlap_method
@@ -215,7 +214,7 @@ class ClusteringSDModel(DiarizationModel):
 
             frame_filepathlist = glob.glob(frame_filepath + "/*." + self._cfg.vad.overlap_method)
 
-            table_out_dir = os.path.join(self._out_dir, "table_output_" + str(self._cfg.vad.threshold))
+            table_out_dir = os.path.join(self._vad_dir, "table_output_" + str(self._cfg.vad.threshold))
             if not os.path.exists(table_out_dir):
                 os.mkdir(table_out_dir)
 
@@ -290,7 +289,7 @@ class ClusteringSDModel(DiarizationModel):
         if not self._cfg.speaker_embeddings.oracle_vad.ignore_vad:
             logging.info("Performing VAD")
             self._setup_vad_test_data(config)
-            self._eval_vad(mfst_file)
+            self._run_vad(mfst_file)
             manifest = self._vad_out_file
 
         else:
@@ -303,7 +302,7 @@ class ClusteringSDModel(DiarizationModel):
         self._extract_embeddings(manifest)
         reco2num = self._reco2num
         RTTM_DIR = self._cfg.diarizer.groundtruth_RTTM_dir
-        OUT_RTTM_DIR = os.path.join(self._cfg.diarizer.out_dir, 'pred_rttms')
+        OUT_RTTM_DIR = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(OUT_RTTM_DIR, exist_ok=True)
         DER, CER = get_score(
             embeddings_file=self._embeddings_file,
