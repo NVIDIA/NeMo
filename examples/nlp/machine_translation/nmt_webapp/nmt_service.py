@@ -20,23 +20,23 @@ from nemo.utils import logging
 model = None
 api = Flask(__name__)
 
+logging.info("Starting NMT service")
+model = nemo_nlp.models.machine_translation.TransformerMTModel.restore_from(restore_path="TransformerMT.nemo")
+if torch.cuda.is_available():
+    logging.info("CUDA is available. Running on GPU")
+    model = model.cuda()
+else:
+    logging.info("CUDA is not available. Defaulting to CPUs")
+    logging.info("NMT service started")
 
 @api.route('/translate', methods=['GET', 'POST'])
-def get_companies():
+def get_translation():
     time_s = time.time()
     result = model.translate([request.args["text"]])
     duration = time.time() - time_s
-    logging.info(f"Translated in {duration}")
-    return json.dumps(result)
+    logging.info(f"Translated in {duration}. Input was: {request.args['text']} <############> Translation was: {result[0]}")
+    return json.dumps(result[0])
 
 
 if __name__ == '__main__':
-    logging.info("Starting NMT service")
-    model = nemo_nlp.models.machine_translation.TransformerMTModel.restore_from(restore_path="TransformerMT.nemo")
-    if torch.cuda.is_available():
-        logging.info("CUDA is available. Running on GPU")
-        model = model.cuda()
-    else:
-        logging.info("CUDA is not available. Defaulting to CPUs")
-    logging.info("NMT service started")
     api.run()

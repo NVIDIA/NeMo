@@ -59,7 +59,7 @@ def get_tokenizer(
 
     # Hacky hack
     if not path.exists(tokenizer_model):
-        tokenizer_model = "/Users/okuchaiev/repos/NeMo/examples/nlp/machine_translation/nmt_webapp/" + tokenizer_model.split("/")[-1]
+        tokenizer_model = "/home/okuchaiev/repos/NeMo/examples/nlp/machine_translation/nmt_webapp/" + tokenizer_model.split("/")[-1]
 
     if 'megatron' in tokenizer_name:
         if vocab_file is None:
