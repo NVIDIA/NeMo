@@ -154,6 +154,7 @@ def gen_seg_table(frame_filepath, per_args):
 
 
 def write_manifest(vad_directory, audio_directory, manifest_file):
+    audio_directory = '/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/r65_8_1/sid00sg1/data/'
     vad_files = glob.glob(vad_directory + "/*.txt")
     with open(manifest_file, 'w') as outfile:
         for vad_file in vad_files:
