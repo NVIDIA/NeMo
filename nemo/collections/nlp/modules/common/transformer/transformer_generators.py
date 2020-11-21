@@ -236,6 +236,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
 
+    @torch.no_grad()
     def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
