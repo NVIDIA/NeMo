@@ -188,6 +188,7 @@ def create_spt_model(
     do_lower_case: bool,
     tokenizer_type: str = 'unigram',
     output_dir: Optional[str] = None,
+    character_coverage: float = 1.0,
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -196,6 +197,8 @@ def create_spt_model(
         vocab_size: vocabulary size
         sample_size: maximum size of sentences the trainer loads
         do_lower_case: if text should be lower cased before tokenizer model is created
+        character_coverage: float value between 0 and 1 (as a percentage). For languages with a vast charset,
+            can be < 1.0, but for all other languages, it should be set as 1.0
         output_dir: folder to save created tokenizer model. If not specified will store model at data_file/../spt folder
     """
 
@@ -216,6 +219,7 @@ def create_spt_model(
         f"--vocab_size={vocab_size} "
         f"--shuffle_input_sentence=true --hard_vocab_limit=false "
         f"--model_type={tokenizer_type} "
+        f"--character_coverage={character_coverage} "
         f"--bos_id=-1 --eos_id=-1"
     )
     if do_lower_case:
@@ -248,5 +252,5 @@ def create_spt_model(
     vocab_file = f'{output_dir}/vocab.txt'
     with open(vocab_file, "w") as f:
         for token in vocab:
-            f.write(f"{token}\n".format())
+            f.write(f"{token}\n")
     return f'{output_dir}/tokenizer.model', vocab_file
