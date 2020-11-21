@@ -71,6 +71,7 @@ class TestExportableClassifiers:
         for num_layers in [1, 2, 4]:
             classifier_export(SequenceRegression(hidden_size=256, num_layers=num_layers))
 
+    @skipduringci
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_IntentSlotClassificationModel(self, dummy_data):
