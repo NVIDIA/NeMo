@@ -56,32 +56,65 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         self.max_seq_length = cfg.language_model.max_seq_length
 
         # Check the presence of data_dir.
-        if not cfg.data_dir:
+        if not cfg.data_dir or not os.path.exists(cfg.data_dir):
             # Disable setup methods.
             IntentSlotClassificationModel._set_model_restore_state(is_being_restored=True)
+            # Set default values of data_desc.
+            self._set_defaults_data_desc(cfg)
         else:
-            # Update configuration with new data.
-            self._copy_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
-            # Conditional initialization of tokenizer.
             self.data_dir = cfg.data_dir
-            self._setup_tokenizer(cfg.tokenizer)
+            # Update configuration of data_desc.
+            self._set_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # Check the presence of data_dir.
-        if cfg.data_dir:
-            # Conditional initialization of modules.
-            self._init_modules_when_tokenizer_set()
-
         # Enable setup methods.
         IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
 
-    def _copy_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
+        # Setup tokenizer.
+        self._setup_tokenizer(cfg.tokenizer)
+
+        # Initialize Bert model
+        self.bert_model = get_lm_model(
+            pretrained_model_name=self.cfg.language_model.pretrained_model_name,
+            config_file=self.cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(self.cfg.language_model.config)
+            if self.cfg.language_model.config
+            else None,
+            checkpoint_file=self.cfg.language_model.lm_checkpoint,
+        )
+
+        # Initialize Classifier.
+        self._reconfigure_classifier()
+
+    def _set_defaults_data_desc(self, cfg):
+        """
+        Method makes sure that cfg.data_desc params are set.
+        If not, set's them to "dummy" defaults.
+        """
+        if not hasattr(cfg, "data_desc"):
+            OmegaConf.set_struct(cfg, False)
+            cfg.data_desc = {}
+            # Intents.
+            cfg.data_desc.intent_labels = " "
+            cfg.data_desc.intent_label_ids = {" ": 0}
+            cfg.data_desc.intent_weights = [1]
+            # Slots.
+            cfg.data_desc.slot_labels = " "
+            cfg.data_desc.slot_label_ids = {" ": 0}
+            cfg.data_desc.slot_weights = [1]
+
+            cfg.data_desc.pad_label = "O"
+            OmegaConf.set_struct(cfg, True)
+
+    def _set_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
+        """ Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc. """
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
         data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
         OmegaConf.set_struct(cfg, False)
-        cfg.data_desc = {}
+        if not hasattr(cfg, "data_desc"):
+            cfg.data_desc = {}
         # Intents.
         cfg.data_desc.intent_labels = list(data_desc.intents_label_ids.keys())
         cfg.data_desc.intent_label_ids = data_desc.intents_label_ids
@@ -94,17 +127,8 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         cfg.data_desc.pad_label = data_desc.pad_label
         OmegaConf.set_struct(cfg, True)
 
-    def _init_modules_when_tokenizer_set(self):
-
-        # initialize Bert model
-        self.bert_model = get_lm_model(
-            pretrained_model_name=self.cfg.language_model.pretrained_model_name,
-            config_file=self.cfg.language_model.config_file,
-            config_dict=OmegaConf.to_container(self.cfg.language_model.config)
-            if self.cfg.language_model.config
-            else None,
-            checkpoint_file=self.cfg.language_model.lm_checkpoint,
-        )
+    def _reconfigure_classifier(self):
+        """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
 
         self.classifier = SequenceTokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
@@ -144,8 +168,8 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
 
     def update_data_dir_for_training(self, data_dir: str, train_ds, validation_ds) -> None:
         """
-        Update data directory and get data stats with Data Descriptor
-        Weights are later used to setup loss
+        Update data directory and get data stats with Data Descriptor.
+        Also, reconfigures the classifier - to cope with data with e.g. different number of slots.
 
         Args:
             data_dir: path to data directory
@@ -153,24 +177,19 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
         # Update configuration with new data.
-        self._copy_data_desc_to_cfg(self.cfg, data_dir, train_ds, validation_ds)
-        # Finish the "conditional initialization" by passing the new data_dir.
-        self._setup_tokenizer(self.cfg.tokenizer)
-        self._init_modules_when_tokenizer_set()
+        self._set_data_desc_to_cfg(self.cfg, data_dir, train_ds, validation_ds)
+        # Reconfigure the classifier for different settings (number of intents, slots etc.).
+        self._reconfigure_classifier()
 
     def update_data_dir_for_testing(self, data_dir) -> None:
         """
         Update data directory.
-        Weights are later used to setup loss
 
         Args:
             data_dir: path to data directory
         """
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
-        # Finish the "conditional initialization" by passing the new data_dir.
-        self._setup_tokenizer(self.cfg.tokenizer)
-        self._init_modules_when_tokenizer_set()
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -374,10 +393,10 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             slot_labels = self.cfg.data_desc.slot_labels
 
             # Initialize tokenizer.
-            if not hasattr(self, "tokenizer"):
-                self._setup_tokenizer(self.cfg.tokenizer)
+            # if not hasattr(self, "tokenizer"):
+            #    self._setup_tokenizer(self.cfg.tokenizer)
             # Initialize modules.
-            self._init_modules_when_tokenizer_set()
+            # self._reconfigure_classifier()
 
             # Switch model to evaluation mode
             self.eval()
