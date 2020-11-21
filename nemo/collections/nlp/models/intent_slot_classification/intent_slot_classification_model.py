@@ -55,6 +55,9 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         """
         self.max_seq_length = cfg.language_model.max_seq_length
 
+        # Setup tokenizer.
+        self._setup_tokenizer(cfg.tokenizer)
+
         # Check the presence of data_dir.
         if not cfg.data_dir or not os.path.exists(cfg.data_dir):
             # Disable setup methods.
@@ -71,9 +74,6 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
 
         # Enable setup methods.
         IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
-
-        # Setup tokenizer.
-        self._setup_tokenizer(cfg.tokenizer)
 
         # Initialize Bert model
         self.bert_model = get_lm_model(
@@ -113,7 +113,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
         data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
         OmegaConf.set_struct(cfg, False)
-        if not hasattr(cfg, "data_desc"):
+        if not hasattr(cfg, "data_desc") or cfg.data_desc is None:
             cfg.data_desc = {}
         # Intents.
         cfg.data_desc.intent_labels = list(data_desc.intents_label_ids.keys())
