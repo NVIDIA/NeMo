@@ -18,14 +18,15 @@
 
 import logging
 from math import ceil
-from typing import Optional, Dict, Union
+from typing import Dict, Optional, Union
 
 import torch
+from omegaconf import DictConfig
+from pytorch_lightning import Trainer
+
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core import ModelPT
-from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 
 
 class Wav2VecBase(ModelPT):
@@ -105,7 +106,7 @@ class Wav2VecBase(ModelPT):
         # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
             if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                    'manifest_filepath' in config and config['manifest_filepath'] is None
+                'manifest_filepath' in config and config['manifest_filepath'] is None
             ):
                 logging.warning(
                     "Could not load dataset as `manifest_filepath` was None or "

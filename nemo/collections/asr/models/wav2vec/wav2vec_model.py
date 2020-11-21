@@ -22,16 +22,25 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from nemo.collections.asr.losses.wav2vecloss import Wav2VecCriterion
-from nemo.collections.asr.models.wav2vec.wav2vec_base import Wav2VecBase
-from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecEncoderModelConfig, Wav2VecTransformerConfig, \
-    Wav2VecConvExtractorMode
-from nemo.collections.asr.modules.wav2vec_modules import GumbelVectorQuantizer, compute_mask_indices, TransposeLast, \
-    SamePad, init_bert_params
-from nemo.core.classes.common import PretrainedModelInfo
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch import nn
+
+from nemo.collections.asr.losses.wav2vecloss import Wav2VecCriterion
+from nemo.collections.asr.models.wav2vec.wav2vec_base import Wav2VecBase
+from nemo.collections.asr.models.wav2vec.wav2vec_config import (
+    Wav2VecConvExtractorMode,
+    Wav2VecEncoderModelConfig,
+    Wav2VecTransformerConfig,
+)
+from nemo.collections.asr.modules.wav2vec_modules import (
+    GumbelVectorQuantizer,
+    SamePad,
+    TransposeLast,
+    compute_mask_indices,
+    init_bert_params,
+)
+from nemo.core.classes.common import PretrainedModelInfo
 
 
 def buffered_arange(max):
@@ -60,6 +69,7 @@ class Wav2VecEncoderOutput:
     """
     Helper class for storing all the outputs from the Encoder model.
     """
+
     logits: torch.tensor
     targets: torch.tensor
     sampled_negatives: torch.tensor
@@ -160,7 +170,7 @@ class Wav2VecEncoderModel(Wav2VecBase):
         self.loss = Wav2VecCriterion(
             feature_loss_weight=cfg.loss.feature_loss_weight,
             prob_ppl_weight=cfg.loss.prob_ppl_weight,
-            logit_temp=cfg.logit_temp
+            logit_temp=cfg.logit_temp,
         )
 
     def training_step(self, batch, batch_idx):
@@ -192,7 +202,7 @@ class Wav2VecEncoderModel(Wav2VecBase):
             targets=model_output.targets,
             negatives=model_output.sampled_negatives,
             prob_ppl_loss=model_output.probs_ppl,
-            feature_loss=model_output.features_penalty
+            feature_loss=model_output.features_penalty,
         )
         return loss, feature_loss, prob_ppl_loss
 
@@ -378,7 +388,7 @@ class Wav2VecEncoderModel(Wav2VecBase):
             padding_mask=padding_mask,
             features_penalty=features_penalty,
             probs_ppl=prob_ppl,
-            cur_codebook_temp=cur_codebook_temp
+            cur_codebook_temp=cur_codebook_temp,
         )
         return output
 
@@ -399,15 +409,15 @@ class ConvFeatureEncoder(nn.Module):
     """
 
     def __init__(
-            self,
-            conv_layers: List[Tuple[int, int, int]],
-            mode: Wav2VecConvExtractorMode = Wav2VecConvExtractorMode.default,
-            conv_bias: bool = False,
+        self,
+        conv_layers: List[Tuple[int, int, int]],
+        mode: Wav2VecConvExtractorMode = Wav2VecConvExtractorMode.default,
+        conv_bias: bool = False,
     ):
         super().__init__()
 
         def block(
-                n_in, n_out, k, stride, is_layer_norm=False, is_group_norm=False, conv_bias=False,
+            n_in, n_out, k, stride, is_layer_norm=False, is_group_norm=False, conv_bias=False,
         ):
             def make_conv():
                 conv = nn.Conv1d(n_in, n_out, k, stride=stride, bias=conv_bias)
@@ -423,9 +433,7 @@ class ConvFeatureEncoder(nn.Module):
                     nn.GELU(),
                 )
             elif is_group_norm:
-                return nn.Sequential(
-                    make_conv(), nn.GroupNorm(dim, dim, affine=True), nn.GELU(),
-                )
+                return nn.Sequential(make_conv(), nn.GroupNorm(dim, dim, affine=True), nn.GELU(),)
             else:
                 return nn.Sequential(make_conv(), nn.GELU())
 
@@ -489,9 +497,9 @@ class Wav2VecTransformerEncoder(nn.Module):
                 nhead=encoder_cfg.num_attention_heads,
                 dim_feedforward=encoder_cfg.ffn_embedding_dim,
                 dropout=self.dropout,
-                activation=encoder_cfg.activation_fn.value
+                activation=encoder_cfg.activation_fn.value,
             ),
-            num_layers=encoder_cfg.encoder_layers
+            num_layers=encoder_cfg.encoder_layers,
         )
         self.layer_norm = nn.LayerNorm(self.embedding_dim)
         self.apply(init_bert_params)

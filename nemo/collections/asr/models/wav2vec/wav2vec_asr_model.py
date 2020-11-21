@@ -16,27 +16,26 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Optional, cast, List
+from typing import List, Optional, cast
 
 import torch
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning import Trainer
+from torch import nn
+
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.wav2vec.wav2vec_base import Wav2VecBase
 from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecCTCEncoderConfig
 from nemo.collections.asr.models.wav2vec.wav2vec_model import Wav2VecEncoderModel
-from nemo.core.classes.common import typecheck, PretrainedModelInfo
-from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
-from torch import nn
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 
 
 class Wav2VecCTCEncoder(nn.Module):
-    def __init__(self,
-                 wav2vec_encoder: Wav2VecEncoderModel,
-                 cfg: Wav2VecCTCEncoderConfig,
-                 encoder_dim: int,
-                 trainer: Trainer):
+    def __init__(
+        self, wav2vec_encoder: Wav2VecEncoderModel, cfg: Wav2VecCTCEncoderConfig, encoder_dim: int, trainer: Trainer
+    ):
         super().__init__()
         self.trainer = trainer
         self.final_dropout = nn.Dropout(cfg.final_dropout)
@@ -62,21 +61,18 @@ class Wav2VecCTCEncoder(nn.Module):
         return m
 
     def forward(self, audio_signal, padding_mask):
-        freeze_encoder_at_step = self.freeze_encoder_after_steps is not None and \
-                                 self.freeze_encoder_after_steps <= self.trainer.global_step
+        freeze_encoder_at_step = (
+            self.freeze_encoder_after_steps is not None and self.freeze_encoder_after_steps <= self.trainer.global_step
+        )
 
         if freeze_encoder_at_step:
             with torch.no_grad():
                 x, padding_mask = self.wav2vec_encoder.extract_features(
-                    source=audio_signal,
-                    padding_mask=padding_mask,
-                    mask=self.apply_mask and self.training
+                    source=audio_signal, padding_mask=padding_mask, mask=self.apply_mask and self.training
                 )
         else:
             x, padding_mask = self.wav2vec_encoder.extract_features(
-                source=audio_signal,
-                padding_mask=padding_mask,
-                mask=self.apply_mask and self.training
+                source=audio_signal, padding_mask=padding_mask, mask=self.apply_mask and self.training
             )
 
         x = self.final_dropout(x)
@@ -109,10 +105,7 @@ class Wav2VecASRModel(Wav2VecBase, ASRModel):
         cfg = cast(Wav2VecCTCEncoderConfig, cfg)
 
         self.encoder = Wav2VecCTCEncoder(
-            wav2vec_encoder=encoder,
-            cfg=cfg,
-            encoder_dim=encoder.final_dim,
-            trainer=trainer
+            wav2vec_encoder=encoder, cfg=cfg, encoder_dim=encoder.final_dim, trainer=trainer
         )
 
         self.loss = CTCLoss(
@@ -144,10 +137,7 @@ class Wav2VecASRModel(Wav2VecBase, ASRModel):
 
     def model_forward_and_loss(self, batch):
         audio_signal, audio_lengths, transcript, transcript_len, padding_mask = batch
-        log_probs, encoded_len, predictions = self.forward(
-            input_signal=audio_signal,
-            padding_mask=padding_mask
-        )
+        log_probs, encoded_len, predictions = self.forward(input_signal=audio_signal, padding_mask=padding_mask)
 
         loss = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
@@ -175,16 +165,10 @@ class Wav2VecASRModel(Wav2VecBase, ASRModel):
         loss, predictions, transcript, transcript_len = self.model_forward_and_loss(batch)
         self._wer.update(predictions, transcript, transcript_len)
         wer, wer_num, wer_denom = self._wer.compute()
-        self.log_dict({
-            'val_loss': loss,
-            'val_wer': wer,
-        }, sync_dist=True, prog_bar=True, on_epoch=True)
+        self.log_dict({'val_loss': loss, 'val_wer': wer,}, sync_dist=True, prog_bar=True, on_epoch=True)
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         loss, predictions, transcript, transcript_len = self.model_forward_and_loss(batch)
         self._wer.update(predictions, transcript, transcript_len)
         wer, wer_num, wer_denom = self._wer.compute()
-        self.log_dict({
-            'test_loss': loss,
-            'test_wer': wer,
-        }, sync_dist=True, prog_bar=True, on_epoch=True)
+        self.log_dict({'test_loss': loss, 'test_wer': wer,}, sync_dist=True, prog_bar=True, on_epoch=True)

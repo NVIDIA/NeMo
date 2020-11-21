@@ -21,23 +21,24 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecMaskType
 from torch import nn
+
+from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecMaskType
 
 
 class GumbelVectorQuantizer(nn.Module):
     def __init__(
-            self,
-            dim,
-            num_vars,
-            temp,
-            groups,
-            combine_groups,
-            vq_dim,
-            time_first,
-            activation=nn.GELU(),
-            weight_proj_depth=1,
-            weight_proj_factor=1,
+        self,
+        dim,
+        num_vars,
+        temp,
+        groups,
+        combine_groups,
+        vq_dim,
+        time_first,
+        activation=nn.GELU(),
+        weight_proj_depth=1,
+        weight_proj_factor=1,
     ):
         """Vector quantization using gumbel softmax
 
@@ -186,15 +187,15 @@ class SamePad(nn.Module):
 
 
 def compute_mask_indices(
-        shape: Tuple[int, int],
-        padding_mask: Optional[torch.Tensor],
-        mask_prob: float,
-        mask_length: int,
-        mask_type: Wav2VecMaskType = Wav2VecMaskType.static,
-        mask_other: float = 0.0,
-        min_masks: int = 0,
-        no_overlap: bool = False,
-        min_space: int = 0,
+    shape: Tuple[int, int],
+    padding_mask: Optional[torch.Tensor],
+    mask_prob: float,
+    mask_length: int,
+    mask_type: Wav2VecMaskType = Wav2VecMaskType.static,
+    mask_other: float = 0.0,
+    min_masks: int = 0,
+    no_overlap: bool = False,
+    min_space: int = 0,
 ) -> np.ndarray:
     """
     Computes random mask spans for a given shape

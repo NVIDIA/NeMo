@@ -28,13 +28,15 @@ class Wav2VecCriterion(torch.nn.Module):
         self.prob_ppl_weight = prob_ppl_weight
         self.logit_temp = logit_temp
 
-    def forward(self,
-                logits: torch.tensor,
-                targets: torch.tensor,
-                negatives: torch.tensor,
-                prob_ppl_loss: torch.tensor,
-                feature_loss: torch.tensor,
-                reduce=True) -> [torch.tensor, torch.tensor, torch.tensor]:
+    def forward(
+        self,
+        logits: torch.tensor,
+        targets: torch.tensor,
+        negatives: torch.tensor,
+        prob_ppl_loss: torch.tensor,
+        feature_loss: torch.tensor,
+        reduce=True,
+    ) -> [torch.tensor, torch.tensor, torch.tensor]:
         """
         Compute the contrastive loss with respect to the model outputs and sampled negatives from quantizer codebooks.
         Args:
