@@ -193,7 +193,7 @@ class Wav2VecEncoderModel(Wav2VecBase):
     def _step(self, batch):
         audio_signal, audio_lengths, _, _ = batch
 
-        padding_mask = self._create_padding_mask(audio_lengths, audio_signal)
+        padding_mask = self._create_padding_mask(audio_lengths)
 
         self._update_quantizer_temp()
         model_output = self(audio_signal, padding_mask)
@@ -206,10 +206,13 @@ class Wav2VecEncoderModel(Wav2VecBase):
         )
         return loss, feature_loss, prob_ppl_loss
 
-    def _create_padding_mask(self, audio_lengths, audio_signal):
-        padding_mask = torch.full(size=audio_signal.size(), fill_value=True, dtype=torch.bool, device=self.device)
-        for x, length in enumerate(audio_lengths):
-            padding_mask[x][:length] = False
+    def _create_padding_mask(self, audio_lengths):
+        # Broadcast to vectorize creating the padding mask
+        max_len = max(audio_lengths)
+        padding_mask = torch.arange(max_len, device=self.device)
+        padding_mask = padding_mask.expand(len(audio_lengths), max_len) < audio_lengths.unsqueeze(1)
+        # Negate to false where no padding
+        padding_mask = ~padding_mask
         return padding_mask
 
     @classmethod

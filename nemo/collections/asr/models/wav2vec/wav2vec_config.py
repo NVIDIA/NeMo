@@ -68,7 +68,7 @@ class Wav2VecTransformerEncoderConfig:
     num_attention_heads: int = field(default=8, metadata={'help': 'Number of encoder attention heads'})
     dropout: float = field(default=0.1, metadata={'help': 'Dropout probability for transformer'})
     activation_fn: Wav2VecActivationType = field(
-        default=Wav2VecActivationType.relu, metadata={'help': 'Activation for transformer'}
+        default=Wav2VecActivationType.gelu, metadata={'help': 'Activation for transformer'}
     )
     layer_norm_first: bool = field(default=False, metadata={'help': 'Apply layer norm first within the transformer'})
 
@@ -105,7 +105,7 @@ class ConvFeatureEncoderConfig:
     extractor_mode: Wav2VecConvExtractorMode = field(default=Wav2VecConvExtractorMode.default)
     conv_bias: bool = field(default=False, metadata={'help': 'Include bias in convolution feature extractor model'})
     conv_feature_layers: List = field(
-        default_factory=lambda: [(512, 10, 5), (512, 8, 4)] + [(512, 4, 2)] * 3 + [(512, 1, 1)],
+        default_factory=lambda: [(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512, 2, 2)] + [(512, 2, 2)],
         metadata={'help': 'convolutional feature extraction layers [(dim, kernel_size, stride), ...'},
     )
 
