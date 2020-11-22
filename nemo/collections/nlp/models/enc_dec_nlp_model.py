@@ -18,10 +18,26 @@ class TokenizerConfig:
 
 
 @dataclass
+class EmbeddingConfig:
+    hidden_size: int = MISSING
+    max_sequence_length: int = 512
+    num_token_types: int = 2
+    embedding_dropout: float = 0.0
+    learn_positional_encodings: bool = False
+
+
+@dataclass
+class TransformerEmbeddingConfig(EmbeddingConfig):
+    __target__: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
+
+
+@dataclass
 class EncDecNLPModelConfig:
     enc_tokenizer: TokenizerConfig = MISSING
     dec_tokenizer: TokenizerConfig = MISSING
     vocab_divisibile_by_eight: bool = True
+    enc_embedding: EmbeddingConfig = MISSING
+    dec_embedding: EmbeddingConfig = MISSING
 
 
 class EncDecNLPModel(NLPModel):
@@ -33,14 +49,8 @@ class EncDecNLPModel(NLPModel):
         self._dec_tokenizer = None
         self._enc_vocab_size = None
         self._dec_vocab_size = None
-
-    @property
-    def enc_tokenizer(self):
-        return self._enc_tokenizer
-
-    @enc_tokenizer.setter
-    def enc_tokenizer(self, tokenizer):
-        self._enc_tokenizer = tokenizer
+        self._enc_embedding = None
+        self._dec_embedding = None
 
     @property
     def enc_vocab_size(self):
@@ -51,6 +61,22 @@ class EncDecNLPModel(NLPModel):
         self._enc_vocab_size = size
 
     @property
+    def dec_vocab_size(self):
+        return self._dec_vocab_size
+
+    @dec_vocab_size.setter
+    def dec_vocab_size(self, size: int):
+        self._dec_vocab_size = size
+
+    @property
+    def enc_tokenizer(self):
+        return self._enc_tokenizer
+
+    @enc_tokenizer.setter
+    def enc_tokenizer(self, tokenizer):
+        self._enc_tokenizer = tokenizer
+
+    @property
     def dec_tokenizer(self):
         return self._enc_tokenizer
 
@@ -59,12 +85,20 @@ class EncDecNLPModel(NLPModel):
         self._dec_tokenizer = tokenizer
 
     @property
-    def dec_vocab_size(self):
-        return self._dec_vocab_size
+    def enc_embedding(self):
+        return self._enc_embedding
 
-    @dec_vocab_size.setter
-    def dec_vocab_size(self, size: int):
-        self._dec_vocab_size = size
+    @enc_embedding.setter
+    def enc_embedding(self, embedding):
+        self._enc_embedding = embedding
+
+    @property
+    def dec_embedding(self):
+        return self._enc_embedding
+
+    @dec_embedding.setter
+    def dec_embedding(self, embedding):
+        self._dec_embedding = embedding
 
     def setup_enc_dec_tokenizers(self, cfg: EncDecNLPModelConfig):
         self.enc_tokenizer = get_tokenizer(**asdict(cfg.enc_tokenizer))

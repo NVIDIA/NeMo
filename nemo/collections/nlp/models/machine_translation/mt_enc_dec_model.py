@@ -15,10 +15,16 @@
 from dataclasses import dataclass
 import itertools
 import math
-from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig, EncDecNLPModel
+from nemo.collections.nlp.models.enc_dec_nlp_model import (
+    EmbeddingConfig,
+    EncDecNLPModelConfig,
+    EncDecNLPModel,
+    TransformerEmbeddingConfig,
+)
 import random
 from pathlib import Path
 from typing import Dict, List, Optional, Union
+from hydra.utils import instantiate
 
 import numpy as np
 import torch
@@ -64,24 +70,26 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.src_embedding_layer = TransformerEmbedding(
-            vocab_size=self.enc_vocab_size,
-            hidden_size=cfg.machine_translation.hidden_size,
-            max_sequence_length=cfg.machine_translation.max_seq_length,
-            embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
-            learn_positional_encodings=False,
-        )
-        self.tgt_embedding_layer = TransformerEmbedding(
-            vocab_size=self.dec_vocab_size,
-            hidden_size=cfg.machine_translation.hidden_size,
-            max_sequence_length=cfg.machine_translation.max_seq_length,
-            embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
-            learn_positional_encodings=False,
-        )
+        self.enc_embedding = instantiate(MTEncDecModelConfig.enc_embedding, vocab_size=self.enc_vocab_size)
+        self.dec_embedding = instantiate(MTEncDecModelConfig.dec_embedding, vocab_size=self.dec_vocab_size)
+
+        # self.enc_embedding = TransformerEmbedding(
+        #     vocab_size=self.enc_vocab_size,
+        #     hidden_size=cfg.machine_translation.hidden_size,
+        #     max_sequence_length=cfg.machine_translation.max_seq_length,
+        #     embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
+        #     learn_positional_encodings=False,
+        # )
+        # self.dec_embedding = TransformerEmbedding(
+        #     vocab_size=self.dec_vocab_size,
+        #     hidden_size=cfg.machine_translation.hidden_size,
+        #     max_sequence_length=cfg.machine_translation.max_seq_length,
+        #     embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
+        #     learn_positional_encodings=False,
+        # )
 
         # TODO: Optionally tie Embedding weights
 
-        # init superclass
         self.encoder = TransformerEncoder(
             hidden_size=cfg.machine_translation.hidden_size,
             inner_size=cfg.machine_translation.inner_size,
@@ -104,7 +112,7 @@ class MTEncDecModel(EncDecNLPModel):
             hidden_size=cfg.machine_translation.hidden_size, num_classes=tgt_vocab_size, log_softmax=True,
         )
         self.beam_search = BeamSearchSequenceGenerator(
-            embedding=self.tgt_embedding_layer,
+            embedding=self.dec_embedding,
             decoder=self.decoder,
             log_softmax=self.log_softmax,
             max_sequence_length=cfg.machine_translation.max_seq_length,
@@ -120,7 +128,7 @@ class MTEncDecModel(EncDecNLPModel):
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # tie weights of embedding and softmax matrices
-        self.log_softmax.mlp.layer0.weight = self.tgt_embedding_layer.token_embedding.weight
+        self.log_softmax.mlp.layer0.weight = self.dec_embedding.token_embedding.weight
         self.emb_scale = cfg.machine_translation.hidden_size ** 0.5
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.dec_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
@@ -152,10 +160,10 @@ class MTEncDecModel(EncDecNLPModel):
         Returns:
 
         """
-        src_embeddings = self.src_embedding_layer(input_ids=src)
+        src_embeddings = self.enc_embedding(input_ids=src)
         # src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
         src_hiddens = self.encoder(src_embeddings, src_mask)
-        tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
+        tgt_embeddings = self.dec_embedding(input_ids=tgt)
         # tgt_embeddings *= tgt_embeddings.new_tensor(self.emb_scale)
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
@@ -321,7 +329,7 @@ class MTEncDecModel(EncDecNLPModel):
                 ids = [self.enc_tokenizer.bos_id] + ids + [self.enc_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
                 src_mask = torch.ones_like(src)
-                src_embeddings = self.src_embedding_layer(input_ids=src)
+                src_embeddings = self.enc_embedding(input_ids=src)
                 # src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
                 src_hiddens = self.encoder(src_embeddings, src_mask)
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)

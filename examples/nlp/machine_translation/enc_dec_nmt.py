@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import asdict
-from nemo.collections.nlp.models.enc_dec_nlp_model import TokenizerConfig
+from nemo.collections.nlp.models.enc_dec_nlp_model import TokenizerConfig, TransformerEmbeddingConfig
 import hydra
 from hydra.utils import instantiate
 
@@ -44,8 +44,19 @@ def main(cfg: DictConfig) -> None:
     dec_tokenizer_config = TokenizerConfig(
         tokenizer_name="yttm", tokenizer_model='/raid/data/68792/tokenizer.BPE.37K.model'
     )
-    mt_config = MTEncDecModelConfig(enc_tokenizer=enc_tokenizer_config, dec_tokenizer=dec_tokenizer_config)
+    enc_embedding_config = TransformerEmbeddingConfig(hidden_size=512, embedding_dropout=0.1)
+    # dec embedding happens to be the same in this case (will change for other configs)
+    dec_embedding_config = TransformerEmbeddingConfig(hidden_size=512, embedding_dropout=0.1)
+
+    mt_config = MTEncDecModelConfig(
+        enc_tokenizer=enc_tokenizer_config,
+        dec_tokenizer=dec_tokenizer_config,
+        enc_embedding=enc_embedding_config,
+        dec_embedding=dec_embedding_config,
+    )
+
     mt_model = MTEncDecModel(mt_config, trainer=trainer)
+
     # trainer.fit(transformer_mt)
     # transformer_mt.save_to("transformer.nemo")
     # print("Model saved to: transformer.nemo")
