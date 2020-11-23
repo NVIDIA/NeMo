@@ -30,7 +30,6 @@ class EmbeddingConfig:
 @dataclass
 class TransformerEmbeddingConfig(EmbeddingConfig):
     _target_: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
-    vocab_divisibile_by_eight: bool = True  # TODO: raise this to EmbeddingConfig
 
 
 @dataclass
@@ -47,6 +46,7 @@ class DecoderConfig:
 class TransformerEncoderConfig(EncoderConfig):
     inner_size: int = MISSING
     num_layers: int = MISSING
+    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoder'
     num_attention_heads: int = 1
     ffn_dropout: float = 0.0
     attn_score_dropout: float = 0.0
@@ -59,6 +59,7 @@ class TransformerEncoderConfig(EncoderConfig):
 class TransformerDecoderConfig(DecoderConfig):
     inner_size: int = MISSING
     num_layers: int = MISSING
+    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoder'
     num_attention_heads: int = 1
     ffn_dropout: float = 0.0
     attn_score_dropout: float = 0.0
@@ -74,6 +75,7 @@ class EncDecNLPModelConfig:
     decoder_embedding: EmbeddingConfig = MISSING
     encoder: EncoderConfig = MISSING
     decoder: DecoderConfig = MISSING
+    vocab_divisibile_by_eight: bool = True  # TODO: should this go somewhere else?
 
 
 class EncDecNLPModel(NLPModel):
@@ -115,7 +117,7 @@ class EncDecNLPModel(NLPModel):
 
     @decoder_tokenizer.setter
     def decoder_tokenizer(self, tokenizer):
-        self._dec_tokenizer = tokenizer
+        self._decoder_tokenizer = tokenizer
 
     @property
     def encoder_embedding(self):

@@ -17,7 +17,6 @@ from nemo.collections.nlp.models.enc_dec_nlp_model import (
     TokenizerConfig,
     TransformerDecoderConfig,
     TransformerEmbeddingConfig,
-    TransformerEncoder,
     TransformerEncoderConfig,
 )
 import hydra
@@ -44,15 +43,15 @@ def main(cfg: DictConfig) -> None:
     trainer = instantiate(trainer_config)
     # trainer = pl.Trainer(**asdict(trainer_config))
     # exp_manager(trainer, cfg.get("exp_manager", None))
-    enc_tokenizer_config = TokenizerConfig(
+    encoder_tokenizer_config = TokenizerConfig(
         tokenizer_name="yttm", tokenizer_model='/raid/data/68792/tokenizer.BPE.37K.model'
     )
-    dec_tokenizer_config = TokenizerConfig(
+    decoder_tokenizer_config = TokenizerConfig(
         tokenizer_name="yttm", tokenizer_model='/raid/data/68792/tokenizer.BPE.37K.model'
     )
-    enc_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
+    encoder_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
     # dec embedding happens to be the same in this case (will change for other configs)
-    dec_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
+    decoder_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
 
     encoder_config = TransformerEncoderConfig(
         hidden_size=512,
@@ -75,10 +74,12 @@ def main(cfg: DictConfig) -> None:
     )
 
     mt_config = MTEncDecModelConfig(
-        enc_tokenizer=enc_tokenizer_config,
-        dec_tokenizer=dec_tokenizer_config,
-        enc_embedding=enc_embedding_config,
-        dec_embedding=dec_embedding_config,
+        encoder_tokenizer=encoder_tokenizer_config,
+        decoder_tokenizer=decoder_tokenizer_config,
+        encoder_embedding=encoder_embedding_config,
+        decoder_embedding=decoder_embedding_config,
+        encoder=encoder_config,
+        decoder=decoder_config,
     )
 
     mt_model = MTEncDecModel(mt_config, trainer=trainer)

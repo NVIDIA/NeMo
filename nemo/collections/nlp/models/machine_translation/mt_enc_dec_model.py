@@ -72,13 +72,13 @@ class MTEncDecModel(EncDecNLPModel):
 
         # make vocabulary size divisible by 8 for fast fp16 training
         if cfg.vocab_divisibile_by_eight:
-            self.enc_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
-            self.dec_vocab_size = 8 * math.ceil(self.dec_tokenizer.vocab_size / 8)
-            cfg.enc_embedding.vocab_size = self.enc_vocab_size
-            cfg.dec_embedding.vocab_size = self.dec_vocab_size
+            self.encoder_vocab_size = 8 * math.ceil(self.encoder_tokenizer.vocab_size / 8)
+            self.decoder_vocab_size = 8 * math.ceil(self.decoder_tokenizer.vocab_size / 8)
+            cfg.encoder_embedding.vocab_size = self.encoder_vocab_size
+            cfg.decoder_embedding.vocab_size = self.decoder_vocab_size
 
-        self.enc_embedding = instantiate(cfg.enc_embedding)
-        self.dec_embedding = instantiate(cfg.dec_embedding)
+        self.encoder_embedding = instantiate(cfg.encoder_embedding)
+        self.decoder_embedding = instantiate(cfg.decoder_embedding)
         self.encoder = instantiate(cfg.encoder)
         self.decoder = instantiate(cfg.decoder)
 
@@ -88,14 +88,14 @@ class MTEncDecModel(EncDecNLPModel):
             hidden_size=cfg.machine_translation.hidden_size, num_classes=tgt_vocab_size, log_softmax=True,
         )
         self.beam_search = BeamSearchSequenceGenerator(
-            embedding=self.dec_embedding,
+            embedding=self.decoder_embedding,
             decoder=self.decoder,
             log_softmax=self.log_softmax,
             max_sequence_length=cfg.machine_translation.max_seq_length,
             beam_size=cfg.machine_translation.beam_size,
-            bos=self.dec_tokenizer.bos_id,
-            pad=self.dec_tokenizer.pad_id,
-            eos=self.dec_tokenizer.eos_id,
+            bos=self.decoder_tokenizer.bos_id,
+            pad=self.decoder_tokenizer.pad_id,
+            eos=self.decoder_tokenizer.eos_id,
             len_pen=cfg.machine_translation.len_pen,
             max_delta_length=cfg.machine_translation.get("max_generation_delta", 50),
         )
@@ -104,10 +104,10 @@ class MTEncDecModel(EncDecNLPModel):
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # tie weights of embedding and softmax matrices
-        self.log_softmax.mlp.layer0.weight = self.dec_embedding.token_embedding.weight
+        self.log_softmax.mlp.layer0.weight = self.decoder_embedding.token_embedding.weight
         self.emb_scale = cfg.machine_translation.hidden_size ** 0.5
         self.loss_fn = SmoothedCrossEntropyLoss(
-            pad_id=self.dec_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
+            pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
         )
 
         # Optimizer setup needs to happen after all model weights are ready
@@ -120,7 +120,7 @@ class MTEncDecModel(EncDecNLPModel):
         # https://github.com/pytorch/pytorch/issues/21819
 
     def filter_predicted_ids(self, ids):
-        ids[ids >= self.dec_tokenizer.vocab_size] = self.dec_tokenizer.unk_id
+        ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
         return ids
 
     @typecheck()
@@ -136,10 +136,10 @@ class MTEncDecModel(EncDecNLPModel):
         Returns:
 
         """
-        src_embeddings = self.enc_embedding(input_ids=src)
+        src_embeddings = self.encoder_embedding(input_ids=src)
         # src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
         src_hiddens = self.encoder(src_embeddings, src_mask)
-        tgt_embeddings = self.dec_embedding(input_ids=tgt)
+        tgt_embeddings = self.decoder_embedding(input_ids=tgt)
         # tgt_embeddings *= tgt_embeddings.new_tensor(self.emb_scale)
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
@@ -181,10 +181,10 @@ class MTEncDecModel(EncDecNLPModel):
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels).cpu().numpy()
         self.eval_perplexity(logits=log_probs)
-        translations = [self.dec_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
-        ground_truths = [self.dec_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
-        num_non_pad_tokens = np.not_equal(np_tgt, self.dec_tokenizer.pad_id).sum().item()
+        ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+        num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         tensorboard_logs = {f'{mode}_loss': eval_loss}
         return {
             f'{mode}_loss': eval_loss,
@@ -261,8 +261,8 @@ class MTEncDecModel(EncDecNLPModel):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = TranslationDataset(
-            tokenizer_src=self.enc_tokenizer,
-            tokenizer_tgt=self.dec_tokenizer,
+            tokenizer_src=self.encoder_tokenizer,
+            tokenizer_tgt=self.decoder_tokenizer,
             dataset_src=str(Path(cfg.src_file_name).expanduser()),
             dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
             tokens_in_batch=cfg.tokens_in_batch,
@@ -301,17 +301,17 @@ class MTEncDecModel(EncDecNLPModel):
             self.eval()
             res = []
             for txt in text:
-                ids = self.enc_tokenizer.text_to_ids(txt)
-                ids = [self.enc_tokenizer.bos_id] + ids + [self.enc_tokenizer.eos_id]
+                ids = self.encoder_tokenizer.text_to_ids(txt)
+                ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
                 src_mask = torch.ones_like(src)
-                src_embeddings = self.enc_embedding(input_ids=src)
+                src_embeddings = self.encoder_embedding(input_ids=src)
                 # src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
                 src_hiddens = self.encoder(src_embeddings, src_mask)
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
-                res.append(self.dec_tokenizer.ids_to_text(translation_ids))
+                res.append(self.decoder_tokenizer.ids_to_text(translation_ids))
         finally:
             self.train(mode=mode)
         return res
