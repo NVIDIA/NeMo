@@ -48,7 +48,7 @@ class TransformerDecoderBlock(nn.Module):
         attn_layer_dropout=0,
         ffn_dropout=0,
         hidden_act="relu",
-        pre_ln=False
+        pre_ln=False,
     ):
         super().__init__()
         self.pre_ln = pre_ln
@@ -75,14 +75,14 @@ class TransformerDecoderBlock(nn.Module):
         self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
         self_attn_output += decoder_query
 
-        self_attn_output = self.layer_norm_2(self_attn_output) \
-            if self.pre_ln else self.layer_norm_1(self_attn_output)
+        self_attn_output = self.layer_norm_2(self_attn_output) if self.pre_ln else self.layer_norm_1(self_attn_output)
 
         enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
         enc_dec_attn_output += self_attn_output
 
-        enc_dec_attn_output = self.layer_norm_3(enc_dec_attn_output) \
-            if self.pre_ln else self.layer_norm_2(enc_dec_attn_output)
+        enc_dec_attn_output = (
+            self.layer_norm_3(enc_dec_attn_output) if self.pre_ln else self.layer_norm_2(enc_dec_attn_output)
+        )
 
         output_states = self.third_sub_layer(enc_dec_attn_output)
 
