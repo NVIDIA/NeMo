@@ -79,27 +79,11 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.enc_embedding = instantiate(cfg.enc_embedding)
         self.dec_embedding = instantiate(cfg.dec_embedding)
+        self.encoder = instantiate(cfg.encoder)
+        self.decoder = instantiate(cfg.decoder)
 
-        # TODO: Optionally tie Embedding weights
+        # TODO: Optionally tie weights
 
-        self.encoder = TransformerEncoder(
-            hidden_size=cfg.machine_translation.hidden_size,
-            inner_size=cfg.machine_translation.inner_size,
-            num_layers=cfg.machine_translation.num_layers,
-            num_attention_heads=cfg.machine_translation.num_attn_heads,
-            ffn_dropout=cfg.machine_translation.ffn_dropout,
-            attn_score_dropout=cfg.machine_translation.attn_score_dropout,
-            attn_layer_dropout=cfg.machine_translation.attn_layer_dropout,
-        )
-        self.decoder = TransformerDecoder(
-            hidden_size=cfg.machine_translation.hidden_size,
-            inner_size=cfg.machine_translation.inner_size,
-            num_layers=cfg.machine_translation.num_layers,
-            num_attention_heads=cfg.machine_translation.num_attn_heads,
-            ffn_dropout=cfg.machine_translation.ffn_dropout,
-            attn_score_dropout=cfg.machine_translation.attn_score_dropout,
-            attn_layer_dropout=cfg.machine_translation.attn_layer_dropout,
-        )
         self.log_softmax = TokenClassifier(
             hidden_size=cfg.machine_translation.hidden_size, num_classes=tgt_vocab_size, log_softmax=True,
         )

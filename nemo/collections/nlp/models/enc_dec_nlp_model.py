@@ -39,8 +39,12 @@ class EncoderConfig:
 
 
 @dataclass
-class TransformerEncoder:
+class DecoderConfig:
     hidden_size: int = MISSING
+
+
+@dataclass
+class TransformerEncoderConfig(EncoderConfig):
     inner_size: int = MISSING
     num_layers: int = MISSING
     num_attention_heads: int = 1
@@ -52,11 +56,22 @@ class TransformerEncoder:
 
 
 @dataclass
+class TransformerDecoderConfig(DecoderConfig):
+    inner_size: int = MISSING
+    num_layers: int = MISSING
+    num_attention_heads: int = 1
+    ffn_dropout: float = 0.0
+    attn_score_dropout: float = 0.0
+    attn_layer_dropout: float = 0.0
+    hidden_act: str = 'relu'
+
+
+@dataclass
 class EncDecNLPModelConfig:
-    enc_tokenizer: TokenizerConfig = MISSING
-    dec_tokenizer: TokenizerConfig = MISSING
-    enc_embedding: EmbeddingConfig = MISSING
-    dec_embedding: EmbeddingConfig = MISSING
+    encoder_tokenizer: TokenizerConfig = MISSING
+    decoder_tokenizer: TokenizerConfig = MISSING
+    encoder_embedding: EmbeddingConfig = MISSING
+    decoder_embedding: EmbeddingConfig = MISSING
     encoder: EncoderConfig = MISSING
     decoder: DecoderConfig = MISSING
 
@@ -69,63 +84,73 @@ class EncDecNLPModel(NLPModel):
         self._cfg = cfg
         self._trainer = trainer
         super().__init__(cfg=cfg, trainer=trainer)
-        # self._enc_tokenizer = None
-        # self._dec_tokenizer = None
-        # self._enc_vocab_size = None
-        # self._dec_vocab_size = None
-        # self._enc_embedding = None
-        # self._dec_embedding = None
 
     @property
-    def enc_vocab_size(self):
-        return self._enc_vocab_size
+    def encoder_vocab_size(self):
+        return self._encoder_vocab_size
 
-    @enc_vocab_size.setter
-    def enc_vocab_size(self, size: int):
-        self._enc_vocab_size = size
-
-    @property
-    def dec_vocab_size(self):
-        return self._dec_vocab_size
-
-    @dec_vocab_size.setter
-    def dec_vocab_size(self, size: int):
-        self._dec_vocab_size = size
+    @encoder_vocab_size.setter
+    def encoder_vocab_size(self, size: int):
+        self._encoder_vocab_size = size
 
     @property
-    def enc_tokenizer(self):
-        return self._enc_tokenizer
+    def decoder_vocab_size(self):
+        return self._decoder_vocab_size
 
-    @enc_tokenizer.setter
-    def enc_tokenizer(self, tokenizer):
-        self._enc_tokenizer = tokenizer
+    @decoder_vocab_size.setter
+    def decoder_vocab_size(self, size: int):
+        self._decoder_vocab_size = size
 
     @property
-    def dec_tokenizer(self):
-        return self._enc_tokenizer
+    def encoder_tokenizer(self):
+        return self._encoder_tokenizer
 
-    @dec_tokenizer.setter
-    def dec_tokenizer(self, tokenizer):
+    @encoder_tokenizer.setter
+    def encoder_tokenizer(self, tokenizer):
+        self._encoder_tokenizer = tokenizer
+
+    @property
+    def decoder_tokenizer(self):
+        return self._decoder_tokenizer
+
+    @decoder_tokenizer.setter
+    def decoder_tokenizer(self, tokenizer):
         self._dec_tokenizer = tokenizer
 
     @property
-    def enc_embedding(self):
-        return self._enc_embedding
+    def encoder_embedding(self):
+        return self._encoder_embedding
 
-    @enc_embedding.setter
-    def enc_embedding(self, embedding):
-        self._enc_embedding = embedding
+    @encoder_embedding.setter
+    def encoder_embedding(self, embedding):
+        self._encoder_embedding = embedding
 
     @property
-    def dec_embedding(self):
-        return self._enc_embedding
+    def decoder_embedding(self):
+        return self._decoder_embedding
 
-    @dec_embedding.setter
-    def dec_embedding(self, embedding):
-        self._dec_embedding = embedding
+    @decoder_embedding.setter
+    def decoder_embedding(self, embedding):
+        self._decoder_embedding = embedding
+
+    @property
+    def encoder(self):
+        return self._encoder
+
+    @encoder.setter
+    def encoder(self, encoder):
+        self._encoder = encoder
+
+    @property
+    def decoder(self):
+        return self._decoder
+
+    @decoder.setter
+    def decoder(self, decoder):
+        self._decoder = decoder
 
     def setup_enc_dec_tokenizers(self, cfg: EncDecNLPModelConfig):
-        self.enc_tokenizer = get_tokenizer(**asdict(cfg.enc_tokenizer))
-        self.dec_tokenizer = get_tokenizer(**asdict(cfg.dec_tokenizer))
-        self.enc_vocab_size = self.enc_tokenizer.vocab_size
-        self.dec_vocab_size = self.dec_tokenizer.vocab_size
+        self.encoder_tokenizer = get_tokenizer(**asdict(cfg.encoder_tokenizer))
+        self.decoder_tokenizer = get_tokenizer(**asdict(cfg.decoder_tokenizer))
+        self.encoder_vocab_size = self.encoder_tokenizer.vocab_size
+        self.decoder_vocab_size = self.decoder_tokenizer.vocab_size

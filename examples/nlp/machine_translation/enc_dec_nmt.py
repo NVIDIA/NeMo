@@ -13,7 +13,13 @@
 # limitations under the License.
 
 from dataclasses import asdict
-from nemo.collections.nlp.models.enc_dec_nlp_model import TokenizerConfig, TransformerEmbeddingConfig
+from nemo.collections.nlp.models.enc_dec_nlp_model import (
+    TokenizerConfig,
+    TransformerDecoderConfig,
+    TransformerEmbeddingConfig,
+    TransformerEncoder,
+    TransformerEncoderConfig,
+)
 import hydra
 from hydra.utils import instantiate
 
@@ -47,6 +53,26 @@ def main(cfg: DictConfig) -> None:
     enc_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
     # dec embedding happens to be the same in this case (will change for other configs)
     dec_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
+
+    encoder_config = TransformerEncoderConfig(
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+    )
+
+    decoder_config = TransformerDecoderConfig(
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+    )
 
     mt_config = MTEncDecModelConfig(
         enc_tokenizer=enc_tokenizer_config,

@@ -41,13 +41,13 @@ class TransformerDecoderBlock(nn.Module):
 
     def __init__(
         self,
-        hidden_size,
-        inner_size,
-        num_attention_heads=1,
-        attn_score_dropout=0,
-        attn_layer_dropout=0,
-        ffn_dropout=0,
-        hidden_act="relu",
+        hidden_size: int,
+        inner_size: int,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
     ):
         super().__init__()
 
@@ -67,7 +67,7 @@ class TransformerDecoderBlock(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, num_layers, hidden_size, **kwargs):
+    def __init__(self, num_layers: int, hidden_size: int, **kwargs):
         super().__init__()
 
         layer = TransformerDecoderBlock(hidden_size, **kwargs)

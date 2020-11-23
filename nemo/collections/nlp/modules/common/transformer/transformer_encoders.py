@@ -63,7 +63,7 @@ class TransformerEncoderBlock(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, num_layers, hidden_size, mask_future=False, **kwargs):
+    def __init__(self, num_layers: int, hidden_size: int, mask_future: bool = False, **kwargs):
         super().__init__()
 
         layer = TransformerEncoderBlock(hidden_size, **kwargs)
