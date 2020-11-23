@@ -363,17 +363,25 @@ class TokenClassificationModel(NLPModel, Exportable):
             self.train(mode=mode)
         return all_preds
 
-    def add_predictions(self, queries: Union[List[str], str], batch_size: int = 32) -> List[str]:
+    def add_predictions(
+        self, queries: Union[List[str], str], batch_size: int = 32, output_file: Optional[str] = None
+    ) -> List[str]:
         """
         Add predicted token labels to the queries. Use this method for debugging and prototyping.
         Args:
             queries: text
             batch_size: batch size to use during inference.
+            output_file: file to save models predictions
         Returns:
             result: text with added entities
         """
         if queries is None or len(queries) == 0:
             return []
+
+        if isinstance(queries, str):
+            logging.info(f'Reading from {queries} file')
+            with open(queries, 'r') as f:
+                queries = f.readlines()
 
         result = []
         all_preds = self._infer(queries, batch_size)
@@ -410,6 +418,12 @@ class TokenClassificationModel(NLPModel, Exportable):
                     query_with_entities += '[' + label + ']'
                 query_with_entities += punct + ' '
             result.append(query_with_entities.strip())
+
+        if output_file is not None:
+            with open(output_file, 'w') as f:
+                for r in result:
+                    f.write(r + '\n')
+            logging.info(f'Predictions saved to {output_file}')
         return result
 
     def evaluate_from_file(
