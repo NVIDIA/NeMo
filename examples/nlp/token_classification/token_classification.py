@@ -142,7 +142,7 @@ def main(cfg: DictConfig) -> None:
 
     # run an inference on a few examples
     queries = ['we bought four shirts from the nvidia gear store in santa clara.', 'Nvidia is a company.']
-    results = model.add_predictions(queries)
+    results = model.add_predictions(queries, output_file='predictions.txt')
 
     for query, result in zip(queries, results):
         logging.info(f'Query : {query}')

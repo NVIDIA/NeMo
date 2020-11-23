@@ -137,7 +137,7 @@ class MegatronBertEncoder(BertModule):
         self._restore_path = restore_path
         if os.path.isfile(restore_path):
             logging.info(f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism')
-            state_dict = torch.load(restore_path)
+            state_dict = torch.load(restore_path, map_location='cpu')
             # to load from Megatron pretrained checkpoint
             if 'model' in state_dict:
                 self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
@@ -150,7 +150,7 @@ class MegatronBertEncoder(BertModule):
                 model_parallel_rank = torch.distributed.get_rank(group=get_model_parallel_group())
                 mp_restore_path = f'{restore_path}/mp_rank_{model_parallel_rank:02d}/model_optim_rng.pt'
                 logging.info(f'Restoring model parallel checkpoint from: {mp_restore_path}')
-                state_dict = torch.load(mp_restore_path)
+                state_dict = torch.load(mp_restore_path, map_location='cpu')
                 # to load from Megatron pretrained checkpoint
                 if 'model' in state_dict:
                     self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
