@@ -30,7 +30,25 @@ class EmbeddingConfig:
 @dataclass
 class TransformerEmbeddingConfig(EmbeddingConfig):
     _target_: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
-    vocab_divisibile_by_eight: bool = True  # TODO: raise this to EncDecNLPModelConfig
+    vocab_divisibile_by_eight: bool = True  # TODO: raise this to EmbeddingConfig
+
+
+@dataclass
+class EncoderConfig:
+    hidden_size: int = MISSING
+
+
+@dataclass
+class TransformerEncoder:
+    hidden_size: int = MISSING
+    inner_size: int = MISSING
+    num_layers: int = MISSING
+    num_attention_heads: int = 1
+    ffn_dropout: float = 0.0
+    attn_score_dropout: float = 0.0
+    attn_layer_dropout: float = 0.0
+    hidden_act: str = 'relu'
+    mask_future: bool = False
 
 
 @dataclass
@@ -39,6 +57,8 @@ class EncDecNLPModelConfig:
     dec_tokenizer: TokenizerConfig = MISSING
     enc_embedding: EmbeddingConfig = MISSING
     dec_embedding: EmbeddingConfig = MISSING
+    encoder: EncoderConfig = MISSING
+    decoder: DecoderConfig = MISSING
 
 
 class EncDecNLPModel(NLPModel):

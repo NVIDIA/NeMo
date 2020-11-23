@@ -80,29 +80,6 @@ class MTEncDecModel(EncDecNLPModel):
         self.enc_embedding = instantiate(cfg.enc_embedding)
         self.dec_embedding = instantiate(cfg.dec_embedding)
 
-        # self.enc_embedding = TransformerEmbedding(
-        #     vocab_size=cfg.enc_embedding.vocab_size,
-        #     hidden_size=cfg.enc_embedding.hidden_size,
-        #     max_sequence_length=cfg.enc_embedding.max_sequence_length,
-        #     embedding_dropout=cfg.enc_embedding.embedding_dropout,
-        #     learn_positional_encodings=cfg.enc_embedding.learn_positional_encodings,
-        # )
-
-        # self.enc_embedding = TransformerEmbedding(
-        #     vocab_size=self.enc_vocab_size,
-        #     hidden_size=cfg.machine_translation.hidden_size,
-        #     max_sequence_length=cfg.machine_translation.max_seq_length,
-        #     embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
-        #     learn_positional_encodings=False,
-        # )
-        # self.dec_embedding = TransformerEmbedding(
-        #     vocab_size=self.dec_vocab_size,
-        #     hidden_size=cfg.machine_translation.hidden_size,
-        #     max_sequence_length=cfg.machine_translation.max_seq_length,
-        #     embedding_dropout=cfg.machine_translation.get("embedding_dropout", 0.0),
-        #     learn_positional_encodings=False,
-        # )
-
         # TODO: Optionally tie Embedding weights
 
         self.encoder = TransformerEncoder(
