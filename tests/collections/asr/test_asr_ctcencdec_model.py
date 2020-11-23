@@ -16,7 +16,7 @@ import copy
 import pytest
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-import nemo.collections.asr.modules.conv_as
+import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import EncDecCTCModel, configs
 from nemo.utils.config_utils import update_model_config
 
@@ -125,7 +125,7 @@ class TestEncDecCTCModel:
         model_cfg.model.encoder.activation = 'relu'
         model_cfg.model.encoder.feat_in = 64
         model_cfg.model.encoder.jasper = [
-            nemo.collections.asr.modules.conv_asr.JasperEncoderConfig(
+            nemo_asr.modules.conv_asr.JasperEncoderConfig(
                 filters=1024,
                 repeat=1,
                 kernel=[1],
@@ -145,7 +145,7 @@ class TestEncDecCTCModel:
 
         # Construct the model
         asr_cfg = OmegaConf.create({'model': asr_model.cfg})
-        model_cfg_v1 = EncDecCTCModel.update_model_dataclass(model_cfg, asr_cfg)
+        model_cfg_v1 = update_model_config(model_cfg, asr_cfg)
         new_model = EncDecCTCModel(cfg=model_cfg_v1.model)
 
         assert new_model.num_weights == asr_model.num_weights
