@@ -153,8 +153,6 @@ class ClusteringSDModel(DiarizationModel):
                     status = 'end'
                 else:
                     status = 'single'
-            print(data[i], status)
-
             test_batch = [x.to(self._device) for x in test_batch]
             with autocast():
                 log_probs = self._vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
@@ -178,7 +176,6 @@ class ClusteringSDModel(DiarizationModel):
 
             del test_batch
             if status == 'end' or status == 'single':
-                print(f"Overall length of prediction of {data[i]} is {all_len}!")
                 all_len = 0
 
         vad_out_dir = self.generate_vad_timestamps()  # TODO confirm directory structure here
