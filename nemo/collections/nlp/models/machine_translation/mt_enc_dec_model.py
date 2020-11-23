@@ -57,6 +57,9 @@ __all__ = ['MTEncDecModel']
 class MTEncDecModelConfig(EncDecNLPModelConfig):
     num_val_examples: int = 3
     num_test_examples: int = 3
+    beam_size: int = 1
+    len_pen: float = 0.0
+    max_generation_delta: int = 50
 
 
 class MTEncDecModel(EncDecNLPModel):
@@ -85,22 +88,21 @@ class MTEncDecModel(EncDecNLPModel):
         # TODO: Optionally tie weights
 
         self.log_softmax = instantiate(cfg.head)
-        # self.log_softmax = TokenClassifier(
-        #     hidden_size=cfg.machine_translation.hidden_size, num_classes=tgt_vocab_size, log_softmax=True,
-        # )
+
         self.beam_search = BeamSearchSequenceGenerator(
             embedding=self.decoder_embedding,
             decoder=self.decoder,
             log_softmax=self.log_softmax,
-            max_sequence_length=cfg.machine_translation.max_seq_length,
-            beam_size=cfg.machine_translation.beam_size,
+            max_sequence_length=cfg.decoder_embedding.max_sequence_length,
+            beam_size=cfg.beam_size,
             bos=self.decoder_tokenizer.bos_id,
             pad=self.decoder_tokenizer.pad_id,
             eos=self.decoder_tokenizer.eos_id,
-            len_pen=cfg.machine_translation.len_pen,
-            max_delta_length=cfg.machine_translation.get("max_generation_delta", 50),
+            len_pen=cfg.len_pen,
+            max_delta_length=cfg.max_generation_delta,
         )
 
+        # TODO: encoder and decoder with different hidden size?
         std_init_range = 1 / cfg.machine_translation.hidden_size ** 0.5
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 

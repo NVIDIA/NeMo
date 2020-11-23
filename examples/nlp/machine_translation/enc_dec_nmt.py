@@ -86,6 +86,9 @@ def main(cfg: DictConfig) -> None:
         encoder=encoder_config,
         decoder=decoder_config,
         head=head_config,
+        beam_size=4,
+        len_pen=0.6,
+        max_generation_delta=50,
     )
 
     mt_model = MTEncDecModel(mt_config, trainer=trainer)
