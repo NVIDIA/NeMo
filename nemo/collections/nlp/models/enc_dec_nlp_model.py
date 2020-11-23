@@ -30,6 +30,7 @@ class EmbeddingConfig:
 @dataclass
 class TransformerEmbeddingConfig(EmbeddingConfig):
     _target_: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
+    vocab_divisibile_by_eight: bool = True  # TODO: raise this to EncDecNLPModelConfig
 
 
 @dataclass
@@ -38,7 +39,6 @@ class EncDecNLPModelConfig:
     dec_tokenizer: TokenizerConfig = MISSING
     enc_embedding: EmbeddingConfig = MISSING
     dec_embedding: EmbeddingConfig = MISSING
-    vocab_divisibile_by_eight: bool = True
 
 
 class EncDecNLPModel(NLPModel):
@@ -109,7 +109,3 @@ class EncDecNLPModel(NLPModel):
         self.dec_tokenizer = get_tokenizer(**asdict(cfg.dec_tokenizer))
         self.enc_vocab_size = self.enc_tokenizer.vocab_size
         self.dec_vocab_size = self.dec_tokenizer.vocab_size
-        # optionally make vocabulary size divisible by 8 for fast fp16 training
-        if cfg.vocab_divisibile_by_eight:
-            self.enc_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
-            self.dec_vocab_size = 8 * math.ceil(self.dec_tokenizer.vocab_size / 8)
