@@ -14,6 +14,7 @@
 
 from dataclasses import asdict
 from nemo.collections.nlp.models.enc_dec_nlp_model import (
+    TokenClassifierConfig,
     TokenizerConfig,
     TransformerDecoderConfig,
     TransformerEmbeddingConfig,
@@ -73,6 +74,10 @@ def main(cfg: DictConfig) -> None:
         attn_layer_dropout=0.1,
     )
 
+    head_config = TokenClassifierConfig(
+        hidden_size=decoder_config.hidden_size, num_classes=decoder_embedding_config.vocab_size, log_softmax=True
+    )
+
     mt_config = MTEncDecModelConfig(
         encoder_tokenizer=encoder_tokenizer_config,
         decoder_tokenizer=decoder_tokenizer_config,
@@ -80,6 +85,7 @@ def main(cfg: DictConfig) -> None:
         decoder_embedding=decoder_embedding_config,
         encoder=encoder_config,
         decoder=decoder_config,
+        head=head_config,
     )
 
     mt_model = MTEncDecModel(mt_config, trainer=trainer)

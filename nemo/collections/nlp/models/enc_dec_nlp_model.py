@@ -68,6 +68,23 @@ class TransformerDecoderConfig(DecoderConfig):
 
 
 @dataclass
+class HeadConfig:
+    num_classes: int = MISSING
+
+
+@dataclass
+class TokenClassifierConfig(HeadConfig):
+    hidden_size: int = MISSING
+    num_classes: int = MISSING
+    _target_: str = 'nemo.collections.nlp.modules.common.token_classifier.TokenClassifier'
+    num_layers: int = 1
+    activation: str = 'relu'
+    log_softmax: bool = True
+    dropout: float = 0.0
+    use_transformer_init: bool = True
+
+
+@dataclass
 class EncDecNLPModelConfig:
     encoder_tokenizer: TokenizerConfig = MISSING
     decoder_tokenizer: TokenizerConfig = MISSING
@@ -75,6 +92,7 @@ class EncDecNLPModelConfig:
     decoder_embedding: EmbeddingConfig = MISSING
     encoder: EncoderConfig = MISSING
     decoder: DecoderConfig = MISSING
+    head: HeadConfig = MISSING
     vocab_divisibile_by_eight: bool = True  # TODO: should this go somewhere else?
 
 

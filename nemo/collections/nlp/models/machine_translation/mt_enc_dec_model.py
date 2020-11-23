@@ -84,9 +84,10 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: Optionally tie weights
 
-        self.log_softmax = TokenClassifier(
-            hidden_size=cfg.machine_translation.hidden_size, num_classes=tgt_vocab_size, log_softmax=True,
-        )
+        self.log_softmax = instantiate(cfg.head)
+        # self.log_softmax = TokenClassifier(
+        #     hidden_size=cfg.machine_translation.hidden_size, num_classes=tgt_vocab_size, log_softmax=True,
+        # )
         self.beam_search = BeamSearchSequenceGenerator(
             embedding=self.decoder_embedding,
             decoder=self.decoder,
