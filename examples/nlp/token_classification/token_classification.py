@@ -87,58 +87,58 @@ def main(cfg: DictConfig) -> None:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
         model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
 
-    #     data_dir = cfg.model.dataset.get('data_dir', None)
-    #     if data_dir:
-    #         # we can also do finetunining of the pretrained model but it will require
-    #         # setting up train and validation Pytorch DataLoaders
-    #         # setup the data dir to get class weights statistics
-    #         model.update_data_dir(data_dir=data_dir)
-    #         # finally, setup train and validation Pytorch DataLoaders
-    #         model.setup_training_data()
-    #         model.setup_validation_data()
-    #         # then we're setting up loss, use model.dataset.class_balancing,
-    #         # if you want to add class weights to the CrossEntropyLoss
-    #         model.setup_loss(class_balancing=cfg.model.dataset.class_balancing)
-    #         logging.info(f'Using config file of the pretrained model')
-    #     else:
-    #         do_training = False
-    #         logging.info(
-    #             f'Data dir should be specified for finetuning the pretrained model. '
-    #             f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning.'
-    #         )
-    #
-    # if do_training:
-    #     trainer.fit(model)
-    #     if cfg.model.nemo_path:
-    #         model.save_to(cfg.model.nemo_path)
-    #
-    # """
-    # After model training is done, you can use the model for inference.
-    # You can either evaluate data from a text_file that follows training data format,
-    # or provide a list of queries you want to add entities to
-    #
-    # During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU
-    # and no DDP to obtain accurate results
-    # """
-    # logging.info(
-    #     'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU '
-    #     'and no DDP to obtain accurate results'
-    # )
-    # gpu = 1 if cfg.trainer.gpus != 0 else 0
-    # trainer = pl.Trainer(gpus=gpu)
-    # model.set_trainer(trainer)
-    #
-    # if do_training:
-    #     # run evaluation on a dataset from file
-    #     # only possible if model.dataset.data_dir is specified
-    #     # change the path to the file you want to use for the final evaluation
-    #     model.evaluate_from_file(
-    #         text_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.text_file),
-    #         labels_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.labels_file),
-    #         output_dir=exp_dir,
-    #         add_confusion_matrix=True,
-    #         normalize_confusion_matrix=True,
-    #     )
+        data_dir = cfg.model.dataset.get('data_dir', None)
+        if data_dir:
+            # we can also do finetunining of the pretrained model but it will require
+            # setting up train and validation Pytorch DataLoaders
+            # setup the data dir to get class weights statistics
+            model.update_data_dir(data_dir=data_dir)
+            # finally, setup train and validation Pytorch DataLoaders
+            model.setup_training_data()
+            model.setup_validation_data()
+            # then we're setting up loss, use model.dataset.class_balancing,
+            # if you want to add class weights to the CrossEntropyLoss
+            model.setup_loss(class_balancing=cfg.model.dataset.class_balancing)
+            logging.info(f'Using config file of the pretrained model')
+        else:
+            do_training = False
+            logging.info(
+                f'Data dir should be specified for finetuning the pretrained model. '
+                f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning.'
+            )
+
+    if do_training:
+        trainer.fit(model)
+        if cfg.model.nemo_path:
+            model.save_to(cfg.model.nemo_path)
+
+    """
+    After model training is done, you can use the model for inference.
+    You can either evaluate data from a text_file that follows training data format,
+    or provide a list of queries you want to add entities to
+
+    During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU
+    and no DDP to obtain accurate results
+    """
+    logging.info(
+        'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU '
+        'and no DDP to obtain accurate results'
+    )
+    gpu = 1 if cfg.trainer.gpus != 0 else 0
+    trainer = pl.Trainer(gpus=gpu)
+    model.set_trainer(trainer)
+
+    if do_training:
+        # run evaluation on a dataset from file
+        # only possible if model.dataset.data_dir is specified
+        # change the path to the file you want to use for the final evaluation
+        model.evaluate_from_file(
+            text_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.text_file),
+            labels_file=os.path.join(cfg.model.dataset.data_dir, cfg.model.validation_ds.labels_file),
+            output_dir=exp_dir,
+            add_confusion_matrix=True,
+            normalize_confusion_matrix=True,
+        )
 
     # run an inference on a few examples
     queries = ['we bought four shirts from the nvidia gear store in santa clara.', 'Nvidia is a company.']
