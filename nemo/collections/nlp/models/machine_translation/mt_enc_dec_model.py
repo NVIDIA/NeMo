@@ -60,6 +60,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     beam_size: int = 1
     len_pen: float = 0.0
     max_generation_delta: int = 50
+    label_smoothing: Optional[float] = 0.0
 
 
 class MTEncDecModel(EncDecNLPModel):
@@ -103,14 +104,14 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
         # TODO: encoder and decoder with different hidden size?
-        std_init_range = 1 / cfg.machine_translation.hidden_size ** 0.5
+        std_init_range = 1 / cfg.encoder.hidden_size ** 0.5
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.decoder_embedding.token_embedding.weight
-        self.emb_scale = cfg.machine_translation.hidden_size ** 0.5
+        self.emb_scale = cfg.encoder.hidden_size ** 0.5
         self.loss_fn = SmoothedCrossEntropyLoss(
-            pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.machine_translation.label_smoothing
+            pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
 
         # Optimizer setup needs to happen after all model weights are ready

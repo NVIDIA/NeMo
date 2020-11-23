@@ -89,6 +89,7 @@ def main(cfg: DictConfig) -> None:
         beam_size=4,
         len_pen=0.6,
         max_generation_delta=50,
+        label_smoothing=0.1,
     )
 
     mt_model = MTEncDecModel(mt_config, trainer=trainer)
