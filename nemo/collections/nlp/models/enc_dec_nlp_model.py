@@ -19,6 +19,7 @@ class TokenizerConfig:
 
 @dataclass
 class EmbeddingConfig:
+    vocab_size: int = MISSING
     hidden_size: int = MISSING
     max_sequence_length: int = 512
     num_token_types: int = 2
@@ -28,16 +29,16 @@ class EmbeddingConfig:
 
 @dataclass
 class TransformerEmbeddingConfig(EmbeddingConfig):
-    __target__: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
+    _target_: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
 
 
 @dataclass
 class EncDecNLPModelConfig:
     enc_tokenizer: TokenizerConfig = MISSING
     dec_tokenizer: TokenizerConfig = MISSING
-    vocab_divisibile_by_eight: bool = True
     enc_embedding: EmbeddingConfig = MISSING
     dec_embedding: EmbeddingConfig = MISSING
+    vocab_divisibile_by_eight: bool = True
 
 
 class EncDecNLPModel(NLPModel):
@@ -45,12 +46,15 @@ class EncDecNLPModel(NLPModel):
     """
 
     def __init__(self, cfg: EncDecNLPModelConfig, trainer: Trainer = None):
-        self._enc_tokenizer = None
-        self._dec_tokenizer = None
-        self._enc_vocab_size = None
-        self._dec_vocab_size = None
-        self._enc_embedding = None
-        self._dec_embedding = None
+        self._cfg = cfg
+        self._trainer = trainer
+        super().__init__(cfg=cfg, trainer=trainer)
+        # self._enc_tokenizer = None
+        # self._dec_tokenizer = None
+        # self._enc_vocab_size = None
+        # self._dec_vocab_size = None
+        # self._enc_embedding = None
+        # self._dec_embedding = None
 
     @property
     def enc_vocab_size(self):

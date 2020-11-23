@@ -70,8 +70,23 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.enc_embedding = instantiate(MTEncDecModelConfig.enc_embedding, vocab_size=self.enc_vocab_size)
-        self.dec_embedding = instantiate(MTEncDecModelConfig.dec_embedding, vocab_size=self.dec_vocab_size)
+        # make vocabulary size divisible by 8 for fast fp16 training
+        if cfg.vocab_divisibile_by_eight:
+            self.enc_vocab_size = 8 * math.ceil(self.enc_tokenizer.vocab_size / 8)
+            self.dec_vocab_size = 8 * math.ceil(self.dec_tokenizer.vocab_size / 8)
+            cfg.enc_embedding.vocab_size = self.enc_vocab_size
+            cfg.dec_embedding.vocab_size = self.dec_vocab_size
+
+        self.enc_embedding = instantiate(cfg.enc_embedding)
+        self.dec_embedding = instantiate(cfg.dec_embedding)
+
+        # self.enc_embedding = TransformerEmbedding(
+        #     vocab_size=cfg.enc_embedding.vocab_size,
+        #     hidden_size=cfg.enc_embedding.hidden_size,
+        #     max_sequence_length=cfg.enc_embedding.max_sequence_length,
+        #     embedding_dropout=cfg.enc_embedding.embedding_dropout,
+        #     learn_positional_encodings=cfg.enc_embedding.learn_positional_encodings,
+        # )
 
         # self.enc_embedding = TransformerEmbedding(
         #     vocab_size=self.enc_vocab_size,

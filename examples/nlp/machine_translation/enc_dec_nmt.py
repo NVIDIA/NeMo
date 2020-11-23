@@ -44,9 +44,9 @@ def main(cfg: DictConfig) -> None:
     dec_tokenizer_config = TokenizerConfig(
         tokenizer_name="yttm", tokenizer_model='/raid/data/68792/tokenizer.BPE.37K.model'
     )
-    enc_embedding_config = TransformerEmbeddingConfig(hidden_size=512, embedding_dropout=0.1)
+    enc_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
     # dec embedding happens to be the same in this case (will change for other configs)
-    dec_embedding_config = TransformerEmbeddingConfig(hidden_size=512, embedding_dropout=0.1)
+    dec_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
 
     mt_config = MTEncDecModelConfig(
         enc_tokenizer=enc_tokenizer_config,
