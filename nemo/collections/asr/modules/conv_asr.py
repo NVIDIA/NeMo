@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import OrderedDict
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omegaconf import ListConfig, OmegaConf
+from omegaconf import MISSING, ListConfig, OmegaConf
 
 from nemo.collections.asr.parts.jasper import (
     JasperBlock,
@@ -142,7 +143,7 @@ class ConvASREncoder(NeuralModule, Exportable):
             residual_mode = lcfg.get('residual_mode', residual_mode)
             se = lcfg.get('se', False)
             se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
-            se_context_window = lcfg.get('se_context_window', -1)
+            se_context_window = lcfg.get('se_context_size', -1)
             se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
             stride_last = lcfg.get('stride_last', False)
@@ -433,3 +434,50 @@ class SpeakerDecoder(NeuralModule, Exportable):
         out = self.final(pool)
 
         return out, embs[-1]
+
+
+@dataclass
+class JasperEncoderConfig:
+    filters: int = MISSING
+    repeat: int = MISSING
+    kernel: List[int] = MISSING
+    stride: List[int] = MISSING
+    dilation: List[int] = MISSING
+    dropout: float = MISSING
+    residual: bool = MISSING
+
+    # Optional arguments
+    groups: int = 1
+    separable: bool = False
+    heads: int = -1
+    residual_mode: str = "add"
+    residual_dense: bool = False
+    se: bool = False
+    se_reduction_ratio: int = 8
+    se_context_size: int = -1
+    se_interpolation_mode: str = 'nearest'
+    kernel_size_factor: float = 1.0
+    stride_last: bool = False
+
+
+@dataclass
+class ConvASREncoderConfig:
+    _target_: str = 'nemo.collections.asr.modules.ConvASREncoder'
+    jasper: Optional[JasperEncoderConfig] = field(default_factory=list)
+    activation: str = MISSING
+    feat_in: int = MISSING
+    normalization_mode: str = "batch"
+    residual_mode: str = "add"
+    norm_groups: int = -1
+    conv_mask: bool = True
+    frame_splicing: int = 1
+    init_mode: str = "xavier_uniform"
+
+
+@dataclass
+class ConvASRDecoderConfig:
+    _target_: str = 'nemo.collections.asr.modules.ConvASRDecoder'
+    feat_in: int = MISSING
+    num_classes: int = MISSING
+    init_mode: str = "xavier_uniform"
+    vocabulary: Optional[List[str]] = field(default_factory=list)

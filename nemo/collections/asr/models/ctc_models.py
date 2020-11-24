@@ -228,6 +228,11 @@ class EncDecCTCModel(ASRModel, Exportable):
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
             if 'vocabulary' in new_decoder_config:
+                logging.warning(
+                    "This config uses `cls` and `params` as a way of instantiating classes using Hydra. "
+                    "Please note that this is deprecated and as of Hydra 1.1, it will not be supported. "
+                    "Please refer to Hydra documentation to update your config."
+                )
                 new_decoder_config['vocabulary'] = new_vocabulary
                 new_decoder_config['num_classes'] = len(new_vocabulary)
             else:
