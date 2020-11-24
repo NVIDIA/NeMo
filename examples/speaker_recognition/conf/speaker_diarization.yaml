@@ -15,7 +15,7 @@ model:
     threshold: 0.5
     num_workers: 4
   speaker_embeddings:
-    model_path: "./embeddings/spkr.nemo"
+    model_path: "/data3/sdtest/models/SpeakerNet-M.nemo"
     time_length: 1.5
     shift_length: 0.75
     oracle_vad: 
@@ -24,9 +24,9 @@ model:
   diarizer:
     cluster_method: "SpectralClustering"
     reco2num: 4
-    out_dir: "./diarization"
+    out_dir: "/data3/sdtest/diarization"
     groundtruth_RTTM_dir: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/disk8_RTTMs"
     shuffle: False
-  manifest_filepath: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/vad_manifest.json"
+  manifest_filepath: "/data3/sdtest/test.json"
   sample_rate: 16000
 
