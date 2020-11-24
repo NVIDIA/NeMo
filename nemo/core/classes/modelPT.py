@@ -187,7 +187,7 @@ class ModelPT(LightningModule, Model):
         if self.artifacts is None:
             self.artifacts = {}
         if src is not None and src.strip() != '':
-            archive_item = model_utils.ArchiveItem()
+            archive_item = model_utils.ArtifactItem()
 
             basename_src = os.path.basename(src)
             # filename exists in current workdir - use it and raise warning
@@ -198,13 +198,13 @@ class ModelPT(LightningModule, Model):
 
                 # Case: register_artifact() called inside restoration context
                 if self._is_model_being_restored() and self._is_restore_type_tarfile():
-                    archive_item.path_type = model_utils.ArchivePathType.TAR_PATH
+                    archive_item.path_type = model_utils.ArtifactPathType.TAR_PATH
                 else:
-                    archive_item.path_type = model_utils.ArchivePathType.LOCAL_PATH
+                    archive_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
 
             else:
                 used_src = src
-                archive_item.path_type = model_utils.ArchivePathType.LOCAL_PATH
+                archive_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
 
             if not os.path.exists(used_src):
                 # File not found in local path or by basename
@@ -224,7 +224,7 @@ class ModelPT(LightningModule, Model):
                                 used_src = basename_src
 
                                 archive_item.path = used_src
-                                archive_item.path_type = model_utils.ArchivePathType.TAR_PATH
+                                archive_item.path_type = model_utils.ArtifactPathType.TAR_PATH
                             else:
                                 # No further action can be taken, file not found anywhere
                                 raise FileNotFoundError(
@@ -271,11 +271,11 @@ class ModelPT(LightningModule, Model):
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
 
             if hasattr(self, 'artifacts') and self.artifacts is not None:
-                for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArchiveItem)
+                for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArtifactItem)
                     try:
-                        if src.path_type == model_utils.ArchivePathType.LOCAL_PATH and os.path.exists(src.path):
+                        if src.path_type == model_utils.ArtifactPathType.LOCAL_PATH and os.path.exists(src.path):
                             shutil.copy2(src.path, tmpdir)
-                        elif src.path_type == model_utils.ArchivePathType.TAR_PATH:
+                        elif src.path_type == model_utils.ArtifactPathType.TAR_PATH:
                             # Need to step into nemo archive to extract file
                             # Get path where the command is executed - the artifacts will be "retrieved" there
                             # (original .nemo behavior)
@@ -1244,7 +1244,7 @@ class ModelPT(LightningModule, Model):
     def _is_restore_type_tarfile() -> bool:
         """
         Utility method that checks if the restore path of the underlying Model
-        is a tarfile (can be any valid archive).
+        is a tarfile (can be any valid archive)._MODEL_EFF_SAVE
         """
         global _MODEL_RESTORE_PATH
 
