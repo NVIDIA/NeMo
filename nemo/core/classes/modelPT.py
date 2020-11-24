@@ -52,6 +52,28 @@ except ImportError:
 
 __all__ = ['ModelPT']
 
+"""
+Internal global flags that determine core functionality of ModelPT.
+
+_MODEL_IS_RESTORED:
+    This flag determines the context of the model - whether the model is currently being
+    restored or not. 
+    -   When set, it can be assumed that the model's will disable all automatic methods -
+        setup_training_data(), setup_validation/test_data() and their multi equivalents.
+    -   If a model is being restored from a archive file (tarfile), it can be assumed that
+        under this context, the cwd is *inside* the tarfile itself.
+
+_MODEL_RESTORE_PATH:
+    A string path to a a file from which the model is being restored.
+    This file can either be a PyTorch Lightning Checkpoint, or a archive (tarfile) that contains
+    artifact objects.
+    If it is an archive file, during restoration, the cwd will be temporarily moved to inside the
+    archive itself.
+    
+_MODEL_EFF_SAVE:
+    A global flag that switches the format of the archive file that will be stored.
+    This flag only enables EFF when the package support is available.
+"""
 _MODEL_IS_RESTORED = False
 _MODEL_RESTORE_PATH = None
 _MODEL_EFF_SAVE = True
@@ -175,7 +197,7 @@ class ModelPT(LightningModule, Model):
                 used_src = basename_src
 
                 # Case: register_artifact() called inside restoration context
-                if _MODEL_IS_RESTORED:
+                if self._is_model_being_restored() and self._is_restore_type_tarfile():
                     archive_item.path_type = model_utils.ArchivePathType.TAR_PATH
                 else:
                     archive_item.path_type = model_utils.ArchivePathType.LOCAL_PATH
@@ -188,7 +210,7 @@ class ModelPT(LightningModule, Model):
                 # File not found in local path or by basename
                 # Try to locate it inside the .nemo archive (if model was restored)
                 # Case: register_artifact() called outside restoration context
-                if _MODEL_RESTORE_PATH is not None:
+                if self._is_restore_type_tarfile():
                     # Get path where the command is executed - the artifacts will be "retrieved" there
                     # (original .nemo behavior)
                     cwd = os.getcwd()
@@ -205,7 +227,10 @@ class ModelPT(LightningModule, Model):
                                 archive_item.path_type = model_utils.ArchivePathType.TAR_PATH
                             else:
                                 # No further action can be taken, file not found anywhere
-                                raise FileNotFoundError(f"Could not find {used_src}")
+                                raise FileNotFoundError(
+                                    f"Could not find {used_src} inside "
+                                    f"tarfile {_MODEL_RESTORE_PATH} or under local"
+                                )
                     finally:
                         # change back working directory
                         os.chdir(cwd)
@@ -1214,6 +1239,22 @@ class ModelPT(LightningModule, Model):
     def _set_model_restore_state(is_being_restored: bool):
         global _MODEL_IS_RESTORED
         _MODEL_IS_RESTORED = is_being_restored
+
+    @staticmethod
+    def _is_restore_type_tarfile() -> bool:
+        """
+        Utility method that checks if the restore path of the underlying Model
+        is a tarfile (can be any valid archive).
+        """
+        global _MODEL_RESTORE_PATH
+
+        if _MODEL_RESTORE_PATH is None:
+            return False
+        else:
+            if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
+                return True
+            else:
+                return False
 
     @staticmethod
     def set_eff_save(use_eff_save: bool):
