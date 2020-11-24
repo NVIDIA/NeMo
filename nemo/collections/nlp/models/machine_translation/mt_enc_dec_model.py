@@ -120,9 +120,6 @@ class MTEncDecModel(EncDecNLPModel):
         self.training_perplexity = Perplexity(dist_sync_on_step=True)
         self.eval_perplexity = Perplexity(compute_on_step=False)
 
-        # These attributes are added to bypass Illegal memory access error in PT1.6
-        # https://github.com/pytorch/pytorch/issues/21819
-
     def filter_predicted_ids(self, ids):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
         return ids
