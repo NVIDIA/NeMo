@@ -121,6 +121,7 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDO
             if audio not in time_stamps:
                 time_stamps[audio] = []
             start = offset
+            slice_end = start+duration
             base = math.ceil((duration - WINDOW) / SHIFT)
             slices = 1 if base < 0 else base + 1
             for slice_id in range(slices):
