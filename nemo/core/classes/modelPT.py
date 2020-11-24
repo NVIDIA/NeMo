@@ -197,15 +197,12 @@ class ModelPT(LightningModule, Model):
                         with tempfile.TemporaryDirectory() as tmpdir:
                             self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
                             os.chdir(tmpdir)
-                            logging.info("Looking inside tarfile!\n\n")
                             if os.path.exists(basename_src):
                                 logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
                                 used_src = basename_src
 
                                 archive_item.path = used_src
                                 archive_item.path_type = model_utils.ArchivePathType.TAR_PATH
-
-                                logging.info("Found file in tarfile !\n\n")
                             else:
                                 # No further action can be taken, file not found anywhere
                                 raise FileNotFoundError(f"Could not find {used_src}")
@@ -249,9 +246,7 @@ class ModelPT(LightningModule, Model):
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
 
             if hasattr(self, 'artifacts') and self.artifacts is not None:
-                logging.info(f"Artifacts length : {len(self.artifacts)}\n\n\n")
                 for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArchiveItem)
-                    logging.info(f"Try Saving file '{src}' into tmpdir")
                     try:
                         if src.path_type == model_utils.ArchivePathType.LOCAL_PATH and os.path.exists(src.path):
                             shutil.copy2(src.path, tmpdir)
