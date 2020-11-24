@@ -85,6 +85,18 @@ class TokenClassifierConfig(HeadConfig):
 
 
 @dataclass
+class SchedConfig:
+    name: str = None
+
+
+@dataclass
+class OptimConfig:
+    name: str = MISSING
+    lr: float = MISSING
+    sched: SchedConfig = None
+
+
+@dataclass
 class EncDecNLPModelConfig:
     encoder_tokenizer: TokenizerConfig = MISSING
     decoder_tokenizer: TokenizerConfig = MISSING
@@ -93,6 +105,7 @@ class EncDecNLPModelConfig:
     encoder: EncoderConfig = MISSING
     decoder: DecoderConfig = MISSING
     head: HeadConfig = MISSING
+    optim: OptimConfig = MISSING
     vocab_divisibile_by_eight: bool = True  # TODO: should this go somewhere else?
 
 

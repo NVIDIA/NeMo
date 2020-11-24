@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from logging import NullHandler
+from nemo.core import optim
+from nemo.core.config import optimizers
 from nemo.collections.nlp.models.enc_dec_nlp_model import (
+    OptimConfig,
+    SchedConfig,
     TokenClassifierConfig,
     TokenizerConfig,
     TransformerDecoderConfig,
@@ -78,6 +83,29 @@ def main(cfg: DictConfig) -> None:
         hidden_size=decoder_config.hidden_size, num_classes=decoder_embedding_config.vocab_size, log_softmax=True
     )
 
+    # @dataclass
+    # class MTSchedConfig(SchedConfig):
+    #     name: 'InverseSquareRootAnnealing'
+    #     warmup_steps: NullHandler
+    #     warmup_ratio: 0.1
+    #     last_epoch: -1
+
+    # @dataclass
+    # class MTOptimConfig(OptimConfig):
+    #     name: 'adam'
+    #     lr: 1e-3
+    #     betas: [0.9, 0.98]
+    #     weight_Decay: 0
+
+    sched_config = SchedConfig(name='InverseSquareRootAnnealing')
+    sched_config.warmup_steps = None
+    sched_config.warmup_ratio = 0.1
+    sched_config.last_epoch = -1
+
+    optim_config = OptimConfig(name='adam', lr=1e-3, sched=sched_config)
+    optim_config.betas = [0.9, 0.98]
+    optim_config.weight_decay = 0.0
+
     mt_config = MTEncDecModelConfig(
         encoder_tokenizer=encoder_tokenizer_config,
         decoder_tokenizer=decoder_tokenizer_config,
@@ -86,6 +114,7 @@ def main(cfg: DictConfig) -> None:
         encoder=encoder_config,
         decoder=decoder_config,
         head=head_config,
+        optim=optim_config,
         beam_size=4,
         len_pen=0.6,
         max_generation_delta=50,
