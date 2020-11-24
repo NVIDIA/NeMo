@@ -14,6 +14,8 @@
 
 import copy
 import os
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 
@@ -24,6 +26,17 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from nemo.utils import logging
 
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
+
+
+class ArchivePathType(Enum):
+    LOCAL_PATH = 0
+    TAR_PATH = 1
+
+
+@dataclass(init=False)
+class ArchiveItem:
+    path: str
+    path_type: ArchivePathType
 
 
 def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
