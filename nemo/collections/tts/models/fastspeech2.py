@@ -18,9 +18,13 @@ from typing import Any, Dict, Optional
 import torch
 from hydra.utils import instantiate
 from torch import nn
+from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.models.base import SpectrogramGenerator, TextToWaveform
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.utils import logging
+
 
 @dataclass
 class PreprocessorParams:
@@ -59,33 +63,57 @@ class FastSpeech2Model(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-    @property
-    def input_types(self):
-        return {
-            "text": NeuralType(('B', 'T'), TokenIndex()),
-            "text_lengths": NeuralType(('B'), LengthsType())
-        }
+    # @property
+    # def input_types(self):
+    #     return {"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())}
 
-    @property
-    def output_types(self):
-        # May need to condition on OperationMode.training vs OperationMode.validation
-        pass
+    # @property
+    # def output_types(self):
+    #     # May need to condition on OperationMode.training vs OperationMode.validation
+    #     pass
 
     @typecheck()
     def forward(self, *, text, text_lens):
         pass
 
-    @typecheck(
-        input_types={"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())},
-        output_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType())}
-    )
+    # @typecheck(
+    #     input_types={"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())},
+    #     output_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType())},
+    # )
     def generate_spectrogram(self, tokens: torch.Tensor) -> torch.Tensor:
-        #TODO
+        # TODO
         pass
 
     def parse(self, str_input: str) -> torch.Tensor:
-        #TODO
+        # TODO
+        pass
+
+    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+        if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
+            raise ValueError(f"No dataset for {name}")
+        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+            raise ValueError(f"No dataloder_params for {name}")
+        if shuffle_should_be:
+            if 'shuffle' not in cfg.dataloader_params:
+                logging.warning(
+                    f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
+                    "config. Manually setting to True"
+                )
+                with open_dict(cfg.dataloader_params):
+                    cfg.dataloader_params.shuffle = True
+            elif not cfg.dataloader_params.shuffle:
+                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+        elif not shuffle_should_be and cfg.dataloader_params.shuffle:
+            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
+
+        dataset = instantiate(cfg.dataset)
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+
+    def setup_training_data(self, cfg):
+        self._train_dl = self.__setup_dataloader_from_config(cfg)
+
+    def setup_validation_data(self, cfg):
         pass
 
 
-#TODO: FastSpeech 2s (TextToWaveform)
+# TODO: FastSpeech 2s (TextToWaveform)
