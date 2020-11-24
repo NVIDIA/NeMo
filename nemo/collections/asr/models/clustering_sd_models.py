@@ -21,9 +21,11 @@ from collections import defaultdict
 from itertools import repeat
 from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
+import numpy as np
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
+from tqdm import tqdm
 
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.diarization_model import DiarizationModel
@@ -232,8 +234,7 @@ class ClusteringSDModel(DiarizationModel):
         return table_out_dir
 
     def _extract_embeddings(self, manifest_file):
-        # create unique labels
-        # add assert
+        logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
         uniq_names = []
         out_embeddings = defaultdict(list)
@@ -245,12 +246,13 @@ class ClusteringSDModel(DiarizationModel):
                 dic = json.loads(line)
                 uniq_names.append(dic['audio_filepath'].split('/')[-1].split('.')[0])
 
-        for i, test_batch in enumerate(self._speaker_model.test_dataloader()):
+        for i, test_batch in enumerate(tqdm(self._speaker_model.test_dataloader())):
             test_batch = [x.to(self._device) for x in test_batch]
             audio_signal, audio_signal_len, labels, slices = test_batch
             with autocast():
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
+                embs = embs.type(torch.float32)
                 embs = embs.view(-1, emb_shape).cpu().detach().numpy()
                 out_embeddings[uniq_names[i]].extend(embs)
             del test_batch

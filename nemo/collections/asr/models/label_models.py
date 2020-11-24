@@ -146,7 +146,6 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
             test_data_layer_params['labels'] = self.dataset.labels
 
         if 'task' in test_data_layer_params and test_data_layer_params['task']:
-            logging.info("Extracting embeddings for Diarization")
             self.task = test_data_layer_params['task'].lower()
             self.time_length = test_data_layer_params.get('time_length', 1.5)
             self.shift_length = test_data_layer_params.get('shift_length', 0.75)
