@@ -173,7 +173,9 @@ class ModelPT(LightningModule, Model):
                 used_src = src
             if not os.path.exists(used_src):
                 raise FileNotFoundError(f"Could not find {used_src}")
-            self.artifacts.append((config_path, used_src))
+            # But disregarding whether you use "local" or "remote" artifact - always store the original path.
+            # This fixes issues raising when finetuning NLP models that create and register tokenizer vocabs.
+            self.artifacts.append((config_path, src))
             return used_src
         else:
             return src
