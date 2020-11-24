@@ -17,9 +17,9 @@ import tempfile
 from typing import Set
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
 
 
@@ -33,6 +33,12 @@ def getattr2(object, attr):
 
 class TestSaveRestore:
     def __test_restore_elsewhere(self, model: ModelPT, attr_for_eq_check: Set[str] = None):
+        """Test's logic:
+            1. Save model into temporary folder (save_folder)
+            2. Copy .nemo file from save_folder to restore_folder
+            3. Delete save_folder
+            4. Attempt to restore from .nemo file in restore_folder and compare to original instance
+        """
         # Create a new temporary directory
         with tempfile.TemporaryDirectory() as restore_folder:
             with tempfile.TemporaryDirectory() as save_folder:
@@ -49,6 +55,7 @@ class TestSaveRestore:
             assert os.path.exists(model_restore_path)
             # attempt to restore
             model_copy = model.__class__.restore_from(restore_path=model_restore_path)
+            assert model.num_weights == model_copy.num_weights
             if attr_for_eq_check is not None and len(attr_for_eq_check) > 0:
                 for attr in attr_for_eq_check:
                     assert getattr2(model, attr) == getattr2(model_copy, attr)
@@ -64,3 +71,17 @@ class TestSaveRestore:
         # TODO: Switch to using named configs because here we don't really care about weights
         cn = EncDecCTCModelBPE.from_pretrained(model_name="ContextNet-192-WPE-1024-8x-Stride")
         self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]))
+
+    @pytest.mark.unit
+    def test_EncDecCTCModelBPE(self):
+        # TODO: Switch to using named configs because here we don't really care about weights
+        cn = EncDecCTCModelBPE.from_pretrained(model_name="ContextNet-192-WPE-1024-8x-Stride")
+        self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]))
+
+    @pytest.mark.unit
+    def test_PunctuationCapitalization(self):
+        # TODO: Switch to using named configs because here we don't really care about weights
+        pn = PunctuationCapitalizationModel.from_pretrained(model_name='Punctuation_Capitalization_with_DistilBERT')
+        self.__test_restore_elsewhere(
+            model=pn, attr_for_eq_check=set(["punct_classifier.log_softmax", "punct_classifier.log_softmax"])
+        )
