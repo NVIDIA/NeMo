@@ -29,17 +29,16 @@ model:
     drop_last: false
 
   train_ds:
-    file_name: 'train.tsv'
+    ds_item: 'train.tsv'
     shuffle: true
     num_samples: -1
     batch_size: 32
 
   validation_ds:
-    file_name: 'dev.tsv' # for MNLI 'dev_matched.tsv' and 'dev_mismatched.tsv' will de used
+    ds_item: 'dev.tsv' # for MNLI 'dev_matched.tsv' and 'dev_mismatched.tsv' will de used
     shuffle: false
     num_samples: -1
     batch_size: 32
-
 
   tokenizer:
       tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
