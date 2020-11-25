@@ -94,19 +94,38 @@ def main(cfg: DictConfig) -> None:
         hidden_size=decoder_config.hidden_size, num_classes=decoder_embedding_config.vocab_size, log_softmax=True
     )
 
-    sched_config = SchedConfig(name='InverseSquareRootAnnealing')
-    sched_config.warmup_steps = None
-    sched_config.warmup_ratio = 0.1
-    sched_config.last_epoch = -1
+    @dataclass
+    class MTSchedConfig(SchedConfig):
+        name: str = 'InverseSquareRootAnnealing'
+        warmup_steps: int = None
+        warmup_ratio: float = 0.1
+        last_epoch: int = -1
 
-    optim_config = OptimConfig(name='adam', lr=1e-3, sched=sched_config)
-    optim_config.betas = [0.9, 0.98]
-    optim_config.weight_decay = 0.0
+    sched_config = MTSchedConfig()
+
+    # sched_config = SchedConfig(name='InverseSquareRootAnnealing')
+    # sched_config.warmup_steps = None
+    # sched_config.warmup_ratio = 0.1
+    # sched_config.last_epoch = -1
+
+    @dataclass
+    class MTOptimConfig(OptimConfig):
+        name: str = 'adam'
+        lr: float = 1e-3
+        betas: [0.9, 0.98]
+        weight_decay: float = 0.0
+        sched: MTSchedConfig = None
+
+    optim_config = MTOptimConfig(sched=sched_config)
+
+    # optim_config = OptimConfig(name='adam', lr=1e-3, sched=sched_config)
+    # optim_config.betas = [0.9, 0.98]
+    # optim_config.weight_decay = 0.0
 
     num_samples = -1  # for dev
     train_ds_config = TranslationDataConfig(
-        src_file_name='/raid/data/68792/train.clean.en.shuffled',
-        tgt_file_name='/raid/data/68792/train.clean.de.shuffled',
+        src_file_name='/raid/data/68792/train.clean.en.shuffled.dev',
+        tgt_file_name='/raid/data/68792/train.clean.de.shuffled.dev',
         tokens_in_batch=16000,
         clean=True,
         shuffle=True,
