@@ -48,7 +48,7 @@ class TransformerEncoderBlock(nn.Module):
         attn_layer_dropout: float = 0.0,
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
-        pre_ln: bool = False
+        pre_ln: bool = False,
     ):
         super().__init__()
         self.pre_ln = pre_ln
