@@ -130,7 +130,7 @@ def main(cfg: DictConfig) -> None:
     train_ds_config = TranslationDataConfig(
         src_file_name='/raid/data/68792/train.clean.en.shuffled.dev',
         tgt_file_name='/raid/data/68792/train.clean.de.shuffled.dev',
-        tokens_in_batch=16000,
+        tokens_in_batch=8000,
         clean=True,
         shuffle=True,
         num_samples=num_samples,

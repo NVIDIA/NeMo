@@ -715,7 +715,9 @@ class ModelPT(LightningModule, Model):
 
             # See if internal config has `optim` namespace before preservation
             if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                self._cfg.optim = optim_config
+                if self._cfg.optim != optim_config:
+                    # for some reason this is deleting both configs when in DDP
+                    self._cfg.optim = optim_config
 
         # Setup optimizer and scheduler
         if optim_config is not None and isinstance(optim_config, DictConfig):
