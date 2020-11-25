@@ -94,7 +94,7 @@ class SchedConfig:
 class OptimConfig:
     name: str = MISSING
     lr: float = MISSING
-    sched: SchedConfig = None
+    sched: Optional[SchedConfig] = None
 
 
 @dataclass

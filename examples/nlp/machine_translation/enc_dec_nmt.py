@@ -14,6 +14,7 @@
 
 from dataclasses import asdict, dataclass
 from logging import NullHandler
+from typing import Optional, Tuple
 
 import hydra
 import pytorch_lightning as pl
@@ -98,7 +99,7 @@ def main(cfg: DictConfig) -> None:
     @dataclass
     class MTSchedConfig(SchedConfig):
         name: str = 'InverseSquareRootAnnealing'
-        warmup_steps: int = None
+        warmup_steps: Optional[int] = None
         warmup_ratio: float = 0.1
         last_epoch: int = -1
 
@@ -113,9 +114,9 @@ def main(cfg: DictConfig) -> None:
     class MTOptimConfig(OptimConfig):
         name: str = 'adam'
         lr: float = 1e-3
-        betas: [0.9, 0.98]
+        betas: Tuple[float, float] = (0.9, 0.98)
         weight_decay: float = 0.0
-        sched: MTSchedConfig = None
+        sched: Optional[MTSchedConfig] = None
 
     optim_config = MTOptimConfig(sched=sched_config)
 

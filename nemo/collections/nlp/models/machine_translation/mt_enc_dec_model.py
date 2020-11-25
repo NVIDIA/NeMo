@@ -59,9 +59,9 @@ class TranslationDataConfig:
 
 @dataclass
 class MTEncDecModelConfig(EncDecNLPModelConfig):
-    train_ds: TranslationDataConfig = None
-    validation_ds: TranslationDataConfig = None
-    test_ds: TranslationDataConfig = None
+    train_ds: Optional[TranslationDataConfig] = None
+    validation_ds: Optional[TranslationDataConfig] = None
+    test_ds: Optional[TranslationDataConfig] = None
     num_val_examples: int = 3
     num_test_examples: int = 3
     beam_size: int = 1
