@@ -124,3 +124,4 @@ class TestEncDecClassificationModel:
         assert len(results) == 2
         assert results[0].shape == torch.Size([2, 1])
         assert results[1].shape == torch.Size([2, 5])
+        assert model._accuracy.top_k == [1, 5]
