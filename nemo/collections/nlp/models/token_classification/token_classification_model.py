@@ -66,7 +66,7 @@ class TokenClassificationModel(NLPModel, Exportable):
             else:
                 raise ValueError(f'{cfg.label_ids} not found.')
 
-        self._setup_tokenizer(cfg.tokenizer)
+        self.setup_tokenizer(cfg.tokenizer)
         self.class_weights = None
         super().__init__(cfg=cfg, trainer=trainer)
 

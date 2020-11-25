@@ -80,36 +80,47 @@ class NLPModel(ModelPT):
                     f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
                 )
 
-    def _setup_tokenizer(self, cfg: DictConfig):
+    def setup_tokenizer(self, cfg: DictConfig):
         """Instantiates tokenizer based on config and registers tokenizer artifacts.
 
         Args:
             cfg (DictConfig): Tokenizer config
         """
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=cfg.vocab_file,
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=cfg.tokenizer_model,
-        )
+        if self._is_model_being_restored() or cfg.vocab_file is not None:
+            tokenizer = get_tokenizer(
+                tokenizer_name=cfg.tokenizer_name,
+                vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
+                special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+                tokenizer_model=self.register_artifact(
+                    config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
+                ),
+            )
+        else:
+            tokenizer = get_tokenizer(
+                tokenizer_name=cfg.tokenizer_name,
+                vocab_file=cfg.vocab_file,
+                special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+                tokenizer_model=self.register_artifact(
+                    config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
+                ),
+            )
+            # when there is no vocab file we try to get the vocab from the tokenizer
+            self._register_vocab_from_tokenizer(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
         self.tokenizer = tokenizer
-        self.register_tokenizer(cfg)
 
     @rank_zero_only
-    def register_tokenizer(self, cfg: DictConfig):
-        """Adds tokenizer vocab file and model to .nemo archive.
+    def _register_vocab_from_tokenizer(self, config_path='tokenizer.vocab_file', src: str = None):
+        """Creates vocab file from tokenizer if vocab file is None.
 
         Args:
-            cfg (DictConfig): Tokenizer config.
+            src (str): Path to vocab file.
         """
         vocab_file_config_path = 'tokenizer.vocab_file'
         vocab_dict_config_path = 'tokenizer_vocab_dict.json'
         if self.tokenizer is None:
-            raise ValueError('Instantiate self.tokenizer before registering it.')
+            raise ValueError('Instantiate self.tokenizer before registering vocab from it.')
         else:
-            if cfg.vocab_file is not None:
-                self.register_artifact(config_path=vocab_file_config_path, src=cfg.vocab_file)
-            elif isinstance(self.tokenizer, AutoTokenizer):
+            if isinstance(self.tokenizer, AutoTokenizer):
                 # extract vocab from tokenizer
                 vocab_json_src = os.path.join(NEMO_NLP_TMP, vocab_dict_config_path)
                 vocab_dict = self.tokenizer.tokenizer.get_vocab()
@@ -126,8 +137,6 @@ class NLPModel(ModelPT):
                 logging.info(
                     f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
                 )
-            if cfg.tokenizer_model is not None:
-                self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model)
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Override for LightningModule DDP initialization.
