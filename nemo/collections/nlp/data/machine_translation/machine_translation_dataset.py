@@ -39,6 +39,7 @@ class TranslationDataset(Dataset):
         max_seq_length_ratio=512,
         cache_ids=False,
         cache_data_per_node=False,
+        use_cache=False,
     ):
 
         self.src_tokenizer = tokenizer_src
@@ -46,10 +47,18 @@ class TranslationDataset(Dataset):
         self.tokens_in_batch = tokens_in_batch
 
         src_ids = dataset_to_ids(
-            dataset_src, tokenizer_src, cache_ids=cache_ids, cache_data_per_node=cache_data_per_node
+            dataset_src,
+            tokenizer_src,
+            cache_ids=cache_ids,
+            cache_data_per_node=cache_data_per_node,
+            use_cache=use_cache,
         )
         tgt_ids = dataset_to_ids(
-            dataset_tgt, tokenizer_tgt, cache_ids=cache_ids, cache_data_per_node=cache_data_per_node
+            dataset_tgt,
+            tokenizer_tgt,
+            cache_ids=cache_ids,
+            cache_data_per_node=cache_data_per_node,
+            use_cache=use_cache,
         )
         if clean:
             src_ids, tgt_ids = self.clean_src_and_target(

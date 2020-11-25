@@ -45,7 +45,18 @@ from nemo.core.config.pytorch_lightning import TrainerConfig
 @hydra_runner(config_path="conf", config_name="enc_dec")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
-    trainer_config = TrainerConfig()
+    trainer_config = TrainerConfig(
+        gpus=1,
+        num_nodes=1,
+        max_epochs=1,
+        max_steps=10000,
+        precision=16,
+        accelerator='ddp',
+        checkpoint_callback=False,
+        logger=False,
+        log_every_n_steps=10,
+        val_check_interval=0.1,
+    )
     trainer = instantiate(trainer_config)
     # trainer = pl.Trainer(**asdict(trainer_config))
     # exp_manager(trainer, cfg.get("exp_manager", None))
@@ -146,7 +157,7 @@ def main(cfg: DictConfig) -> None:
 
     mt_model = MTEncDecModel(mt_config, trainer=trainer)
 
-    # trainer.fit(transformer_mt)
+    trainer.fit(mt_model)
     # transformer_mt.save_to("transformer.nemo")
     # print("Model saved to: transformer.nemo")
 
