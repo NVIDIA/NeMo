@@ -87,44 +87,29 @@ class NLPModel(ModelPT):
         Args:
             cfg (DictConfig): Tokenizer config
         """
-        if self._is_model_being_restored():
+        if self._is_model_being_restored() and os.path.exists('tokenizer.vocab_file'):
             # model is being restored from .nemo file so tokenizer.vocab_file has precedence
-            if os.path.exists('tokenizer.vocab_file'):
-                tokenizer = get_tokenizer(
-                    tokenizer_name=cfg.tokenizer_name,
-                    vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file'),
-                    special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-                    tokenizer_model=self.register_artifact(
-                        config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
-                    ),
-                )
-            else:
-                # use vocab file from config
-                tokenizer = get_tokenizer(
-                    tokenizer_name=cfg.tokenizer_name,
-                    vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
-                    special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-                    tokenizer_model=self.register_artifact(
-                        config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
-                    ),
-                )
-            self.tokenizer = tokenizer
+            vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
+        elif cfg.vocab_file is not None:
+            # use vocab file from config
+            vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
         else:
-            # no vocab_file provided
-            tokenizer = get_tokenizer(
-                tokenizer_name=cfg.tokenizer_name,
-                vocab_file=None,
-                special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-                tokenizer_model=self.register_artifact(
-                    config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
-                ),
-            )
-            self.tokenizer = tokenizer
-            # when there is no vocab file we try to get the vocab from the tokenizer
-            self._register_vocab_from_tokenizer(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
+            vocab_file = None
+
+        tokenizer = get_tokenizer(
+            tokenizer_name=cfg.tokenizer_name,
+            vocab_file=vocab_file,
+            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
+        )
+        self.tokenizer = tokenizer
+
+        if vocab_file is None:
+            # when there is no vocab file we try to get the vocab from the tokenizer and register it
+            self._register_vocab_from_tokenizer(config_path='tokenizer.vocab_file')
 
     @rank_zero_only
-    def _register_vocab_from_tokenizer(self, config_path='tokenizer.vocab_file', src: str = None):
+    def _register_vocab_from_tokenizer(self, config_path='tokenizer.vocab_file'):
         """Creates vocab file from tokenizer if vocab file is None.
 
         Args:
