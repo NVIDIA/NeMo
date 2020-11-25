@@ -28,7 +28,7 @@ from nemo.collections.nlp.models.enc_dec_nlp_model import (
 import hydra
 from hydra.utils import instantiate
 
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel, TranslationDataConfig
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
@@ -83,20 +83,6 @@ def main(cfg: DictConfig) -> None:
         hidden_size=decoder_config.hidden_size, num_classes=decoder_embedding_config.vocab_size, log_softmax=True
     )
 
-    # @dataclass
-    # class MTSchedConfig(SchedConfig):
-    #     name: 'InverseSquareRootAnnealing'
-    #     warmup_steps: NullHandler
-    #     warmup_ratio: 0.1
-    #     last_epoch: -1
-
-    # @dataclass
-    # class MTOptimConfig(OptimConfig):
-    #     name: 'adam'
-    #     lr: 1e-3
-    #     betas: [0.9, 0.98]
-    #     weight_Decay: 0
-
     sched_config = SchedConfig(name='InverseSquareRootAnnealing')
     sched_config.warmup_steps = None
     sched_config.warmup_ratio = 0.1
@@ -105,6 +91,30 @@ def main(cfg: DictConfig) -> None:
     optim_config = OptimConfig(name='adam', lr=1e-3, sched=sched_config)
     optim_config.betas = [0.9, 0.98]
     optim_config.weight_decay = 0.0
+
+    train_ds_config = TranslationDataConfig(
+        src_file_name='/raid/data/68792/train.clean.en.shuffled',
+        tgt_file_name='/raid/data/68792/train.clean.de.shuffled',
+        tokens_in_batch=16000,
+        clean=True,
+        shuffle=True,
+    )
+
+    validation_ds_config = TranslationDataConfig(
+        src_file_name='/raid/data/68792/wmt14-en-de.src',
+        tgt_file_name='/raid/data/68792/wmt14-en-de.ref',
+        tokens_in_batch=512,
+        clean=False,
+        shuffle=False,
+    )
+
+    test_ds_config = TranslationDataConfig(
+        src_file_name='/raid/data/68792/wmt14-en-de.src',
+        tgt_file_name='/raid/data/68792/wmt14-en-de.ref',
+        tokens_in_batch=512,
+        clean=False,
+        shuffle=False,
+    )
 
     mt_config = MTEncDecModelConfig(
         encoder_tokenizer=encoder_tokenizer_config,
@@ -115,6 +125,9 @@ def main(cfg: DictConfig) -> None:
         decoder=decoder_config,
         head=head_config,
         optim=optim_config,
+        train_ds=train_ds_config,
+        validation_ds=validation_ds_config,
+        test_ds=test_ds_config,
         beam_size=4,
         len_pen=0.6,
         max_generation_delta=50,

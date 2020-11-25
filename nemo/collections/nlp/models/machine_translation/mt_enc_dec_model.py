@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass
 import itertools
 import math
 from nemo.collections.nlp.models.enc_dec_nlp_model import (
@@ -54,7 +54,24 @@ __all__ = ['MTEncDecModel']
 
 
 @dataclass
+class TranslationDataConfig:
+    src_file_name: MISSING
+    tgt_file_name: MISSING
+    tokens_in_batch: 512
+    clean: bool = False
+    max_seq_length: int = 512
+    shuffle: bool = False
+    num_samples: int = -1
+    drop_last: bool = False
+    pin_memory: bool = False
+    num_workers: int = 8
+
+
+@dataclass
 class MTEncDecModelConfig(EncDecNLPModelConfig):
+    train_ds: TranslationDataConfig = None
+    validation_ds: TranslationDataConfig = None
+    test_ds: TranslationDataConfig = None
     num_val_examples: int = 3
     num_test_examples: int = 3
     beam_size: int = 1
