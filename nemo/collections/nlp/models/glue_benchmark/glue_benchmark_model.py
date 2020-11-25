@@ -94,7 +94,7 @@ class GLUEModel(NLPModel):
             cfg.train_ds.ds_item = os.path.join(cfg.dataset.data_dir, cfg.train_ds.ds_item)
             logging.info(f'Using {cfg.validation_ds.ds_item} for model evaluation.')
 
-        self._setup_tokenizer(cfg.tokenizer)
+        self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
 
         num_labels = GLUE_TASKS_NUM_LABELS[self.task_name]

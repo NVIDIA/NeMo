@@ -53,7 +53,7 @@ class TextClassificationModel(NLPModel, Exportable):
         self.dataset_cfg = cfg.dataset
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
-        self._setup_tokenizer(cfg.tokenizer)
+        self.setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
