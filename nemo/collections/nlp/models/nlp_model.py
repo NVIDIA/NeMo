@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 import json
 import os
 from typing import List
@@ -122,13 +123,25 @@ class NLPModel(ModelPT):
         else:
             if isinstance(self.tokenizer, AutoTokenizer):
                 # extract vocab from tokenizer
-                vocab_json_src = os.path.join(NEMO_NLP_TMP, vocab_dict_config_path)
                 vocab_dict = self.tokenizer.tokenizer.get_vocab()
+
+                # get hash of vocab_dict to create a unique directory to write vocab_dict and vocab_file
+                m = hashlib.md5()
+                # get string representation of vocab_dict
+                vocab_dict_str = json.dumps(vocab_dict, sort_keys=True).encode()
+                m.update(vocab_dict_str)
+                vocab_dict_hash = m.hexdigest()
+
+                hash_path = os.path.join(NEMO_NLP_TMP, vocab_dict_hash)
+                os.makedirs(hash_path, exist_ok=True)
+
+                vocab_json_src = os.path.join(hash_path, vocab_dict_config_path)
+
                 with open(vocab_json_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
                 self.register_artifact(config_path=vocab_dict_config_path, src=vocab_json_src)
                 # create vocab file
-                vocab_file_src = os.path.join(NEMO_NLP_TMP, vocab_file_config_path)
+                vocab_file_src = os.path.join(hash_path, vocab_file_config_path)
                 with open(vocab_file_src, 'w', encoding='utf-8') as f:
                     for key in vocab_dict:
                         f.write(key + '\n')
