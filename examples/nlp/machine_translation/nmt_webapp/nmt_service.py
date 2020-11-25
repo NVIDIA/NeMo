@@ -11,10 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 import time
-import nemo.collections.nlp as nemo_nlp
+
+import torch
 from flask import Flask, json, request
+
+import nemo.collections.nlp as nemo_nlp
 from nemo.utils import logging
 
 model = None
@@ -29,12 +31,15 @@ else:
     logging.info("CUDA is not available. Defaulting to CPUs")
     logging.info("NMT service started")
 
+
 @api.route('/translate', methods=['GET', 'POST'])
 def get_translation():
     time_s = time.time()
     result = model.translate([request.args["text"]])
     duration = time.time() - time_s
-    logging.info(f"Translated in {duration}. Input was: {request.args['text']} <############> Translation was: {result[0]}")
+    logging.info(
+        f"Translated in {duration}. Input was: {request.args['text']} <############> Translation was: {result[0]}"
+    )
     return json.dumps(result[0])
 
 
