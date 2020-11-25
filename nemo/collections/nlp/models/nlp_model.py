@@ -96,6 +96,7 @@ class NLPModel(ModelPT):
                     config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
                 ),
             )
+            self.tokenizer = tokenizer
         else:
             tokenizer = get_tokenizer(
                 tokenizer_name=cfg.tokenizer_name,
@@ -105,9 +106,9 @@ class NLPModel(ModelPT):
                     config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
                 ),
             )
+            self.tokenizer = tokenizer
             # when there is no vocab file we try to get the vocab from the tokenizer
             self._register_vocab_from_tokenizer(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-        self.tokenizer = tokenizer
 
     @rank_zero_only
     def _register_vocab_from_tokenizer(self, config_path='tokenizer.vocab_file', src: str = None):
