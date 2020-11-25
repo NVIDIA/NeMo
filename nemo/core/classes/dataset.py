@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from dataclasses import dataclass
+from typing import Optional
 
 from torch.utils import data
 
@@ -92,3 +93,17 @@ class IterableDataset(data.IterableDataset, Typing, Serialization):
 
         # Simply forward the inner `_collate_fn`
         return self._collate_fn(batch)
+
+
+@dataclass
+class DatasetConfig:
+    """
+
+    """
+
+    # ...
+    batch_size: int = 32
+    drop_last: bool = False
+    shuffle: bool = False
+    num_workers: Optional[int] = None
+    pin_memory: bool = True
