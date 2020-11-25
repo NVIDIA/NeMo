@@ -12,23 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import MISSING, dataclass
 import itertools
 import math
-from nemo.collections.nlp.models.enc_dec_nlp_model import (
-    EmbeddingConfig,
-    EncDecNLPModelConfig,
-    EncDecNLPModel,
-    TransformerEmbeddingConfig,
-)
 import random
+from dataclasses import MISSING, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
-from hydra.utils import instantiate
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 import torch.utils.data as pt_data
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
@@ -38,16 +32,9 @@ from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import Perplexity
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
-from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.modules.common.transformer import (
-    BeamSearchSequenceGenerator,
-    TransformerDecoder,
-    TransformerEmbedding,
-    TransformerEncoder,
-)
+from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel, EncDecNLPModelConfig
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging
 
 __all__ = ['MTEncDecModel']

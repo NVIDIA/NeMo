@@ -14,8 +14,13 @@
 
 from dataclasses import asdict, dataclass
 from logging import NullHandler
-from nemo.core import optim
-from nemo.core.config import optimizers
+
+import hydra
+import pytorch_lightning as pl
+from hydra.utils import instantiate
+from omegaconf import DictConfig
+
+from nemo.collections.common.callbacks import MachineTranslationLogEvalCallback
 from nemo.collections.nlp.models.enc_dec_nlp_model import (
     OptimConfig,
     SchedConfig,
@@ -25,21 +30,17 @@ from nemo.collections.nlp.models.enc_dec_nlp_model import (
     TransformerEmbeddingConfig,
     TransformerEncoderConfig,
 )
-import hydra
-from hydra.utils import instantiate
-
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel, TranslationDataConfig
-import pytorch_lightning as pl
-from omegaconf import DictConfig
-
-from nemo.collections.common.callbacks import MachineTranslationLogEvalCallback
 from nemo.collections.nlp.models.machine_translation import TransformerMTModel
-from nemo.core.config import hydra_runner
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import (
+    MTEncDecModel,
+    MTEncDecModelConfig,
+    TranslationDataConfig,
+)
+from nemo.core import optim
+from nemo.core.config import hydra_runner, optimizers
+from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModelConfig
-from nemo.core.config.pytorch_lightning import TrainerConfig
 
 
 @hydra_runner(config_path="conf", config_name="enc_dec")

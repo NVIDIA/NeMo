@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import copy
-from dataclasses import is_dataclass
 import inspect
 import os
 import shutil

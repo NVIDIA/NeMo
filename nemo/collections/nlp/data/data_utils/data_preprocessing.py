@@ -22,8 +22,8 @@ import string
 from collections import Counter
 
 import numpy as np
-from tqdm.auto import tqdm
 import torch
+from tqdm.auto import tqdm
 
 from nemo.utils import logging
 from nemo.utils.env_var_parsing import get_envint
