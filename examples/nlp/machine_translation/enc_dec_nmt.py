@@ -35,6 +35,8 @@ from nemo.collections.nlp.models.machine_translation import TransformerMTModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import (
     MTEncDecModel,
     MTEncDecModelConfig,
+    MTOptimConfig,
+    MTSchedConfig,
     TranslationDataConfig,
 )
 from nemo.core import optim
@@ -96,12 +98,12 @@ def main(cfg: DictConfig) -> None:
         hidden_size=decoder_config.hidden_size, num_classes=decoder_embedding_config.vocab_size, log_softmax=True
     )
 
-    @dataclass
-    class MTSchedConfig(SchedConfig):
-        name: str = 'InverseSquareRootAnnealing'
-        warmup_steps: Optional[int] = None
-        warmup_ratio: float = 0.1
-        last_epoch: int = -1
+    # @dataclass
+    # class MTSchedConfig(SchedConfig):
+    #     name: str = 'InverseSquareRootAnnealing'
+    #     warmup_steps: Optional[int] = None
+    #     warmup_ratio: float = 0.1
+    #     last_epoch: int = -1
 
     sched_config = MTSchedConfig()
 
@@ -110,18 +112,18 @@ def main(cfg: DictConfig) -> None:
     # sched_config.warmup_ratio = 0.1
     # sched_config.last_epoch = -1
 
-    @dataclass
-    class MTOptimConfig(OptimConfig):
-        name: str = 'adam'
-        lr: float = 1e-3
-        betas: Tuple[float, float] = (0.9, 0.98)
-        weight_decay: float = 0.0
-        sched: Optional[MTSchedConfig] = None
+    # @dataclass
+    # class MTOptimConfig(OptimConfig):
+    #     name: str = 'adam'
+    #     lr: float = 1e-3
+    #     betas: Tuple[float, float] = (0.9, 0.98)
+    #     weight_decay: float = 0.0
+    #     sched: Optional[MTSchedConfig] = None
 
     optim_config = MTOptimConfig(sched=sched_config)
 
     # optim_config = OptimConfig(name='adam', lr=1e-3, sched=sched_config)
-    # optim_config.betas = [0.9, 0.98]
+    # optim_config.betas = (0.9, 0.98)
     # optim_config.weight_decay = 0.0
 
     num_samples = -1  # for dev
