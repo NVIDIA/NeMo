@@ -56,7 +56,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         self.max_seq_length = cfg.language_model.max_seq_length
 
         # Setup tokenizer.
-        self._setup_tokenizer(cfg.tokenizer)
+        self.setup_tokenizer(cfg.tokenizer)
 
         # Check the presence of data_dir.
         if not cfg.data_dir or not os.path.exists(cfg.data_dir):
