@@ -127,7 +127,7 @@ class NLPModel(ModelPT):
 
                 # get hash of vocab_dict to create a unique directory to write vocab_dict and vocab_file
                 m = hashlib.md5()
-                if 'name' in cfg:
+                if 'tokenizer_name' in cfg:
                     # different pretrained models with the same vocab will have different hash
                     m.update(cfg.name)
                 # get string representation of vocab_dict
