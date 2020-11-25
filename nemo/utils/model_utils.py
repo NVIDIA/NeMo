@@ -14,6 +14,8 @@
 
 import copy
 import os
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 
@@ -24,6 +26,24 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from nemo.utils import logging
 
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
+
+
+class ArtifactPathType(Enum):
+    """
+    ArtifactPathType refers to the type of the path that the artifact is located at.
+
+    LOCAL_PATH: A user local filepath that exists on the file system.
+    TAR_PATH: A (generally flattened) filepath that exists inside of an archive (that may have its own full path).
+    """
+
+    LOCAL_PATH = 0
+    TAR_PATH = 1
+
+
+@dataclass(init=False)
+class ArtifactItem:
+    path: str
+    path_type: ArtifactPathType
 
 
 def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
