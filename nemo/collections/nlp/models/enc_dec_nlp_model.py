@@ -114,8 +114,6 @@ class EncDecNLPModel(NLPModel):
     """
 
     def __init__(self, cfg: EncDecNLPModelConfig, trainer: Trainer = None):
-        self._cfg = cfg
-        self._trainer = trainer
         super().__init__(cfg=cfg, trainer=trainer)
 
     @property

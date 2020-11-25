@@ -55,9 +55,9 @@ __all__ = ['MTEncDecModel']
 
 @dataclass
 class TranslationDataConfig:
-    src_file_name: MISSING
-    tgt_file_name: MISSING
-    tokens_in_batch: 512
+    src_file_name: str = MISSING
+    tgt_file_name: str = MISSING
+    tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
     shuffle: bool = False
