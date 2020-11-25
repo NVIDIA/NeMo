@@ -352,7 +352,7 @@ def remove_punctuation_from_sentence(sentence):
     return sentence
 
 
-def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True, cache_data_per_node=False):
+def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True, cache_data_per_node=False, use_cache=False):
     """
     Reads dataset from file line by line, tokenizes each line with tokenizer,
     and returns list of lists which corresponds to ids of tokenized strings.
@@ -364,12 +364,13 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True, cache_
             with similar name (e.g., data.txt --> data.txt.pkl)
         add_bos_eos (bool): whether to add <s> and </s> symbols (e.g., for NMT)
         cache_data_per_node (bool): Cache data on local_rank 0. Use when there is not a shared-filesystem.
+        use_cache (bool): Use cached ids if they exist.
     Returns:
         ids: list of ids which correspond to tokenized strings of the dataset
     """
 
     cached_ids_dataset = dataset + str(".pkl")
-    if os.path.isfile(cached_ids_dataset):
+    if use_cache and os.path.isfile(cached_ids_dataset):
         logging.info("Loading cached tokenized dataset ...")
         ids = pickle.load(open(cached_ids_dataset, "rb"))
     else:

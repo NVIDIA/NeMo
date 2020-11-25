@@ -61,6 +61,8 @@ class TranslationDataConfig:
     clean: bool = False
     max_seq_length: int = 512
     cache_ids: bool = False
+    cache_data_per_node: bool = False
+    use_cache: bool = True
     shuffle: bool = False
     num_samples: int = -1
     drop_last: bool = False

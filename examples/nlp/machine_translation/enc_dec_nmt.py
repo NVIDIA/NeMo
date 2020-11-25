@@ -101,6 +101,7 @@ def main(cfg: DictConfig) -> None:
         shuffle=True,
         num_samples=num_samples,
         cache_ids=True,
+        use_cache=True,
     )
 
     validation_ds_config = TranslationDataConfig(
@@ -111,6 +112,7 @@ def main(cfg: DictConfig) -> None:
         shuffle=False,
         num_samples=num_samples,
         cache_ids=True,
+        use_cache=True,
     )
 
     test_ds_config = TranslationDataConfig(
@@ -121,6 +123,7 @@ def main(cfg: DictConfig) -> None:
         shuffle=False,
         num_samples=num_samples,
         cache_ids=True,
+        use_cache=True,
     )
 
     mt_config = MTEncDecModelConfig(
