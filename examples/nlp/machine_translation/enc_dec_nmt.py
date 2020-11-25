@@ -92,12 +92,15 @@ def main(cfg: DictConfig) -> None:
     optim_config.betas = [0.9, 0.98]
     optim_config.weight_decay = 0.0
 
+    num_samples = -1  # for dev
     train_ds_config = TranslationDataConfig(
         src_file_name='/raid/data/68792/train.clean.en.shuffled',
         tgt_file_name='/raid/data/68792/train.clean.de.shuffled',
         tokens_in_batch=16000,
         clean=True,
         shuffle=True,
+        num_samples=num_samples,
+        cache_ids=True,
     )
 
     validation_ds_config = TranslationDataConfig(
@@ -106,6 +109,8 @@ def main(cfg: DictConfig) -> None:
         tokens_in_batch=512,
         clean=False,
         shuffle=False,
+        num_samples=num_samples,
+        cache_ids=True,
     )
 
     test_ds_config = TranslationDataConfig(
@@ -114,6 +119,8 @@ def main(cfg: DictConfig) -> None:
         tokens_in_batch=512,
         clean=False,
         shuffle=False,
+        num_samples=num_samples,
+        cache_ids=True,
     )
 
     mt_config = MTEncDecModelConfig(

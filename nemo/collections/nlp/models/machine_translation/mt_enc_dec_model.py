@@ -60,6 +60,7 @@ class TranslationDataConfig:
     tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
+    cache_ids: bool = False
     shuffle: bool = False
     num_samples: int = -1
     drop_last: bool = False
@@ -271,11 +272,11 @@ class MTEncDecModel(EncDecNLPModel):
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
-        self.num_examples['val'] = val_data_config.get('num_examples', self.num_examples['val'])
+        # self.num_examples['val'] = val_data_config.get('num_examples', self.num_examples['val'])
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
-        self.num_examples['test'] = test_data_config.get('num_examples', self.num_examples['test'])
+        # self.num_examples['test'] = test_data_config.get('num_examples', self.num_examples['test'])
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = TranslationDataset(
@@ -289,6 +290,7 @@ class MTEncDecModel(EncDecNLPModel):
             min_seq_length=cfg.get("min_seq_length", 1),
             max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
             max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
+            cache_ids=cfg.get("cache_ids", False),
         )
         if cfg.shuffle:
             sampler = pt_data.RandomSampler(dataset)
