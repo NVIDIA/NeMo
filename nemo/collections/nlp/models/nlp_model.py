@@ -138,7 +138,7 @@ class NLPModel(ModelPT):
                 if 'tokenizer_name' in cfg:
                     if cfg.tokenizer_name is not None:
                         # different pretrained models with the same vocab will have different hash
-                        m.update(cfg.tokenizer_name)
+                        m.update(cfg.tokenizer_name.encode())
                 # get string representation of vocab_dict
                 vocab_dict_str = json.dumps(vocab_dict, sort_keys=True).encode()
                 m.update(vocab_dict_str)
