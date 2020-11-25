@@ -37,7 +37,7 @@ class BaseIRModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
-        self._setup_tokenizer(cfg.tokenizer)
+        self.setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
