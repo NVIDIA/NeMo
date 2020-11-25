@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import copy
-
+import torch
 import pytest
 from omegaconf import DictConfig, ListConfig
 
@@ -97,3 +98,29 @@ class TestEncDecClassificationModel:
         asr_model.change_labels(new_labels=new_labels)
         # fully connected + bias
         assert asr_model.num_weights == nw1 + 3 * (asr_model.decoder._feat_in + 1)
+
+    @pytest.mark.unit
+    def test_transcription(self, speech_classification_model, test_data_dir):
+        # Ground truth labels = ["yes", "no"]
+        audio_filenames = ['an22-flrp-b.wav', 'an90-fbbh-b.wav']
+        audio_paths = [os.path.join(test_data_dir, "asr", "train", "an4", "wav", fp) for fp in audio_filenames]
+
+        model = speech_classification_model.eval()
+
+        # Test Top 1 classification transcription
+        results = model.transcribe(audio_paths, batch_size=2)
+        assert len(results) == 2
+        assert results[0].shape == torch.Size([1])
+
+        # Test Top 5 classification transcription
+        model._accuracy.top_k = [5]  # set top k to 5 for accuracy calculation
+        results = model.transcribe(audio_paths, batch_size=2)
+        assert len(results) == 2
+        assert results[0].shape == torch.Size([5])
+
+        # Test Top 1 and Top 5 classification transcription
+        model._accuracy.top_k = [1, 5]
+        results = model.transcribe(audio_paths, batch_size=2)
+        assert len(results) == 2
+        assert results[0].shape == torch.Size([2, 1])
+        assert results[1].shape == torch.Size([2, 5])
