@@ -84,6 +84,14 @@ class NLPModel(ModelPT):
     def setup_tokenizer(self, cfg: DictConfig):
         """Instantiates tokenizer based on config and registers tokenizer artifacts.
 
+           If model is being restored from .nemo file then the tokenizer.vocab_file will 
+           be used (if it exists). 
+
+           Otherwise, we will use the vocab file provided in the config (if it exists).
+
+           Finally, if no vocab file is given (this happens frequently when using HF), 
+           we will attempt to extract the vocab from the tokenizer object and then register it.
+
         Args:
             cfg (DictConfig): Tokenizer config
         """
