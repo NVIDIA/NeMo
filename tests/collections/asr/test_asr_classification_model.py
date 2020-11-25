@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import copy
-import torch
+import os
+
 import pytest
+import torch
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import EncDecClassificationModel
