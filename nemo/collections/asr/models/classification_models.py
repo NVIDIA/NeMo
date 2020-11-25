@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import copy
+import json
 import os
+import tempfile
 from typing import Dict, List, Optional, Union
 
 import onnx
 import torch
-import tempfile
-import json
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 

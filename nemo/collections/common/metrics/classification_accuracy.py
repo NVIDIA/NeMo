@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from typing import List
+
+import torch
 from pytorch_lightning.metrics import Metric
 
 __all__ = ['TopKClassificationAccuracy']
