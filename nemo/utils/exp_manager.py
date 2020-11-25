@@ -66,6 +66,7 @@ class CallbackParams:
     mode: Optional[str] = "auto"
     period: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    nemo_save_best_model: bool = False
 
 
 @dataclass
@@ -538,8 +539,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
 
+    def __init__(self, nemo_save_best_model=False, **kwargs):
+        self.nemo_save_best_model = nemo_save_best_model
+        super().__init__(**kwargs)
+
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
+        # Load the best model and then re-save it
+        if self.nemo_save_best_model:
+            trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + '.nemo'))
 
 

@@ -57,7 +57,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        self._setup_tokenizer(cfg.tokenizer)
+        self.setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
