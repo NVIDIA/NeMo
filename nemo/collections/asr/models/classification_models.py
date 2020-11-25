@@ -65,16 +65,14 @@ class EncDecClassificationModel(ASRModel, Exportable):
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False) -> List[str]:
         """
-        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
+        Generate class labels for provided audio files. Use this method for debugging and prototyping.
 
         Args:
-
             paths2audio_files: (a list) of paths to audio files. \
-        Recommended length per file is between 5 and 25 seconds. \
-        But it is possible to pass a few hours long file if enough GPU memory is available.
+                Recommended length per file is approximately 1 second.
             batch_size: (int) batch size to use during inference. \
-        Bigger will result in better throughput performance but would use more memory.
-            logprobs: (bool) pass True to get log probabilities instead of transcripts.
+                Bigger will result in better throughput performance but would use more memory.
+            logprobs: (bool) pass True to get log probabilities instead of class labels.
 
         Returns:
 

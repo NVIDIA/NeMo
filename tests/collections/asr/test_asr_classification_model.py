@@ -126,3 +126,15 @@ class TestEncDecClassificationModel:
         assert results[0].shape == torch.Size([2, 1])
         assert results[1].shape == torch.Size([2, 5])
         assert model._accuracy.top_k == [1, 5]
+
+        # Test log probs extraction
+        model._accuracy.top_k = [1]
+        results = model.transcribe(audio_paths, batch_size=2, logprobs=True)
+        assert len(results) == 2
+        assert results[0].shape == torch.Size([len(model.cfg.labels)])
+
+        # Test log probs extraction remains same for any top_k
+        model._accuracy.top_k = [5]
+        results = model.transcribe(audio_paths, batch_size=2, logprobs=True)
+        assert len(results) == 2
+        assert results[0].shape == torch.Size([len(model.cfg.labels)])
