@@ -106,14 +106,15 @@ class NLPModel(ModelPT):
 
         if vocab_file is None:
             # when there is no vocab file we try to get the vocab from the tokenizer and register it
-            self._register_vocab_from_tokenizer(config_path='tokenizer.vocab_file')
+            self._register_vocab_from_tokenizer(config_path='tokenizer.vocab_file', cfg=cfg)
 
     @rank_zero_only
-    def _register_vocab_from_tokenizer(self, config_path='tokenizer.vocab_file'):
+    def _register_vocab_from_tokenizer(self, config_path='tokenizer.vocab_file', cfg: DictConfig = None):
         """Creates vocab file from tokenizer if vocab file is None.
 
         Args:
-            src (str): Path to vocab file.
+            config_path (str): for register_artifact
+            cfg: tokenizer config
         """
         vocab_file_config_path = 'tokenizer.vocab_file'
         vocab_dict_config_path = 'tokenizer_vocab_dict.json'
@@ -126,6 +127,9 @@ class NLPModel(ModelPT):
 
                 # get hash of vocab_dict to create a unique directory to write vocab_dict and vocab_file
                 m = hashlib.md5()
+                if 'name' in cfg:
+                    # different pretrained models with the same vocab will have different hash
+                    m.update(cfg.name)
                 # get string representation of vocab_dict
                 vocab_dict_str = json.dumps(vocab_dict, sort_keys=True).encode()
                 m.update(vocab_dict_str)
