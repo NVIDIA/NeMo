@@ -57,6 +57,10 @@ def get_tokenizer(
     else:
         special_tokens_dict = special_tokens
 
+    # Hacky hack
+    if not path.exists(tokenizer_model):
+        tokenizer_model = "/home/okuchaiev/repos/NeMo/examples/nlp/machine_translation/nmt_webapp/" + tokenizer_model.split("/")[-1]
+
     if 'megatron' in tokenizer_name:
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
