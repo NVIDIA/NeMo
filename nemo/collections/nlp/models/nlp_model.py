@@ -87,7 +87,17 @@ class NLPModel(ModelPT):
         Args:
             cfg (DictConfig): Tokenizer config
         """
-        if self._is_model_being_restored() or cfg.vocab_file is not None:
+        if self._is_model_being_restored():
+            tokenizer = get_tokenizer(
+                tokenizer_name=cfg.tokenizer_name,
+                vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file'),
+                special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+                tokenizer_model=self.register_artifact(
+                    config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
+                ),
+            )
+            self.tokenizer = tokenizer
+        elif cfg.vocab_file is not None:
             tokenizer = get_tokenizer(
                 tokenizer_name=cfg.tokenizer_name,
                 vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
@@ -100,7 +110,7 @@ class NLPModel(ModelPT):
         else:
             tokenizer = get_tokenizer(
                 tokenizer_name=cfg.tokenizer_name,
-                vocab_file=cfg.vocab_file,
+                vocab_file=None,
                 special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
                 tokenizer_model=self.register_artifact(
                     config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
