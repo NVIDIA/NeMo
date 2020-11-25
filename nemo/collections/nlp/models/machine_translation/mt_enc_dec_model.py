@@ -62,7 +62,7 @@ class TranslationDataConfig:
     max_seq_length: int = 512
     cache_ids: bool = False
     cache_data_per_node: bool = False
-    use_cache: bool = True
+    use_cache: bool = False
     shuffle: bool = False
     num_samples: int = -1
     drop_last: bool = False
@@ -293,6 +293,8 @@ class MTEncDecModel(EncDecNLPModel):
             max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
             max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
             cache_ids=cfg.get("cache_ids", False),
+            cache_data_per_node=cfg.get("cache_data_per_node", False),
+            use_cache=cfg.get("use_cache", False),
         )
         if cfg.shuffle:
             sampler = pt_data.RandomSampler(dataset)
