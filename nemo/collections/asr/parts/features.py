@@ -144,19 +144,16 @@ class FeaturizerFactory(object):
 
 # Create helper class to patch forward func for use with AMP
 class STFTPatch(STFT):
-    def __init__(self, *params, **kw_params):
-        super(STFTPatch, self).__init__(*params, **kw_params)
-
     def forward(self, input_data):
-        return super(STFTPatch, self).transform(input_data)[0]
+        return super().transform(input_data)[0]
 
 
-# Create helper class for STFT that yields num_frames = num_samples / hop_length
-class STFTExactPad(STFT):
+# Create helper class for STFT that yields num_frames = num_samples // hop_length
+class STFTExactPad(STFTPatch):
     """adapted from Prem Seetharaman's https://github.com/pseeth/pytorch-stft"""
 
     def __init__(self, *params, **kw_params):
-        super(STFTExactPad, self).__init__(*params, **kw_params)
+        super().__init__(*params, **kw_params)
         self.pad_amount = (self.filter_length - self.hop_length) // 2
 
     def inverse(self, magnitude, phase):
@@ -190,9 +187,6 @@ class STFTExactPad(STFT):
         inverse_transform = inverse_transform[:, :, : -self.pad_amount :]
 
         return inverse_transform
-
-    def forward(self, input_data):
-        return super(STFTExactPad, self).transform(input_data)[0]
 
 
 class FilterbankFeatures(nn.Module):
@@ -246,14 +240,13 @@ class FilterbankFeatures(nn.Module):
         self.stft_exact_pad = stft_exact_pad
         self.stft_conv = stft_conv
 
-        if stft_exact_pad:
-            logging.info("STFT using exact pad")
-            self.stft = STFTExactPad(self.n_fft, self.hop_length, self.win_length, window)
-
-        elif stft_conv:
+        if stft_conv:
             logging.info("STFT using conv")
-            self.stft = STFTPatch(self.n_fft, self.hop_length, self.win_length, window)
-
+            if stft_exact_pad:
+                logging.info("STFT using exact pad")
+                self.stft = STFTExactPad(self.n_fft, self.hop_length, self.win_length, window)
+            else:
+                self.stft = STFTPatch(self.n_fft, self.hop_length, self.win_length, window)
         else:
             logging.info("STFT using torch")
             torch_windows = {
@@ -271,7 +264,7 @@ class FilterbankFeatures(nn.Module):
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
                 win_length=self.win_length,
-                center=True,
+                center=False if stft_exact_pad else True,
                 window=self.window.to(dtype=torch.float),
             )
 
@@ -307,6 +300,13 @@ class FilterbankFeatures(nn.Module):
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
         self.log_zero_guard_type = log_zero_guard_type
+        logging.debug(f"sr: {sample_rate}")
+        logging.debug(f"n_fft: {self.n_fft}")
+        logging.debug(f"win_length: {self.win_length}")
+        logging.debug(f"hop_length: {self.hop_length}")
+        logging.debug(f"n_mels: {nfilt}")
+        logging.debug(f"fmin: {lowfreq}")
+        logging.debug(f"fmax: {highfreq}")
 
     def log_zero_guard_value_fn(self, x):
         if isinstance(self.log_zero_guard_value, str):
@@ -333,6 +333,10 @@ class FilterbankFeatures(nn.Module):
     @torch.no_grad()
     def forward(self, x, seq_len):
         seq_len = self.get_seq_len(seq_len.float())
+
+        if self.stft_exact_pad and not self.stft_conv:
+            p = (self.n_fft - self.hop_length) // 2
+            x = torch.nn.functional.pad(x.unsqueeze(1), (p, p), "reflect").squeeze(1)
 
         # dither
         if self.dither > 0:
