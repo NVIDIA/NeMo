@@ -199,7 +199,8 @@ class TransformerMTModel(ModelPT):
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         training_perplexity = self.training_perplexity(logits=log_probs).cpu().numpy().item()
         self.log_dict(
-            {"train_loss": train_loss, "lr": self._optimizer.param_groups[0]['lr'], "train_ppl": training_perplexity})
+            {"train_loss": train_loss, "lr": self._optimizer.param_groups[0]['lr'], "train_ppl": training_perplexity}
+        )
         return train_loss
 
     def eval_step(self, batch, batch_idx, mode):
