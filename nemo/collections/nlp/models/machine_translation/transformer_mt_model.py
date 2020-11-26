@@ -197,13 +197,10 @@ class TransformerMTModel(ModelPT):
         src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
         log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        training_perplexity = self.training_perplexity(logits=log_probs)
-        tensorboard_logs = {
-            'train_loss': train_loss,
-            'lr': self._optimizer.param_groups[0]['lr'],
-            "train_ppl": training_perplexity,
-        }
-        return {'loss': train_loss, 'log': tensorboard_logs}
+        training_perplexity = self.training_perplexity(logits=log_probs).cpu().numpy().item()
+        self.log_dict(
+            {"train_loss": train_loss, "lr": self._optimizer.param_groups[0]['lr'], "train_ppl": training_perplexity})
+        return train_loss
 
     def eval_step(self, batch, batch_idx, mode):
         for i in range(len(batch)):
@@ -219,13 +216,11 @@ class TransformerMTModel(ModelPT):
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.tgt_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         num_non_pad_tokens = np.not_equal(np_tgt, self.tgt_tokenizer.pad_id).sum().item()
-        tensorboard_logs = {f'{mode}_loss': eval_loss}
         return {
-            f'{mode}_loss': eval_loss,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
-            'log': tensorboard_logs,
+            f'{mode}_loss': eval_loss,
         }
 
     def test_step(self, batch, batch_idx):
@@ -257,8 +252,17 @@ class TransformerMTModel(ModelPT):
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
         assert len(translations) == len(ground_truths)
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+        self.log_dict(
+            {
+                f"{mode}_loss": eval_loss,
+                f"{mode}_ppl": eval_perplexity.cpu().numpy().item(),
+                f"{mode}_sacreBLEU": sacre_bleu.score,
+            },
+        )
         dataset_name = "Validation" if mode == 'val' else "Test"
-        logging.info(f"\n\n\n\n{dataset_name} set size: {len(translations)}")
+        if mode == 'val':
+            logging.info(f"\n\nstep: {self.global_step}")
+        logging.info(f"\n\n{dataset_name} set size: {len(translations)}")
         logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
         logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
         for i in range(0, 3):
@@ -267,16 +271,12 @@ class TransformerMTModel(ModelPT):
             logging.info(f"    Prediction:   {translations[ind]}")
             logging.info(f"    Ground Truth: {ground_truths[ind]}")
 
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score, f"{mode}_ppl": eval_perplexity}
-        ans['log'] = dict(ans)
-        return ans
-
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.log_dict(self.eval_epoch_end(outputs, 'val'))
+        self.eval_epoch_end(outputs, 'val')
         # return self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
