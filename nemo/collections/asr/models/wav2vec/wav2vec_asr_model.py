@@ -34,7 +34,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 
 class Wav2VecCTCEncoder(nn.Module):
     def __init__(
-        self, wav2vec_encoder: Wav2VecEncoderModel, cfg: Wav2VecCTCEncoderConfig, encoder_dim: int, trainer: Trainer
+            self, wav2vec_encoder: Wav2VecEncoderModel, cfg: Wav2VecCTCEncoderConfig, encoder_dim: int, trainer: Trainer
     ):
         super().__init__()
         self.trainer = trainer
@@ -60,19 +60,19 @@ class Wav2VecCTCEncoder(nn.Module):
             nn.init.constant_(m.bias, 0.0)
         return m
 
-    def forward(self, audio_signal, padding_mask):
+    def forward(self, audio_signal, audio_lengths):
         freeze_encoder_at_step = (
-            self.freeze_encoder_after_steps is not None and self.freeze_encoder_after_steps <= self.trainer.global_step
+                self.freeze_encoder_after_steps is not None and self.freeze_encoder_after_steps <= self.trainer.global_step
         )
 
         if freeze_encoder_at_step:
             with torch.no_grad():
                 x, padding_mask = self.wav2vec_encoder.extract_features(
-                    source=audio_signal, padding_mask=padding_mask, mask=self.apply_mask and self.training
+                    source=audio_signal, audio_lengths=audio_lengths, mask=self.apply_mask and self.training
                 )
         else:
             x, padding_mask = self.wav2vec_encoder.extract_features(
-                source=audio_signal, padding_mask=padding_mask, mask=self.apply_mask and self.training
+                source=audio_signal, audio_lengths=audio_lengths, mask=self.apply_mask and self.training
             )
 
         x = self.final_dropout(x)
@@ -129,15 +129,15 @@ class Wav2VecASRModel(Wav2VecBase, ASRModel):
         return None
 
     @typecheck()
-    def forward(self, input_signal, padding_mask):
-        x, encoded_len = self.encoder(audio_signal=input_signal, padding_mask=padding_mask)
+    def forward(self, input_signal, audio_lengths):
+        x, encoded_len = self.encoder(audio_signal=input_signal, audio_lengths=audio_lengths)
         log_probs = x.log_softmax(-1)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         return log_probs, encoded_len, greedy_predictions
 
     def model_forward_and_loss(self, batch):
-        audio_signal, audio_lengths, transcript, transcript_len, padding_mask = batch
-        log_probs, encoded_len, predictions = self.forward(input_signal=audio_signal, padding_mask=padding_mask)
+        audio_signal, audio_lengths, transcript, transcript_len = batch
+        log_probs, encoded_len, predictions = self.forward(input_signal=audio_signal, audio_lengths=audio_lengths)
 
         loss = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
@@ -165,10 +165,10 @@ class Wav2VecASRModel(Wav2VecBase, ASRModel):
         loss, predictions, transcript, transcript_len = self.model_forward_and_loss(batch)
         self._wer.update(predictions, transcript, transcript_len)
         wer, wer_num, wer_denom = self._wer.compute()
-        self.log_dict({'val_loss': loss, 'val_wer': wer,}, sync_dist=True, prog_bar=True, on_epoch=True)
+        self.log_dict({'val_loss': loss, 'val_wer': wer, }, sync_dist=True, prog_bar=True, on_epoch=True)
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         loss, predictions, transcript, transcript_len = self.model_forward_and_loss(batch)
         self._wer.update(predictions, transcript, transcript_len)
         wer, wer_num, wer_denom = self._wer.compute()
-        self.log_dict({'test_loss': loss, 'test_wer': wer,}, sync_dist=True, prog_bar=True, on_epoch=True)
+        self.log_dict({'test_loss': loss, 'test_wer': wer, }, sync_dist=True, prog_bar=True, on_epoch=True)

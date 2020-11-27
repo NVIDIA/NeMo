@@ -177,9 +177,9 @@ class Wav2VecEncoderModel(Wav2VecBase):
         loss, feature_loss, prob_ppl_loss = self._step(batch)
 
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
-        self.log('loss', loss)
-        self.log('feature_loss', feature_loss)
-        self.log('prob_ppl_loss', prob_ppl_loss)
+        self.log('loss', loss, on_epoch=True)
+        self.log('feature_loss', feature_loss, on_epoch=True, sync_dist=True)
+        self.log('prob_ppl_loss', prob_ppl_loss, on_epoch=True, sync_dist=True)
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -395,7 +395,8 @@ class Wav2VecEncoderModel(Wav2VecBase):
         )
         return output
 
-    def extract_features(self, source, padding_mask, mask=False):
+    def extract_features(self, source, audio_lengths, mask=False):
+        padding_mask = self._create_padding_mask(audio_lengths)
         return self.forward(source, padding_mask, mask=mask, features_only=True)
 
     def remove_pretraining_modules(self):
