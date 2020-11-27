@@ -15,8 +15,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from nemo.collections.tts.modules import fastspeech2_modules
+from nemo.collections.tts.modules.fastspeech2_submodules import (
+    FFTransformer,
+    VariancePredictor,
+    LengthRegulator,
+    WaveformGenerator,
+    WaveformDiscriminator,
+)
 from nemo.core.classes import NeuralModule, typecheck
+from nemo.utils.decorators import experimental
+from nemo.core.neural_types import *
+
 
 """ From the paper:
 Our FastSpeech 2 consists of 4 feed-forward Transformer (FFT) blocks [20]
@@ -51,7 +60,7 @@ class Encoder(NeuralModule):
         # TODO: documentation of params
         super().__init__()
 
-        self.encoder = fastspeech2_modules.FFTransformer(
+        self.encoder = FFTransformer(
             n_layer=4,
             n_head=2,
             d_model=256,
@@ -79,8 +88,8 @@ class Encoder(NeuralModule):
 
 
 @experimental
-class VarianceAdaptor(NeuralModuel):
-    def __init__(self, max_duration, pitch_min, pitch_max, energy_min, energy_max):
+class VarianceAdaptor(NeuralModule):
+    def __init__(self, max_duration=None, pitch_min=None, pitch_max=None, energy_min=None, energy_max=None):
         """
         FastSpeech 2 variance adaptor, which adds information like duration, pitch, etc. to the phoneme encoding.
         Sets of conv1D blocks with ReLU and dropout.
@@ -97,30 +106,28 @@ class VarianceAdaptor(NeuralModuel):
         # -- Duration Setup --
         # TODO: what should this max duration be? should this be set at all?
         self.max_duration = max_duration
-        self.duration_predictor = fastspeech2_modules.VariancePredictor(
-            d_model=256, d_inner=256, kernel_size=3, dropout=0.5
-        )
-        self.length_regulator = fastspeech2_modules.LengthRegulator()
+        self.duration_predictor = VariancePredictor(d_model=256, d_inner=256, kernel_size=3, dropout=0.5)
+        self.length_regulator = LengthRegulator()
 
-        # -- Pitch Setup --
-        self.register_buffer(  # Log scale bins
-            "pitch_bins",
-            torch.exp(torch.linspace(start=np.log(pitch_min), end=np.log(pitch_max), steps=255)),  # n_f0_bins - 1
-        )
-        self.pitch_predictor = fastspeech2_modules.VariancePredictor(
-            d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size  # n_f0_bins
-        )
-        # Predictor outputs values directly rather than one-hot vectors, therefore Embedding
-        self.pitch_lookup = nn.Embedding(256, 256)  # f0_bins, va_hidden_size
+        # # -- Pitch Setup --
+        # self.register_buffer(  # Log scale bins
+        #     "pitch_bins",
+        #     torch.exp(torch.linspace(start=np.log(pitch_min), end=np.log(pitch_max), steps=255)),  # n_f0_bins - 1
+        # )
+        # self.pitch_predictor = VariancePredictor(
+        #     d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size  # n_f0_bins
+        # )
+        # # Predictor outputs values directly rather than one-hot vectors, therefore Embedding
+        # self.pitch_lookup = nn.Embedding(256, 256)  # f0_bins, va_hidden_size
 
-        # -- Energy Setup --
-        self.register_buffer(  # Linear scale bins
-            "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=255)  # n_energy_bins - 1
-        )
-        self.energy_predictor = fastspeech2_modules.VariancePredictor(
-            d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size, n_energy_bins, kernel size, dropout
-        )
-        self.energy_lookup = nn.Embedding(256, 256)  # n_energy_bins, va_hidden_size
+        # # -- Energy Setup --
+        # self.register_buffer(  # Linear scale bins
+        #     "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=255)  # n_energy_bins - 1
+        # )
+        # self.energy_predictor = VariancePredictor(
+        #     d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size, n_energy_bins, kernel size, dropout
+        # )
+        # self.energy_lookup = nn.Embedding(256, 256)  # n_energy_bins, va_hidden_size
 
     @property
     def input_types(self):
@@ -150,25 +157,28 @@ class VarianceAdaptor(NeuralModuel):
         if self.training:
             dur_out = self.length_regulator(x, dur_target)
         else:
+            raise NotImplementedError
+            # Why use ground truth durations during evaluation?
             dur_preds = torch.clamp(torch.round(torch.exp(log_durations) - 1), min=0, max=self.max_duration)
             dur_out = self.length_regulator(x, dur_preds)
 
-        # Pitch
-        pitch_preds = self.pitch_predictor(dur_out)
-        if self.training:
-            pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
-        else:
-            pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
+        # # Pitch
+        # pitch_preds = self.pitch_predictor(dur_out)
+        # if self.training:
+        #     pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
+        # else:
+        #     pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
 
-        # Energy
-        energy_preds = self.energy_predictor(dur_out)
-        if self.training:
-            energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
-        else:
-            energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
+        # # Energy
+        # energy_preds = self.energy_predictor(dur_out)
+        # if self.training:
+        #     energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
+        # else:
+        #     energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
 
-        out = dur_out + pitch_out + energy_out
-        return out
+        # out = dur_out + pitch_out + energy_out
+        # return out
+        return dur_out
 
 
 @experimental
@@ -182,7 +192,7 @@ class MelSpecDecoder(NeuralModule):
         """
         super().__init__()
 
-        self.decoder = fastspeech2_modules.FFTransformer(
+        self.decoder = FFTransformer(
             n_layer=4,
             n_head=2,
             d_model=384,  # Some paragraphs say 256, the table in the appendix says 384
@@ -250,7 +260,7 @@ class WaveformDecoder(NeuralModule):
         super().__init__()
 
         # WaveNet-based waveform generator
-        self.generator = fastspeech2_submodules.WaveformGenerator(
+        self.generator = WaveformGenerator(
             in_channels=in_channels,
             out_channels=gen_out_channels,
             trans_kernel_size=gen_trans_kernel_size,
@@ -263,7 +273,7 @@ class WaveformDecoder(NeuralModule):
         )
 
         # Parallel WaveGAN-based discriminator
-        self.discriminator = fastspeech2_submodules.WaveformDiscriminator(
+        self.discriminator = WaveformDiscriminator(
             in_channels=gen_out_channels,
             out_channels=dis_out_channels,
             n_layers=dis_n_layers,

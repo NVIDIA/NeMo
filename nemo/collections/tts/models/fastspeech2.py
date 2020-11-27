@@ -24,6 +24,7 @@ from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.models.base import SpectrogramGenerator, TextToWaveform
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
+from nemo.collections.tts.modules.fastspeech2 import Encoder, VarianceAdaptor, MelSpecDecoder
 
 
 @dataclass
@@ -63,6 +64,11 @@ class FastSpeech2Model(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
+        self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
+        self.encoder = Encoder()
+        self.variance_adapter = VarianceAdaptor()
+        self.mel_decoder = MelSpecDecoder()
+
     # @property
     # def input_types(self):
     #     return {"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())}
@@ -73,8 +79,17 @@ class FastSpeech2Model(SpectrogramGenerator):
     #     pass
 
     @typecheck()
-    def forward(self, *, text, text_lens):
-        pass
+    def forward(self, *, audio, audio_len, text, text_length, durations):
+        with typecheck.disable_checks():
+            spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
+            encoded_text, encoded_text_mask = self.encoder(text, text_length)
+            aligned_text = self.variance_adapter(encoded_text, durations)
+            mel = self.mel_decoder(aligned_text)
+            pass
+
+    def training_step(self, batch, batch_idx):
+        loss = self(*batch)
+        return loss
 
     # @typecheck(
     #     input_types={"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())},

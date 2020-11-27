@@ -22,8 +22,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from common.utils import mask_from_lens
-from common.text.symbols import pad_idx, symbols
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
+
+# from common.text.symbols import pad_idx, symbols
 
 from nemo.utils import logging
 
@@ -272,7 +273,8 @@ class FFTransformer(nn.Module):
         self.d_head = d_head
 
         if embed_input:
-            self.word_emb = nn.Embedding(len(symbols), d_embed or d_model, padding_idx=pad_idx)
+            # self.word_emb = nn.Embedding(len(symbols), d_embed or d_model, padding_idx=pad_idx)
+            self.word_emb = nn.Embedding(84, d_embed or d_model, padding_idx=83)
         else:
             self.word_emb = None
 
@@ -290,11 +292,11 @@ class FFTransformer(nn.Module):
     def forward(self, dec_inp, seq_lens=None):
         if self.word_emb is None:
             inp = dec_inp
-            mask = mask_from_lens(seq_lens).unsqueeze(2)
+            mask = get_mask_from_lengths(seq_lens).unsqueeze(2)
         else:
             inp = self.word_emb(dec_inp)
             # [bsz x L x 1]
-            mask = (dec_inp != pad_idx).unsqueeze(2)
+            mask = (dec_inp != 83).unsqueeze(2)
 
         pos_seq = torch.arange(inp.size(1), device=inp.device, dtype=inp.dtype)
         pos_emb = self.pos_emb(pos_seq) * mask
@@ -322,7 +324,7 @@ class VariancePredictor(nn.Module):
             nn.LayerNorm(d_inner),
             nn.Dropout(dropout),
             nn.Conv1d(d_inner, d_inner, kernel_size, stride=1, padding=(kernel_size // 2)),
-            nn.ReLu(),
+            nn.ReLU(),
             nn.LayerNorm(d_inner),
             nn.Dropout(dropout),
             nn.Linear(d_inner, 1),
@@ -388,7 +390,7 @@ class DilatedResidualConvBlock(nn.Module):
     def forward(self, x):
         residual = x
         out = self.dilated_conv(x)
-        out = nn.tanh(out[:, : self.n_channels, :]) * torch.sigmoid(out[:, self.n_channels :, :])
+        out = nn.Tanh(out[:, : self.n_channels, :]) * torch.sigmoid(out[:, self.n_channels :, :])
 
         # Skip connection
         skip_out = self.pointwise_conv_skip(out)
@@ -461,7 +463,7 @@ class WaveformGenerator(nn.Module):
             nn.ReLU(),
             nn.Conv1d(skip_channels, skip_channels, kernel_size=1),  # TODO: output dim here is a guess.
             nn.ReLU(),
-            nn.Conv1D(skip_channels, out_channels, kernel_size=1),
+            nn.Conv1d(skip_channels, out_channels, kernel_size=1),
         )
 
         # Apply weight norm to conv layers
