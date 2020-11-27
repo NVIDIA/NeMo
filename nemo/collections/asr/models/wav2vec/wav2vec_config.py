@@ -130,7 +130,7 @@ class Wav2VecMaskConfig:
         default=1, metadata={'help': 'Minimum space beetween spans (if no overlap is enabled)'}
     )
     mask_channel_prob: float = field(default=0, metadata={'help': 'Probability of replacing a feature with 0'})
-    mask_channel_type: str = field(default=Wav2VecMaskType.static,)
+    mask_channel_type: Wav2VecMaskType = field(default=Wav2VecMaskType.static,)
     mask_channel_other: int = field(
         default=0,
         metadata={
