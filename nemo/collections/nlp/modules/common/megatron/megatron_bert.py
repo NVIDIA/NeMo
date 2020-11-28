@@ -115,9 +115,6 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        # if self._lazy_init_fn is not None:
-        #     self._lazy_init_fn()
-        #     self._lazy_init_fn = None
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
 
