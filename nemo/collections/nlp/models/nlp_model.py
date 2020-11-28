@@ -290,7 +290,7 @@ class NLPModel(ModelPT):
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
-                    self._lazy_init_fn()
+                    self.bert_model._lazy_init_fn()
 
                     logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
@@ -311,5 +311,5 @@ class NLPModel(ModelPT):
             else:
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
-                    self._lazy_init_fn()
+                    self.bert_model._lazy_init_fn()
 
