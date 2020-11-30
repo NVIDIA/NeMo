@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import torch
 from pytorch_lightning.metrics import Metric
 
@@ -68,11 +70,15 @@ class TopKClassificationAccuracy(Metric):
         )
         self.add_state("total_counts_k", default=torch.zeros(len(self.top_k)), dist_reduce_fx='sum', persistent=False)
 
+    @torch.no_grad()
+    def top_k_predicted_labels(self, logits: torch.Tensor) -> torch.Tensor:
+        max_k = max(self.top_k)
+        _, predictions = logits.topk(max_k, dim=1, largest=True, sorted=True)
+        return predictions
+
     def update(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            max_k = max(self.top_k)
-
-            _, predictions = logits.topk(max_k, dim=1, largest=True, sorted=True)
+            predictions = self.top_k_predicted_labels(logits)
             predictions = predictions.t()
             correct = predictions.eq(labels.view(1, -1)).expand_as(predictions)
 
@@ -107,6 +113,23 @@ class TopKClassificationAccuracy(Metric):
             top_k_scores = compute_topk_accuracy(self.correct_counts_k, self.total_counts_k)
 
             return top_k_scores
+
+    @property
+    def top_k(self) -> List[int]:
+        return self._top_k
+
+    @top_k.setter
+    def top_k(self, value: List[int]):
+        if value is None:
+            value = [1]
+
+        if type(value) == int:
+            value = [value]
+
+        if type(value) != list:
+            value = list(value)
+
+        self._top_k = value
 
 
 def compute_topk_accuracy(correct_counts_k, total_counts_k):
