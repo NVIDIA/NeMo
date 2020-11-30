@@ -23,7 +23,7 @@ from argparse import ArgumentParser
 
 import torch
 
-from nemo.collections.asr.metrics.wer import WER, word_error_rate
+from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
 
