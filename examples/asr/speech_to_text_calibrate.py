@@ -48,7 +48,11 @@ can_gpu = torch.cuda.is_available()
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
+        "--asr_model",
+        type=str,
+        default="QuartzNet15x5Base-En",
+        required=True,
+        help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=256)
@@ -103,10 +107,9 @@ def main():
         if can_gpu:
             test_batch = [x.cuda() for x in test_batch]
         with autocast():
-            _ = asr_model(
-                input_signal=test_batch[0], input_signal_length=test_batch[1])
+            _ = asr_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
         if i >= args.num_calib_batch:
-             break
+            break
 
     # Save calibrated model(s)
     model_name = args.asr_model.replace(".nemo", "") if args.asr_model.endswith(".nemo") else args.asr_model
@@ -123,6 +126,7 @@ def main():
             print(F"{method} calibration")
             compute_amax(asr_model, method=method)
             asr_model.save_to(F"{model_name}-{method}-{args.num_calib_batch*args.batch_size}.nemo")
+
 
 def compute_amax(model, **kwargs):
     for name, module in model.named_modules():

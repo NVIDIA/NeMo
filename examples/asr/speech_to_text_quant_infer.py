@@ -48,7 +48,11 @@ can_gpu = torch.cuda.is_available()
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
+        "--asr_model",
+        type=str,
+        default="QuartzNet15x5Base-En",
+        required=True,
+        help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
@@ -137,7 +141,8 @@ def main():
             wer_value = evaluate(asr_model, labels_map, wer)
             if wer_value <= args.wer_tolerance:
                 logging.info(
-                    F"WER tolerance {args.wer_tolerance} is met by skipping {len(skipped_layers)} sensitive layers.")
+                    F"WER tolerance {args.wer_tolerance} is met by skipping {len(skipped_layers)} sensitive layers."
+                )
                 print(skipped_layers)
                 return
         raise ValueError(f"WER tolerance {args.wer_tolerance} can not be met with any layer quantized!")
@@ -151,6 +156,7 @@ def main():
         quant_nn.TensorQuantizer.use_fb_fake_quant = True
         asr_model.export(onnx_name, onnx_opset_version=13)
         quant_nn.TensorQuantizer.use_fb_fake_quant = False
+
 
 def evaluate(asr_model, labels_map, wer):
     # Eval the model
