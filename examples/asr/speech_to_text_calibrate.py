@@ -22,15 +22,14 @@ This script serves three goals:
 from argparse import ArgumentParser
 
 import torch
-
-from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import EncDecCTCModel
-from nemo.utils import logging
-
 from pytorch_quantization import calib
 from pytorch_quantization import nn as quant_nn
 from pytorch_quantization import quant_modules
 from pytorch_quantization.tensor_quant import QuantDescriptor
+
+from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.models import EncDecCTCModel
+from nemo.utils import logging
 
 try:
     from torch.cuda.amp import autocast
@@ -48,11 +47,7 @@ can_gpu = torch.cuda.is_available()
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model",
-        type=str,
-        default="QuartzNet15x5Base-En",
-        required=True,
-        help="Pass: 'QuartzNet15x5Base-En'",
+        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=256)
