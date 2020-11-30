@@ -124,5 +124,5 @@ if __name__ == '__main__':
 
     stats_file = os.path.join(args.base_dir, 'alignment_summary.csv')
     stats.to_csv(stats_file, index=False)
-    print(stats.head())
+    print(stats)
     print(f'Alignment summary saved to {stats_file}')

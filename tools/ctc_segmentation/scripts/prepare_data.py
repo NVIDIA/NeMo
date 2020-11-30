@@ -120,6 +120,7 @@ def split_text(
     )
     # remove extra space
     transcript = re.sub(r' +', ' ', transcript)
+    transcript = re.sub(r'(\.+)', '. ', transcript)
 
     if remove_square_brackets:
         transcript = re.sub(r'(\[.*?\])', ' ', transcript)
@@ -150,16 +151,51 @@ def split_text(
         print(f'Consider using {language} unicode letters for better sentence split.')
 
     sentences = re.split(split_pattern, transcript)
-    sentences_comb = []
 
-    # adds a short sentence to the previous one
-    for i in range(len(sentences)):
-        if len(sentences[i]) < min_length and len(sentences_comb) > 0:
-            sentences_comb[-1] += ' ' + sentences[i].strip()
-        else:
-            sentences_comb.append(sentences[i].strip())
+    lens = [len(s) for s in sentences]
+    aver = sum(lens) / len(lens)
+    print(f'BEFORE aver:', aver)
 
-    sentences = "\n".join([s.strip() for s in sentences_comb if s])
+    def additional_split(sentences, max_length=50):
+        another_sent_split = []
+        for sent in sentences:
+            if ';' in sent:
+                another_sent_split.extend(sent.split(';'))
+            elif ':' in sent:
+                another_sent_split.extend(sent.split(':'))
+            elif ' - ' in sent:
+                another_sent_split.extend(sent.split('-'))
+            elif len(sent.strip()) > max_length:
+                if ',' in sent:
+                    another_sent_split.extend(sent.split(','))
+                else:
+                    another_sent_split.append(sent)
+            else:
+                another_sent_split.append(sent)
+        sentences = [s.strip() for s in another_sent_split if s.strip()]
+        return sentences
+
+    for i in range(3):
+        sentences = additional_split(sentences)
+
+    combine_short = True
+    min_length = 20
+    if combine_short:
+        sentences_comb = []
+        # adds a short sentence to the previous one
+        for i in range(len(sentences)):
+            if len(sentences[i]) < min_length and len(sentences_comb) > 0:
+                sentences_comb[-1] += ' ' + sentences[i].strip()
+            else:
+                sentences_comb.append(sentences[i].strip())
+
+        lens = [len(s) for s in sentences_comb]
+        aver = sum(lens) / len(lens)
+        print(f'AFTER COMB aver:', aver)
+
+        sentences = "\n".join([s.strip() for s in sentences_comb if s.strip()])
+    else:
+        sentences = "\n".join([s.strip() for s in sentences if s.strip()])
 
     # save split text with original punctuation and case
     out_dir, out_file_name = os.path.split(out_file)
@@ -195,6 +231,8 @@ def split_text(
             all_punct_marks = all_punct_marks.replace(v, '')
     sentences = re.sub("[" + all_punct_marks + "]", "", sentences).strip()
 
+    # remove extra space
+    sentences = re.sub(r' +', ' ', sentences)
     with open(out_file, "w") as f:
         f.write(sentences)
 
