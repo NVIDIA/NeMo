@@ -82,6 +82,7 @@ class TestExportableClassifiers:
             )
             config_file = os.path.join(tmpdir, 'intent_slot_classification_config.yaml')
             config = OmegaConf.load(config_file)
+            config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
             config.model.data_dir = dummy_data
             config.trainer.gpus = 1
             config.trainer.precision = 32
