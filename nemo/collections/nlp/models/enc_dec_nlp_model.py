@@ -1,14 +1,10 @@
-import math
-from abc import abstractmethod
-from dataclasses import MISSING, asdict, dataclass
-from typing import Dict, Optional, Union
+from dataclasses import MISSING, dataclass
+from typing import Dict, Optional
 
-from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.core.config.pytorch_lightning import TrainerConfig
 
 
 @dataclass

@@ -12,27 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import asdict, dataclass
-from logging import NullHandler
-from typing import Any, Optional, Tuple
+from dataclasses import dataclass
+from typing import Optional
 
-import hydra
-import pytorch_lightning as pl
 from hydra.utils import instantiate
-from omegaconf import MISSING, DictConfig
+from omegaconf import MISSING
 
-from nemo.collections.common.callbacks import MachineTranslationLogEvalCallback
 from nemo.collections.nlp.models.enc_dec_nlp_model import (
-    EncDecNLPModelConfig,
-    OptimConfig,
-    SchedConfig,
     TokenClassifierConfig,
     TokenizerConfig,
     TransformerDecoderConfig,
     TransformerEmbeddingConfig,
     TransformerEncoderConfig,
 )
-from nemo.collections.nlp.models.machine_translation import TransformerMTModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import (
     MTEncDecModel,
     MTEncDecModelConfig,
@@ -40,8 +32,7 @@ from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import (
     MTSchedConfig,
     TranslationDataConfig,
 )
-from nemo.core import optim
-from nemo.core.config import hydra_runner, optimizers
+from nemo.core.config import hydra_runner
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
