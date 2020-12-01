@@ -14,15 +14,16 @@
 
 from dataclasses import asdict, dataclass
 from logging import NullHandler
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import hydra
 import pytorch_lightning as pl
 from hydra.utils import instantiate
-from omegaconf import DictConfig
+from omegaconf import DictConfig, MISSING
 
 from nemo.collections.common.callbacks import MachineTranslationLogEvalCallback
 from nemo.collections.nlp.models.enc_dec_nlp_model import (
+    EncDecNLPModelConfig,
     OptimConfig,
     SchedConfig,
     TokenClassifierConfig,
@@ -46,10 +47,10 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="enc_dec")
-def main(cfg: DictConfig) -> None:
-    logging.info(f'Config: {cfg.pretty()}')
-    trainer_config = TrainerConfig(
+@dataclass
+class DefaultConfig:
+    # pytorch lightning trainer configurations
+    trainer: TrainerConfig = TrainerConfig(
         gpus=1,
         num_nodes=1,
         max_epochs=1,
@@ -61,121 +62,210 @@ def main(cfg: DictConfig) -> None:
         log_every_n_steps=10,
         val_check_interval=0.1,
     )
-    trainer = instantiate(trainer_config)
-    # trainer = pl.Trainer(**asdict(trainer_config))
-    # exp_manager(trainer, cfg.get("exp_manager", None))
-    encoder_tokenizer_config = TokenizerConfig(
-        tokenizer_name="yttm", tokenizer_model='/raid/data/68792/tokenizer.BPE.37K.model'
-    )
-    decoder_tokenizer_config = TokenizerConfig(
-        tokenizer_name="yttm", tokenizer_model='/raid/data/68792/tokenizer.BPE.37K.model'
-    )
-    encoder_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
-    # dec embedding happens to be the same in this case (will change for other configs)
-    decoder_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
 
-    encoder_config = TransformerEncoderConfig(
-        hidden_size=512,
-        inner_size=2048,
-        num_layers=6,
-        num_attention_heads=8,
-        ffn_dropout=0.1,
-        attn_score_dropout=0.1,
-        attn_layer_dropout=0.1,
-    )
-
-    decoder_config = TransformerDecoderConfig(
-        hidden_size=512,
-        inner_size=2048,
-        num_layers=6,
-        num_attention_heads=8,
-        ffn_dropout=0.1,
-        attn_score_dropout=0.1,
-        attn_layer_dropout=0.1,
-    )
-
-    head_config = TokenClassifierConfig(
-        hidden_size=decoder_config.hidden_size, num_classes=decoder_embedding_config.vocab_size, log_softmax=True
-    )
-
-    # @dataclass
-    # class MTSchedConfig(SchedConfig):
-    #     name: str = 'InverseSquareRootAnnealing'
-    #     warmup_steps: Optional[int] = None
-    #     warmup_ratio: float = 0.1
-    #     last_epoch: int = -1
-
-    sched_config = MTSchedConfig()
-
-    # sched_config = SchedConfig(name='InverseSquareRootAnnealing')
-    # sched_config.warmup_steps = None
-    # sched_config.warmup_ratio = 0.1
-    # sched_config.last_epoch = -1
-
-    # @dataclass
-    # class MTOptimConfig(OptimConfig):
-    #     name: str = 'adam'
-    #     lr: float = 1e-3
-    #     betas: Tuple[float, float] = (0.9, 0.98)
-    #     weight_decay: float = 0.0
-    #     sched: Optional[MTSchedConfig] = None
-
-    optim_config = MTOptimConfig(sched=sched_config)
-
-    # optim_config = OptimConfig(name='adam', lr=1e-3, sched=sched_config)
-    # optim_config.betas = (0.9, 0.98)
-    # optim_config.weight_decay = 0.0
-
-    num_samples = -1  # for dev
-    train_ds_config = TranslationDataConfig(
-        src_file_name='/raid/data/68792/train.clean.en.shuffled.dev',
-        tgt_file_name='/raid/data/68792/train.clean.de.shuffled.dev',
-        tokens_in_batch=8000,
+    # dataset configurations
+    train_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
         clean=True,
         shuffle=True,
-        num_samples=num_samples,
+        num_samples=-1,
+        cache_ids=True,
+        use_cache=True,
+    )
+    validation_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
+        clean=False,
+        shuffle=False,
+        num_samples=-1,
+        cache_ids=True,
+        use_cache=True,
+    )
+    test_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
+        clean=False,
+        shuffle=False,
+        num_samples=-1,
         cache_ids=True,
         use_cache=True,
     )
 
-    validation_ds_config = TranslationDataConfig(
-        src_file_name='/raid/data/68792/wmt14-en-de.src',
-        tgt_file_name='/raid/data/68792/wmt14-en-de.ref',
-        tokens_in_batch=512,
-        clean=False,
-        shuffle=False,
-        num_samples=num_samples,
-        cache_ids=True,
-        use_cache=True,
+    # model architecture configurations
+    encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
+    decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
+    encoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
+        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
+    )
+    encoder: TransformerEncoderConfig = TransformerEncoderConfig(
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+    )
+    decoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
+        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
+    )
+    decoder: TransformerDecoderConfig = TransformerDecoderConfig(
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+    )
+    head: TokenClassifierConfig = TokenClassifierConfig(
+        hidden_size=decoder.hidden_size, num_classes=decoder_embedding.vocab_size, log_softmax=True
     )
 
-    test_ds_config = TranslationDataConfig(
-        src_file_name='/raid/data/68792/wmt14-en-de.src',
-        tgt_file_name='/raid/data/68792/wmt14-en-de.ref',
-        tokens_in_batch=512,
-        clean=False,
-        shuffle=False,
-        num_samples=num_samples,
-        cache_ids=True,
-        use_cache=True,
-    )
+    # machine translation configurations
+    num_val_examples: int = 3
+    num_test_examples: int = 3
+    beam_size: int = 1
+    len_pen: float = 0.0
+    max_generation_delta: int = 50
+    label_smoothing: Optional[float] = 0.0
+
+    # optimizer configurations
+    optim: MTOptimConfig = MTOptimConfig(sched=MTSchedConfig())
+
+
+@hydra_runner(config_path="conf", config_name="enc_dec", schema=DefaultConfig)
+def main(cfg: DefaultConfig) -> None:
+    logging.info(f'Config: {cfg.pretty()}')
+    # trainer_config = TrainerConfig(
+    #     gpus=1,
+    #     num_nodes=1,
+    #     max_epochs=1,
+    #     max_steps=10000,
+    #     precision=16,
+    #     accelerator='ddp',
+    #     checkpoint_callback=False,
+    #     logger=False,
+    #     log_every_n_steps=10,
+    #     val_check_interval=0.1,
+    # )
+    # trainer_config = TrainerConfig(cfg.trainer)
+
+    trainer = instantiate(cfg.trainer)
+
+    # trainer = pl.Trainer(**asdict(trainer_config))
+    # exp_manager(trainer, cfg.get("exp_manager", None))
+    # encoder_tokenizer_config = TokenizerConfig(
+    #     tokenizer_name="yttm", tokenizer_model='/raid/data/68792/tokenizer.BPE.37K.model'
+    # )
+
+    # decoder_tokenizer_config = TokenizerConfig(
+    #     tokenizer_name="yttm", tokenizer_model='/raid/data/68792/tokenizer.BPE.37K.model'
+    # )
+    # encoder_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
+    # dec embedding happens to be the same in this case (will change for other configs)
+    # decoder_embedding_config = TransformerEmbeddingConfig(vocab_size=37000, hidden_size=512, embedding_dropout=0.1)
+
+    # encoder_config = TransformerEncoderConfig(
+    #     hidden_size=512,
+    #     inner_size=2048,
+    #     num_layers=6,
+    #     num_attention_heads=8,
+    #     ffn_dropout=0.1,
+    #     attn_score_dropout=0.1,
+    #     attn_layer_dropout=0.1,
+    # )
+
+    # decoder_config = TransformerDecoderConfig(
+    #     hidden_size=512,
+    #     inner_size=2048,
+    #     num_layers=6,
+    #     num_attention_heads=8,
+    #     ffn_dropout=0.1,
+    #     attn_score_dropout=0.1,
+    #     attn_layer_dropout=0.1,
+    # )
+
+    # head_config = TokenClassifierConfig(
+    #     hidden_size=decoder_config.hidden_size, num_classes=decoder_embedding_config.vocab_size, log_softmax=True
+    # )
+
+    # sched_config = MTSchedConfig()
+
+    # optim_config = MTOptimConfig(sched=sched_config)
+
+    # num_samples = -1  # for dev
+    # train_ds_config = TranslationDataConfig(
+    #     src_file_name='/raid/data/68792/train.clean.en.shuffled.dev',
+    #     tgt_file_name='/raid/data/68792/train.clean.de.shuffled.dev',
+    #     tokens_in_batch=512,
+    #     clean=True,
+    #     shuffle=True,
+    #     num_samples=num_samples,
+    #     cache_ids=True,
+    #     use_cache=True,
+    # )
+
+    # validation_ds_config = TranslationDataConfig(
+    #     src_file_name='/raid/data/68792/wmt14-en-de.src',
+    #     tgt_file_name='/raid/data/68792/wmt14-en-de.ref',
+    #     tokens_in_batch=512,
+    #     clean=False,
+    #     shuffle=False,
+    #     num_samples=num_samples,
+    #     cache_ids=True,
+    #     use_cache=True,
+    # )
+
+    # test_ds_config = TranslationDataConfig(
+    #     src_file_name='/raid/data/68792/wmt14-en-de.src',
+    #     tgt_file_name='/raid/data/68792/wmt14-en-de.ref',
+    #     tokens_in_batch=512,
+    #     clean=False,
+    #     shuffle=False,
+    #     num_samples=num_samples,
+    #     cache_ids=True,
+    #     use_cache=True,
+    # )
+
+    # mt_config = MTEncDecModelConfig(
+    #     encoder_tokenizer=encoder_tokenizer_config,
+    #     decoder_tokenizer=decoder_tokenizer_config,
+    #     encoder_embedding=encoder_embedding_config,
+    #     decoder_embedding=decoder_embedding_config,
+    #     encoder=encoder_config,
+    #     decoder=decoder_config,
+    #     head=head_config,
+    #     optim=optim_config,
+    #     train_ds=train_ds_config,
+    #     validation_ds=validation_ds_config,
+    #     test_ds=test_ds_config,
+    #     beam_size=4,
+    #     len_pen=0.6,
+    #     max_generation_delta=50,
+    #     label_smoothing=0.1,
+    # )
 
     mt_config = MTEncDecModelConfig(
-        encoder_tokenizer=encoder_tokenizer_config,
-        decoder_tokenizer=decoder_tokenizer_config,
-        encoder_embedding=encoder_embedding_config,
-        decoder_embedding=decoder_embedding_config,
-        encoder=encoder_config,
-        decoder=decoder_config,
-        head=head_config,
-        optim=optim_config,
-        train_ds=train_ds_config,
-        validation_ds=validation_ds_config,
-        test_ds=test_ds_config,
-        beam_size=4,
-        len_pen=0.6,
-        max_generation_delta=50,
-        label_smoothing=0.1,
+        encoder_tokenizer=cfg.encoder_tokenizer,
+        decoder_tokenizer=cfg.decoder_tokenizer,
+        encoder_embedding=cfg.encoder_embedding,
+        decoder_embedding=cfg.decoder_embedding,
+        encoder=cfg.encoder,
+        decoder=cfg.decoder,
+        head=cfg.head,
+        optim=cfg.optim,
+        train_ds=cfg.train_ds,
+        validation_ds=cfg.validation_ds,
+        test_ds=cfg.test_ds,
+        beam_size=cfg.beam_size,
+        len_pen=cfg.len_pen,
+        max_generation_delta=cfg.max_generation_delta,
+        label_smoothing=cfg.label_smoothing,
     )
 
     mt_model = MTEncDecModel(mt_config, trainer=trainer)

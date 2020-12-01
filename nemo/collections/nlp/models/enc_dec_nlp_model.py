@@ -1,6 +1,7 @@
 import math
 from abc import abstractmethod
 from dataclasses import MISSING, asdict, dataclass
+from nemo.core.config.pytorch_lightning import TrainerConfig
 from typing import Dict, Optional, Union
 
 from omegaconf.dictconfig import DictConfig
@@ -106,7 +107,7 @@ class EncDecNLPModelConfig:
     encoder: EncoderConfig = MISSING
     decoder: DecoderConfig = MISSING
     head: HeadConfig = MISSING
-    optim: OptimConfig = MISSING
+    optim: OptimConfig = None
     vocab_divisibile_by_eight: bool = True  # TODO: should this go somewhere else?
 
 
@@ -182,7 +183,7 @@ class EncDecNLPModel(NLPModel):
         self._decoder = decoder
 
     def setup_enc_dec_tokenizers(self, cfg: EncDecNLPModelConfig):
-        self.encoder_tokenizer = get_tokenizer(**asdict(cfg.encoder_tokenizer))
-        self.decoder_tokenizer = get_tokenizer(**asdict(cfg.decoder_tokenizer))
+        self.encoder_tokenizer = get_tokenizer(**cfg.encoder_tokenizer)
+        self.decoder_tokenizer = get_tokenizer(**cfg.decoder_tokenizer)
         self.encoder_vocab_size = self.encoder_tokenizer.vocab_size
         self.decoder_vocab_size = self.decoder_tokenizer.vocab_size

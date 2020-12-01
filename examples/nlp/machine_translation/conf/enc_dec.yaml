@@ -1,1 +1,17 @@
-name: enc_dec_nmt
+train_ds:
+  src_file_name: ???
+  tgt_file_name: ???
+
+validation_ds:
+  src_file_name: ???
+  tgt_file_name: ???
+
+test_ds: 
+  src_file_name: ???
+  tgt_file_name: ???
+
+encoder_tokenizer:
+  tokenizer_model: ??? 
+
+decoder_tokenizer:
+  tokenizer_model: ???
