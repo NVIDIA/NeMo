@@ -135,7 +135,7 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDO
 
 def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_DIR):
 
-    metric = DiarizationErrorRate(collar=0.0)
+    metric = DiarizationErrorRate(collar=0.25,skip_overlap=True)
     DER = 0
 
     all_hypothesis = []
