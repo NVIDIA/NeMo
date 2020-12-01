@@ -60,7 +60,7 @@ class DefaultConfig:
         checkpoint_callback=False,
         logger=False,
         log_every_n_steps=10,
-        val_check_interval=0.1,
+        val_check_interval=1.0,
     )
 
     # dataset configurations
