@@ -13,6 +13,9 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTTransformerBase
+from nemo.core.config.modelPT import NemoConfig
+from examples.nlp.machine_translation.transformer_enc_dec_config import DefaultConfig
 from typing import Optional
 
 from hydra.utils import instantiate
@@ -24,6 +27,7 @@ from nemo.collections.nlp.models.enc_dec_nlp_model import (
     TransformerDecoderConfig,
     TransformerEmbeddingConfig,
     TransformerEncoderConfig,
+    TransformerEncoderDefaultConfig,
 )
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import (
     MTEncDecModel,
@@ -39,121 +43,23 @@ from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
 
 @dataclass
-class DefaultConfig:
-    # pytorch lightning trainer configurations
-    trainer: TrainerConfig = TrainerConfig(
-        gpus=1,
-        num_nodes=1,
-        max_epochs=1,
-        max_steps=10000,
-        precision=16,
-        accelerator='ddp',
-        checkpoint_callback=False,
-        logger=False,
-        log_every_n_steps=10,
-        val_check_interval=1.0,
-    )
+class MTEncDecConfig(NemoConfig):
+    trainer: TrainerConfig = TrainerConfig()
 
-    # dataset configurations
-    train_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
-        src_file_name=MISSING,
-        tgt_file_name=MISSING,
-        tokens_in_batch=512,
-        clean=True,
-        shuffle=True,
-        cache_ids=True,
-        use_cache=True,
-    )
-    validation_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
-        src_file_name=MISSING,
-        tgt_file_name=MISSING,
-        tokens_in_batch=512,
-        clean=False,
-        shuffle=False,
-        cache_ids=True,
-        use_cache=True,
-    )
-    test_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
-        src_file_name=MISSING,
-        tgt_file_name=MISSING,
-        tokens_in_batch=512,
-        clean=False,
-        shuffle=False,
-        cache_ids=True,
-        use_cache=True,
-    )
+    model: MTTransformerBase = MTTransformerBase()
 
-    # model architecture configurations
-    encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
-    decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
-    encoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
-        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
-    )
-    encoder: TransformerEncoderConfig = TransformerEncoderConfig(
-        hidden_size=512,
-        inner_size=2048,
-        num_layers=6,
-        num_attention_heads=8,
-        ffn_dropout=0.1,
-        attn_score_dropout=0.1,
-        attn_layer_dropout=0.1,
-    )
-    decoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
-        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
-    )
-    decoder: TransformerDecoderConfig = TransformerDecoderConfig(
-        hidden_size=512,
-        inner_size=2048,
-        num_layers=6,
-        num_attention_heads=8,
-        ffn_dropout=0.1,
-        attn_score_dropout=0.1,
-        attn_layer_dropout=0.1,
-    )
-    head: TokenClassifierConfig = TokenClassifierConfig(
-        hidden_size=decoder.hidden_size, num_classes=decoder_embedding.vocab_size, log_softmax=True
-    )
-
-    # machine translation configurations
-    num_val_examples: int = 3
-    num_test_examples: int = 3
-    beam_size: int = 1
-    len_pen: float = 0.0
-    max_generation_delta: int = 10
-    label_smoothing: Optional[float] = 0.0
-
-    # optimizer configurations
     optim: MTOptimConfig = MTOptimConfig(sched=MTSchedConfig())
 
-    # experiment manager configurations
     exp_manager: ExpManagerConfig = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
 
 
-@hydra_runner(config_path="conf", config_name="enc_dec", schema=DefaultConfig)
-def main(cfg: DefaultConfig) -> None:
+@hydra_runner(config_path="conf", config_name="enc_dec", schema=MTEncDecConfig)
+def main(cfg: MTEncDecConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = instantiate(cfg.trainer)
     exp_manager(trainer, cfg.exp_manager)
 
-    mt_config = MTEncDecModelConfig(
-        encoder_tokenizer=cfg.encoder_tokenizer,
-        decoder_tokenizer=cfg.decoder_tokenizer,
-        encoder_embedding=cfg.encoder_embedding,
-        decoder_embedding=cfg.decoder_embedding,
-        encoder=cfg.encoder,
-        decoder=cfg.decoder,
-        head=cfg.head,
-        optim=cfg.optim,
-        train_ds=cfg.train_ds,
-        validation_ds=cfg.validation_ds,
-        test_ds=cfg.test_ds,
-        beam_size=cfg.beam_size,
-        len_pen=cfg.len_pen,
-        max_generation_delta=cfg.max_generation_delta,
-        label_smoothing=cfg.label_smoothing,
-    )
-
-    mt_model = MTEncDecModel(mt_config, trainer=trainer)
+    mt_model = MTEncDecModel(cfg.model, trainer=trainer)
 
     trainer.fit(mt_model)
 

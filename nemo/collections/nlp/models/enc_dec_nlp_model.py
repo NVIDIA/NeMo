@@ -54,6 +54,16 @@ class TransformerEncoderConfig(EncoderConfig):
 
 
 @dataclass
+class TransformerEncoderDefaultConfig(TransformerEncoderConfig):
+    hidden_size: int = 512
+    inner_size: int = 2048
+    num_layers: int = 6
+    num_attention_heads: int = 8
+    ffn_dropout: float = 0.1
+    attn_score_dropout: float = 0.1
+
+
+@dataclass
 class TransformerDecoderConfig(DecoderConfig):
     inner_size: int = MISSING
     num_layers: int = MISSING
