@@ -70,7 +70,6 @@ class DefaultConfig:
         tokens_in_batch=512,
         clean=True,
         shuffle=True,
-        num_samples=-1,
         cache_ids=True,
         use_cache=True,
     )
@@ -80,7 +79,6 @@ class DefaultConfig:
         tokens_in_batch=512,
         clean=False,
         shuffle=False,
-        num_samples=-1,
         cache_ids=True,
         use_cache=True,
     )
@@ -90,7 +88,6 @@ class DefaultConfig:
         tokens_in_batch=512,
         clean=False,
         shuffle=False,
-        num_samples=-1,
         cache_ids=True,
         use_cache=True,
     )
