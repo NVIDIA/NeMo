@@ -19,7 +19,7 @@ from typing import Any, Optional, Tuple
 import hydra
 import pytorch_lightning as pl
 from hydra.utils import instantiate
-from omegaconf import DictConfig, MISSING
+from omegaconf import MISSING, DictConfig
 
 from nemo.collections.common.callbacks import MachineTranslationLogEvalCallback
 from nemo.collections.nlp.models.enc_dec_nlp_model import (
