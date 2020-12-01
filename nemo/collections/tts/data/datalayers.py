@@ -34,6 +34,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# TODO: Need to fix line endings on this file
 
 import os
 import shutil
@@ -647,7 +648,7 @@ class FastSpeechWithDurs(Dataset):
         f, fl = features, torch.tensor(features.shape[0]).long()
         t, tl = torch.tensor(sample.text_tokens).long(), torch.tensor(len(sample.text_tokens)).long()
 
-        return f, fl, t, tl, torch.tensor(sample.duration)
+        return f, fl, t, tl, sample.duration
 
     def __len__(self):
         return len(self.data)
