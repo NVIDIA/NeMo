@@ -105,7 +105,7 @@ class PositionwiseConvFF(nn.Module):
     def _forward(self, inp):
         if self.pre_lnorm:
             # layer normalization + positionwise feed-forward
-            core_out = inp.transpose(1, 2)
+            core_out = inp.transpose(1, 2)  # TODO: Why tranpose and then transpose??
             core_out = self.CoreNet(self.layer_norm(core_out))
             core_out = core_out.transpose(1, 2)
 
@@ -289,6 +289,16 @@ class FFTransformer(nn.Module):
                 )
             )
 
+    @property
+    def input_types(self):
+        # Input is B, T
+        pass
+
+    @property
+    def output_types(self):
+        # Output is B, T, Hid for some reason
+        pass
+
     def forward(self, dec_inp, seq_lens=None):
         if self.word_emb is None:
             inp = dec_inp
@@ -296,6 +306,7 @@ class FFTransformer(nn.Module):
         else:
             inp = self.word_emb(dec_inp)
             # [bsz x L x 1]
+            # TODO: remove hard code
             mask = (dec_inp != 83).unsqueeze(2)
 
         pos_seq = torch.arange(inp.size(1), device=inp.device, dtype=inp.dtype)
@@ -307,6 +318,11 @@ class FFTransformer(nn.Module):
 
         # out = self.drop(out)
         return out, mask
+
+
+class Tranpose(nn.Module):
+    def forward(self, x):
+        return x.transpose(1, 2)
 
 
 # The following are not from DeepLearningExamples.
@@ -321,10 +337,13 @@ class VariancePredictor(nn.Module):
         self.layers = nn.Sequential(
             nn.Conv1d(d_model, d_inner, kernel_size, stride=1, padding=(kernel_size // 2)),
             nn.ReLU(),
+            Tranpose(),
             nn.LayerNorm(d_inner),
+            Tranpose(),
             nn.Dropout(dropout),
             nn.Conv1d(d_inner, d_inner, kernel_size, stride=1, padding=(kernel_size // 2)),
             nn.ReLU(),
+            Tranpose(),
             nn.LayerNorm(d_inner),
             nn.Dropout(dropout),
             nn.Linear(d_inner, 1),
@@ -356,7 +375,7 @@ class LengthRegulator(nn.Module):
             repeated = F.pad(repeated, (0, 0, 0, max_len - repeated.shape[0]), "constant", value=0.0)
             out_list.append(repeated)
 
-        out = torch.stack(out_list)
+        return torch.stack(out_list)
 
 
 class DilatedResidualConvBlock(nn.Module):

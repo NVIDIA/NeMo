@@ -84,7 +84,7 @@ class Encoder(NeuralModule):
 
     @typecheck()
     def forward(self, *, text, text_lengths):
-        self.encoder(text, seq_lens=text_lengths)
+        return self.encoder(text, seq_lens=text_lengths)
 
 
 @experimental
@@ -153,7 +153,8 @@ class VarianceAdaptor(NeuralModule):
 
         # Duration predictions (or ground truth) fed into Length Regulator to
         # expand the hidden states of the encoder embedding
-        log_dur_preds = self.duration_predictor(x)
+        log_dur_preds = self.duration_predictor(x.transpose(1, 2))
+        # Output is Batch, Time
         if self.training:
             dur_out = self.length_regulator(x, dur_target)
         else:
@@ -192,6 +193,7 @@ class MelSpecDecoder(NeuralModule):
         """
         super().__init__()
 
+        self.linear1 = nn.Linear(256, 384)  # Since input is 256
         self.decoder = FFTransformer(
             n_layer=4,
             n_head=2,
@@ -203,7 +205,7 @@ class MelSpecDecoder(NeuralModule):
             dropatt=0.1,  # ??? Not mentioned? Or am I just blind?
             embed_input=False,
         )
-        self.linear = nn.Linear(384, 80)
+        self.linear2 = nn.Linear(384, 80)
 
     @property
     def input_types(self):
@@ -216,9 +218,10 @@ class MelSpecDecoder(NeuralModule):
         pass
 
     @typecheck()
-    def forward(self, *, decoder_input):
-        decoder_out = self.decoder(decoder_input)
-        mel_out = self.linear(decoder_out)
+    def forward(self, *, decoder_input, lengths):
+        decoder_input = self.linear1(decoder_input)
+        decoder_out, _ = self.decoder(decoder_input, lengths)
+        mel_out = self.linear2(decoder_out)
         return mel_out
 
 

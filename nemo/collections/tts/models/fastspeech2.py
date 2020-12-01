@@ -25,6 +25,7 @@ from nemo.collections.tts.models.base import SpectrogramGenerator, TextToWavefor
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 from nemo.collections.tts.modules.fastspeech2 import Encoder, VarianceAdaptor, MelSpecDecoder
+from nemo.collections.tts.losses.tacotron2loss import L2MelLoss
 
 
 @dataclass
@@ -68,6 +69,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         self.encoder = Encoder()
         self.variance_adapter = VarianceAdaptor()
         self.mel_decoder = MelSpecDecoder()
+        self.loss = L2MelLoss()
 
     # @property
     # def input_types(self):
@@ -79,16 +81,18 @@ class FastSpeech2Model(SpectrogramGenerator):
     #     pass
 
     @typecheck()
-    def forward(self, *, audio, audio_len, text, text_length, durations):
+    def forward(self, *, spec_len, text, text_length, durations):
         with typecheck.disable_checks():
-            spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-            encoded_text, encoded_text_mask = self.encoder(text, text_length)
-            aligned_text = self.variance_adapter(encoded_text, durations)
-            mel = self.mel_decoder(aligned_text)
-            pass
+            encoded_text, encoded_text_mask = self.encoder(text=text, text_lengths=text_length)
+            aligned_text = self.variance_adapter(x=encoded_text, dur_target=durations)
+            mel = self.mel_decoder(decoder_input=aligned_text, lengths=spec_len)
+            return mel
 
     def training_step(self, batch, batch_idx):
-        loss = self(*batch)
+        f, fl, t, tl, durations = batch
+        spec, spec_len = self.audio_to_melspec_precessor(f, fl)
+        mel = self(spec_len=spec_len, text=t, text_length=tl, durations=durations)
+        loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return loss
 
     # @typecheck(
