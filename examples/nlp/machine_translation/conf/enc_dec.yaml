@@ -9,20 +9,22 @@ trainer:
   logger: False
   log_every_n_steps: 10
   val_check_interval: 1.0
-train_ds:
-  src_file_name: ???
-  tgt_file_name: ???
 
-validation_ds:
-  src_file_name: ???
-  tgt_file_name: ???
+model:
+  train_ds:
+    src_file_name: ???
+    tgt_file_name: ???
 
-test_ds: 
-  src_file_name: ???
-  tgt_file_name: ???
+  validation_ds:
+    src_file_name: ???
+    tgt_file_name: ???
 
-encoder_tokenizer:
-  tokenizer_model: ??? 
+  test_ds: 
+    src_file_name: ???
+    tgt_file_name: ???
 
-decoder_tokenizer:
-  tokenizer_model: ???
+  encoder_tokenizer:
+    tokenizer_model: ??? 
+
+  decoder_tokenizer:
+    tokenizer_model: ???

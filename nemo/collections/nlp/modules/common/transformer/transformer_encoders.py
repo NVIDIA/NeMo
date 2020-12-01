@@ -80,6 +80,19 @@ class TransformerEncoderBlock(nn.Module):
         return output_states
 
 
+@dataclass
+class TransformerEncoderConfig(EncoderConfig):
+    inner_size: int = MISSING
+    num_layers: int = MISSING
+    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoder'
+    num_attention_heads: int = 1
+    ffn_dropout: float = 0.0
+    attn_score_dropout: float = 0.0
+    attn_layer_dropout: float = 0.0
+    hidden_act: str = 'relu'
+    mask_future: bool = False
+
+
 class TransformerEncoder(nn.Module):
     def __init__(self, num_layers: int, hidden_size: int, mask_future: bool = False, **kwargs):
         super().__init__()
