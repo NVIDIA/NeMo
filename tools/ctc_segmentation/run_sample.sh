@@ -6,6 +6,8 @@ CUT_PREFIX=0
 SCRIPTS_DIR="scripts"
 OFFSET=0
 LANGUAGE='eng' # 'eng', 'ru', 'other'
+MIN_SEGMENT_LEN=20
+MAX_SEGMENT_LEN=100
 
 for ARG in "$@"
 do
@@ -26,6 +28,8 @@ echo "CUT_PREFIX = $CUT_PREFIX"
 echo "SCRIPTS_DIR = $SCRIPTS_DIR"
 echo "OFFSET = $OFFSET"
 echo "LANGUAGE = $LANGUAGE"
+echo "MIN_SEGMENT_LEN = $MIN_SEGMENT_LEN"
+echo "MAX_SEGMENT_LEN = $MAX_SEGMENT_LEN"
 
 if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; then
   echo "Usage: $(basename "$0")
@@ -35,7 +39,9 @@ if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; t
   --LANGUAGE=[language (Optional)]
   --OFFSET=[offset value (Optional)]
   --CUT_PREFIX=[cut prefix in sec (Optional)]
-  --SCRIPTS_DIR=[scripts_dir_path (Optional)]"
+  --SCRIPTS_DIR=[scripts_dir_path (Optional)]
+  --MIN_SEGMENT_LEN=[min number of characters of the text segment for alignment (Optional)]
+  --MAX_SEGMENT_LEN=[max number of characters of the text segment for alignment (Optional)]"
   exit 1
 fi
 
@@ -47,51 +53,53 @@ python $SCRIPTS_DIR/prepare_data.py \
 --language=$LANGUAGE \
 --cut_prefix=$CUT_PREFIX \
 --model=$MODEL_NAME_OR_PATH \
---audio_dir=$DATA_DIR/audio || exit
+--audio_dir=$DATA_DIR/audio \
+--min_length=$MIN_SEGMENT_LEN \
+--max_length=$MAX_SEGMENT_LEN || exit
 
-# STEP #2
-# Run CTC-segmenatation
-# one might want to perform alignment with various window sizes
-# note if the alignment with the initial window size isn't found, the window size will be double to re-attempt
-# alignment
-for WINDOW in 8000 10000 12000
-do
-  python $SCRIPTS_DIR/run_ctc_segmentation.py \
-  --output_dir=$OUTPUT_DIR \
-  --data=$OUTPUT_DIR/processed/ \
-  --model=$MODEL_NAME_OR_PATH  \
-  --window_len $WINDOW || exit
-done
-
-# STEP #3 (Optional)
-# Verify aligned segments only if multiple WINDOWs used in the Step #2)
-python $SCRIPTS_DIR/verify_segments.py \
---base_dir=$OUTPUT_DIR  || exit
-
-# STEP #4
-# Cut the original audio files based on the alignments
-# (use --alignment=$OUTPUT_DIR/segments if only 1 WINDOW size was used in the Step #2)
-# Three manifests and corresponding clips folders will be created:
-#   - high scored clips
-#   - low scored clips
-#   - deleted segments
-python $SCRIPTS_DIR/cut_audio.py \
---output_dir=$OUTPUT_DIR \
---model=$MODEL_NAME_OR_PATH \
---alignment=$OUTPUT_DIR/verified_segments \
---threshold=$MIN_SCORE \
---offset=$OFFSET || exit
-
-# STEP #5 (Optional)
-# If multiple audio files were segmented in the step #2, this step will aggregate manifests with high scored segments
-# for all audio files into all_manifest.json
-# Also a separate manifest with samples from across all high scored segments will be credated if --num_samples > 0
-# --num_samples samples will be taken from the beginning, end and the middle of the each audio file high score manifest
-# and will be stored at sample_manifest.json
-python $SCRIPTS_DIR/process_manifests.py \
---output_dir=$OUTPUT_DIR \
---manifests_dir=$OUTPUT_DIR/manifests/ \
---num_samples 0
+## STEP #2
+## Run CTC-segmenatation
+## one might want to perform alignment with various window sizes
+## note if the alignment with the initial window size isn't found, the window size will be double to re-attempt
+## alignment
+#for WINDOW in 8000 10000 12000
+#do
+#  python $SCRIPTS_DIR/run_ctc_segmentation.py \
+#  --output_dir=$OUTPUT_DIR \
+#  --data=$OUTPUT_DIR/processed/ \
+#  --model=$MODEL_NAME_OR_PATH  \
+#  --window_len $WINDOW || exit
+#done
+#
+## STEP #3 (Optional)
+## Verify aligned segments only if multiple WINDOWs used in the Step #2)
+#python $SCRIPTS_DIR/verify_segments.py \
+#--base_dir=$OUTPUT_DIR  || exit
+#
+## STEP #4
+## Cut the original audio files based on the alignments
+## (use --alignment=$OUTPUT_DIR/segments if only 1 WINDOW size was used in the Step #2)
+## Three manifests and corresponding clips folders will be created:
+##   - high scored clips
+##   - low scored clips
+##   - deleted segments
+#python $SCRIPTS_DIR/cut_audio.py \
+#--output_dir=$OUTPUT_DIR \
+#--model=$MODEL_NAME_OR_PATH \
+#--alignment=$OUTPUT_DIR/verified_segments \
+#--threshold=$MIN_SCORE \
+#--offset=$OFFSET || exit
+#
+## STEP #5 (Optional)
+## If multiple audio files were segmented in the step #2, this step will aggregate manifests with high scored segments
+## for all audio files into all_manifest.json
+## Also a separate manifest with samples from across all high scored segments will be credated if --num_samples > 0
+## --num_samples samples will be taken from the beginning, end and the middle of the each audio file high score manifest
+## and will be stored at sample_manifest.json
+#python $SCRIPTS_DIR/process_manifests.py \
+#--output_dir=$OUTPUT_DIR \
+#--manifests_dir=$OUTPUT_DIR/manifests/ \
+#--num_samples 0
 
 exit
 
