@@ -161,17 +161,17 @@ def split_text(
     def additional_split(sentences, max_length=50):
         another_sent_split = []
         for sent in sentences:
-            if ';' in sent:
-                another_sent_split.extend(sent.split(';'))
-            elif ':' in sent:
-                another_sent_split.extend(sent.split(':'))
-            elif ' - ' in sent:
-                another_sent_split.extend(sent.split('-'))
-            # elif len(sent.strip()) > max_length:
-            #     if ',' in sent:
-            #         another_sent_split.extend(sent.split(','))
-            #     else:
-            #         another_sent_split.append(sent)
+            if len(sent) > max_length:
+                if ';' in sent:
+                    another_sent_split.extend(sent.split(';'))
+                elif ':' in sent:
+                    another_sent_split.extend(sent.split(':'))
+                elif ' - ' in sent:
+                    another_sent_split.extend(sent.split('-'))
+                if ',' in sent:
+                    another_sent_split.extend(sent.split(','))
+                else:
+                    another_sent_split.append(sent)
             else:
                 another_sent_split.append(sent)
         sentences = [s.strip() for s in another_sent_split if s.strip()]
