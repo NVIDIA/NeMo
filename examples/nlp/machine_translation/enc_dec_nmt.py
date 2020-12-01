@@ -165,8 +165,6 @@ def main(cfg: DefaultConfig) -> None:
     mt_model = MTEncDecModel(mt_config, trainer=trainer)
 
     trainer.fit(mt_model)
-    # transformer_mt.save_to("transformer.nemo")
-    # print("Model saved to: transformer.nemo")
 
 
 if __name__ == '__main__':
