@@ -44,7 +44,7 @@ from nemo.core import optim
 from nemo.core.config import hydra_runner, optimizers
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
+from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
 
 @dataclass
@@ -134,11 +134,15 @@ class DefaultConfig:
     # optimizer configurations
     optim: MTOptimConfig = MTOptimConfig(sched=MTSchedConfig())
 
+    # experiment manager configurations
+    exp_manager: ExpManagerConfig = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+
 
 @hydra_runner(config_path="conf", config_name="enc_dec", schema=DefaultConfig)
 def main(cfg: DefaultConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = instantiate(cfg.trainer)
+    exp_manager(trainer, cfg.exp_manager)
 
     mt_config = MTEncDecModelConfig(
         encoder_tokenizer=cfg.encoder_tokenizer,
