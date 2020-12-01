@@ -128,7 +128,7 @@ class DefaultConfig:
     num_test_examples: int = 3
     beam_size: int = 1
     len_pen: float = 0.0
-    max_generation_delta: int = 50
+    max_generation_delta: int = 10
     label_smoothing: Optional[float] = 0.0
 
     # optimizer configurations
