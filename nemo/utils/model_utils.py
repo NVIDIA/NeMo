@@ -21,7 +21,7 @@ from typing import List, Optional
 
 import pytorch_lightning as pl
 import wrapt
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf, errors as omegaconf_errors
 
 from nemo.utils import logging
 
@@ -356,9 +356,12 @@ def _convert_config(cfg: OmegaConf):
             cfg[param_key] = param_val
 
     # Recursion.
-    for _, sub_cfg in cfg.items():
-        if isinstance(sub_cfg, DictConfig):
-            _convert_config(sub_cfg)
+    try:
+        for _, sub_cfg in cfg.items():
+            if isinstance(sub_cfg, DictConfig):
+                _convert_config(sub_cfg)
+    except omegaconf_errors.OmegaConfBaseException as e:
+        logging.warning(f"Skipping config conversion for cfg:\n{cfg}\n due to OmegaConf error encountered :\n{e}.")
 
 
 def convert_model_config(cfg: DictConfig):
