@@ -107,10 +107,10 @@ def main(cfg: DictConfig) -> None:
                 f'Using pretrained {cfg.pretrained_model} model weights and skipping finetuning.'
             )
 
-    # if do_training:
-    #     trainer.fit(model)
-    #     if cfg.model.nemo_path:
-    #         model.save_to(cfg.model.nemo_path)
+    if do_training:
+        trainer.fit(model)
+        if cfg.model.nemo_path:
+            model.save_to(cfg.model.nemo_path)
 
     """
     After model training is done, you can use the model for inference.

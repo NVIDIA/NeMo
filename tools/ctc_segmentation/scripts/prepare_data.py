@@ -22,7 +22,7 @@ from typing import List
 
 import scipy.io.wavfile as wav
 from num2words import num2words
-from normalization_helpers import LATIN_TO_RU, NUMBERS_TO_ENG, NUMBERS_TO_RU, RU_ABBREVIATIONS
+from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 
 from nemo.collections import asr as nemo_asr
 
@@ -154,11 +154,7 @@ def split_text(
 
     sentences = re.split(split_pattern, transcript)
 
-    lens = [len(s) for s in sentences]
-    aver = sum(lens) / len(lens)
-    print(f'BEFORE aver:', aver)
-
-    def additional_split(sentences, max_length=50):
+    def additional_split(sentences, max_length=100):
         another_sent_split = []
         for sent in sentences:
             if len(sent) > max_length:
@@ -177,8 +173,6 @@ def split_text(
         sentences = [s.strip() for s in another_sent_split if s.strip()]
         return sentences
 
-    min_length = 5
-    max_length = 90
     for i in range(3):
         sentences = additional_split(sentences, max_length)
 
@@ -241,6 +235,7 @@ def split_text(
         new_text += sentences[match_end:]
         sentences = new_text
     except NotImplementedError:
+        print(f'{language} might be missing in "num2words" package.')
         raise
 
     # make sure to leave punctuation present in vocabulary
