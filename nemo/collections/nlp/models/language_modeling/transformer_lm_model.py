@@ -22,12 +22,13 @@ from pytorch_lightning import Trainer
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import Perplexity
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.nlp.data import L2RLanguageModelingDataset
+from nemo.collections.nlp.data import L2RLanguageModelingDataset, TarredL2RLanguageModelingDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
+from nemo.utils import logging
 
 __all__ = ["TransformerLMModel"]
 
@@ -38,6 +39,13 @@ class TransformerLMModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        self.global_rank = 0
+        self.world_size = 1
+        if trainer is not None:
+            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_gpus
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
@@ -152,6 +160,19 @@ class TransformerLMModel(ModelPT):
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches
+                    * math.ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                )
+
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_dataloader_from_config(
             cfg=val_data_config, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
@@ -163,16 +184,49 @@ class TransformerLMModel(ModelPT):
         )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, predict_last_k=0):
-        dataset = L2RLanguageModelingDataset(
-            tokenizer=self.tokenizer,
-            dataset=cfg.file_name,
-            max_seq_length=self.dataset_cfg.max_seq_length,
-            batch_step=predict_last_k,
-        )
+        if cfg.get('use_cache', False):
+            logging.info("Constructing tokenized dataset cache...")
+
+        shuffle = cfg.shuffle
+
+        if cfg.get('is_tarred', False):
+            if ('tarred_text_filepaths' in cfg and cfg['tarred_text_filepaths'] is None) or (
+                'file_name' in cfg and cfg['file_name'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `file_name` was None or "
+                    f"`tarred_text_filepaths` is None. Provided config : {cfg}"
+                )
+                return None
+
+            shuffle_n = cfg.get('shuffle_n', 4 * cfg['batch_size']) if shuffle else 0
+            dataset = TarredL2RLanguageModelingDataset(
+                text_tar_filepaths=cfg['tarred_text_filepaths'],
+                metadata_path=cfg['file_name'],
+                tokenizer=self.tokenizer,
+                max_seq_length=self.dataset_cfg.max_seq_length,
+                batch_step=predict_last_k,
+                shuffle_n=shuffle_n,
+                shard_strategy=cfg.get("tarred_shard_strategy", "scatter"),
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+            )
+
+            shuffle = False
+        else:
+
+            dataset = L2RLanguageModelingDataset(
+                tokenizer=self.tokenizer,
+                dataset=cfg.file_name,
+                max_seq_length=self.dataset_cfg.max_seq_length,
+                batch_step=predict_last_k,
+                use_cache=cfg.get('use_cache', False),
+            )
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg.batch_size,
-            shuffle=cfg.shuffle,
+            shuffle=shuffle,
             num_workers=self.dataset_cfg.get("num_workers", 2),
             pin_memory=self.dataset_cfg.get("pin_memory", False),
             drop_last=self.dataset_cfg.get("drop_last", False),

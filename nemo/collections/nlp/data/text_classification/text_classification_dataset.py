@@ -33,6 +33,7 @@ from nemo.collections.nlp.parts.utils_funcs import list2str
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.env_var_parsing import get_envint
 
 __all__ = ['TextClassificationDataset', 'calc_class_weights']
 
@@ -103,7 +104,7 @@ class TextClassificationDataset(Dataset):
                 f"cached_{filename}_{tokenizer_name}_{max_seq_length}_{vocab_size}_{num_samples}_{self.pad_id}_{shuffle}.pkl",
             )
 
-            if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            if get_envint("LOCAL_RANK", 0) == 0:
                 if use_cache and os.path.exists(cached_features_file):
                     logging.warning(
                         f"Processing of {input_file} is skipped as caching is enabled and a cache file "

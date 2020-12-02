@@ -26,6 +26,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -40,7 +41,7 @@ from nemo.utils.export_utils import attach_onnx_to_onnx
 __all__ = ['PunctuationCapitalizationModel']
 
 
-class PunctuationCapitalizationModel(ModelPT, Exportable):
+class PunctuationCapitalizationModel(NLPModel, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -56,7 +57,7 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        self._setup_tokenizer(cfg.tokenizer)
+        self.setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -168,6 +169,33 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
             'capit_fp': self.capit_class_report.fp,
         }
 
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        """
+        Lightning calls this inside the validation loop with the data from the validation dataloader
+        passed in as `batch`.
+        """
+        _, _, _, subtokens_mask, _, punct_labels, capit_labels = batch
+        test_loss, punct_logits, capit_logits = self._make_step(batch)
+
+        subtokens_mask = subtokens_mask > 0.5
+        punct_preds = torch.argmax(punct_logits, axis=-1)[subtokens_mask]
+        punct_labels = punct_labels[subtokens_mask]
+        self.punct_class_report.update(punct_preds, punct_labels)
+
+        capit_preds = torch.argmax(capit_logits, axis=-1)[subtokens_mask]
+        capit_labels = capit_labels[subtokens_mask]
+        self.capit_class_report.update(capit_preds, capit_labels)
+
+        return {
+            'test_loss': test_loss,
+            'punct_tp': self.punct_class_report.tp,
+            'punct_fn': self.punct_class_report.fn,
+            'punct_fp': self.punct_class_report.fp,
+            'capit_tp': self.capit_class_report.tp,
+            'capit_fn': self.capit_class_report.fn,
+            'capit_fp': self.capit_class_report.fp,
+        }
+
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of validation to aggregate outputs.
@@ -191,14 +219,28 @@ class PunctuationCapitalizationModel(ModelPT, Exportable):
         self.log('capit_f1', capit_f1)
         self.log('capit_recall', capit_recall)
 
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
-        )
-        self.tokenizer = tokenizer
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        """
+            Called at the end of test to aggregate outputs.
+            outputs: list of individual outputs of each validation step.
+        """
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+
+        # calculate metrics and log classification report for Punctuation task
+        punct_precision, punct_recall, punct_f1, punct_report = self.punct_class_report.compute()
+        logging.info(f'Punctuation report: {punct_report}')
+
+        # calculate metrics and log classification report for Capitalization task
+        capit_precision, capit_recall, capit_f1, capit_report = self.capit_class_report.compute()
+        logging.info(f'Capitalization report: {capit_report}')
+
+        self.log('test_loss', avg_loss, prog_bar=True)
+        self.log('punct_precision', punct_precision)
+        self.log('punct_f1', punct_f1)
+        self.log('punct_recall', punct_recall)
+        self.log('capit_precision', capit_precision)
+        self.log('capit_f1', capit_f1)
+        self.log('capit_recall', capit_recall)
 
     def update_data_dir(self, data_dir: str) -> None:
         """

@@ -64,9 +64,13 @@ def write_manifest(file, args_func):
 
         while left > 0:
             if left <= split_duration:
-                status = 'end'
-                write_duration = left + time_length
-                current_offset -= time_length
+                if status == 'single':
+                    write_duration = left
+                    current_offset = 0
+                else:
+                    status = 'end'
+                    write_duration = left + time_length
+                    current_offset -= time_length
                 offset_inc = left
                 left = 0
             else:

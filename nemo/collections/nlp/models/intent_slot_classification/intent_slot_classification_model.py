@@ -53,70 +53,143 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """ Initializes BERT Joint Intent and Slot model.
         """
-
-        self.data_dir = cfg.data_dir
         self.max_seq_length = cfg.language_model.max_seq_length
 
-        self.data_desc = IntentSlotDataDesc(
-            data_dir=cfg.data_dir, modes=[cfg.train_ds.prefix, cfg.validation_ds.prefix]
-        )
+        # Setup tokenizer.
+        self.setup_tokenizer(cfg.tokenizer)
 
-        self._setup_tokenizer(cfg.tokenizer)
+        # Check the presence of data_dir.
+        if not cfg.data_dir or not os.path.exists(cfg.data_dir):
+            # Disable setup methods.
+            IntentSlotClassificationModel._set_model_restore_state(is_being_restored=True)
+            # Set default values of data_desc.
+            self._set_defaults_data_desc(cfg)
+        else:
+            self.data_dir = cfg.data_dir
+            # Update configuration of data_desc.
+            self._set_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
+
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # initialize Bert model
+        # Enable setup methods.
+        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
+
+        # Initialize Bert model
         self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.config_file,
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
+            pretrained_model_name=self.cfg.language_model.pretrained_model_name,
+            config_file=self.cfg.language_model.config_file,
+            config_dict=OmegaConf.to_container(self.cfg.language_model.config)
+            if self.cfg.language_model.config
+            else None,
+            checkpoint_file=self.cfg.language_model.lm_checkpoint,
         )
+
+        # Initialize Classifier.
+        self._reconfigure_classifier()
+
+    def _set_defaults_data_desc(self, cfg):
+        """
+        Method makes sure that cfg.data_desc params are set.
+        If not, set's them to "dummy" defaults.
+        """
+        if not hasattr(cfg, "data_desc"):
+            OmegaConf.set_struct(cfg, False)
+            cfg.data_desc = {}
+            # Intents.
+            cfg.data_desc.intent_labels = " "
+            cfg.data_desc.intent_label_ids = {" ": 0}
+            cfg.data_desc.intent_weights = [1]
+            # Slots.
+            cfg.data_desc.slot_labels = " "
+            cfg.data_desc.slot_label_ids = {" ": 0}
+            cfg.data_desc.slot_weights = [1]
+
+            cfg.data_desc.pad_label = "O"
+            OmegaConf.set_struct(cfg, True)
+
+    def _set_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
+        """ Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc. """
+        # Save data from data desc to config - so it can be reused later, e.g. in inference.
+        data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
+        OmegaConf.set_struct(cfg, False)
+        if not hasattr(cfg, "data_desc") or cfg.data_desc is None:
+            cfg.data_desc = {}
+        # Intents.
+        cfg.data_desc.intent_labels = list(data_desc.intents_label_ids.keys())
+        cfg.data_desc.intent_label_ids = data_desc.intents_label_ids
+        cfg.data_desc.intent_weights = data_desc.intent_weights
+        # Slots.
+        cfg.data_desc.slot_labels = list(data_desc.slots_label_ids.keys())
+        cfg.data_desc.slot_label_ids = data_desc.slots_label_ids
+        cfg.data_desc.slot_weights = data_desc.slot_weights
+
+        cfg.data_desc.pad_label = data_desc.pad_label
+        OmegaConf.set_struct(cfg, True)
+
+    def _reconfigure_classifier(self):
+        """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
 
         self.classifier = SequenceTokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
-            num_intents=self.data_desc.num_intents,
-            num_slots=self.data_desc.num_slots,
-            dropout=cfg.head.fc_dropout,
-            num_layers=cfg.head.num_output_layers,
+            num_intents=len(self.cfg.data_desc.intent_labels),
+            num_slots=len(self.cfg.data_desc.slot_labels),
+            dropout=self.cfg.head.fc_dropout,
+            num_layers=self.cfg.head.num_output_layers,
             log_softmax=False,
         )
 
         # define losses
-        if cfg.class_balancing == 'weighted_loss':
+        if self.cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.data_desc.intent_weights)
-            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.slot_weights)
+            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.cfg.intent_weights)
+            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.cfg.slot_weights)
         else:
             self.intent_loss = CrossEntropyLoss(logits_ndim=2)
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
 
-        self.total_loss = AggregatorLoss(num_inputs=2, weights=[cfg.intent_loss_weight, 1.0 - cfg.intent_loss_weight])
+        self.total_loss = AggregatorLoss(
+            num_inputs=2, weights=[self.cfg.intent_loss_weight, 1.0 - self.cfg.intent_loss_weight]
+        )
 
         # setup to track metrics
         self.intent_classification_report = ClassificationReport(
-            num_classes=self.data_desc.num_intents,
-            label_ids=self.data_desc.intents_label_ids,
+            num_classes=len(self.cfg.data_desc.intent_labels),
+            label_ids=self.cfg.data_desc.intent_label_ids,
             dist_sync_on_step=True,
             mode='micro',
         )
         self.slot_classification_report = ClassificationReport(
-            num_classes=self.data_desc.num_slots,
-            label_ids=self.data_desc.slots_label_ids,
+            num_classes=len(self.cfg.data_desc.slot_labels),
+            label_ids=self.cfg.data_desc.slot_label_ids,
             dist_sync_on_step=True,
             mode='micro',
         )
 
-    def update_data_dir(self, data_dir: str) -> None:
+    def update_data_dir_for_training(self, data_dir: str, train_ds, validation_ds) -> None:
         """
-        Update data directory and get data stats with Data Descriptor
-        Weights are later used to setup loss
+        Update data directory and get data stats with Data Descriptor.
+        Also, reconfigures the classifier - to cope with data with e.g. different number of slots.
 
         Args:
             data_dir: path to data directory
         """
+        logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
-        logging.info(f'Setting model.data_dir to {data_dir}.')
+        # Update configuration with new data.
+        self._set_data_desc_to_cfg(self.cfg, data_dir, train_ds, validation_ds)
+        # Reconfigure the classifier for different settings (number of intents, slots etc.).
+        self._reconfigure_classifier()
+
+    def update_data_dir_for_testing(self, data_dir) -> None:
+        """
+        Update data directory.
+
+        Args:
+            data_dir: path to data directory
+        """
+        logging.info(f'Setting data_dir to {data_dir}.')
+        self.data_dir = data_dir
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -236,15 +309,6 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         """
         return self.validation_epoch_end(outputs)
 
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            tokenizer_model=cfg.tokenizer_model,
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            vocab_file=cfg.vocab_file,
-        )
-        self.tokenizer = tokenizer
-
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
@@ -270,9 +334,9 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             tokenizer=self.tokenizer,
             max_seq_length=self.max_seq_length,
             num_samples=cfg.num_samples,
-            pad_label=self.data_desc.pad_label,
-            ignore_extra_tokens=self._cfg.ignore_extra_tokens,
-            ignore_start_end=self._cfg.ignore_start_end,
+            pad_label=self.cfg.data_desc.pad_label,
+            ignore_extra_tokens=self.cfg.ignore_extra_tokens,
+            ignore_start_end=self.cfg.ignore_start_end,
         )
 
         return DataLoader(
@@ -285,7 +349,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             collate_fn=dataset.collate_fn,
         )
 
-    def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(self, queries: List[str], test_ds) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
         Args:
@@ -294,6 +358,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         Returns:
             A pytorch DataLoader.
         """
+
         dataset = IntentSlotInferenceDataset(
             tokenizer=self.tokenizer, queries=queries, max_seq_length=-1, do_lower_case=False
         )
@@ -301,19 +366,19 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=self._cfg.test_ds.num_workers,
-            pin_memory=self._cfg.test_ds.pin_memory,
-            drop_last=False,
+            batch_size=test_ds.batch_size,
+            shuffle=test_ds.shuffle,
+            num_workers=test_ds.num_workers,
+            pin_memory=test_ds.pin_memory,
+            drop_last=test_ds.drop_last,
         )
 
-    def predict_from_examples(self, queries: List[str], batch_size: int = 32) -> List[List[str]]:
+    def predict_from_examples(self, queries: List[str], test_ds) -> List[List[str]]:
         """
         Get prediction for the queries (intent and slots)
         Args:
             queries: text sequences
-            batch_size: batch size to use during inference
+            test_ds: Dataset configuration section.
         Returns:
             predicted_intents, predicted_slots: model intent and slot predictions
         """
@@ -322,13 +387,23 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         mode = self.training
         try:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+            # Retrieve intent and slot vocabularies from configuration.
+            intent_labels = self.cfg.data_desc.intent_labels
+            slot_labels = self.cfg.data_desc.slot_labels
+
+            # Initialize tokenizer.
+            # if not hasattr(self, "tokenizer"):
+            #    self._setup_tokenizer(self.cfg.tokenizer)
+            # Initialize modules.
+            # self._reconfigure_classifier()
+
             # Switch model to evaluation mode
             self.eval()
             self.to(device)
-            infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
 
-            # load intent and slot labels from the dictionary files (user should have them in a data directory)
-            intent_labels, slot_labels = IntentSlotDataDesc.intent_slot_dicts(self.data_dir)
+            # Dataset.
+            infer_datalayer = self._setup_infer_dataloader(queries, test_ds)
 
             for batch in infer_datalayer:
                 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = batch
@@ -346,7 +421,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
                 # convert numerical outputs to Intent and Slot labels from the dictionaries
                 for intent_num in intent_preds:
                     if intent_num < len(intent_labels):
-                        predicted_intents.append(intent_labels[intent_num])
+                        predicted_intents.append(intent_labels[int(intent_num)])
                     else:
                         # should not happen
                         predicted_intents.append("Unknown Intent")
@@ -359,7 +434,7 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
                     for slot, mask in zip(slot_preds_query, mask_query):
                         if mask == 1:
                             if slot < len(slot_labels):
-                                query_slots += slot_labels[slot] + ' '
+                                query_slots += slot_labels[int(slot)] + ' '
                             else:
                                 query_slots += 'Unknown_slot '
                     predicted_slots.append(query_slots.strip())

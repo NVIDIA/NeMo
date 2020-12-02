@@ -35,6 +35,7 @@ parser.add_argument("--data_root", default='CommonVoice_dataset/', type=str, hel
 parser.add_argument('--manifest_dir', default='./', type=str, help='Output directory for manifests')
 parser.add_argument("--num_workers", default=multiprocessing.cpu_count(), type=int, help="Workers to process dataset.")
 parser.add_argument('--sample_rate', default=16000, type=int, help='Sample rate')
+parser.add_argument('--n_channels', default=1, type=int, help='Number of channels for output wav files')
 parser.add_argument(
     '--files_to_process',
     nargs='+',
@@ -94,6 +95,7 @@ def process_files(csv_file, data_root, num_workers):
 
         tfm = Transformer()
         tfm.rate(samplerate=args.sample_rate)
+        tfm.channels(n_channels=args.n_channels)
         tfm.build(input_filepath=audio_path, output_filepath=output_wav_path)
         duration = sox.file_info.duration(output_wav_path)
         return output_wav_path, duration, text

@@ -66,8 +66,8 @@ class TokenClassificationModel(NLPModel, Exportable):
             else:
                 raise ValueError(f'{cfg.label_ids} not found.')
 
-        self._setup_tokenizer(cfg.tokenizer)
-
+        self.setup_tokenizer(cfg.tokenizer)
+        self.class_weights = None
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
@@ -87,7 +87,6 @@ class TokenClassificationModel(NLPModel, Exportable):
             use_transformer_init=self._cfg.head.use_transformer_init,
         )
 
-        self.class_weights = None
         self.loss = self.setup_loss(class_balancing=self._cfg.dataset.class_balancing)
 
         # setup to track metrics
@@ -113,11 +112,15 @@ class TokenClassificationModel(NLPModel, Exportable):
         Args:
             class_balancing: whether to use class weights during training
         """
+        if class_balancing not in ['weighted_loss', None]:
+            raise ValueError(f'Class balancing {class_balancing} is not supported. Choose from: [null, weighted_loss]')
         if class_balancing == 'weighted_loss' and self.class_weights:
             # you may need to increase the number of epochs for convergence when using weighted_loss
             loss = CrossEntropyLoss(logits_ndim=3, weight=self.class_weights)
+            logging.debug(f'Using {class_balancing} class balancing.')
         else:
             loss = CrossEntropyLoss(logits_ndim=3)
+            logging.debug(f'Using CrossEntropyLoss class balancing.')
         return loss
 
     @typecheck()
@@ -181,26 +184,28 @@ class TokenClassificationModel(NLPModel, Exportable):
         self.log('recall', recall)
 
     def test_step(self, batch, batch_idx):
-        """
-        Lightning calls this inside the test loop with the data from the test dataloader
-        passed in as `batch`.
-        """
-        return self.validation_step(batch, batch_idx)
+        input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
+        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        val_loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
+
+        subtokens_mask = subtokens_mask > 0.5
+
+        preds = torch.argmax(logits, axis=-1)[subtokens_mask]
+        labels = labels[subtokens_mask]
+        tp, fn, fp, _ = self.classification_report(preds, labels)
+
+        return {'test_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
     def test_epoch_end(self, outputs):
-        """
-        Called at the end of test to aggregate outputs.
-        """
-        return self.validation_epoch_end(outputs)
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        # calculate metrics and classification report
+        precision, recall, f1, report = self.classification_report.compute()
+        logging.info(report)
 
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
-        )
-        self.tokenizer = tokenizer
+        self.log('test_loss', avg_loss, prog_bar=True)
+        self.log('precision', precision)
+        self.log('f1', f1)
+        self.log('recall', recall)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
@@ -212,7 +217,7 @@ class TokenClassificationModel(NLPModel, Exportable):
             is_training=True,
             pad_label=self._cfg.dataset.pad_label,
             label_ids_dict=self._cfg.label_ids,
-            get_weights=self._cfg.dataset.class_balancing == 'weighted_loss',
+            get_weights=True,
         )
         # save label maps to the config
         self._cfg.label_ids = OmegaConf.create(label_ids)
@@ -358,17 +363,25 @@ class TokenClassificationModel(NLPModel, Exportable):
             self.train(mode=mode)
         return all_preds
 
-    def add_predictions(self, queries: Union[List[str], str], batch_size: int = 32) -> List[str]:
+    def add_predictions(
+        self, queries: Union[List[str], str], batch_size: int = 32, output_file: Optional[str] = None
+    ) -> List[str]:
         """
         Add predicted token labels to the queries. Use this method for debugging and prototyping.
         Args:
             queries: text
             batch_size: batch size to use during inference.
+            output_file: file to save models predictions
         Returns:
             result: text with added entities
         """
         if queries is None or len(queries) == 0:
             return []
+
+        if isinstance(queries, str):
+            logging.info(f'Reading from {queries} file')
+            with open(queries, 'r') as f:
+                queries = f.readlines()
 
         result = []
         all_preds = self._infer(queries, batch_size)
@@ -405,6 +418,12 @@ class TokenClassificationModel(NLPModel, Exportable):
                     query_with_entities += '[' + label + ']'
                 query_with_entities += punct + ' '
             result.append(query_with_entities.strip())
+
+        if output_file is not None:
+            with open(output_file, 'w') as f:
+                for r in result:
+                    f.write(r + '\n')
+            logging.info(f'Predictions saved to {output_file}')
         return result
 
     def evaluate_from_file(
