@@ -13,10 +13,7 @@
 # limitations under the License.
 
 """
-This script serves three goals:
-    (1) Demonstrate how to use NeMo Models outside of PytorchLightning
-    (2) Shows example of batch ASR inference
-    (3) Serves as CI test for pre-trained checkpoint
+Script for post training quantization of ASR models
 """
 
 import collections

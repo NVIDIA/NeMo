@@ -13,10 +13,7 @@
 # limitations under the License.
 
 """
-This script serves three goals:
-    (1) Demonstrate how to use NeMo Models outside of PytorchLightning
-    (2) Shows example of batch ASR inference
-    (3) Serves as CI test for pre-trained checkpoint
+Script for calibrating a pretrained ASR model for quantization
 """
 
 from argparse import ArgumentParser
@@ -27,7 +24,6 @@ from pytorch_quantization import nn as quant_nn
 from pytorch_quantization import quant_modules
 from pytorch_quantization.tensor_quant import QuantDescriptor
 
-from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
 
