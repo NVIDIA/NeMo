@@ -98,7 +98,7 @@ class AutoTokenizer(TokenizerSpec):
         try:
             if vocab_file is not None:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file
+                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=False
                 )
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(pretrained_model_name_or_path=pretrained_model_name)
