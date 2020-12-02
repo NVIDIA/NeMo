@@ -290,7 +290,6 @@ def check_resume(
     checkpoint_dir = Path(Path(log_dir) / "checkpoints")
     checkpoint = None
     end_checkpoints = list(checkpoint_dir.glob("*end.ckpt"))
-    end_checkpoints.extend(list(checkpoint_dir.glob("*.nemo")))
     last_checkpoints = list(checkpoint_dir.glob("*last.ckpt"))
     if not checkpoint_dir.exists():
         if resume_ignore_no_checkpoint:
