@@ -89,7 +89,10 @@ class TransformerEmbedding(nn.Module):
     def forward(self, input_ids, token_type_ids=None, start_pos=0):
         seq_length = input_ids.size(1)
         if seq_length > self.max_sequence_length:
-            raise ValueError("Input sequence is longer than maximum allowed sequence length for positional encoding")
+            raise ValueError(
+                f"Input sequence is longer than maximum allowed sequence length for positional encoding. "
+                f"Got {seq_length} and {self.max_sequence_length}"
+            )
         position_ids = torch.arange(
             start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device
         )
@@ -140,7 +143,6 @@ class MultiHeadAttention(nn.Module):
 
         self.attn_dropout = nn.Dropout(attn_score_dropout)
         self.layer_dropout = nn.Dropout(attn_layer_dropout)
-        self.layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attn_head_size)
@@ -174,8 +176,6 @@ class MultiHeadAttention(nn.Module):
         # output projection
         output_states = self.out_projection(context)
         output_states = self.layer_dropout(output_states)
-        output_states = self.layer_norm(queries + output_states)
-
         return output_states
 
 
@@ -196,7 +196,6 @@ class PositionWiseFF(nn.Module):
         self.dense_in = nn.Linear(hidden_size, inner_size)
         self.dense_out = nn.Linear(inner_size, hidden_size)
         self.layer_dropout = nn.Dropout(ffn_dropout)
-        self.layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
         ACT2FN = {"gelu": gelu, "relu": torch.relu}
         self.act_fn = ACT2FN[hidden_act]
 
@@ -205,5 +204,4 @@ class PositionWiseFF(nn.Module):
         output_states = self.act_fn(output_states)
         output_states = self.dense_out(output_states)
         output_states = self.layer_dropout(output_states)
-        output_states = self.layer_norm(hidden_states + output_states)
         return output_states

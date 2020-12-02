@@ -16,15 +16,90 @@ from pathlib import Path
 
 import pytest
 import pytorch_lightning as pl
+import torch
+from omegaconf import OmegaConf
 from omegaconf.errors import OmegaConfBaseException
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
+from nemo.core.classes import ModelPT
 from nemo.utils.exp_manager import (
     CheckpointMisconfigurationError,
     LoggerMisconfigurationError,
     NotFoundError,
     exp_manager,
 )
+
+
+class MyTestOptimizer(torch.optim.Optimizer):
+    def __init__(self, params):
+        self._step = 0
+        super().__init__(params, {})
+
+    def step(self, *args, **kwargs):
+        for group in self.param_groups:
+            for p in group['params']:
+                if self._step == 0:
+                    p.data = 0.1 * torch.ones(p.shape)
+                elif self._step == 1:
+                    p.data = 0.0 * torch.ones(p.shape)
+                else:
+                    p.data = 0.01 * torch.ones(p.shape)
+        self._step += 1
+        return None
+
+
+class OnesDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset_len):
+        super().__init__()
+        self.__dataset_len = dataset_len
+
+    def __getitem__(self, *args):
+        return torch.ones(2)
+
+    def __len__(self):
+        return self.__dataset_len
+
+
+class ExampleModel(ModelPT):
+    def __init__(self, *args, **kwargs):
+        cfg = OmegaConf.structured({})
+        super().__init__(cfg)
+        self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
+
+    def train_dataloader(self):
+        dataset = OnesDataset(2)
+        return torch.utils.data.DataLoader(dataset, batch_size=2)
+
+    def val_dataloader(self):
+        dataset = OnesDataset(10)
+        return torch.utils.data.DataLoader(dataset, batch_size=2)
+
+    def forward(self, batch):
+        output = self.l1(batch)
+        output = torch.nn.functional.l1_loss(output, torch.zeros(output.size()).to(output.device))
+        return output
+
+    def validation_step(self, batch, batch_idx):
+        return self(batch)
+
+    def training_step(self, batch, batch_idx):
+        return self(batch)
+
+    def configure_optimizers(self):
+        return MyTestOptimizer(self.parameters())
+        # return torch.optim.Adam(self.parameters(), lr=0.1)
+
+    def list_available_models(self):
+        pass
+
+    def setup_training_data(self):
+        pass
+
+    def setup_validation_data(self):
+        pass
+
+    def validation_epoch_end(self, loss):
+        self.log("val_loss", torch.stack(loss).mean())
 
 
 class TestExpManager:
@@ -234,3 +309,30 @@ class TestExpManager:
         assert prev_run_dir.exists()
         prev_log = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0" / "lightning_logs.txt")
         assert prev_log.exists()
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_save_best_model_1(self, cleanup_local_folder, tmp_path):
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
+        log_dir = exp_manager(
+            test_trainer,
+            {"checkpoint_callback_params": {"nemo_save_best_model": True}, "explicit_log_dir": str(tmp_path / "test")},
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
+
+        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
+        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_save_best_model_2(self, cleanup_local_folder, tmp_path):
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
+        log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test")},)
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
+
+        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
+        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03 < 1e-9

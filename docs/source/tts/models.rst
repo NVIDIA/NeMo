@@ -14,7 +14,7 @@ Tacotron 2 can be instantiated using the :class:`Tacotron2Model<nemo.collections
 Glow-TTS
 --------
 
-Glow-TTS :cite:`tts-models-kim2020glow` is a Flow-based generative model that mel spectrograms.
+Glow-TTS :cite:`tts-models-kim2020glow` is a Flow-based generative model that generates mel spectrograms.
 
 Glow-TTS can be instantiated using the :class:`GlowTTSModel<nemo.collections.tts.models.GlowTTSModel>` class.
 
@@ -45,6 +45,11 @@ SqueezeWave also uses larger group sizes, which reduces computation along the te
 
 SqueezeWave can be instantiated using the :class:`SqueezeWaveModel<nemo.collections.tts.models.SqueezeWaveModel>` class.
 
+Full-band MelGAN
+----------------
+
+The :class:`MelGanModel<nemo.collections.tts.models.MelGanModel>` class implements Full-band MelGAN as described in
+:cite:`yang2020multiband`. MelGAN is a GAN-based vocoder that converts mel-spectrograms to audio.
 
 References
 ----------

@@ -14,6 +14,8 @@
 
 import math
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Optional
 
 import torch
 from packaging import version
@@ -543,3 +545,42 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
     @classmethod
     def restore_from(cls, restore_path: str):
         pass
+
+
+@dataclass
+class AudioToMelSpectrogramPreprocessorConfig:
+    _target_: str = "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
+    sample_rate: int = 16000
+    window_size: float = 0.02
+    window_stride: float = 0.01
+    n_window_size: Optional[int] = None
+    n_window_stride: Optional[int] = None
+    window: str = "hann"
+    normalize: str = "per_feature"
+    n_fft: Optional[int] = None
+    preemph: float = 0.97
+    features: int = 64
+    lowfreq: int = 0
+    highfreq: Optional[int] = None
+    log: bool = True
+    log_zero_guard_type: str = "add"
+    log_zero_guard_value: float = 2 ** -24
+    dither: float = 1e-5
+    pad_to: int = 16
+    frame_splicing: int = 1
+    stft_exact_pad: bool = False
+    stft_conv: bool = False
+    pad_value: int = 0
+    mag_power: float = 2.0
+
+
+@dataclass
+class SpectrogramAugmentationConfig:
+    _target_: str = "nemo.collections.asr.modules.SpectrogramAugmentation"
+    freq_masks: int = 0
+    time_masks: int = 0
+    freq_width: int = 0
+    time_width: Optional[Any] = 0
+    rect_masks: int = 0
+    rect_time: int = 0
+    rect_freq: int = 0
