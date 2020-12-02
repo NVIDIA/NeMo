@@ -21,8 +21,8 @@ from typing import List, Optional
 
 import pytorch_lightning as pl
 import wrapt
-from omegaconf import DictConfig, ListConfig, OmegaConf, errors as omegaconf_errors
-
+from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import errors as omegaconf_errors
 from nemo.utils import logging
 
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
