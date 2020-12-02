@@ -28,7 +28,7 @@ def get_status(data):
        data : List of filepath of audio snippet
     Return : list of status of each snippet.
     """
-    status = np.zeros(shape=(len(len(data),))
+    status = [None] * len(data)
     for i in range(len(data)):
         if i == 0:
             status[i] = 'start' if data[i] == data[i + 1] else 'single'
@@ -43,7 +43,7 @@ def get_status(data):
                 status[i] = 'end'
             else:
                 status[i] = 'single'
-      return status
+    return status
 
 def gen_overlap_seq(frame_filepath, per_args):
     """
