@@ -19,6 +19,32 @@ import numpy as np
 import pandas as pd
 
 
+
+def get_status(data):
+    """
+    Generate a list of status for each snippet in manifest. A snippet should be in single, start, next or end status. 
+    Used for concatenate to full audio file.
+    Args:
+       data : List of filepath of audio snippet
+    Return : list of status of each snippet.
+    """
+    status = np.zeros(shape=(len(len(data),))
+    for i in range(len(data)):
+        if i == 0:
+            status[i] = 'start' if data[i] == data[i + 1] else 'single'
+        elif i == len(data) - 1:
+            status[i] = 'end' if data[i] == data[i - 1] else 'single'
+        else:
+            if data[i] != data[i - 1] and data[i] == data[i + 1]:
+                status[i] = 'start'
+            elif data[i] == data[i - 1] and data[i] == data[i + 1]:
+                status[i] = 'next'
+            elif data[i] == data[i - 1] and data[i] != data[i + 1]:
+                status[i] = 'end'
+            else:
+                status[i] = 'single'
+      return status
+
 def gen_overlap_seq(frame_filepath, per_args):
     """
     Given a frame level prediction, generate predictions with overlapping input segments by using it
@@ -171,3 +197,5 @@ def write_manifest(vad_directory, audio_directory, manifest_file):
                     outfile.write("\n")
 
             f.close()
+
+           
