@@ -101,20 +101,12 @@ class EncDecCTCModel(ASRModel, Exportable):
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
 
         with open_dict(self._cfg):
-            if "params" in self._cfg.decoder:
-                if "feat_in" not in self._cfg.decoder.params or (
-                    not self._cfg.decoder.params.feat_in and hasattr(self.encoder, '_feat_out')
-                ):
-                    self._cfg.decoder.params.feat_in = self.encoder._feat_out
-                if "feat_in" not in self._cfg.decoder.params or not self._cfg.decoder.params.feat_in:
-                    raise ValueError("param feat_in of the decoder's config is not set!")
-            else:
-                if "feat_in" not in self._cfg.decoder or (
-                    not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
-                ):
-                    self._cfg.decoder.feat_in = self.encoder._feat_out
-                if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
-                    raise ValueError("param feat_in of the decoder's config is not set!")
+            if "feat_in" not in self._cfg.decoder or (
+                not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+            ):
+                self._cfg.decoder.feat_in = self.encoder._feat_out
+            if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
+                raise ValueError("param feat_in of the decoder's config is not set!")
 
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
 
@@ -227,17 +219,8 @@ class EncDecCTCModel(ASRModel, Exportable):
                 raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
-            if 'vocabulary' in new_decoder_config:
-                logging.warning(
-                    "This config uses `cls` and `params` as a way of instantiating classes using Hydra. "
-                    "Please note that this is deprecated and as of Hydra 1.1, it will not be supported. "
-                    "Please refer to Hydra documentation to update your config."
-                )
-                new_decoder_config['vocabulary'] = new_vocabulary
-                new_decoder_config['num_classes'] = len(new_vocabulary)
-            else:
-                new_decoder_config['params']['vocabulary'] = new_vocabulary
-                new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            new_decoder_config['vocabulary'] = new_vocabulary
+            new_decoder_config['num_classes'] = len(new_vocabulary)
 
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)

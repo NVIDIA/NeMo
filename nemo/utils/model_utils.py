@@ -340,3 +340,37 @@ def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
         instance.log_dict(log_dict, on_step=True)
 
     return output_dict
+
+
+def _convert_config(cfg: OmegaConf):
+    """ Recursive function convertint the configuration from old hydra format to the new one. """
+
+    # Get rid of cls -> _target_.
+    if 'cls' in cfg and "_target_" not in cfg:
+        cfg._target_ = cfg.pop("cls")
+
+    # Get rid of params.
+    if 'params' in cfg:
+        params = cfg.pop('params')
+        for param_key, param_val in params.items():
+            cfg[param_key] = param_val
+
+    # Recursion.
+    for _, sub_cfg in cfg.items():
+        if isinstance(sub_cfg, DictConfig):
+            _convert_config(sub_cfg)
+
+
+def convert_model_config(cfg: DictConfig):
+    """ Helper method, calls the recursive convert_config. """
+    # Make a copy of model config.
+    cfg = copy.deepcopy(cfg)
+    OmegaConf.set_struct(cfg, False)
+
+    # Convert config.
+    _convert_config(cfg)
+
+    # Update model config.
+    OmegaConf.set_struct(cfg, True)
+
+    return cfg

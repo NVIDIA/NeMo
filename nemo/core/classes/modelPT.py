@@ -118,6 +118,9 @@ class ModelPT(LightningModule, Model):
         config = OmegaConf.create(config)
         OmegaConf.set_struct(config, True)
 
+        # Convert config to support Hydra 1.0+ instantiation
+        config = model_utils.convert_model_config(config)
+
         self._cfg = config
 
         self.save_hyperparameters(self._cfg)

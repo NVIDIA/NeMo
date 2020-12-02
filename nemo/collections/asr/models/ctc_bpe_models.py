@@ -63,16 +63,10 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         # Set the new vocabulary
         with open_dict(cfg):
-            if "params" in cfg.decoder:
-                cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
-            else:
-                cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
+            cfg.decoder.vocabulary = ListConfig(list(vocabulary.values()))
 
         # Override number of classes if placeholder provided
-        if "params" in cfg.decoder:
-            num_classes = cfg.decoder["params"]["num_classes"]
-        else:
-            num_classes = cfg.decoder["num_classes"]
+        num_classes = cfg.decoder["num_classes"]
 
         if num_classes < 1:
             logging.info(
@@ -80,10 +74,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                     num_classes, len(vocabulary)
                 )
             )
-            if "params" in cfg.decoder:
-                cfg.decoder["params"]["num_classes"] = len(vocabulary)
-            else:
-                cfg.decoder["num_classes"] = len(vocabulary)
+            cfg.decoder["num_classes"] = len(vocabulary)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -207,10 +198,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         decoder_config = copy.deepcopy(self.decoder.to_config_dict())
         decoder_config.vocabulary = ListConfig(list(vocabulary.values()))
 
-        if "params" in decoder_config:
-            decoder_num_classes = decoder_config['params']['num_classes']
-        else:
-            decoder_num_classes = decoder_config['num_classes']
+        decoder_num_classes = decoder_config['num_classes']
 
         # Override number of classes if placeholder provided
         logging.info(
@@ -219,10 +207,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             )
         )
 
-        if "params" in decoder_config:
-            decoder_config['params']['num_classes'] = len(vocabulary)
-        else:
-            decoder_config['num_classes'] = len(vocabulary)
+        decoder_config['num_classes'] = len(vocabulary)
 
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
