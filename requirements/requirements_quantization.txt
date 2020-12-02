@@ -1,0 +1,2 @@
+--extra-index-url https://pypi.ngc.nvidia.com
+pytorch-quantization
