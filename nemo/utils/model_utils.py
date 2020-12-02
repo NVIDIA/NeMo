@@ -365,7 +365,19 @@ def _convert_config(cfg: OmegaConf):
 
 
 def convert_model_config(cfg: DictConfig):
-    """ Helper method, calls the recursive convert_config. """
+    """
+    Recursively convert Hydra 0.x configs to Hydra 1.x configs.
+
+    Changes include:
+    -   `cls` -> `_target_`.
+    -   `params` -> drop params and shift all arguments to parent.
+
+    Args:
+        cfg: Any Hydra compatible DictConfig
+
+    Returns:
+        An updated DictConfig that conforms to Hydra 1.x format.
+    """
     # Make a copy of model config.
     cfg = copy.deepcopy(cfg)
     OmegaConf.set_struct(cfg, False)
