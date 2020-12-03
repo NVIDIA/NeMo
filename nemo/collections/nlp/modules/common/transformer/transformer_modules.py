@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 import math
-from omegaconf.omegaconf import MISSING
+from dataclasses import dataclass
 
 import torch
+from omegaconf.omegaconf import MISSING
 from torch import nn
 from torch.nn.functional import gelu
 

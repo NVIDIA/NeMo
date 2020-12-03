@@ -14,7 +14,6 @@
 
 import itertools
 import math
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
 import random
 from dataclasses import MISSING, dataclass
 from pathlib import Path
@@ -33,10 +32,8 @@ from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import Perplexity
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
-from nemo.collections.nlp.models.enc_dec_nlp_model import (
-    EncDecNLPModel,
-    EncDecNLPModelConfig,
-)
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
+from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel, EncDecNLPModelConfig
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging

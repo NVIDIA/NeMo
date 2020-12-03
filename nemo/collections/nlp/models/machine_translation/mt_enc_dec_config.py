@@ -13,18 +13,17 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from typing import Optional, Tuple
 
 from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
+from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoderConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoderConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbeddingConfig
-from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
-
-from typing import Optional, Tuple
 
 
 @dataclass
@@ -117,4 +116,3 @@ class AAYNBaseConfig(ModelConfig):
         use_cache=True,
     )
     optim: Optional[OptimConfig] = AAYNBaseOptimConfig()
-

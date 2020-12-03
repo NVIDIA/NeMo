@@ -14,10 +14,10 @@
 
 import copy
 from dataclasses import dataclass
-from omegaconf.omegaconf import MISSING
 
 import torch
 import torch.nn as nn
+from omegaconf.omegaconf import MISSING
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
