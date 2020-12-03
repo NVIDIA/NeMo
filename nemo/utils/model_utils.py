@@ -14,10 +14,10 @@
 
 import copy
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import pytorch_lightning as pl
 import wrapt
@@ -340,6 +340,31 @@ def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
         instance.log_dict(log_dict, on_step=True)
 
     return output_dict
+
+
+def setup_model_config(cfg: Union[DictConfig, 'ModelPTConfig']) -> DictConfig:
+    """
+    Converts its input into a standard DictConfig.
+    Possible input values are:
+    -   DictConfig
+    -   A dataclass which is a subclass of ModelPTConfig
+
+    Args:
+        cfg: A dict-like object.
+
+    Returns:
+        The equivalent DictConfig
+    """
+    if is_dataclass(cfg):
+        cfg = OmegaConf.structured(cfg)
+
+    if not isinstance(cfg, DictConfig):
+        raise ValueError(f"cfg constructor argument must be of type DictConfig/dict but got {type(cfg)} instead.")
+
+    config = OmegaConf.to_container(cfg, resolve=True)
+    config = OmegaConf.create(config)
+    OmegaConf.set_struct(config, True)
+    return cfg
 
 
 def _convert_config(cfg: OmegaConf):

@@ -26,6 +26,7 @@ from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.utils import model_utils
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
@@ -52,6 +53,8 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         return result
 
     def __init__(self, cfg: DictConfig, trainer=None):
+        cfg = model_utils.setup_model_config(cfg)
+
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
 

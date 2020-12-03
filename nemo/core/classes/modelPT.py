@@ -19,7 +19,6 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
-from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -99,10 +98,9 @@ class ModelPT(LightningModule, Model):
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
-        if is_dataclass(cfg):
-            cfg = OmegaConf.structured(cfg)
-        if not isinstance(cfg, DictConfig):
-            raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
+        # Convert config to a DictConfig
+        cfg = model_utils.setup_model_config(cfg)
+
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
                 f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
@@ -114,12 +112,8 @@ class ModelPT(LightningModule, Model):
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
 
-        config = OmegaConf.to_container(cfg, resolve=True)
-        config = OmegaConf.create(config)
-        OmegaConf.set_struct(config, True)
-
         # Convert config to support Hydra 1.0+ instantiation
-        config = model_utils.convert_model_config(config)
+        config = model_utils.convert_model_config(cfg)
 
         self._cfg = config
 
