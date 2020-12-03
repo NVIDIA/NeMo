@@ -34,7 +34,7 @@ from nemo.collections.asr.models.classification_models import EncDecClassificati
 from nemo.collections.asr.models.diarization_model import DiarizationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.speaker_utils import get_score
-from nemo.collections.asr.parts.vad_utils import gen_overlap_seq, gen_seg_table, write_manifest
+from nemo.collections.asr.parts.vad_utils import get_status, gen_overlap_seq, gen_seg_table, write_manifest
 from nemo.utils import logging
 from nemo.utils.exp_manager import NotFoundError
 
@@ -138,46 +138,31 @@ class ClusteringSDModel(DiarizationModel):
         for line in open(manifest_file, 'r'):
             file = os.path.basename(json.loads(line)['audio_filepath'])
             data.append(os.path.splitext(file)[0])
+            
+        status = get_status(data)
         for i, test_batch in enumerate(self._vad_model.test_dataloader()):
-            if i == 0:
-                status = 'start' if data[i] == data[i + 1] else 'single'
-            elif i == len(data) - 1:
-                status = 'end' if data[i] == data[i - 1] else 'single'
-            else:
-                if data[i] != data[i - 1] and data[i] == data[i + 1]:
-                    status = 'start'
-                elif data[i] == data[i - 1] and data[i] == data[i + 1]:
-                    status = 'next'
-                elif data[i] == data[i - 1] and data[i] != data[i + 1]:
-                    status = 'end'
-                else:
-                    status = 'single'
-            print(data[i], status)
-
             test_batch = [x.to(self._device) for x in test_batch]
             with autocast():
                 log_probs = self._vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
                 probs = torch.softmax(log_probs, dim=-1)
                 pred = probs[:, 1]
 
-                if status == 'start':
+                if status[i] == 'start':
                     to_save = pred[:-trunc]
-                elif status == 'next':
+                elif status[i] == 'next':
                     to_save = pred[trunc:-trunc_l]
-                elif status == 'end':
+                elif status[i] == 'end':
                     to_save = pred[trunc_l:]
                 else:
                     to_save = pred
+                
                 all_len += len(to_save)
-
                 outpath = os.path.join(self._vad_dir, data[i] + ".frame")
                 with open(outpath, "a") as fout:
                     for f in range(len(to_save)):
                         fout.write('{0:0.4f}\n'.format(to_save[f]))
-
             del test_batch
-            if status == 'end' or status == 'single':
-                print(f"Overall length of prediction of {data[i]} is {all_len}!")
+            if status[i] == 'end' or status[i] == 'single':
                 all_len = 0
 
         vad_out_dir = self.generate_vad_timestamps()  # TODO confirm directory structure here
