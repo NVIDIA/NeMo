@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
+import matplotlib.pyplot as plt
+
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import FastSpeech2Model
+from nemo.collections.tts.data.datalayers import FastSpeechWithDurs
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
@@ -29,6 +32,33 @@ def main(cfg):
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
     trainer.fit(model)
+
+    # model = FastSpeech2Model.load_from_checkpoint(
+    #     "/home/jasoli/nemo/NeMo/examples/tts/nemo_experiments/FastSpeech2/2020-12-02_20-19-06/checkpoints/FastSpeech2-last.ckpt"
+    # )
+    # dataset = FastSpeechWithDurs(
+    #     "/mnt/ssd1/data/LJSpeech-1.1/nvidia_ljspeech_val.json",
+    #     22050,
+    #     "/mnt/ssd1/data/LJSpeech-1.1/supplementary",
+    #     ignore_file="/mnt/ssd1/data/LJSpeech-1.1/wavs_to_ignore",
+    # )
+    # f, fl, t, tl, durations = dataset[0]
+    # f = f.unsqueeze(0)
+    # fl = fl.unsqueeze(0)
+    # t = t.unsqueeze(0)
+    # tl = tl.unsqueeze(0)
+    # durations = durations.unsqueeze(0)
+
+    # spec, spec_len = model.audio_to_melspec_precessor(f, fl)
+    # mel = model(spec_len=spec_len, text=t, text_length=tl, durations=durations)
+    # fig = plt.Figure()
+    # ax = fig.add_subplot(111)
+    # im = ax.imshow(mel.detach().cpu().numpy().squeeze().T, aspect="auto", origin="lower", interpolation='none')
+    # plt.colorbar(im, ax=ax)
+    # plt.xlabel("Frames")
+    # plt.ylabel("Channels")
+    # plt.tight_layout()
+    # fig.savefig('spec.png')
 
 
 if __name__ == '__main__':

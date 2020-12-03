@@ -597,7 +597,9 @@ class FastSpeechWithDurs(Dataset):
         total_dataset_len = len(audio_files)
         logging.info(f"Loaded dataset with {total_dataset_len} files totalling {total_duration} seconds.")
         self.data = []
-        dataitem = py_collections.namedtuple(typename='AudioTextEntity', field_names='audio_file duration text_tokens')
+        dataitem = py_collections.namedtuple(
+            typename='AudioTextEntity', field_names='audio_file duration text_tokens pitches'
+        )
 
         if ignore_file:
             logging.info(f"using {ignore_file} to prune dataset.")
@@ -606,6 +608,7 @@ class FastSpeechWithDurs(Dataset):
 
         pruned_duration = 0
         pruned_items = 0
+        # error = []
         for item in audio_files:
             LJ_id = item["audio_filepath"].split("/")[-1].split(".")[0]
 
@@ -631,7 +634,12 @@ class FastSpeechWithDurs(Dataset):
             durations = torch.load(Path(duration_dir) / f"{LJ_id}_mfa_adjusted_enctxt_tkndur.pt")
 
             # Load pitch file (F0s)
-            pitches = torch.load(Path(pitch_dur) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
+            # try:
+            #     pitches = torch.load(Path(duration_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
+            # except FileNotFoundError:
+            #     error.append(LJ_id)
+            #     pitches = {"f0": None}
+            pitches = torch.load(Path(duration_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
 
             # Get text tokens from lookup to match with durations
             text_tokens = [self.mapping[int(i)]["symbol"] for i in durations["text_encoded"]]
@@ -640,10 +648,14 @@ class FastSpeechWithDurs(Dataset):
                 dataitem(
                     audio_file=item["audio_filepath"],
                     duration=durations["token_duration"],
-                    pitches=pitches['f0'],
+                    pitches=torch.clamp(pitches['f0'], min=1e-5),
                     text_tokens=text_tokens,
                 )
             )
+
+        # print(error)
+        # torch.save(error, "error.pt")
+        # exit()
 
         logging.info(f"Pruned {pruned_items} files and {pruned_duration} seconds.")
         logging.info(f"Final dataset contains {len(self.data)} files and {total_duration-pruned_duration} seconds.")
@@ -703,4 +715,3 @@ class FastSpeechWithDurs(Dataset):
         pitches_batched = torch.stack(pitches_batched)
 
         return audio_signal, audio_lengths, tokens, tokens_lengths, duration_batched.pitches_batched
-
