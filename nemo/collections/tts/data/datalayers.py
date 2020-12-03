@@ -475,7 +475,7 @@ class FastSpeechWithDurs(Dataset):
         self,
         manifest_filepath: str,
         sample_rate: int,
-        duration_dir: str,
+        supplementary_dir: str,
         # int_values: bool = False,
         # augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
         max_duration: Optional[int] = None,
@@ -631,15 +631,13 @@ class FastSpeechWithDurs(Dataset):
                 if found_id:
                     continue
             # Else not pruned, load durations file
-            durations = torch.load(Path(duration_dir) / f"{LJ_id}_mfa_adjusted_enctxt_tkndur.pt")
+            durations = torch.load(Path(supplementary_dir) / f"{LJ_id}_mfa_adjusted_enctxt_tkndur.pt")
 
             # Load pitch file (F0s)
-            # try:
-            #     pitches = torch.load(Path(duration_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
-            # except FileNotFoundError:
-            #     error.append(LJ_id)
-            #     pitches = {"f0": None}
-            pitches = torch.load(Path(duration_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
+            pitches = torch.load(Path(supplementary_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
+
+            # Load energy file (L2-norm of the amplitude of each STFT frame of an utterance)
+            energies = torch.from_numpy(np.load(Path(supplementary_dir) / f"{LJ_id}_stft_energy.npy"))
 
             # Get text tokens from lookup to match with durations
             text_tokens = [self.mapping[int(i)]["symbol"] for i in durations["text_encoded"]]
@@ -649,6 +647,7 @@ class FastSpeechWithDurs(Dataset):
                     audio_file=item["audio_filepath"],
                     duration=durations["token_duration"],
                     pitches=torch.clamp(pitches['f0'], min=1e-5),
+                    energies=energies,
                     text_tokens=text_tokens,
                 )
             )
@@ -670,7 +669,7 @@ class FastSpeechWithDurs(Dataset):
         f, fl = features, torch.tensor(features.shape[0]).long()
         t, tl = torch.tensor(sample.text_tokens).long(), torch.tensor(len(sample.text_tokens)).long()
 
-        return f, fl, t, tl, sample.duration, sample.pitches
+        return f, fl, t, tl, sample.duration, sample.pitches, sample.energies
 
     def __len__(self):
         return len(self.data)
@@ -684,19 +683,24 @@ class FastSpeechWithDurs(Dataset):
         max_tokens_len = max(tokens_lengths).item()
         max_durations_len = max([len(i) for i in duration])
         max_pitches_len = max([len(i) for i in pitches])
+        max_energies_len = max([len(i) for i in energies])
 
-        audio_signal, tokens, duration_batched, pitches_batched = [], [], [], []
-        for sig, sig_len, tokens_i, tokens_i_len, duration, pitch in batch:
+        # Add padding where necessary
+        audio_signal, tokens, duration_batched, pitches_batched, energies_batched = [], [], [], [], []
+        for sig, sig_len, tokens_i, tokens_i_len, duration, pitch, energy in batch:
+            # TODO: Refactoring -- write general padding utility function for cleanliness
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
                 pad = (0, max_audio_len - sig_len)
                 sig = torch.nn.functional.pad(sig, pad)
             audio_signal.append(sig)
+
             tokens_i_len = tokens_i_len.item()
             if tokens_i_len < max_tokens_len:
                 pad = (0, max_tokens_len - tokens_i_len)
                 tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
             tokens.append(tokens_i)
+
             if len(duration) < max_durations_len:
                 pad = (0, max_durations_len - len(duration))
                 duration = torch.nn.functional.pad(duration, pad)
@@ -707,11 +711,25 @@ class FastSpeechWithDurs(Dataset):
                 pitch = torch.nn.functional.pad(pitch, pad)
             pitches_batched.append(pitch)
 
+            if len(energy) < max_energies_len:
+                pad = (0, max_energies_len - len(energy))
+                energy = torch.nn.functional.pad(energy, pad)
+            energies_batched.append(energy)
+
         audio_signal = torch.stack(audio_signal)
         audio_lengths = torch.stack(audio_lengths)
         tokens = torch.stack(tokens)
         tokens_lengths = torch.stack(tokens_lengths)
         duration_batched = torch.stack(duration_batched)
         pitches_batched = torch.stack(pitches_batched)
+        energies_batched = torch.stack(energies_batched)
 
-        return audio_signal, audio_lengths, tokens, tokens_lengths, duration_batched.pitches_batched
+        return (
+            audio_signal,
+            audio_lengths,
+            tokens,
+            tokens_lengths,
+            duration_batched,
+            pitches_batched,
+            energies_batched,
+        )
