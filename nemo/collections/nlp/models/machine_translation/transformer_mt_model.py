@@ -150,6 +150,8 @@ class TransformerMTModel(ModelPT):
         self.training_perplexity = Perplexity(dist_sync_on_step=True)
         self.eval_perplexity = Perplexity(compute_on_step=False)
 
+        self.only_beam_search_during_eval = cfg.machine_translation.get('only_beam_search_during_eval', False)
+
         # These attributes are added to bypass Illegal memory access error in PT1.6
         # https://github.com/pytorch/pytorch/issues/21819
 
@@ -158,7 +160,7 @@ class TransformerMTModel(ModelPT):
         return ids
 
     @typecheck()
-    def forward(self, src, src_mask, tgt, tgt_mask):
+    def forward(self, src, src_mask, tgt=None, tgt_mask=None):
         """
         torch.nn.Module.forward method.
         Args:
@@ -173,10 +175,13 @@ class TransformerMTModel(ModelPT):
         src_embeddings = self.src_embedding_layer(input_ids=src)
         # src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
         src_hiddens = self.encoder(src_embeddings, src_mask)
-        tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
-        # tgt_embeddings *= tgt_embeddings.new_tensor(self.emb_scale)
-        tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
-        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        if self.training or not self.only_beam_search_during_eval:
+            tgt_embeddings = self.tgt_embedding_layer(input_ids=tgt)
+            # tgt_embeddings *= tgt_embeddings.new_tensor(self.emb_scale)
+            tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
+            log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        else:
+            log_probs = None
         beam_results = None
         if not self.training:
             beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
