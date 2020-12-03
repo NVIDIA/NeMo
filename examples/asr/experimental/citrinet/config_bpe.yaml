@@ -27,121 +27,117 @@ model:
     type: ???  # Can be either bpe or wpe
 
   preprocessor:
-    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    params:
-      normalize: "per_feature"
-      window_size: 0.02
-      sample_rate: *sample_rate
-      window_stride: 0.01
-      window: "hann"
-      features: &n_mels 64
-      n_fft: 512
-      frame_splicing: 1
-      dither: 0.00001
-      stft_conv: false
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    normalize: "per_feature"
+    window_size: 0.02
+    sample_rate: *sample_rate
+    window_stride: 0.01
+    window: "hann"
+    features: &n_mels 64
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+    stft_conv: false
 
   spec_augment:
-    cls: nemo.collections.asr.modules.SpectrogramAugmentation
-    params:
-      rect_freq: 50
-      rect_masks: 5
-      rect_time: 120
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    rect_freq: 50
+    rect_masks: 5
+    rect_time: 120
 
   encoder:
-    cls: nemo.collections.asr.modules.ConvASREncoder
-    params:
-      feat_in: *n_mels
-      activation: relu
-      conv_mask: true
+    _target_: nemo.collections.asr.modules.ConvASREncoder
+    feat_in: *n_mels
+    activation: relu
+    conv_mask: true
 
-      jasper:
-        - filters: 128
-          repeat: 1
-          kernel: [11]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: true
-          separable: *separable
-          se: true
-          se_context_size: -1
+    jasper:
+      - filters: 128
+        repeat: 1
+        kernel: [11]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_context_size: -1
 
-        - filters: 256
-          repeat: *repeat
-          kernel: [13]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: true
-          separable: *separable
-          se: true
-          se_context_size: -1
+      - filters: 256
+        repeat: *repeat
+        kernel: [13]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_context_size: -1
 
-        - filters: 256
-          repeat: *repeat
-          kernel: [15]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: true
-          separable: *separable
-          se: true
-          se_context_size: -1
+      - filters: 256
+        repeat: *repeat
+        kernel: [15]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_context_size: -1
 
-        - filters: 256
-          repeat: *repeat
-          kernel: [17]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: true
-          separable: *separable
-          se: true
-          se_context_size: -1
+      - filters: 256
+        repeat: *repeat
+        kernel: [17]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_context_size: -1
 
-        - filters: 256
-          repeat: *repeat
-          kernel: [19]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: true
-          separable: *separable
-          se: true
-          se_context_size: -1
+      - filters: 256
+        repeat: *repeat
+        kernel: [19]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_context_size: -1
 
-        - filters: 256
-          repeat: 1
-          kernel: [21]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.0
-          residual: false
-          separable: *separable
-          se: true
-          se_context_size: -1
+      - filters: 256
+        repeat: 1
+        kernel: [21]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: false
+        separable: *separable
+        se: true
+        se_context_size: -1
 
-        - filters: &enc_feat_out 1024
-          repeat: 1
-          kernel: [1]
-          stride: [1]
-          dilation: [1]
-          dropout: 0.0
-          residual: false
-          separable: *separable
-          se: true
-          se_context_size: -1
+      - filters: &enc_feat_out 1024
+        repeat: 1
+        kernel: [1]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: false
+        separable: *separable
+        se: true
+        se_context_size: -1
 
   decoder:
-    cls: nemo.collections.asr.modules.ConvASRDecoder
-    params:
-      feat_in: 1024
-      num_classes: -1  # filled with vocabulary size from tokenizer at runtime
-      vocabulary: []  # filled with vocabulary from tokenizer at runtime
+    _target_: nemo.collections.asr.modules.ConvASRDecoder
+    feat_in: 1024
+    num_classes: -1  # filled with vocabulary size from tokenizer at runtime
+    vocabulary: []  # filled with vocabulary from tokenizer at runtime
 
   optim:
     name: adam
-    # cls: nemo.core.optim.optimizers.Adam
+    # _target_: nemo.core.optim.optimizers.Adam
     lr: .1
 
     # optimizer arguments
