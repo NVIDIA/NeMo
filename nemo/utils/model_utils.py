@@ -364,8 +364,7 @@ def setup_model_config(cfg: Union[DictConfig, 'ModelPTConfig']) -> DictConfig:
 
     config = OmegaConf.to_container(cfg, resolve=True)
     config = OmegaConf.create(config)
-    OmegaConf.set_struct(config, True)
-    return cfg
+    return config
 
 
 def _convert_config(cfg: OmegaConf):
