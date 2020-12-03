@@ -476,7 +476,7 @@ class ModelPT(LightningModule, Model):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
         global _MODEL_RESTORE_PATH
-        _MODEL_RESTORE_PATH = restore_path
+        _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
 
         if _EFF_PRESENT_:
             # Try to load the EFF archive.

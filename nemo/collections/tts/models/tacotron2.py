@@ -268,7 +268,7 @@ class Tacotron2Model(SpectrogramGenerator):
             tacotron2_log_to_tb_func(
                 tb_logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
             )
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):

@@ -21,11 +21,12 @@ import torch.nn as nn
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
+from nemo.core.classes import NeuralModule
 
 __all__ = ["TransformerDecoder"]
 
 
-class TransformerDecoderBlock(nn.Module):
+class TransformerDecoderBlock(NeuralModule):
     """
     Building block of Transformer decoder.
 
@@ -65,6 +66,7 @@ class TransformerDecoderBlock(nn.Module):
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
+    # TODO: add Neural Types
     def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
 
         # Pre-LN: LN -> Self-Attn -> Drop -> Residual -> LN -> Cross-Attn -> Drop -> Residual -> LN -> FFN
