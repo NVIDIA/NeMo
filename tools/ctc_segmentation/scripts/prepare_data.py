@@ -169,7 +169,7 @@ def split_text(
     sentences = re.split(split_pattern, transcript)
 
     def _additional_split(sentences, split_on_symbols, max_length):
-        if split_on_symbols is None:
+        if len(split_on_symbols) == 0:
             return sentences
 
         split_on_symbols = split_on_symbols.split('||')
