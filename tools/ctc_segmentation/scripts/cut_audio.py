@@ -253,7 +253,14 @@ def process_alignment(alignment_file: str, args):
     if missing_audio > 15:
         raise ValueError(f'{round(missing_audio)}s or ~ {round(missing_audio/60)}min is missing. Check the args')
 
-    stats = (args.output_dir, base_name, round(original_duration), round(high_score_dur), round(low_score_dur), round(del_duration))
+    stats = (
+        args.output_dir,
+        base_name,
+        round(original_duration),
+        round(high_score_dur),
+        round(low_score_dur),
+        round(del_duration),
+    )
     return stats
 
 

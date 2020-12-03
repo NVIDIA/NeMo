@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import List
 
 import scipy.io.wavfile as wav
-from num2words import num2words
 from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
+from num2words import num2words
 
 from nemo.collections import asr as nemo_asr
 
@@ -38,8 +38,21 @@ parser.add_argument(
 parser.add_argument(
     '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
 )
-parser.add_argument('--min_length', type=int, default=20, help='Min number of characters of the text segment for alignment.')
-parser.add_argument('--max_length', type=int, default=100, help='Max number of characters of the text segment for alignment.')
+parser.add_argument(
+    '--min_length', type=int, default=20, help='Min number of chars of the text segment for alignment.'
+)
+parser.add_argument(
+    '--max_length', type=int, default=100, help='Max number of chars of the text segment for alignment.'
+)
+parser.add_argument(
+    '--additional_split_symbols',
+    type=str,
+    default='',
+    help='Additional symbols to use for \
+    sentence split if eos sentence split resulted in sequence longer than --max_length. \
+    Use || as a separator between symbols, space will be preserved, for example: "; ||: "',
+)
+
 
 def convert_mp3_to_wav(mp3_file: str, wav_file: str = None, sample_rate: int = 16000) -> str:
     """
@@ -88,7 +101,8 @@ def split_text(
     remove_square_brackets=True,
     do_lower_case=True,
     min_length=20,
-    max_length=100
+    max_length=100,
+    additional_split_symbols=None,
 ):
     """
     Breaks down the in_file into sentences. Each sentence will be on a separate line.
@@ -154,34 +168,34 @@ def split_text(
 
     sentences = re.split(split_pattern, transcript)
 
-    def additional_split(sentences, max_length=100):
+    def _additional_split(sentences, split_on_symbols, max_length):
+        if split_on_symbols is None:
+            return sentences
+
+        split_on_symbols = split_on_symbols.split('||')
         another_sent_split = []
         for sent in sentences:
             if len(sent) > max_length:
-                if ';' in sent:
-                    another_sent_split.extend(sent.split(';'))
-                elif ':' in sent:
-                    another_sent_split.extend(sent.split(':'))
-                elif ' - ' in sent:
-                    another_sent_split.extend(sent.split('-'))
-                if ',' in sent:
-                    another_sent_split.extend(sent.split(','))
-                else:
-                    another_sent_split.append(sent)
+                for sym in split_on_symbols:
+                    if sym in sent:
+                        another_sent_split.extend(sent.split(sym))
+                        break
+                    else:
+                        another_sent_split.append(sent)
             else:
                 another_sent_split.append(sent)
         sentences = [s.strip() for s in another_sent_split if s.strip()]
         return sentences
 
-    for i in range(3):
-        sentences = additional_split(sentences, max_length)
+    for _ in range(3):
+        sentences = _additional_split(sentences, additional_split_symbols, max_length)
 
-    combine_short = True
-    if combine_short:
+    if min_length > 0:
         sentences_comb = []
-        # adds a short sentence to the previous one
-        for i in range(len(sentences)):
-            if len(sentences[i]) < min_length and len(sentences_comb) > 0:
+        sentences_comb.append(sentences[0])
+        # combines short sentence
+        for i in range(1, len(sentences)):
+            if len(sentences_comb[-1]) < min_length or len(sentences[i]) < min_length:
                 sentences_comb[-1] += ' ' + sentences[i].strip()
             else:
                 sentences_comb.append(sentences[i].strip())
@@ -203,15 +217,11 @@ def split_text(
         sentences = sentences.lower()
 
     if language == 'eng':
-        # for k, v in NUMBERS_TO_ENG.items():
-        #     sentences = sentences.replace(k, v)
         # remove non acsii characters
         sentences = ''.join(i for i in sentences if ord(i) < 128)
     elif language == 'ru':
         if vocabulary and '-' not in vocabulary:
             sentences = sentences.replace('-', ' ')
-        # for k, v in NUMBERS_TO_RU.items():
-        #     sentences = sentences.replace(k, v)
         # replace Latin characters with Russian
         for k, v in LATIN_TO_RU.items():
             sentences = sentences.replace(k, v)
@@ -229,9 +239,9 @@ def split_text(
             if i == 0:
                 new_text = sentences[:match_start]
             else:
-                new_text += sentences[match_end: match_start]
+                new_text += sentences[match_end:match_start]
             match_end = match_start + match_len
-            new_text += sentences[match_start: match_end].replace(match, num2words(match, lang=language))
+            new_text += sentences[match_start:match_end].replace(match, num2words(match, lang=language))
         new_text += sentences[match_end:]
         sentences = new_text
     except NotImplementedError:
@@ -280,7 +290,15 @@ if __name__ == '__main__':
             base_name = os.path.basename(text)[:-4]
             out_text_file = os.path.join(args.output_dir, base_name + '.txt')
 
-            split_text(text, out_text_file, vocabulary=vocabulary, language=args.language, min_length=args.min_length, max_length=args.max_length)
+            split_text(
+                text,
+                out_text_file,
+                vocabulary=vocabulary,
+                language=args.language,
+                min_length=args.min_length,
+                max_length=args.max_length,
+                additional_split_symbols=args.additional_split_symbols,
+            )
         print(f'Processed text saved at {args.output_dir}')
 
     if args.audio_dir:

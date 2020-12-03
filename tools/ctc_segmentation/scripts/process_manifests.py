@@ -92,10 +92,6 @@ if __name__ == '__main__':
         sets[k] = round(sets[k] / 3600, 1)
         total += sets[k]
         name = k.split('_')[1].upper()
-        print(
-            f'Total {name} score duration: ~{sets[k]} hr'
-        )
-    print(
-        f'Total duration: ~{total} hr'
-    )
+        print(f'Total {name} score duration: ~{sets[k]} hr')
+    print(f'Total duration: ~{total} hr')
     print('Done.')
