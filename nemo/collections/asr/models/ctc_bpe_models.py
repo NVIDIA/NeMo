@@ -53,8 +53,8 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
     def __init__(self, cfg: DictConfig, trainer=None):
         # Convert to Hydra 1.0 compatible DictConfig
-        cfg = model_utils.setup_model_config(cfg)
-        cfg = model_utils.convert_model_config(cfg)
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")

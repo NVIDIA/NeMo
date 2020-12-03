@@ -343,7 +343,7 @@ def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
     return output_dict
 
 
-def setup_model_config(cfg: Union[DictConfig, 'ModelPTConfig']) -> DictConfig:
+def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'ModelPTConfig']) -> DictConfig:
     """
     Converts its input into a standard DictConfig.
     Possible input values are:
@@ -389,7 +389,7 @@ def _convert_config(cfg: OmegaConf):
         logging.warning(f"Skipping config conversion for cfg:\n{cfg}\n due to OmegaConf error encountered :\n{e}.")
 
 
-def convert_model_config(cfg: DictConfig):
+def maybe_update_config_version(cfg: DictConfig):
     """
     Recursively convert Hydra 0.x configs to Hydra 1.x configs.
 

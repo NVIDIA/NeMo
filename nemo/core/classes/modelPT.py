@@ -99,7 +99,7 @@ class ModelPT(LightningModule, Model):
             trainer (Optional): Pytorch Lightning Trainer instance
         """
         # Convert config to a DictConfig
-        cfg = model_utils.setup_model_config(cfg)
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
 
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
@@ -113,7 +113,7 @@ class ModelPT(LightningModule, Model):
             OmegaConf.set_struct(cfg, True)
 
         # Convert config to support Hydra 1.0+ instantiation
-        cfg = model_utils.convert_model_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
         self._cfg = cfg
 

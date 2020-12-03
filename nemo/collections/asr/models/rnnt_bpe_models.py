@@ -63,8 +63,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             )
 
         # Convert to Hydra 1.0 compatible DictConfig
-        cfg = model_utils.setup_model_config(cfg)
-        cfg = model_utils.convert_model_config(cfg)
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
         # Tokenizer is necessary for this model
         if 'tokenizer' not in cfg:
