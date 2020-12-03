@@ -13,10 +13,9 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from hydra.core.config_store import ConfigStore
-from pytorch_lightning import Trainer
 
 __all__ = ['TrainerConfig']
 
