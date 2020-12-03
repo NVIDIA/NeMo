@@ -123,22 +123,22 @@ model:
     use_transformer_init: true
     _target_: nemo.collections.nlp.modules.common.token_classifier.TokenClassifier
 
-  trainer:
-    _target_: pytorch_lightning.Trainer
-    logger: false
-    checkpoint_callback: false
-    gradient_clip_val: 0.0
-    num_nodes: 1
-    gpus: 1
-    progress_bar_refresh_rate: 1
-    accumulate_grad_batches: 1
-    max_epochs: 3
-    max_steps: null
-    val_check_interval: 1.0
-    log_every_n_steps: 10
-    accelerator: DDP
-    precision: 16
-    num_sanity_val_steps: 2
-  exp_manager:
-    name: MTEncDec
-    files_to_copy: []
+trainer:
+  _target_: pytorch_lightning.Trainer
+  logger: false
+  checkpoint_callback: false
+  gradient_clip_val: 0.0
+  num_nodes: 1
+  gpus: 1
+  progress_bar_refresh_rate: 1
+  accumulate_grad_batches: 1
+  max_epochs: 3
+  max_steps: null
+  val_check_interval: 1.0
+  log_every_n_steps: 10
+  accelerator: DDP
+  precision: 16
+  num_sanity_val_steps: 2
+exp_manager:
+  name: AYYNBase
+  files_to_copy: []
