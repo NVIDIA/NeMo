@@ -32,8 +32,9 @@ import os
 from argparse import ArgumentParser
 
 import torch
-from nemo.collections.asr.parts.vad_utils import get_status
+
 from nemo.collections.asr.models import EncDecClassificationModel
+from nemo.collections.asr.parts.vad_utils import get_status
 from nemo.utils import logging
 
 try:
@@ -99,13 +100,13 @@ def main():
     trunc = int(time_unit / 2)
     trunc_l = time_unit - trunc
     all_len = 0
-    
+
     data = []
     for line in open(args.dataset, 'r'):
         file = json.loads(line)['audio_filepath'].split("/")[-1]
         data.append(file.split(".wav")[0])
     print(f"Inference on {len(data)} audio files/json lines!")
-    
+
     status = get_status(data)
 
     for i, test_batch in enumerate(vad_model.test_dataloader()):
@@ -123,7 +124,7 @@ def main():
                 to_save = pred[trunc_l:]
             else:
                 to_save = pred
-            print(data[i], status[i])  
+            print(data[i], status[i])
             all_len += len(to_save)
             outpath = os.path.join(args.out_dir, data[i] + ".frame")
             with open(outpath, "a") as fout:
@@ -133,6 +134,7 @@ def main():
         if status[i] == 'end' or status[i] == 'single':
             print(f"Overall length of prediction of {data[i]} is {all_len}!")
             all_len = 0
+
 
 if __name__ == '__main__':
     main()
