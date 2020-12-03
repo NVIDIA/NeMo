@@ -84,7 +84,7 @@ def translate(rank, world_size, args):
             src_ids, src_mask, sent_ids = batch
             if batch_idx % 100 == 0:
                 logging.info(
-                    f"{batch_idx} batches and {num_translated_sentences} sentences were translated by process with "
+                    f"{batch_idx} batches ({num_translated_sentences} sentences) were translated by process with "
                     f"rank {rank}")
             num_translated_sentences += len(src_ids)
             _, translations = ddp_model(src_ids, src_mask)
