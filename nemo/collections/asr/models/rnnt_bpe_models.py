@@ -63,6 +63,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             )
 
         cfg = model_utils.setup_model_config(cfg)
+        cfg = model_utils.convert_model_config(cfg)
 
         # Tokenizer is necessary for this model
         if 'tokenizer' not in cfg:

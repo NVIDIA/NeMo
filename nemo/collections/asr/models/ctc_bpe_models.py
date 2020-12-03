@@ -53,6 +53,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
     def __init__(self, cfg: DictConfig, trainer=None):
         cfg = model_utils.setup_model_config(cfg)
+        cfg = model_utils.convert_model_config(cfg)
 
         if 'tokenizer' not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
