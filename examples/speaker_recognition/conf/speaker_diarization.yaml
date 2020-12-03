@@ -3,7 +3,7 @@ sample_rate: &sample_rate 16000
 
 model:
   vad:
-    model_path: "/data3/sdtest/models/MatchboxNet_VAD_3x2.nemo"
+    model_path: "/disk2/datasets/modified_callhome/modified_oracle_callhome_ch109.json"
     time_length: 0.63
     shift_length: 0.01
     gen_overlap_seq: True
@@ -15,17 +15,14 @@ model:
     threshold: 0.5
     num_workers: 4
   speaker_embeddings:
-    model_path: "/data3/sdtest/models/SpeakerNet-M.nemo"
+    model_path: "./remote_circe/speakernet-I-2N-64bs-200e-0.02lr-0.1wr-FisherSWBD-4timelength/spkr.nemo"
     time_length: 1.5
     shift_length: 0.75
-    oracle_vad: 
-      ignore_vad: True
-      manifest_filepath: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/vad_oracle_manifest.json"
   diarizer:
     cluster_method: "SpectralClustering"
-    reco2num: 4
-    out_dir: "/data3/sdtest/diarization"
-    groundtruth_RTTM_dir: "/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/disk8_RTTMs"
+    reco2num: 2
+    out_dir: "/disk2/outputs/diarization/"
+    groundtruth_RTTM_dir: "/disk2/datasets/modified_callhome/RTTMS/ch109/"
     shuffle: False
   manifest_filepath: "/data3/sdtest/test.json"
   sample_rate: 16000

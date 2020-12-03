@@ -121,11 +121,13 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDO
             if audio not in time_stamps:
                 time_stamps[audio] = []
             start = offset
-            slice_end = start+duration
+            slice_end = start + duration
             base = math.ceil((duration - WINDOW) / SHIFT)
             slices = 1 if base < 0 else base + 1
             for slice_id in range(slices):
                 end = start + WINDOW
+                if end > slice_end:
+                    end = slice_end
                 stamp = '{:.3f} {:.3f} '.format(start, end)
                 time_stamps[audio].append(stamp)
                 start = offset + (slice_id + 1) * SHIFT
@@ -135,7 +137,7 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDO
 
 def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_DIR):
 
-    metric = DiarizationErrorRate(collar=0.25,skip_overlap=True)
+    metric = DiarizationErrorRate(collar=0.25, skip_overlap=True)
     DER = 0
 
     all_hypothesis = []
@@ -146,12 +148,12 @@ def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_
         if NUM_SPEAKERS >= 2:
             emb = embeddings[uniq_key]
             emb = np.asarray(emb)
-            cluster_method = SpectralClusterer(min_clusters=NUM_SPEAKERS,max_clusters=NUM_SPEAKERS)
+            cluster_method = SpectralClusterer(min_clusters=NUM_SPEAKERS, max_clusters=NUM_SPEAKERS)
             cluster_labels = cluster_method.predict(emb)
             # cluster_method = SpectralClustering(n_clusters=NUM_SPEAKERS, random_state=42)
             # cluster_method.fit(emb)
             # cluster_labels = cluster_method.labels_
-            
+
             lines = time_stamps[uniq_key]
             assert len(cluster_labels) == len(lines)
             for idx, label in enumerate(cluster_labels):

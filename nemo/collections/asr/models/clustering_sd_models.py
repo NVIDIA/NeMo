@@ -17,19 +17,18 @@ import json
 import os
 import pickle as pkl
 import shutil
+import tarfile
+import tempfile
 from collections import defaultdict
 from itertools import repeat
 from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
-import numpy as np
 
+import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
-from tqdm import tqdm
-import tempfile
-import tarfile
-
 from pytorch_lightning.utilities import rank_zero_only
+from tqdm import tqdm
 
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.diarization_model import DiarizationModel
@@ -55,8 +54,8 @@ _MODEL_CONFIG_YAML = "model_config.yaml"
 _VAD_MODEL = "vad_model_.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
 
-class ClusteringSDModel(DiarizationModel):
 
+class ClusteringSDModel(DiarizationModel):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg=cfg)
         # init vad model
@@ -317,8 +316,6 @@ class ClusteringSDModel(DiarizationModel):
             "Cumulative Diarization ER and Cofusion ER of all the files is {:.3f} and {:.3f}".format(DER, CER)
         )
 
-
-
     @rank_zero_only
     def save_to(self, save_path: str):
         """
@@ -334,9 +331,9 @@ class ClusteringSDModel(DiarizationModel):
         """
 
         if not self.has_vad_model:
-            NotImplementedError("Saving a clustering based speaker diarization model without a VAD model is not"
-                                "supported")
-
+            NotImplementedError(
+                "Saving a clustering based speaker diarization model without a VAD model is not" "supported"
+            )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -386,7 +383,7 @@ class ClusteringSDModel(DiarizationModel):
                 conf.vad.model_path = os.path.join(tmpdir, _VAD_MODEL)
                 conf.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
                 OmegaConf.set_struct(conf, True)
-                #instance = cls.from_config_dict(config=conf)
+                # instance = cls.from_config_dict(config=conf)
                 instance = cls(cfg=conf)
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
