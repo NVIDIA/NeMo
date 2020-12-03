@@ -68,7 +68,7 @@ class TestExportable:
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert abs(len(onnx_model.graph.node) - 15) <= 2
-            assert onnx_model.graph.node[12].name == 'DCConv_0'
+            assert onnx_model.graph.node[12].name.startswith('DC')
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logprobs'
 
@@ -80,7 +80,7 @@ class TestExportable:
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert abs(len(onnx_model.graph.node) - 24) <= 2
-            assert onnx_model.graph.node[12].name == 'EDCShape_0'
+            assert onnx_model.graph.node[12].name.startswith('EDC')
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logits'
 
@@ -93,8 +93,8 @@ class TestExportable:
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert len(onnx_model.graph.node) == 31
             assert onnx_model.graph.node[0].name == 'Conv_0'
-            assert onnx_model.graph.node[12].name == 'SLConstant_9'
-            assert onnx_model.graph.node[30].name == 'SLGemm_27'
+            assert onnx_model.graph.node[12].name.startswith('SL')
+            assert onnx_model.graph.node[30].name.startswith('SL')
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logits'
 
