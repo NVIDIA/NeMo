@@ -27,7 +27,7 @@ from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 try:
     import warprnnt_pytorch as warprnnt
@@ -61,6 +61,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 "pytorch bindings for RNNT Loss, or use the provided docker "
                 "container that supports RNN-T loss."
             )
+
+        cfg = model_utils.setup_model_config(cfg)
 
         # Tokenizer is necessary for this model
         if 'tokenizer' not in cfg:
