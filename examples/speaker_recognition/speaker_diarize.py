@@ -34,10 +34,10 @@ seed_everything(42)
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    sd_model=ClusteringSDModel.restore_from("/data3/sdtest/model.nemo")
-    #sd_model = ClusteringSDModel(cfg=cfg.model)
-    #sd_model.diarize()
-    sd_model.save_to("/data3/sdtest/model2.nemo")
+    # sd_model=ClusteringSDModel.restore_from("/data3/sdtest/model.nemo")
+    sd_model = ClusteringSDModel(cfg=cfg.model)
+    sd_model.diarize()
+    # sd_model.save_to("/data3/sdtest/model2.nemo")
 
 
 if __name__ == '__main__':
