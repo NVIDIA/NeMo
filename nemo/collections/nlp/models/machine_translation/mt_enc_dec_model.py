@@ -55,7 +55,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     len_pen: float = 0.0
     max_generation_delta: int = 50
     label_smoothing: Optional[float] = 0.0
-    vocab_divisibile_by_eight: bool = True
+    vocab_divisible_by_eight: bool = True
 
 
 class MTEncDecModel(EncDecNLPModel):
@@ -70,7 +70,7 @@ class MTEncDecModel(EncDecNLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # make vocabulary size divisible by 8 for fast fp16 training
-        if cfg.vocab_divisibile_by_eight:
+        if cfg.vocab_divisible_by_eight:
             self.encoder_vocab_size = 8 * math.ceil(self.encoder_tokenizer.vocab_size / 8)
             self.decoder_vocab_size = 8 * math.ceil(self.decoder_tokenizer.vocab_size / 8)
             cfg.encoder_embedding.vocab_size = self.encoder_vocab_size

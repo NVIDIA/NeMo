@@ -45,6 +45,15 @@ class AAYNBaseOptimConfig(OptimConfig):
 
 @dataclass
 class AAYNBaseConfig(ModelConfig):
+    # machine translation configurations
+    num_val_examples: int = 3
+    num_test_examples: int = 3
+    beam_size: int = 1
+    len_pen: float = 0.0
+    max_generation_delta: int = 10
+    label_smoothing: Optional[float] = 0.0
+    divisible_by_eight: bool = True
+
     # Attention is All You Need Base Configuration
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
@@ -78,14 +87,6 @@ class AAYNBaseConfig(ModelConfig):
     head: TokenClassifierConfig = TokenClassifierConfig(
         hidden_size=decoder.hidden_size, num_classes=decoder_embedding.vocab_size, log_softmax=True
     )
-
-    # machine translation configurations
-    num_val_examples: int = 3
-    num_test_examples: int = 3
-    beam_size: int = 1
-    len_pen: float = 0.0
-    max_generation_delta: int = 10
-    label_smoothing: Optional[float] = 0.0
 
     # dataset configurations
     train_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
