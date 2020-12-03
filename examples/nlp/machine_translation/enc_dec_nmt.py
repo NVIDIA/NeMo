@@ -33,7 +33,7 @@ class MTEncDecConfig(NemoConfig):
     exp_manager: ExpManagerConfig = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
 
 
-@hydra_runner(config_path="conf", config_name="enc_dec", schema=MTEncDecConfig)
+@hydra_runner(config_path="conf", config_name="aayn_base", schema=MTEncDecConfig)
 def main(cfg: MTEncDecConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
 
