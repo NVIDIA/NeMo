@@ -67,7 +67,7 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.encoder = Encoder()
-        self.variance_adapter = VarianceAdaptor()
+        self.variance_adapter = VarianceAdaptor(pitch_min=1e05, pitch_max=256)  # max is a placeholder value
         self.mel_decoder = MelSpecDecoder()
         self.loss = L2MelLoss()
 
@@ -93,6 +93,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
         mel = self(spec_len=spec_len, text=t, text_length=tl, durations=durations)
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
+        self.log(name="train_loss", value=loss)
         return loss
 
     # @typecheck(
