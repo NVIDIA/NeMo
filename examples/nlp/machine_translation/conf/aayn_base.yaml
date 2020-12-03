@@ -145,5 +145,5 @@ trainer:
   precision: 16
   num_sanity_val_steps: 2
 exp_manager:
-  name: AYYNBase
+  name: AAYNBase
   files_to_copy: []
