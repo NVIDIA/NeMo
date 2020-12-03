@@ -19,6 +19,7 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
+from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -30,8 +31,9 @@ from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
+from nemo.core.config.modelPT import ModelPTConfig
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.utils import logging, model_utils
+from nemo.utils import config_utils, logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -50,7 +52,30 @@ except ImportError:
 
 __all__ = ['ModelPT']
 
+"""
+Internal global flags that determine core functionality of ModelPT.
+
+_MODEL_IS_RESTORED:
+    This flag determines the context of the model - whether the model is currently being
+    restored or not. 
+    -   When set, it can be assumed that the model's will disable all automatic methods -
+        setup_training_data(), setup_validation/test_data() and their multi equivalents.
+    -   If a model is being restored from a archive file (tarfile), it can be assumed that
+        under this context, the cwd is *inside* the tarfile itself.
+
+_MODEL_RESTORE_PATH:
+    A string path to a a file from which the model is being restored.
+    This file can either be a PyTorch Lightning Checkpoint, or a archive (tarfile) that contains
+    artifact objects.
+    If it is an archive file, during restoration, the cwd will be temporarily moved to inside the
+    archive itself.
+    
+_MODEL_EFF_SAVE:
+    A global flag that switches the format of the archive file that will be stored.
+    This flag only enables EFF when the package support is available.
+"""
 _MODEL_IS_RESTORED = False
+_MODEL_RESTORE_PATH = None
 _MODEL_EFF_SAVE = True
 
 
@@ -74,6 +99,8 @@ class ModelPT(LightningModule, Model):
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
+        if is_dataclass(cfg):
+            cfg = OmegaConf.structured(cfg)
         if not isinstance(cfg, DictConfig):
             raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
         if trainer is not None and not isinstance(trainer, Trainer):
@@ -156,20 +183,73 @@ class ModelPT(LightningModule, Model):
             path to be used when accessing artifact. If src='' or None then '' or None will be returned
         """
         if not hasattr(self, 'artifacts'):
-            self.artifacts = []
+            self.artifacts = {}
         if self.artifacts is None:
-            self.artifacts = []
+            self.artifacts = {}
         if src is not None and src.strip() != '':
+            archive_item = model_utils.ArtifactItem()
+
             basename_src = os.path.basename(src)
             # filename exists in current workdir - use it and raise warning
+            # this case is during model restoration or when file is written to cwd.
             if os.path.exists(basename_src):
                 logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
                 used_src = basename_src
+
+                # Case: register_artifact() called inside restoration context
+                if self._is_model_being_restored() and self._is_restore_type_tarfile():
+                    archive_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+                else:
+                    archive_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
+
             else:
                 used_src = src
+                archive_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
+
             if not os.path.exists(used_src):
-                raise FileNotFoundError(f"Could not find {used_src}")
-            self.artifacts.append((config_path, used_src))
+                # File not found in local path or by basename
+                # Try to locate it inside the .nemo archive (if model was restored)
+                # Case: register_artifact() called outside restoration context
+                if self._is_restore_type_tarfile():
+                    # Get path where the command is executed - the artifacts will be "retrieved" there
+                    # (original .nemo behavior)
+                    cwd = os.getcwd()
+                    try:
+                        # Step into the nemo archive to try and find the file
+                        with tempfile.TemporaryDirectory() as tmpdir:
+                            self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
+                            os.chdir(tmpdir)
+                            if os.path.exists(basename_src):
+                                logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
+                                used_src = basename_src
+
+                                archive_item.path = used_src
+                                archive_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+                            else:
+                                # No further action can be taken, file not found anywhere
+                                raise FileNotFoundError(
+                                    f"Could not find {used_src} inside "
+                                    f"tarfile {_MODEL_RESTORE_PATH} or under local"
+                                )
+                    finally:
+                        # change back working directory
+                        os.chdir(cwd)
+                else:
+                    # No further action can be taken, file not found anywhere
+                    raise FileNotFoundError(f"Could not find {used_src}")
+            else:
+                # Found filepath
+                archive_item.path = used_src
+
+            # But disregarding whether you use "local" or "remote" artifact - always store the original path.
+            # This fixes issues raising when finetuning NLP models that create and register tokenizer vocabs.
+            if config_path in self.artifacts:
+                logging.warning(
+                    f"Artifact {config_path} with value '{self.artifacts[config_path]}' "
+                    f"already exists and will be overwritten with value '{src}'!"
+                )
+
+            self.artifacts[config_path] = archive_item
             return used_src
         else:
             return src
@@ -189,11 +269,28 @@ class ModelPT(LightningModule, Model):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+
             if hasattr(self, 'artifacts') and self.artifacts is not None:
-                for (conf_path, src) in self.artifacts:
+                for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArtifactItem)
                     try:
-                        if os.path.exists(src):
-                            shutil.copy2(src, tmpdir)
+                        if src.path_type == model_utils.ArtifactPathType.LOCAL_PATH and os.path.exists(src.path):
+                            shutil.copy2(src.path, tmpdir)
+                        elif src.path_type == model_utils.ArtifactPathType.TAR_PATH:
+                            # Need to step into nemo archive to extract file
+                            # Get path where the command is executed - the artifacts will be "retrieved" there
+                            # (original .nemo behavior)
+                            cwd = os.getcwd()
+                            try:
+                                # Step into the nemo archive to try and find the file
+                                with tempfile.TemporaryDirectory() as archive_dir:
+                                    self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
+                                    os.chdir(archive_dir)
+                                    shutil.copy2(src.path, tmpdir)
+                            finally:
+                                # change back working directory
+                                os.chdir(cwd)
+                        else:
+                            raise ValueError(f"Invalid ArchivePathType found: {src.path_type}")
                     except Exception:
                         logging.error(f"Could not copy artifact {src} used in {conf_path}")
 
@@ -377,6 +474,9 @@ class ModelPT(LightningModule, Model):
         """
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
+
+        global _MODEL_RESTORE_PATH
+        _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
 
         if _EFF_PRESENT_:
             # Try to load the EFF archive.
@@ -1139,6 +1239,22 @@ class ModelPT(LightningModule, Model):
     def _set_model_restore_state(is_being_restored: bool):
         global _MODEL_IS_RESTORED
         _MODEL_IS_RESTORED = is_being_restored
+
+    @staticmethod
+    def _is_restore_type_tarfile() -> bool:
+        """
+        Utility method that checks if the restore path of the underlying Model
+        is a tarfile (can be any valid archive)._MODEL_EFF_SAVE
+        """
+        global _MODEL_RESTORE_PATH
+
+        if _MODEL_RESTORE_PATH is None:
+            return False
+        else:
+            if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
+                return True
+            else:
+                return False
 
     @staticmethod
     def set_eff_save(use_eff_save: bool):

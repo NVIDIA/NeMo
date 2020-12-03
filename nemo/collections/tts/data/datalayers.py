@@ -607,13 +607,15 @@ class FastSpeechWithDurs(Dataset):
         pruned_duration = 0
         pruned_items = 0
         for item in audio_files:
+            LJ_id = item["audio_filepath"].split("/")[-1].split(".")[0]
+
+            # Prune according to duration & the ignore file
             if (min_duration and item["duration"] < min_duration) or (
                 max_duration and item["duration"] > max_duration
             ):
                 pruned_duration += item["duration"]
                 pruned_items += 1
                 continue
-            LJ_id = item["audio_filepath"].split("/")[-1].split(".")[0]
             if ignore_file:
                 found_id = False
                 for i, wav_id in enumerate(wavs_to_ignore):
@@ -625,13 +627,21 @@ class FastSpeechWithDurs(Dataset):
                         break
                 if found_id:
                     continue
-            # Else not pruned
-            # Load durations file
+            # Else not pruned, load durations file
             durations = torch.load(Path(duration_dir) / f"{LJ_id}_mfa_adjusted_enctxt_tkndur.pt")
+
+            # Load pitch file (F0s)
+            pitches = torch.load(Path(pitch_dur) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
+
+            # Get text tokens from lookup to match with durations
             text_tokens = [self.mapping[int(i)]["symbol"] for i in durations["text_encoded"]]
+
             self.data.append(
                 dataitem(
-                    audio_file=item["audio_filepath"], duration=durations["token_duration"], text_tokens=text_tokens,
+                    audio_file=item["audio_filepath"],
+                    duration=durations["token_duration"],
+                    pitches=pitches['f0'],
+                    text_tokens=text_tokens,
                 )
             )
 
@@ -648,22 +658,23 @@ class FastSpeechWithDurs(Dataset):
         f, fl = features, torch.tensor(features.shape[0]).long()
         t, tl = torch.tensor(sample.text_tokens).long(), torch.tensor(len(sample.text_tokens)).long()
 
-        return f, fl, t, tl, sample.duration
+        return f, fl, t, tl, sample.duration, sample.pitches
 
     def __len__(self):
         return len(self.data)
 
     def _collate_fn(self, batch):
         pad_id = len(self.mapping)
-        _, audio_lengths, _, tokens_lengths, duration = zip(*batch)
+        _, audio_lengths, _, tokens_lengths, duration, pitches = zip(*batch)
 
         max_audio_len = 0
         max_audio_len = max(audio_lengths).item()
         max_tokens_len = max(tokens_lengths).item()
         max_durations_len = max([len(i) for i in duration])
+        max_pitches_len = max([len(i) for i in pitches])
 
-        audio_signal, tokens, duration_batched = [], [], []
-        for sig, sig_len, tokens_i, tokens_i_len, duration in batch:
+        audio_signal, tokens, duration_batched, pitches_batched = [], [], [], []
+        for sig, sig_len, tokens_i, tokens_i_len, duration, pitch in batch:
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
                 pad = (0, max_audio_len - sig_len)
@@ -679,10 +690,17 @@ class FastSpeechWithDurs(Dataset):
                 duration = torch.nn.functional.pad(duration, pad)
             duration_batched.append(duration)
 
+            if len(pitch) < max_pitches_len:
+                pad = (0, max_pitches_len - len(pitch))
+                pitch = torch.nn.functional.pad(pitch, pad)
+            pitches_batched.append(pitch)
+
         audio_signal = torch.stack(audio_signal)
         audio_lengths = torch.stack(audio_lengths)
         tokens = torch.stack(tokens)
         tokens_lengths = torch.stack(tokens_lengths)
         duration_batched = torch.stack(duration_batched)
+        pitches_batched = torch.stack(pitches_batched)
 
-        return audio_signal, audio_lengths, tokens, tokens_lengths, duration_batched
+        return audio_signal, audio_lengths, tokens, tokens_lengths, duration_batched.pitches_batched
+
