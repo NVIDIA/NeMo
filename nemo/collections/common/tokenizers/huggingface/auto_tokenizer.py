@@ -98,8 +98,11 @@ class AutoTokenizer(TokenizerSpec):
         """
         try:
             if vocab_file is not None:
+                message = 'Using "slow" HuggingFace tokenizer'
+                if use_fast:
+                    message += f'{vocab_file} is ignored in "fast" tokenizers, using a "slow" version'
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=use_fast
+                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=False
                 )
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
