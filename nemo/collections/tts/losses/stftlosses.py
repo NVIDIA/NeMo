@@ -181,6 +181,8 @@ class STFTLoss(Loss):
             Tensor: Spectral convergence loss value.
             Tensor: Log STFT magnitude loss value.
         """
+        if self.window.device != x.device:
+            self.window = self.window.to(x.device)
         x_mag = stft(x, self.fft_size, self.shift_size, self.win_length, self.window)
         y_mag = stft(y, self.fft_size, self.shift_size, self.win_length, self.window)
         sc_loss = self.spectral_convergence_loss(x_mag=x_mag, y_mag=y_mag)

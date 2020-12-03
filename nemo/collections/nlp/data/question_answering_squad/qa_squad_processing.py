@@ -19,7 +19,7 @@ import json
 from typing import Dict, List, Optional
 
 from tqdm import tqdm
-from transformers.tokenization_bert import BasicTokenizer
+from transformers.models.bert.tokenization_bert import BasicTokenizer
 
 from nemo.collections.nlp.data.data_utils import DataProcessor, is_whitespace, normalize_answer
 from nemo.utils import logging
