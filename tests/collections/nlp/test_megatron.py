@@ -39,6 +39,7 @@ class TestMegatron(TestCase):
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.skip
     def test_get_pretrained_bert_345m_uncased_model(self):
         model_name = "megatron-bert-345m-uncased"
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
