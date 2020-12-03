@@ -208,7 +208,7 @@ class TestFileIO:
 
             # Modify config slightly
             cfg = asr_model.cfg
-            cfg.encoder.params.activation = 'swish'
+            cfg.encoder.activation = 'swish'
             yaml_cfg = OmegaConf.to_yaml(cfg)
             conf_fp.write(yaml_cfg)
             conf_fp.seek(0)
@@ -224,7 +224,7 @@ class TestFileIO:
 
             assert np.array_equal(w1, w2)
 
-            assert asr_model2.cfg.encoder.params.activation == 'swish'
+            assert asr_model2.cfg.encoder.activation == 'swish'
 
     @pytest.mark.unit
     def test_save_model_level_pt_ckpt(self, asr_model):
