@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import MISSING, dataclass
 import os.path
 from os import path
 from typing import Dict, List, Optional
@@ -35,6 +36,14 @@ def get_tokenizer_list() -> List[str]:
     s = set(get_pretrained_lm_models_list())
     s.update(set(get_huggingface_pretrained_lm_models_list(include_external=True)))
     return ["sentencepiece", "char", "word"] + list(s)
+
+
+@dataclass
+class TokenizerConfig:
+    tokenizer_name: str = MISSING
+    tokenizer_model: Optional[str] = None
+    vocab_file: Optional[str] = None
+    special_tokens: Optional[Dict[str, str]] = None
 
 
 def get_tokenizer(

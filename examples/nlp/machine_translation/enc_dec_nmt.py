@@ -13,29 +13,11 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTTransformerBase
-from nemo.core.config.modelPT import NemoConfig
-from examples.nlp.machine_translation.transformer_enc_dec_config import DefaultConfig
-from typing import Optional
-
 from hydra.utils import instantiate
-from omegaconf import MISSING
 
-from nemo.collections.nlp.models.enc_dec_nlp_model import (
-    TokenClassifierConfig,
-    TokenizerConfig,
-    TransformerDecoderConfig,
-    TransformerEmbeddingConfig,
-    TransformerEncoderConfig,
-    TransformerEncoderDefaultConfig,
-)
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import (
-    MTEncDecModel,
-    MTEncDecModelConfig,
-    MTOptimConfig,
-    MTSchedConfig,
-    TranslationDataConfig,
-)
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import AAYNBaseConfig
+from nemo.core.config.modelPT import NemoConfig
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.core.config import hydra_runner
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
@@ -46,9 +28,7 @@ from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 class MTEncDecConfig(NemoConfig):
     trainer: TrainerConfig = TrainerConfig()
 
-    model: MTTransformerBase = MTTransformerBase()
-
-    optim: MTOptimConfig = MTOptimConfig(sched=MTSchedConfig())
+    model: AAYNBaseConfig = AAYNBaseConfig()
 
     exp_manager: ExpManagerConfig = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
 
@@ -56,7 +36,9 @@ class MTEncDecConfig(NemoConfig):
 @hydra_runner(config_path="conf", config_name="enc_dec", schema=MTEncDecConfig)
 def main(cfg: MTEncDecConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
+
     trainer = instantiate(cfg.trainer)
+
     exp_manager(trainer, cfg.exp_manager)
 
     mt_model = MTEncDecModel(cfg.model, trainer=trainer)

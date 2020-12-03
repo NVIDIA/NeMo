@@ -1,33 +1,74 @@
-from dataclasses import dataclass
-from nemo.core.config.modelPT import ModelConfig
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from dataclasses import MISSING, dataclass
+
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
+from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
+from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoderConfig
+from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoderConfig
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbeddingConfig
+from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
+from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
+
 from typing import Optional
-
-from hydra.utils import instantiate
-from omegaconf import MISSING
-
-from nemo.collections.nlp.models.enc_dec_nlp_model import (
-    TokenClassifierConfig,
-    TokenizerConfig,
-    TransformerDecoderConfig,
-    TransformerEmbeddingConfig,
-    TransformerEncoderConfig,
-    TransformerEncoderDefaultConfig,
-)
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import (
-    MTEncDecModel,
-    MTEncDecModelConfig,
-    MTOptimConfig,
-    MTSchedConfig,
-    TranslationDataConfig,
-)
-from nemo.core.config import hydra_runner
-from nemo.core.config.pytorch_lightning import TrainerConfig
-from nemo.utils import logging
-from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
 
 @dataclass
-class MTTransformerBase(ModelConfig):
+class AAYNBaseConfig(ModelConfig):
+    # Attention is All You Need Base Configuration
+    encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
+    decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
+
+    encoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
+        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
+    )
+    encoder: TransformerEncoderConfig = TransformerEncoderConfig(
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+    )
+
+    decoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
+        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
+    )
+    decoder: TransformerDecoderConfig = TransformerDecoderConfig(
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+    )
+
+    head: TokenClassifierConfig = TokenClassifierConfig(
+        hidden_size=decoder.hidden_size, num_classes=decoder_embedding.vocab_size, log_softmax=True
+    )
+
+    # machine translation configurations
+    num_val_examples: int = 3
+    num_test_examples: int = 3
+    beam_size: int = 1
+    len_pen: float = 0.0
+    max_generation_delta: int = 10
+    label_smoothing: Optional[float] = 0.0
+
     # dataset configurations
     train_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
         src_file_name=MISSING,
@@ -56,43 +97,10 @@ class MTTransformerBase(ModelConfig):
         cache_ids=True,
         use_cache=True,
     )
-
-    # model architecture configurations
-    encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
-    decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
-    encoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
-        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
+    optim: Optional[OptimConfig] = OptimConfig(
+        name='adam',
+        lr=1e-3,
+        betas=(0.9, 0.98),
+        weight_decay=0.0,
+        sched=SchedConfig(name='InverseSquareRootAnnealing', warmup_ratio=0.1),
     )
-    # encoder: TransformerEncoderConfig = TransformerEncoderConfig(
-    #     hidden_size=512,
-    #     inner_size=2048,
-    #     num_layers=6,
-    #     num_attention_heads=8,
-    #     ffn_dropout=0.1,
-    #     attn_score_dropout=0.1,
-    #     attn_layer_dropout=0.1,
-    # )
-    encoder: TransformerEncoderConfig = TransformerEncoderDefaultConfig()
-    decoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
-        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
-    )
-    decoder: TransformerDecoderConfig = TransformerDecoderConfig(
-        hidden_size=512,
-        inner_size=2048,
-        num_layers=6,
-        num_attention_heads=8,
-        ffn_dropout=0.1,
-        attn_score_dropout=0.1,
-        attn_layer_dropout=0.1,
-    )
-    head: TokenClassifierConfig = TokenClassifierConfig(
-        hidden_size=decoder.hidden_size, num_classes=decoder_embedding.vocab_size, log_softmax=True
-    )
-
-    # machine translation configurations
-    num_val_examples: int = 3
-    num_test_examples: int = 3
-    beam_size: int = 1
-    len_pen: float = 0.0
-    max_generation_delta: int = 10
-    label_smoothing: Optional[float] = 0.0

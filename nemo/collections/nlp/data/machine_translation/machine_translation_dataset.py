@@ -15,6 +15,7 @@
 """Pytorch Dataset for training Neural Machine Translation."""
 
 from collections import OrderedDict
+from dataclasses import MISSING, dataclass
 
 import numpy as np
 
@@ -22,6 +23,23 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_i
 from nemo.core import Dataset
 
 __all__ = ['TranslationDataset']
+
+
+@dataclass
+class TranslationDataConfig:
+    src_file_name: str = MISSING
+    tgt_file_name: str = MISSING
+    tokens_in_batch: int = 512
+    clean: bool = False
+    max_seq_length: int = 512
+    cache_ids: bool = False
+    cache_data_per_node: bool = False
+    use_cache: bool = False
+    shuffle: bool = False
+    num_samples: int = -1
+    drop_last: bool = False
+    pin_memory: bool = False
+    num_workers: int = 8
 
 
 class TranslationDataset(Dataset):

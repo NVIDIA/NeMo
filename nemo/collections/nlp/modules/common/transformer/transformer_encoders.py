@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+from dataclasses import MISSING, dataclass
 
 import torch
 import torch.nn as nn
@@ -81,16 +82,16 @@ class TransformerEncoderBlock(nn.Module):
 
 
 @dataclass
-class TransformerEncoderConfig(EncoderConfig):
+class TransformerEncoderConfig:
     inner_size: int = MISSING
     num_layers: int = MISSING
-    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoder'
     num_attention_heads: int = 1
     ffn_dropout: float = 0.0
     attn_score_dropout: float = 0.0
     attn_layer_dropout: float = 0.0
     hidden_act: str = 'relu'
     mask_future: bool = False
+    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoder'
 
 
 class TransformerEncoder(nn.Module):

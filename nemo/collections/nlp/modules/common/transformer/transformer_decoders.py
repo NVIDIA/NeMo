@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+from dataclasses import MISSING, dataclass
 
 import torch
 import torch.nn as nn
@@ -90,6 +91,18 @@ class TransformerDecoderBlock(nn.Module):
             output_states = self.layer_norm_3(output_states + enc_dec_attn_output)
 
         return output_states
+
+
+@dataclass
+class TransformerDecoderConfig:
+    inner_size: int = MISSING
+    num_layers: int = MISSING
+    num_attention_heads: int = 1
+    ffn_dropout: float = 0.0
+    attn_score_dropout: float = 0.0
+    attn_layer_dropout: float = 0.0
+    hidden_act: str = 'relu'
+    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoder'
 
 
 class TransformerDecoder(nn.Module):

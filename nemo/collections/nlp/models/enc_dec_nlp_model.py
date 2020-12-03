@@ -1,5 +1,6 @@
 from dataclasses import MISSING, dataclass
-from typing import Dict, Optional
+from nemo.core.config.modelPT import OptimConfig
+from typing import Any, Dict, Optional
 
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -8,113 +9,14 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 
 
 @dataclass
-class TokenizerConfig:
-    tokenizer_name: str = MISSING
-    tokenizer_model: Optional[str] = None
-    vocab_file: Optional[str] = None
-    special_tokens: Optional[Dict[str, str]] = None
-
-
-@dataclass
-class EmbeddingConfig:
-    vocab_size: int = MISSING
-    hidden_size: int = MISSING
-    max_sequence_length: int = 512
-    num_token_types: int = 2
-    embedding_dropout: float = 0.0
-    learn_positional_encodings: bool = False
-
-
-@dataclass
-class TransformerEmbeddingConfig(EmbeddingConfig):
-    _target_: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
-
-
-@dataclass
-class EncoderConfig:
-    hidden_size: int = MISSING
-
-
-@dataclass
-class DecoderConfig:
-    hidden_size: int = MISSING
-
-
-@dataclass
-class TransformerEncoderConfig(EncoderConfig):
-    inner_size: int = MISSING
-    num_layers: int = MISSING
-    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoder'
-    num_attention_heads: int = 1
-    ffn_dropout: float = 0.0
-    attn_score_dropout: float = 0.0
-    attn_layer_dropout: float = 0.0
-    hidden_act: str = 'relu'
-    mask_future: bool = False
-
-
-@dataclass
-class TransformerEncoderDefaultConfig(TransformerEncoderConfig):
-    hidden_size: int = 512
-    inner_size: int = 2048
-    num_layers: int = 6
-    num_attention_heads: int = 8
-    ffn_dropout: float = 0.1
-    attn_score_dropout: float = 0.1
-
-
-@dataclass
-class TransformerDecoderConfig(DecoderConfig):
-    inner_size: int = MISSING
-    num_layers: int = MISSING
-    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoder'
-    num_attention_heads: int = 1
-    ffn_dropout: float = 0.0
-    attn_score_dropout: float = 0.0
-    attn_layer_dropout: float = 0.0
-    hidden_act: str = 'relu'
-
-
-@dataclass
-class HeadConfig:
-    num_classes: int = MISSING
-
-
-@dataclass
-class TokenClassifierConfig(HeadConfig):
-    hidden_size: int = MISSING
-    num_classes: int = MISSING
-    _target_: str = 'nemo.collections.nlp.modules.common.token_classifier.TokenClassifier'
-    num_layers: int = 1
-    activation: str = 'relu'
-    log_softmax: bool = True
-    dropout: float = 0.0
-    use_transformer_init: bool = True
-
-
-@dataclass
-class SchedConfig:
-    name: str = None
-
-
-@dataclass
-class OptimConfig:
-    name: str = MISSING
-    lr: float = MISSING
-    sched: Optional[SchedConfig] = None
-
-
-@dataclass
 class EncDecNLPModelConfig:
-    encoder_tokenizer: TokenizerConfig = MISSING
-    decoder_tokenizer: TokenizerConfig = MISSING
-    encoder_embedding: EmbeddingConfig = MISSING
-    decoder_embedding: EmbeddingConfig = MISSING
-    encoder: EncoderConfig = MISSING
-    decoder: DecoderConfig = MISSING
-    head: HeadConfig = MISSING
-    optim: OptimConfig = None
-    vocab_divisibile_by_eight: bool = True  # TODO: should this go somewhere else?
+    encoder_tokenizer: Any = MISSING
+    decoder_tokenizer: Any = MISSING
+    encoder_embedding: Any = MISSING
+    decoder_embedding: Any = MISSING
+    encoder: Any = MISSING
+    decoder: Any = MISSING
+    head: Any = MISSING
 
 
 class EncDecNLPModel(NLPModel):

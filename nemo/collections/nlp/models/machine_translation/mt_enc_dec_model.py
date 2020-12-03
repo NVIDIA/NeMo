@@ -14,6 +14,7 @@
 
 import itertools
 import math
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
 import random
 from dataclasses import MISSING, dataclass
 from pathlib import Path
@@ -46,40 +47,6 @@ __all__ = ['MTEncDecModel']
 
 
 @dataclass
-class TranslationDataConfig:
-    src_file_name: str = MISSING
-    tgt_file_name: str = MISSING
-    tokens_in_batch: int = 512
-    clean: bool = False
-    max_seq_length: int = 512
-    cache_ids: bool = False
-    cache_data_per_node: bool = False
-    use_cache: bool = False
-    shuffle: bool = False
-    num_samples: int = -1
-    drop_last: bool = False
-    pin_memory: bool = False
-    num_workers: int = 8
-
-
-@dataclass
-class MTSchedConfig(SchedConfig):
-    name: str = 'InverseSquareRootAnnealing'
-    warmup_steps: Optional[int] = None
-    warmup_ratio: float = 0.1
-    last_epoch: int = -1
-
-
-@dataclass
-class MTOptimConfig(OptimConfig):
-    name: str = 'adam'
-    lr: float = 1e-3
-    betas: Tuple[float, float] = (0.9, 0.98)
-    weight_decay: float = 0.0
-    sched: Optional[MTSchedConfig] = None
-
-
-@dataclass
 class MTEncDecModelConfig(EncDecNLPModelConfig):
     train_ds: Optional[TranslationDataConfig] = None
     validation_ds: Optional[TranslationDataConfig] = None
@@ -90,6 +57,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     len_pen: float = 0.0
     max_generation_delta: int = 50
     label_smoothing: Optional[float] = 0.0
+    vocab_divisibile_by_eight: bool = True
 
 
 class MTEncDecModel(EncDecNLPModel):
