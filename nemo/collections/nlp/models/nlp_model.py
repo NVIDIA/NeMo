@@ -133,6 +133,9 @@ class NLPModel(ModelPT):
                 # extract vocab from tokenizer
                 vocab_dict = self.tokenizer.tokenizer.get_vocab()
 
+                # for fast and slow tokenizer vocabularies compatibility
+                vocab_dict = dict(sorted(vocab_dict.items(), key=lambda item: item[1]))
+
                 # get hash of vocab_dict to create a unique directory to write vocab_dict and vocab_file
                 m = hashlib.md5()
                 if 'tokenizer_name' in cfg:
@@ -157,6 +160,7 @@ class NLPModel(ModelPT):
                 with open(vocab_file_src, 'w', encoding='utf-8') as f:
                     for key in vocab_dict:
                         f.write(key + '\n')
+
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
                 logging.info(
