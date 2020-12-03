@@ -34,7 +34,7 @@ from nemo.collections.asr.models.classification_models import EncDecClassificati
 from nemo.collections.asr.models.diarization_model import DiarizationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.speaker_utils import get_score
-from nemo.collections.asr.parts.vad_utils import get_status, gen_overlap_seq, gen_seg_table, write_manifest
+from nemo.collections.asr.parts.vad_utils import gen_overlap_seq, gen_seg_table, get_status, write_manifest
 from nemo.utils import logging
 from nemo.utils.exp_manager import NotFoundError
 
@@ -138,7 +138,7 @@ class ClusteringSDModel(DiarizationModel):
         for line in open(manifest_file, 'r'):
             file = os.path.basename(json.loads(line)['audio_filepath'])
             data.append(os.path.splitext(file)[0])
-            
+
         status = get_status(data)
         for i, test_batch in enumerate(self._vad_model.test_dataloader()):
             test_batch = [x.to(self._device) for x in test_batch]
@@ -155,7 +155,7 @@ class ClusteringSDModel(DiarizationModel):
                     to_save = pred[trunc_l:]
                 else:
                     to_save = pred
-                
+
                 all_len += len(to_save)
                 outpath = os.path.join(self._vad_dir, data[i] + ".frame")
                 with open(outpath, "a") as fout:

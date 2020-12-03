@@ -19,7 +19,6 @@ import numpy as np
 import pandas as pd
 
 
-
 def get_status(data):
     """
     Generate a list of status for each snippet in manifest. A snippet should be in single, start, next or end status. 
@@ -44,6 +43,7 @@ def get_status(data):
             else:
                 status[i] = 'single'
     return status
+
 
 def gen_overlap_seq(frame_filepath, per_args):
     """
@@ -197,5 +197,3 @@ def write_manifest(vad_directory, audio_directory, manifest_file):
                     outfile.write("\n")
 
             f.close()
-
-           
