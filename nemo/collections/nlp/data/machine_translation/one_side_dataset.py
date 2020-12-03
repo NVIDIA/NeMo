@@ -112,12 +112,7 @@ class TranslationOneSideDataset(Dataset):
             batch_elem_lengths.append(len_of_longest_sent)
         return batches, batch_elem_lengths
 
-    def clean(
-        self,
-        ids,
-        max_tokens=None,
-        min_tokens=None,
-    ):
+    def clean(self, ids, max_tokens=None, min_tokens=None):
         """
         Cleans source and target sentences to get rid of noisy data.
         Specifically, a pair of sentences is removed if
@@ -131,10 +126,7 @@ class TranslationOneSideDataset(Dataset):
         ids_ = []
         for i in range(len(ids)):
             len_ = len(ids[i])
-            if (
-                (max_tokens is not None and len_ > max_tokens)
-                or (min_tokens is not None and len_ < min_tokens)
-            ):
+            if (max_tokens is not None and len_ > max_tokens) or (min_tokens is not None and len_ < min_tokens):
                 continue
             ids_.append(ids[i])
         return ids_

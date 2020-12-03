@@ -85,7 +85,8 @@ def translate(rank, world_size, args):
             if batch_idx % 100 == 0:
                 logging.info(
                     f"{batch_idx} batches and {num_translated_sentences} sentences were translated by process with "
-                    f"rank {rank}")
+                    f"rank {rank}"
+                )
             num_translated_sentences += len(src_ids)
             _, translations = ddp_model(src_ids, src_mask)
             translations = translations.cpu().numpy()
@@ -99,11 +100,7 @@ def translate(rank, world_size, args):
 def main() -> None:
     world_size = torch.cuda.device_count()
     args = get_args()
-    mp.spawn(
-        translate,
-        args=(world_size, args),
-        nprocs=world_size,
-        join=True)
+    mp.spawn(translate, args=(world_size, args), nprocs=world_size, join=True)
 
 
 if __name__ == '__main__':
