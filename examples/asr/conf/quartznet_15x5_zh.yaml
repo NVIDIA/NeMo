@@ -237,201 +237,197 @@ model:
     shuffle: False
 
   preprocessor:
-    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    params:
-      normalize: "per_feature"
-      window_size: 0.02
-      sample_rate: *sample_rate
-      window_stride: 0.01
-      window: "hann"
-      features: &n_mels 64
-      n_fft: 512
-      frame_splicing: 1
-      dither: 0.00001
-      stft_conv: false
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    normalize: "per_feature"
+    window_size: 0.02
+    sample_rate: *sample_rate
+    window_stride: 0.01
+    window: "hann"
+    features: &n_mels 64
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+    stft_conv: false
 
   spec_augment:
-    cls: nemo.collections.asr.modules.SpectrogramAugmentation
-    params:
-      rect_freq: 50
-      rect_masks: 5
-      rect_time: 120
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    rect_freq: 50
+    rect_masks: 5
+    rect_time: 120
 
   encoder:
-    cls: nemo.collections.asr.modules.ConvASREncoder
-    params:
-      feat_in: *n_mels
-      activation: relu
-      conv_mask: true
+    _target_: nemo.collections.asr.modules.ConvASREncoder
+    feat_in: *n_mels
+    activation: relu
+    conv_mask: true
 
-      jasper:
-      - dilation: [1]
-        dropout: *dropout
-        filters: 256
-        kernel: [33]
-        repeat: 1
-        residual: false
-        separable: *separable
-        stride: [2]
+    jasper:
+    - dilation: [1]
+      dropout: *dropout
+      filters: 256
+      kernel: [33]
+      repeat: 1
+      residual: false
+      separable: *separable
+      stride: [2]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 256
-        kernel: [33]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 256
+      kernel: [33]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 256
-        kernel: [33]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 256
+      kernel: [33]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 256
-        kernel: [33]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 256
+      kernel: [33]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 256
-        kernel: [39]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 256
+      kernel: [39]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 256
-        kernel: [39]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 256
+      kernel: [39]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 256
-        kernel: [39]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 256
+      kernel: [39]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [51]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [51]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [51]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [51]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [51]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [51]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [63]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [63]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [63]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [63]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [63]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [63]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [75]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [75]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [75]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [75]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: 512
-        kernel: [75]
-        repeat: *repeat
-        residual: true
-        separable: *separable
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: 512
+      kernel: [75]
+      repeat: *repeat
+      residual: true
+      separable: *separable
+      stride: [1]
 
-      - dilation: [2]
-        dropout: *dropout
-        filters: 512
-        kernel: [87]
-        repeat: 1
-        residual: false
-        separable: *separable
-        stride: [1]
+    - dilation: [2]
+      dropout: *dropout
+      filters: 512
+      kernel: [87]
+      repeat: 1
+      residual: false
+      separable: *separable
+      stride: [1]
 
-      - dilation: [1]
-        dropout: *dropout
-        filters: &enc_filters 1024
-        kernel: [1]
-        repeat: 1
-        residual: false
-        stride: [1]
+    - dilation: [1]
+      dropout: *dropout
+      filters: &enc_filters 1024
+      kernel: [1]
+      repeat: 1
+      residual: false
+      stride: [1]
 
   decoder:
-    cls: nemo.collections.asr.modules.ConvASRDecoder
-    params:
-      feat_in: *enc_filters
-      num_classes: 5206
-      vocabulary: *labels
+    _target_: nemo.collections.asr.modules.ConvASRDecoder
+    feat_in: *enc_filters
+    num_classes: 5206
+    vocabulary: *labels
 
   optim:
     name: novograd
