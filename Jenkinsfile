@@ -612,9 +612,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -662,9 +662,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -687,9 +687,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
