@@ -110,15 +110,15 @@ class VarianceAdaptor(NeuralModule):
         self.length_regulator = LengthRegulator()
 
         # # -- Pitch Setup --
-        # self.register_buffer(  # Log scale bins
-        #     "pitch_bins",
-        #     torch.exp(torch.linspace(start=np.log(pitch_min), end=np.log(pitch_max), steps=255)),  # n_f0_bins - 1
-        # )
-        # self.pitch_predictor = VariancePredictor(
-        #     d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size  # n_f0_bins
-        # )
-        # # Predictor outputs values directly rather than one-hot vectors, therefore Embedding
-        # self.pitch_lookup = nn.Embedding(256, 256)  # f0_bins, va_hidden_size
+        self.register_buffer(  # Log scale bins
+            "pitch_bins",
+            torch.exp(torch.linspace(start=np.log(pitch_min), end=np.log(pitch_max), steps=255)),  # n_f0_bins - 1
+        )
+        self.pitch_predictor = VariancePredictor(
+            d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size  # n_f0_bins
+        )
+        # Predictor outputs values directly rather than one-hot vectors, therefore Embedding
+        self.pitch_lookup = nn.Embedding(256, 256)  # f0_bins, va_hidden_size
 
         # # -- Energy Setup --
         # self.register_buffer(  # Linear scale bins
@@ -163,12 +163,12 @@ class VarianceAdaptor(NeuralModule):
             dur_preds = torch.clamp(torch.round(torch.exp(log_durations) - 1), min=0, max=self.max_duration)
             dur_out = self.length_regulator(x, dur_preds)
 
-        # # Pitch
-        # pitch_preds = self.pitch_predictor(dur_out)
-        # if self.training:
-        #     pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
-        # else:
-        #     pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
+        # Pitch
+        pitch_preds = self.pitch_predictor(dur_out)
+        if self.training:
+            pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
+        else:
+            pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
 
         # # Energy
         # energy_preds = self.energy_predictor(dur_out)
