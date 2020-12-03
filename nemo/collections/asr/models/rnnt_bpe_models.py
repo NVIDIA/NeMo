@@ -62,6 +62,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 "container that supports RNN-T loss."
             )
 
+        # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.setup_model_config(cfg)
         cfg = model_utils.convert_model_config(cfg)
 
