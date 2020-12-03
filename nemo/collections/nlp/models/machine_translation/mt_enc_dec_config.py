@@ -40,7 +40,7 @@ class AAYNBaseOptimConfig(OptimConfig):
     lr: float = 1e-3
     betas: Tuple[float, float] = (0.9, 0.98)
     weight_decay: float = 0.0
-    sched: Optional[AAYNBaseSchedConfig] = None
+    sched: Optional[AAYNBaseSchedConfig] = AAYNBaseSchedConfig()
 
 
 @dataclass
