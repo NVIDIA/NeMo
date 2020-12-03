@@ -42,98 +42,94 @@ model:
     test_loss_idx: 0
 
   preprocessor:
-    cls: nemo.collections.asr.modules.AudioToMFCCPreprocessor
-    params:
-      window_size: 0.025
-      window_stride: 0.01
-      window: "hann"
-      n_mels: &n_mels 64
-      n_mfcc: *n_mels
-      n_fft: 512
+    _target_: nemo.collections.asr.modules.AudioToMFCCPreprocessor
+    window_size: 0.025
+    window_stride: 0.01
+    window: "hann"
+    n_mels: &n_mels 64
+    n_mfcc: *n_mels
+    n_fft: 512
 
   spec_augment:
-    cls: nemo.collections.asr.modules.SpectrogramAugmentation
-    params:
-      freq_masks: 2
-      time_masks: 2
-      freq_width: 15
-      time_width: 25
-      rect_masks: 5
-      rect_time: 25
-      rect_freq: 15
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 2
+    time_masks: 2
+    freq_width: 15
+    time_width: 25
+    rect_masks: 5
+    rect_time: 25
+    rect_freq: 15
 
   encoder:
-    cls: nemo.collections.asr.modules.ConvASREncoder
-    params:
-      feat_in: *n_mels
-      activation: relu
-      conv_mask: true
+    _target_: nemo.collections.asr.modules.ConvASREncoder
+    feat_in: *n_mels
+    activation: relu
+    conv_mask: true
 
-      jasper:
-        - filters: 128
-          repeat: 1
-          kernel: [11]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: false
-          separable: true
-          kernel_size_factor: *kfactor
+    jasper:
+      - filters: 128
+        repeat: 1
+        kernel: [11]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: false
+        separable: true
+        kernel_size_factor: *kfactor
 
-        - filters: 64
-          repeat: *repeat
-          kernel: [13]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: true
-          separable: true
-          kernel_size_factor: *kfactor
+      - filters: 64
+        repeat: *repeat
+        kernel: [13]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: true
+        kernel_size_factor: *kfactor
 
-        - filters: 64
-          repeat: *repeat
-          kernel: [15]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: true
-          separable: true
-          kernel_size_factor: *kfactor
+      - filters: 64
+        repeat: *repeat
+        kernel: [15]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: true
+        kernel_size_factor: *kfactor
 
-        - filters: 64
-          repeat: *repeat
-          kernel: [17]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: true
-          separable: true
-          kernel_size_factor: *kfactor
+      - filters: 64
+        repeat: *repeat
+        kernel: [17]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: true
+        kernel_size_factor: *kfactor
 
-        - filters: 128
-          repeat: 1
-          kernel: [29]
-          stride: [1]
-          dilation: [2]
-          dropout: *dropout
-          residual: false
-          separable: true
-          kernel_size_factor: *kfactor
+      - filters: 128
+        repeat: 1
+        kernel: [29]
+        stride: [1]
+        dilation: [2]
+        dropout: *dropout
+        residual: false
+        separable: true
+        kernel_size_factor: *kfactor
 
-        - filters: &enc_final_filters 128
-          repeat: 1
-          kernel: [1]
-          stride: [1]
-          dilation: [1]
-          dropout: *dropout
-          residual: false
+      - filters: &enc_final_filters 128
+        repeat: 1
+        kernel: [1]
+        stride: [1]
+        dilation: [1]
+        dropout: *dropout
+        residual: false
 
   decoder:
-    cls: nemo.collections.asr.modules.ConvASRDecoderClassification
-    params:
-      feat_in: *enc_final_filters
-      return_logits: true
-      pooling_type: 'avg'
+    _target_: nemo.collections.asr.modules.ConvASRDecoderClassification
+    feat_in: *enc_final_filters
+    return_logits: true
+    pooling_type: 'avg'
 
   optim:
     name: novograd

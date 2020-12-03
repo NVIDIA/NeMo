@@ -30,6 +30,7 @@ import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
+from nemo.utils.model_utils import maybe_update_config_version
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
@@ -252,6 +253,8 @@ class Serialization(ABC):
             config = OmegaConf.create(config)
             OmegaConf.set_struct(config, True)
 
+        config = maybe_update_config_version(config)
+
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
@@ -273,6 +276,8 @@ class Serialization(ABC):
             config = OmegaConf.to_container(self._cfg, resolve=True)
             config = OmegaConf.create(config)
             OmegaConf.set_struct(config, True)
+
+            config = maybe_update_config_version(config)
 
             self._cfg = config
 
@@ -325,6 +330,7 @@ class FileIO(ABC):
         Returns:
         """
         if hasattr(self, '_cfg'):
+            self._cfg = maybe_update_config_version(self._cfg)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=self._cfg, f=fout, resolve=True)
         else:
