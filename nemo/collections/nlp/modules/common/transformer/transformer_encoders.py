@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import copy
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
+from omegaconf.omegaconf import MISSING
 
 import torch
 import torch.nn as nn
@@ -83,8 +84,9 @@ class TransformerEncoderBlock(nn.Module):
 
 @dataclass
 class TransformerEncoderConfig:
-    inner_size: int = MISSING
+    hidden_size: int = MISSING
     num_layers: int = MISSING
+    inner_size: int = MISSING
     num_attention_heads: int = 1
     ffn_dropout: float = 0.0
     attn_score_dropout: float = 0.0

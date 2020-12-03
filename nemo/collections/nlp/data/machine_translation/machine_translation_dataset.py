@@ -15,9 +15,10 @@
 """Pytorch Dataset for training Neural Machine Translation."""
 
 from collections import OrderedDict
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 import numpy as np
+from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset

@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
+
+from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
@@ -22,7 +24,23 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
 
-from typing import Optional
+from typing import Optional, Tuple
+
+
+@dataclass
+class AAYNBaseSchedConfig(SchedConfig):
+    name: str = 'InverseSquareRootAnnealing'
+    warmup_ratio: float = 0.1
+    last_epoch: int = -1
+
+
+@dataclass
+class AAYNBaseOptimConfig(OptimConfig):
+    name: str = 'adam'
+    lr: float = 1e-3
+    betas: Tuple[float, float] = (0.9, 0.98)
+    weight_decay: float = 0.0
+    sched: Optional[AAYNBaseSchedConfig] = None
 
 
 @dataclass
@@ -97,10 +115,5 @@ class AAYNBaseConfig(ModelConfig):
         cache_ids=True,
         use_cache=True,
     )
-    optim: Optional[OptimConfig] = OptimConfig(
-        name='adam',
-        lr=1e-3,
-        betas=(0.9, 0.98),
-        weight_decay=0.0,
-        sched=SchedConfig(name='InverseSquareRootAnnealing', warmup_ratio=0.1),
-    )
+    optim: Optional[OptimConfig] = AAYNBaseOptimConfig()
+

@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 import math
+from omegaconf.omegaconf import MISSING
 
 import torch
 from torch import nn

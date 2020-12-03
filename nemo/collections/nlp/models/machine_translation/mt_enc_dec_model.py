@@ -36,8 +36,6 @@ from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import (
     EncDecNLPModel,
     EncDecNLPModelConfig,
-    OptimConfig,
-    SchedConfig,
 )
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.core.classes.common import typecheck
