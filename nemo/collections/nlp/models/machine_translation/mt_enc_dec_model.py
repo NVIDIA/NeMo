@@ -57,8 +57,6 @@ class MTEncDecModel(EncDecNLPModel):
         self.encoder = instantiate(cfg.encoder)
         self.decoder = instantiate(cfg.decoder)
 
-        # TODO: Optionally tie weights
-
         self.log_softmax = instantiate(cfg.head)
 
         self.beam_search = BeamSearchSequenceGenerator(
@@ -74,13 +72,13 @@ class MTEncDecModel(EncDecNLPModel):
             max_delta_length=cfg.max_generation_delta,
         )
 
+        # tie weights of embedding and softmax matrices
+        self.log_softmax.mlp.layer0.weight = self.decoder_embedding.token_embedding.weight
+
         # TODO: encoder and decoder with different hidden size?
         std_init_range = 1 / cfg.encoder.hidden_size ** 0.5
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
-        # tie weights of embedding and softmax matrices
-        self.log_softmax.mlp.layer0.weight = self.decoder_embedding.token_embedding.weight
-        self.emb_scale = cfg.encoder.hidden_size ** 0.5
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
@@ -109,10 +107,8 @@ class MTEncDecModel(EncDecNLPModel):
 
         """
         src_embeddings = self.encoder_embedding(input_ids=src)
-        # src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
         src_hiddens = self.encoder(src_embeddings, src_mask)
         tgt_embeddings = self.decoder_embedding(input_ids=tgt)
-        # tgt_embeddings *= tgt_embeddings.new_tensor(self.emb_scale)
         tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         beam_results = None
@@ -215,7 +211,6 @@ class MTEncDecModel(EncDecNLPModel):
         :param outputs: list of individual outputs of each validation step.
         """
         self.log_dict(self.eval_epoch_end(outputs, 'val'))
-        # return self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
@@ -225,11 +220,9 @@ class MTEncDecModel(EncDecNLPModel):
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
-        # self.num_examples['val'] = val_data_config.get('num_examples', self.num_examples['val'])
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
-        # self.num_examples['test'] = test_data_config.get('num_examples', self.num_examples['test'])
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = TranslationDataset(
@@ -281,7 +274,6 @@ class MTEncDecModel(EncDecNLPModel):
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
                 src_mask = torch.ones_like(src)
                 src_embeddings = self.encoder_embedding(input_ids=src)
-                # src_embeddings *= src_embeddings.new_tensor(self.emb_scale)
                 src_hiddens = self.encoder(src_embeddings, src_mask)
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
