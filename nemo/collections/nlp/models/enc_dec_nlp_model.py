@@ -27,19 +27,13 @@ class EncDecNLPModel(NLPModel):
 
     @property
     def encoder_vocab_size(self):
-        return self._encoder_vocab_size
-
-    @encoder_vocab_size.setter
-    def encoder_vocab_size(self, size: int):
-        self._encoder_vocab_size = size
+        if self.encoder and self.encoder.vocab_size:
+            return self.encoder.vocab_size
 
     @property
     def decoder_vocab_size(self):
-        return self._decoder_vocab_size
-
-    @decoder_vocab_size.setter
-    def decoder_vocab_size(self, size: int):
-        self._decoder_vocab_size = size
+        if self.decoder and self.decoder.vocab_size:
+            return self.decoder.vocab_size
 
     @property
     def encoder_tokenizer(self):
@@ -92,5 +86,3 @@ class EncDecNLPModel(NLPModel):
     def setup_enc_dec_tokenizers(self, cfg: EncDecNLPModelConfig):
         self.encoder_tokenizer = get_tokenizer(**cfg.encoder_tokenizer)
         self.decoder_tokenizer = get_tokenizer(**cfg.decoder_tokenizer)
-        self.encoder_vocab_size = self.encoder_tokenizer.vocab_size
-        self.decoder_vocab_size = self.decoder_tokenizer.vocab_size
