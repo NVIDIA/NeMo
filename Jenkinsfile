@@ -678,13 +678,14 @@ pipeline {
       }
     }
 
-    stage('L2: NMT AAYN Base') {
+    stage('L2: NMT Attention is All You Need Base') {
       when {
         anyOf{
           branch 'nmt'
           changeRequest target: 'nmt'
         }
       }
+      failFast true
       steps{
         sh 'cd examples/nlp/machine_translation && \
         python enc_dec_nmt.py \
