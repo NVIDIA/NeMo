@@ -43,7 +43,7 @@ __all__ = ['MTEncDecModel']
 
 class MTEncDecModel(EncDecNLPModel):
     """
-    Left-to-right Transformer language model.
+    Encoder-decoder machine translation model.
     """
 
     def __init__(self, cfg: MTEncDecModelConfig, trainer: Trainer = None):
