@@ -13,6 +13,7 @@
 # limitations under the License.
 import json
 import logging
+import numpy as np
 import multiprocessing
 import os
 from argparse import ArgumentParser
@@ -64,9 +65,13 @@ def write_manifest(file, args_func):
 
         while left > 0:
             if left <= split_duration:
-                status = 'end'
-                write_duration = left + time_length
-                current_offset -= time_length
+                if status == 'single':
+                    write_duration = left
+                    current_offset = 0
+                else:
+                    status = 'end'
+                    write_duration = left + time_length
+                    current_offset -= time_length
                 offset_inc = left
                 left = 0
             else:
@@ -107,6 +112,7 @@ def write_manifest(file, args_func):
 def main():
     parser = ArgumentParser()
     parser.add_argument("--inp_dir", type=str, required=True, help="(full path) folder of files to be processed")
+    parser.add_argument("--inp_list", type=str, help="(full path) a file contains NAME of files inside inp_dir to be processed")
     parser.add_argument(
         "--out_dir", type=str, default=".", help="[Optional](full path) location to store generated json file"
     )
@@ -118,16 +124,19 @@ def main():
     parser.add_argument("--num_workers", type=int, default=4, help="[Optional] number of workers for multiprocessing")
     args = parser.parse_args()
 
-    inp_dir = args.inp_dir
-    input_audios = []
-    for root, dirs, files in os.walk(inp_dir):
-        for basename in files:
-            if basename.endswith('.wav'):
-                filename = os.path.join(root, basename)
-                input_audios.append(filename)
+    if not args.inp_list:
+        input_audios = []
+        for root, dirs, files in os.walk(args.inp_dir):
+            for basename in files:
+                if basename.endswith('.wav'):
+                    filename = os.path.join(root, basename)
+                    input_audios.append(filename)
+    else:
+        name_list = np.loadtxt(args.inp_list, dtype='str')
+        input_audios = [os.path.join(args.inp_dir, name + ".wav") for name in name_list]
+    print(f"Number of wav files to be processed: {len(input_audios)}") 
 
-    print(f"Number of wav files in this folder: {len(input_audios)}")
-
+    
     output_path = os.path.join(args.out_dir, args.manifest_name + '.json')
     print(f"Save generate manifest to {output_path}!")
     if not os.path.exists(args.out_dir):
@@ -137,7 +146,6 @@ def main():
         print(f"Manifest {output_path} exists! Overwriting")
         os.remove(output_path)
 
-    print("Start processing...")
     p = multiprocessing.Pool(processes=args.num_workers)
 
     args_func = {
