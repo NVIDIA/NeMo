@@ -708,8 +708,8 @@ pipeline {
     stage('L2: NMT AAYN Base') {
       when {
         anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'nmt'
+          changeRequest target: 'nmt'
         }
       }
       steps{
