@@ -1,0 +1,149 @@
+model:
+  num_val_examples: 3
+  num_test_examples: 3
+  beam_size: 1
+  len_pen: 0.0
+  max_generation_delta: 10
+  label_smoothing: 0.0
+
+  train_ds:
+    src_file_name: ???
+    tgt_file_name: ???
+    tokens_in_batch: 512
+    clean: true
+    max_seq_length: 512
+    cache_ids: true
+    cache_data_per_node: false
+    use_cache: true
+    shuffle: true
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+
+  validation_ds:
+    src_file_name: ???
+    tgt_file_name: ???
+    tokens_in_batch: 512
+    clean: false
+    max_seq_length: 512
+    cache_ids: true
+    cache_data_per_node: false
+    use_cache: true
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+
+  test_ds:
+    src_file_name: ???
+    tgt_file_name: ???
+    tokens_in_batch: 512
+    clean: false
+    max_seq_length: 512
+    cache_ids: true
+    cache_data_per_node: false
+    use_cache: true
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+
+  optim:
+    name: adam
+    lr: 0.001
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+  encoder_tokenizer:
+    tokenizer_name: yttm
+    tokenizer_model: ???
+    vocab_file: null
+    special_tokens: null
+
+  decoder_tokenizer:
+    tokenizer_name: yttm
+    tokenizer_model: ???
+    vocab_file: null
+    special_tokens: null
+
+  encoder_embedding:
+    vocab_size: 37000
+    hidden_size: 512
+    max_sequence_length: 512
+    num_token_types: 2
+    embedding_dropout: 0.1
+    learn_positional_encodings: false
+    _target_: nemo.collections.nlp.modules.common.transformer.TransformerEmbedding
+
+  encoder:
+    hidden_size: 512
+    num_layers: 6
+    inner_size: 2048
+    num_attention_heads: 8
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    hidden_act: relu
+    mask_future: false
+    _target_: nemo.collections.nlp.modules.common.transformer.TransformerEncoder
+
+  decoder_embedding:
+    vocab_size: 37000
+    hidden_size: 512
+    max_sequence_length: 512
+    num_token_types: 2
+    embedding_dropout: 0.1
+    learn_positional_encodings: false
+    _target_: nemo.collections.nlp.modules.common.transformer.TransformerEmbedding
+
+  decoder:
+    hidden_size: 512
+    inner_size: 2048
+    num_layers: 6
+    num_attention_heads: 8
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    hidden_act: relu
+    _target_: nemo.collections.nlp.modules.common.transformer.TransformerDecoder
+
+  head:
+    hidden_size: 512
+    num_classes: 37000
+    num_layers: 1
+    activation: relu
+    log_softmax: true
+    dropout: 0.0
+    use_transformer_init: true
+    _target_: nemo.collections.nlp.modules.common.token_classifier.TokenClassifier
+
+trainer:
+  logger: false
+  checkpoint_callback: false
+  gradient_clip_val: 0.0
+  num_nodes: 1
+  gpus: 1
+  progress_bar_refresh_rate: 1
+  accumulate_grad_batches: 1
+  max_epochs: 3
+  max_steps: null
+  val_check_interval: 1.0
+  log_every_n_steps: 10
+  accelerator: DDP
+  precision: 16
+  num_sanity_val_steps: 2
+  _target_: pytorch_lightning.Trainer
+
+exp_manager:
+  name: AAYNBase
+  files_to_copy: []

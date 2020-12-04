@@ -22,9 +22,11 @@ import string
 from collections import Counter
 
 import numpy as np
+import torch
 from tqdm.auto import tqdm
 
 from nemo.utils import logging
+from nemo.utils.env_var_parsing import get_envint
 
 __all__ = [
     'DataProcessor',
@@ -350,23 +352,25 @@ def remove_punctuation_from_sentence(sentence):
     return sentence
 
 
-def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
+def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True, cache_data_per_node=False, use_cache=False):
     """
     Reads dataset from file line by line, tokenizes each line with tokenizer,
     and returns list of lists which corresponds to ids of tokenized strings.
 
     Args:
-        dataset: path to dataset
+        dataset (str): path to dataset
         tokenizer: tokenizer to convert text into ids
-        cache_ids: if True, ids are saved to disk as pickle file
+        cache_ids (bool): if True, ids are saved to disk as pickle file
             with similar name (e.g., data.txt --> data.txt.pkl)
-        add_bos_eos: bool, whether to add <s> and </s> symbols (e.g., for NMT)
+        add_bos_eos (bool): whether to add <s> and </s> symbols (e.g., for NMT)
+        cache_data_per_node (bool): Cache data on local_rank 0. Use when there is not a shared-filesystem.
+        use_cache (bool): Use cached ids if they exist.
     Returns:
         ids: list of ids which correspond to tokenized strings of the dataset
     """
 
     cached_ids_dataset = dataset + str(".pkl")
-    if os.path.isfile(cached_ids_dataset):
+    if use_cache and os.path.isfile(cached_ids_dataset):
         logging.info("Loading cached tokenized dataset ...")
         ids = pickle.load(open(cached_ids_dataset, "rb"))
     else:
@@ -378,7 +382,9 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
             if add_bos_eos:
                 sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
             ids.append(sent_ids)
-        if cache_ids:
+        if cache_ids and (
+            not torch.distributed.is_initialized() or (cache_data_per_node and get_envint("LOCAL_RANK", 0) == 0)
+        ):
             logging.info("Caching tokenized dataset ...")
             pickle.dump(ids, open(cached_ids_dataset, "wb"))
     return ids

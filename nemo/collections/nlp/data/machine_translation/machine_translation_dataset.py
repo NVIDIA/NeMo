@@ -15,13 +15,32 @@
 """Pytorch Dataset for training Neural Machine Translation."""
 
 from collections import OrderedDict
+from dataclasses import dataclass
 
 import numpy as np
+from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
 
 __all__ = ['TranslationDataset']
+
+
+@dataclass
+class TranslationDataConfig:
+    src_file_name: str = MISSING
+    tgt_file_name: str = MISSING
+    tokens_in_batch: int = 512
+    clean: bool = False
+    max_seq_length: int = 512
+    cache_ids: bool = False
+    cache_data_per_node: bool = False
+    use_cache: bool = False
+    shuffle: bool = False
+    num_samples: int = -1
+    drop_last: bool = False
+    pin_memory: bool = False
+    num_workers: int = 8
 
 
 class TranslationDataset(Dataset):
@@ -37,14 +56,29 @@ class TranslationDataset(Dataset):
         min_seq_length=1,
         max_seq_length_diff=512,
         max_seq_length_ratio=512,
+        cache_ids=False,
+        cache_data_per_node=False,
+        use_cache=False,
     ):
 
         self.src_tokenizer = tokenizer_src
         self.tgt_tokenizer = tokenizer_tgt
         self.tokens_in_batch = tokens_in_batch
 
-        src_ids = dataset_to_ids(dataset_src, tokenizer_src)
-        tgt_ids = dataset_to_ids(dataset_tgt, tokenizer_tgt)
+        src_ids = dataset_to_ids(
+            dataset_src,
+            tokenizer_src,
+            cache_ids=cache_ids,
+            cache_data_per_node=cache_data_per_node,
+            use_cache=use_cache,
+        )
+        tgt_ids = dataset_to_ids(
+            dataset_tgt,
+            tokenizer_tgt,
+            cache_ids=cache_ids,
+            cache_data_per_node=cache_data_per_node,
+            use_cache=use_cache,
+        )
         if clean:
             src_ids, tgt_ids = self.clean_src_and_target(
                 src_ids,

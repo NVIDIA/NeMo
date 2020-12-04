@@ -15,8 +15,10 @@
 # limitations under the License.
 
 import math
+from dataclasses import dataclass
 
 import torch
+from omegaconf.omegaconf import MISSING
 from torch import nn
 from torch.nn.functional import gelu
 
@@ -47,6 +49,17 @@ class FixedPositionalEncoding(nn.Module):
 
     def forward(self, position_ids):
         return torch.embedding(self.pos_enc, position_ids)
+
+
+@dataclass
+class TransformerEmbeddingConfig:
+    vocab_size: int = MISSING
+    hidden_size: int = MISSING
+    max_sequence_length: int = 512
+    num_token_types: int = 2
+    embedding_dropout: float = 0.0
+    learn_positional_encodings: bool = False
+    _target_: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
 
 
 class TransformerEmbedding(nn.Module):

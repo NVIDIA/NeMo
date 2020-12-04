@@ -372,33 +372,6 @@ pipeline {
         }
       }
     }
-    // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
-    stage('L2: MegaBERT Token Classification') {
-      when {
-        anyOf{
-          branch 'v1.0.0b2'
-          changeRequest target: 'v1.0.0b2'
-        }
-      }
-      failFast true
-      steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
-        model.train_ds.batch_size=10 \
-        model.dataset.max_seq_length=50 \
-        model.dataset.use_cache=false \
-        trainer.accelerator=ddp \
-        trainer.precision=16 \
-        trainer.amp_level=O1 \
-        trainer.gpus=[1] \
-        +trainer.fast_dev_run=true \
-        exp_manager.exp_dir=exp_megabert_base_uncased \
-        '
-        sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
-      }
-    }
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
       when {
         anyOf{
@@ -702,6 +675,40 @@ pipeline {
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
             }
         }
+      }
+    }
+
+    stage('L2: NMT Attention is All You Need Base') {
+      when {
+        anyOf{
+          branch 'nmt'
+          changeRequest target: 'nmt'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/machine_translation && \
+        python enc_dec_nmt.py \
+        --config-path=conf \
+        --config-name=aayn_base \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.train_ds.cache_ids=false \
+        model.train_ds.use_cache=false \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.cache_ids=false \
+        model.validation_ds.use_cache=false \
+        model.test_ds=null \
+        model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        model.encoder_embedding.vocab_size=4096 \
+        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        model.decoder_embedding.vocab_size=4096 \
+        model.head.num_classes=4096 \
+        trainer.gpus=[0] \
+        trainer.fast_dev_run=true \
+        exp_manager=null \
+        '
       }
     }
 

@@ -226,7 +226,8 @@ class NLPModel(ModelPT):
         if stage == 'fit':
 
             # adds self.bert_model config to .nemo file
-            self.register_bert_model()
+            if self.bert_model is not None:
+                self.register_bert_model()
 
             app_state = AppState()
 

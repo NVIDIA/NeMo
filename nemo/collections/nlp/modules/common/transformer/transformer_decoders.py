@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import copy
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
+from omegaconf.omegaconf import MISSING
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
@@ -42,13 +44,13 @@ class TransformerDecoderBlock(NeuralModule):
 
     def __init__(
         self,
-        hidden_size,
-        inner_size,
-        num_attention_heads=1,
-        attn_score_dropout=0,
-        attn_layer_dropout=0,
-        ffn_dropout=0,
-        hidden_act="relu",
+        hidden_size: int,
+        inner_size: int,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
         pre_ln=False,
     ):
         super().__init__()
@@ -94,8 +96,21 @@ class TransformerDecoderBlock(NeuralModule):
         return output_states
 
 
+@dataclass
+class TransformerDecoderConfig:
+    hidden_size: int = MISSING
+    inner_size: int = MISSING
+    num_layers: int = MISSING
+    num_attention_heads: int = 1
+    ffn_dropout: float = 0.0
+    attn_score_dropout: float = 0.0
+    attn_layer_dropout: float = 0.0
+    hidden_act: str = 'relu'
+    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoder'
+
+
 class TransformerDecoder(nn.Module):
-    def __init__(self, num_layers, hidden_size, **kwargs):
+    def __init__(self, num_layers: int, hidden_size: int, **kwargs):
         super().__init__()
 
         layer = TransformerDecoderBlock(hidden_size, **kwargs)
