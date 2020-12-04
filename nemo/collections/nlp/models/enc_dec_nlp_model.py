@@ -27,15 +27,11 @@ class EncDecNLPModel(NLPModel):
 
     @property
     def encoder_vocab_size(self):
-        if hasattr(self, 'encoder_tokenizer'):
-            if hasattr(self.encoder_tokenizer, 'vocab_size'):
-                return self.encoder_tokenizer.vocab_size
+        return self.encoder_tokenizer.vocab_size
 
     @property
     def decoder_vocab_size(self):
-        if hasattr(self, 'decoder_tokenizer'):
-            if hasattr(self.decoder_tokenizer, 'vocab_size'):
-                return self.decoder_tokenizer.vocab_size
+        return self.decoder_tokenizer.vocab_size
 
     @property
     def encoder_tokenizer(self):
