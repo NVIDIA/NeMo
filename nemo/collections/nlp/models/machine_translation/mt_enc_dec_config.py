@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
 from typing import Optional, Tuple
 
 from omegaconf.omegaconf import MISSING
@@ -24,6 +25,20 @@ from nemo.collections.nlp.modules.common.transformer.transformer_decoders import
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoderConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbeddingConfig
 from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
+
+
+@dataclass
+class MTEncDecModelConfig(EncDecNLPModelConfig):
+    train_ds: Optional[TranslationDataConfig] = None
+    validation_ds: Optional[TranslationDataConfig] = None
+    test_ds: Optional[TranslationDataConfig] = None
+    num_val_examples: int = 3
+    num_test_examples: int = 3
+    beam_size: int = 1
+    len_pen: float = 0.0
+    max_generation_delta: int = 50
+    label_smoothing: Optional[float] = 0.0
+    vocab_divisible_by_eight: bool = True
 
 
 @dataclass

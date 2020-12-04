@@ -14,6 +14,7 @@
 
 import itertools
 import math
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,27 +33,12 @@ from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import Perplexity
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
-from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel, EncDecNLPModelConfig
+from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging
 
 __all__ = ['MTEncDecModel']
-
-
-@dataclass
-class MTEncDecModelConfig(EncDecNLPModelConfig):
-    train_ds: Optional[TranslationDataConfig] = None
-    validation_ds: Optional[TranslationDataConfig] = None
-    test_ds: Optional[TranslationDataConfig] = None
-    num_val_examples: int = 3
-    num_test_examples: int = 3
-    beam_size: int = 1
-    len_pen: float = 0.0
-    max_generation_delta: int = 50
-    label_smoothing: Optional[float] = 0.0
-    vocab_divisible_by_eight: bool = True
 
 
 class MTEncDecModel(EncDecNLPModel):
