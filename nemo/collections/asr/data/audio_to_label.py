@@ -56,6 +56,7 @@ target_label_n, "offset": offset_in_sec_n}
             Defaults to True.
         time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task 
         shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
+        normalize_audio (float): todo
         
     """
 
@@ -87,6 +88,7 @@ target_label_n, "offset": offset_in_sec_n}
         load_audio: bool = True,
         time_length: Optional[float] = 8,
         shift_length: Optional[float] = 1,
+        normalize_audio: bool=False
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
@@ -98,6 +100,7 @@ target_label_n, "offset": offset_in_sec_n}
         self.load_audio = load_audio
         self.time_length = time_length
         self.shift_length = shift_length
+        self.normalize_audio = normalize_audio
 
         logging.info("Time length considered for collate func is {}".format(time_length))
         logging.info("Shift length considered for collate func is {}".format(shift_length))
@@ -223,6 +226,8 @@ target_label_n, "offset": offset_in_sec_n}
         append_len_start = slice_length // 2
         append_len_end = slice_length - slice_length // 2
         for sig, sig_len, tokens_i, _ in batch:
+            if self.normalize_audio:
+                sig = normalize(sig)
             start = torch.zeros(append_len_start)
             end = torch.zeros(append_len_end)
             sig = torch.cat((start, sig, end))
@@ -281,3 +286,9 @@ def repeat_signal(signal, sig_len, required_length):
     rep_sig = torch.cat(repeat * [signal])
     signal = torch.cat((rep_sig, sub))
     return signal
+
+
+def normalize(signal):
+    signal_minusmean = signal - signal.mean()
+    return signal_minusmean/signal_minusmean.abs().max()
+    
