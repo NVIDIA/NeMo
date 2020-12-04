@@ -164,22 +164,23 @@ class VarianceAdaptor(NeuralModule):
             dur_out = self.length_regulator(x, dur_preds)
 
         # Pitch
+        # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
+        #       (see Appendix C of the FastSpeech 2/2s paper).
         pitch_preds = self.pitch_predictor(dur_out)
         if self.training:
             pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
         else:
             pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
 
-        # # Energy
-        # energy_preds = self.energy_predictor(dur_out)
-        # if self.training:
-        #     energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
-        # else:
-        #     energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
+        # Energy
+        energy_preds = self.energy_predictor(dur_out)
+        if self.training:
+            energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
+        else:
+            energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
 
-        # out = dur_out + pitch_out + energy_out
-        # return out
-        return dur_out
+        out = dur_out + pitch_out + energy_out
+        return out
 
 
 @experimental
