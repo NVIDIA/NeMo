@@ -30,6 +30,9 @@ parser = argparse.ArgumentParser(description="Prepares text and audio files for 
 parser.add_argument("--in_text", type=str, default=None, help='Path to a text file or a directory with .txt files')
 parser.add_argument("--output_dir", type=str, required=True, help='Path to output directory')
 parser.add_argument("--audio_dir", type=str, help='Path to folder with .mp3 or .wav audio files')
+parser.add_argument(
+    "--audio_format", type=str, default='.mp3', choices=['.mp3', '.wav'], help='Audio files format in --audio_dir'
+)
 parser.add_argument('--sample_rate', type=int, default=16000, help='Sampling rate used during ASR model training')
 parser.add_argument('--language', type=str, default='eng', choices=['eng', 'ru', 'other'])
 parser.add_argument(
@@ -50,42 +53,42 @@ parser.add_argument(
     default='',
     help='Additional symbols to use for \
     sentence split if eos sentence split resulted in sequence longer than --max_length. \
-    Use || as a separator between symbols, space will be preserved, for example: "; ||: "',
+    For example: ";:" ',
 )
 
 
-def convert_mp3_to_wav(mp3_file: str, wav_file: str = None, sample_rate: int = 16000) -> str:
+def convert_audio(in_file: str, wav_file: str = None, sample_rate: int = 16000) -> str:
     """
-    Convert .mp3 to .wav and change sample rate if needed
+    Convert .mp3 to .wav and/or change sample rate if needed
 
     Args:
-        mp3_file: Path to .mp3 file
+        in_file: Path to .mp3 or .wav file
         sample_rate: Desired sample rate
 
     Returns:
         path to .wav file
     """
-    print(f"Converting {mp3_file} to .wav format with sample rate {sample_rate}")
-    if not mp3_file.endswith(".mp3"):
-        raise ValueError(f'.mp3 file expected but {mp3_file} passed')
+    print(f"Converting {in_file} to .wav format with sample rate {sample_rate}")
+    if not os.path.exists(in_file):
+        raise ValueError(f'{in_file} not found')
     if wav_file is None:
-        wav_file = mp3_file.replace(".mp3", ".wav")
+        wav_file = in_file.replace(".mp3", f"_{sample_rate}.wav")
 
-    os.system(f'ffmpeg -i {mp3_file} -ac 1 -af aresample=resampler=soxr -ar {sample_rate} {wav_file} -y')
+    os.system(f'ffmpeg -i {in_file} -ac 1 -af aresample=resampler=soxr -ar {sample_rate} {wav_file} -y')
     return wav_file
 
 
-def process_audio(mp3_file: str, wav_file: str = None, cut_prefix: int = 0, sample_rate: int = 16000):
+def process_audio(in_file: str, wav_file: str = None, cut_prefix: int = 0, sample_rate: int = 16000):
     """Process audio file: .mp3 to .wav conversion and cut a few seconds from the beginning of the audio
 
     Args:
-        mp3_file: path to the .mp3 file for processing
+        in_file: path to the .mp3 or .wav file for processing
         wav_file: path to the output .wav file
         cut_prefix: number of seconds to cut from the beginning of the audio file
         sample_rate: target sampling rate
 
     """
-    wav_audio = convert_mp3_to_wav(str(mp3_file), wav_file, sample_rate)
+    wav_audio = convert_audio(str(in_file), wav_file, sample_rate)
 
     if cut_prefix > 0:
         # cut a few seconds of audio from the beginning
@@ -172,18 +175,25 @@ def split_text(
         if len(split_on_symbols) == 0:
             return sentences
 
-        split_on_symbols = split_on_symbols.split('||')
+        split_on_symbols = list(split_on_symbols)
+        for i, sym in enumerate(split_on_symbols):
+            if sym == '-':
+                split_on_symbols[i] = ' - '
+
         another_sent_split = []
         for sent in sentences:
             if len(sent) > max_length:
+                found_sym = False
                 for sym in split_on_symbols:
                     if sym in sent:
                         another_sent_split.extend(sent.split(sym))
+                        found_sym = True
                         break
-                    else:
-                        another_sent_split.append(sent)
+                if not found_sym:
+                    another_sent_split.append(sent)
             else:
                 another_sent_split.append(sent)
+
         sentences = [s.strip() for s in another_sent_split if s.strip()]
         return sentences
 
@@ -303,12 +313,13 @@ if __name__ == '__main__':
 
     if args.audio_dir:
         if not os.path.exists(args.audio_dir):
-            raise ValueError(f'{args.audio_dir} not found. "--audio_dir" should contain .mp3 files.')
-        audio_paths = list(Path(args.audio_dir).glob("*.mp3"))
+            raise ValueError(f'{args.audio_dir} not found. "--audio_dir" should contain .mp3 or .wav files.')
+
+        audio_paths = list(Path(args.audio_dir).glob(f"*{args.audio_format}"))
 
         workers = []
         for i in range(len(audio_paths)):
-            wav_file = os.path.join(args.output_dir, audio_paths[i].name.replace(".mp3", ".wav"))
+            wav_file = os.path.join(args.output_dir, audio_paths[i].name.replace(args.audio_format, ".wav"))
             worker = multiprocessing.Process(
                 target=process_audio, args=(audio_paths[i], wav_file, args.cut_prefix, args.sample_rate),
             )

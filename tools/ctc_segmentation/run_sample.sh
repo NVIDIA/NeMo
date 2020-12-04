@@ -44,7 +44,7 @@ if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; t
   --SCRIPTS_DIR=[scripts_dir_path (Optional)]
   --MIN_SEGMENT_LEN=[min number of characters of the text segment for alignment (Optional)]
   --MAX_SEGMENT_LEN=[max number of characters of the text segment for alignment (Optional)]
-  --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for \
+  --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for
     sentence split if eos sentence split resulted in sequence longer than --max_length.
     Use || as a separator between symbols, space will be preserved, for example: '; ||: '. (Optional)]"
   exit 1
@@ -54,14 +54,14 @@ fi
 # Prepare text and audio data for segmentation
 python $SCRIPTS_DIR/prepare_data.py \
 --in_text=$DATA_DIR/text \
+--audio_dir=$DATA_DIR/audio \
 --output_dir=$OUTPUT_DIR/processed/ \
 --language=$LANGUAGE \
 --cut_prefix=$CUT_PREFIX \
 --model=$MODEL_NAME_OR_PATH \
---audio_dir=$DATA_DIR/audio \
 --min_length=$MIN_SEGMENT_LEN \
 --max_length=$MAX_SEGMENT_LEN \
---additional_split_symbols="$ADDITIONAL_SPLIT_SYMBOLS" || exit
+--additional_split_symbols=$ADDITIONAL_SPLIT_SYMBOLS || exit
 
 # STEP #2
 # Run CTC-segmenatation
