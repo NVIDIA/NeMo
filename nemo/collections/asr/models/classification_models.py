@@ -163,6 +163,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
                 load_audio=config.get('load_audio', True),
                 time_length=config.get('time_length', 0.31),
                 shift_length=config.get('shift_length', 0.01),
+                normalize_audio=config.get('normalize_audio', False),
             )
             batch_size = 1
             collate_func = dataset.vad_frame_seq_collate_fn

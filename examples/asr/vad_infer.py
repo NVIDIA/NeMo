@@ -64,6 +64,7 @@ def main():
     parser.add_argument("--out_dir", type=str, default="vad_frame", help="Dir of your vad outputs")
     parser.add_argument("--time_length", type=float, default=0.63)
     parser.add_argument("--shift_length", type=float, default=0.01)
+    parser.add_argument("--normalize_audio", type=bool, default=False)
     args = parser.parse_args()
 
     torch.set_grad_enabled(False)
@@ -90,6 +91,7 @@ def main():
             'time_length': args.time_length,
             'shift_length': args.shift_length,
             'trim_silence': False,
+            'normalize_audio' : args.normalize_audio,
         }
     )
 
