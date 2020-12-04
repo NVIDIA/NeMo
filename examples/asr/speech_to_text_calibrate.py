@@ -19,13 +19,20 @@ Script for calibrating a pretrained ASR model for quantization
 from argparse import ArgumentParser
 
 import torch
-from pytorch_quantization import calib
-from pytorch_quantization import nn as quant_nn
-from pytorch_quantization import quant_modules
-from pytorch_quantization.tensor_quant import QuantDescriptor
 
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
+
+try:
+    from pytorch_quantization import calib
+    from pytorch_quantization import nn as quant_nn
+    from pytorch_quantization import quant_modules
+    from pytorch_quantization.tensor_quant import QuantDescriptor
+except ImportError:
+    raise ImportError(
+        "pytorch-quantization is not installed. Install from "
+        "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+    )
 
 try:
     from torch.cuda.amp import autocast
