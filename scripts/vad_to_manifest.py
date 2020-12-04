@@ -16,6 +16,7 @@ import argparse
 import glob
 import json
 import os
+import numpy as np
 
 from nemo.utils import logging
 
@@ -40,6 +41,8 @@ def write_manifest(vad_directory, audio_directory, manifest_file):
             for line in lines:
                 vad_out = line.strip().split()
                 start, dur, activity = float(vad_out[0]), float(vad_out[1]) - float(vad_out[0]), vad_out[2]
+                dur = float("{:.3f}".format(dur))
+                start = float("{:.3f}".format(start))
                 if activity.lower() == 'speech':
                     audio_path = os.path.join(audio_directory, audio_name + '.wav')
                     meta = {"audio_filepath": audio_path, "offset": start, "duration": dur, "label": 'UNK'}
