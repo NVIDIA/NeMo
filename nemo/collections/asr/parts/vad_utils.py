@@ -18,6 +18,73 @@ import os
 import numpy as np
 import pandas as pd
 
+def write_manifest(file, args_func):
+    """
+    Given a list of files, write them to manifest with restrictions.
+    Args:
+        files : file to be processed
+        label : label for audio snippet.
+        split_duration : Max duration of each audio clip (each line in json)
+        time_length : Used for taking care of joint.
+                Length of window for generating the frame.
+    Returns:
+        res : list of generated metadata line of json for file
+    """
+
+    label = args_func['label']
+    split_duration = args_func['split_duration']
+    time_length = args_func['time_length']
+
+    res = []
+    try:
+        sr = 16000
+        x, _sr = librosa.load(file, sr=sr)
+        duration = librosa.get_duration(x, sr=sr)
+
+        left = duration
+        current_offset = 0
+        status = 'single'
+
+        while left > 0:
+            if left <= split_duration:
+                status = 'end'
+                write_duration = left + time_length
+                current_offset -= time_length
+                offset_inc = left
+                left = 0
+            else:
+                if status == 'start' or status == 'next':
+                    status = 'next'
+                else:
+                    status = 'start'
+
+                if status == 'start':
+                    write_duration = split_duration
+                    offset_inc = split_duration
+                else:
+                    write_duration = split_duration + time_length
+                    current_offset -= time_length
+                    offset_inc = split_duration + time_length
+
+                left -= split_duration
+
+            metadata = {
+                'audio_filepath': file,
+                'duration': write_duration,
+                'label': label,
+                'text': '_',
+                'offset': current_offset,
+            }
+            res.append(metadata)
+
+            current_offset += offset_inc
+
+    except Exception as e:
+        err_file = "error.log"
+        with open(err_file, 'w') as fout:
+            fout.write(file + ":" + str(e))
+
+    return res
 
 def get_status(data):
     """
@@ -43,6 +110,7 @@ def get_status(data):
             else:
                 status[i] = 'single'
     return status
+
 
 
 def gen_overlap_seq(frame_filepath, per_args):
@@ -180,7 +248,6 @@ def gen_seg_table(frame_filepath, per_args):
 
 
 def write_manifest(vad_directory, audio_directory, manifest_file):
-    audio_directory = '/disk2/datasets/NIST_SRE_2000_LDC2001S97/NIST_SRE_2000_LDC2001S97_16k/r65_8_1/sid00sg1/data/'
     vad_files = glob.glob(vad_directory + "/*.txt")
     with open(manifest_file, 'w') as outfile:
         for vad_file in vad_files:
