@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from typing import Optional
 
 from hydra.utils import instantiate
 
@@ -27,11 +28,9 @@ from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
 @dataclass
 class MTEncDecConfig(NemoConfig):
-    trainer: TrainerConfig = TrainerConfig()
-
     model: AAYNBaseConfig = AAYNBaseConfig()
-
-    exp_manager: ExpManagerConfig = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+    trainer: Optional[TrainerConfig] = TrainerConfig()
+    exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
 
 
 @hydra_runner(config_path="conf", config_name="aayn_base", schema=MTEncDecConfig)

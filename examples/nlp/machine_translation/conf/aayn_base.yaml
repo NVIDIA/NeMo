@@ -55,15 +55,15 @@ model:
   optim:
     name: adam
     lr: 0.001
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
     sched:
       name: InverseSquareRootAnnealing
       min_lr: 0.0
       last_epoch: -1
       warmup_ratio: 0.1
-    betas:
-      - 0.9
-      - 0.98
-    weight_decay: 0.0
 
   encoder_tokenizer:
     tokenizer_name: yttm
@@ -129,7 +129,6 @@ model:
     _target_: nemo.collections.nlp.modules.common.token_classifier.TokenClassifier
 
 trainer:
-  _target_: pytorch_lightning.Trainer
   logger: false
   checkpoint_callback: false
   gradient_clip_val: 0.0
@@ -144,6 +143,8 @@ trainer:
   accelerator: DDP
   precision: 16
   num_sanity_val_steps: 2
+  _target_: pytorch_lightning.Trainer
+
 exp_manager:
   name: AAYNBase
   files_to_copy: []
