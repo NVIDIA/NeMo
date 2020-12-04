@@ -49,8 +49,6 @@ class NLPModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
-        self.bert_model = None  # Pretrained BERT encoder
-
         self.set_world_size(trainer)
 
     @rank_zero_only
