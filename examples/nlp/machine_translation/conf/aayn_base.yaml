@@ -5,7 +5,6 @@ model:
   len_pen: 0.0
   max_generation_delta: 10
   label_smoothing: 0.0
-  vocab_divisible_by_eight: true
 
   train_ds:
     src_file_name: ???

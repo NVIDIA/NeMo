@@ -38,7 +38,6 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     len_pen: float = 0.0
     max_generation_delta: int = 50
     label_smoothing: Optional[float] = 0.0
-    vocab_divisible_by_eight: bool = True
 
 
 @dataclass
@@ -66,7 +65,6 @@ class AAYNBaseConfig(ModelConfig):
     len_pen: float = 0.0
     max_generation_delta: int = 10
     label_smoothing: Optional[float] = 0.0
-    vocab_divisible_by_eight: bool = True
 
     # Attention is All You Need Base Configuration
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')

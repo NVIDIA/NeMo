@@ -1,5 +1,6 @@
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 from typing import Any
+from omegaconf.omegaconf import MISSING
 
 from pytorch_lightning.trainer.trainer import Trainer
 

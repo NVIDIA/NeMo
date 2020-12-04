@@ -52,13 +52,6 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # make vocabulary size divisible by 8 for fast fp16 training
-        if cfg.vocab_divisible_by_eight:
-            self.encoder_vocab_size = 8 * math.ceil(self.encoder_tokenizer.vocab_size / 8)
-            self.decoder_vocab_size = 8 * math.ceil(self.decoder_tokenizer.vocab_size / 8)
-            cfg.encoder_embedding.vocab_size = self.encoder_vocab_size
-            cfg.decoder_embedding.vocab_size = self.decoder_vocab_size
-
         self.encoder_embedding = instantiate(cfg.encoder_embedding)
         self.decoder_embedding = instantiate(cfg.decoder_embedding)
         self.encoder = instantiate(cfg.encoder)
