@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
 from typing import Optional, Tuple
 
 from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
+from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoderConfig

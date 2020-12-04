@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
-from omegaconf.omegaconf import MISSING
 
+from omegaconf.omegaconf import MISSING
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
