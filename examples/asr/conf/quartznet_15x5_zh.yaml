@@ -431,7 +431,7 @@ model:
 
   optim:
     name: novograd
-    # cls: nemo.core.optim.optimizers.Novograd
+    # _target_: nemo.core.optim.optimizers.Novograd
     lr: .01
     # optimizer arguments
     betas: [0.8, 0.5]
