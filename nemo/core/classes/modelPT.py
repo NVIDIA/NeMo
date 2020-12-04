@@ -98,22 +98,23 @@ class ModelPT(LightningModule, Model):
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
-        # Convert config to a DictConfig
-        cfg = model_utils.convert_model_config_to_dict_config(cfg)
-
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
                 f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
             )
         super().__init__()
+
+        # Convert config to a DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+
+        # Convert config to support Hydra 1.0+ instantiation
+        cfg = model_utils.maybe_update_config_version(cfg)
+
         if 'target' not in cfg:
             # This is for Jarvis service.
             OmegaConf.set_struct(cfg, False)
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
-
-        # Convert config to support Hydra 1.0+ instantiation
-        cfg = model_utils.maybe_update_config_version(cfg)
 
         self._cfg = cfg
 
