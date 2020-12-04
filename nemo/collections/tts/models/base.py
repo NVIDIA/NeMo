@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABC, abstractmethod
-from contextlib import contextmanager, ExitStack
+from contextlib import ExitStack, contextmanager
 
 import torch
 
+from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.collections.tts.models import *  # Avoid circular imports
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.collections.tts.helpers.helpers import OperationMode
 
 
 class SpectrogramGenerator(ModelPT, ABC):
