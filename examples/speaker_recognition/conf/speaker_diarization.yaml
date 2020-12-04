@@ -3,7 +3,7 @@ sample_rate: &sample_rate 16000
 
 model:
   vad:
-    model_path: "/disk2/datasets/modified_callhome/modified_oracle_callhome_ch109.json"
+    model_path: ???
     time_length: 0.63
     shift_length: 0.01
     gen_overlap_seq: True
@@ -15,15 +15,15 @@ model:
     threshold: 0.5
     num_workers: 4
   speaker_embeddings:
-    model_path: "./remote_circe/speakernet-I-2N-64bs-200e-0.02lr-0.1wr-FisherSWBD-4timelength/spkr.nemo"
+    model_path: ???
     time_length: 1.5
     shift_length: 0.75
   diarizer:
     cluster_method: "SpectralClustering"
     reco2num: 2
-    out_dir: "/disk2/outputs/diarization/"
-    groundtruth_RTTM_dir: "/disk2/datasets/modified_callhome/RTTMS/ch109/"
+    out_dir: "outputs/diarization/"
+    groundtruth_RTTM_dir: ???
     shuffle: False
-  manifest_filepath: "/data3/sdtest/test.json"
+  manifest_filepath: ???
   sample_rate: 16000
 
