@@ -29,21 +29,17 @@ See :class:`Wav2VecCriterion` for more information.
 
 Reference: https://arxiv.org/abs/2006.11477
 
-python examples/asr/wav2vec.py \
+python examples/asr/experimental/wav2vec/wav2vec.py \
         model.train_ds.manifest_path="./examples/asr/train.tsv" \
         model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
-        model.test_ds.manifest_path="./examples/asr/valid.tsv" \
-        hydra.run.dir="." \
         trainer.gpus=1 \
         trainer.max_epochs=100
         
         
 Basic run (on CPU for 50 epochs):
-    python examples/asr/wav2vec.py \
+    python examples/asr/experimental/wav2vec/wav2vec.py \
         model.train_ds.manifest_path="./examples/asr/train.tsv" \
         model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
-        model.test_ds.manifest_path="./examples/asr/valid.tsv" \
-        hydra.run.dir="." \
         trainer.gpus=1 \
         trainer.max_epochs=50
 
@@ -57,22 +53,18 @@ Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")
 PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
 
 Override some args of optimizer:
-    python examples/asr/wav2vec.py \
+    python examples/asr/experimental/wav2vec/wav2vec.py \
         model.train_ds.manifest_path="./examples/asr/train.tsv" \
         model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
-        model.test_ds.manifest_path="./examples/asr/valid.tsv" \
-        hydra.run.dir="." \
         trainer.gpus=2 \
         trainer.max_epochs=2 \
         model.optim.args.params.betas=[0.8,0.5] \
         model.optim.args.params.weight_decay=0.0001
 
 Override optimizer entirely
-    python examples/asr/wav2vec.py \
+    python examples/asr/experimental/wav2vec/wav2vec.py \
         model.train_ds.manifest_path="./examples/asr/train.tsv" \
         model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
-        model.test_ds.manifest_path="./examples/asr/valid.tsv" \
-        hydra.run.dir="." \
         trainer.gpus=2 \
         trainer.max_epochs=2 \
         ~model.optim.args \

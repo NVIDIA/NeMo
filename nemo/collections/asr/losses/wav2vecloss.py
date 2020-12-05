@@ -19,9 +19,10 @@
 
 import torch
 import torch.nn.functional as F
+from nemo.core import Loss
 
 
-class Wav2VecCriterion(torch.nn.Module):
+class Wav2VecLoss(Loss):
     def __init__(self, feature_loss_weight, prob_ppl_weight, logit_temp):
         super().__init__()
         self.feature_loss_weight = feature_loss_weight

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 import torch
-from nemo.collections.asr.losses.wav2vecloss import Wav2VecCriterion
+from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss
 from nemo.collections.asr.models.wav2vec.wav2vec_base import Wav2VecBase
 from nemo.collections.asr.models.wav2vec.wav2vec_config import (
     Wav2VecEncoderModelConfig,
@@ -160,7 +160,7 @@ class Wav2VecEncoderModel(Wav2VecBase):
             self.target_glu = nn.Sequential(nn.Linear(final_dim, final_dim * 2), nn.GLU())
 
         self.final_proj = nn.Linear(encoder_embed_dim, final_dim)
-        self.loss = Wav2VecCriterion(
+        self.loss = Wav2VecLoss(
             feature_loss_weight=cfg.loss.feature_loss_weight,
             prob_ppl_weight=cfg.loss.prob_ppl_weight,
             logit_temp=cfg.logit_temp,
