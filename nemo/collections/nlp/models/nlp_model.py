@@ -67,7 +67,7 @@ class NLPModel(ModelPT):
                 with open(encoder_config_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
                 self.register_artifact(encoder_config_path, encoder_config_src)
-                self._cfg.language_model.config_file = encoder_config_path
+                self.cfg.language_model.config_file = encoder_config_path
             elif isinstance(self.bert_model, BertModule):
                 # HuggingFace Transformer Config
                 pretrained_model_name = self.bert_model.name_or_path
@@ -77,7 +77,7 @@ class NLPModel(ModelPT):
                 encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
                 self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
                 self.register_artifact(encoder_config_path, encoder_config_src)
-                self._cfg.language_model.config_file = encoder_config_path
+                self.cfg.language_model.config_file = encoder_config_path
             else:
                 logging.info(
                     f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
@@ -233,9 +233,10 @@ class NLPModel(ModelPT):
         Args:
             stage (str): either 'fit' or 'test'
         """
-
         # TODO: implement model parallel for test stage
         if stage == 'fit':
+            # adds self.bert_model config to .nemo file
+            self.register_bert_model()
 
             app_state = AppState()
 

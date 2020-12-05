@@ -68,9 +68,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
-        # adds self.bert_model config to .nemo file
-        self.register_bert_model()
-
         self.punct_classifier = TokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
             num_classes=len(self._cfg.punct_label_ids),

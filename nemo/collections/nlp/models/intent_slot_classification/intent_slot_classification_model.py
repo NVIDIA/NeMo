@@ -85,9 +85,6 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
             checkpoint_file=self.cfg.language_model.lm_checkpoint,
         )
 
-        # adds self.bert_model config to .nemo file
-        self.register_bert_model()
-
         # Initialize Classifier.
         self._reconfigure_classifier()
 
