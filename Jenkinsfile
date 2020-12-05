@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-            image 'nvcr.io/nvidia/pytorch:20.09-py3'
+            image 'nvcr.io/nvidia/pytorch:20.11-py3'
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -612,9 +612,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -662,9 +662,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -687,9 +687,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -753,6 +753,20 @@ pipeline {
       }
 
       parallel {
+        stage('MelGAN') {
+          steps {
+            sh 'python examples/tts/melgan.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[0]" \
+            +trainer.fast_dev_run=True \
+            trainer.accelerator=ddp \
+            trainer.max_epochs=-1 \
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.batch_size=4 \
+            ~trainer.check_val_every_n_epoch'
+          }
+        }
         stage('SqueezeWave') {
           steps {
             sh 'python examples/tts/squeezewave.py \

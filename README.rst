@@ -207,6 +207,9 @@ To run tutorials:
    * - ASR
      - Online Noise Augmentation
      - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b2/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+   * - ASR
+     - Beam Search and External Language Model Rescoring
+     - `Beam search and external language model rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b2/tutorials/asr/Offline_ASR.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained language models for downstream tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b2/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_

@@ -195,7 +195,7 @@ model:
 
   optim:
     name: adam
-    # cls: nemo.core.optim.optimizers.Adam
+    # _target_: nemo.core.optim.optimizers.Adam
     lr: .1
 
     # optimizer arguments

@@ -114,9 +114,14 @@ class GLUEDataset(Dataset):
 
         if task_name not in processors:
             raise ValueError(f'{task_name} not supported. Choose from {processors.keys()}')
-        self.task_name = task_name
-        processor = processors[task_name]()
-        output_mode = output_modes[task_name]
+
+        if task_name == 'mnli' and 'dev_mismatched' in file_name:
+            self.task_name = 'mnli-mm'
+        else:
+            self.task_name = task_name
+
+        processor = processors[self.task_name]()
+        output_mode = output_modes[self.task_name]
         self.label_list = processor.get_labels()
 
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)

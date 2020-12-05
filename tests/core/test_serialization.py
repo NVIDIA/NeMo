@@ -20,7 +20,7 @@ from nemo.collections.asr.modules import SpectrogramAugmentation
 from nemo.core.classes.common import Serialization
 
 
-class SerializationTest:
+class TestSerialization:
     @pytest.mark.unit
     def test_from_config_dict_with_cls(self):
         """Here we test that instantiation works for configs with cls class path in them.
@@ -104,3 +104,18 @@ class SerializationTest:
         )
         obj = EncDecCTCModel.from_config_dict(config=modelConfig)
         assert isinstance(obj, EncDecCTCModel)
+
+    @pytest.mark.unit
+    def test_config_updated(self):
+        config = DictConfig(
+            {
+                'cls': 'nemo.collections.asr.modules.SpectrogramAugmentation',
+                'params': {'rect_freq': 50, 'rect_masks': 5, 'rect_time': 120,},
+            }
+        )
+        obj = Serialization.from_config_dict(config=config)
+        new_config = obj.to_config_dict()
+        assert config != new_config
+        assert 'params' not in new_config
+        assert 'cls' not in new_config
+        assert '_target_' in new_config

@@ -24,14 +24,15 @@ from typing import Callable, Dict, List, Optional, Union
 
 import hydra
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
+from nemo.core.config.modelPT import ModelPTConfig
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.utils import logging, model_utils
+from nemo.utils import config_utils, logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -50,7 +51,30 @@ except ImportError:
 
 __all__ = ['ModelPT']
 
+"""
+Internal global flags that determine core functionality of ModelPT.
+
+_MODEL_IS_RESTORED:
+    This flag determines the context of the model - whether the model is currently being
+    restored or not. 
+    -   When set, it can be assumed that the model's will disable all automatic methods -
+        setup_training_data(), setup_validation/test_data() and their multi equivalents.
+    -   If a model is being restored from a archive file (tarfile), it can be assumed that
+        under this context, the cwd is *inside* the tarfile itself.
+
+_MODEL_RESTORE_PATH:
+    A string path to a a file from which the model is being restored.
+    This file can either be a PyTorch Lightning Checkpoint, or a archive (tarfile) that contains
+    artifact objects.
+    If it is an archive file, during restoration, the cwd will be temporarily moved to inside the
+    archive itself.
+    
+_MODEL_EFF_SAVE:
+    A global flag that switches the format of the archive file that will be stored.
+    This flag only enables EFF when the package support is available.
+"""
 _MODEL_IS_RESTORED = False
+_MODEL_RESTORE_PATH = None
 _MODEL_EFF_SAVE = True
 
 
@@ -74,24 +98,25 @@ class ModelPT(LightningModule, Model):
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
-        if not isinstance(cfg, DictConfig):
-            raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
                 f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
             )
         super().__init__()
+
+        # Convert config to a DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+
+        # Convert config to support Hydra 1.0+ instantiation
+        cfg = model_utils.maybe_update_config_version(cfg)
+
         if 'target' not in cfg:
             # This is for Jarvis service.
             OmegaConf.set_struct(cfg, False)
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
 
-        config = OmegaConf.to_container(cfg, resolve=True)
-        config = OmegaConf.create(config)
-        OmegaConf.set_struct(config, True)
-
-        self._cfg = config
+        self._cfg = cfg
 
         self.save_hyperparameters(self._cfg)
         self._train_dl = None
@@ -156,20 +181,73 @@ class ModelPT(LightningModule, Model):
             path to be used when accessing artifact. If src='' or None then '' or None will be returned
         """
         if not hasattr(self, 'artifacts'):
-            self.artifacts = []
+            self.artifacts = {}
         if self.artifacts is None:
-            self.artifacts = []
+            self.artifacts = {}
         if src is not None and src.strip() != '':
+            archive_item = model_utils.ArtifactItem()
+
             basename_src = os.path.basename(src)
             # filename exists in current workdir - use it and raise warning
+            # this case is during model restoration or when file is written to cwd.
             if os.path.exists(basename_src):
                 logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
                 used_src = basename_src
+
+                # Case: register_artifact() called inside restoration context
+                if self._is_model_being_restored() and self._is_restore_type_tarfile():
+                    archive_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+                else:
+                    archive_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
+
             else:
                 used_src = src
+                archive_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
+
             if not os.path.exists(used_src):
-                raise FileNotFoundError(f"Could not find {used_src}")
-            self.artifacts.append((config_path, used_src))
+                # File not found in local path or by basename
+                # Try to locate it inside the .nemo archive (if model was restored)
+                # Case: register_artifact() called outside restoration context
+                if self._is_restore_type_tarfile():
+                    # Get path where the command is executed - the artifacts will be "retrieved" there
+                    # (original .nemo behavior)
+                    cwd = os.getcwd()
+                    try:
+                        # Step into the nemo archive to try and find the file
+                        with tempfile.TemporaryDirectory() as tmpdir:
+                            self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
+                            os.chdir(tmpdir)
+                            if os.path.exists(basename_src):
+                                logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
+                                used_src = basename_src
+
+                                archive_item.path = used_src
+                                archive_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+                            else:
+                                # No further action can be taken, file not found anywhere
+                                raise FileNotFoundError(
+                                    f"Could not find {used_src} inside "
+                                    f"tarfile {_MODEL_RESTORE_PATH} or under local"
+                                )
+                    finally:
+                        # change back working directory
+                        os.chdir(cwd)
+                else:
+                    # No further action can be taken, file not found anywhere
+                    raise FileNotFoundError(f"Could not find {used_src}")
+            else:
+                # Found filepath
+                archive_item.path = used_src
+
+            # But disregarding whether you use "local" or "remote" artifact - always store the original path.
+            # This fixes issues raising when finetuning NLP models that create and register tokenizer vocabs.
+            if config_path in self.artifacts:
+                logging.warning(
+                    f"Artifact {config_path} with value '{self.artifacts[config_path]}' "
+                    f"already exists and will be overwritten with value '{src}'!"
+                )
+
+            self.artifacts[config_path] = archive_item
             return used_src
         else:
             return src
@@ -189,11 +267,28 @@ class ModelPT(LightningModule, Model):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+
             if hasattr(self, 'artifacts') and self.artifacts is not None:
-                for (conf_path, src) in self.artifacts:
+                for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArtifactItem)
                     try:
-                        if os.path.exists(src):
-                            shutil.copy2(src, tmpdir)
+                        if src.path_type == model_utils.ArtifactPathType.LOCAL_PATH and os.path.exists(src.path):
+                            shutil.copy2(src.path, tmpdir)
+                        elif src.path_type == model_utils.ArtifactPathType.TAR_PATH:
+                            # Need to step into nemo archive to extract file
+                            # Get path where the command is executed - the artifacts will be "retrieved" there
+                            # (original .nemo behavior)
+                            cwd = os.getcwd()
+                            try:
+                                # Step into the nemo archive to try and find the file
+                                with tempfile.TemporaryDirectory() as archive_dir:
+                                    self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
+                                    os.chdir(archive_dir)
+                                    shutil.copy2(src.path, tmpdir)
+                            finally:
+                                # change back working directory
+                                os.chdir(cwd)
+                        else:
+                            raise ValueError(f"Invalid ArchivePathType found: {src.path_type}")
                     except Exception:
                         logging.error(f"Could not copy artifact {src} used in {conf_path}")
 
@@ -377,6 +472,9 @@ class ModelPT(LightningModule, Model):
         """
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
+
+        global _MODEL_RESTORE_PATH
+        _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
 
         if _EFF_PRESENT_:
             # Try to load the EFF archive.
@@ -615,11 +713,12 @@ class ModelPT(LightningModule, Model):
 
             # See if internal config has `optim` namespace before preservation
             if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                self._cfg.optim = optim_config
+                with open_dict(self._cfg.optim):
+                    self._cfg.optim = copy.deepcopy(optim_config)
 
         # Setup optimizer and scheduler
         if optim_config is not None and isinstance(optim_config, DictConfig):
-            optim_config = OmegaConf.to_container(optim_config)
+            optim_config = OmegaConf.to_container(optim_config, resolve=True)
 
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
@@ -656,7 +755,7 @@ class ModelPT(LightningModule, Model):
             scheduler_config = None
 
         # Check if caller provided optimizer name, default to Adam otherwise
-        optimizer_cls = optim_config.get('cls', None)
+        optimizer_cls = optim_config.get('_target_', None)
 
         if optimizer_cls is None:
             # Try to get optimizer name for dynamic resolution, defaulting to Adam
@@ -672,9 +771,6 @@ class ModelPT(LightningModule, Model):
         # But maybe user forgot to pass it to this function
         lr = optim_config.get('lr', None)
 
-        if lr is None:
-            raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
-
         # Check if caller has optimizer kwargs, default to empty dictionary
         if 'args' in optim_config:
             optimizer_args = optim_config.pop('args')
@@ -688,10 +784,14 @@ class ModelPT(LightningModule, Model):
             optimizer_args.pop('cls', None)
             optimizer_args.pop('lr', None)
 
+        # Adaptive schedulers don't need `lr`
+        if lr is not None:
+            optimizer_args['lr'] = lr
+
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
             if inspect.isclass(optimizer_cls):
-                optimizer = optimizer_cls(self.parameters(), lr=lr, **optimizer_args)
+                optimizer = optimizer_cls(self.parameters(), **optimizer_args)
                 logging.info("Optimizer config = %s", str(optimizer))
 
                 self._optimizer = optimizer
@@ -699,8 +799,11 @@ class ModelPT(LightningModule, Model):
             else:
                 # Attempt class path resolution
                 try:
-                    optimizer_cls = OmegaConf.create({'cls': optimizer_cls})
-                    optimizer_config = {'lr': lr}
+                    optimizer_cls = OmegaConf.create({'_target_': optimizer_cls})
+                    if lr is not None:
+                        optimizer_config = {'lr': lr}
+                    else:
+                        optimizer_config = {}
                     optimizer_config.update(optimizer_args)
 
                     optimizer_instance = hydra.utils.instantiate(
@@ -721,7 +824,7 @@ class ModelPT(LightningModule, Model):
 
         else:
             optimizer = optim.get_optimizer(optimizer_name)
-            optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
+            optimizer = optimizer(self.parameters(), **optimizer_args)
 
             logging.info("Optimizer config = %s", str(optimizer))
 
@@ -1139,6 +1242,22 @@ class ModelPT(LightningModule, Model):
     def _set_model_restore_state(is_being_restored: bool):
         global _MODEL_IS_RESTORED
         _MODEL_IS_RESTORED = is_being_restored
+
+    @staticmethod
+    def _is_restore_type_tarfile() -> bool:
+        """
+        Utility method that checks if the restore path of the underlying Model
+        is a tarfile (can be any valid archive)._MODEL_EFF_SAVE
+        """
+        global _MODEL_RESTORE_PATH
+
+        if _MODEL_RESTORE_PATH is None:
+            return False
+        else:
+            if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
+                return True
+            else:
+                return False
 
     @staticmethod
     def set_eff_save(use_eff_save: bool):
