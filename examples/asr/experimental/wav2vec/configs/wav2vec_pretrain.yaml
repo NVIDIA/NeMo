@@ -1,4 +1,4 @@
-name: &name "Wav2vec"
+name: &name "Wav2vec_Pretrain"
 
 model:
   train_ds:
@@ -7,21 +7,21 @@ model:
     batch_size: 32
     shuffle: True
     num_workers: 4
-    labels: [] # No vocab needed for pre-training
+    labels: [ ] # No vocab needed for pre-training
   validation_ds:
     manifest_filepath: ???
     sample_rate: 16000
     batch_size: 32
     shuffle: False
     num_workers: 1
-    labels: []
+    labels: [ ]
   test_ds:
     manifest_filepath: null
     sample_rate: 16000
     batch_size: 32
     shuffle: False
     num_workers: 4
-    labels: []
+    labels: [ ]
   optim:
     name: adamw
     lr: 0.0005
@@ -56,11 +56,13 @@ trainer:
 
   checkpoint_callback: false # Provided by exp_manager
   logger: false # Provided by exp_manager
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null
 exp_manager:
-  exp_dir: 'experiments/'
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+  project: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false

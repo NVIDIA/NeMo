@@ -3,9 +3,7 @@ name: &name "Wav2vec_ASR"
 model:
   labels: &labels [ " ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
                     "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'" ]
-  encoder_path: ???
-  params:
-    vocabulary: *labels
+  encoder_path: ??? # Path to pre-trained Wav2Vec PT ckpt file.
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000
@@ -61,11 +59,13 @@ trainer:
 
   checkpoint_callback: false # Provided by exp_manager
   logger: false # Provided by exp_manager
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null
 exp_manager:
-  exp_dir: 'experiments/'
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+  project: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
