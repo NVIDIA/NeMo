@@ -66,6 +66,9 @@ class QAModel(NLPModel, Exportable):
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
+        # adds self.bert_model config to .nemo file
+        self.register_bert_model()
+
         self.classifier = TokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
             num_classes=cfg.token_classifier.num_classes,

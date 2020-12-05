@@ -64,6 +64,9 @@ class TextClassificationModel(NLPModel, Exportable):
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
+        # adds self.bert_model config to .nemo file
+        self.register_bert_model()
+
         self.classifier = SequenceClassifier(
             hidden_size=self.bert_model.config.hidden_size,
             num_classes=cfg.dataset.num_classes,
