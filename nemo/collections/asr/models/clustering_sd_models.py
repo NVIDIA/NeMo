@@ -68,6 +68,7 @@ class ClusteringSDModel(DiarizationModel):
             self.has_vad_model = True
         self._vad_time_length = self._cfg.vad.time_length
         self._vad_shift_length = self._cfg.vad.shift_length
+        self._vad_split_duration = self._cfg.vad.split_duration
 
         # init speaker model
         self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(self._cfg.speaker_embeddings.model_path)
@@ -79,6 +80,7 @@ class ClusteringSDModel(DiarizationModel):
         self._out_dir = self._cfg.diarizer.out_dir
         self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
         self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
+        self._vad_in_file = os.path.join(self._vad_dir, "vad_in.json")
         self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
         # remove any existing files
         shutil.rmtree(self._vad_dir, ignore_errors=True)
@@ -99,10 +101,13 @@ class ClusteringSDModel(DiarizationModel):
 
     def _setup_vad_test_data(self, config):
         vad_dl_config = {
+            'num_workers': self._cfg.vad.num_workers,
             'manifest_filepath': config['manifest'],
+            'manifest_vad_input': self._vad_in_file,
+            'split_duration': self._vad_split_duration,
             'sample_rate': self._cfg.sample_rate,
-            'batch_size': 1,
             'vad_stream': True,
+            'split_duration' : self._cfg.vad.split_duration,
             'labels': ['infer',],
             'time_length': self._cfg.vad.time_length,
             'shift_length': self._cfg.vad.shift_length,
@@ -139,6 +144,7 @@ class ClusteringSDModel(DiarizationModel):
             file = os.path.basename(json.loads(line)['audio_filepath'])
             data.append(os.path.splitext(file)[0])
 
+          
         status = get_status(data)
         for i, test_batch in enumerate(self._vad_model.test_dataloader()):
             test_batch = [x.to(self._device) for x in test_batch]
@@ -166,7 +172,8 @@ class ClusteringSDModel(DiarizationModel):
                 all_len = 0
 
         vad_out_dir = self.generate_vad_timestamps()  # TODO confirm directory structure here
-        write_manifest(vad_out_dir, self._vad_dir, self._vad_out_file)
+        self._audio_dir = '/home/fjia/data/modified_callhome/callhome_16k/'
+        write_manifest(vad_out_dir, self._audio_dir, self._vad_out_file)
 
     def generate_vad_timestamps(self):
         if self._cfg.vad.gen_overlap_seq:
@@ -278,8 +285,9 @@ class ClusteringSDModel(DiarizationModel):
             mfst_file = os.path.join(self._out_dir, 'manifest.json')
             with open(mfst_file, 'w') as fp:
                 for audio_file in paths2audio_files:
-                    entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': '-'}
+                    entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': 100000, 'text': '-'}
                     fp.write(json.dumps(entry) + '\n')
+                    # todo make sure same folder
         else:
             mfst_file = self._manifest_file
 
@@ -288,8 +296,7 @@ class ClusteringSDModel(DiarizationModel):
         if self.has_vad_model:
             logging.info("Performing VAD")
             self._setup_vad_test_data(config)
-            self._run_vad(mfst_file)
-
+            self._run_vad(self._vad_in_file)
         else:
             if os.path.exists(self._oracle_vad):
                 shutil.copy2(self._oracle_vad, self._vad_out_file)
