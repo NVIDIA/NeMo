@@ -91,7 +91,7 @@ def main():
             'time_length': args.time_length,
             'shift_length': args.shift_length,
             'trim_silence': False,
-            'normalize_audio' : args.normalize_audio,
+            'normalize_audio': args.normalize_audio,
         }
     )
 

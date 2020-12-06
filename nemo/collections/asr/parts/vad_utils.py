@@ -13,11 +13,13 @@
 # limitations under the License.
 import glob
 import json
-import os
-import numpy as np
-import librosa
-import pandas as pd
 import logging
+import os
+
+import librosa
+import numpy as np
+import pandas as pd
+
 
 def write_manifest_data(file, args_func):
     """
@@ -35,7 +37,7 @@ def write_manifest_data(file, args_func):
     label = args_func['label']
     split_duration = args_func['split_duration']
     time_length = args_func['time_length']
-    
+
     filepath = file['audio_filepath']
     in_duration = file['duration']
     in_offset = file['offset']
@@ -43,10 +45,10 @@ def write_manifest_data(file, args_func):
     try:
         sr = 16000
         x, _sr = librosa.load(filepath, sr=sr, offset=in_offset, duration=in_duration)
-        duration = librosa.get_duration(x, sr=sr) 
+        duration = librosa.get_duration(x, sr=sr)
         left = duration
         current_offset = in_offset
-        
+
         status = 'single'
         while left > 0:
             if left <= split_duration:
@@ -89,6 +91,7 @@ def write_manifest_data(file, args_func):
 
     return res
 
+
 def get_status(data):
     """
     Generate a list of status for each snippet in manifest. A snippet should be in single, start, next or end status. 
@@ -113,7 +116,6 @@ def get_status(data):
             else:
                 status[i] = 'single'
     return status
-
 
 
 def gen_overlap_seq(frame_filepath, per_args):

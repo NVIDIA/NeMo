@@ -88,7 +88,7 @@ target_label_n, "offset": offset_in_sec_n}
         load_audio: bool = True,
         time_length: Optional[float] = 8,
         shift_length: Optional[float] = 1,
-        normalize_audio: bool=False
+        normalize_audio: bool = False
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
@@ -290,5 +290,4 @@ def repeat_signal(signal, sig_len, required_length):
 
 def normalize(signal):
     signal_minusmean = signal - signal.mean()
-    return signal_minusmean/signal_minusmean.abs().max()
-    
+    return signal_minusmean / signal_minusmean.abs().max()
