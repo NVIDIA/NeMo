@@ -394,9 +394,7 @@ pipeline {
         trainer.amp_level=O1 \
         trainer.gpus=[1] \
         +trainer.fast_dev_run=true \
-        exp_manager.exp_dir=exp_megabert_base_uncased \
-        '
-        sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
+        exp_manager=null'
       }
     }
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
