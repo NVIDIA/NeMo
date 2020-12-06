@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import copy
-import os
 import json
-from typing import Dict, List, Optional, Union
+import os
 from itertools import repeat
+from multiprocessing import Pool
+from typing import Dict, List, Optional, Union
+
 import onnx
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -27,6 +29,7 @@ from nemo.collections.asr.data.audio_to_text import AudioLabelDataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.vad_utils import write_manifest_data
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -34,8 +37,7 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
-from nemo.collections.asr.parts.vad_utils import write_manifest_data
-from multiprocessing import Pool
+
 __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
@@ -65,7 +67,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
     def transcribe(self, paths2audio_files: str) -> str:
         raise NotImplementedError("Classification models do not transcribe audio.")
 
-        
     def prepare_manifest(self, config):
         manifest_vad_input = config['manifest_vad_input']
         input_audios = []
@@ -81,7 +82,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
         }
         results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
         p.close()
-        
+
         with open(manifest_vad_input, 'a') as fout:
             for res in results:
                 for r in res:
@@ -90,8 +91,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
                     fout.flush()
 
         return manifest_vad_input
-    
-    
+
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get('manifest_filepath') is None:
             return
@@ -106,10 +106,10 @@ class EncDecClassificationModel(ASRModel, Exportable):
         )
 
         if 'vad_stream' in config and config['vad_stream']:
-            
+
             logging.info("Split long audio file to avoid CUDA memory issue")
             manifest_vad_input = self.prepare_manifest(config)
-            
+
             logging.info("Perform streaming frame-level VAD")
             dataset = AudioToSpeechLabelDataSet(
                 manifest_filepath=manifest_vad_input,

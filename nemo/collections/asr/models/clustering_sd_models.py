@@ -107,7 +107,7 @@ class ClusteringSDModel(DiarizationModel):
             'split_duration': self._vad_split_duration,
             'sample_rate': self._cfg.sample_rate,
             'vad_stream': True,
-            'split_duration' : self._cfg.vad.split_duration,
+            'split_duration': self._cfg.vad.split_duration,
             'labels': ['infer',],
             'time_length': self._cfg.vad.time_length,
             'shift_length': self._cfg.vad.shift_length,
@@ -144,7 +144,6 @@ class ClusteringSDModel(DiarizationModel):
             file = os.path.basename(json.loads(line)['audio_filepath'])
             data.append(os.path.splitext(file)[0])
 
-          
         status = get_status(data)
         for i, test_batch in enumerate(self._vad_model.test_dataloader()):
             test_batch = [x.to(self._device) for x in test_batch]

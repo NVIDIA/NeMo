@@ -13,13 +13,13 @@
 # limitations under the License.
 import json
 import logging
-import numpy as np
 import multiprocessing
 import os
 from argparse import ArgumentParser
 from itertools import repeat
 
 import librosa
+import numpy as np
 
 
 """
@@ -112,7 +112,9 @@ def write_manifest(file, args_func):
 def main():
     parser = ArgumentParser()
     parser.add_argument("--inp_dir", type=str, required=True, help="(full path) folder of files to be processed")
-    parser.add_argument("--inp_list", type=str, help="(full path) a file contains NAME of files inside inp_dir to be processed")
+    parser.add_argument(
+        "--inp_list", type=str, help="(full path) a file contains NAME of files inside inp_dir to be processed"
+    )
     parser.add_argument(
         "--out_dir", type=str, default=".", help="[Optional](full path) location to store generated json file"
     )
@@ -134,9 +136,8 @@ def main():
     else:
         name_list = np.loadtxt(args.inp_list, dtype='str')
         input_audios = [os.path.join(args.inp_dir, name + ".wav") for name in name_list]
-    print(f"Number of wav files to be processed: {len(input_audios)}") 
+    print(f"Number of wav files to be processed: {len(input_audios)}")
 
-    
     output_path = os.path.join(args.out_dir, args.manifest_name + '.json')
     print(f"Save generate manifest to {output_path}!")
     if not os.path.exists(args.out_dir):
