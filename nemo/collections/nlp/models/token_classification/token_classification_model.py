@@ -221,6 +221,14 @@ class TokenClassificationModel(NLPModel, Exportable):
         )
         # save label maps to the config
         self._cfg.label_ids = OmegaConf.create(label_ids)
+
+        OmegaConf.set_struct(self._cfg, False)
+        if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
+            self._cfg.class_labels = {}
+
+        self._cfg.class_labels = OmegaConf.create({'class_labels_file': 'label_ids.csv'})
+        OmegaConf.set_struct(self._cfg, True)
+
         self.register_artifact('label_ids.csv', label_ids_filename)
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
