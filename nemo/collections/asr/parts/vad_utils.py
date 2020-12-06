@@ -14,13 +14,14 @@
 import glob
 import json
 import os
-
 import numpy as np
+import librosa
 import pandas as pd
+import logging
 
-def write_manifest(file, args_func):
+def write_manifest_data(file, args_func):
     """
-    Given a list of files, write them to manifest with restrictions.
+    Given a list of files, write them to manifest for dataloader with restrictions.
     Args:
         files : file to be processed
         label : label for audio snippet.
@@ -30,21 +31,23 @@ def write_manifest(file, args_func):
     Returns:
         res : list of generated metadata line of json for file
     """
-
+    res = []
     label = args_func['label']
     split_duration = args_func['split_duration']
     time_length = args_func['time_length']
+    
+    filepath = file['audio_filepath']
+    in_duration = file['duration']
+    in_offset = file['offset']
 
-    res = []
     try:
         sr = 16000
-        x, _sr = librosa.load(file, sr=sr)
-        duration = librosa.get_duration(x, sr=sr)
-
+        x, _sr = librosa.load(filepath, sr=sr, offset=in_offset, duration=in_duration)
+        duration = librosa.get_duration(x, sr=sr) 
         left = duration
-        current_offset = 0
+        current_offset = in_offset
+        
         status = 'single'
-
         while left > 0:
             if left <= split_duration:
                 status = 'end'
@@ -69,7 +72,7 @@ def write_manifest(file, args_func):
                 left -= split_duration
 
             metadata = {
-                'audio_filepath': file,
+                'audio_filepath': filepath,
                 'duration': write_duration,
                 'label': label,
                 'text': '_',
@@ -192,7 +195,7 @@ def gen_overlap_seq(frame_filepath, per_args):
 
         round_final = np.round(preds, 4)
         np.savetxt(overlap_filepath, round_final, delimiter='\n')
-        print(f"Finished! {overlap_filepath}!")
+        logging.info(f"Finished! {overlap_filepath}!")
 
     except Exception as e:
         raise (e)
@@ -216,7 +219,7 @@ def gen_seg_table(frame_filepath, per_args):
     shift_len = per_args['shift_len']
     out_dir = per_args['out_dir']
 
-    print(f"process {frame_filepath}")
+    logging.info(f"process {frame_filepath}")
     name = frame_filepath.split("/")[-1].rsplit(".", 1)[0]
 
     sequence = np.loadtxt(frame_filepath)
@@ -257,6 +260,7 @@ def write_manifest(vad_directory, audio_directory, manifest_file):
             for line in lines:
                 vad_out = line.strip().split()
                 start, dur, activity = float(vad_out[0]), float(vad_out[1]) - float(vad_out[0]), vad_out[2]
+                start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
                 if activity.lower() == 'speech':
                     audio_path = os.path.join(audio_directory, audio_name + '.wav')
                     meta = {"audio_filepath": audio_path, "offset": start, "duration": dur, "label": 'UNK'}

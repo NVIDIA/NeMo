@@ -6,6 +6,7 @@ model:
     model_path: ???
     time_length: 0.63
     shift_length: 0.01
+    split_duration: 50
     gen_overlap_seq: True
     gen_seg_table: True
     overlap_method: "mean"
