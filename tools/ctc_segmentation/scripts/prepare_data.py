@@ -34,7 +34,9 @@ parser.add_argument(
     "--audio_format", type=str, default='.mp3', choices=['.mp3', '.wav'], help='Audio files format in --audio_dir'
 )
 parser.add_argument('--sample_rate', type=int, default=16000, help='Sampling rate used during ASR model training')
-parser.add_argument('--language', type=str, default='eng', choices=['eng', 'ru', 'other'])
+parser.add_argument(
+    '--language', type=str, default='eng', choices=['eng', 'ru', 'add other languages supported by num2words.']
+)
 parser.add_argument(
     '--cut_prefix', type=int, default=0, help='Number of seconds to cut from the beginning of the audio files.',
 )
@@ -255,7 +257,10 @@ def split_text(
         new_text += sentences[match_end:]
         sentences = new_text
     except NotImplementedError:
-        print(f'{language} might be missing in "num2words" package.')
+        print(
+            f'{language} might be missing in "num2words" package. Add required language to the choices for the'
+            f'--language argument.'
+        )
         raise
 
     # make sure to leave punctuation present in vocabulary
