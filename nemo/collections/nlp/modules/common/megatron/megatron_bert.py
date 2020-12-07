@@ -54,10 +54,6 @@ class MegatronBertEncoder(BertModule):
         self._app_state = None
         self._model_name = model_name
 
-        # megatron-lm checkpoints on NGC are version 0
-        # we'll need a way to set this correctly moving forward
-        set_checkpoint_version(0)
-
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
@@ -143,6 +139,11 @@ class MegatronBertEncoder(BertModule):
         if os.path.isfile(restore_path):
             logging.info(f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism')
             state_dict = torch.load(restore_path, map_location='cpu')
+            if 'checkpoint_version' in state_dict:
+                if state_dict['checkpoint_version'] is not None:
+                    set_checkpoint_version(state_dict['checkpoint_version'])
+            else:
+                set_checkpoint_version(0)
             # to load from Megatron pretrained checkpoint
             if 'model' in state_dict:
                 self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
@@ -156,6 +157,11 @@ class MegatronBertEncoder(BertModule):
                 mp_restore_path = f'{restore_path}/mp_rank_{model_parallel_rank:02d}/model_optim_rng.pt'
                 logging.info(f'Restoring model parallel checkpoint from: {mp_restore_path}')
                 state_dict = torch.load(mp_restore_path, map_location='cpu')
+                if 'checkpoint_version' in state_dict:
+                    if state_dict['checkpoint_version'] is not None:
+                        set_checkpoint_version(state_dict['checkpoint_version'])
+                else:
+                    set_checkpoint_version(0)
                 # to load from Megatron pretrained checkpoint
                 if 'model' in state_dict:
                     self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
@@ -165,3 +171,5 @@ class MegatronBertEncoder(BertModule):
                 logging.info(f'torch.distributed not initialized yet. Will not restore model parallel checkpoint')
         else:
             logging.error(f'restore_path: {restore_path} must be a file or directory.')
+
+    # TODO: we'll have to add the megatron-lm checkpoint_version to the state_dict for NeMo models
