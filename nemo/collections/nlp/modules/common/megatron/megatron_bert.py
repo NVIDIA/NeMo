@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from megatron.checkpointing import set_checkpoint_version
 
 import torch
 from megatron import get_args, initialize_megatron
@@ -52,6 +53,10 @@ class MegatronBertEncoder(BertModule):
         self._restore_path = None
         self._app_state = None
         self._model_name = model_name
+
+        # megatron-lm checkpoints on NGC are version 0
+        # we'll need a way to set this correctly moving forward
+        set_checkpoint_version(0)
 
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
