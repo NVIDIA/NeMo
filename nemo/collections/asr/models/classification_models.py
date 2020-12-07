@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import copy
+import json
 import os
+import tempfile
 from typing import Dict, List, Optional, Union
 
 import onnx
@@ -21,6 +23,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
 from nemo.collections.asr.data.audio_to_text import AudioLabelDataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
@@ -59,8 +62,81 @@ class EncDecClassificationModel(ASRModel, Exportable):
         # Setup metric objects
         self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
 
-    def transcribe(self, paths2audio_files: str) -> str:
-        raise NotImplementedError("Classification models do not transcribe audio.")
+    @torch.no_grad()
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False) -> List[str]:
+        """
+        Generate class labels for provided audio files. Use this method for debugging and prototyping.
+
+        Args:
+            paths2audio_files: (a list) of paths to audio files. \
+                Recommended length per file is approximately 1 second.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            logprobs: (bool) pass True to get log probabilities instead of class labels.
+
+        Returns:
+
+            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
+        """
+        if paths2audio_files is None or len(paths2audio_files) == 0:
+            return {}
+        # We will store transcriptions here
+        labels = []
+        # Model's mode and device
+        mode = self.training
+        device = next(self.parameters()).device
+        dither_value = self.preprocessor.featurizer.dither
+        pad_to_value = self.preprocessor.featurizer.pad_to
+
+        try:
+            self.preprocessor.featurizer.dither = 0.0
+            self.preprocessor.featurizer.pad_to = 0
+            # Switch model to evaluation mode
+            self.eval()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            # Work in tmp directory - will store manifest file there
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                    for audio_file in paths2audio_files:
+                        entry = {'audio_filepath': audio_file, 'duration': 100000.0, 'label': self.cfg.labels[0]}
+                        fp.write(json.dumps(entry) + '\n')
+
+                config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
+
+                temporary_datalayer = self._setup_transcribe_dataloader(config)
+                for test_batch in temporary_datalayer:
+                    logits = self.forward(
+                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                    )
+                    if logprobs:
+                        # dump log probs per file
+                        for idx in range(logits.shape[0]):
+                            labels.append(logits[idx])
+                    else:
+                        labels_k = []
+                        top_ks = self._accuracy.top_k
+                        for top_k_i in top_ks:
+                            # replace top k value with current top k
+                            self._accuracy.top_k = top_k_i
+                            labels_k_i = self._accuracy.top_k_predicted_labels(logits)
+                            labels_k.append(labels_k_i)
+
+                        # convenience: if only one top_k, pop out the nested list
+                        if len(top_ks) == 1:
+                            labels_k = labels_k[0]
+
+                        labels += labels_k
+                        # reset top k to orignal value
+                        self._accuracy.top_k = top_ks
+                    del test_batch
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+            self.preprocessor.featurizer.dither = dither_value
+            self.preprocessor.featurizer.pad_to = pad_to_value
+            logging.set_verbosity(logging_level)
+        return labels
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get('manifest_filepath') is None:
@@ -74,20 +150,39 @@ class EncDecClassificationModel(ASRModel, Exportable):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
-        dataset = AudioLabelDataset(
-            manifest_filepath=config['manifest_filepath'],
-            labels=config['labels'],
-            featurizer=featurizer,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            trim=config.get('trim_silence', True),
-            load_audio=config.get('load_audio', True),
-        )
+
+        if 'vad_stream' in config and config['vad_stream']:
+            print("Perform streaming frame-level VAD")
+            dataset = AudioToSpeechLabelDataSet(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                featurizer=featurizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', True),
+                load_audio=config.get('load_audio', True),
+                time_length=config.get('time_length', 0.31),
+                shift_length=config.get('shift_length', 0.01),
+            )
+            batch_size = 1
+            collate_func = dataset.vad_frame_seq_collate_fn
+        else:
+            dataset = AudioLabelDataset(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                featurizer=featurizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', True),
+                load_audio=config.get('load_audio', True),
+            )
+            batch_size = config['batch_size']
+            collate_func = dataset.collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
-            collate_fn=dataset.collate_fn,
+            batch_size=batch_size,
+            collate_fn=collate_func,
             drop_last=config.get('drop_last', False),
             shuffle=config['shuffle'],
             num_workers=config.get('num_workers', 0),
@@ -348,6 +443,34 @@ class EncDecClassificationModel(ASRModel, Exportable):
 
         OmegaConf.set_struct(cfg, True)
 
+    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a temporary data loader which wraps the provided audio file.
+
+        Args:
+            config: A python dictionary which contains the following keys:
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                stored.
+
+        Returns:
+            A pytorch DataLoader for the given audio file(s).
+        """
+        dl_config = {
+            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'sample_rate': self.preprocessor._sample_rate,
+            'labels': self.cfg.labels,
+            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'trim_silence': False,
+            'shuffle': False,
+        }
+
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        return temporary_datalayer
+
     def export(
         self,
         output: str,
@@ -370,8 +493,11 @@ class EncDecClassificationModel(ASRModel, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output))
+        output1_descr = qual_name + ' Encoder exported to ONNX'
         encoder_onnx = self.encoder.export(
-            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -385,8 +511,10 @@ class EncDecClassificationModel(ASRModel, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output))
+        output2_descr = qual_name + ' Decoder exported to ONNX'
         decoder_onnx = self.decoder.export(
-            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -401,7 +529,9 @@ class EncDecClassificationModel(ASRModel, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "EDC")
+        output_descr = qual_name + ' Encoder+Decoder exported to ONNX'
         onnx.save(output_model, output)
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])
 
 
 class MatchboxNet(EncDecClassificationModel):

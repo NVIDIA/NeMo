@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:20.09-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:20.11-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -27,6 +27,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y \
     libsndfile1 sox \
+    libfreetype6 \
     python-setuptools swig \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
@@ -72,6 +73,13 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
+# install quantization support
+RUN git clone https://github.com/NVIDIA/TensorRT.git && \
+    cd TensorRT/tools/pytorch-quantization && \
+    python setup.py install && \
+    cd - && \
+    rm -rf TensorRT
+
 # build CTC beam search decoder
 COPY scripts/install_ctc_decoders.sh .
 RUN ./install_ctc_decoders.sh
@@ -82,7 +90,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.0.0b1
+ARG NEMO_VERSION=1.0.0b2
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes

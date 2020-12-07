@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
+from nemo.collections.common.metrics.perplexity import Perplexity

@@ -709,31 +709,60 @@ class TestOptimizersSchedulers:
     @pytest.mark.unit
     @pytest.mark.run_only_on('CPU')
     def test_max_step_computation(self, cleanup_local_folder):
-        def train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last):
+        def train(
+            max_epochs, accumulate_grad_batches, limit_train_batches, num_processes, batch_size, dataset_len, drop_last
+        ):
             trainer = pl.Trainer(
                 max_epochs=max_epochs,
                 accelerator="ddp_cpu",
                 num_processes=num_processes,
                 accumulate_grad_batches=accumulate_grad_batches,
+                limit_train_batches=limit_train_batches,
                 checkpoint_callback=False,
                 progress_bar_refresh_rate=0,
                 weights_summary=None,
             )
             max_steps = optim.lr_scheduler.compute_max_steps(
-                max_epochs, accumulate_grad_batches, num_processes, dataset_len, batch_size, drop_last
+                max_epochs,
+                accumulate_grad_batches,
+                limit_train_batches,
+                num_processes,
+                dataset_len,
+                batch_size,
+                drop_last,
             )
             model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
             trainer.callbacks.append(Callback())
             trainer.fit(model)
 
         # This test will break once we and lightning upgrade to pytorch 1.7.0 due to a bug fix in pytorch 1.7.0
-        train(31, accumulate_grad_batches=1, num_processes=9, batch_size=60, dataset_len=1613, drop_last=True)
+        train(
+            31,
+            accumulate_grad_batches=1,
+            limit_train_batches=1.0,
+            num_processes=9,
+            batch_size=60,
+            dataset_len=1613,
+            drop_last=True,
+        )
 
         for _ in range(5):
             drop_last = bool(random.randint(0, 1))
             accumulate_grad_batches = random.randint(1, 10)
+
+            limit_train_batches_int = random.randint(1, 10)
+            limit_train_batches_float = random.uniform(0, 1)
+            limit_train_batches = random.choice([limit_train_batches_int, limit_train_batches_float])
             max_epochs = random.randint(4, 20)
             num_processes = random.randint(1, 5)
             dataset_len = random.randint(20, num_processes * 500)
             batch_size = random.randint(math.ceil(5.0 / num_processes), min(dataset_len // num_processes, 128))
-            train(max_epochs, accumulate_grad_batches, num_processes, batch_size, dataset_len, drop_last)
+            train(
+                max_epochs,
+                accumulate_grad_batches,
+                limit_train_batches,
+                num_processes,
+                batch_size,
+                dataset_len,
+                drop_last,
+            )

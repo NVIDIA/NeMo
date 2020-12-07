@@ -108,6 +108,9 @@ class ElementType(ABC):
                 return NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
             else:
                 for k1, v1 in self.type_parameters.items():
+                    if v1 is None or second.type_parameters[k1] is None:
+                        # Treat None as Void
+                        continue
                     if v1 != second.type_parameters[k1]:
                         return NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
             # check that all fields match
@@ -179,7 +182,7 @@ class AudioSignal(ElementType):
         freq is the same.
     """
 
-    def __init__(self, freq: int = 16000):
+    def __init__(self, freq: int = None):
         self._params = {}
         self._params['freq'] = freq
 
