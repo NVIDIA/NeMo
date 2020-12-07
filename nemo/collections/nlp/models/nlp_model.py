@@ -266,10 +266,6 @@ class NLPModel(ModelPT):
 
             app_state = AppState()
 
-            # if self._lazy_init_fn is not None:
-            #     self._lazy_init_fn()
-            #     self._lazy_init_fn = None
-
             if app_state.model_parallel_size is not None:
 
                 if app_state.model_parallel_group is None:
