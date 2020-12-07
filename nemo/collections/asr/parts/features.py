@@ -218,7 +218,7 @@ class FilterbankFeatures(nn.Module):
         pad_value=0,
         mag_power=2.0,
     ):
-        super(FilterbankFeatures, self).__init__()
+        super().__init__()
         self.log_zero_guard_value = log_zero_guard_value
         if (
             n_window_size is None
