@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:20.09-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:20.11-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -72,6 +72,13 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
 WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
+
+# install quantization support
+RUN git clone https://github.com/NVIDIA/TensorRT.git && \
+    cd TensorRT/tools/pytorch-quantization && \
+    python setup.py install && \
+    cd - && \
+    rm -rf TensorRT
 
 # build CTC beam search decoder
 COPY scripts/install_ctc_decoders.sh .

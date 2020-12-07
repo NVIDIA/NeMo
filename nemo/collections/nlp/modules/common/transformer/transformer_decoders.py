@@ -48,21 +48,47 @@ class TransformerDecoderBlock(nn.Module):
         attn_layer_dropout=0,
         ffn_dropout=0,
         hidden_act="relu",
+        pre_ln=False,
     ):
         super().__init__()
-
+        self.pre_ln = pre_ln
+        self.layer_norm_1 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.first_sub_layer = MultiHeadAttention(
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
+        self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.second_sub_layer = MultiHeadAttention(
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
+        self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
     def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+
+        # Pre-LN: LN -> Self-Attn -> Drop -> Residual -> LN -> Cross-Attn -> Drop -> Residual -> LN -> FFN
+        # Post-LN: Self-Attn -> Drop -> Residual -> LN -> Cross-Attn -> Drop -> Residual -> LN -> FFN -> Residual -> LN
+        if self.pre_ln:
+            # Share same LN params for query, key (self-attn)
+            decoder_query = self.layer_norm_1(decoder_query)
+            decoder_keys = self.layer_norm_1(decoder_keys)
+
         self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
+        self_attn_output += decoder_query
+
+        self_attn_output = self.layer_norm_2(self_attn_output) if self.pre_ln else self.layer_norm_1(self_attn_output)
+
         enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output += self_attn_output
+
+        enc_dec_attn_output = (
+            self.layer_norm_3(enc_dec_attn_output) if self.pre_ln else self.layer_norm_2(enc_dec_attn_output)
+        )
+
         output_states = self.third_sub_layer(enc_dec_attn_output)
+
+        if not self.pre_ln:
+            output_states = self.layer_norm_3(output_states + enc_dec_attn_output)
+
         return output_states
 
 
@@ -95,10 +121,8 @@ class TransformerDecoder(nn.Module):
             return_mems: bool, whether to return outputs of all decoder layers
                 or the last layer only
         """
-
         decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=0)
         encoder_attn_mask = form_attention_mask(encoder_mask)
-
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
         cached_mems_list = [memory_states]
 
