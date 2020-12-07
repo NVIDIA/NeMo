@@ -115,6 +115,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         pos_emb_max_len=5000,
         n_heads=4,
         xscaling=True,
+        untie_biases=False,
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
@@ -145,6 +146,16 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
             self.pre_encode = nn.Linear(feat_in, d_model)
 
+        if not untie_biases and self_attention_model == "rel_pos":
+            d_head = d_model // n_heads
+            pos_bias_u = nn.Parameter(torch.Tensor(n_heads, d_head))
+            pos_bias_v = nn.Parameter(torch.Tensor(n_heads, d_head))
+            nn.init.zeros_(pos_bias_u)
+            nn.init.zeros_(pos_bias_v)
+        else:
+            pos_bias_u = None
+            pos_bias_v = None
+
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
@@ -154,6 +165,8 @@ class ConformerEncoder(NeuralModule, Exportable):
                 dropout_emb_rate=dropout_emb,
             )
         elif self_attention_model == "abs_pos":
+            pos_bias_u = None
+            pos_bias_v = None
             self.pos_enc = PositionalEncoding(
                 d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, reverse=False, xscale=self.xscale
             )
@@ -170,6 +183,8 @@ class ConformerEncoder(NeuralModule, Exportable):
                 n_heads=n_heads,
                 dropout=dropout,
                 dropout_att=dropout_att,
+                pos_bias_u=pos_bias_u,
+                pos_bias_v=pos_bias_v,
             )
             self.layers.append(layer)
 
@@ -190,16 +205,17 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal = self.embed(audio_signal)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
+        # audio_signal, pos_emb = self.pos_enc2(audio_signal)
         bs, xmax, idim = audio_signal.size()
 
         # Create the self-attention and padding masks
         pad_mask = self.make_pad_mask(length, max_time=xmax, device=audio_signal.device)
         xx_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
-        xx_mask = xx_mask & xx_mask.transpose(1, 2)
-        pad_mask = (~pad_mask).unsqueeze(2)
+        xx_mask = ~(xx_mask & xx_mask.transpose(1, 2))
+        pad_mask = ~pad_mask
 
         for lth, layer in enumerate(self.layers):
-            audio_signal = layer(x=audio_signal, att_mask=xx_mask, pos_emb=pos_emb, pad_mask=pad_mask,)
+            audio_signal = layer(x=audio_signal, att_mask=xx_mask, pos_emb=pos_emb, pad_mask=pad_mask)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
