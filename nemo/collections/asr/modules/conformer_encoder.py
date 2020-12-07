@@ -19,10 +19,7 @@ import torch
 import torch.nn as nn
 
 from nemo.collections.asr.parts.conformer_modules import ConformerEncoderBlock
-from nemo.collections.asr.parts.multi_head_attention import (
-    PositionalEncoding,
-    RelPositionalEncoding,
-)
+from nemo.collections.asr.parts.multi_head_attention import PositionalEncoding, RelPositionalEncoding
 from nemo.collections.asr.parts.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -208,7 +205,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal = self.embed(audio_signal)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
-        #audio_signal, pos_emb = self.pos_enc2(audio_signal)
+        # audio_signal, pos_emb = self.pos_enc2(audio_signal)
         bs, xmax, idim = audio_signal.size()
 
         # Create the self-attention and padding masks
