@@ -283,13 +283,13 @@ if __name__ == '__main__':
             print(f"No model provided, vocabulary won't be used")
         elif os.path.exists(args.model):
             asr_model = nemo_asr.models.EncDecCTCModel.restore_from(args.model)
-            vocabulary = asr_model.cfg.decoder['params']['vocabulary']
+            vocabulary = asr_model.cfg.decoder.vocabulary
         elif args.model in nemo_asr.models.EncDecCTCModel.get_available_model_names():
             asr_model = nemo_asr.models.EncDecCTCModel.from_pretrained(args.model)
-            vocabulary = asr_model.cfg.decoder['params']['vocabulary']
+            vocabulary = asr_model.cfg.decoder.vocabulary
         else:
             raise ValueError(
-                f'Provide path to the pretrained checkpoint or choose from {nemo_asr.models.EncDecCTCModel.list_available_models()}'
+                f'Provide path to the pretrained checkpoint or choose from {nemo_asr.models.EncDecCTCModel.get_available_model_names()}'
             )
 
         if os.path.isdir(args.in_text):
