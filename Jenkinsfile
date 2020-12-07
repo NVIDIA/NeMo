@@ -394,9 +394,7 @@ pipeline {
         trainer.amp_level=O1 \
         trainer.gpus=[1] \
         +trainer.fast_dev_run=true \
-        exp_manager.exp_dir=exp_megabert_base_uncased \
-        '
-        sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
+        exp_manager=null'
       }
     }
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
@@ -612,9 +610,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -662,9 +660,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -687,9 +685,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \

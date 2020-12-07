@@ -21,12 +21,20 @@ from argparse import ArgumentParser
 from pprint import pprint
 
 import torch
-from pytorch_quantization import nn as quant_nn
-from pytorch_quantization import quant_modules
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
+
+try:
+    from pytorch_quantization import nn as quant_nn
+    from pytorch_quantization import quant_modules
+except ImportError:
+    raise ImportError(
+        "pytorch-quantization is not installed. Install from "
+        "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+    )
+
 
 try:
     from torch.cuda.amp import autocast
