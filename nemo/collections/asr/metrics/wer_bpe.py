@@ -77,7 +77,7 @@ class WERBPE(Metric):
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
-    def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor, predictions_len=None) -> List[str]:
+    def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
         """
         Decodes a sequence of labels to words
         """
@@ -87,8 +87,6 @@ class WERBPE(Metric):
         # iterate over batch
         for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
             prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
-            if predictions_len is not None:
-                prediction = prediction[: predictions_len[ind]]
             # CTC decoding procedure
             decoded_prediction = []
             previous = self.blank_id
@@ -101,7 +99,7 @@ class WERBPE(Metric):
         return hypotheses
 
     def update(
-        self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, predictions_lengths=None
+        self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor
     ):
         words = 0.0
         scores = 0.0
@@ -118,7 +116,7 @@ class WERBPE(Metric):
                 reference = self.tokenizer.ids_to_text(target)
                 references.append(reference)
             if self.ctc_decode:
-                hypotheses = self.ctc_decoder_predictions_tensor(predictions, predictions_lengths)
+                hypotheses = self.ctc_decoder_predictions_tensor(predictions)
             else:
                 raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
 

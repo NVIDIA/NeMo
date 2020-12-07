@@ -186,7 +186,7 @@ class EncDecCTCModel(ASRModel, Exportable):
                             hypotheses.append(logits[idx][: logits_len[idx]])
                     else:
                         hypotheses += self._wer.ctc_decoder_predictions_tensor(
-                            greedy_predictions, predictions_len=logits_len
+                            greedy_predictions
                         )
                     del test_batch
         finally:
@@ -417,7 +417,6 @@ class EncDecCTCModel(ASRModel, Exportable):
                 predictions=predictions,
                 targets=transcript,
                 target_lengths=transcript_len,
-                predictions_lengths=encoded_len,
             )
             wer, _, _ = self._wer.compute()
             tensorboard_logs.update({'training_batch_wer': wer})
@@ -437,7 +436,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         self._wer.update(
-            predictions=predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
+            predictions=predictions, targets=transcript, target_lengths=transcript_len
         )
         wer, wer_num, wer_denom = self._wer.compute()
         return {
