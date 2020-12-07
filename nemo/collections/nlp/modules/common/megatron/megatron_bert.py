@@ -143,6 +143,7 @@ class MegatronBertEncoder(BertModule):
                 if state_dict['checkpoint_version'] is not None:
                     set_checkpoint_version(state_dict['checkpoint_version'])
             else:
+                logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
                 set_checkpoint_version(0)
             # to load from Megatron pretrained checkpoint
             if 'model' in state_dict:
@@ -151,6 +152,8 @@ class MegatronBertEncoder(BertModule):
                 self.load_state_dict(state_dict)
             logging.info(f"weights restored from {restore_path}")
         elif os.path.isdir(restore_path):
+            # TODO: need to refactor this so we're not repeating code
+
             # need model parallel groups to restore model parallel checkpoints
             if model_parallel_is_initialized():
                 model_parallel_rank = torch.distributed.get_rank(group=get_model_parallel_group())
@@ -161,6 +164,7 @@ class MegatronBertEncoder(BertModule):
                     if state_dict['checkpoint_version'] is not None:
                         set_checkpoint_version(state_dict['checkpoint_version'])
                 else:
+                    logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
                     set_checkpoint_version(0)
                 # to load from Megatron pretrained checkpoint
                 if 'model' in state_dict:
