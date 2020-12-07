@@ -9,14 +9,13 @@ model:
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000
-    batch_size: 32
+    batch_size: 16
     trim_silence: false
     max_duration: 16.7
     min_duration: 0.1
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
     num_workers: 8
     pin_memory: false
     use_start_end_token: false
@@ -101,13 +100,10 @@ model:
     dropout_att: 0.0 # The dropout for multi-headed attention modules
 
   decoder:
-    _target_: nemo.collections.asr.modules.LSTMDecoder
-    feat_in: null # If not provided, the feat_out of the encoder would be used
-    num_classes: -1  # filled with vocabulary size from tokenizer at runtime
-    vocabulary: []  # filled with vocabulary from tokenizer at runtime
-    lstm_hidden_size: 640
-    bidirectional: False
-    num_layers: 1
+    _target_: nemo.collections.asr.modules.ConvASRDecoder
+    feat_in: null
+    num_classes: -1
+    vocabulary: []
 
   optim:
     name: novograd
@@ -120,7 +116,7 @@ model:
     sched:
       name: CosineAnnealing
       # scheduler config override
-      warmup_steps: 2000
+      warmup_steps: 4000
       warmup_ratio: null
       min_lr: 1e-6
       last_epoch: -1
@@ -156,3 +152,4 @@ exp_manager:
     project: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
+
