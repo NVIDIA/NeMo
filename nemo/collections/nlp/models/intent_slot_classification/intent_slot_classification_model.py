@@ -125,7 +125,29 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         cfg.data_desc.slot_weights = data_desc.slot_weights
 
         cfg.data_desc.pad_label = data_desc.pad_label
+
+        slot_labels_file = os.path.join(data_dir, 'slots_label_ids.csv')
+        intent_labels_file = os.path.join(data_dir, 'intent_label_ids.csv')
+        self._save_label_ids(data_desc.slots_label_ids, slot_labels_file)
+        self._save_label_ids(data_desc.intents_label_ids, intent_labels_file)
+
+        if not hasattr(cfg, "class_labels") or cfg.class_labels is None:
+            cfg.class_labels = {}
+            cfg.class_labels = OmegaConf.create(
+                {'intent_labels_file': 'intent_labels.csv', 'slot_labels_file': 'slot_labels.csv'}
+            )
+
+        self.register_artifact('intent_labels.csv', intent_labels_file)
+        self.register_artifact('slot_labels.csv', slot_labels_file)
         OmegaConf.set_struct(cfg, True)
+
+    def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
+        """ Saves label ids map to a file """
+        with open(filename, 'w') as out:
+            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+            out.write('\n'.join(labels))
+            logging.info(f'Labels: {label_ids}')
+            logging.info(f'Labels mapping saved to : {out.name}')
 
     def _reconfigure_classifier(self):
         """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
