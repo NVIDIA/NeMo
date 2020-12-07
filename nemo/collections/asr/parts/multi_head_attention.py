@@ -43,7 +43,6 @@ __all__ = [
     'RelPositionMultiHeadAttention',
     'RelPositionalEncoding',
     'PositionalEncoding',
-    'RelPositionMultiHeadAttention2' 'RelPositionalEncoding2',
 ]
 
 
@@ -101,7 +100,7 @@ class MultiHeadAttention(nn.Module):
         """
         n_batch = value.size(0)
         if mask is not None:
-            mask = mask.unsqueeze(1)  # .eq(0)  # (batch, 1, time1, time2)
+            mask = mask.unsqueeze(1) # (batch, 1, time1, time2)
             if scores.dtype == torch.float16:
                 dtype = np.float16
             else:
@@ -160,28 +159,6 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         else:
             self.pos_bias_u = pos_bias_u
             self.pos_bias_v = pos_bias_v
-
-    # buggy one
-    # def rel_shift(self, x, zero_triu=False):
-    #     """Compute relative positional encoding.
-    #     Args:
-    #         x (torch.Tensor): (batch, time, size)
-    #         zero_triu (bool): return the lower triangular part of the matrix
-    #     """
-    #     zero_pad = torch.zeros((*x.size()[:3], 1), device=x.device, dtype=x.dtype)
-    #     x_padded = torch.cat([zero_pad, x], dim=-1)
-    #
-    #     x_padded = x_padded.view(*x.size()[:2], x.size(3) + 1, x.size(2))
-    #     x = x_padded[:, :, 1:].view_as(x)
-    #
-    #     x = x.squeeze(0)
-    #     x = torch.tril(x) + torch.triu(x.transpose(1,2), diagonal=1)
-    #     x = x.unsqueeze(0)
-    #     if zero_triu:
-    #         ones = torch.ones((x.size(2), x.size(3)))
-    #         x = x * torch.tril(ones, x.size(3) - x.size(2))[None, None, :, :]
-    #
-    #     return x
 
     def rel_shift(self, x):
         """Compute relative positional encoding.
@@ -468,36 +445,3 @@ class RelPositionMultiHeadAttention2(nn.Module):
 
         # attn_out = attn_out.transpose(0, 1).contiguous()
         return attn_out
-
-
-class RelPositionalEncoding2(nn.Module):
-    def __init__(self, d_model, dropout_rate, max_len=None, xscale=None, dropout_emb_rate=0.0):
-        super().__init__()
-
-        self.demb = d_model
-        demb = d_model
-
-        inv_freq = 1 / (10000 ** (torch.arange(0.0, demb, 2.0) / demb))
-        self.register_buffer('inv_freq', inv_freq)
-
-        if dropout_emb_rate > 0:
-            self.dropout_emb = nn.Dropout(dropout_emb_rate)
-        else:
-            self.dropout_emb = None
-
-        self.xscale = xscale
-        self.dropout = torch.nn.Dropout(p=dropout_rate)
-
-    def forward(self, x: torch.Tensor):
-        klen = x.size(1)
-        # pos_seq = torch.arange(klen - 1, -1, -1.0, device=x.device, dtype=x.dtype)
-        pos_seq = torch.arange(-(klen - 1), (klen - 1) + 1, 1.0, device=x.device, dtype=x.dtype)
-        sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
-        pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
-
-        if self.dropout_emb:
-            pos_emb = self.dropout_emb(pos_emb)
-        if self.xscale:
-            x = x * self.xscale
-
-        return self.dropout(x), pos_emb[None, :, :]

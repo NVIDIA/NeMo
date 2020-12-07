@@ -22,7 +22,6 @@ from nemo.collections.asr.parts.conformer_modules import ConformerEncoderBlock
 from nemo.collections.asr.parts.multi_head_attention import (
     PositionalEncoding,
     RelPositionalEncoding,
-    RelPositionalEncoding2,
 )
 from nemo.collections.asr.parts.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
@@ -150,37 +149,18 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
             self.pre_encode = nn.Linear(feat_in, d_model)
 
-        if not untie_biases and (self_attention_model == "rel_pos" or self_attention_model == "rel_pos2"):
+        if not untie_biases and self_attention_model == "rel_pos":
             d_head = d_model // n_heads
             pos_bias_u = nn.Parameter(torch.Tensor(n_heads, d_head))
             pos_bias_v = nn.Parameter(torch.Tensor(n_heads, d_head))
             nn.init.zeros_(pos_bias_u)
             nn.init.zeros_(pos_bias_v)
-            # nn.init.normal_(pos_bias_u, 0.0, 0.02)
-            # nn.init.normal_(pos_bias_v, 0.0, 0.02)
-            # torch.nn.init.xavier_uniform_(self.pos_bias_u)
-            # torch.nn.init.xavier_uniform_(self.pos_bias_v)
         else:
             pos_bias_u = None
             pos_bias_v = None
 
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
-                d_model=d_model,
-                dropout_rate=dropout,
-                max_len=pos_emb_max_len,
-                xscale=self.xscale,
-                dropout_emb_rate=dropout_emb,
-            )
-            # self.pos_enc2 = RelPositionalEncoding2(
-            #     d_model=d_model,
-            #     dropout_rate=dropout,
-            #     max_len=pos_emb_max_len,
-            #     xscale=self.xscale,
-            #     dropout_emb_rate=dropout_emb,
-            # )
-        elif self_attention_model == "rel_pos2":
-            self.pos_enc = RelPositionalEncoding2(
                 d_model=d_model,
                 dropout_rate=dropout,
                 max_len=pos_emb_max_len,
