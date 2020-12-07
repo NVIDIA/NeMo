@@ -713,8 +713,11 @@ class ModelPT(LightningModule, Model):
 
             # See if internal config has `optim` namespace before preservation
             if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                with open_dict(self._cfg.optim):
+                if self._cfg.optim is None:
                     self._cfg.optim = copy.deepcopy(optim_config)
+                else:
+                    with open_dict(self._cfg.optim):
+                        self._cfg.optim = copy.deepcopy(optim_config)
 
         # Setup optimizer and scheduler
         if optim_config is not None and isinstance(optim_config, DictConfig):
