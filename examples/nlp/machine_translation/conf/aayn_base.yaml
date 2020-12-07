@@ -122,20 +122,16 @@ model:
     _target_: nemo.collections.nlp.modules.common.token_classifier.TokenClassifier
 
 trainer:
-  logger: false
-  checkpoint_callback: false
-  gradient_clip_val: 0.0
+  gpus: 4
   num_nodes: 1
-  gpus: 1
-  progress_bar_refresh_rate: 1
-  accumulate_grad_batches: 1
-  max_epochs: 3
-  max_steps: null
-  val_check_interval: 1.0
-  log_every_n_steps: 10
-  accelerator: DDP
-  precision: 16
-  num_sanity_val_steps: 2
+  max_epochs: 200
+  amp_level: O2 # O1/O2 for mixed precision
+  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  distributed_backend: ddp
+  checkpoint_callback: False
+  logger: False
+  log_every_n_steps: 50  # Interval of logging.
+  check_val_every_n_epoch: 1
   _target_: pytorch_lightning.Trainer
 
 exp_manager:
