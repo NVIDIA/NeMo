@@ -98,9 +98,7 @@ class WERBPE(Metric):
             hypotheses.append(hypothesis)
         return hypotheses
 
-    def update(
-        self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor
-    ):
+    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor):
         words = 0.0
         scores = 0.0
         references = []
