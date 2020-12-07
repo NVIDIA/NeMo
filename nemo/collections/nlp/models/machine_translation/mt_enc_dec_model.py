@@ -34,7 +34,8 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
+from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEmbedding
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging
 
@@ -52,12 +53,33 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.encoder_embedding = instantiate(cfg.encoder_embedding)
-        self.decoder_embedding = instantiate(cfg.decoder_embedding)
         self.encoder = instantiate(cfg.encoder)
+        self.encoder_embedding = TransformerEmbedding(
+            vocab_size=self.encoder_vocab_size,
+            hidden_size=cfg.encoder.hidden_size,
+            max_sequence_length=cfg.encoder_embedding.max_sequence_length,
+            num_token_types=cfg.encoder_embedding.num_token_types,
+            embedding_dropout=cfg.encoder_embedding.embedding_dropout,
+            learn_positional_encodings=cfg.encoder_embedding.learn_positional_encodings,
+        )
         self.decoder = instantiate(cfg.decoder)
+        self.decoder_embedding = TransformerEmbedding(
+            vocab_size=self.decoder_vocab_size,
+            hidden_size=cfg.decoder.hidden_size,
+            max_sequence_length=cfg.decoder_embedding.max_sequence_length,
+            num_token_types=cfg.decoder_embedding.num_token_types,
+            embedding_dropout=cfg.decoder_embedding.embedding_dropout,
+            learn_positional_encodings=cfg.decoder_embedding.learn_positional_encodings,
+        )
 
-        self.log_softmax = instantiate(cfg.head)
+        self.log_softmax = TokenClassifier(
+            hidden_size=cfg.decoder.hidden_size,
+            num_classes=self.decoder_vocab_size,
+            activation=cfg.head.activation,
+            log_softmax=cfg.head.log_softmax,
+            dropout=cfg.head.dropout,
+            use_transformer_init=cfg.head.use_transformer_init,
+        )
 
         self.beam_search = BeamSearchSequenceGenerator(
             embedding=self.decoder_embedding,
