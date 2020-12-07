@@ -302,14 +302,14 @@ pipeline {
        steps {
         sh 'cd tools/ctc_segmentation && \
         /bin/bash run_sample.sh \
-        --MODEL_NAME_OR_PATH='QuartzNet15x5Base-En' \
+        --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
         --DATA_DIR=/home/TestData/ctc_segmentation/eng \
         --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output \
-        --LANGUAGE="eng" \
+        --LANGUAGE=eng \
         --OFFSET=0 \
         --CUT_PREFIX=0 \
         --MIN_SEGMENT_LEN=0 \
-        --AUDIO_FORMAT=".wav"'
+        --AUDIO_FORMAT=.wav'
         sh 'cmp --silent /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt /home/TestData/ctc_segmentation/ru/output/verified_segments/nv_test_segments.txt || echo "FAILURE files are different" && exit 1'
         sh 'rm -rf eng/output'
         }
@@ -321,12 +321,12 @@ pipeline {
         --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
         --DATA_DIR=/home/TestData/ctc_segmentation/ru \
         --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
-        --LANGUAGE="ru" \
+        --LANGUAGE=ru \
         --OFFSET=0 \
         --CUT_PREFIX=3 \
         --MIN_SEGMENT_LEN=0 \
-        --ADDITIONAL_SPLIT_SYMBOLS=";" \
-        --AUDIO_FORMAT=".mp3"'
+        --ADDITIONAL_SPLIT_SYMBOLS=; \
+        --AUDIO_FORMAT=.mp3'
         sh 'cmp --silent /home/TestData/ctc_segmentation/ru/ru_valid_segments.txt /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt || echo "FAILURE files are different" && exit 1'
         sh 'rm -rf ru/output'
         }
