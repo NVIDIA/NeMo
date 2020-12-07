@@ -32,8 +32,6 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     train_ds: Optional[TranslationDataConfig] = None
     validation_ds: Optional[TranslationDataConfig] = None
     test_ds: Optional[TranslationDataConfig] = None
-    num_val_examples: int = 3
-    num_test_examples: int = 3
     beam_size: int = 4
     len_pen: float = 0.0
     max_generation_delta: int = 3

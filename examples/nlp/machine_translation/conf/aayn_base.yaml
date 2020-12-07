@@ -1,10 +1,8 @@
 model:
-  num_val_examples: 3
-  num_test_examples: 3
-  beam_size: 1
-  len_pen: 0.0
-  max_generation_delta: 10
-  label_smoothing: 0.0
+  beam_size: 4
+  len_pen: 0.6
+  max_generation_delta: 5
+  label_smoothing: 0.1
 
   train_ds:
     src_file_name: ???
