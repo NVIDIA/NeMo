@@ -270,6 +270,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
             self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
 
+            OmegaConf.set_struct(self._cfg, False)
+            if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
+                self._cfg.class_labels = {}
+            self._cfg.class_labels = OmegaConf.create(
+                {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
+            )
+
     def setup_validation_data(self, val_data_config: Optional[Dict] = None):
         """
         Setup validaton data

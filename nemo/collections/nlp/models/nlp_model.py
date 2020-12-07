@@ -28,7 +28,7 @@ from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.nlp.modules import BertEncoder, MegatronBertEncoder
+from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
 from nemo.utils import AppState, logging
@@ -59,7 +59,16 @@ class NLPModel(ModelPT):
             raise ValueError('Instantiate self.bert_model before registering it.')
         else:
             # get encoder config and create source for artifact
-            if isinstance(self.bert_model, BertEncoder):
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                pretrained_model_name = self.bert_model._model_name
+                encoder_config_path = pretrained_model_name + '_encoder_config.json'
+                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
+                config_for_json = OmegaConf.to_container(self.bert_model.config)
+                with open(encoder_config_src, 'w', encoding='utf-8') as f:
+                    f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
+                self.register_artifact(encoder_config_path, encoder_config_src)
+                self.cfg.language_model.config_file = encoder_config_path
+            elif isinstance(self.bert_model, BertModule):
                 # HuggingFace Transformer Config
                 pretrained_model_name = self.bert_model.name_or_path
                 # Some HF names have "/" in them so we replace with _
@@ -68,14 +77,7 @@ class NLPModel(ModelPT):
                 encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
                 self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
                 self.register_artifact(encoder_config_path, encoder_config_src)
-            elif isinstance(self.bert_model, MegatronBertEncoder):
-                pretrained_model_name = self.bert_model._model_name
-                encoder_config_path = pretrained_model_name + '_encoder_config.json'
-                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
-                config_for_json = OmegaConf.to_container(self.bert_model.config)
-                with open(encoder_config_src, 'w', encoding='utf-8') as f:
-                    f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
-                self.register_artifact(encoder_config_path, encoder_config_src)
+                self.cfg.language_model.config_file = encoder_config_path
             else:
                 logging.info(
                     f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
@@ -95,6 +97,7 @@ class NLPModel(ModelPT):
         Args:
             cfg (DictConfig): Tokenizer config
         """
+
         if self._is_model_being_restored() and os.path.exists('tokenizer.vocab_file'):
             # model is being restored from .nemo file so tokenizer.vocab_file has precedence
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
@@ -114,18 +117,22 @@ class NLPModel(ModelPT):
 
         if vocab_file is None:
             # when there is no vocab file we try to get the vocab from the tokenizer and register it
-            self._register_vocab_from_tokenizer(config_path='tokenizer.vocab_file', cfg=cfg)
+            self._register_vocab_from_tokenizer(vocab_file_config_path='tokenizer.vocab_file', cfg=cfg)
 
     @rank_zero_only
-    def _register_vocab_from_tokenizer(self, config_path='tokenizer.vocab_file', cfg: DictConfig = None):
+    def _register_vocab_from_tokenizer(
+        self,
+        vocab_file_config_path: str = 'tokenizer.vocab_file',
+        vocab_dict_config_path: str = 'tokenizer_vocab_dict.json',
+        cfg: DictConfig = None,
+    ):
         """Creates vocab file from tokenizer if vocab file is None.
 
         Args:
-            config_path (str): for register_artifact
+            vocab_file_config_path: path to the vocab_file in the config
+            vocab_dict_config_path: path to the vocab_dict in the config
             cfg: tokenizer config
         """
-        vocab_file_config_path = 'tokenizer.vocab_file'
-        vocab_dict_config_path = 'tokenizer_vocab_dict.json'
         if self.tokenizer is None:
             raise ValueError('Instantiate self.tokenizer before registering vocab from it.')
         else:
@@ -161,6 +168,7 @@ class NLPModel(ModelPT):
                     for key in vocab_dict:
                         f.write(key + '\n')
 
+                cfg.vocab_file = vocab_file_config_path
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
                 logging.info(
@@ -225,10 +233,8 @@ class NLPModel(ModelPT):
         Args:
             stage (str): either 'fit' or 'test'
         """
-
         # TODO: implement model parallel for test stage
         if stage == 'fit':
-
             # adds self.bert_model config to .nemo file
             self.register_bert_model()
 
