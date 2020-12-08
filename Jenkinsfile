@@ -303,7 +303,7 @@ pipeline {
             steps {
             sh 'cd tools/ctc_segmentation && \
             pip install -r requirements.txt && \
-            apt-get update && apt-get install -y libsndfile1 ffmpeg'
+            apt-get install -y ffmpeg'
             }
         }
 
@@ -322,7 +322,7 @@ pipeline {
             --CUT_PREFIX=0 \
             --MIN_SEGMENT_LEN=0 \
             --AUDIO_FORMAT=.wav'
-            sh 'cmp --silent /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt /home/TestData/ctc_segmentation/ru/output/verified_segments/nv_test_segments.txt || echo "FAILURE files are different" && exit 1'
+            sh 'python verify_alignment.py -r eng/eng_valid_segments.txt eng/output/verified_segments/nv_test_segments.txt'
             sh 'rm -rf eng/output'
             }
           }
@@ -339,7 +339,7 @@ pipeline {
             --MIN_SEGMENT_LEN=0 \
             --ADDITIONAL_SPLIT_SYMBOLS=; \
             --AUDIO_FORMAT=.mp3'
-            sh 'cmp --silent /home/TestData/ctc_segmentation/ru/ru_valid_segments.txt /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt || echo "FAILURE files are different" && exit 1'
+            sh 'python verify_alignment.py -r ru/ru_valid_segments.txt ru/output/verified_segments/ru_segments.txt'
             sh 'rm -rf ru/output'
             }
           }
