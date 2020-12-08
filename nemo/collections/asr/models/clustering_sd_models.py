@@ -307,7 +307,7 @@ class ClusteringSDModel(DiarizationModel):
         RTTM_DIR = self._cfg.diarizer.groundtruth_RTTM_dir
         OUT_RTTM_DIR = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(OUT_RTTM_DIR, exist_ok=True)
-        DER, CER = get_score(
+        DER, CER, FA, MISS = get_score(
             embeddings_file=self._embeddings_file,
             reco2num=reco2num,
             manifest_path=self._vad_out_file,
@@ -319,7 +319,8 @@ class ClusteringSDModel(DiarizationModel):
         )
 
         logging.info(
-            "Cumulative Diarization ER and Cofusion ER of all the files is {:.3f} and {:.3f}".format(DER, CER)
+            "Cumulative results of all the files:  FA: {:.3f}, MISS {:.3f} \n \
+             Diarization ER: {:.3f}, Cofusion ER:{:.3f}".format(FA, MISS, DER, CER)
         )
 
     @rank_zero_only
