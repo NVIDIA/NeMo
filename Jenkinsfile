@@ -303,7 +303,7 @@ pipeline {
       stage('L2: Eng QN with .wav') {
        steps {
         sh 'cd tools/ctc_segmentation && \
-        pip install -r requirements.txt \
+        pip install -r requirements.txt && \
         /bin/bash run_sample.sh \
         --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
         --DATA_DIR=/home/TestData/ctc_segmentation/eng \
@@ -320,7 +320,7 @@ pipeline {
       stage('L2: Ru QN with .mp3') {
        steps {
         sh 'cd tools/ctc_segmentation && \
-        pip install -r requirements.txt \
+        pip install -r requirements.txt && \
         /bin/bash run_sample.sh \
         --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
         --DATA_DIR=/home/TestData/ctc_segmentation/ru \
