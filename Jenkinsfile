@@ -346,7 +346,7 @@ pipeline {
             -g home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
             rm -rf ru/output'
             }
-          }
+           }
          }
        }
      }
