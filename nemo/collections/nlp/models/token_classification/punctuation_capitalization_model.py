@@ -260,16 +260,16 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
 
+        if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
+            OmegaConf.set_struct(self._cfg, False)
+            self._cfg.class_labels = {}
+            self._cfg.class_labels = OmegaConf.create(
+                {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
+            )
+
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
-                OmegaConf.set_struct(self._cfg, False)
-                self._cfg.class_labels = {}
-                self._cfg.class_labels = OmegaConf.create(
-                    {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
-                )
-
             self.register_artifact(
                 self._cfg.class_labels.punct_labels_file, self._train_dl.dataset.punct_label_ids_file
             )
