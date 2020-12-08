@@ -43,6 +43,10 @@ def main(cfg: MTEncDecConfig) -> None:
 
     mt_model = MTEncDecModel(cfg.model, trainer=trainer)
 
+    logging.info("\n\n***********************************")
+    for name, param in mt_model.named_parameters():
+        print(name, param.size())
+    logging.info("***********************************\n\n")
     trainer.fit(mt_model)
 
 
