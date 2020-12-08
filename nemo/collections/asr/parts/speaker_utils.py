@@ -183,8 +183,12 @@ def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_
 
     DER = abs(metric)
     CER = metric['confusion'] / metric['total']
+    FA = metric['false alarm']  / metric['total']
+    MISS = metric['missed detection'] / metric['total']
 
-    return DER, CER
+    metric.reset()
+
+    return DER, CER, FA, MISS
 
 
 def get_score(
@@ -201,6 +205,6 @@ def get_score(
     embeddings, time_stamps, SPEAKERS = get_time_stamps(
         embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDOW, SHIFT
     )
-    DER, CER = perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_DIR)
+    DER, CER, FA, MISS = perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_DIR)
 
-    return DER, CER
+    return DER, CER, FA, MISS
