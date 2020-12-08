@@ -212,6 +212,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
         use_cache: whether to use processed data cache or not
         get_label_frequencies: whether to generate label frequencies
+        punct_label_ids_file and capit_label_ids_file: name of the files to save in .nemo
     """
 
     @property
@@ -241,6 +242,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         ignore_start_end: bool = False,
         use_cache: bool = True,
         get_label_frequencies: bool = False,
+        punct_label_ids_file: str = 'punct_label_ids.csv',
+        capit_label_ids_file: str = 'capit_label_ids.csv',
     ):
         """ Initializes BertPunctuationCapitalizationDataset. """
 
@@ -270,8 +273,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
             ),
         )
 
-        self.punct_label_ids_file = os.path.join(data_dir, 'punct_label_ids.csv')
-        self.capit_label_ids_file = os.path.join(data_dir, 'capit_label_ids.csv')
+        self.punct_label_ids_file = os.path.join(data_dir, punct_label_ids_file)
+        self.capit_label_ids_file = os.path.join(data_dir, capit_label_ids_file)
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         cache_files_exist = (
