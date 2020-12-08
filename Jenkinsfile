@@ -292,54 +292,61 @@ pipeline {
 //     }
 
     stage('L2: Segmentation Tool') {
-     when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
+         when {
+            anyOf {
+              branch 'main'
+              changeRequest target: 'main'
+            }
+         }
+       stages {
+        stage('Install ctc_segmentation requirements') {
+            steps {
+            sh 'cd tools/ctc_segmentation && \
+            pip install -r requirements.txt && \
+            apt-get update && apt-get install -y libsndfile1 ffmpeg'
+            }
         }
+
+        stage('Parallel ctc_segmentation test') {
+         failFast true
+         parallel {
+          stage('L2: Eng QN with .wav') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
+            --DATA_DIR=/home/TestData/ctc_segmentation/eng \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output \
+            --LANGUAGE=eng \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.wav'
+            sh 'cmp --silent /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt /home/TestData/ctc_segmentation/ru/output/verified_segments/nv_test_segments.txt || echo "FAILURE files are different" && exit 1'
+            sh 'rm -rf eng/output'
+            }
+          }
+          stage('L2: Ru QN with .mp3') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
+            --DATA_DIR=/home/TestData/ctc_segmentation/ru \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
+            --LANGUAGE=ru \
+            --OFFSET=0 \
+            --CUT_PREFIX=3 \
+            --MIN_SEGMENT_LEN=0 \
+            --ADDITIONAL_SPLIT_SYMBOLS=; \
+            --AUDIO_FORMAT=.mp3'
+            sh 'cmp --silent /home/TestData/ctc_segmentation/ru/ru_valid_segments.txt /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt || echo "FAILURE files are different" && exit 1'
+            sh 'rm -rf ru/output'
+            }
+          }
+         }
+       }
      }
-     steps {
-        sh 'cd tools/ctc_segmentation && \
-        pip install -r requirements.txt && \
-        apt-get update && apt-get install -y libsndfile1 ffmpeg'
-     }
-     failFast true
-     parallel {
-      stage('L2: Eng QN with .wav') {
-       steps {
-        sh 'cd tools/ctc_segmentation && \
-        /bin/bash run_sample.sh \
-        --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
-        --DATA_DIR=/home/TestData/ctc_segmentation/eng \
-        --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output \
-        --LANGUAGE=eng \
-        --OFFSET=0 \
-        --CUT_PREFIX=0 \
-        --MIN_SEGMENT_LEN=0 \
-        --AUDIO_FORMAT=.wav'
-        sh 'cmp --silent /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt /home/TestData/ctc_segmentation/ru/output/verified_segments/nv_test_segments.txt || echo "FAILURE files are different" && exit 1'
-        sh 'rm -rf eng/output'
-        }
-      }
-      stage('L2: Ru QN with .mp3') {
-       steps {
-        sh 'cd tools/ctc_segmentation && \
-        /bin/bash run_sample.sh \
-        --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
-        --DATA_DIR=/home/TestData/ctc_segmentation/ru \
-        --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
-        --LANGUAGE=ru \
-        --OFFSET=0 \
-        --CUT_PREFIX=3 \
-        --MIN_SEGMENT_LEN=0 \
-        --ADDITIONAL_SPLIT_SYMBOLS=; \
-        --AUDIO_FORMAT=.mp3'
-        sh 'cmp --silent /home/TestData/ctc_segmentation/ru/ru_valid_segments.txt /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt || echo "FAILURE files are different" && exit 1'
-        sh 'rm -rf ru/output'
-        }
-      }
-     }
-   }
+    }
 
     stage('L2: Multi-GPU Megatron finetuning') {
      when {
