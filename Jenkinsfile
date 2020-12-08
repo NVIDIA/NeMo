@@ -319,7 +319,7 @@ pipeline {
       stage('L2: Ru QN with .mp3') {
        steps {
         sh 'cd tools/ctc_segmentation && \
-        ./run_sample.sh \
+        /bin/bash run_sample.sh \
         --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
         --DATA_DIR=/home/TestData/ctc_segmentation/ru \
         --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
