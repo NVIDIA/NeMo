@@ -322,7 +322,9 @@ pipeline {
             --CUT_PREFIX=0 \
             --MIN_SEGMENT_LEN=0 \
             --AUDIO_FORMAT=.wav && \
-            python verify_alignment.py -r eng/eng_valid_segments.txt eng/output/verified_segments/nv_test_segments.txt && \
+            python home/TestData/ctc_segmentation/verify_alignment.py \
+            -r home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
+            -g home/TestData/ctc_segmentation/eng/output/verified_segments/nv_test_segments.txt && \
             rm -rf eng/output'
             }
           }
@@ -339,7 +341,9 @@ pipeline {
             --MIN_SEGMENT_LEN=0 \
             --ADDITIONAL_SPLIT_SYMBOLS=; \
             --AUDIO_FORMAT=.mp3 && \
-            python verify_alignment.py -r ru/ru_valid_segments.txt ru/output/verified_segments/ru_segments.txt && \
+            python home/TestData/ctc_segmentation/verify_alignment.py \
+            -r home/TestData/ctc_segmentation/ru/ru_valid_segments.txt \
+            -g home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
             rm -rf ru/output'
             }
           }
