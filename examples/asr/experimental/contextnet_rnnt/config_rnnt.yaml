@@ -84,13 +84,15 @@ model:
       - filters: 256
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
-        stride: [1]
+        stride: [2]
         dilation: [1]
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
@@ -106,13 +108,15 @@ model:
       - filters: 256
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
-        stride: [1]
+        stride: [2]
         dilation: [1]
         dropout: ${model.model_defaults.dropout}
         residual: true
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
 
       - filters: 256
         repeat: ${model.model_defaults.repeat}
@@ -128,13 +132,15 @@ model:
       - filters: 256
         repeat: 1
         kernel: [21]
-        stride: [1]
+        stride: [2]
         dilation: [1]
         dropout: 0.0
         residual: false
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
 
       - filters: ${model.model_defaults.enc_hidden}
         repeat: 1
