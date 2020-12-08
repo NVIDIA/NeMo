@@ -95,6 +95,10 @@ class TextClassificationModel(NLPModel, Exportable):
             num_classes=cfg.dataset.num_classes, mode='micro', dist_sync_on_step=True
         )
 
+        # register the file containing the labels into the artifacts to get saved in the '.nemo' file
+        if 'class_labels' in cfg and 'class_labels_file' in cfg.class_labels and cfg.class_labels.class_labels_file:
+            self.register_artifact('label_ids.csv', cfg.class_labels.class_labels_file)
+
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         """
