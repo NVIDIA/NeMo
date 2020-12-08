@@ -126,19 +126,20 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
 
         cfg.data_desc.pad_label = data_desc.pad_label
 
-        slot_labels_file = os.path.join(data_dir, 'slots_label_ids.csv')
-        intent_labels_file = os.path.join(data_dir, 'intent_label_ids.csv')
-        self._save_label_ids(data_desc.slots_label_ids, slot_labels_file)
-        self._save_label_ids(data_desc.intents_label_ids, intent_labels_file)
-
+        # for older(pre - 1.0.0.b3) configs compatibility
         if not hasattr(cfg, "class_labels") or cfg.class_labels is None:
             cfg.class_labels = {}
             cfg.class_labels = OmegaConf.create(
                 {'intent_labels_file': 'intent_labels.csv', 'slot_labels_file': 'slot_labels.csv'}
             )
 
-        self.register_artifact('intent_labels.csv', intent_labels_file)
-        self.register_artifact('slot_labels.csv', slot_labels_file)
+        slot_labels_file = os.path.join(data_dir, cfg.class_labels.intent_labels_file)
+        intent_labels_file = os.path.join(data_dir, cfg.class_labels.slot_labels_file)
+        self._save_label_ids(data_desc.slots_label_ids, slot_labels_file)
+        self._save_label_ids(data_desc.intents_label_ids, intent_labels_file)
+
+        self.register_artifact(cfg.class_labels.intent_labels_file, intent_labels_file)
+        self.register_artifact(cfg.class_labels.slot_labels_file, slot_labels_file)
         OmegaConf.set_struct(cfg, True)
 
     def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
