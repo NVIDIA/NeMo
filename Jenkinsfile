@@ -321,9 +321,9 @@ pipeline {
             --OFFSET=0 \
             --CUT_PREFIX=0 \
             --MIN_SEGMENT_LEN=0 \
-            --AUDIO_FORMAT=.wav'
-            sh 'python verify_alignment.py -r eng/eng_valid_segments.txt eng/output/verified_segments/nv_test_segments.txt'
-            sh 'rm -rf eng/output'
+            --AUDIO_FORMAT=.wav && \
+            python verify_alignment.py -r eng/eng_valid_segments.txt eng/output/verified_segments/nv_test_segments.txt && \
+            rm -rf eng/output'
             }
           }
           stage('L2: Ru QN with .mp3') {
@@ -338,9 +338,9 @@ pipeline {
             --CUT_PREFIX=3 \
             --MIN_SEGMENT_LEN=0 \
             --ADDITIONAL_SPLIT_SYMBOLS=; \
-            --AUDIO_FORMAT=.mp3'
-            sh 'python verify_alignment.py -r ru/ru_valid_segments.txt ru/output/verified_segments/ru_segments.txt'
-            sh 'rm -rf ru/output'
+            --AUDIO_FORMAT=.mp3 && \
+            python verify_alignment.py -r ru/ru_valid_segments.txt ru/output/verified_segments/ru_segments.txt && \
+            rm -rf ru/output'
             }
           }
          }
