@@ -339,8 +339,8 @@ pipeline {
             --OFFSET=0 \
             --CUT_PREFIX=3 \
             --MIN_SEGMENT_LEN=0 \
-            --ADDITIONAL_SPLIT_SYMBOLS=; \
-            --AUDIO_FORMAT=.mp3 && \
+            --AUDIO_FORMAT=.mp3 \
+            --ADDITIONAL_SPLIT_SYMBOLS=";" && \
             python /home/TestData/ctc_segmentation/verify_alignment.py \
             -r /home/TestData/ctc_segmentation/ru/ru_valid_segments.txt \
             -g /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
