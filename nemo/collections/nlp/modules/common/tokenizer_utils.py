@@ -51,6 +51,7 @@ def get_tokenizer(
     tokenizer_model: Optional[str] = None,
     vocab_file: Optional[str] = None,
     special_tokens: Optional[Dict[str, str]] = None,
+    use_fast: Optional[bool] = False,
 ):
     """
     Args:
@@ -60,6 +61,7 @@ def get_tokenizer(
         tokenizer_model: tokenizer model file of sentencepiece or youtokentome
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
+        use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
     """
     if special_tokens is None:
         special_tokens_dict = {}
@@ -84,4 +86,6 @@ def get_tokenizer(
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
 
-    return AutoTokenizer(pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict,)
+    return AutoTokenizer(
+        pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
+    )

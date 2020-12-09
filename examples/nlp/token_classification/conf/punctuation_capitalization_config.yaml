@@ -42,6 +42,9 @@ model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
   punct_label_ids: null # will be filled during training
   capit_label_ids: null # will be filled during training
+  class_labels:
+    punct_labels_file: punct_label_ids.csv
+    capit_labels_file: capit_label_ids.csv
   dataset:
     data_dir: ??? # /path/to/training/data
     # parameters for dataset preprocessing
@@ -83,8 +86,6 @@ model:
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null
-
-
 
   punct_head:
     punct_num_fc_layers: 1

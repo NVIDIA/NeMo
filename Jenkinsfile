@@ -232,6 +232,8 @@ pipeline {
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
             model.tokenizer.type="wpe" \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=10 \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
@@ -370,6 +372,31 @@ pipeline {
             exp_manager=null'
           }
         }
+      }
+    }
+    // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
+    stage('L2: MegaBERT Token Classification') {
+      when {
+        anyOf{
+          branch 'v1.0.0b2'
+          changeRequest target: 'v1.0.0b2'
+        }
+      }
+      failFast true
+      steps {
+        sh 'cd examples/nlp/token_classification && \
+        python token_classification.py \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
+        model.train_ds.batch_size=10 \
+        model.dataset.max_seq_length=50 \
+        model.dataset.use_cache=false \
+        trainer.accelerator=ddp \
+        trainer.precision=16 \
+        trainer.amp_level=O1 \
+        trainer.gpus=[1] \
+        +trainer.fast_dev_run=true \
+        exp_manager=null'
       }
     }
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
@@ -585,9 +612,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -635,9 +662,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -660,9 +687,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
