@@ -67,7 +67,7 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.encoder = Encoder()
-        self.variance_adapter = VarianceAdaptor(pitch_min=1e05, pitch_max=256)  # max is a placeholder value
+        self.variance_adapter = VarianceAdaptor()
         self.mel_decoder = MelSpecDecoder()
         self.loss = L2MelLoss()
 
@@ -81,17 +81,19 @@ class FastSpeech2Model(SpectrogramGenerator):
     #     pass
 
     @typecheck()
-    def forward(self, *, spec_len, text, text_length, durations):
+    def forward(self, *, spec_len, text, text_length, durations, pitch, energies):
         with typecheck.disable_checks():
             encoded_text, encoded_text_mask = self.encoder(text=text, text_lengths=text_length)
-            aligned_text = self.variance_adapter(x=encoded_text, dur_target=durations)
+            aligned_text = self.variance_adapter(
+                x=encoded_text, dur_target=durations, pitch_target=pitch, energy_target=energies
+            )
             mel = self.mel_decoder(decoder_input=aligned_text, lengths=spec_len)
             return mel
 
     def training_step(self, batch, batch_idx):
-        f, fl, t, tl, durations = batch
+        f, fl, t, tl, durations, pitch, energies = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-        mel = self(spec_len=spec_len, text=t, text_length=tl, durations=durations)
+        mel = self(spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies)
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         self.log(name="train_loss", value=loss)
         return loss

@@ -332,7 +332,7 @@ class FilterbankFeatures(nn.Module):
 
     @torch.no_grad()
     def forward(self, x, seq_len):
-        seq_len = self.get_seq_len(seq_len.float())
+        seq_len = self.get_seq_len(seq_len.float())  # TODO: Is this correct for stft exact pad?
 
         if self.stft_exact_pad and not self.stft_conv:
             p = (self.n_fft - self.hop_length) // 2
