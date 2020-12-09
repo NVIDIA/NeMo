@@ -72,14 +72,14 @@ class SpecAugment(nn.Module):
 
                 w = self._rng.randrange(0, self.freq_width + 1)
 
-                x[idx, x_left: x_left + w, :] = 0.0
+                x[idx, x_left : x_left + w, :] = 0.0
 
             for i in range(self.time_masks):
                 y_left = self._rng.randrange(0, sh[2] - time_width + 1)
 
                 w = self._rng.randrange(0, time_width + 1)
 
-                x[idx, :, y_left: y_left + w] = 0.0
+                x[idx, :, y_left : y_left + w] = 0.0
 
         return x
 
@@ -116,6 +116,6 @@ class SpecCutout(nn.Module):
                 w_x = self._rng.randrange(0, self.rect_time + 1)
                 w_y = self._rng.randrange(0, self.rect_freq + 1)
 
-                x[idx, rect_x: rect_x + w_x, rect_y: rect_y + w_y] = 0.0
+                x[idx, rect_x : rect_x + w_x, rect_y : rect_y + w_y] = 0.0
 
         return x
