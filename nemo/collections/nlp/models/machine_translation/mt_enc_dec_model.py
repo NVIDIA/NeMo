@@ -29,12 +29,14 @@ from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.common.metrics import Perplexity
+
+# from nemo.collections.common.metrics import Perplexity
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
+from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEmbedding
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging
 
@@ -52,12 +54,33 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.encoder_embedding = instantiate(cfg.encoder_embedding)
-        self.decoder_embedding = instantiate(cfg.decoder_embedding)
         self.encoder = instantiate(cfg.encoder)
+        self.encoder_embedding = TransformerEmbedding(
+            vocab_size=self.encoder_vocab_size,
+            hidden_size=cfg.encoder.hidden_size,
+            max_sequence_length=cfg.encoder_embedding.max_sequence_length,
+            num_token_types=cfg.encoder_embedding.num_token_types,
+            embedding_dropout=cfg.encoder_embedding.embedding_dropout,
+            learn_positional_encodings=cfg.encoder_embedding.learn_positional_encodings,
+        )
         self.decoder = instantiate(cfg.decoder)
+        self.decoder_embedding = TransformerEmbedding(
+            vocab_size=self.decoder_vocab_size,
+            hidden_size=cfg.decoder.hidden_size,
+            max_sequence_length=cfg.decoder_embedding.max_sequence_length,
+            num_token_types=cfg.decoder_embedding.num_token_types,
+            embedding_dropout=cfg.decoder_embedding.embedding_dropout,
+            learn_positional_encodings=cfg.decoder_embedding.learn_positional_encodings,
+        )
 
-        self.log_softmax = instantiate(cfg.head)
+        self.log_softmax = TokenClassifier(
+            hidden_size=cfg.decoder.hidden_size,
+            num_classes=self.decoder_vocab_size,
+            activation=cfg.head.activation,
+            log_softmax=cfg.head.log_softmax,
+            dropout=cfg.head.dropout,
+            use_transformer_init=cfg.head.use_transformer_init,
+        )
 
         self.beam_search = BeamSearchSequenceGenerator(
             embedding=self.decoder_embedding,
@@ -86,8 +109,8 @@ class MTEncDecModel(EncDecNLPModel):
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
 
-        self.training_perplexity = Perplexity(dist_sync_on_step=True)
-        self.eval_perplexity = Perplexity(compute_on_step=False)
+        # self.training_perplexity = Perplexity(dist_sync_on_step=True)
+        # self.eval_perplexity = Perplexity(compute_on_step=False)
 
     def filter_predicted_ids(self, ids):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
@@ -131,11 +154,11 @@ class MTEncDecModel(EncDecNLPModel):
         src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
         log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        training_perplexity = self.training_perplexity(logits=log_probs)
+        # training_perplexity = self.training_perplexity(logits=log_probs)
         tensorboard_logs = {
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
-            "train_ppl": training_perplexity,
+            # "train_ppl": training_perplexity,
         }
         return {'loss': train_loss, 'log': tensorboard_logs}
 
@@ -148,7 +171,7 @@ class MTEncDecModel(EncDecNLPModel):
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels).cpu().numpy()
-        self.eval_perplexity(logits=log_probs)
+        # self.eval_perplexity(logits=log_probs)
         translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
@@ -186,7 +209,7 @@ class MTEncDecModel(EncDecNLPModel):
     def eval_epoch_end(self, outputs, mode):
         counts = np.array([x['num_non_pad_tokens'] for x in outputs])
         eval_loss = np.sum(np.array([x[f'{mode}_loss'] for x in outputs]) * counts) / counts.sum()
-        eval_perplexity = self.eval_perplexity.compute()
+        # eval_perplexity = self.eval_perplexity.compute()
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
         assert len(translations) == len(ground_truths)
@@ -201,7 +224,7 @@ class MTEncDecModel(EncDecNLPModel):
             logging.info(f"    Prediction:   {translations[ind]}")
             logging.info(f"    Ground Truth: {ground_truths[ind]}")
 
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score, f"{mode}_ppl": eval_perplexity}
+        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score}  # , f"{mode}_ppl": eval_perplexity}
         ans['log'] = dict(ans)
         return ans
 

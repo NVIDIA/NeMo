@@ -33,7 +33,7 @@ class MTEncDecConfig(NemoConfig):
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
 
 
-@hydra_runner(config_path="conf", config_name="aayn_base", schema=MTEncDecConfig)
+@hydra_runner(config_path="conf", config_name="aayn_base")
 def main(cfg: MTEncDecConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
 
@@ -43,6 +43,10 @@ def main(cfg: MTEncDecConfig) -> None:
 
     mt_model = MTEncDecModel(cfg.model, trainer=trainer)
 
+    logging.info("\n\n***********************************")
+    for name, param in mt_model.named_parameters():
+        print(name, param.size())
+    logging.info("***********************************\n\n")
     trainer.fit(mt_model)
 
 

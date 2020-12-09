@@ -1,10 +1,8 @@
 model:
-  num_val_examples: 3
-  num_test_examples: 3
-  beam_size: 1
-  len_pen: 0.0
-  max_generation_delta: 10
-  label_smoothing: 0.0
+  beam_size: 4
+  len_pen: 0.6
+  max_generation_delta: 5
+  label_smoothing: 0.1
 
   train_ds:
     src_file_name: ???
@@ -77,8 +75,6 @@ model:
     special_tokens: null
 
   encoder_embedding:
-    vocab_size: 37000
-    hidden_size: 512
     max_sequence_length: 512
     num_token_types: 2
     embedding_dropout: 0.1
@@ -98,8 +94,6 @@ model:
     _target_: nemo.collections.nlp.modules.common.transformer.TransformerEncoder
 
   decoder_embedding:
-    vocab_size: 37000
-    hidden_size: 512
     max_sequence_length: 512
     num_token_types: 2
     embedding_dropout: 0.1
@@ -128,20 +122,16 @@ model:
     _target_: nemo.collections.nlp.modules.common.token_classifier.TokenClassifier
 
 trainer:
-  logger: false
-  checkpoint_callback: false
-  gradient_clip_val: 0.0
+  gpus: 4
   num_nodes: 1
-  gpus: 1
-  progress_bar_refresh_rate: 1
-  accumulate_grad_batches: 1
-  max_epochs: 3
-  max_steps: null
-  val_check_interval: 1.0
-  log_every_n_steps: 10
-  accelerator: DDP
-  precision: 16
-  num_sanity_val_steps: 2
+  max_epochs: 200
+  amp_level: O2 # O1/O2 for mixed precision
+  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  distributed_backend: ddp
+  checkpoint_callback: False
+  logger: False
+  log_every_n_steps: 50  # Interval of logging.
+  check_val_every_n_epoch: 1
   _target_: pytorch_lightning.Trainer
 
 exp_manager:

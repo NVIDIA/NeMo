@@ -32,11 +32,9 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     train_ds: Optional[TranslationDataConfig] = None
     validation_ds: Optional[TranslationDataConfig] = None
     test_ds: Optional[TranslationDataConfig] = None
-    num_val_examples: int = 3
-    num_test_examples: int = 3
-    beam_size: int = 1
+    beam_size: int = 4
     len_pen: float = 0.0
-    max_generation_delta: int = 50
+    max_generation_delta: int = 3
     label_smoothing: Optional[float] = 0.0
 
 
@@ -70,9 +68,7 @@ class AAYNBaseConfig(ModelConfig):
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
 
-    encoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
-        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
-    )
+    encoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig()
     encoder: TransformerEncoderConfig = TransformerEncoderConfig(
         hidden_size=512,
         inner_size=2048,
@@ -83,9 +79,7 @@ class AAYNBaseConfig(ModelConfig):
         attn_layer_dropout=0.1,
     )
 
-    decoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig(
-        vocab_size=37000, hidden_size=512, embedding_dropout=0.1
-    )
+    decoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig()
     decoder: TransformerDecoderConfig = TransformerDecoderConfig(
         hidden_size=512,
         inner_size=2048,
@@ -97,7 +91,7 @@ class AAYNBaseConfig(ModelConfig):
     )
 
     head: TokenClassifierConfig = TokenClassifierConfig(
-        hidden_size=decoder.hidden_size, num_classes=decoder_embedding.vocab_size, log_softmax=True
+        hidden_size=decoder.hidden_size, num_classes=32768, log_softmax=True
     )
 
     # dataset configurations

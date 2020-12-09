@@ -53,8 +53,6 @@ class FixedPositionalEncoding(nn.Module):
 
 @dataclass
 class TransformerEmbeddingConfig:
-    vocab_size: int = MISSING
-    hidden_size: int = MISSING
     max_sequence_length: int = 512
     num_token_types: int = 2
     embedding_dropout: float = 0.0
