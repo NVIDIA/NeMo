@@ -50,48 +50,42 @@ model:
     num_output_layers: 2
     fc_dropout: 0.1
 
+  class_labels:
+    class_labels_file : null # optional to specify a file containing the list of the labels
+
   dataset:
     num_classes: ??? # The number of classes. 0 < Label <num_classes.
     do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
     max_seq_length: 256 # the maximum length BERT supports is 512
-    class_balancing: null # choose from [null, weighted_loss]. weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
+    class_balancing: null # null or 'weighted_loss'. 'weighted_loss' enables the weighted class balancing of the loss, may be used for handling unbalanced classes
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
-
-    # default parameters shared among all data loaders
-    # You may override these params for a specific data loader
-    num_workers: 3 # number of workers for data loaders
-    drop_last: false # drops the last last batch if it is smaller than the batch size
-    pin_memory: false # enables pin_memory feature of the data loaders
 
   train_ds:
     file_path: null
     batch_size: 64
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
-    # Default values for the following params are retrieved from dataset config section, but you may override them
-    num_workers: ${model.dataset.num_workers}
-    drop_last: ${model.dataset.drop_last}
-    pin_memory: ${model.dataset.pin_memory}
+    num_workers: 3
+    drop_last: false
+    pin_memory: false
 
   validation_ds:
     file_path: null
     batch_size: 64
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
-    # Default values for the following params are retrieved from dataset config section, but you may override them
-    num_workers: ${model.dataset.num_workers}
-    drop_last: ${model.dataset.drop_last}
-    pin_memory: ${model.dataset.pin_memory}
+    num_workers: 3
+    drop_last: false
+    pin_memory: false
 
   test_ds:
     file_path: null
     batch_size: 64
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
-    # Default values for the following params are retrieved from dataset config section, but you may override them
-    num_workers: ${model.dataset.num_workers}
-    drop_last: ${model.dataset.drop_last}
-    pin_memory: ${model.dataset.pin_memory}
+    num_workers: 3
+    drop_last: false
+    pin_memory: false
 
   optim:
     name: adam

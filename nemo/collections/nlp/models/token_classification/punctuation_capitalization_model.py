@@ -260,22 +260,27 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
 
+        # for older(pre - 1.0.0.b3) configs compatibility
+        if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
+            OmegaConf.set_struct(self._cfg, False)
+            self._cfg.class_labels = {}
+            self._cfg.class_labels = OmegaConf.create(
+                {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
+            )
+
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            self.register_artifact('punct_label_ids.csv', self._train_dl.dataset.punct_label_ids_file)
-            self.register_artifact('capit_label_ids.csv', self._train_dl.dataset.capit_label_ids_file)
+            self.register_artifact(
+                self._cfg.class_labels.punct_labels_file, self._train_dl.dataset.punct_label_ids_file
+            )
+            self.register_artifact(
+                self._cfg.class_labels.capit_labels_file, self._train_dl.dataset.capit_label_ids_file
+            )
 
             # save label maps to the config
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
             self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
-
-            OmegaConf.set_struct(self._cfg, False)
-            if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
-                self._cfg.class_labels = {}
-            self._cfg.class_labels = OmegaConf.create(
-                {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
-            )
 
     def setup_validation_data(self, val_data_config: Optional[Dict] = None):
         """
@@ -315,6 +320,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ignore_start_end=self._cfg.dataset.ignore_start_end,
             use_cache=self._cfg.dataset.use_cache,
             num_samples=cfg.num_samples,
+            punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
+            capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
         )
 
         return torch.utils.data.DataLoader(
