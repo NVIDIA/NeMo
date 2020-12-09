@@ -47,249 +47,249 @@ pipeline {
       }
     }
 
-//     stage('L0: Unit Tests GPU') {
-//       steps {
-//         sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
-//       }
-//     }
-//
-//     stage('L0: Unit Tests CPU') {
-//       when {
-//         anyOf{
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       steps {
-//         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
-//       }
-//     }
-//
-//     stage('L0: Computer Vision Integration') {
-//       when {
-//         anyOf{
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       parallel {
-//         stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
-//           steps {
-//             sh 'cd examples/cv && \
-//             python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
-//             trainer.accelerator=null \
-//             trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
-//             && rm -rf outputs'
-//           }
-//         }
-//       }
-//     }
-//
-//     // We have no integration tests, please enable this when one is added
-//     // stage('L0: Integration Tests GPU') {
-//     //   steps {
-//     //     sh 'pytest -s -m "integration and not skipduringci and not pleasefixme"'
-//     //   }
-//     // }
-//
-//     // stage('L0: Integration Tests CPU') {
-//     //   when {
-//     //     anyOf{
-//     //       branch 'main'
-//     //       changeRequest target: 'main'
-//     //     }
-//     //   }
-//     //   steps {
-//     //     sh 'pytest -s -m "integration and not pleasefixme" --cpu'
-//     //   }
-//     // }
-//
-//     // We have no system tests, please enable this when one is added
-//     // stage('L1: System Tests GPU') {
-//     //   steps {
-//     //     sh 'pytest -m "system and not skipduringci and not pleasefixme"'
-//     //   }
-//     // }
-//
-//     // stage('L1: System Tests CPU') {
-//     //   when {
-//     //     anyOf{
-//     //       branch 'dev
-//     //       changeRequest target: 'main'
-//     //     }
-//     //   }
-//     //   steps {
-//     //     sh 'pytest -m "system and not pleasefixme" --cpu'
-//     //   }
-//     // }
-//
-//     stage('L2: ASR dev run') {
-//       when {
-//         anyOf{
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       parallel {
-//         stage('Speech to Text') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text.py \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-//             sh 'rm -rf examples/asr/speech_to_text_results'
-//           }
-//         }
-//         // stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
-//         //   steps {
-//         //     sh 'python examples/asr/speech_to_text.py \
-//         //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//         //     +model.train_ds.use_dali=True \
-//         //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//         //     +model.validation_ds.use_dali=True \
-//         //     model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-//         //     model.preprocessor.params={} \
-//         //     trainer.gpus=[0] \
-//         //     +trainer.fast_dev_run=True \
-//         //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
-//         //     sh 'rm -rf examples/asr/speech_to_text_results'
-//         //   }
-//         // }
-//         // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
-//         //   steps {
-//         //     sh 'python examples/asr/speech_to_text.py \
-//         //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//         //     +model.train_ds.use_dali=True \
-//         //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//         //     +model.validation_ds.use_dali=True \
-//         //     model.preprocessor.cls=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-//         //     model.preprocessor.params={} \
-//         //     trainer.gpus=[0] \
-//         //     +trainer.fast_dev_run=True \
-//         //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
-//         //     sh 'rm -rf examples/asr/speech_to_text_results'
-//         //   }
-//         // }
-//         stage('Speech to Label') {
-//           steps {
-//             sh 'python examples/asr/speech_to_label.py \
-//             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-//             model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-//             trainer.gpus=[1] \
-//             +trainer.fast_dev_run=True \
-//             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-//             ~model.preprocessor.window_size \
-//             ~model.preprocessor.window_stride \
-//             ~model.preprocessor.window \
-//             ~model.preprocessor.n_mels \
-//             ~model.preprocessor.n_mfcc \
-//             ~model.preprocessor.n_fft \
-//             exp_manager.exp_dir=examples/asr/speech_to_label_results'
-//             sh 'rm -rf examples/asr/speech_to_label_results'
-//           }
-//         }
-//
-//         stage('Speaker Recognition') {
-//           steps {
-//             sh 'python examples/speaker_recognition/speaker_reco.py \
-//             model.train_ds.batch_size=10 \
-//             model.validation_ds.batch_size=2 \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
-//             model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
-//             trainer.gpus=[1] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
-//             sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
-//           }
-//         }
-//
-//         stage('L2: Speech to Text WPE - CitriNet') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text_bpe.py \
-//             --config-path="experimental/citrinet/" --config-name="config_bpe" \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
-//             model.tokenizer.type="wpe" \
-//             trainer.gpus=[1] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
-//             sh 'rm -rf examples/asr/speech_to_text_wpe_results'
-//           }
-//         }
-//
-//         stage('L2: Speech to Text WPE - Conformer') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text_bpe.py \
-//             --config-path="experimental/conformer" --config-name="conformer_bpe" \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
-//             model.tokenizer.type="wpe" \
-//             model.train_ds.batch_size=10 \
-//             model.validation_ds.batch_size=10 \
-//             trainer.gpus=[1] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
-//             sh 'rm -rf examples/asr/speech_to_text_wpe_conformer_results'
-//           }
-//         }
-//       }
-//     }
-//
-//
-//
-//     stage('L2: ASR Multi-dataloader dev run') {
-//       when {
-//         anyOf{
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       parallel {
-//         stage('Speech to Text multi-dataloader') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text.py \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             model.validation_ds.manifest_filepath=[/home/TestData/an4_dataset/an4_val.json,/home/TestData/an4_dataset/an4_val.json] \
-//             trainer.gpus=[0] \
-//             trainer.max_epochs=1 \
-//             +trainer.max_steps=1 \
-//             +trainer.num_sanity_val_steps=1 \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-//             sh 'rm -rf examples/asr/speech_to_text_results'
-//           }
-//         }
-//
-//         stage('Speech to Label multi-dataloader') {
-//           steps {
-//             sh 'python examples/asr/speech_to_label.py \
-//             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
-//             model.validation_ds.manifest_filepath=[/home/TestData/speech_commands/test_manifest.json,/home/TestData/speech_commands/test_manifest.json] \
-//             trainer.gpus=[1] \
-//             trainer.max_epochs=1 \
-//             +trainer.max_steps=1 \
-//             +trainer.num_sanity_val_steps=1 \
-//             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-//             ~model.preprocessor.window_size \
-//             ~model.preprocessor.window_stride \
-//             ~model.preprocessor.window \
-//             ~model.preprocessor.n_mels \
-//             ~model.preprocessor.n_mfcc \
-//             ~model.preprocessor.n_fft \
-//             exp_manager.exp_dir=examples/asr/speech_to_label_results'
-//             sh 'rm -rf examples/asr/speech_to_label_results'
-//           }
-//         }
-//       }
-//     }
+    stage('L0: Unit Tests GPU') {
+      steps {
+        sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
+      }
+    }
+
+    stage('L0: Unit Tests CPU') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
+      }
+    }
+
+    stage('L0: Computer Vision Integration') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
+          steps {
+            sh 'cd examples/cv && \
+            python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
+            trainer.accelerator=null \
+            trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
+            && rm -rf outputs'
+          }
+        }
+      }
+    }
+
+    // We have no integration tests, please enable this when one is added
+    // stage('L0: Integration Tests GPU') {
+    //   steps {
+    //     sh 'pytest -s -m "integration and not skipduringci and not pleasefixme"'
+    //   }
+    // }
+
+    // stage('L0: Integration Tests CPU') {
+    //   when {
+    //     anyOf{
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   steps {
+    //     sh 'pytest -s -m "integration and not pleasefixme" --cpu'
+    //   }
+    // }
+
+    // We have no system tests, please enable this when one is added
+    // stage('L1: System Tests GPU') {
+    //   steps {
+    //     sh 'pytest -m "system and not skipduringci and not pleasefixme"'
+    //   }
+    // }
+
+    // stage('L1: System Tests CPU') {
+    //   when {
+    //     anyOf{
+    //       branch 'dev
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   steps {
+    //     sh 'pytest -m "system and not pleasefixme" --cpu'
+    //   }
+    // }
+
+    stage('L2: ASR dev run') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+        // stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+        //   steps {
+        //     sh 'python examples/asr/speech_to_text.py \
+        //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //     +model.train_ds.use_dali=True \
+        //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //     +model.validation_ds.use_dali=True \
+        //     model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+        //     model.preprocessor.params={} \
+        //     trainer.gpus=[0] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //     sh 'rm -rf examples/asr/speech_to_text_results'
+        //   }
+        // }
+        // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+        //   steps {
+        //     sh 'python examples/asr/speech_to_text.py \
+        //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //     +model.train_ds.use_dali=True \
+        //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //     +model.validation_ds.use_dali=True \
+        //     model.preprocessor.cls=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+        //     model.preprocessor.params={} \
+        //     trainer.gpus=[0] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //     sh 'rm -rf examples/asr/speech_to_text_results'
+        //   }
+        // }
+        stage('Speech to Label') {
+          steps {
+            sh 'python examples/asr/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
+            exp_manager.exp_dir=examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
+          }
+        }
+
+        stage('Speaker Recognition') {
+          steps {
+            sh 'python examples/speaker_recognition/speaker_reco.py \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=2 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
+          }
+        }
+
+        stage('L2: Speech to Text WPE - CitriNet') {
+          steps {
+            sh 'python examples/asr/speech_to_text_bpe.py \
+            --config-path="experimental/citrinet/" --config-name="config_bpe" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+            model.tokenizer.type="wpe" \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
+            sh 'rm -rf examples/asr/speech_to_text_wpe_results'
+          }
+        }
+
+        stage('L2: Speech to Text WPE - Conformer') {
+          steps {
+            sh 'python examples/asr/speech_to_text_bpe.py \
+            --config-path="experimental/conformer" --config-name="conformer_bpe" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+            model.tokenizer.type="wpe" \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=10 \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
+            sh 'rm -rf examples/asr/speech_to_text_wpe_conformer_results'
+          }
+        }
+      }
+    }
+
+
+
+    stage('L2: ASR Multi-dataloader dev run') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text multi-dataloader') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=[/home/TestData/an4_dataset/an4_val.json,/home/TestData/an4_dataset/an4_val.json] \
+            trainer.gpus=[0] \
+            trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
+            +trainer.num_sanity_val_steps=1 \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+
+        stage('Speech to Label multi-dataloader') {
+          steps {
+            sh 'python examples/asr/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=[/home/TestData/speech_commands/test_manifest.json,/home/TestData/speech_commands/test_manifest.json] \
+            trainer.gpus=[1] \
+            trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
+            +trainer.num_sanity_val_steps=1 \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
+            exp_manager.exp_dir=examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
+          }
+        }
+      }
+    }
 
     stage('L2: Segmentation Tool') {
          when {
@@ -342,7 +342,7 @@ pipeline {
             --AUDIO_FORMAT=.mp3 \
             --ADDITIONAL_SPLIT_SYMBOLS=";" && \
             python /home/TestData/ctc_segmentation/verify_alignment.py \
-            -r /home/TestData/ctc_segmentation/ru/ru_valid_segments.txt \
+            -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
             -g /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
             rm -rf ru/output'
             }
