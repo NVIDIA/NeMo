@@ -1,15 +1,17 @@
-
 import os
+import subprocess
 import sys
 from argparse import ArgumentParser
-import subprocess
+from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
 from normalize import normalizers
-from typing import List, Dict, Union, Tuple, Optional
+
 
 '''
 Runs normalization on text data
 '''
+
 
 def load_file(file_path: str) -> List[str]:
     """
@@ -25,6 +27,7 @@ def load_file(file_path: str) -> List[str]:
                 res.append(line.strip())
     return res
 
+
 def write_file(file_path: str, data: List[str]):
     """
     Writes out list of string to file.
@@ -34,14 +37,17 @@ def write_file(file_path: str, data: List[str]):
     """
     with open(file_path, 'w') as fp:
         for line in data:
-            fp.write(line+'\n')
+            fp.write(line + '\n')
+
 
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", required=True, type=str)
     parser.add_argument("--output", help="output file path", required=True, type=str)
     parser.add_argument("--verbose", help="print normalization info. For debugging", action='store_true')
-    parser.add_argument("--normalizer", default='nemo', help="normlizer to use (" + ", ".join(normalizers.keys()) + ")", type=str)
+    parser.add_argument(
+        "--normalizer", default='nemo', help="normlizer to use (" + ", ".join(normalizers.keys()) + ")", type=str
+    )
     return parser.parse_args()
 
 
@@ -52,15 +58,8 @@ if __name__ == "__main__":
 
     print("Loading data: " + file_path)
     data = load_file(file_path)
-    
+
     print("- Data: " + str(len(data)) + " sentences")
     normalizer_prediction = normalizer(data, verbose=args.verbose)
     print("- Normalized. Writing out...")
     write_file(args.output, normalizer_prediction)
-    
-
-
-
-    
-
-    

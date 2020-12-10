@@ -1,16 +1,30 @@
 """ adapted and extended https://github.com/keithito/tacotron """
 
-from enum import Enum
-import regex as re
 import json
-from verbalizer import expand_cardinal, expand_date, expand_measurement, expand_money, expand_ordinal, expand_roman, expand_time, expand_year, expand_whitelist, _inflect, _whitelist_dict
+from enum import Enum
 from typing import Union
+
+import regex as re
+from verbalizer import (
+    _inflect,
+    _whitelist_dict,
+    expand_cardinal,
+    expand_date,
+    expand_measurement,
+    expand_money,
+    expand_ordinal,
+    expand_roman,
+    expand_time,
+    expand_whitelist,
+    expand_year,
+)
 
 
 class TagType(Enum):
     """
     Class for Tagger types
     """
+
     PLAIN = 1
     PUNCT = 2
     DATE = 3
@@ -34,6 +48,7 @@ class EnumEncoder(json.JSONEncoder):
     def default(self, obj):
         return str(obj)
 
+
 class Tag:
     """
     Class for tagger object that is created for each detected unnormalized token.
@@ -44,6 +59,7 @@ class Tag:
         normalize: verbalization function that takes data as input and returns normalized output
         data: 
     """
+
     def __init__(self, kind, start, end, normalize, data):
         self.kind = kind
         self.start = start
@@ -57,9 +73,10 @@ class Tag:
         checks if given tags overlap in their text span
         """
         return (tag1.start <= tag2.start < tag1.end) or (tag2.start <= tag1.start < tag2.end)
-    
+
     def __str__(self):
         return json.dumps(self.__dict__, cls=EnumEncoder)
+
 
 def make_re(re_inner: str, *args):
     """
@@ -70,6 +87,7 @@ def make_re(re_inner: str, *args):
     Returns compiled regex
     """
     return re.compile(rf'{_re_left_boundary}(?P<value>{re_inner}){_re_right_boundary}', *args)
+
 
 '''
 List of regex for detection
@@ -103,20 +121,28 @@ re_decimal2 = make_re(rf'-?\.\d+')
 re_verbatim_and = make_re(rf'&')
 # re_verbatim_silence = make_re(rf'[-]')
 
-re_money_with_magnitude = make_re(rf'''
+re_money_with_magnitude = make_re(
+    rf'''
     (?P<currency>{_re_currency})
     (?P<integral>(\d+(\,\d+)*))
     (\.(?P<fractional>\d+))?
     \s?(?P<magnitude>{_re_magnitute})
-''', re.VERBOSE)
-re_money = make_re(rf'''
+''',
+    re.VERBOSE,
+)
+re_money = make_re(
+    rf'''
     (?P<currency>{_re_currency})
     (?P<integral>(\d+(\,\d+)*))
     (\.(?P<fractional>\d{{2}}))?
-''', re.VERBOSE)
+''',
+    re.VERBOSE,
+)
 
 # e.g. 2010-01-31
-re_date_ymd = make_re(rf'(?P<year>{_re_date_year})(?P<sep>[- /.])(?P<month>{_re_date_month})(?P=sep)(?P<day>{_re_date_day})')
+re_date_ymd = make_re(
+    rf'(?P<year>{_re_date_year})(?P<sep>[- /.])(?P<month>{_re_date_month})(?P=sep)(?P<day>{_re_date_day})'
+)
 # August 23, 2014 or Aug. 4 1999
 re_date_mdy = make_re(
     rf'''(?P<month>{_re_date_month2})
@@ -124,19 +150,25 @@ re_date_mdy = make_re(
     (?P<day>{_re_date_day})
     ,?\s
     (?P<year>{_re_date_year})
-''', re.VERBOSE)
+''',
+    re.VERBOSE,
+)
 # Aug. 4
 re_date_md = make_re(
     rf'''(?P<month>{_re_date_month2})
     \s
     (?P<day>{_re_date_day})
-''', re.VERBOSE)
+''',
+    re.VERBOSE,
+)
 # Aug. 2015
 re_date_my = make_re(
     rf'''(?P<month>{_re_date_month2})
     \s
     (?P<year>{_re_date_year})
-''', re.VERBOSE)
+''',
+    re.VERBOSE,
+)
 # 1 December 2013
 re_date_dmy = make_re(rf'(?P<day>{_re_date_day})\s(?P<month>{_re_date_month2})\s(?P<year>{_re_date_year})')
 # 1 December
@@ -146,40 +178,59 @@ re_date_y = make_re(rf'(?P<year>[12]\d{{3}})')
 # 1570s
 re_date_ys = make_re(rf'(?P<year>[12]\d{{3}})(?P<suffix>\'?s)')
 
-re_measure = make_re(rf'''
+re_measure = make_re(
+    rf'''
     (?P<decimal>{_re_measure_decimal})
     \s?
     (?P<measurement>{_re_measure})
-''', re.VERBOSE)
-re_measure2 = make_re(rf'''
+''',
+    re.VERBOSE,
+)
+re_measure2 = make_re(
+    rf'''
     (?P<decimal>{_re_measure_decimal})
     \s?
     /
     (?P<measurement2>{_re_measure})
-''', re.VERBOSE)
-re_measure3 = make_re(rf'''
+''',
+    re.VERBOSE,
+)
+re_measure3 = make_re(
+    rf'''
     (?P<decimal>{_re_measure_decimal})
     \s?
     (?P<measurement>{_re_measure})
     /
     (?P<measurement2>{_re_measure})
-''', re.VERBOSE)
+''',
+    re.VERBOSE,
+)
 
 # e.g. '1:00' or '14:59 p.m.'
-re_time = make_re(rf'''
+re_time = make_re(
+    rf'''
         (?P<hour>{_re_time_hour})
         :(?P<minutes>{_re_time_minutes})
         \s?(?P<suffix>{_re_time_suffix})?
-        ''', re.VERBOSE)
-re_time2 = make_re(rf'''
+        ''',
+    re.VERBOSE,
+)
+re_time2 = make_re(
+    rf'''
         (?P<hour>{_re_time_hour})
         \s?(?P<suffix>{_re_time_suffix})
-        ''', re.VERBOSE)
-re_time3 = make_re(rf'''
+        ''',
+    re.VERBOSE,
+)
+re_time3 = make_re(
+    rf'''
         (?P<hour>{_re_time_hour})
         .(?P<minutes>{_re_time_minutes})
         \s?(?P<suffix>{_re_time_suffix})
-        ''', re.VERBOSE)
+        ''',
+    re.VERBOSE,
+)
+
 
 def re_tag(text, kind: TagType, normalize, regex):
     """
@@ -193,14 +244,11 @@ def re_tag(text, kind: TagType, normalize, regex):
     """
     for match in re.finditer(regex, text, overlapped=True):
         yield Tag(
-            kind=kind,
-            start=match.start("value"),
-            end=match.end("value"),
-            normalize=normalize,
-            data=match.groupdict()
+            kind=kind, start=match.start("value"), end=match.end("value"), normalize=normalize, data=match.groupdict()
         )
 
-def tag_whitelist(text : str):
+
+def tag_whitelist(text: str):
     """
     Tags whitelisted tokens in text
     Args:
@@ -210,7 +258,7 @@ def tag_whitelist(text : str):
     yield from re_tag(text, TagType.WHITELIST, expand_whitelist, re_whitelist)
 
 
-def tag_cardinal(text : str):
+def tag_cardinal(text: str):
     """
     Tags cardinals in text:
     E.g. - '11'
@@ -222,7 +270,7 @@ def tag_cardinal(text : str):
     yield from re_tag(text, TagType.CARDINAL, expand_roman, re_roman)
 
 
-def tag_decimal(text : str):
+def tag_decimal(text: str):
     """
     Tags decimals in text:
     E.g. - '11.12'
@@ -230,14 +278,16 @@ def tag_decimal(text : str):
         text: input string
     Returns: Generates all decimal tags from text
     """
-    normalize = lambda data: _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
+    normalize = (
+        lambda data: _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
+    )
     yield from re_tag(text, TagType.DECIMAL, normalize, re_decimal)
 
     normalize = lambda data: _inflect.number_to_words(data["value"])
     yield from re_tag(text, TagType.DECIMAL, normalize, re_decimal2)
 
 
-def tag_date(text : str):
+def tag_date(text: str):
     """
     Tags dates in text:
     E.g. - 'Apr 08, 2020'
@@ -245,9 +295,10 @@ def tag_date(text : str):
         text: input string
     Returns: Generates all date tags from text
     """
+
     def helper(regex, verbalize):
         yield from re_tag(text, TagType.DATE, lambda data: expand_date(data, verbalize), regex)
-    
+
     yield from helper(re_date_ymd, lambda year, month, day: 'the ' + day + ' of ' + month + " " + year)
     yield from helper(re_date_mdy, lambda year, month, day: month + " " + day + " " + year)
     yield from helper(re_date_dmy, lambda year, month, day: 'the ' + day + ' of ' + month + " " + year)
@@ -304,7 +355,7 @@ def tag_measure(text: str):
     yield from re_tag(text.lower(), TagType.MEASURE, expand_measurement, re_measure2)
     yield from re_tag(text.lower(), TagType.MEASURE, expand_measurement, re_measure)
 
-        
+
 def tag_time(text: str):
     """
     Tags times in text:

@@ -1,14 +1,30 @@
-
-from collections import defaultdict, namedtuple
-from typing import List, Dict, Union, Tuple, Optional
 import json
+from collections import defaultdict, namedtuple
+from typing import Dict, List, Optional, Tuple, Union
 
-EOS_TYPE="EOS"
-PUNCT_TYPE="PUNCT"
-PLAIN_TYPE="PLAIN"
+EOS_TYPE = "EOS"
+PUNCT_TYPE = "PUNCT"
+PLAIN_TYPE = "PLAIN"
 Instance = namedtuple('Instance', 'token_type un_normalized normalized')
-known_types = ["PLAIN",	"PUNCT", "DATE", "CARDINAL", "LETTERS",	"VERBATIM",	"MEASURE",	"DECIMAL",	"ORDINAL",	"DIGIT",	"MONEY",	"TELEPHONE",	"ELECTRONIC",	"FRACTION",	"TIME",	"ADDRESS"]
-    
+known_types = [
+    "PLAIN",
+    "PUNCT",
+    "DATE",
+    "CARDINAL",
+    "LETTERS",
+    "VERBATIM",
+    "MEASURE",
+    "DECIMAL",
+    "ORDINAL",
+    "DIGIT",
+    "MONEY",
+    "TELEPHONE",
+    "ELECTRONIC",
+    "FRACTION",
+    "TIME",
+    "ADDRESS",
+]
+
 
 def load_kaggle_text_norm_file(file_path: str) -> List[Instance]:
     """
@@ -73,7 +89,7 @@ def clean_generic(text: str) -> str:
     return text
 
 
-def evaluate(preds: List[str], labels: List[str], input: Optional[List[str]]=None, verbose: bool=True) -> float:
+def evaluate(preds: List[str], labels: List[str], input: Optional[List[str]] = None, verbose: bool = True) -> float:
     """
     Evaluates accuracy given predictions and labels. 
     Args:
@@ -98,7 +114,9 @@ def evaluate(preds: List[str], labels: List[str], input: Optional[List[str]]=Non
     return acc / nums
 
 
-def training_data_to_tokens(data: List[Instance], category: Optional[str]=None) -> Dict[str, Tuple[List[str], List[str]]]:
+def training_data_to_tokens(
+    data: List[Instance], category: Optional[str] = None
+) -> Dict[str, Tuple[List[str], List[str]]]:
     """
     Filters the instance list by category if provided and converts it into a map from token type to list of un_normalized and normalized strings
     Args:
@@ -113,7 +131,7 @@ def training_data_to_tokens(data: List[Instance], category: Optional[str]=None) 
                 result[instance.token_type][0].append(instance.un_normalized)
                 result[instance.token_type][1].append(instance.normalized)
     return result
-    
+
 
 def training_data_to_sentences(data: List[Instance]) -> Tuple[List[str], List[str]]:
     """
@@ -134,4 +152,3 @@ def training_data_to_sentences(data: List[Instance]) -> Tuple[List[str], List[st
     un_normalized = [" ".join([instance.un_normalized for instance in sentence]) for sentence in sentences]
     normalized = [" ".join([instance.normalized for instance in sentence]) for sentence in sentences]
     return un_normalized, normalized
-

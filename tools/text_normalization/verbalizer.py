@@ -1,14 +1,16 @@
-import regex as re
-import inflect
 import csv
+
+import inflect
+import regex as re
+
 _inflect = inflect.engine()
 
 month_tsv = open("data/months.tsv")
 read_tsv = csv.reader(month_tsv, delimiter="\t")
-month_mapping = dict(read_tsv)  
+month_mapping = dict(read_tsv)
 
 _date_components_whitelist = {"month", "day", "year", "suffix"}
-_roman_numerals = {'I':1, 'V':5, 'X':10, 'L':50, 'C':100, 'D':500, 'M':1000}
+_roman_numerals = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
 _magnitudes = ['trillion', 'billion', 'million', 'thousand', 'hundred', 'k', 'm', 'b', 't']
 
 _magnitudes_tsv = open("data/magnitudes.tsv")
@@ -20,20 +22,22 @@ _currency_abbrev = dict(read_tsv)
 
 _measurements_tsv = open("data/measurements.tsv")
 read_tsv = csv.reader(_measurements_tsv, delimiter="\t")
-_measurements_abbrev = dict(read_tsv)  
+_measurements_abbrev = dict(read_tsv)
 
 _whitelist_tsv = open("data/whitelist.tsv")
 read_tsv = csv.reader(_whitelist_tsv, delimiter="\t")
-_whitelist_dict = dict(read_tsv) 
+_whitelist_dict = dict(read_tsv)
+
 
 def expand_whitelist(data):
     return _whitelist_dict[data["value"]]
+
 
 def expand_roman(data):
     num = data["value"]
     result = 0
     for i, c in enumerate(num):
-        if (i+1) == len(num) or _roman_numerals[c] >= _roman_numerals[num[i+1]]:
+        if (i + 1) == len(num) or _roman_numerals[c] >= _roman_numerals[num[i + 1]]:
             result += _roman_numerals[c]
         else:
             result -= _roman_numerals[c]
@@ -41,7 +45,7 @@ def expand_roman(data):
 
 
 def expand_cardinal(data):
-    return  _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
+    return _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
 
 
 def expand_ordinal(data):
@@ -111,23 +115,23 @@ def _expand_currency(data):
     if magnitude is not None and magnitude.lower() in _magnitudes:
         if len(magnitude) == 1:
             magnitude = _magnitudes_abbrev[magnitude.lower()]
-        return "{} {} {}".format(_expand_hundreds(quantity), magnitude, currency+'s')
+        return "{} {} {}".format(_expand_hundreds(quantity), magnitude, currency + 's')
 
     parts = quantity.split('.')
     if len(parts) > 2:
-        return quantity + " " + currency + "s"    # Unexpected format
+        return quantity + " " + currency + "s"  # Unexpected format
 
     dollars = int(parts[0]) if parts[0] else 0
 
     cents = int(parts[1]) if len(parts) > 1 and parts[1] else 0
     if dollars and cents:
-        dollar_unit = currency if dollars == 1 else currency+'s'
+        dollar_unit = currency if dollars == 1 else currency + 's'
         cent_unit = 'cent' if cents == 1 else 'cents'
         return "{} {}, {} {}".format(
-            _expand_hundreds(dollars), dollar_unit,
-            _inflect.number_to_words(cents), cent_unit)
+            _expand_hundreds(dollars), dollar_unit, _inflect.number_to_words(cents), cent_unit
+        )
     elif dollars:
-        dollar_unit = currency if dollars == 1 else currency+'s'
+        dollar_unit = currency if dollars == 1 else currency + 's'
         return "{} {}".format(_expand_hundreds(dollars), dollar_unit)
     elif cents:
         cent_unit = 'cent' if cents == 1 else 'cents'
@@ -143,14 +147,14 @@ def expand_money(data):
 
 def expand_measurement(data):
     value = float(data["decimal"].replace(",", ""))
-    value_verb =  _inflect.number_to_words(data["decimal"]).replace(',', '').replace('-', ' ').replace(' and ', ' ')
+    value_verb = _inflect.number_to_words(data["decimal"]).replace(',', '').replace('-', ' ').replace(' and ', ' ')
     res = value_verb
     if data.get("measurement"):
-        measure =  _measurements_abbrev[data["measurement"]]
+        measure = _measurements_abbrev[data["measurement"]]
         if value <= 1 and measure[-1] == 's':
             measure = measure[:-1]
         res += " " + measure
-    
+
     if data.get("measurement2"):
         res += " per "
         measure2 = _measurements_abbrev[data["measurement2"]]
@@ -162,16 +166,16 @@ def expand_measurement(data):
 
 def expand_time(data):
     hrs = int(data["hour"])
-    res = _inflect.number_to_words(data["hour"]) 
+    res = _inflect.number_to_words(data["hour"])
     if data.get("minutes") and int(data["minutes"]) != 0:
         if data["minutes"][0] == "0":
-            res += " o " + _inflect.number_to_words(data["minutes"])      
+            res += " o " + _inflect.number_to_words(data["minutes"])
         else:
-            res += " " + _inflect.number_to_words(data["minutes"])         
-    else: 
-        if not data.get("suffix") :
+            res += " " + _inflect.number_to_words(data["minutes"])
+    else:
+        if not data.get("suffix"):
             res += " o'clock"
-    
+
     if data.get("suffix"):
         res += " " + " ".join(list(data["suffix"].replace(".", "")))
     return res.replace("-", " ")

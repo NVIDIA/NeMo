@@ -1,15 +1,26 @@
-import regex as re
-from typing import List, Dict, Union, Tuple, Optional
-from tqdm import tqdm
-import inflect
 import json
-from tagger import Tag, TagType, tag_cardinal, tag_decimal, tag_date, tag_verbatim, tag_ordinal, tag_money, tag_measure, tag_time, tag_whitelist
-from typing import List
 import sys
+from typing import Dict, List, Optional, Tuple, Union
 
+import inflect
+import regex as re
+from tagger import (
+    Tag,
+    TagType,
+    tag_cardinal,
+    tag_date,
+    tag_decimal,
+    tag_measure,
+    tag_money,
+    tag_ordinal,
+    tag_time,
+    tag_verbatim,
+    tag_whitelist,
+)
+from tqdm import tqdm
 
 taggers = [
-    tag_whitelist,
+    # tag_whitelist,
     tag_money,
     tag_measure,
     tag_time,
@@ -20,7 +31,8 @@ taggers = [
     tag_verbatim,
 ]
 
-def find_tags(text : str) -> List[Tag]:
+
+def find_tags(text: str) -> List[Tag]:
     """
     Given text use all taggers to find all possible tags within the text 
     Args:
@@ -31,6 +43,7 @@ def find_tags(text : str) -> List[Tag]:
     for tagger in taggers:
         tags.extend(tagger(text))
     return tags
+
 
 def select_tags(tags: List[Tag]) -> List[Tag]:
     """
@@ -51,6 +64,7 @@ def select_tags(tags: List[Tag]) -> List[Tag]:
             res.append(tag)
     return res
 
+
 def verbalizer(text: str, tags: List[Tag]) -> str:
     """
     Given text and corresponding list of tags. Applies verbalizations for tagged substrings and return transduced text.
@@ -60,10 +74,10 @@ def verbalizer(text: str, tags: List[Tag]) -> str:
         tags: list of tags of input text
     Returns: normalized input text
     """
-    #sort by last starting point
+    # sort by last starting point
     tags = sorted(tags, key=lambda x: -x.start)
     for tag in tags:
-        text = text[:tag.start] + tag.normalize(tag.data) + text[tag.end:]
+        text = text[: tag.start] + tag.normalize(tag.data) + text[tag.end :]
     return text
 
 
@@ -99,17 +113,13 @@ def normalize_nemo(un_normalized: List[str], verbose=False) -> List[str]:
     for input in tqdm(un_normalized):
         text = normalize_numbers(input, verbose=verbose)
         res.append(text)
-    return res 
+    return res
 
 
-normalizers = {
-    "identity": normalize_identity,
-    "nemo": normalize_nemo
-}
+normalizers = {"identity": normalize_identity, "nemo": normalize_nemo}
 
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     # Example usage:
-    s = sys.argv[1] # input string
+    s = sys.argv[1]  # input string
     normalize_numbers(s, verbose=True)
