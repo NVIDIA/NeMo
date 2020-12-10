@@ -98,6 +98,7 @@ class MelGanModel(Vocoder):
         audio_pred = self(spec=spec)
 
         # TODO: Lightning has a bug in 1.1.0, just always log something as a workaround
+        # https://github.com/PyTorchLightning/pytorch-lightning/issues/5063
         self.log("Dummy", 0.0, logger=False)
 
         # train discriminator
