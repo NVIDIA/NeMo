@@ -15,12 +15,9 @@
 import copy
 import json
 import os
-<<<<<<< HEAD
 import tempfile
 import json
 import os
-=======
->>>>>>> 5827c655b84212f29f912ea6560c0929c46af05f
 from itertools import repeat
 from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
