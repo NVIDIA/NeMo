@@ -1,5 +1,3 @@
-""" adapted and extended https://github.com/keithito/tacotron """
-
 import json
 from enum import Enum
 from typing import Union
@@ -8,6 +6,8 @@ import regex as re
 from verbalizer import (
     _inflect,
     _whitelist_dict,
+    _measurements_dict,
+    _currency_dict,
     expand_cardinal,
     expand_date,
     expand_measurement,
@@ -100,14 +100,16 @@ _re_date_month = r'0?[1-9]|1[012]'
 _re_date_month2 = r'(Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\.?|January|February|March|April|May|June|July|August|September|October|November|December'
 _re_date_year = r'\d{4}'
 _re_date_day = r'0?[1-9]|[12][0-9]|3[01]'
-_re_currency = r'\$|£|€|₩'
+_currency_keys = map(re.escape, _currency_dict.keys())
+_re_currency = f"({'|'.join(_currency_keys)})"
 _re_magnitute = r'k|m|b|t|hundred|thousand|million|billion|trillion'
-_re_measure = r'(f|c|k|km|m|cm|mm|ha|mi|m2|km2|ft|%|hz|mph|yrs|year|kw|hp|mg|kg|khz|mhz|lb|mhz|v|h|mc|s|nm|rpm|mA)'
+_measure_keys = map(re.escape, _measurements_dict.keys())
+_re_measure = f"({'|'.join(_measure_keys)})"
 _re_measure_decimal = r'(\d+(\,\d+)*(\.(\d+))?|\.(\d+))'
 _re_roman = r'M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{2,3})'
 _re_time_minutes = r'[0-5][0-9]'
 _re_time_suffix = r'(a.m.|am|pm|p.m.)'
-_whitelist_keys = _whitelist_dict.keys()
+_whitelist_keys = map(re.escape, _whitelist_dict.keys())
 _re_whitelist = f"({'|'.join(_whitelist_keys)})"
 
 re_whitelist = make_re(rf'{_re_whitelist}')

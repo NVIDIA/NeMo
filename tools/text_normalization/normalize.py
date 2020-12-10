@@ -20,7 +20,7 @@ from tagger import (
 from tqdm import tqdm
 
 taggers = [
-    # tag_whitelist,
+    tag_whitelist,
     tag_money,
     tag_measure,
     tag_time,

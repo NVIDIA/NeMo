@@ -7,7 +7,7 @@ _inflect = inflect.engine()
 
 month_tsv = open("data/months.tsv")
 read_tsv = csv.reader(month_tsv, delimiter="\t")
-month_mapping = dict(read_tsv)
+_month_dict = dict(read_tsv)
 
 _date_components_whitelist = {"month", "day", "year", "suffix"}
 _roman_numerals = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
@@ -15,14 +15,15 @@ _magnitudes = ['trillion', 'billion', 'million', 'thousand', 'hundred', 'k', 'm'
 
 _magnitudes_tsv = open("data/magnitudes.tsv")
 read_tsv = csv.reader(_magnitudes_tsv, delimiter="\t")
-_magnitudes_abbrev = dict(read_tsv)
+_magnitudes_dict = dict(read_tsv)
+
 _currency_tsv = open("data/currency.tsv")
 read_tsv = csv.reader(_currency_tsv, delimiter="\t")
-_currency_abbrev = dict(read_tsv)
+_currency_dict = dict(read_tsv)
 
 _measurements_tsv = open("data/measurements.tsv")
 read_tsv = csv.reader(_measurements_tsv, delimiter="\t")
-_measurements_abbrev = dict(read_tsv)
+_measurements_dict = dict(read_tsv)
 
 _whitelist_tsv = open("data/whitelist.tsv")
 read_tsv = csv.reader(_whitelist_tsv, delimiter="\t")
@@ -78,7 +79,7 @@ def expand_year(data):
 
 def expand_date(data, verbalize):
     try:
-        data["month"] = month_mapping[data["month"]]
+        data["month"] = _month_dict[data["month"]]
     except:
         pass
     try:
@@ -103,7 +104,7 @@ def _expand_hundreds(text):
 
 
 def _expand_currency(data):
-    currency = _currency_abbrev[data['currency']]
+    currency = _currency_dict[data['currency']]
     integral = data['integral']
     quantity = data['integral'] + ('.' + data['fractional'] if data.get('fractional') else '')
     magnitude = data.get('magnitude')
@@ -114,7 +115,7 @@ def _expand_currency(data):
     # check for million, billion, etc...
     if magnitude is not None and magnitude.lower() in _magnitudes:
         if len(magnitude) == 1:
-            magnitude = _magnitudes_abbrev[magnitude.lower()]
+            magnitude = _magnitudes_dict[magnitude.lower()]
         return "{} {} {}".format(_expand_hundreds(quantity), magnitude, currency + 's')
 
     parts = quantity.split('.')
@@ -150,14 +151,14 @@ def expand_measurement(data):
     value_verb = _inflect.number_to_words(data["decimal"]).replace(',', '').replace('-', ' ').replace(' and ', ' ')
     res = value_verb
     if data.get("measurement"):
-        measure = _measurements_abbrev[data["measurement"]]
+        measure = _measurements_dict[data["measurement"]]
         if value <= 1 and measure[-1] == 's':
             measure = measure[:-1]
         res += " " + measure
 
     if data.get("measurement2"):
         res += " per "
-        measure2 = _measurements_abbrev[data["measurement2"]]
+        measure2 = _measurements_dict[data["measurement2"]]
         # if measure2[-1] == 's':
         #     measure2 = measure2[:-1]
         res += measure2
