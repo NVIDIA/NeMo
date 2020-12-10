@@ -7,9 +7,9 @@ model:
     time_length: 0.63
     shift_length: 0.01
     split_duration: 50
-    gen_overlap_seq: True
+    gen_overlap_seq: False
     gen_seg_table: True
-    overlap_method: "mean"
+    overlap_method: "frame"
     overlap: 0.875
     seg_len: 0.63
     shift_len: 0.01

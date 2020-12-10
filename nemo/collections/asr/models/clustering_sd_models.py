@@ -214,7 +214,7 @@ class ClusteringSDModel(DiarizationModel):
                 shift_len = 0.01
             else:
                 logging.info("Use basic frame level prediction")
-                frame_filepath = self._out_dir
+                frame_filepath = self._vad_dir
                 shift_len = self._cfg.vad.shift_len
 
             frame_filepathlist = glob.glob(frame_filepath + "/*." + self._cfg.vad.overlap_method)
