@@ -183,7 +183,7 @@ def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_
 
     DER = abs(metric)
     CER = metric['confusion'] / metric['total']
-    FA = metric['false alarm']  / metric['total']
+    FA = metric['false alarm'] / metric['total']
     MISS = metric['missed detection'] / metric['total']
 
     metric.reset()

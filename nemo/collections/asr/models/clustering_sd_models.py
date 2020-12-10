@@ -320,7 +320,9 @@ class ClusteringSDModel(DiarizationModel):
 
         logging.info(
             "Cumulative results of all the files:  FA: {:.3f}, MISS {:.3f} \n \
-             Diarization ER: {:.3f}, Cofusion ER:{:.3f}".format(FA, MISS, DER, CER)
+             Diarization ER: {:.3f}, Cofusion ER:{:.3f}".format(
+                FA, MISS, DER, CER
+            )
         )
 
     @rank_zero_only
