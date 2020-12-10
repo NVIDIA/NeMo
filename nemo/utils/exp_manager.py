@@ -66,6 +66,7 @@ class CallbackParams:
     mode: Optional[str] = "auto"
     period: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    postfix: str = ".nemo"
     nemo_save_best_model: bool = False
 
 
@@ -87,9 +88,9 @@ class ExpManagerConfig:
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
-    checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
+    checkpoint_callback_params: CallbackParams = CallbackParams()
     # Additional exp_manager arguments
-    files_to_copy: Optional[List[str]] = None
+    files_to_copy: Optional[str] = None
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
@@ -538,8 +539,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
 
-    def __init__(self, nemo_save_best_model=False, **kwargs):
+    def __init__(self, nemo_save_best_model=False, postfix=".nemo", **kwargs):
+        # Parse and store "extended" parameters: save_best model and postfix.
         self.nemo_save_best_model = nemo_save_best_model
+        self.postfix = postfix
+        # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
 
     @rank_zero_only
@@ -547,7 +551,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # Load the best model and then re-save it
         if self.nemo_save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + '.nemo'))
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict):
