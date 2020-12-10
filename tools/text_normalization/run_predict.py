@@ -1,10 +1,6 @@
-import os
-import subprocess
-import sys
 from argparse import ArgumentParser
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List
 
-import numpy as np
 from normalize import normalizers
 
 

@@ -1,8 +1,6 @@
-import json
 import sys
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List
 
-import inflect
 import regex as re
 from tagger import (
     Tag,

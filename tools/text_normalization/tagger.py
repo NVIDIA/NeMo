@@ -1,13 +1,12 @@
 import json
 from enum import Enum
-from typing import Union
 
 import regex as re
 from verbalizer import (
-    _inflect,
-    _whitelist_dict,
-    _measurements_dict,
     _currency_dict,
+    _inflect,
+    _measurements_dict,
+    _whitelist_dict,
     expand_cardinal,
     expand_date,
     expand_measurement,

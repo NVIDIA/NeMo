@@ -1,6 +1,6 @@
 import json
 from collections import defaultdict, namedtuple
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 EOS_TYPE = "EOS"
 PUNCT_TYPE = "PUNCT"
