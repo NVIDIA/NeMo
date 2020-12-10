@@ -70,14 +70,14 @@ class SpecAugment(nn.Module):
             for i in range(self.freq_masks):
                 x_left = self._rng.randint(0, sh[1] - self.freq_width)
 
-                w = self._rng.randint(0, self.freq_width + 1)
+                w = self._rng.randint(0, self.freq_width)
 
                 x[idx, x_left : x_left + w, :] = 0.0
 
             for i in range(self.time_masks):
                 y_left = self._rng.randint(0, sh[2] - time_width)
 
-                w = self._rng.randint(0, time_width + 1)
+                w = self._rng.randint(0, time_width)
 
                 x[idx, :, y_left : y_left + w] = 0.0
 
