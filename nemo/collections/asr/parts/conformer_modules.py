@@ -34,7 +34,18 @@ class ConformerEncoderBlock(torch.nn.Module):
         dropout_att (float): dropout probabilities for attention distributions
     """
 
-    def __init__(self, d_model, d_ff, conv_kernel_size, self_attention_model, n_heads, dropout, dropout_att):
+    def __init__(
+        self,
+        d_model,
+        d_ff,
+        conv_kernel_size,
+        self_attention_model,
+        n_heads,
+        dropout,
+        dropout_att,
+        pos_bias_u,
+        pos_bias_v,
+    ):
         super(ConformerEncoderBlock, self).__init__()
 
         self.self_attention_model = self_attention_model
@@ -52,7 +63,9 @@ class ConformerEncoderBlock(torch.nn.Module):
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
         if self_attention_model == 'rel_pos':
-            self.self_attn = RelPositionMultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
+            self.self_attn = RelPositionMultiHeadAttention(
+                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v
+            )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
         else:
@@ -83,7 +96,7 @@ class ConformerEncoderBlock(torch.nn.Module):
         residual = x
         x = self.norm_self_att(x)
         if self.self_attention_model == 'rel_pos':
-            x = self.self_attn(query=x, key=x, value=x, pos_emb=pos_emb, mask=att_mask)
+            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
@@ -92,7 +105,7 @@ class ConformerEncoderBlock(torch.nn.Module):
 
         residual = x
         x = self.norm_conv(x)
-        x = self.conv(x)
+        x = self.conv(x, pad_mask)
         x = self.dropout(x) + residual
 
         residual = x
@@ -134,12 +147,14 @@ class ConformerConvolution(nn.Module):
             in_channels=d_model, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-    def forward(self, x):
+    def forward(self, x, pad_mask=None):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
 
         x = nn.functional.glu(x, dim=1)
 
+        if pad_mask is not None:
+            x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
         x = self.depthwise_conv(x)
 
         x = self.batch_norm(x)

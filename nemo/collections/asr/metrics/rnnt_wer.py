@@ -206,7 +206,7 @@ class AbstractRNNTDecoding(ABC):
             prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens
-            hypothesis = self.tokenizer.ids_to_text(prediction)
+            hypothesis = self.decode_tokens_to_str(prediction)
             hypotheses.append(hypothesis)
 
         return hypotheses
