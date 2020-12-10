@@ -337,7 +337,7 @@ pipeline {
             --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
             --LANGUAGE=ru \
             --OFFSET=0 \
-            --CUT_PREFIX=3 \
+            --CUT_PREFIX=0 \
             --MIN_SEGMENT_LEN=0 \
             --AUDIO_FORMAT=.mp3 \
             --ADDITIONAL_SPLIT_SYMBOLS=";" && \
