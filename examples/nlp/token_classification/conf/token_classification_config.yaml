@@ -40,6 +40,8 @@ exp_manager:
 model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
   label_ids: null # will be filled during training
+  class_labels:
+    class_labels_file: label_ids.csv # will be generated during training and saved in .nemo file
   dataset:
     data_dir: ??? # /path/to/data
     class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
