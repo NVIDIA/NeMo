@@ -54,8 +54,8 @@ parser.add_argument(
     type=str,
     default='',
     help='Additional symbols to use for \
-    sentence split if eos sentence split resulted in sequence longer than --max_length. \
-    For example: ";:" ',
+    sentence split if eos sentence split resulted in sequence longer than --max_length. '
+    'Use "|" as a separator between symbols, for example: ";|:|" ',
 )
 
 
@@ -177,7 +177,7 @@ def split_text(
         if len(split_on_symbols) == 0:
             return sentences
 
-        split_on_symbols = list(split_on_symbols)
+        split_on_symbols = split_on_symbols.split('|')
         for i, sym in enumerate(split_on_symbols):
             if sym == '-':
                 split_on_symbols[i] = ' - '

@@ -48,7 +48,7 @@ if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; t
   --MAX_SEGMENT_LEN=[max number of characters of the text segment for alignment (Optional)]
   --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for
     sentence split if eos sentence split resulted in sequence longer than --max_length.
-    For example: ';:' (Optional)]
+    Use '|' as a separator between symbols, for example: ';|:|' (Optional)]
   --AUDIO_FORMAT=[choose from ['.mp3', '.wav'], input audio files format"
   exit 1
 fi
