@@ -15,9 +15,12 @@
 import copy
 import json
 import os
+<<<<<<< HEAD
 import tempfile
 import json
 import os
+=======
+>>>>>>> 5827c655b84212f29f912ea6560c0929c46af05f
 from itertools import repeat
 from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
@@ -142,6 +145,31 @@ class EncDecClassificationModel(ASRModel, Exportable):
             self.preprocessor.featurizer.pad_to = pad_to_value
             logging.set_verbosity(logging_level)
         return labels
+
+    def prepare_manifest(self, config):
+        manifest_vad_input = config['manifest_vad_input']
+        input_audios = []
+        with open(config['manifest_filepath'], 'r') as manifest:
+            for line in manifest.readlines():
+                input_audios.append(json.loads(line.strip()))
+
+        p = Pool(processes=config['num_workers'])
+        args_func = {
+            'label': 'infer',
+            'split_duration': config['split_duration'],
+            'time_length': config['time_length'],
+        }
+        results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
+        p.close()
+
+        with open(manifest_vad_input, 'a') as fout:
+            for res in results:
+                for r in res:
+                    json.dump(r, fout)
+                    fout.write('\n')
+                    fout.flush()
+
+        return manifest_vad_input
 
     def prepare_manifest(self, config):
         manifest_vad_input = config['manifest_vad_input']
