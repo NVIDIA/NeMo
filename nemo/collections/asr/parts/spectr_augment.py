@@ -66,24 +66,20 @@ class SpecAugment(nn.Module):
         else:
             time_width = self.time_width
 
-        mask = torch.zeros(x.shape).byte()
-
         for idx in range(sh[0]):
             for i in range(self.freq_masks):
-                x_left = int(self._rng.uniform(0, sh[1] - self.freq_width))
+                x_left = self._rng.randint(0, sh[1] - self.freq_width)
 
-                w = int(self._rng.uniform(0, self.freq_width))
+                w = self._rng.randint(0, self.freq_width)
 
-                mask[idx, x_left : x_left + w, :] = 1
+                x[idx, x_left : x_left + w, :] = 0.0
 
             for i in range(self.time_masks):
-                y_left = int(self._rng.uniform(0, sh[2] - time_width))
+                y_left = self._rng.randint(0, sh[2] - time_width)
 
-                w = int(self._rng.uniform(0, time_width))
+                w = self._rng.randint(0, time_width)
 
-                mask[idx, :, y_left : y_left + w] = 1
-
-        x = x.masked_fill(mask.type(torch.bool).to(device=x.device), 0)
+                x[idx, :, y_left : y_left + w] = 0.0
 
         return x
 
@@ -112,18 +108,14 @@ class SpecCutout(nn.Module):
     def forward(self, x):
         sh = x.shape
 
-        mask = torch.zeros(x.shape).byte()
-
         for idx in range(sh[0]):
             for i in range(self.rect_masks):
-                rect_x = int(self._rng.uniform(0, sh[1] - self.rect_freq))
-                rect_y = int(self._rng.uniform(0, sh[2] - self.rect_time))
+                rect_x = self._rng.randint(0, sh[1] - self.rect_freq)
+                rect_y = self._rng.randint(0, sh[2] - self.rect_time)
 
-                w_x = int(self._rng.uniform(0, self.rect_time))
-                w_y = int(self._rng.uniform(0, self.rect_freq))
+                w_x = self._rng.randint(0, self.rect_time)
+                w_y = self._rng.randint(0, self.rect_freq)
 
-                mask[idx, rect_x : rect_x + w_x, rect_y : rect_y + w_y] = 1
-
-        x = x.masked_fill(mask.type(torch.bool).to(device=x.device), 0)
+                x[idx, rect_x : rect_x + w_x, rect_y : rect_y + w_y] = 0.0
 
         return x
