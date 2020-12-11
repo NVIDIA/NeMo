@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from argparse import ArgumentParser
+from time import perf_counter
 from typing import List
 
 from tools.text_normalization.normalize import normalizers
@@ -70,6 +71,9 @@ if __name__ == "__main__":
     data = load_file(file_path)
 
     print("- Data: " + str(len(data)) + " sentences")
+    t_start = perf_counter()
     normalizer_prediction = normalizer(data, verbose=args.verbose)
+    t_end = perf_counter()
+    print(f"- Finished in {t_end-t_start} seconds. Processed {len(data)/(t_end-t_start)} sentences per second.")
     print("- Normalized. Writing out...")
     write_file(args.output, normalizer_prediction)
