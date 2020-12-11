@@ -1,11 +1,26 @@
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import csv
+import os
 
 import inflect
 import regex as re
 
 _inflect = inflect.engine()
 
-month_tsv = open("data/months.tsv")
+month_tsv = open(os.path.dirname(os.path.abspath(__file__)) + "/data/months.tsv")
 read_tsv = csv.reader(month_tsv, delimiter="\t")
 _month_dict = dict(read_tsv)
 
@@ -13,19 +28,19 @@ _date_components_whitelist = {"month", "day", "year", "suffix"}
 _roman_numerals = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
 _magnitudes = ['trillion', 'billion', 'million', 'thousand', 'hundred', 'k', 'm', 'b', 't']
 
-_magnitudes_tsv = open("data/magnitudes.tsv")
+_magnitudes_tsv = open(os.path.dirname(os.path.abspath(__file__)) + "/data/magnitudes.tsv")
 read_tsv = csv.reader(_magnitudes_tsv, delimiter="\t")
 _magnitudes_dict = dict(read_tsv)
 
-_currency_tsv = open("data/currency.tsv")
+_currency_tsv = open(os.path.dirname(os.path.abspath(__file__)) + "/data/currency.tsv")
 read_tsv = csv.reader(_currency_tsv, delimiter="\t")
 _currency_dict = dict(read_tsv)
 
-_measurements_tsv = open("data/measurements.tsv")
+_measurements_tsv = open(os.path.dirname(os.path.abspath(__file__)) + "/data/measurements.tsv")
 read_tsv = csv.reader(_measurements_tsv, delimiter="\t")
 _measurements_dict = dict(read_tsv)
 
-_whitelist_tsv = open("data/whitelist.tsv")
+_whitelist_tsv = open(os.path.dirname(os.path.abspath(__file__)) + "/data/whitelist.tsv")
 read_tsv = csv.reader(_whitelist_tsv, delimiter="\t")
 _whitelist_dict = dict(read_tsv)
 

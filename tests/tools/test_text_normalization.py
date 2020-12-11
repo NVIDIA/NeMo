@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import os
-import numpy as np
 from unittest import TestCase
+
+import numpy as np
 import pytest
 from tools.text_normalization.normalize import normalize_identity, normalize_nemo
 
@@ -45,14 +46,12 @@ class TestTextNormalization(TestCase):
         self.assertTrue(all(np.asarray(text_out_valid) == np.asarray(text_gold)))
         self.assertTrue(all(np.asarray(text_out_invalid) != np.asarray(text_gold)))
 
-    
     @pytest.mark.unit
     def test_whitelist(self):
         text_in = ["Dr. Evil", "idea", "Mrs. Norris"]
         text_gold = ["Doctor Evil", "idea", "Misses Norris"]
         text_out = normalize_nemo(text_in)
         self.assertTrue(text_out == text_gold)
-
 
     @pytest.mark.unit
     def test_boundaries(self):
