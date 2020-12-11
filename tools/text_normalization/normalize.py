@@ -15,10 +15,8 @@
 import sys
 from typing import List
 
-import regex as re
 from tools.text_normalization.tagger import (
     Tag,
-    TagType,
     tag_cardinal,
     tag_date,
     tag_decimal,

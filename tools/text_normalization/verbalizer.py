@@ -120,7 +120,6 @@ def _expand_hundreds(text):
 
 def _expand_currency(data):
     currency = _currency_dict[data['currency']]
-    integral = data['integral']
     quantity = data['integral'] + ('.' + data['fractional'] if data.get('fractional') else '')
     magnitude = data.get('magnitude')
 
@@ -181,7 +180,6 @@ def expand_measurement(data):
 
 
 def expand_time(data):
-    hrs = int(data["hour"])
     res = _inflect.number_to_words(data["hour"])
     if data.get("minutes") and int(data["minutes"]) != 0:
         if data["minutes"][0] == "0":

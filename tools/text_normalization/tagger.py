@@ -29,7 +29,6 @@ from tools.text_normalization.verbalizer import (
     expand_roman,
     expand_time,
     expand_whitelist,
-    expand_year,
 )
 
 
