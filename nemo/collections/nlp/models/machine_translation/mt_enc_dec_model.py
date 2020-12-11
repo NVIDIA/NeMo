@@ -30,7 +30,6 @@ from sacrebleu import corpus_bleu
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 
-# from nemo.collections.common.metrics import Perplexity
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel

@@ -30,10 +30,10 @@ def main():
     torch.set_grad_enabled(False)
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
-        model = nemo_nlp.models.TransformerMTModel.restore_from(restore_path=args.model)
+        model = nemo_nlp.models.MTEncDecModel.restore_from(restore_path=args.model)
     elif args.model.endswith(".ckpt"):
         logging.info("Attempting to initialize from .ckpt file")
-        model = nemo_nlp.models.TransformerMTModel.load_from_checkpoint(checkpoint_path=args.model)
+        model = nemo_nlp.models.MTEncDecModel.load_from_checkpoint(checkpoint_path=args.model)
     if torch.cuda.is_available():
         model = model.cuda()
 
