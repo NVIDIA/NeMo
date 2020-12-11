@@ -1,2 +1,3 @@
 pandas
 ctc_segmentation==1.1.0
+num2words

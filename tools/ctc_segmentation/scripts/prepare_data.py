@@ -173,7 +173,7 @@ def split_text(
 
     sentences = re.split(split_pattern, transcript)
 
-    def _additional_split(sentences, split_on_symbols, max_length):
+    def additional_split(sentences, split_on_symbols, max_length):
         if len(split_on_symbols) == 0:
             return sentences
 
@@ -182,25 +182,26 @@ def split_text(
             if sym == '-':
                 split_on_symbols[i] = ' - '
 
+        def _split(sentences, symbol, max_length):
+            result = []
+            for s in sentences:
+                if len(s) <= max_length:
+                    result.append(s)
+                else:
+                    result.extend(s.split(symbol))
+            return result
+
         another_sent_split = []
         for sent in sentences:
-            if len(sent) > max_length:
-                found_sym = False
-                for sym in split_on_symbols:
-                    if sym in sent:
-                        another_sent_split.extend(sent.split(sym))
-                        found_sym = True
-                        break
-                if not found_sym:
-                    another_sent_split.append(sent)
-            else:
-                another_sent_split.append(sent)
+            split_sent = [sent]
+            for sym in split_on_symbols:
+                split_sent = _split(split_sent, sym, max_length)
+            another_sent_split.extend(split_sent)
 
         sentences = [s.strip() for s in another_sent_split if s.strip()]
         return sentences
 
-    for _ in range(3):
-        sentences = _additional_split(sentences, additional_split_symbols, max_length)
+    sentences = additional_split(sentences, additional_split_symbols, max_length)
 
     if min_length > 0:
         sentences_comb = []
