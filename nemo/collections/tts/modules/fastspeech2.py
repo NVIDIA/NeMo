@@ -25,6 +25,7 @@ from nemo.collections.tts.modules.fastspeech2_submodules import (
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.utils.decorators import experimental
 from nemo.core.neural_types import *
+from nemo.utils import logging
 
 
 """ From the paper:
@@ -90,7 +91,7 @@ class Encoder(NeuralModule):
 @experimental
 class VarianceAdaptor(NeuralModule):
     def __init__(
-        self, max_duration=None, log_pitch=True, pitch_min=80.0, pitch_max=800.0, energy_min=0.0, energy_max=600.0
+        self, max_duration=100, log_pitch=True, pitch_min=80.0, pitch_max=800.0, energy_min=0.0, energy_max=600.0
     ):
         """
         FastSpeech 2 variance adaptor, which adds information like duration, pitch, etc. to the phoneme encoding.
@@ -161,14 +162,16 @@ class VarianceAdaptor(NeuralModule):
 
         # Duration predictions (or ground truth) fed into Length Regulator to
         # expand the hidden states of the encoder embedding
-        log_dur_preds = self.duration_predictor(x.transpose(1, 2))
+        dur_preds = self.duration_predictor(x.transpose(1, 2))
         # Output is Batch, Time
         if self.training:
             dur_out = self.length_regulator(x, dur_target)
         else:
-            raise NotImplementedError
-            # Why use ground truth durations during evaluation?
-            dur_preds = torch.clamp(torch.round(torch.exp(log_durations) - 1), min=0, max=self.max_duration)
+            # dur_preds = torch.clamp(torch.round(torch.exp(dur_preds) - 1), min=0, max=self.max_duration)
+            dur_preds = torch.clamp(torch.round(dur_preds), min=0).int()
+            if not torch.sum(dur_preds, dim=1).bool().all():
+                logging.error("Duration prediction failed on this batch. Settings to 1s")
+                dur_preds += 1
             dur_out = self.length_regulator(x, dur_preds)
 
         # Pitch
@@ -188,7 +191,7 @@ class VarianceAdaptor(NeuralModule):
             energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
 
         out = dur_out + pitch_out + energy_out
-        return out
+        return out, dur_preds, pitch_preds, energy_preds
 
 
 @experimental

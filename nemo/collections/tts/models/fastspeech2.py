@@ -19,6 +19,8 @@ import torch
 from hydra.utils import instantiate
 from torch import nn
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+
 
 from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.models.base import SpectrogramGenerator, TextToWaveform
@@ -26,6 +28,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 from nemo.collections.tts.modules.fastspeech2 import Encoder, VarianceAdaptor, MelSpecDecoder
 from nemo.collections.tts.losses.tacotron2loss import L2MelLoss
+from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 
 
 @dataclass
@@ -70,6 +73,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         self.variance_adapter = VarianceAdaptor()
         self.mel_decoder = MelSpecDecoder()
         self.loss = L2MelLoss()
+        self.mseloss = torch.nn.MSELoss()
 
     # @property
     # def input_types(self):
@@ -81,22 +85,70 @@ class FastSpeech2Model(SpectrogramGenerator):
     #     pass
 
     @typecheck()
-    def forward(self, *, spec_len, text, text_length, durations, pitch, energies):
+    def forward(self, *, spec_len, text, text_length, durations=None, pitch=None, energies=None):
         with typecheck.disable_checks():
             encoded_text, encoded_text_mask = self.encoder(text=text, text_lengths=text_length)
-            aligned_text = self.variance_adapter(
+            aligned_text, dur_preds, pitch_preds, energy_preds = self.variance_adapter(
                 x=encoded_text, dur_target=durations, pitch_target=pitch, energy_target=energies
             )
+            # Need to get spec_len from predicted duration
+            if not self.training:
+                spec_len = torch.sum(dur_preds, dim=1)
             mel = self.mel_decoder(decoder_input=aligned_text, lengths=spec_len)
-            return mel
+            return mel, dur_preds, pitch_preds, energy_preds
 
     def training_step(self, batch, batch_idx):
         f, fl, t, tl, durations, pitch, energies = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-        mel = self(spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies)
+        mel, dur_preds, pitch_preds, energy_preds = self(
+            spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies
+        )
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
-        self.log(name="train_loss", value=loss)
-        return loss
+        dur_loss = self.mseloss(dur_preds, durations.float())
+        pitch_loss = self.mseloss(pitch_preds, pitch)
+        energy_loss = self.mseloss(energy_preds, energies)
+        total_loss = loss + dur_loss + pitch_loss + energy_loss
+        self.log(name="train_mel_loss", value=loss)
+        self.log(name="train_dur_loss", value=dur_loss)
+        self.log(name="train_pitch_loss", value=pitch_loss)
+        self.log(name="train_energy_loss", value=energy_loss)
+        self.log(name="train_loss", value=total_loss)
+        return total_loss
+
+    def validation_step(self, batch, batch_idx):
+        f, fl, t, tl, durations = batch
+        spec, spec_len = self.audio_to_melspec_precessor(f, fl)
+        mel, dur_preds, _, _ = self(spec_len=spec_len, text=t, text_length=tl)
+        loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
+        return {
+            "val_loss": loss,
+            "mel_target": spec,
+            "mel_pred": mel,
+        }
+
+    def validation_epoch_end(self, outputs):
+        if self.logger is not None and self.logger.experiment is not None:
+            tb_logger = self.logger.experiment
+            if isinstance(self.logger, LoggerCollection):
+                for logger in self.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
+            _, spec_target, spec_predict = outputs[0].values()
+            tb_logger.add_image(
+                "val_mel_target",
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            tb_logger.add_image(
+                "val_mel_predicted",
+                plot_spectrogram_to_numpy(spec_predict[0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
+        self.log('val_loss', avg_loss, sync_dist=True)
 
     # @typecheck(
     #     input_types={"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())},
@@ -135,7 +187,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
-        pass
+        self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
 
 # TODO: FastSpeech 2s (TextToWaveform)

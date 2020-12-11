@@ -462,15 +462,13 @@ def preprocess_linear_specs_dataset(valid_filelist, train_filelist, n_fft, hop_l
 
 class FastSpeechWithDurs(Dataset):
     """
-    LJSpeech stats
-    print(pitch_min)
-    print(pitch_max)
-    print(energy_min)
-    print(energy_max)
-    tensor(80.5247)
-    tensor(783.9908)
-    0.03839879
-    573.7791
+    LJSpeech stats not counting files inside of wavs_to_ignore_v4
+    pitch_min = tensor(80.5247)
+    pitch_max = tensor(783.9908)
+    energy_min = 0.017866515
+    energy_max = 314.96185
+    duration_min = 0
+    duration_max = 101
     """
 
     # @property
@@ -495,6 +493,7 @@ class FastSpeechWithDurs(Dataset):
         ignore_file: Optional[str] = None,
         max_utts: int = 0,
         trim: bool = False,
+        load_supplementary_values: bool = True,  # NOTE: Val files do not have some sup files, this param is also kinda hacky
         # bos_id: Optional[int] = None,
         # eos_id: Optional[int] = None,
         # pad_id: int = 0,
@@ -609,9 +608,14 @@ class FastSpeechWithDurs(Dataset):
         total_dataset_len = len(audio_files)
         logging.info(f"Loaded dataset with {total_dataset_len} files totalling {total_duration/3600:.2f} hours.")
         self.data = []
-        dataitem = py_collections.namedtuple(
-            typename='AudioTextEntity', field_names='audio_file duration text_tokens pitches energies'
-        )
+        if load_supplementary_values:
+            dataitem = py_collections.namedtuple(
+                typename='AudioTextEntity', field_names='audio_file duration text_tokens pitches energies'
+            )
+        else:
+            dataitem = py_collections.namedtuple(
+                typename='AudioTextEntity', field_names='audio_file duration text_tokens'
+            )
 
         if ignore_file:
             logging.info(f"using {ignore_file} to prune dataset.")
@@ -645,24 +649,31 @@ class FastSpeechWithDurs(Dataset):
             # Else not pruned, load durations file
             durations = torch.load(Path(supplementary_dir) / f"{LJ_id}_mfa_adjusted_enctxt_tkndur.pt")
 
-            # Load pitch file (F0s)
-            pitches = torch.load(Path(supplementary_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
-
-            # Load energy file (L2-norm of the amplitude of each STFT frame of an utterance)
-            energies = torch.from_numpy(np.load(Path(supplementary_dir) / f"{LJ_id}_l2_stft_energy.npy"))
-
             # Get text tokens from lookup to match with durations
             text_tokens = [self.mapping[int(i)]["symbol"] for i in durations["text_encoded"]]
+            if load_supplementary_values:
+                # Load pitch file (F0s)
+                pitches = torch.load(Path(supplementary_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
 
-            self.data.append(
-                dataitem(
-                    audio_file=item["audio_filepath"],
-                    duration=durations["token_duration"],
-                    pitches=torch.clamp(pitches['f0'], min=1e-5),
-                    energies=energies,
-                    text_tokens=text_tokens,
+                # Load energy file (L2-norm of the amplitude of each STFT frame of an utterance)
+                energies = torch.from_numpy(np.load(Path(supplementary_dir) / f"{LJ_id}_l2_stft_energy.npy"))
+                self.data.append(
+                    dataitem(
+                        audio_file=item["audio_filepath"],
+                        duration=durations["token_duration"],
+                        pitches=torch.clamp(pitches['f0'], min=1e-5),
+                        energies=energies,
+                        text_tokens=text_tokens,
+                    )
                 )
-            )
+            else:
+                self.data.append(
+                    dataitem(
+                        audio_file=item["audio_filepath"],
+                        duration=durations["token_duration"],
+                        text_tokens=text_tokens,
+                    )
+                )
 
         # print(error)
         # torch.save(error, "error.pt")
@@ -675,6 +686,7 @@ class FastSpeechWithDurs(Dataset):
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate)
         self.trim = trim
+        self.load_supplementary_values = load_supplementary_values
 
     def __getitem__(self, index):
         sample = self.data[index]
@@ -683,31 +695,41 @@ class FastSpeechWithDurs(Dataset):
         f, fl = features, torch.tensor(features.shape[0]).long()
         t, tl = torch.tensor(sample.text_tokens).long(), torch.tensor(len(sample.text_tokens)).long()
 
-        return f, fl, t, tl, sample.duration, sample.pitches, sample.energies
+        if self.load_supplementary_values:
+            return f, fl, t, tl, sample.duration, sample.pitches, sample.energies
+        else:
+            return f, fl, t, tl, sample.duration
 
     def __len__(self):
         return len(self.data)
 
     def _collate_fn(self, batch):
         pad_id = len(self.mapping)
-        _, audio_lengths, _, tokens_lengths, duration, pitches, energies = zip(*batch)
-
+        if self.load_supplementary_values:
+            _, audio_lengths, _, tokens_lengths, duration, pitches, energies = zip(*batch)
+        else:
+            _, audio_lengths, _, tokens_lengths, duration = zip(*batch)
         max_audio_len = 0
         max_audio_len = max(audio_lengths).item()
         max_tokens_len = max(tokens_lengths).item()
         max_durations_len = max([len(i) for i in duration])
-        max_pitches_len = max([i.shape[1] for i in pitches])  # Note pitch is 1, Length, so len(i) doesn't work
-        max_energies_len = max([len(i) for i in energies])
         max_duration_sum = max([sum(i) for i in duration])
-        if max_pitches_len != max_energies_len or max_pitches_len != max_duration_sum:
-            logging.warning(
-                f"max_pitches_len: {max_pitches_len} != max_energies_len: {max_energies_len} != "
-                f"max_duration_sum:{max_duration_sum}. Your training run will error out!"
-            )
+        if self.load_supplementary_values:
+            max_pitches_len = max([i.shape[1] for i in pitches])  # Note pitch is 1, Length, so len(i) doesn't work
+            max_energies_len = max([len(i) for i in energies])
+            if max_pitches_len != max_energies_len or max_pitches_len != max_duration_sum:
+                logging.warning(
+                    f"max_pitches_len: {max_pitches_len} != max_energies_len: {max_energies_len} != "
+                    f"max_duration_sum:{max_duration_sum}. Your training run will error out!"
+                )
 
         # Add padding where necessary
         audio_signal, tokens, duration_batched, pitches_batched, energies_batched = [], [], [], [], []
-        for sig, sig_len, tokens_i, tokens_i_len, duration, pitch, energy in batch:
+        for sample_tuple in batch:
+            if self.load_supplementary_values:
+                sig, sig_len, tokens_i, tokens_i_len, duration, pitch, energy = sample_tuple
+            else:
+                sig, sig_len, tokens_i, tokens_i_len, duration = sample_tuple
             # TODO: Refactoring -- write general padding utility function for cleanliness
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
@@ -724,16 +746,17 @@ class FastSpeechWithDurs(Dataset):
                 duration = torch.nn.functional.pad(duration, pad)
             duration_batched.append(duration)
 
-            pitch = pitch.squeeze(0)
-            if len(pitch) < max_pitches_len:
-                pad = (0, max_pitches_len - len(pitch))
-                pitch = torch.nn.functional.pad(pitch.squeeze(0), pad)
-            pitches_batched.append(pitch)
+            if self.load_supplementary_values:
+                pitch = pitch.squeeze(0)
+                if len(pitch) < max_pitches_len:
+                    pad = (0, max_pitches_len - len(pitch))
+                    pitch = torch.nn.functional.pad(pitch.squeeze(0), pad)
+                pitches_batched.append(pitch)
 
-            if len(energy) < max_energies_len:
-                pad = (0, max_energies_len - len(energy))
-                energy = torch.nn.functional.pad(energy, pad)
-            energies_batched.append(energy)
+                if len(energy) < max_energies_len:
+                    pad = (0, max_energies_len - len(energy))
+                    energy = torch.nn.functional.pad(energy, pad)
+                energies_batched.append(energy)
 
         # TODO: Need to make sure that the mel spec, duration, pitches, and energy all have the same length
         audio_signal = torch.stack(audio_signal)
@@ -741,15 +764,24 @@ class FastSpeechWithDurs(Dataset):
         tokens = torch.stack(tokens)
         tokens_lengths = torch.stack(tokens_lengths)
         duration_batched = torch.stack(duration_batched)
-        pitches_batched = torch.stack(pitches_batched)
-        energies_batched = torch.stack(energies_batched)
+        if self.load_supplementary_values:
+            pitches_batched = torch.stack(pitches_batched)
+            energies_batched = torch.stack(energies_batched)
 
+            return (
+                audio_signal,
+                audio_lengths,
+                tokens,
+                tokens_lengths,
+                duration_batched,
+                pitches_batched,
+                energies_batched,
+            )
         return (
             audio_signal,
             audio_lengths,
             tokens,
             tokens_lengths,
             duration_batched,
-            pitches_batched,
-            energies_batched,
         )
+

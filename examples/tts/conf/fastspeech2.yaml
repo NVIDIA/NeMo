@@ -28,25 +28,22 @@ model:
       num_workers: 4
 
 
-  # validation_ds:
-  #   dataset:
-  #     _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharDataset"
-  #     manifest_filepath: ${validation_datasets}
-  #     max_duration: null
-  #     min_duration: 0.1
-  #     int_values: false
-  #     load_audio: true
-  #     normalize: false
-  #     sample_rate: *sr
-  #     trim: false
-  #     # bos_id: 66
-  #     # eos_id: 67
-  #     # pad_id: 68  These parameters are added automatically in Tacotron2
-  #   dataloader_params:
-  #     drop_last: false
-  #     shuffle: false
-  #     batch_size: 48
-  #     num_workers: 8
+  validation_ds:
+    dataset:
+      _target_: "nemo.collections.tts.data.datalayers.FastSpeechWithDurs"
+      manifest_filepath: ${validation_datasets}
+      sample_rate: *sr
+      supplementary_dir: ${supplementary_dir}
+      max_duration: null
+      min_duration: 0.1
+      ignore_file: ${ignore_file}
+      trim: false
+      load_supplementary_values: false
+    dataloader_params:
+      drop_last: false
+      shuffle: false
+      batch_size: 48
+      num_workers: 4
 
   preprocessor:
     _target_: nemo.collections.asr.parts.features.FilterbankFeatures
