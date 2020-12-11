@@ -101,20 +101,12 @@ class EncDecCTCModel(ASRModel, Exportable):
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
 
         with open_dict(self._cfg):
-            if "params" in self._cfg.decoder:
-                if "feat_in" not in self._cfg.decoder.params or (
-                    not self._cfg.decoder.params.feat_in and hasattr(self.encoder, '_feat_out')
-                ):
-                    self._cfg.decoder.params.feat_in = self.encoder._feat_out
-                if "feat_in" not in self._cfg.decoder.params or not self._cfg.decoder.params.feat_in:
-                    raise ValueError("param feat_in of the decoder's config is not set!")
-            else:
-                if "feat_in" not in self._cfg.decoder or (
-                    not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
-                ):
-                    self._cfg.decoder.feat_in = self.encoder._feat_out
-                if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
-                    raise ValueError("param feat_in of the decoder's config is not set!")
+            if "feat_in" not in self._cfg.decoder or (
+                not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+            ):
+                self._cfg.decoder.feat_in = self.encoder._feat_out
+            if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
+                raise ValueError("param feat_in of the decoder's config is not set!")
 
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
 
@@ -164,7 +156,12 @@ class EncDecCTCModel(ASRModel, Exportable):
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
+        dither_value = self.preprocessor.featurizer.dither
+        pad_to_value = self.preprocessor.featurizer.pad_to
+
         try:
+            self.preprocessor.featurizer.dither = 0.0
+            self.preprocessor.featurizer.pad_to = 0
             # Switch model to evaluation mode
             self.eval()
             logging_level = logging.get_verbosity()
@@ -195,6 +192,8 @@ class EncDecCTCModel(ASRModel, Exportable):
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            self.preprocessor.featurizer.dither = dither_value
+            self.preprocessor.featurizer.pad_to = pad_to_value
             logging.set_verbosity(logging_level)
         return hypotheses
 
@@ -222,12 +221,8 @@ class EncDecCTCModel(ASRModel, Exportable):
                 raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
-            if 'vocabulary' in new_decoder_config:
-                new_decoder_config['vocabulary'] = new_vocabulary
-                new_decoder_config['num_classes'] = len(new_vocabulary)
-            else:
-                new_decoder_config['params']['vocabulary'] = new_vocabulary
-                new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            new_decoder_config['vocabulary'] = new_vocabulary
+            new_decoder_config['num_classes'] = len(new_vocabulary)
 
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
@@ -417,7 +412,7 @@ class EncDecCTCModel(ASRModel, Exportable):
                 processed_signal=signal, processed_signal_length=signal_len
             )
         else:
-            log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
+            log_probs, predictions_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
@@ -529,8 +524,11 @@ class EncDecCTCModel(ASRModel, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output))
+        output1_descr = qual_name + ' Encoder exported to ONNX'
         encoder_onnx = self.encoder.export(
-            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -544,8 +542,10 @@ class EncDecCTCModel(ASRModel, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output))
+        output2_descr = qual_name + ' Decoder exported to ONNX'
         decoder_onnx = self.decoder.export(
-            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -560,7 +560,9 @@ class EncDecCTCModel(ASRModel, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "DC")
+        output_descr = qual_name + ' Encoder+Decoder exported to ONNX'
         onnx.save(output_model, output)
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])
 
 
 class JasperNet(EncDecCTCModel):

@@ -18,7 +18,7 @@ from typing import Dict, List, Optional
 
 import onnx
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import CrossEntropyLoss
@@ -27,7 +27,6 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -54,9 +53,8 @@ class TextClassificationModel(NLPModel, Exportable):
         self.dataset_cfg = cfg.dataset
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
-        self._setup_tokenizer(cfg.tokenizer)
+        self.setup_tokenizer(cfg.tokenizer)
 
-        # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
@@ -97,14 +95,9 @@ class TextClassificationModel(NLPModel, Exportable):
             num_classes=cfg.dataset.num_classes, mode='micro', dist_sync_on_step=True
         )
 
-    def _setup_tokenizer(self, cfg: DictConfig):
-        tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file),
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
-        )
-        self.tokenizer = tokenizer
+        # register the file containing the labels into the artifacts to get stored in the '.nemo' file later
+        if 'class_labels' in cfg and 'class_labels_file' in cfg.class_labels and cfg.class_labels.class_labels_file:
+            self.register_artifact('class_labels', cfg.class_labels.class_labels_file)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -353,8 +346,11 @@ class TextClassificationModel(NLPModel, Exportable):
                 " inputs and outputs."
             )
 
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
+        output1_descr = qual_name + ' BERT exported to ONNX'
         bert_model_onnx = self.bert_model.export(
-            os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output)),
+            output1,
             None,  # computed by input_example()
             None,
             verbose,
@@ -368,8 +364,10 @@ class TextClassificationModel(NLPModel, Exportable):
             use_dynamic_axes,
         )
 
+        output2 = os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output))
+        output2_descr = qual_name + ' Classifier exported to ONNX'
         classifier_onnx = self.classifier.export(
-            os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output)),
+            output2,
             None,  # computed by input_example()
             None,
             verbose,
@@ -384,4 +382,6 @@ class TextClassificationModel(NLPModel, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "CL")
+        output_descr = qual_name + ' BERT+Classifier exported to ONNX'
         onnx.save(output_model, output)
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])

@@ -65,13 +65,13 @@ Docker containers:
 ~~~~~~~~~~~~~~~~~~
 The easiest way to start training with NeMo is by using `NeMo's container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_.
 
-It has all requirements and NeMo 1.0.0b1 already installed.
+It has all requirements and NeMo 1.0.0b2 already installed.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:v1.0.0b1
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:v1.0.0b2
 
 
 If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 20.09-py3.
@@ -92,7 +92,7 @@ If you are not inside the NVIDIA docker container, please install Cython first. 
 
 Once requirements are satisfied, simply install using pip:
 
-* ``pip install nemo_toolkit[all]==1.0.0b1`` (latest version)
+* ``pip install nemo_toolkit[all]==1.0.0b2`` (latest version)
 
 Or if you want the latest (or particular) version from GitHub:
 
@@ -207,6 +207,9 @@ To run tutorials:
    * - ASR
      - Online Noise Augmentation
      - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b2/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+   * - ASR
+     - Beam Search and External Language Model Rescoring
+     - `Beam search and external language model rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b2/tutorials/asr/Offline_ASR.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained language models for downstream tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b2/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_

@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import hydra
 import wrapt
@@ -30,6 +30,7 @@ import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
+from nemo.utils.model_utils import maybe_update_config_version
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
@@ -104,11 +105,16 @@ class Typing(ABC):
                     NeuralTypeComparisonResult.SAME,
                     NeuralTypeComparisonResult.GREATER,
                 ):
-                    raise TypeError(
-                        f"{input_types[key].compare(value.neural_type)} : \n"
-                        f"Input type expected = {input_types[key]} | \n"
-                        f"Input type found : {value.neural_type}"
-                    )
+                    error_msg = [
+                        f"{input_types[key].compare(value.neural_type)} :",
+                        f"Input type expected : {input_types[key]}",
+                        f"Input type found : {value.neural_type}",
+                    ]
+                    for i, dict_tuple in enumerate(input_types[key].elements_type.type_parameters.items()):
+                        error_msg.insert(i + 2, f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
+                    for i, dict_tuple in enumerate(value.neural_type.elements_type.type_parameters.items()):
+                        error_msg.append(f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
+                    raise TypeError("\n".join(error_msg))
 
                 # Perform input ndim check
                 if hasattr(value, 'shape'):
@@ -247,6 +253,8 @@ class Serialization(ABC):
             config = OmegaConf.create(config)
             OmegaConf.set_struct(config, True)
 
+        config = maybe_update_config_version(config)
+
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
@@ -268,6 +276,8 @@ class Serialization(ABC):
             config = OmegaConf.to_container(self._cfg, resolve=True)
             config = OmegaConf.create(config)
             OmegaConf.set_struct(config, True)
+
+            config = maybe_update_config_version(config)
 
             self._cfg = config
 
@@ -320,6 +330,7 @@ class FileIO(ABC):
         Returns:
         """
         if hasattr(self, '_cfg'):
+            self._cfg = maybe_update_config_version(self._cfg)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=self._cfg, f=fout, resolve=True)
         else:
@@ -349,6 +360,19 @@ class Model(Typing, Serialization, FileIO):
             A list of PretrainedModelInfo entries
         """
         pass
+
+    @classmethod
+    def get_available_model_names(cls) -> List[str]:
+        """
+        Returns the list of model names available via NVIDIA NGC cloud,
+        to get the complete model description use list_available_models()
+        Returns:
+            A list of model names
+        """
+        model_names = []
+        if cls.list_available_models() is not None:
+            model_names = [model.pretrained_model_name for model in cls.list_available_models()]
+        return model_names
 
     @classmethod
     def from_pretrained(

@@ -12,27 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
-
-import torch
-from pytorch_lightning.metrics import Metric
-
-from nemo.utils import logging
-
-__all__ = ['Perplexity']
-
-
-class Perplexity(Metric):
-    """
-    This metric computes the perplexity given the language model loss.
-    """
-
-    def __init__(self, dist_sync_on_step=False):
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
-        self.add_state('perplexity', default=torch.tensor(0), dist_reduce_fx='mean', persistent=False)
-
-    def update(self, loss: torch.Tensor):
-        self.perplexity = torch.exp(loss)
-
-    def compute(self):
-        return self.perplexity
+from nemo.collections.asr.models.configs.ctc_models_config import (
+    EncDecCTCConfig,
+    EncDecCTCDatasetConfig,
+    EncDecCTCModelConfig,
+)
+from nemo.collections.asr.modules.audio_preprocessing import (
+    AudioToMelSpectrogramPreprocessorConfig,
+    SpectrogramAugmentationConfig,
+)
+from nemo.collections.asr.modules.conv_asr import ConvASRDecoderConfig, ConvASREncoderConfig, JasperEncoderConfig

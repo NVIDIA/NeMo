@@ -23,8 +23,8 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from transformers import AutoModel, BartForConditionalGeneration, EncoderDecoderModel
 
+from nemo.collections.common.metrics import Perplexity
 from nemo.collections.nlp.data.neural_machine_translation import NeuralMachineTranslationDataset
-from nemo.collections.nlp.metrics import Perplexity
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -108,7 +108,7 @@ class NeuralMachineTranslationModel(ModelPT):
                 decoder=cfg.language_model.pretrained_decoder_model_name,
             )
 
-        self.perplexity_metric = Perplexity(dist_sync_on_step=True)
+        self.validation_perplexity = Perplexity(compute_on_step=False)
 
         self.setup_optimization(cfg.optim)
 
@@ -125,7 +125,11 @@ class NeuralMachineTranslationModel(ModelPT):
         in the `nn.Module` in vanilla PyTorch.
         """
         outputs = self.model(
-            input_ids=input_ids, attention_mask=attention_mask, decoder_input_ids=decoder_input_ids, labels=labels,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
+            labels=labels,
+            return_dict=False,
         )
         return outputs
 
@@ -149,7 +153,7 @@ class NeuralMachineTranslationModel(ModelPT):
         """
         input_ids, input_mask, decoder_input_ids, labels = batch
         loss = self.forward(
-            input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels
+            input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels,
         )[0]
 
         tensorboard_logs = {"train_loss": loss, "lr": self._optimizer.param_groups[0]["lr"]}
@@ -162,13 +166,13 @@ class NeuralMachineTranslationModel(ModelPT):
         passed in as `batch`. Loss calculation from HuggingFace's BartForConditionalGeneration.
         """
         input_ids, input_mask, decoder_input_ids, labels = batch
-        loss = self.forward(
-            input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels
-        )[0]
+        loss, logits = self.forward(
+            input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels,
+        )[:2]
 
-        perplexity = self.perplexity_metric(loss)
+        self.validation_perplexity(logits=logits)
 
-        tensorboard_logs = {"val_loss": loss, "perplexity": perplexity}
+        tensorboard_logs = {"val_loss": loss}
 
         return {"val_loss": loss, "log": tensorboard_logs}
 
@@ -178,7 +182,7 @@ class NeuralMachineTranslationModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        perplexity = torch.stack([x["log"]["perplexity"] for x in outputs]).mean()
+        perplexity = self.validation_perplexity.compute()
         tensorboard_logs = {"val_loss": avg_loss, "perplexity": perplexity}
         logging.info(f"evaluation perplexity {perplexity.item()}")
         return {"val_loss": avg_loss, "log": tensorboard_logs}

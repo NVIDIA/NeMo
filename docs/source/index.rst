@@ -39,6 +39,6 @@ We recommend using NVIDIA's PyTorch container
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 nvcr.io/nvidia/pytorch:20.08-py3
+    stack=67108864 nvcr.io/nvidia/pytorch:20.09-py3
 
 

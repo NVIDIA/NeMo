@@ -388,8 +388,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Update blank mask with time mask
                 # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
                 # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
-                time_mask = time_idx >= out_len
-                blank_mask.bitwise_or_(time_mask)
+                blank_mask = time_idx >= out_len
 
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
@@ -448,9 +447,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Force the current predicted label to also be blank
                         # This ensures that blanks propogate across all timesteps
                         # once they have occured (normally stopping condition of sample level loop).
-                        k.masked_fill_(blank_mask, self._blank_index)
                         for kidx, ki in enumerate(k):
-                            if time_mask[kidx] == 0 and ki != self._blank_index:
+                            if blank_mask[kidx] == 0:
                                 label[kidx].append(ki)
 
                         symbols_added += 1
@@ -493,8 +491,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # Update blank mask with time mask
             # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
             # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
-            time_mask = time_idx >= out_len
-            blank_mask.bitwise_or_(time_mask)
+            blank_mask = time_idx >= out_len
 
             # Start inner loop
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
@@ -559,10 +556,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # Force the current predicted label to also be blank
                     # This ensures that blanks propogate across all timesteps
                     # once they have occured (normally stopping condition of sample level loop).
-                    k.masked_fill_(blank_mask, self._blank_index)
                     for kidx, ki in enumerate(k):
-                        if time_mask[kidx] == 0 and ki != self._blank_index:
-                            label[kidx].append(ki.detach())
+                        if blank_mask[kidx] == 0:
+                            label[kidx].append(ki)
 
                 symbols_added += 1
 

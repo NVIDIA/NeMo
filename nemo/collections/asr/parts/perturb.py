@@ -38,7 +38,7 @@ import os
 import random
 import subprocess
 from tempfile import NamedTemporaryFile
-from typing import List, Union
+from typing import List, Optional, Union
 
 import librosa
 import numpy as np
@@ -644,7 +644,7 @@ class AudioAugmentor(object):
         return cls(perturbations=ptbs)
 
 
-def process_augmentations(augmenter) -> AudioAugmentor:
+def process_augmentations(augmenter) -> Optional[AudioAugmentor]:
     """Process list of online data augmentations.
     Accepts either an AudioAugmentor object with pre-defined augmentations,
     or a dictionary that points to augmentations that have been defined.
@@ -724,6 +724,9 @@ def process_augmentations(augmenter) -> AudioAugmentor:
             disabled and a warning is logged.
     Returns: AudioAugmentor object
     """
+    if augmenter is None:
+        return None
+
     if isinstance(augmenter, AudioAugmentor):
         return augmenter
 

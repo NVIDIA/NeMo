@@ -14,16 +14,37 @@
 
 import copy
 import os
+from dataclasses import dataclass, is_dataclass
+from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import pytorch_lightning as pl
 import wrapt
 from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import errors as omegaconf_errors
 
 from nemo.utils import logging
 
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
+
+
+class ArtifactPathType(Enum):
+    """
+    ArtifactPathType refers to the type of the path that the artifact is located at.
+
+    LOCAL_PATH: A user local filepath that exists on the file system.
+    TAR_PATH: A (generally flattened) filepath that exists inside of an archive (that may have its own full path).
+    """
+
+    LOCAL_PATH = 0
+    TAR_PATH = 1
+
+
+@dataclass(init=False)
+class ArtifactItem:
+    path: str
+    path_type: ArtifactPathType
 
 
 def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
@@ -315,8 +336,81 @@ def resolve_test_dataloaders(model: 'ModelPT'):
 def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
     output_dict = wrapped(*args, **kwargs)
 
-    if 'log' in output_dict:
+    if isinstance(output_dict, dict) and output_dict is not None and 'log' in output_dict:
         log_dict = output_dict.pop('log')
         instance.log_dict(log_dict, on_step=True)
 
     return output_dict
+
+
+def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'ModelPTConfig']) -> DictConfig:
+    """
+    Converts its input into a standard DictConfig.
+    Possible input values are:
+    -   DictConfig
+    -   A dataclass which is a subclass of ModelPTConfig
+
+    Args:
+        cfg: A dict-like object.
+
+    Returns:
+        The equivalent DictConfig
+    """
+    if is_dataclass(cfg):
+        cfg = OmegaConf.structured(cfg)
+
+    if not isinstance(cfg, DictConfig):
+        raise ValueError(f"cfg constructor argument must be of type DictConfig/dict but got {type(cfg)} instead.")
+
+    config = OmegaConf.to_container(cfg, resolve=True)
+    config = OmegaConf.create(config)
+    return config
+
+
+def _convert_config(cfg: OmegaConf):
+    """ Recursive function convertint the configuration from old hydra format to the new one. """
+
+    # Get rid of cls -> _target_.
+    if 'cls' in cfg and "_target_" not in cfg:
+        cfg._target_ = cfg.pop("cls")
+
+    # Get rid of params.
+    if 'params' in cfg:
+        params = cfg.pop('params')
+        for param_key, param_val in params.items():
+            cfg[param_key] = param_val
+
+    # Recursion.
+    try:
+        for _, sub_cfg in cfg.items():
+            if isinstance(sub_cfg, DictConfig):
+                _convert_config(sub_cfg)
+    except omegaconf_errors.OmegaConfBaseException as e:
+        logging.warning(f"Skipping config conversion for cfg:\n{cfg}\n due to OmegaConf error encountered :\n{e}.")
+
+
+def maybe_update_config_version(cfg: DictConfig):
+    """
+    Recursively convert Hydra 0.x configs to Hydra 1.x configs.
+
+    Changes include:
+    -   `cls` -> `_target_`.
+    -   `params` -> drop params and shift all arguments to parent.
+
+    Args:
+        cfg: Any Hydra compatible DictConfig
+
+    Returns:
+        An updated DictConfig that conforms to Hydra 1.x format.
+    """
+    # Make a copy of model config.
+    cfg = copy.deepcopy(cfg)
+    OmegaConf.set_struct(cfg, False)
+
+    # Convert config.
+    _convert_config(cfg)
+
+    # Update model config.
+    OmegaConf.set_struct(cfg, True)
+
+    return cfg
