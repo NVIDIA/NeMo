@@ -14,8 +14,14 @@
 
 from argparse import ArgumentParser
 
-from normalize import normalizers
-from utils import evaluate, known_types, load_files, training_data_to_sentences, training_data_to_tokens
+from tools.text_normalization.normalize import normalizers
+from tools.text_normalization.utils import (
+    evaluate,
+    known_types,
+    load_files,
+    training_data_to_sentences,
+    training_data_to_tokens,
+)
 
 
 '''

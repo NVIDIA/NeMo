@@ -15,7 +15,7 @@
 from argparse import ArgumentParser
 from typing import List
 
-from normalize import normalizers
+from tools.text_normalization.normalize import normalizers
 
 
 '''
