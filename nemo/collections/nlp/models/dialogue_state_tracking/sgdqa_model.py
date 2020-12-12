@@ -31,6 +31,8 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
+from nemo.collections.nlp.data import SGDDataset
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd import Schema
 
 __all__ = ['SGDQAModel']
 
@@ -47,17 +49,17 @@ class SGDQAModel(NLPModel, Exportable):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+
+        self.setup_tokenizer(cfg.tokenizer)
+        super().__init__(cfg=cfg, trainer=trainer)
         schema_config = {
             "MAX_NUM_CAT_SLOT": 6,
             "MAX_NUM_NONCAT_SLOT": 12,
             "MAX_NUM_VALUE_PER_CAT_SLOT": 12,
             "MAX_NUM_INTENT": 4,
             "NUM_TASKS": 6,
-            "MAX_SEQ_LENGTH": self._cfg.dataset.max_sequence_length
+            "MAX_SEQ_LENGTH": cfg.dataset.max_seq_length
         }
-        self.setup_tokenizer(cfg.tokenizer)
-        super().__init__(cfg=cfg, trainer=trainer)
-
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.config_file,
@@ -67,9 +69,9 @@ class SGDQAModel(NLPModel, Exportable):
 
 
         all_schema_json_paths = []
-        # for dataset_split in ['train', 'test', 'dev']:
-        #     all_schema_json_paths.append(os.path.join(args.data_dir, dataset_split, "schema.json"))
-        # schemas = schema.Schema(all_schema_json_paths)
+        for dataset_split in ['train', 'test', 'dev']:
+            all_schema_json_paths.append(os.path.join(cfg.dataset.data_dir, dataset_split, "schema.json"))
+        schemas = Schema(all_schema_json_paths)
 
         # dialogues_processor = data_processor.SGDDataProcessor(
         #     task_name=self._cfg.dataset.task_name,

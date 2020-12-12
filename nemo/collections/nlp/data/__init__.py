@@ -32,3 +32,7 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
+
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd.sgd_dataset import (
+    SGDDataset
+)

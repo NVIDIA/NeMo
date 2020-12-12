@@ -14,6 +14,7 @@
 
 # Config file for text classification with pre-trained BERT models
 
+pretrained_model: null # pretrained QAModel model from list_available_models()
 trainer:
   gpus: 1 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
   num_nodes: 1
@@ -74,7 +75,7 @@ model:
     pin_memory: false
 
   optim:
-    name: adam_w
+    name: adamw
     lr: 1e-4
     # optimizer arguments
     betas: [0.9, 0.999]
