@@ -83,5 +83,24 @@ class EncDecNLPModel(NLPModel):
         self._decoder = decoder
 
     def setup_enc_dec_tokenizers(self, cfg: EncDecNLPModelConfig):
-        self.encoder_tokenizer = get_tokenizer(**cfg.encoder_tokenizer)
-        self.decoder_tokenizer = get_tokenizer(**cfg.decoder_tokenizer)
+        if cfg.encoder_tokenizer.vocab_file is not None or cfg.decoder_tokenizer.vocab_file is not None:
+            raise NotImplemented(
+                f'Vocab files are currently not supported. Please use tokenizer name and model instead'
+            )
+
+        if cfg.encoder_tokenizer.tokenizer_name != 'yttm' or cfg.decoder_tokenizer.tokenizer_name != 'yttm':
+            raise NotImplemented(f"Currently we only support yttm tokenizer.")
+
+        self.encoder_tokenizer = get_tokenizer(
+            tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
+            tokenizer_model=self.register_artifact(
+                "cfg.encoder_tokenizer.tokenizer_model", cfg.encoder_tokenizer.tokenizer_model
+            ),
+        )
+
+        self.decoder_tokenizer = get_tokenizer(
+            tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
+            tokenizer_model=self.register_artifact(
+                "cfg.decoder_tokenizer.tokenizer_model", cfg.decoder_tokenizer.tokenizer_model
+            ),
+        )

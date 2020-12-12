@@ -28,8 +28,8 @@ __all__ = ['TranslationDataset']
 
 @dataclass
 class TranslationDataConfig:
-    src_file_name: str = MISSING
-    tgt_file_name: str = MISSING
+    src_file_name: str = None  # MISSING
+    tgt_file_name: str = None  # MISSING
     tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
