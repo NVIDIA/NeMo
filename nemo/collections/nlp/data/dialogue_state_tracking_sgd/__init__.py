@@ -16,3 +16,4 @@ from nemo.collections.nlp.data.dialogue_state_tracking_sgd.data_processor import
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import InputExample
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.schema import Schema
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.sgd_dataset import SGDDataset
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd.data_processor import SGDDataProcessor

@@ -33,6 +33,7 @@ from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
 from nemo.collections.nlp.data import SGDDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd import Schema
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd import SGDDataProcessor
 
 __all__ = ['SGDQAModel']
 
@@ -73,16 +74,17 @@ class SGDQAModel(NLPModel, Exportable):
             all_schema_json_paths.append(os.path.join(cfg.dataset.data_dir, dataset_split, "schema.json"))
         schemas = Schema(all_schema_json_paths)
 
-        # dialogues_processor = data_processor.SGDDataProcessor(
-        #     task_name=self._cfg.dataset.task_name,
-        #     data_dir=self._cfg.dataset.data_dir,
-        #     dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
-        #     tokenizer=self.tokenizer,
-        #     schemas=schemas,
-        #     schema_config=schema_config,
-        #     subsample=self._cfg.dataset.subsample,
-        #     overwrite_dial_files=self._cfg.dataset.overwrite_dial_files,
-        # )
+        dialogues_processor = SGDDataProcessor(
+            task_name=self._cfg.dataset.task_name,
+            data_dir=self._cfg.dataset.data_dir,
+            dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
+            tokenizer=self.tokenizer,
+            schemas=schemas,
+            schema_config=schema_config,
+            subsample=self._cfg.dataset.subsample,
+            overwrite_dial_files=not self._cfg.dataset.use_cache,
+        )
+        import ipdb; ipdb.set_trace()
 
         # self.encoder = SGDEncoder(hidden_size=self.bert_model.config.hidden_size, dropout=self._cfg.encoder.dropout)
         # self.decoder = SGDDecoder(embedding_dim=self.bert_model.config.hidden_size)
