@@ -35,7 +35,7 @@ def main():
         audio, sr = librosa.load(wavfile)
 
         # Calculate energy
-        stft_amplitude = np.abs(librosa.stft(audio))
+        stft_amplitude = np.abs(librosa.stft(audio, n_fft=1024, hop_length=256, win_length=1024))
         energy = np.linalg.norm(stft_amplitude, axis=0)     # axis=0 since librosa.stft -> (freq bins, frames)
 
         # Save to new file
