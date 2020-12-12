@@ -46,6 +46,14 @@ class Exportable(ABC):
     It gives these entities ability to be exported for deployment to formats such as ONNX.
     """
 
+    @staticmethod
+    def get_format(filename: str):
+        _, ext = os.path.splitext(filename)
+        try:
+            return _EXT_DICT[ext]
+        except KeyError:
+            raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
+
     def export(
         self,
         output: str,
@@ -69,12 +77,7 @@ class Exportable(ABC):
             if set_eval:
                 self.eval()
 
-            filename, file_extension = os.path.splitext(output)
-            if file_extension not in _EXT_DICT.keys():
-                raise ValueError(f"Export file {output} extension does not correspond to any export format!")
-
-            format = _EXT_DICT[file_extension]
-
+            format = self.get_format(output)
             self._prepare_for_export()
 
             if input_example is not None:
