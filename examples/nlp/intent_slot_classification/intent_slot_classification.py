@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
