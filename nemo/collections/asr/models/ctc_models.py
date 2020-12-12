@@ -415,7 +415,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             log_probs, predictions_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
         loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+            log_probs=log_probs, targets=transcript, input_lengths=predictions_len, target_lengths=transcript_len
         )
 
         tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
