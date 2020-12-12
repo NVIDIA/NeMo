@@ -121,8 +121,9 @@ if __name__ == '__main__':
     stats['Misalignment present'] = stats['Number dropped'] > 0
     stats['Original Duration, min'] = round(stats['Original Duration, min'])
     stats['Verified Duration, min'] = round(stats['Verified Duration, min'])
+    stats.loc["Total"] = stats.sum()
 
     stats_file = os.path.join(args.base_dir, 'alignment_summary.csv')
     stats.to_csv(stats_file, index=False)
-    print(stats.head())
+    print(stats)
     print(f'Alignment summary saved to {stats_file}')
