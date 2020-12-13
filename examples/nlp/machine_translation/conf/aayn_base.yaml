@@ -91,6 +91,7 @@ model:
     attn_layer_dropout: 0.1
     hidden_act: relu
     mask_future: false
+    pre_ln: false
     _target_: nemo.collections.nlp.modules.common.transformer.TransformerEncoder
 
   decoder_embedding:
@@ -109,6 +110,7 @@ model:
     attn_score_dropout: 0.1
     attn_layer_dropout: 0.1
     hidden_act: relu
+    pre_ln: false
     _target_: nemo.collections.nlp.modules.common.transformer.TransformerDecoder
 
   head:

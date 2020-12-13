@@ -93,6 +93,7 @@ class TransformerEncoderConfig:
     attn_layer_dropout: float = 0.0
     hidden_act: str = 'relu'
     mask_future: bool = False
+    pre_ln: bool = False
     _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoder'
 
 

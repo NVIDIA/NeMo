@@ -106,6 +106,7 @@ class TransformerDecoderConfig:
     attn_score_dropout: float = 0.0
     attn_layer_dropout: float = 0.0
     hidden_act: str = 'relu'
+    pre_ln: bool = False
     _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoder'
 
 
