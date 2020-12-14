@@ -21,9 +21,9 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data import SGDDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd import Schema, SGDDataProcessor
+from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -60,7 +60,7 @@ class SGDQAModel(NLPModel):
 
         self.encoder = SGDEncoder(hidden_size=self.bert_model.config.hidden_size, dropout=self._cfg.encoder.dropout)
         self.decoder = SGDDecoder(embedding_dim=self.bert_model.config.hidden_size)
-        # self.loss = SGDDialogueStateLoss(reduction="mean")
+        self.loss = SGDDialogueStateLoss(reduction="mean")
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -121,12 +121,23 @@ class SGDQAModel(NLPModel):
             logit_noncat_slot_start,
             logit_noncat_slot_end,
         ) = self(input_ids=utterance_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
-        import ipdb
-
-        ipdb.set_trace()
-        # input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
-        # logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-        loss = 0
+        loss = self.loss(
+            logit_intent_status=logit_intent_status,
+            intent_status=intent_status,
+            logit_req_slot_status=logit_req_slot_status,
+            requested_slot_status=requested_slot_status,
+            logit_cat_slot_status=logit_cat_slot_status,
+            categorical_slot_status=categorical_slot_status,
+            logit_cat_slot_value_status=logit_cat_slot_value_status,
+            categorical_slot_value_status=categorical_slot_value_status,
+            logit_noncat_slot_status=logit_noncat_slot_status,
+            noncategorical_slot_status=noncategorical_slot_status,
+            logit_noncat_slot_start=logit_noncat_slot_start,
+            logit_noncat_slot_end=logit_noncat_slot_end,
+            noncategorical_slot_value_start=noncategorical_slot_value_start,
+            noncategorical_slot_value_end=noncategorical_slot_value_end,
+            task_mask=task_mask,
+        )
         lr = self._optimizer.param_groups[0]['lr']
 
         self.log('train_loss', loss)
