@@ -1,14 +1,14 @@
-name: &name "Conformer-BPE"
+name: &name "Conformer-CTC-BPE-LinearDecoder"
 
 model:
-  sample_rate: &sample_rate 16000
+  sample_rate: 16000
   log_prediction: true
   load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
 
   train_ds:
     manifest_filepath: ???
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     batch_size: 16
     trim_silence: false
     max_duration: 16.7
@@ -22,7 +22,7 @@ model:
 
   validation_ds:
     manifest_filepath: ???
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     batch_size: 16
     shuffle: false
     num_workers: 8
@@ -31,7 +31,7 @@ model:
 
   test_ds:
     manifest_filepath: null
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     batch_size: 16
     shuffle: false
     num_workers: 8
@@ -44,7 +44,7 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    sample_rate: *sample_rate
+    sample_rate: ${model.sample_rate}
     normalize: "per_feature"
     window_size: 0.025
     window_stride: 0.01
@@ -53,7 +53,7 @@ model:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
-    pad_to: 16
+    pad_to: 0
     stft_conv: false
 
   spec_augment:

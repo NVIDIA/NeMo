@@ -1,10 +1,19 @@
-name: &name "Conformer-CTC-BPE"
+name: &name "Conformer-RNNT-BPE"
 
 model:
-  sample_rate: 16000
+  sample_rate: &sample_rate 16000
+  compute_eval_loss: true
   log_prediction: true
   load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
+
+  model_defaults:
+    se: true
+    se_context_size: -1
+    # encoder / decoder / joint values
+    enc_hidden: ${model.encoder.d_model}
+    pred_hidden: 640
+    joint_hidden: 640
 
   train_ds:
     manifest_filepath: ???
@@ -16,28 +25,27 @@ model:
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
     num_workers: 8
     pin_memory: false
-    use_start_end_token: false
+    use_start_end_token: true
 
   validation_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
-    batch_size: 16
+    batch_size: 32
     shuffle: false
     num_workers: 8
     pin_memory: false
-    use_start_end_token: false
+    use_start_end_token: true
 
   test_ds:
     manifest_filepath: null
     sample_rate: ${model.sample_rate}
-    batch_size: 16
+    batch_size: 32
     shuffle: false
     num_workers: 8
     pin_memory: false
-    use_start_end_token: false
+    use_start_end_token: true
 
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
@@ -45,7 +53,7 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    sample_rate: ${model.sample_rate}
+    sample_rate: *sample_rate
     normalize: "per_feature"
     window_size: 0.025
     window_stride: 0.01
@@ -61,9 +69,9 @@ model:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     # SpecAug params
     freq_masks: 2 # set to zero to disable the SpecAug augmentation
-    time_masks: 2 # set to zero to disable the SpecAug augmentation
+    time_masks: 10 # set to zero to disable the SpecAug augmentation
     freq_width: 27
-    time_width: 100
+    time_width: 0.05
     # Cut-off params
     rect_masks: 0 # set to zero to disable the cut-off augmentation
     rect_time: 120
@@ -78,7 +86,7 @@ model:
     d_model: 256
 
     # Sub-sampling params
-    subsampling: vggnet # vggnet or striding
+    subsampling: striding # vggnet or striding
     subsampling_factor: 4 # must be power of 2
     subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
 
@@ -101,13 +109,43 @@ model:
     dropout_att: 0.0 # The dropout for multi-headed attention modules
 
   decoder:
-    _target_: nemo.collections.asr.modules.LSTMDecoder
-    feat_in: null # If not provided, the feat_out of the encoder would be used
-    num_classes: -1  # filled with vocabulary size from tokenizer at runtime
-    vocabulary: []  # filled with vocabulary from tokenizer at runtime
-    lstm_hidden_size: 640
-    bidirectional: False
-    num_layers: 1
+    _target_: nemo.collections.asr.modules.RNNTDecoder
+    normalization_mode: null
+    random_state_sampling: false
+    blank_as_pad: true
+
+    prednet:
+      pred_hidden: ${model.model_defaults.pred_hidden}
+      pred_rnn_layers: 1
+      t_max: null
+      dropout: 0.0
+
+  joint:
+    _target_: nemo.collections.asr.modules.RNNTJoint
+    log_softmax: null  # sets it according to cpu/gpu device
+
+    # fused mode
+    experimental_fuse_loss_wer: false
+    fused_batch_size: 1
+
+    jointnet:
+      joint_hidden: ${model.model_defaults.joint_hidden}
+      activation: "relu"
+      dropout: 0.0
+
+  decoding:
+    strategy: "greedy_batch"
+
+    # greedy strategy config
+    greedy:
+      max_symbols: 30
+
+    # beam strategy config
+    beam:
+      beam_size: 2
+      score_norm: true
+      tsd_max_sym_exp: 50  # for Time Synchronous Decoding
+      alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
 
   optim:
     name: novograd
@@ -120,7 +158,7 @@ model:
     sched:
       name: CosineAnnealing
       # scheduler config override
-      warmup_steps: 2000
+      warmup_steps: 4000
       warmup_ratio: null
       min_lr: 1e-6
       last_epoch: -1
@@ -156,3 +194,4 @@ exp_manager:
     project: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
+

@@ -1,7 +1,7 @@
-name: &name "Conformer-char"
+name: &name "Conformer-CTC-Char"
 
 model:
-  sample_rate: &sample_rate 16000
+  sample_rate: 16000
   labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
                    "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
   log_prediction: true
@@ -11,7 +11,7 @@ model:
   train_ds:
     manifest_filepath: ???
     labels: *labels
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     batch_size: 32
     trim_silence: false
     max_duration: 16.7
@@ -26,7 +26,7 @@ model:
   validation_ds:
     manifest_filepath: ???
     labels: *labels
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     batch_size: 32
     shuffle: false
     num_workers: 8
@@ -35,7 +35,7 @@ model:
   test_ds:
     manifest_filepath: null
     labels: *labels
-    sample_rate: 16000
+    sample_rate: ${model.sample_rate}
     batch_size: 32
     shuffle: false
     num_workers: 8
@@ -43,7 +43,7 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    sample_rate: *sample_rate
+    sample_rate: ${model.sample_rate}
     normalize: "per_feature"
     window_size: 0.025
     window_stride: 0.01
@@ -52,7 +52,7 @@ model:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
-    pad_to: 16
+    pad_to: 0
     stft_conv: false
 
   spec_augment:
