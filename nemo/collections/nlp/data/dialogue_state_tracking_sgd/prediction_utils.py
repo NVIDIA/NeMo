@@ -286,7 +286,7 @@ def get_predicted_dialog(
                     slots_relation_list=slots_relation_list,
                     frame_service_prev=frame_service_prev,
                     sys_slots_last=sys_slots_last,
-                    sys_rets=sys_rets
+                    sys_rets=sys_rets,
                 )
                 for k, v in cat_out_dict.items():
                     slot_values[k] = v
@@ -304,11 +304,11 @@ def get_predicted_dialog(
                     slots_relation_list=slots_relation_list,
                     frame_service_prev=frame_service_prev,
                     sys_slots_last=sys_slots_last,
-                    sys_rets=sys_rets
+                    sys_rets=sys_rets,
                 )
                 for k, v in noncat_out_dict.items():
                     slot_values[k] = v
-                
+
                 carry_over_slots(
                     frame,
                     all_slot_values,

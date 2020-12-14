@@ -18,8 +18,12 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
+from typing import Dict, Optional
+
 import numpy as np
-from torch.utils.data import Dataset
+
+from nemo.core.classes import Dataset
+from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 
 __all__ = ['SGDDataset']
 
@@ -31,6 +35,29 @@ class SGDDataset(Dataset):
         dataset_split (str): train/dev/test
         dialogues_processor (obj): Data generator for SGD dialogues
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            "example_id_num": NeuralType(('B', 'T'), ChannelType()),
+            "service_id": NeuralType(('B'), ChannelType()),
+            "is_real_example": NeuralType(('B'), ChannelType()),
+            "utterance_ids": NeuralType(('B', 'T'), ChannelType()),
+            "utterance_segment": NeuralType(('B', 'T'), ChannelType()),
+            "utterance_mask": NeuralType(('B', 'T'), ChannelType()),
+            "intent_status": NeuralType(('B'), LabelsType()),
+            "requested_slot_status": NeuralType(('B'), LabelsType()),
+            "categorical_slot_status": NeuralType(('B'), LabelsType()),
+            "categorical_slot_value_status": NeuralType(('B'), LabelsType()),
+            "noncategorical_slot_status": NeuralType(('B'), LabelsType()),
+            "noncategorical_slot_value_start": NeuralType(('B'), LabelsType()),
+            "noncategorical_slot_value_end": NeuralType(('B'), LabelsType()),
+            "start_char_idx": NeuralType(('B', 'T'), LabelsType()),
+            "end_char_idx": NeuralType(('B', 'T'), LabelsType()),
+            "task_mask": NeuralType(('B', 'T'), ChannelType()),
+        }
 
     def __init__(self, dataset_split, dialogues_processor):
         self.features = dialogues_processor.get_dialog_examples(dataset_split)

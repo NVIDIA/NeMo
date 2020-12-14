@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.data_processor import FILE_RANGES, PER_FRAME_OUTPUT_FILENAME, SGDDataProcessor
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd.data_processor import (
+    FILE_RANGES,
+    PER_FRAME_OUTPUT_FILENAME,
+    SGDDataProcessor,
+)
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import InputExample
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.schema import Schema
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.sgd_dataset import SGDDataset
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.data_processor import SGDDataProcessor
