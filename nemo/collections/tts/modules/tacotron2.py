@@ -321,7 +321,7 @@ class Decoder(NeuralModule):
             mel_output, gate_output, attention_weights = self.decode(decoder_input)
 
             mel_outputs += [mel_output.squeeze(1)]
-            gate_outputs += [gate_output.squeeze()]
+            gate_outputs += [gate_output]
             alignments += [attention_weights]
 
         mel_outputs, gate_outputs, alignments = self.parse_decoder_outputs(mel_outputs, gate_outputs, alignments)
