@@ -53,6 +53,7 @@ model:
   dataset:
     max_seq_length: 128 # the maximum length BERT supports is 512
     task_name: sgd_single_domain
+    state_tracker: nemotracker
     data_dir: ???
     dialogues_example_dir: ???
     subsample: false # null or 'weighted_loss'. 'weighted_loss' enables the weighted class balancing of the loss, may be used for handling unbalanced classes
@@ -67,7 +68,6 @@ model:
     pin_memory: false
 
   validation_ds:
-    state_tracker: nemotracker
     batch_size: 8
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset

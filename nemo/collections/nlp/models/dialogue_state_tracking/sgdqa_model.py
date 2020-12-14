@@ -402,7 +402,7 @@ class SGDQAModel(NLPModel):
                 input_json_files,
                 prediction_dir,
                 schemas=self.schemas,
-                state_tracker='nemotracker',
+                state_tracker=self._cfg.dataset.state_tracker,
                 eval_debug=False,
                 in_domain_services=in_domain_services,
                 cat_value_thresh=0.0,
