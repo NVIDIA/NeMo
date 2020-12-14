@@ -142,13 +142,14 @@ class SGDQAModel(NLPModel):
 
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
-
+        
         return {
             'loss': loss,
             'lr': lr,
         }
 
     def validation_step(self, batch, batch_idx):
+        
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -221,9 +222,113 @@ class SGDQAModel(NLPModel):
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
         """
-        avg_loss = 0
 
-        self.log('val_loss', avg_loss, prog_bar=True)
+        prefix = 'val'
+
+        avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
+
+        example_id_num = torch.cat([x[f'{prefix}_tensors']['example_id_num'] for x in outputs])
+        service_id = torch.cat([x[f'{prefix}_tensors']['service_id'] for x in outputs])
+        is_real_example = torch.cat([x[f'{prefix}_tensors']['is_real_example'] for x in outputs])
+        logit_intent_status = torch.cat([x[f'{prefix}_tensors']['logit_intent_status'] for x in outputs])
+        logit_req_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_req_slot_status'] for x in outputs])
+        logit_cat_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_cat_slot_status'] for x in outputs])
+        logit_cat_slot_value_status = torch.cat([x[f'{prefix}_tensors']['logit_cat_slot_value_status'] for x in outputs])
+        logit_noncat_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_status'] for x in outputs])
+        logit_noncat_slot_start = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_start'] for x in outputs])
+        logit_noncat_slot_end = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_end'] for x in outputs])
+        start_char_idx = torch.cat([x[f'{prefix}_tensors']['start_char_idx'] for x in outputs])
+        end_char_idx = torch.cat([x[f'{prefix}_tensors']['end_char_idx'] for x in outputs])
+
+
+        all_example_id_num = []
+        all_service_id = []
+        all_is_real_example = []
+        all_logit_intent_status = []
+        all_logit_req_slot_status = []
+        all_logit_cat_slot_status = []
+        all_logit_cat_slot_value_status = []
+        all_logit_noncat_slot_status = []
+        all_logit_noncat_slot_start = []
+        all_logit_noncat_slot_end = []
+        all_start_char_idx = []
+        all_end_char_idx = []
+
+        if torch.distributed.is_initialized():
+            world_size = torch.distributed.get_world_size()
+            for ind in range(world_size):
+                all_example_id_num.append(torch.empty_like(example_id_num))
+                all_service_id.append(torch.empty_like(service_id))
+                all_is_real_example.append(torch.empty_like(is_real_example))
+                all_logit_intent_status.append(torch.empty_like(logit_intent_status))
+                all_logit_req_slot_status.append(torch.empty_like(logit_req_slot_status))
+                all_logit_cat_slot_status.append(torch.empty_like(logit_cat_slot_status))
+                all_logit_cat_slot_value_status.append(torch.empty_like(logit_cat_slot_value_status))
+                all_logit_noncat_slot_status.append(torch.empty_like(logit_noncat_slot_status))
+                all_logit_noncat_slot_start.append(torch.empty_like(logit_noncat_slot_start))
+                all_logit_noncat_slot_end.append(torch.empty_like(logit_noncat_slot_end))
+                all_start_char_idx.append(torch.empty_like(start_char_idx))
+                all_end_char_idx.append(torch.empty_like(end_char_idx))
+
+            torch.distributed.all_gather(all_example_id_num, example_id_num)
+            torch.distributed.all_gather(all_service_id, service_id)
+            torch.distributed.all_gather(all_is_real_example, is_real_example)
+            torch.distributed.all_gather(all_logit_intent_status, logit_intent_status)
+            torch.distributed.all_gather(all_logit_req_slot_status, logit_req_slot_status)
+            torch.distributed.all_gather(all_logit_cat_slot_status, logit_cat_slot_status)
+            torch.distributed.all_gather(all_logit_cat_slot_value_status, logit_cat_slot_value_status)
+            torch.distributed.all_gather(all_logit_noncat_slot_status, logit_noncat_slot_status)
+            torch.distributed.all_gather(all_logit_noncat_slot_start, logit_noncat_slot_start)
+            torch.distributed.all_gather(all_logit_noncat_slot_end, logit_noncat_slot_end)
+            torch.distributed.all_gather(all_start_char_idx, start_char_idx)
+            torch.distributed.all_gather(all_end_char_idx, end_char_idx)
+        else:
+            all_example_id_num.append(example_id_num)
+            all_service_id.append(service_id)
+            all_is_real_example.append(is_real_example)
+            all_logit_intent_status.append(logit_intent_status)
+            all_logit_req_slot_status.append(logit_req_slot_status)
+            all_logit_cat_slot_status.append(logit_cat_slot_status)
+            all_logit_cat_slot_value_status.append(logit_cat_slot_value_status)
+            all_logit_noncat_slot_status.append(logit_noncat_slot_status)
+            all_logit_noncat_slot_start.append(logit_noncat_slot_start)
+            all_logit_noncat_slot_end.append(logit_noncat_slot_end)
+            all_start_char_idx.append(start_char_idx)
+            all_end_char_idx.append(end_char_idx)
+
+        import ipdb; ipdb.set_trace()
+        exact_match, f1, all_predictions, all_nbest = -1, -1, [], []
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            unique_ids = []
+            start_logits = []
+            end_logits = []
+            for u in all_unique_ids:
+                unique_ids.extend(tensor2list(u))
+            for u in all_start_logits:
+                start_logits.extend(tensor2list(u))
+            for u in all_end_logits:
+                end_logits.extend(tensor2list(u))
+
+            eval_dataset = self._test_dl.dataset if self.testing else self._validation_dl.dataset
+            exact_match, f1, all_predictions, all_nbest = eval_dataset.evaluate(
+                unique_ids=unique_ids,
+                start_logits=start_logits,
+                end_logits=end_logits,
+                n_best_size=self._cfg.dataset.n_best_size,
+                max_answer_length=self._cfg.dataset.max_answer_length,
+                version_2_with_negative=self._cfg.dataset.version_2_with_negative,
+                null_score_diff_threshold=self._cfg.dataset.null_score_diff_threshold,
+                do_lower_case=self._cfg.dataset.do_lower_case,
+            )
+
+        logging.info(f"{prefix} exact match {exact_match}")
+        logging.info(f"{prefix} f1 {f1}")
+
+        self.log(f'{prefix}_loss', avg_loss)
+        self.log(f'{prefix}_exact_match', exact_match)
+        self.log(f'{prefix}_f1', f1)
+
+        self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
 
     def prepare_data(self):
         schema_config = {
