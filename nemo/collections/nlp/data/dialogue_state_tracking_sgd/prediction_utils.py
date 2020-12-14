@@ -25,13 +25,13 @@ import json
 import os
 from collections import OrderedDict, defaultdict
 
-from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import (
     STATUS_ACTIVE,
     STATUS_DONTCARE,
     STATUS_OFF,
     STR_DONTCARE,
 )
+from nemo.utils import logging
 
 REQ_SLOT_THRESHOLD = 0.5
 MIN_SLOT_RELATION = 0.1

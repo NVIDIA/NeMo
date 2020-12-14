@@ -21,8 +21,18 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
+import nemo.collections.nlp.data.dialogue_state_tracking_sgd.prediction_utils as pred_utils
 from nemo.collections.nlp.data import SGDDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd import Schema, SGDDataProcessor
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd.evaluate import (
+    ALL_SERVICES,
+    PER_FRAME_OUTPUT_FILENAME,
+    SEEN_SERVICES,
+    UNSEEN_SERVICES,
+    get_dataset_as_dict,
+    get_in_domain_services,
+    get_metrics,
+)
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
@@ -34,6 +44,27 @@ from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 __all__ = ['SGDQAModel']
+
+
+def tensor2list(tensor):
+    return tensor.detach().cpu().tolist()
+
+
+def get_str_example_id(eval_dataset, ids_to_service_names_dict, example_id_num):
+    def format_turn_id(ex_id_num):
+        dialog_id_1, dialog_id_2, turn_id, service_id, model_task_id, slot_intent_id, value_id = ex_id_num
+        return "{}-{}_{:05d}-{:02d}-{}-{}-{}-{}".format(
+            eval_dataset,
+            dialog_id_1,
+            dialog_id_2,
+            turn_id,
+            ids_to_service_names_dict[service_id],
+            model_task_id,
+            slot_intent_id,
+            value_id,
+        )
+
+    return list(map(format_turn_id, tensor2list(example_id_num)))
 
 
 class SGDQAModel(NLPModel):
@@ -142,14 +173,14 @@ class SGDQAModel(NLPModel):
 
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
-        
+
         return {
             'loss': loss,
             'lr': lr,
         }
 
     def validation_step(self, batch, batch_idx):
-        
+
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -224,6 +255,7 @@ class SGDQAModel(NLPModel):
         """
 
         prefix = 'val'
+        eval_dataset = 'dev'
 
         avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
 
@@ -233,13 +265,14 @@ class SGDQAModel(NLPModel):
         logit_intent_status = torch.cat([x[f'{prefix}_tensors']['logit_intent_status'] for x in outputs])
         logit_req_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_req_slot_status'] for x in outputs])
         logit_cat_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_cat_slot_status'] for x in outputs])
-        logit_cat_slot_value_status = torch.cat([x[f'{prefix}_tensors']['logit_cat_slot_value_status'] for x in outputs])
+        logit_cat_slot_value_status = torch.cat(
+            [x[f'{prefix}_tensors']['logit_cat_slot_value_status'] for x in outputs]
+        )
         logit_noncat_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_status'] for x in outputs])
         logit_noncat_slot_start = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_start'] for x in outputs])
         logit_noncat_slot_end = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_end'] for x in outputs])
         start_char_idx = torch.cat([x[f'{prefix}_tensors']['start_char_idx'] for x in outputs])
         end_char_idx = torch.cat([x[f'{prefix}_tensors']['end_char_idx'] for x in outputs])
-
 
         all_example_id_num = []
         all_service_id = []
@@ -296,37 +329,94 @@ class SGDQAModel(NLPModel):
             all_start_char_idx.append(start_char_idx)
             all_end_char_idx.append(end_char_idx)
 
-        import ipdb; ipdb.set_trace()
-        exact_match, f1, all_predictions, all_nbest = -1, -1, [], []
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            unique_ids = []
-            start_logits = []
-            end_logits = []
-            for u in all_unique_ids:
-                unique_ids.extend(tensor2list(u))
-            for u in all_start_logits:
-                start_logits.extend(tensor2list(u))
-            for u in all_end_logits:
-                end_logits.extend(tensor2list(u))
+            ids_to_service_names_dict = self.schemas._services_id_to_vocab
+            example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
+            intent_status = torch.nn.Sigmoid()(logit_intent_status)
 
-            eval_dataset = self._test_dl.dataset if self.testing else self._validation_dl.dataset
-            exact_match, f1, all_predictions, all_nbest = eval_dataset.evaluate(
-                unique_ids=unique_ids,
-                start_logits=start_logits,
-                end_logits=end_logits,
-                n_best_size=self._cfg.dataset.n_best_size,
-                max_answer_length=self._cfg.dataset.max_answer_length,
-                version_2_with_negative=self._cfg.dataset.version_2_with_negative,
-                null_score_diff_threshold=self._cfg.dataset.null_score_diff_threshold,
-                do_lower_case=self._cfg.dataset.do_lower_case,
+            # Scores are output for each requested slot.
+            req_slot_status = torch.nn.Sigmoid()(logit_req_slot_status)
+
+            # For categorical slots, the status of each slot and the predicted value are output.
+            cat_slot_status_dist = torch.nn.Softmax(dim=-1)(logit_cat_slot_status)
+
+            cat_slot_status = torch.argmax(logit_cat_slot_status, axis=-1)
+            cat_slot_status_p = cat_slot_status_dist
+            cat_slot_value_status = torch.nn.Sigmoid()(logit_cat_slot_value_status)
+
+            # For non-categorical slots, the status of each slot and the indices for spans are output.
+            noncat_slot_status_dist = torch.nn.Softmax(dim=-1)(logit_noncat_slot_status)
+
+            noncat_slot_status = torch.argmax(logit_noncat_slot_status, axis=-1)
+            noncat_slot_status_p = noncat_slot_status_dist
+
+            softmax = torch.nn.Softmax(dim=-1)
+            start_scores = softmax(logit_noncat_slot_start)
+            end_scores = softmax(logit_noncat_slot_end)
+
+            batch_size, max_num_tokens = end_scores.size()
+            # Find the span with the maximum sum of scores for start and end indices.
+            total_scores = torch.unsqueeze(start_scores, axis=2) + torch.unsqueeze(end_scores, axis=1)
+            # Mask out scores where start_index > end_index.
+            # device = total_scores.get_device()
+            start_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, -1, 1)
+            end_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, 1, -1)
+            invalid_index_mask = (start_idx > end_idx).repeat(batch_size, 1, 1)
+            total_scores = torch.where(
+                invalid_index_mask,
+                torch.zeros(total_scores.size(), device=total_scores.get_device(), dtype=total_scores.dtype),
+                total_scores,
+            )
+            max_span_index = torch.argmax(total_scores.view(-1, max_num_tokens ** 2), axis=-1)
+            max_span_p = torch.max(total_scores.view(-1, max_num_tokens ** 2), axis=-1)[0]
+            noncat_slot_p = max_span_p
+
+            span_start_index = torch.div(max_span_index, max_num_tokens)
+            span_end_index = torch.fmod(max_span_index, max_num_tokens)
+
+            noncat_slot_start = span_start_index
+            noncat_slot_end = span_end_index
+
+            # Add inverse alignments.
+            noncat_alignment_start = start_char_idx
+            noncat_alignment_end = end_char_idx
+
+            in_domain_services = get_in_domain_services(
+                os.path.join(self._cfg.dataset.data_dir, eval_dataset, "schema.json"),
+                self.dialogues_processor.get_seen_services("train"),
+            )
+            ##############
+            # we'll write predictions to file in Dstc8/SGD format during evaluation callback
+            prediction_dir = 'pred_dir'
+            prediction_dir = os.path.join(
+                prediction_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, self._cfg.dataset.task_name)
+            )
+            os.makedirs(prediction_dir, exist_ok=True)
+
+            input_json_files = SGDDataProcessor.get_dialogue_files(
+                self._cfg.dataset.data_dir, eval_dataset, self._cfg.dataset.task_name
             )
 
-        logging.info(f"{prefix} exact match {exact_match}")
-        logging.info(f"{prefix} f1 {f1}")
-
-        self.log(f'{prefix}_loss', avg_loss)
-        self.log(f'{prefix}_exact_match', exact_match)
-        self.log(f'{prefix}_f1', f1)
+            pred_utils.write_predictions_to_file(
+                global_vars['predictions'],
+                input_json_files,
+                prediction_dir,
+                schemas=self.schemas,
+                state_tracker='nemotracker',
+                eval_debug=False,
+                in_domain_services=in_domain_services,
+                cat_value_thresh=0.0,
+                non_cat_value_thresh=0.0,
+                probavg=False,
+            )
+            metrics = evaluate(
+                prediction_dir,
+                self._cfg.dataset.data_dir,
+                eval_dataset,
+                in_domain_services,
+                joint_acc_across_turn=False,
+                no_fuzzy_match=False,
+            )
 
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
 
@@ -342,13 +432,13 @@ class SGDQAModel(NLPModel):
         all_schema_json_paths = []
         for dataset_split in ['train', 'test', 'dev']:
             all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
-        schemas = Schema(all_schema_json_paths)
+        self.schemas = Schema(all_schema_json_paths)
         self.dialogues_processor = SGDDataProcessor(
             task_name=self._cfg.dataset.task_name,
             data_dir=self._cfg.dataset.data_dir,
             dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
             tokenizer=self.tokenizer,
-            schemas=schemas,
+            schemas=self.schemas,
             schema_config=schema_config,
             subsample=self._cfg.dataset.subsample,
             overwrite_dial_files=not self._cfg.dataset.use_cache,

@@ -27,7 +27,7 @@ import json
 
 import numpy as np
 
-import nemo.collections.nlp.data.datasets.sgd_dataset.metrics as metrics
+import nemo.collections.nlp.data.dialogue_state_tracking_sgd.metrics as metrics
 from nemo.utils import logging
 
 __all__ = [
