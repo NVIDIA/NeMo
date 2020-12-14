@@ -45,8 +45,8 @@ class SGDDataset(Dataset):
             "service_id": NeuralType(('B'), ChannelType()),
             "is_real_example": NeuralType(('B'), ChannelType()),
             "utterance_ids": NeuralType(('B', 'T'), ChannelType()),
-            "utterance_segment": NeuralType(('B', 'T'), ChannelType()),
-            "utterance_mask": NeuralType(('B', 'T'), ChannelType()),
+            "token_type_ids": NeuralType(('B', 'T'), ChannelType()),  # utterance segment
+            "attention_mask": NeuralType(('B', 'T'), ChannelType()),  # utterance mask
             "intent_status": NeuralType(('B'), LabelsType()),
             "requested_slot_status": NeuralType(('B'), LabelsType()),
             "categorical_slot_status": NeuralType(('B'), LabelsType()),

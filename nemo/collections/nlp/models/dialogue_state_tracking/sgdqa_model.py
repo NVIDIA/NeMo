@@ -25,19 +25,18 @@ from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data import SGDDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd import Schema, SGDDataProcessor
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['SGDQAModel']
 
 
-class SGDQAModel(NLPModel, Exportable):
+class SGDQAModel(NLPModel):
     """Dialogue State Tracking Model SGD-QA"""
 
     @property
@@ -46,7 +45,7 @@ class SGDQAModel(NLPModel, Exportable):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
+        return self.decoder.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
@@ -59,19 +58,69 @@ class SGDQAModel(NLPModel, Exportable):
             checkpoint_file=cfg.language_model.lm_checkpoint,
         )
 
-        # self.encoder = SGDEncoder(hidden_size=self.bert_model.config.hidden_size, dropout=self._cfg.encoder.dropout)
-        # self.decoder = SGDDecoder(embedding_dim=self.bert_model.config.hidden_size)
+        self.encoder = SGDEncoder(hidden_size=self.bert_model.config.hidden_size, dropout=self._cfg.encoder.dropout)
+        self.decoder = SGDDecoder(embedding_dim=self.bert_model.config.hidden_size)
         # self.loss = SGDDialogueStateLoss(reduction="mean")
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        pass
+        token_embeddings = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
+        encoded_utterance, token_embeddings = self.encoder(hidden_states=token_embeddings)
+        (
+            logit_intent_status,
+            logit_req_slot_status,
+            logit_cat_slot_status,
+            logit_cat_slot_value_status,
+            logit_noncat_slot_status,
+            logit_noncat_slot_start,
+            logit_noncat_slot_end,
+        ) = self.decoder(
+            encoded_utterance=encoded_utterance, token_embeddings=token_embeddings, utterance_mask=attention_mask
+        )
+        return (
+            logit_intent_status,
+            logit_req_slot_status,
+            logit_cat_slot_status,
+            logit_cat_slot_value_status,
+            logit_noncat_slot_status,
+            logit_noncat_slot_start,
+            logit_noncat_slot_end,
+        )
 
     def training_step(self, batch, batch_idx):
         """
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
         """
+        (
+            example_id_num,
+            service_id,
+            is_real_example,
+            utterance_ids,
+            token_type_ids,
+            attention_mask,
+            intent_status,
+            requested_slot_status,
+            categorical_slot_status,
+            categorical_slot_value_status,
+            noncategorical_slot_status,
+            noncategorical_slot_value_start,
+            noncategorical_slot_value_end,
+            start_char_idx,
+            end_char_idx,
+            task_mask,
+        ) = batch
+        (
+            logit_intent_status,
+            logit_req_slot_status,
+            logit_cat_slot_status,
+            logit_cat_slot_value_status,
+            logit_noncat_slot_status,
+            logit_noncat_slot_start,
+            logit_noncat_slot_end,
+        ) = self(input_ids=utterance_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
         import ipdb
 
         ipdb.set_trace()
