@@ -58,3 +58,33 @@ class TestMegatron(TestCase):
             modelX = onnx.load(tmp_file_name)
             with open(tmp_file_name + '.txt', 'w') as o:
                 o.write('Model :\n\n{}'.format(onnx.helper.printable_graph(modelX.graph)))
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_get_pretrained_biomegatron_bert_345m_uncased_model(self):
+        model_name = "biomegatron-bert-345m-uncased"
+        model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
+        if torch.cuda.is_available():
+            model = model.cuda()
+
+        assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_get_pretrained_biomegatron_bert_345m_cased_model(self):
+        model_name = "biomegatron-bert-345m-cased"
+        model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
+        if torch.cuda.is_available():
+            model = model.cuda()
+
+        assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_get_pretrained_megatron_bert_345m_cased_model(self):
+        model_name = "megatron-bert-345m-cased"
+        model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
+        if torch.cuda.is_available():
+            model = model.cuda()
+
+        assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)

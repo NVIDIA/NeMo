@@ -14,7 +14,7 @@
 
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import onnx
 import torch
@@ -32,7 +32,6 @@ from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing impo
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
