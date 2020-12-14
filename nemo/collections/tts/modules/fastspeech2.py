@@ -91,7 +91,15 @@ class Encoder(NeuralModule):
 @experimental
 class VarianceAdaptor(NeuralModule):
     def __init__(
-        self, max_duration=100, log_pitch=True, pitch_min=80.0, pitch_max=800.0, energy_min=0.0, energy_max=600.0
+        self,
+        pitch=True,
+        energy=True,
+        max_duration=100,
+        log_pitch=True,
+        pitch_min=80.0,
+        pitch_max=800.0,
+        energy_min=0.0,
+        energy_max=600.0,
     ):
         """
         FastSpeech 2 variance adaptor, which adds information like duration, pitch, etc. to the phoneme encoding.
@@ -111,32 +119,39 @@ class VarianceAdaptor(NeuralModule):
         self.max_duration = max_duration
         self.duration_predictor = VariancePredictor(d_model=256, d_inner=256, kernel_size=3, dropout=0.5)
         self.length_regulator = LengthRegulator()
+        self.pitch = pitch
+        self.energy = energy
 
-        if log_pitch:
-            pitch_min = np.log(pitch_min)
-            pitch_max = np.log(pitch_max)
-        pitch_operator = torch.exp if log_pitch else lambda x: x
-        pitch_bins = pitch_operator(torch.linspace(start=pitch_min, end=pitch_max, steps=255))
-        # Prepend 0 for unvoiced frames
-        pitch_bins = torch.cat((torch.tensor([0.0]), pitch_bins))
+        if self.pitch:
+            if log_pitch:
+                pitch_min = np.log(pitch_min)
+                pitch_max = np.log(pitch_max)
+            pitch_operator = torch.exp if log_pitch else lambda x: x
+            pitch_bins = pitch_operator(torch.linspace(start=pitch_min, end=pitch_max, steps=255))
+            # Prepend 0 for unvoiced frames
+            pitch_bins = torch.cat((torch.tensor([0.0]), pitch_bins))
 
-        # -- Pitch Setup --
-        # NOTE: Pitch is clamped to 1e-5 which gets mapped to bin 1. But it is padded with 0s that get mapped to bin 0.
-        self.register_buffer("pitch_bins", pitch_bins)
-        self.pitch_predictor = VariancePredictor(
-            d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size  # n_f0_bins
-        )
-        # Predictor outputs values directly rather than one-hot vectors, therefore Embedding
-        self.pitch_lookup = nn.Embedding(256, 256)  # f0_bins, va_hidden_size
+            # -- Pitch Setup --
+            # NOTE: Pitch is clamped to 1e-5 which gets mapped to bin 1. But it is padded with 0s that get mapped to bin 0.
+            self.register_buffer("pitch_bins", pitch_bins)
+            self.pitch_predictor = VariancePredictor(
+                d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size  # n_f0_bins
+            )
+            # Predictor outputs values directly rather than one-hot vectors, therefore Embedding
+            self.pitch_lookup = nn.Embedding(256, 256)  # f0_bins, va_hidden_size
 
-        # -- Energy Setup --
-        self.register_buffer(  # Linear scale bins
-            "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=255)  # n_energy_bins - 1
-        )
-        self.energy_predictor = VariancePredictor(
-            d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size, n_energy_bins, kernel size, dropout
-        )
-        self.energy_lookup = nn.Embedding(256, 256)  # n_energy_bins, va_hidden_size
+        if self.energy:
+            # -- Energy Setup --
+            self.register_buffer(  # Linear scale bins
+                "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=255)  # n_energy_bins - 1
+            )
+            self.energy_predictor = VariancePredictor(
+                d_model=256,
+                d_inner=256,
+                kernel_size=3,
+                dropout=0.5,  # va_hidden_size, n_energy_bins, kernel size, dropout
+            )
+            self.energy_lookup = nn.Embedding(256, 256)  # n_energy_bins, va_hidden_size
 
     @property
     def input_types(self):
@@ -173,24 +188,30 @@ class VarianceAdaptor(NeuralModule):
                 logging.error("Duration prediction failed on this batch. Settings to 1s")
                 dur_preds += 1
             dur_out = self.length_regulator(x, dur_preds)
+        out = dur_out
 
-        # Pitch
-        # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
-        #       (see Appendix C of the FastSpeech 2/2s paper).
-        pitch_preds = self.pitch_predictor(dur_out.transpose(1, 2))
-        if self.training:
-            pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
-        else:
-            pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
+        pitch_preds = None
+        if self.pitch:
+            # Pitch
+            # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
+            #       (see Appendix C of the FastSpeech 2/2s paper).
+            pitch_preds = self.pitch_predictor(dur_out.transpose(1, 2))
+            if self.training:
+                pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
+            else:
+                pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
+            out += pitch_out
 
-        # Energy
-        energy_preds = self.energy_predictor(dur_out.transpose(1, 2))
-        if self.training:
-            energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
-        else:
-            energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
+        energy_preds = None
+        if self.energy:
+            # Energy
+            energy_preds = self.energy_predictor(dur_out.transpose(1, 2))
+            if self.training:
+                energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
+            else:
+                energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
+            out += energy_out
 
-        out = dur_out + pitch_out + energy_out
         return out, dur_preds, pitch_preds, energy_preds
 
 

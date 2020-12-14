@@ -68,12 +68,17 @@ class FastSpeech2Model(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
+        self.energy = cfg.add_energy_predictor
+        self.pitch = cfg.add_pitch_predictor
+
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.encoder = Encoder()
-        self.variance_adapter = VarianceAdaptor()
+        self.variance_adapter = VarianceAdaptor(pitch=self.pitch, energy=self.energy)
         self.mel_decoder = MelSpecDecoder()
         self.loss = L2MelLoss()
         self.mseloss = torch.nn.MSELoss()
+
+        self.log_train_images = False
 
     # @property
     # def input_types(self):
@@ -104,16 +109,41 @@ class FastSpeech2Model(SpectrogramGenerator):
             spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies
         )
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
-        dur_loss = self.mseloss(dur_preds, durations.float())
-        pitch_loss = self.mseloss(pitch_preds, pitch)
-        energy_loss = self.mseloss(energy_preds, energies)
-        total_loss = loss + dur_loss + pitch_loss + energy_loss
         self.log(name="train_mel_loss", value=loss)
+        dur_loss = self.mseloss(dur_preds, durations.float())
         self.log(name="train_dur_loss", value=dur_loss)
-        self.log(name="train_pitch_loss", value=pitch_loss)
-        self.log(name="train_energy_loss", value=energy_loss)
+        total_loss = loss + dur_loss
+        if self.pitch:
+            pitch_loss = self.mseloss(pitch_preds, pitch)
+            total_loss += pitch_loss
+            self.log(name="train_pitch_loss", value=pitch_loss)
+        if self.energy:
+            energy_loss = self.mseloss(energy_preds, energies)
+            total_loss += energy_loss
+            self.log(name="train_energy_loss", value=energy_loss)
         self.log(name="train_loss", value=total_loss)
-        return total_loss
+        return {"loss": total_loss, "outputs": [spec, mel]}
+
+    def training_epoch_end(self, training_step_outputs):
+        if self.log_train_images and self.logger is not None and self.logger.experiment is not None:
+            tb_logger = self.logger.experiment
+            if isinstance(self.logger, LoggerCollection):
+                for logger in self.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
+            spec_target, spec_predict = training_step_outputs[0]["outputs"]
+            tb_logger.add_image(
+                "train_mel_target",
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            spec_predict = spec_predict[0].data.cpu().numpy()
+            tb_logger.add_image(
+                "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
+            )
+            self.log_train_images = False
 
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, durations = batch
@@ -147,6 +177,8 @@ class FastSpeech2Model(SpectrogramGenerator):
             )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss, sync_dist=True)
+
+        self.log_train_images = True
 
     # @typecheck(
     #     input_types={"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())},
