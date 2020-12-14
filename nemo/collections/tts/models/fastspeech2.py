@@ -141,11 +141,9 @@ class FastSpeech2Model(SpectrogramGenerator):
                 self.global_step,
                 dataformats="HWC",
             )
+            spec_predict = spec_predict[0].data.cpu().numpy()
             tb_logger.add_image(
-                "val_mel_predicted",
-                plot_spectrogram_to_numpy(spec_predict[0].data.cpu().numpy()),
-                self.global_step,
-                dataformats="HWC",
+                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
             )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss, sync_dist=True)
