@@ -153,11 +153,68 @@ class SGDQAModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        # input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
-        # logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-        val_loss = 0
+        prefix = 'val'
+        (
+            example_id_num,
+            service_id,
+            is_real_example,
+            utterance_ids,
+            token_type_ids,
+            attention_mask,
+            intent_status,
+            requested_slot_status,
+            categorical_slot_status,
+            categorical_slot_value_status,
+            noncategorical_slot_status,
+            noncategorical_slot_value_start,
+            noncategorical_slot_value_end,
+            start_char_idx,
+            end_char_idx,
+            task_mask,
+        ) = batch
+        (
+            logit_intent_status,
+            logit_req_slot_status,
+            logit_cat_slot_status,
+            logit_cat_slot_value_status,
+            logit_noncat_slot_status,
+            logit_noncat_slot_start,
+            logit_noncat_slot_end,
+        ) = self(input_ids=utterance_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+        loss = self.loss(
+            logit_intent_status=logit_intent_status,
+            intent_status=intent_status,
+            logit_req_slot_status=logit_req_slot_status,
+            requested_slot_status=requested_slot_status,
+            logit_cat_slot_status=logit_cat_slot_status,
+            categorical_slot_status=categorical_slot_status,
+            logit_cat_slot_value_status=logit_cat_slot_value_status,
+            categorical_slot_value_status=categorical_slot_value_status,
+            logit_noncat_slot_status=logit_noncat_slot_status,
+            noncategorical_slot_status=noncategorical_slot_status,
+            logit_noncat_slot_start=logit_noncat_slot_start,
+            logit_noncat_slot_end=logit_noncat_slot_end,
+            noncategorical_slot_value_start=noncategorical_slot_value_start,
+            noncategorical_slot_value_end=noncategorical_slot_value_end,
+            task_mask=task_mask,
+        )
 
-        return {'val_loss': val_loss}
+        tensors = {
+            'example_id_num': example_id_num,
+            'service_id': service_id,
+            'is_real_example': is_real_example,
+            'logit_intent_status': logit_intent_status,
+            'logit_req_slot_status': logit_req_slot_status,
+            'logit_cat_slot_status': logit_cat_slot_status,
+            'logit_cat_slot_value_status': logit_cat_slot_value_status,
+            'logit_noncat_slot_status': logit_noncat_slot_status,
+            'logit_noncat_slot_start': logit_noncat_slot_start,
+            'logit_noncat_slot_end': logit_noncat_slot_end,
+            'start_char_idx': start_char_idx,
+            'end_char_idx': end_char_idx,
+        }
+        self.log(f'{prefix}_loss', loss)
+        return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
 
     def validation_epoch_end(self, outputs):
         """
