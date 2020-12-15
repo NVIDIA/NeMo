@@ -11,17 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import math
 from typing import Dict, List, Optional
 
+import braceexpand
 import torch
+import webdataset as wd
 
 from nemo.collections.asr.parts import collections
-from nemo.core.classes import Dataset
+from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
-__all__ = ['AudioToSpeechLabelDataSet']
+__all__ = [
+    'AudioToSpeechLabelDataSet',
+    'TarredAudioToSpeechLabelDataSet']
 
 
 class AudioToSpeechLabelDataSet(Dataset):
@@ -56,7 +61,8 @@ target_label_n, "offset": offset_in_sec_n}
             Defaults to True.
         time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task 
         shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
-        normalize_audio (float): todo
+        normalize_audio (bool): Whether to normalize audio signal. 
+            Defaults to False.
         
     """
 
@@ -267,7 +273,10 @@ target_label_n, "offset": offset_in_sec_n}
                 offset = 0
 
             features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim
+                sample.audio_file, 
+                offset=offset, 
+                duration=sample.duration, 
+                trim=self.trim
             )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
@@ -291,3 +300,390 @@ def repeat_signal(signal, sig_len, required_length):
 def normalize(signal):
     signal_minusmean = signal - signal.mean()
     return signal_minusmean / signal_minusmean.abs().max()
+
+
+class TarredAudioToSpeechLabelDataSet(IterableDataset):
+    """
+    A similar Dataset to the AudioToSpeechLabelDataSet, but which loads tarred audio files.
+
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToSpeechLabelDataSet),
+    as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
+    contain the information for one audio file, including at least the label and name of the audio
+    file within the tarball.
+
+    Valid formats for the audio_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
+
+    Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
+    This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
+    Supported opening braces - { <=> (, [, < and the special tag _OP_.
+    Supported closing braces - } <=> ), ], > and the special tag _CL_.
+    For SLURM based tasks, we suggest the use of the special tags for ease of use.
+
+    See the WebDataset documentation for more information about accepted data and input formats.
+
+    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    even split among workers. If it is not divisible, logging will give a warning but training will proceed.
+    In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
+    is applied. We currently do not check for this, but your program may hang if the shards are uneven!
+
+    Notice that a few arguments are different from the AudioToCharDataset; for example, shuffle (bool) has been
+    replaced by shuffle_n (int).
+
+    Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
+    after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
+   
+    Args:
+    audio_tar_filepaths: Either a list of audio tarball filepaths, or a
+        string (can be brace-expandable).
+    manifest_filepath (str): Path to the manifest.
+    labels (list): Dataset parameter.
+        List of target classes that can be output by the speaker recognition model.
+    min_duration (float): Dataset parameter.
+        All training files which have a duration less than min_duration
+        are dropped. Note: Duration is read from the manifest JSON.
+        Defaults to 0.1.
+    max_duration (float): Dataset parameter.
+        All training files which have a duration more than max_duration
+        are dropped. Note: Duration is read from the manifest JSON.
+        Defaults to None.
+    trim_silence (bool): Whether to use trim silence from beginning and end
+        of audio signal using librosa.effects.trim().
+        Defaults to False.
+    load_audio (bool): Dataset parameter.
+        Controls whether the dataloader loads the audio signal and
+        transcript or just the transcript.
+        Defaults to True.
+    time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task 
+    shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
+    normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
+    shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+        -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
+            a unique set of shards, which are permanently pre-allocated and never changed at runtime.
+        -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
+            available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
+            The benefit of replication is that it allows each node to sample data points from the entire
+            dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+
+            Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
+            and therefore more than one node may sample the same tarfile, and even sample the same
+            data points! As such, there is no assured guarantee that all samples in the dataset will be
+            sampled at least once during 1 epoch.
+    global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+    world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+    """
+
+    def __init__(
+        self,
+        *,
+        audio_tar_filepaths: Union[str, List[str]],
+        manifest_filepath: str,
+        labels: List[str],
+        featurizer,
+        min_duration: Optional[float] = 0.1,
+        max_duration: Optional[float] = None,
+        trim: bool = False,
+        load_audio: bool = True,
+        time_length: Optional[float] = 8,
+        shift_length: Optional[float] = 1,
+        normalize_audio: bool = False,
+        shard_strategy: str = "scatter",
+        global_rank: int = 0,
+        world_size: int = 0,
+    ):
+        self.collection = collections.ASRSpeechLabel(
+            manifests_files=manifest_filepath.split(','), 
+            min_duration=min_duration, 
+            max_duration=max_duration,
+            index_by_file_id=True
+        )
+
+        self.featurizer = featurizer
+        self.trim = trim
+        self.load_audio = load_audio
+        self.time_length = time_length
+        self.shift_length = shift_length
+        self.normalize_audio = normalize_audio
+
+        logging.info("Time length considered for collate func is {}".format(time_length))
+        logging.info("Shift length considered for collate func is {}".format(shift_length))
+
+        self.labels = labels if labels else self.collection.uniq_labels
+        self.num_classes = len(self.labels)
+
+        self.label2id, self.id2label = {}, {}
+        for label_id, label in enumerate(self.labels):
+            self.label2id[label] = label_id
+            self.id2label[label_id] = label
+
+        for idx in range(len(self.labels[:5])):
+            logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+
+        valid_shard_strategies = ['scatter', 'replicate']
+        if shard_strategy not in valid_shard_strategies:
+            raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
+
+
+        if isinstance(audio_tar_filepaths, str):
+            # Replace '(' and '[' with '{'
+            brace_keys_open = ['(', '[', '<', '_OP_']
+            for bkey in brace_keys_open:
+                if bkey in audio_tar_filepaths:
+                    audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "{")
+
+            # Replace ')' and ']' with '}'
+            brace_keys_close = [')', ']', '>', '_CL_']
+            for bkey in brace_keys_close:
+                if bkey in audio_tar_filepaths:
+                    audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "}")
+
+        # Check for distributed and partition shards accordingly
+        if world_size > 1:
+            if isinstance(audio_tar_filepaths, str):
+                # Brace expand
+                audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
+
+            if shard_strategy == 'scatter':
+                logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
+
+                if len(audio_tar_filepaths) % world_size != 0:
+                    logging.warning(
+                        f"Number of shards in tarred dataset ({len(audio_tar_filepaths)}) is not divisible "
+                        f"by number of distributed workers ({world_size})."
+                    )
+
+                begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
+                end_idx = begin_idx + (len(audio_tar_filepaths) // world_size)
+                audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
+                logging.info(
+                    "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
+                )
+
+            elif shard_strategy == 'replicate':
+                logging.info("All tarred dataset shards will be replicated across all nodes.")
+
+            else:
+                raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
+
+        # Put together WebDataset
+        self._dataset = (
+            wd.Dataset(audio_tar_filepaths)
+            .shuffle(shuffle_n)
+            .rename(audio='wav', key='__key__')
+            .to_tuple('audio', 'key')
+            .pipe(self._filter)
+            .map(f=self._build_sample)
+        )
+
+     def _filter(self, iterator):
+        """This function is used to remove samples that have been filtered out by ASRSpeechLabel already.
+        Otherwise, we would get a KeyError as _build_sample attempts to find the manifest entry for a sample
+        that was filtered out (e.g. for duration).
+        Note that if using multi-GPU training, filtering may lead to an imbalance in samples in each shard,
+        which may make your code hang as one process will finish before the other.
+        """
+
+        class TarredAudioFilter:
+            def __init__(self, collection):
+                self.iterator = iterator
+                self.collection = collection
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                while True:
+                    audio_bytes, audio_filename = next(self.iterator)
+                    file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+                    if file_id in self.collection.mapping:
+                        return audio_bytes, audio_filename
+
+        return TarredAudioFilter(self.collection)
+
+    def fixed_seq_collate_fn(self, batch):
+        """collate batch of audio sig, audio len, tokens, tokens len
+        Args:
+            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+                LongTensor):  A tuple of tuples of signal, signal lengths,
+                encoded tokens, and encoded tokens length.  This collate func
+                assumes the signals are 1d torch tensors (i.e. mono audio).
+        """
+        fixed_length = self.featurizer.sample_rate * self.time_length
+        _, audio_lengths, _, tokens_lengths = zip(*batch)
+
+        has_audio = audio_lengths[0] is not None
+        fixed_length = int(min(fixed_length, max(audio_lengths)))
+
+        audio_signal, tokens, new_audio_lengths = [], [], []
+        for sig, sig_len, tokens_i, _ in batch:
+            if has_audio:
+                sig_len = sig_len.item()
+                chunck_len = sig_len - fixed_length
+
+                if chunck_len < 0:
+                    repeat = fixed_length // sig_len
+                    rem = fixed_length % sig_len
+                    sub = sig[-rem:] if rem > 0 else torch.tensor([])
+                    rep_sig = torch.cat(repeat * [sig])
+                    signal = torch.cat((rep_sig, sub))
+                    new_audio_lengths.append(torch.tensor(fixed_length))
+                else:
+                    start_idx = torch.randint(0, chunck_len, (1,)) if chunck_len else torch.tensor(0)
+                    end_idx = start_idx + fixed_length
+                    signal = sig[start_idx:end_idx]
+                    new_audio_lengths.append(torch.tensor(fixed_length))
+
+                audio_signal.append(signal)
+            tokens.append(tokens_i)
+
+        if has_audio:
+            audio_signal = torch.stack(audio_signal)
+            audio_lengths = torch.stack(new_audio_lengths)
+        else:
+            audio_signal, audio_lengths = None, None
+        tokens = torch.stack(tokens)
+        tokens_lengths = torch.stack(tokens_lengths)
+
+        return audio_signal, audio_lengths, tokens, tokens_lengths
+
+    def sliced_seq_collate_fn(self, batch):
+        """collate batch of audio sig, audio len, tokens, tokens len
+        Args:
+            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+                LongTensor):  A tuple of tuples of signal, signal lengths,
+                encoded tokens, and encoded tokens length.  This collate func
+                assumes the signals are 1d torch tensors (i.e. mono audio).
+        """
+        slice_length = self.featurizer.sample_rate * self.time_length
+        _, audio_lengths, _, tokens_lengths = zip(*batch)
+        shift = self.shift_length * self.featurizer.sample_rate
+        has_audio = audio_lengths[0] is not None
+
+        audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
+        for sig, sig_len, tokens_i, _ in batch:
+            if has_audio:
+                sig_len = sig_len.item()
+                dur = sig_len / self.featurizer.sample_rate
+                base = math.ceil((dur - self.time_length) / self.shift_length)
+                slice_length = int(slice_length)
+                shift = int(shift)
+                slices = 1 if base < 0 else base + 1
+                for slice_id in range(slices):
+                    start_idx = slice_id * shift
+                    end_idx = start_idx + slice_length
+                    signal = sig[start_idx:end_idx]
+                    if len(signal) < slice_length:
+                        signal = repeat_signal(signal, len(signal), slice_length)
+                    audio_signal.append(signal)
+
+                num_slices.append(slices)
+                tokens.extend([tokens_i] * slices)
+                audio_lengths.extend([slice_length] * slices)
+
+        if has_audio:
+            audio_signal = torch.stack(audio_signal)
+            audio_lengths = torch.tensor(audio_lengths)
+        else:
+            audio_signal, audio_lengths = None, None
+        tokens = torch.stack(tokens)
+        tokens_lengths = torch.tensor(num_slices)  # each embedding length
+
+        return audio_signal, audio_lengths, tokens, tokens_lengths
+
+    def vad_frame_seq_collate_fn(self, batch):
+        """collate batch of audio sig, audio len, tokens, tokens len
+        Args:
+            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+                LongTensor):  A tuple of tuples of signal, signal lengths,
+                encoded tokens, and encoded tokens length.  This collate func
+                assumes the signals are 1d torch tensors (i.e. mono audio).
+                batch size equals to 1.      
+        """
+        slice_length = int(self.featurizer.sample_rate * self.time_length)
+        _, audio_lengths, _, tokens_lengths = zip(*batch)
+        slice_length = min(slice_length, max(audio_lengths))
+        shift = int(self.featurizer.sample_rate * self.shift_length)
+        has_audio = audio_lengths[0] is not None
+
+        audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
+
+        append_len_start = slice_length // 2
+        append_len_end = slice_length - slice_length // 2
+        for sig, sig_len, tokens_i, _ in batch:
+            if self.normalize_audio:
+                sig = normalize(sig)
+            start = torch.zeros(append_len_start)
+            end = torch.zeros(append_len_end)
+            sig = torch.cat((start, sig, end))
+            sig_len += slice_length
+
+            if has_audio:
+                slices = (sig_len - slice_length) // shift
+                for slice_id in range(slices):
+                    start_idx = slice_id * shift
+                    end_idx = start_idx + slice_length
+                    signal = sig[start_idx:end_idx]
+                    audio_signal.append(signal)
+
+                num_slices.append(slices)
+                tokens.extend([tokens_i] * slices)
+                audio_lengths.extend([slice_length] * slices)
+
+        if has_audio:
+            audio_signal = torch.stack(audio_signal)
+            audio_lengths = torch.tensor(audio_lengths)
+        else:
+            audio_signal, audio_lengths = None, None
+
+        tokens = torch.stack(tokens)
+        tokens_lengths = torch.tensor(num_slices)
+        return audio_signal, audio_lengths, tokens, tokens_lengths
+
+
+## todo group collate_fn
+    def _build_sample(self, tup):
+        """Builds the training sample by combining the data from the WebDataset with the manifest info.
+        """
+        audio_bytes, audio_filename = tup
+
+        # Grab manifest entry from self.collection
+        file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+        manifest_idx = self.collection.mapping[file_id]
+        manifest_entry = self.collection[manifest_idx]
+
+        offset = manifest_entry.offset
+        if offset is None:
+            offset = 0
+
+        # Convert audio bytes to IO stream for processing (for SoundFile to read)
+        audio_filestream = io.BytesIO(audio_bytes)
+        features = self.featurizer.process(
+            audio_filestream,
+            offset=offset,
+            duration=manifest_entry.duration,
+            trim=self.trim,
+            #orig_sr=manifest_entry.orig_sr,
+        )
+
+        audio_filestream.close()
+
+        # Audio features
+        f, fl = features, torch.tensor(features.shape[0]).long()
+
+        # Text features
+        t, tl = manifest_entry.text_tokens, len(manifest_entry.text_tokens)
+        if self.bos_id is not None:
+            t = [self.bos_id] + t
+            tl += 1
+        if self.eos_id is not None:
+            t = t + [self.eos_id]
+            tl += 1
+
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+    def __iter__(self):
+        return self._dataset.__iter__()
+
+    def __len__(self):
+        return len(self.collection)
