@@ -28,7 +28,7 @@ from nemo.collections.asr.modules.wav2vec_modules import (
     GumbelVectorQuantizer,
     compute_mask_indices,
 )
-from nemo.collections.asr.parts.wav2vec import ConvFeatureEncoder, Wav2VecTransformerEncoder
+from nemo.collections.asr.parts.wav2vec import ConvFeatureEncoder, Wav2VecTransformerEncoder, GradMultiply
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import NeuralType, AudioSignal, MaskType, EncodedRepresentation, LossType
 from nemo.core.neural_types.elements import BoolType, FloatType
@@ -44,18 +44,6 @@ def buffered_arange(max):
         buffered_arange.buf.resize_(max)
         torch.arange(max, out=buffered_arange.buf)
     return buffered_arange.buf[:max]
-
-
-class GradMultiply(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, scale):
-        ctx.scale = scale
-        res = x.new(x)
-        return res
-
-    @staticmethod
-    def backward(ctx, grad):
-        return grad * ctx.scale, None
 
 
 class Wav2VecEncoderModel(Wav2VecBase):
@@ -185,102 +173,9 @@ class Wav2VecEncoderModel(Wav2VecBase):
         )
         return loss, feature_loss, prob_ppl_loss
 
-    def _create_padding_mask(self, audio_lengths):
-        # Broadcast to vectorize creating the padding mask
-        max_len = max(audio_lengths)
-        padding_mask = torch.arange(max_len, device=self.device)
-        padding_mask = padding_mask.expand(len(audio_lengths), max_len) < audio_lengths.unsqueeze(1)
-        # Negate to false where no padding
-        padding_mask = ~padding_mask
-        return padding_mask
-
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         return None
-
-    def _update_quantizer_temp(self):
-        if self.quantizer:
-            self.quantizer.set_num_updates(self.trainer.global_step)
-        if self.input_quantizer:
-            self.input_quantizer.set_num_updates(self.trainer.global_step)
-
-    def apply_mask(self, x, padding_mask):
-        B, T, C = x.shape
-        if self.mask_cfg.mask_prob > 0:
-            mask_indices = compute_mask_indices(
-                (B, T),
-                padding_mask,
-                self.mask_cfg.mask_prob,
-                self.mask_cfg.mask_length,
-                self.mask_cfg.mask_type,
-                self.mask_cfg.mask_other,
-                min_masks=2,
-                no_overlap=self.mask_cfg.no_mask_overlap,
-                min_space=self.mask_cfg.mask_min_space,
-            )
-            mask_indices = torch.from_numpy(mask_indices).to(x.device)
-            mask_emb = self.mask_emb.type_as(x)
-            x[mask_indices] = mask_emb
-        else:
-            mask_indices = None
-
-        if self.mask_cfg.mask_channel_prob > 0:
-            mask_channel_indices = compute_mask_indices(
-                (B, C),
-                None,
-                self.mask_cfg.mask_channel_prob,
-                self.mask_cfg.mask_channel_length,
-                self.mask_cfg.mask_channel_type,
-                self.mask_cfg.mask_channel_other,
-                no_overlap=self.mask_cfg.no_mask_channel_overlap,
-                min_space=self.mask_cfg.mask_channel_min_space,
-            )
-            mask_channel_indices = torch.from_numpy(mask_channel_indices).to(x.device).unsqueeze(1).expand(-1, T, -1)
-            x[mask_channel_indices] = 0
-
-        return x, mask_indices
-
-    def sample_negatives(self, y, num):
-
-        if self.n_negatives == 0 and self.cross_sample_negatives == 0:
-            return y.new(0)
-
-        bsz, tsz, fsz = y.shape
-        y = y.view(-1, fsz)  # BTC => (BxT)C
-
-        cross_high = tsz * bsz
-        high = tsz
-        with torch.no_grad():
-            assert high > 1, f"{bsz, tsz, fsz}"
-
-            if self.n_negatives > 0:
-                tszs = buffered_arange(num).unsqueeze(-1).expand(-1, self.n_negatives).flatten()
-
-                neg_idxs = torch.randint(low=0, high=high - 1, size=(bsz, self.n_negatives * num))
-                neg_idxs[neg_idxs >= tszs] += 1
-
-            if self.cross_sample_negatives > 0:
-                tszs = buffered_arange(num).unsqueeze(-1).expand(-1, self.cross_sample_negatives).flatten()
-
-                cross_neg_idxs = torch.randint(
-                    low=0, high=cross_high - 1, size=(bsz, self.cross_sample_negatives * num),
-                )
-                cross_neg_idxs[cross_neg_idxs >= tszs] += 1
-
-        if self.n_negatives > 0:
-            for i in range(1, bsz):
-                neg_idxs[i] += i * high
-        else:
-            neg_idxs = cross_neg_idxs
-
-        if self.cross_sample_negatives > 0 and self.n_negatives > 0:
-            neg_idxs = torch.cat([neg_idxs, cross_neg_idxs], dim=1)
-
-        negs = y[neg_idxs.view(-1)]
-        negs = negs.view(bsz, num, self.n_negatives + self.cross_sample_negatives, fsz).permute(
-            2, 0, 1, 3
-        )  # to NxBxTxC
-        return negs, neg_idxs
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -399,3 +294,96 @@ class Wav2VecEncoderModel(Wav2VecBase):
         self.project_q = None
         self.target_glu = None
         self.final_proj = None
+
+    def _update_quantizer_temp(self):
+        if self.quantizer:
+            self.quantizer.set_num_updates(self.trainer.global_step)
+        if self.input_quantizer:
+            self.input_quantizer.set_num_updates(self.trainer.global_step)
+
+    def apply_mask(self, x, padding_mask):
+        B, T, C = x.shape
+        if self.mask_cfg.mask_prob > 0:
+            mask_indices = compute_mask_indices(
+                (B, T),
+                padding_mask,
+                self.mask_cfg.mask_prob,
+                self.mask_cfg.mask_length,
+                self.mask_cfg.mask_type,
+                self.mask_cfg.mask_other,
+                min_masks=2,
+                no_overlap=self.mask_cfg.no_mask_overlap,
+                min_space=self.mask_cfg.mask_min_space,
+            )
+            mask_indices = torch.from_numpy(mask_indices).to(x.device)
+            mask_emb = self.mask_emb.type_as(x)
+            x[mask_indices] = mask_emb
+        else:
+            mask_indices = None
+
+        if self.mask_cfg.mask_channel_prob > 0:
+            mask_channel_indices = compute_mask_indices(
+                (B, C),
+                None,
+                self.mask_cfg.mask_channel_prob,
+                self.mask_cfg.mask_channel_length,
+                self.mask_cfg.mask_channel_type,
+                self.mask_cfg.mask_channel_other,
+                no_overlap=self.mask_cfg.no_mask_channel_overlap,
+                min_space=self.mask_cfg.mask_channel_min_space,
+            )
+            mask_channel_indices = torch.from_numpy(mask_channel_indices).to(x.device).unsqueeze(1).expand(-1, T, -1)
+            x[mask_channel_indices] = 0
+
+        return x, mask_indices
+
+    def sample_negatives(self, y, num):
+
+        if self.n_negatives == 0 and self.cross_sample_negatives == 0:
+            return y.new(0)
+
+        bsz, tsz, fsz = y.shape
+        y = y.view(-1, fsz)  # BTC => (BxT)C
+
+        cross_high = tsz * bsz
+        high = tsz
+        with torch.no_grad():
+            assert high > 1, f"{bsz, tsz, fsz}"
+
+            if self.n_negatives > 0:
+                tszs = buffered_arange(num).unsqueeze(-1).expand(-1, self.n_negatives).flatten()
+
+                neg_idxs = torch.randint(low=0, high=high - 1, size=(bsz, self.n_negatives * num))
+                neg_idxs[neg_idxs >= tszs] += 1
+
+            if self.cross_sample_negatives > 0:
+                tszs = buffered_arange(num).unsqueeze(-1).expand(-1, self.cross_sample_negatives).flatten()
+
+                cross_neg_idxs = torch.randint(
+                    low=0, high=cross_high - 1, size=(bsz, self.cross_sample_negatives * num),
+                )
+                cross_neg_idxs[cross_neg_idxs >= tszs] += 1
+
+        if self.n_negatives > 0:
+            for i in range(1, bsz):
+                neg_idxs[i] += i * high
+        else:
+            neg_idxs = cross_neg_idxs
+
+        if self.cross_sample_negatives > 0 and self.n_negatives > 0:
+            neg_idxs = torch.cat([neg_idxs, cross_neg_idxs], dim=1)
+
+        negs = y[neg_idxs.view(-1)]
+        negs = negs.view(bsz, num, self.n_negatives + self.cross_sample_negatives, fsz).permute(
+            2, 0, 1, 3
+        )  # to NxBxTxC
+        return negs, neg_idxs
+
+    def _create_padding_mask(self, audio_lengths):
+        # Broadcast to vectorize creating the padding mask
+        max_len = max(audio_lengths)
+        padding_mask = torch.arange(max_len, device=self.device)
+        padding_mask = padding_mask.expand(len(audio_lengths), max_len) < audio_lengths.unsqueeze(1)
+        # Negate to false where no padding
+        padding_mask = ~padding_mask
+        return padding_mask

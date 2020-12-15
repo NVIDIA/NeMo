@@ -19,6 +19,7 @@
 import math
 from typing import List, Tuple
 
+import torch
 from nemo.collections.asr.models.wav2vec.wav2vec_config import (
     Wav2VecConvExtractorMode,
     Wav2VecTransformerConfig,
@@ -114,7 +115,6 @@ class Wav2VecTransformerEncoder(nn.Module):
 
         self.feature_dropout = nn.Dropout(self.dropout)
 
-
         dropout = 0
         std = math.sqrt((4 * (1.0 - dropout)) / (conv_cfg.conv_pos * self.embedding_dim))
         nn.init.normal_(self.pos_conv.weight, mean=0, std=std)
@@ -168,3 +168,15 @@ class Wav2VecTransformerEncoder(nn.Module):
         x = x.transpose(0, 1)
 
         return x
+
+
+class GradMultiply(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, scale):
+        ctx.scale = scale
+        res = x.new(x)
+        return res
+
+    @staticmethod
+    def backward(ctx, grad):
+        return grad * ctx.scale, None
