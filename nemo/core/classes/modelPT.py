@@ -794,9 +794,13 @@ class ModelPT(LightningModule, Model):
         if lr is not None:
             optimizer_args['lr'] = lr
 
-        if 'var_noise_std' in optimizer_args:
-            self._var_noise_std = optimizer_args.pop('var_noise_std', None)
-            self._var_noise_start = optimizer_args.pop('var_noise_start', 0)
+        if 'var_noise' in optimizer_args:
+            self._var_noise_std = optimizer_args['var_noise'].get('std', None)
+            self._var_noise_start = optimizer_args['var_noise'].get('start_step', 0)
+            optimizer_args.pop('var_noise')
+        else:
+            self._var_noise_std = None
+            self._var_noise_start = 0
 
         # Actually instantiate the optimizer
         if optimizer_cls is not None:

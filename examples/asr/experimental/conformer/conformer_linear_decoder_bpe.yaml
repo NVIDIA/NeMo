@@ -113,8 +113,9 @@ model:
     weight_decay: 0.001
 
     # variational noise added to prevent over-fitting
-    var_noise_std: 0.0 # variance of the Gaussian noise
-    var_noise_start: 0
+    var_noise:
+      std: 0.0 # variance of the Gaussian noise, recommended: 0.075
+      start_step: 0
     # scheduler setup
     sched:
       name: CosineAnnealing
