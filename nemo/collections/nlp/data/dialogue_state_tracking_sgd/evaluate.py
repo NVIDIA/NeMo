@@ -1,6 +1,4 @@
-# =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2019 The Google Research Authors.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 """
 Evaluate predictions JSON file, w.r.t. ground truth file.
@@ -31,15 +28,7 @@ import numpy as np
 import nemo.collections.nlp.data.dialogue_state_tracking_sgd.metrics as metrics
 from nemo.utils import logging
 
-__all__ = [
-    'get_in_domain_services',
-    'get_dataset_as_dict',
-    'ALL_SERVICES',
-    'SEEN_SERVICES',
-    'UNSEEN_SERVICES',
-    'get_metrics',
-    'PER_FRAME_OUTPUT_FILENAME',
-]
+__all__ = ['get_in_domain_services']
 
 ALL_SERVICES = "#ALL_SERVICES"
 SEEN_SERVICES = "#SEEN_SERVICES"

@@ -131,10 +131,6 @@ class SGDQAModel(NLPModel):
         )
 
     def training_step(self, batch, batch_idx):
-        """
-        Lightning calls this inside the training loop with the data from the training dataloader
-        passed in as `batch`.
-        """
         (
             example_id_num,
             service_id,
@@ -190,11 +186,6 @@ class SGDQAModel(NLPModel):
         }
 
     def validation_step(self, batch, batch_idx):
-
-        """
-        Lightning calls this inside the validation loop with the data from the validation dataloader
-        passed in as `batch`.
-        """
         prefix = 'val'
         (
             example_id_num,
@@ -480,13 +471,6 @@ class SGDQAModel(NLPModel):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, split='dev')
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, split: str) -> DataLoader:
-        """
-        Setup dataloader from config
-        Args:
-            cfg: config for the dataloader
-        Return:
-            Pytorch Dataloader
-        """
         dataset_cfg = self._cfg.dataset
         data_dir = dataset_cfg.data_dir
 

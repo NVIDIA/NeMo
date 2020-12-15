@@ -1,6 +1,4 @@
-# =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2019 The Google Research Authors.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 """
 This file contains code artifacts adapted from the original implementation:
@@ -61,7 +58,6 @@ class SGDDataProcessor(object):
         schemas,
         schema_config,
         overwrite_dial_files=False,
-        num2str=False,
         subsample=False,
     ):
         """
@@ -76,7 +72,6 @@ class SGDDataProcessor(object):
         """
         self.data_dir = data_dir
         self.dialogues_examples_dir = dialogues_example_dir
-        self._num2str = num2str
 
         self._task_name = task_name
         # {'MAX_NUM_CAT_SLOT': 6, 'MAX_NUM_NONCAT_SLOT': 12, 'MAX_NUM_VALUE_PER_CAT_SLOT': 12, 'MAX_NUM_INTENT': 4, 'EMBEDDING_DIMENSION': 768, 'MAX_SEQ_LENGTH': 80}
@@ -207,6 +202,9 @@ class SGDDataProcessor(object):
 
         with open(self.slots_relation_file, "rb") as f:
             self.schemas._slots_relation_list = pickle.load(f)
+        import ipdb
+
+        ipdb.set_trace()
         logging.info(
             f"Loaded the slot relation list for value carry-over between services from {self.slots_relation_file}."
         )

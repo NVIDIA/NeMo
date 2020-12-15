@@ -1,6 +1,4 @@
-# =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2019 The Google Research Authors.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 """
 Prediction and evaluation-related utility functions.
@@ -39,7 +36,7 @@ MIN_SLOT_RELATION = 0.1
 # MIN_SLOT_RELATION specifes the minimum number of relations between two slots in the training dialogues to get considered for carry-over
 # MIN_SLOT_RELATION = 25
 
-__all__ = ['get_predicted_dialog', 'write_predictions_to_file']
+__all__ = ['write_predictions_to_file']
 
 
 def get_carryover_value(

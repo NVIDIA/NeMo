@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Config file for text classification with pre-trained BERT models
 
 pretrained_model: null # pretrained QAModel model from list_available_models()
 trainer:
@@ -56,7 +55,7 @@ model:
     state_tracker: nemotracker
     data_dir: ???
     dialogues_example_dir: ???
-    subsample: false # null or 'weighted_loss'. 'weighted_loss' enables the weighted class balancing of the loss, may be used for handling unbalanced classes
+    subsample: false 
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
 
   train_ds:
