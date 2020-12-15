@@ -147,7 +147,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         super().__init__(n_head, n_feat, dropout_rate)
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
-        # these two learnable bias are used in matrix c and matrix d
+        # these two learnable biases are used in matrix c and matrix d
         # as described in https://arxiv.org/abs/1901.02860 Section 3.3
         if pos_bias_u is None or pos_bias_v is None:
             self.pos_bias_u = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
@@ -156,7 +156,6 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             # nn.init.normal_(self.pos_bias_v, 0.0, 0.02)
             nn.init.zeros_(self.pos_bias_u)
             nn.init.zeros_(self.pos_bias_v)
-
         else:
             self.pos_bias_u = pos_bias_u
             self.pos_bias_v = pos_bias_v
