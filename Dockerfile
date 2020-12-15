@@ -80,10 +80,6 @@ RUN git clone https://github.com/NVIDIA/TensorRT.git && \
     cd - && \
     rm -rf TensorRT
 
-# build CTC beam search decoder
-COPY scripts/install_ctc_decoders.sh .
-RUN ./install_ctc_decoders.sh
-
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
 COPY . .
