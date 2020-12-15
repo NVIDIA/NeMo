@@ -48,7 +48,6 @@ try:
 except ImportError:
     _EFF_PRESENT_ = False
 
-
 __all__ = ['ModelPT']
 
 """
@@ -68,7 +67,7 @@ _MODEL_RESTORE_PATH:
     artifact objects.
     If it is an archive file, during restoration, the cwd will be temporarily moved to inside the
     archive itself.
-    
+
 _MODEL_EFF_SAVE:
     A global flag that switches the format of the archive file that will be stored.
     This flag only enables EFF when the package support is available.
@@ -165,6 +164,9 @@ class ModelPT(LightningModule, Model):
 
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
+
+        self._var_noise_std = None
+        self._var_noise_start = 0
 
     def register_artifact(self, config_path: str, src: str):
         """
@@ -791,6 +793,14 @@ class ModelPT(LightningModule, Model):
         if lr is not None:
             optimizer_args['lr'] = lr
 
+        if 'var_noise' in optimizer_args:
+            self._var_noise_std = optimizer_args['var_noise'].get('std', None)
+            self._var_noise_start = optimizer_args['var_noise'].get('start_step', 0)
+            optimizer_args.pop('var_noise')
+        else:
+            self._var_noise_std = None
+            self._var_noise_start = 0
+
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
             if inspect.isclass(optimizer_cls):
@@ -1271,3 +1281,14 @@ class ModelPT(LightningModule, Model):
     def use_eff_save() -> bool:
         global _MODEL_EFF_SAVE
         return _MODEL_EFF_SAVE
+
+    def on_after_backward(self):
+        super().on_after_backward()
+
+        if self._var_noise_std > 0 and self.global_step >= self._var_noise_start:
+            for param_name, param in self.named_parameters():
+                if param.grad is not None:
+                    noise = torch.normal(
+                        mean=0.0, std=self._var_noise_std, size=param.size(), device=param.device, dtype=param.dtype
+                    )
+                    param.grad.data.add_(noise)
