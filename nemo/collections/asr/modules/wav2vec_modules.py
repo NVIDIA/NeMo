@@ -26,7 +26,6 @@ from pytorch_lightning import Trainer
 from torch import nn
 
 from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecMaskType, Wav2VecCTCEncoderConfig
-from nemo.collections.asr.models.wav2vec.wav2vec_model import Wav2VecEncoderModel
 from nemo.core import NeuralModule
 from nemo.core.neural_types import NeuralType, LossType, EncodedRepresentation, VoidType, AudioSignal, LengthsType
 
@@ -242,7 +241,7 @@ class SamePad(NeuralModule):
 
 class Wav2VecCTCEncoder(NeuralModule):
     def __init__(self,
-                 wav2vec_encoder: Wav2VecEncoderModel,
+                 wav2vec_encoder: 'Wav2VecEncoderModel',
                  cfg: Wav2VecCTCEncoderConfig,
                  encoder_dim: int,
                  trainer: Trainer):
