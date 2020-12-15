@@ -220,7 +220,6 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
     return all_metric_aggregate, per_frame_metric
 
 
-
 def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
 
     with open(os.path.join(data_dir, eval_dataset, "schema.json")) as f:

@@ -24,8 +24,7 @@ from torch.utils.data import DataLoader
 import nemo.collections.nlp.data.dialogue_state_tracking_sgd.prediction_utils as pred_utils
 from nemo.collections.nlp.data import SGDDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd import Schema, SGDDataProcessor
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.evaluate import (evaluate, 
-    get_in_domain_services)
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd.evaluate import evaluate, get_in_domain_services
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
@@ -59,6 +58,7 @@ def get_str_example_id(eval_dataset, ids_to_service_names_dict, example_id_num):
 
     return list(map(format_turn_id, tensor2list(example_id_num)))
 
+
 def combine_predictions_in_example(predictions, batch_size):
     '''
     Combines predicted values to a single example. 
@@ -75,6 +75,7 @@ def combine_predictions_in_example(predictions, batch_size):
             else:
                 examples_preds[i][k] = v[i].view(-1)
     return examples_preds
+
 
 class SGDQAModel(NLPModel):
     """Dialogue State Tracking Model SGD-QA"""
@@ -417,7 +418,7 @@ class SGDQAModel(NLPModel):
             predictions['cat_slot_value_status'] = cat_slot_value_status
             predictions['noncat_slot_status'] = noncat_slot_status
             predictions['noncat_slot_status_p'] = noncat_slot_status_p
-            predictions['noncat_slot_p'] = noncat_slot_p 
+            predictions['noncat_slot_p'] = noncat_slot_p
             predictions['noncat_slot_start'] = noncat_slot_start
             predictions['noncat_slot_end'] = noncat_slot_end
             predictions['noncat_alignment_start'] = noncat_alignment_start
