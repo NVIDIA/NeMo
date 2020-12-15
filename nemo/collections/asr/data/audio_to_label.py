@@ -28,7 +28,7 @@ from nemo.utils.decorators import experimental
 __all__ = [
     'AudioToSpeechLabelDataSet',
     'TarredAudioToSpeechLabelDataSet',
-    'AudioLabelDataset']
+    'AudioToClassificationLabelDataset']
 
 def _speech_collate_fn(batch, pad_id):
     """collate batch of audio sig, audio len, tokens, tokens len
@@ -71,7 +71,7 @@ def _speech_collate_fn(batch, pad_id):
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
 @experimental
-class AudioLabelDataset(Dataset):
+class AudioToClassificationLabelDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
     files, command class, and durations (in seconds). Each new line is a

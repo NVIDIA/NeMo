@@ -25,7 +25,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_label import AudioLabelDataset, AudioToSpeechLabelDataSet
+from nemo.collections.asr.data.audio_to_label import AudioToClassificationLabelDataset, AudioToSpeechLabelDataSet
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -224,7 +224,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
             batch_size = 1
             collate_func = dataset.vad_frame_seq_collate_fn
         else:
-            dataset = AudioLabelDataset(
+            dataset = AudioToClassificationLabelDataset(
                 manifest_filepath=config['manifest_filepath'],
                 labels=config['labels'],
                 featurizer=featurizer,
