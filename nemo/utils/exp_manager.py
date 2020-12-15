@@ -67,7 +67,7 @@ class CallbackParams:
     period: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
-    nemo_save_best_model: bool = False
+    save_best_model: bool = False
 
 
 @dataclass
@@ -170,6 +170,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         explicit_log_dir=cfg.explicit_log_dir,
         use_datetime_version=cfg.use_datetime_version,
     )
+
     if cfg.resume_if_exists:
         check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
 
@@ -208,7 +209,13 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     if is_global_rank_zero():
         if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
+            configure_checkpointing(
+                trainer,
+                log_dir,
+                checkpoint_name,
+                checkpoint_callback_class=NeMoModelCheckpoint,
+                params=cfg.checkpoint_callback_params,
+            )
 
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
@@ -363,10 +370,12 @@ def check_explicit_log_dir(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger and explicit_log_dir: "
             f"{explicit_log_dir} was pass to exp_manager. Please remove the logger from the lightning trainer."
         )
-    if exp_dir or name or version:
+    # Checking only (explicit_log_dir) vs (exp_dir and version).
+    # The `name` will be used as the actual name of checkpoint/archive.
+    if exp_dir or version:
         logging.error(
             f"exp_manager received explicit_log_dir: {explicit_log_dir} and at least one of exp_dir: {exp_dir}, "
-            f"name: {name}, or version: {version}. Please note that exp_dir, name, and version will be ignored."
+            f"or version: {version}. Please note that exp_dir, name, and version will be ignored."
         )
     if is_global_rank_zero() and Path(explicit_log_dir).exists():
         logging.warning(f"Exp_manager is logging to {explicit_log_dir}, but it already exists.")
@@ -539,9 +548,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
 
-    def __init__(self, nemo_save_best_model=False, postfix=".nemo", **kwargs):
+    def __init__(self, save_best_model=False, postfix=".nemo", **kwargs):
         # Parse and store "extended" parameters: save_best model and postfix.
-        self.nemo_save_best_model = nemo_save_best_model
+        self.save_best_model = save_best_model
         self.postfix = postfix
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
@@ -549,12 +558,18 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
         # Load the best model and then re-save it
-        if self.nemo_save_best_model:
+        if self.save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
 
-def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict):
+def configure_checkpointing(
+    trainer: 'pytorch_lightning.Trainer',
+    log_dir: Path,
+    name: str,
+    checkpoint_callback_class: 'NeMoModelCheckpoint',
+    params: Dict,
+):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
     """
@@ -586,5 +601,5 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
             "returned metrics. Please ensure that validation is run within trainer.max_epochs."
         )
 
-    checkpoint_callback = NeMoModelCheckpoint(**params)
+    checkpoint_callback = checkpoint_callback_class(**params)
     trainer.callbacks.append(checkpoint_callback)
