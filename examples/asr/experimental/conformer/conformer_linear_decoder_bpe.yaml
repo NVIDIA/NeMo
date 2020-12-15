@@ -112,6 +112,9 @@ model:
     betas: [0.8, 0.5]
     weight_decay: 0.001
 
+    # variational noise added to prevent over-fitting
+    var_noise_std: 0.075 # variance of the Gaussian noise
+    var_noise_start: 20
     # scheduler setup
     sched:
       name: CosineAnnealing

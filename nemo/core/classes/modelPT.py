@@ -166,6 +166,9 @@ class ModelPT(LightningModule, Model):
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
+        self._var_noise_std = None
+        self._var_noise_start = 0
+
     def register_artifact(self, config_path: str, src: str):
         """
         Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
@@ -791,6 +794,10 @@ class ModelPT(LightningModule, Model):
         if lr is not None:
             optimizer_args['lr'] = lr
 
+        if 'var_noise_std' in optimizer_args:
+            self._var_noise_std = optimizer_args.pop('var_noise_std', None)
+            self._var_noise_start = optimizer_args.pop('var_noise_start', 0)
+
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
             if inspect.isclass(optimizer_cls):
@@ -1271,3 +1278,14 @@ class ModelPT(LightningModule, Model):
     def use_eff_save() -> bool:
         global _MODEL_EFF_SAVE
         return _MODEL_EFF_SAVE
+
+    def on_after_backward(self):
+        super().on_after_backward()
+
+        if self._var_noise_std > 0 and self.global_step >= self._var_noise_start:
+            for param_name, param in self.named_parameters():
+                if param.grad is not None:
+                    #print(param_name)
+                    #noise = torch.randn(param.size(), device=param.device, dtype=param.dtype) * self._var_noise
+                    noise = torch.normal(mean=0.0, std=self._var_noise_std, size=param.size(), device=param.device, dtype=param.dtype)
+                    param.grad.data.add_(noise)
