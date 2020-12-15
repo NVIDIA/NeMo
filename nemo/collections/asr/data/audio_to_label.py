@@ -13,7 +13,7 @@
 # limitations under the License.
 import os
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import braceexpand
 import torch
@@ -23,10 +23,12 @@ from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 __all__ = [
     'AudioToSpeechLabelDataSet',
-    'TarredAudioToSpeechLabelDataSet']
+    'TarredAudioToSpeechLabelDataSet',
+    'AudioLabelDataset']
 
 def _speech_collate_fn(batch, pad_id):
     """collate batch of audio sig, audio len, tokens, tokens len
@@ -600,7 +602,7 @@ class TarredAudioToSpeechLabelDataSet(IterableDataset):
             .map(f=self._build_sample)
         )
 
-     def _filter(self, iterator):
+    def _filter(self, iterator):
         """This function is used to remove samples that have been filtered out by ASRSpeechLabel already.
         Otherwise, we would get a KeyError as _build_sample attempts to find the manifest entry for a sample
         that was filtered out (e.g. for duration).
