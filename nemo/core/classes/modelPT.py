@@ -165,7 +165,7 @@ class ModelPT(LightningModule, Model):
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
-        self._var_noise_std = None
+        self._var_noise_std = 0
         self._var_noise_start = 0
 
     def register_artifact(self, config_path: str, src: str):
@@ -798,7 +798,7 @@ class ModelPT(LightningModule, Model):
             self._var_noise_start = optimizer_args['var_noise'].get('start_step', 0)
             optimizer_args.pop('var_noise')
         else:
-            self._var_noise_std = None
+            self._var_noise_std = 0
             self._var_noise_start = 0
 
         # Actually instantiate the optimizer
