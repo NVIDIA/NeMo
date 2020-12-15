@@ -131,7 +131,9 @@ class TalkNetDursModel(ModelPT):
     def _loader(cfg):
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -186,7 +188,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
         self.preprocessor = instantiate(cfg.preprocessor)
         self.emb = nn.Embedding(len(self.vocab.labels), cfg.d_char)
         self.model = instantiate(cfg.model)
-        self.rz = nn.Conv1d(cfg.model.jasper[-1].filters, cfg.n_mels, kernel_size=1)
+        self.cc = nn.Conv1d(cfg.model.jasper[-1].filters, cfg.n_mels, kernel_size=1)
         self.loss = TalkNetSpectLoss()
 
     @property
@@ -206,7 +208,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
     def forward(self, *, text, text_len):
         x, x_len = self.emb(text).transpose(1, 2), text_len
         y, _ = self.model(audio_signal=x, length=x_len)
-        mel = self.rz(y)
+        mel = self.cc(y)
         return mel
 
     @staticmethod
@@ -248,7 +250,9 @@ class TalkNetSpectModel(SpectrogramGenerator):
     def _loader(cfg):
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
