@@ -19,8 +19,9 @@
 
 import torch
 import torch.nn.functional as F
+
 from nemo.core import Loss, typecheck
-from nemo.core.neural_types import NeuralType, LossType, LogitsType, EncodedRepresentation
+from nemo.core.neural_types import NeuralType, LossType, EncodedRepresentation
 
 
 class Wav2VecLoss(Loss):
@@ -28,13 +29,6 @@ class Wav2VecLoss(Loss):
     def input_types(self):
         """Input types definitions for Wav2VecLoss.
         """
-        '''
-        torch.Size([8, 24, 768])
-torch.Size([8, 24, 768])
-torch.Size([100, 8, 24, 768])
-tensor(0.7101, device='cuda:0', grad_fn=<DivBackward0>)
-tensor(0.2828, device='cuda:0', grad_fn=<MeanBackward0>)
-        '''
         return {
             "logits": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
             "targets": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
@@ -46,8 +40,6 @@ tensor(0.2828, device='cuda:0', grad_fn=<MeanBackward0>)
     @property
     def output_types(self):
         """Output types definitions for Wav2VecLoss.
-        loss:
-            NeuralType(None)
         """
         return {
             "loss": NeuralType(elements_type=LossType()),

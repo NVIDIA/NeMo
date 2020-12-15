@@ -163,7 +163,10 @@ class Wav2VecEncoderModel(Wav2VecBase):
         padding_mask = self._create_padding_mask(audio_lengths)
 
         self._update_quantizer_temp()
-        logits, targets, sampled_negatives, _, features_penalty, prob_ppl_loss, _ = self(audio_signal, padding_mask)
+        logits, targets, sampled_negatives, _, features_penalty, prob_ppl_loss, _ = self(
+            source=audio_signal,
+            padding_mask=padding_mask
+        )
         loss, feature_loss, prob_ppl_loss = self.loss(
             logits=logits,
             targets=targets,
@@ -180,7 +183,7 @@ class Wav2VecEncoderModel(Wav2VecBase):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "source": NeuralType(('B', 'T'), AudioSignal(freq=self.preprocessor._sample_rate)),
+            "source": NeuralType(('B', 'T'), AudioSignal()),
             "padding_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
             "mask": NeuralType(elements_type=BoolType(), optional=True),
             "features_only": NeuralType(elements_type=BoolType(), optional=True),
@@ -190,11 +193,12 @@ class Wav2VecEncoderModel(Wav2VecBase):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "logits": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "targets": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "sampled_negatives": NeuralType(('N', 'B', 'T', 'D'), EncodedRepresentation()),
-            "prob_ppl_loss": NeuralType(elements_type=LossType()),
-            "features_penalty": NeuralType(elements_type=LossType()),
-            "cur_codebook_temp": NeuralType(elements_type=FloatType()),
+            "targets": NeuralType(('B', 'T', 'D'), EncodedRepresentation(), optional=True),
+            "sampled_negatives": NeuralType(('N', 'B', 'T', 'D'), EncodedRepresentation(), optional=True),
+            "padding_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "features_penalty": NeuralType(elements_type=LossType(), optional=True),
+            "prob_ppl_loss": NeuralType(elements_type=LossType(), optional=True),
+            "cur_codebook_temp": NeuralType(elements_type=FloatType(), optional=True),
         }
 
     @typecheck()
@@ -287,7 +291,12 @@ class Wav2VecEncoderModel(Wav2VecBase):
 
     def extract_features(self, source, audio_lengths, mask=False):
         padding_mask = self._create_padding_mask(audio_lengths)
-        return self.forward(source, padding_mask, mask=mask, features_only=True)
+        return self(
+            source=source,
+            padding_mask=padding_mask,
+            mask=mask,
+            features_only=True
+        )
 
     def remove_pretraining_modules(self):
         self.quantizer = None
