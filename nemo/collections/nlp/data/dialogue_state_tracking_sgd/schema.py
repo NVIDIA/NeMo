@@ -194,7 +194,7 @@ class Schema(object):
 
         self._service_schemas = service_schemas
         self._schemas = all_schemas
-        self.slots_relation_list = {}
+        self._slots_relation_list = {}
 
     def get_service_id(self, service):
         return self._services_vocab[service]

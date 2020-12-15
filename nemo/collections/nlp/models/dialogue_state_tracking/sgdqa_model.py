@@ -24,15 +24,8 @@ from torch.utils.data import DataLoader
 import nemo.collections.nlp.data.dialogue_state_tracking_sgd.prediction_utils as pred_utils
 from nemo.collections.nlp.data import SGDDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd import Schema, SGDDataProcessor
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.evaluate import (
-    ALL_SERVICES,
-    PER_FRAME_OUTPUT_FILENAME,
-    SEEN_SERVICES,
-    UNSEEN_SERVICES,
-    get_dataset_as_dict,
-    get_in_domain_services,
-    get_metrics,
-)
+from nemo.collections.nlp.data.dialogue_state_tracking_sgd.evaluate import (evaluate, 
+    get_in_domain_services)
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
@@ -66,6 +59,22 @@ def get_str_example_id(eval_dataset, ids_to_service_names_dict, example_id_num):
 
     return list(map(format_turn_id, tensor2list(example_id_num)))
 
+def combine_predictions_in_example(predictions, batch_size):
+    '''
+    Combines predicted values to a single example. 
+    Dict: sample idx-> keys-> values
+    '''
+    examples_preds = [{} for _ in range(batch_size)]
+    for k, v in predictions.items():
+        if k != 'example_id':
+            v = torch.chunk(v, batch_size)
+
+        for i in range(batch_size):
+            if k == 'example_id':
+                examples_preds[i][k] = v[i]
+            else:
+                examples_preds[i][k] = v[i].view(-1)
+    return examples_preds
 
 class SGDQAModel(NLPModel):
     """Dialogue State Tracking Model SGD-QA"""
@@ -330,7 +339,7 @@ class SGDQAModel(NLPModel):
             all_end_char_idx.append(end_char_idx)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            ids_to_service_names_dict = self.schemas._services_id_to_vocab
+            ids_to_service_names_dict = self.dialogues_processor.schemas._services_id_to_vocab
             example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
             intent_status = torch.nn.Sigmoid()(logit_intent_status)
 
@@ -397,11 +406,29 @@ class SGDQAModel(NLPModel):
                 self._cfg.dataset.data_dir, eval_dataset, self._cfg.dataset.task_name
             )
 
+            predictions = {}
+            predictions['example_id'] = example_id
+            predictions['service_id'] = service_id
+            predictions['is_real_example'] = is_real_example
+            predictions['intent_status'] = intent_status
+            predictions['req_slot_status'] = req_slot_status
+            predictions['cat_slot_status'] = cat_slot_status
+            predictions['cat_slot_status_p'] = cat_slot_status_p
+            predictions['cat_slot_value_status'] = cat_slot_value_status
+            predictions['noncat_slot_status'] = noncat_slot_status
+            predictions['noncat_slot_status_p'] = noncat_slot_status_p
+            predictions['noncat_slot_p'] = noncat_slot_p 
+            predictions['noncat_slot_start'] = noncat_slot_start
+            predictions['noncat_slot_end'] = noncat_slot_end
+            predictions['noncat_alignment_start'] = noncat_alignment_start
+            predictions['noncat_alignment_end'] = noncat_alignment_end
+
+            predictions = combine_predictions_in_example(predictions, service_id.shape[0])
             pred_utils.write_predictions_to_file(
-                global_vars['predictions'],
+                predictions,
                 input_json_files,
-                prediction_dir,
-                schemas=self.schemas,
+                output_dir=prediction_dir,
+                schemas=self.dialogues_processor.schemas,
                 state_tracker=self._cfg.dataset.state_tracker,
                 eval_debug=False,
                 in_domain_services=in_domain_services,
@@ -432,13 +459,13 @@ class SGDQAModel(NLPModel):
         all_schema_json_paths = []
         for dataset_split in ['train', 'test', 'dev']:
             all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
-        self.schemas = Schema(all_schema_json_paths)
+        schemas = Schema(all_schema_json_paths)
         self.dialogues_processor = SGDDataProcessor(
             task_name=self._cfg.dataset.task_name,
             data_dir=self._cfg.dataset.data_dir,
             dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
             tokenizer=self.tokenizer,
-            schemas=self.schemas,
+            schemas=schemas,
             schema_config=schema_config,
             subsample=self._cfg.dataset.subsample,
             overwrite_dial_files=not self._cfg.dataset.use_cache,

@@ -24,6 +24,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 import collections
 import glob
 import json
+import os
 
 import numpy as np
 
@@ -217,3 +218,34 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
                 domain_metric_aggregate[metric_key] = metrics.NAN_VAL
         all_metric_aggregate[domain_key] = domain_metric_aggregate
     return all_metric_aggregate, per_frame_metric
+
+
+
+def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
+
+    with open(os.path.join(data_dir, eval_dataset, "schema.json")) as f:
+        eval_services = {}
+        list_services = json.load(f)
+        for service in list_services:
+            eval_services[service["service_name"]] = service
+        f.close()
+
+    dataset_ref = get_dataset_as_dict(os.path.join(data_dir, eval_dataset, "dialogues_*.json"))
+    dataset_hyp = get_dataset_as_dict(os.path.join(prediction_dir, "*.json"))
+
+    # has ALLSERVICE, SEEN_SERVICES, UNSEEN_SERVICES, SERVICE, DOMAIN
+    all_metric_aggregate, _ = get_metrics(
+        dataset_ref, dataset_hyp, eval_services, in_domain_services, joint_acc_across_turn, no_fuzzy_match
+    )
+    if SEEN_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}')
+    if UNSEEN_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {UNSEEN_SERVICES}: {sorted(all_metric_aggregate[UNSEEN_SERVICES].items())}')
+    if ALL_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}')
+
+    # Write the per-frame metrics values with the corrresponding dialogue frames.
+    with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w") as f:
+        json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
+        f.close()
+    return all_metric_aggregate[ALL_SERVICES]
