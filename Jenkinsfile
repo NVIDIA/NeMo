@@ -541,7 +541,8 @@ pipeline {
             model.test_ds.prefix=dev \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
-            exp_manager=null'
+            exp_manager.exp_dir=checkpoints'
+            sh 'rm -rf checkpoints'
           }
         }
       }
