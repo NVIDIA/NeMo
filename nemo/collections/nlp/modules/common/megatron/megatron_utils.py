@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import wget
-from transformers import TRANSFORMERS_CACHE, cached_path
+from torch.hub import _get_torch_home
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
 from nemo.utils import AppState, logging
@@ -33,7 +33,7 @@ __all__ = [
 ]
 
 
-MEGATRON_CACHE = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "megatron")
+MEGATRON_CACHE = os.path.join(_get_torch_home(), "megatron")
 
 CONFIGS = {"345m": {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 
@@ -194,12 +194,9 @@ def get_megatron_vocab_file(pretrained_model_name: str) -> str:
     """
     _check_megatron_name(pretrained_model_name)
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]["vocab"]
-    path = cached_path(url, cache_dir=MEGATRON_CACHE)
 
-    # try downloading it with wget
-    if path is None:
-        path = os.path.join(MEGATRON_CACHE, pretrained_model_name + "_vocab")
-        path = _download(path, url)
+    path = os.path.join(MEGATRON_CACHE, pretrained_model_name + "_vocab")
+    path = _download(path, url)
     return path
 
 
