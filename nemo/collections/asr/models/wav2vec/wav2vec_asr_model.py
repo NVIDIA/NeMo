@@ -19,10 +19,8 @@
 
 from typing import List, Optional, cast
 
-import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from torch import nn
 
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
@@ -30,62 +28,9 @@ from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.wav2vec.wav2vec_base import Wav2VecBase
 from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecCTCEncoderConfig
 from nemo.collections.asr.models.wav2vec.wav2vec_model import Wav2VecEncoderModel
+from nemo.collections.asr.modules.wav2vec_modules import Wav2VecCTCEncoder
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-
-
-class Wav2VecCTCEncoder(nn.Module):
-    def __init__(
-            self, wav2vec_encoder: Wav2VecEncoderModel, cfg: Wav2VecCTCEncoderConfig, encoder_dim: int, trainer: Trainer
-    ):
-        super().__init__()
-        self.trainer = trainer
-        self.final_dropout = nn.Dropout(cfg.final_dropout)
-        # Add 1 for blank char
-        self.vocabulary = cfg.vocabulary
-        self.freeze_encoder_after_steps = cfg.freeze_encoder_after_steps
-        self._num_classes = len(self.vocabulary) + 1
-        self.apply_mask = cfg.mask.apply_mask
-        self.wav2vec_encoder = wav2vec_encoder
-
-        if self.apply_mask:
-            # Override encoder mask cfg with ctc encoder mask cfg
-            self.wav2vec_encoder.mask_cfg = cfg.mask
-        self.wav2vec_encoder.remove_pretraining_modules()
-
-        self.proj = self.linear(encoder_dim, self._num_classes)
-
-    def linear(self, in_features, out_features, bias=True):
-        m = nn.Linear(in_features, out_features, bias)
-        nn.init.xavier_uniform_(m.weight)
-        if bias:
-            nn.init.constant_(m.bias, 0.0)
-        return m
-
-    def forward(self, audio_signal, audio_lengths):
-        freeze_encoder_at_step = (
-                self.freeze_encoder_after_steps is not None and self.freeze_encoder_after_steps <= self.trainer.global_step
-        )
-
-        if freeze_encoder_at_step:
-            with torch.no_grad():
-                x, padding_mask = self.wav2vec_encoder.extract_features(
-                    source=audio_signal, audio_lengths=audio_lengths, mask=self.apply_mask and self.training
-                )
-        else:
-            x, padding_mask = self.wav2vec_encoder.extract_features(
-                source=audio_signal, audio_lengths=audio_lengths, mask=self.apply_mask and self.training
-            )
-
-        x = self.final_dropout(x)
-        x = self.proj(x)
-
-        non_padding_mask = ~padding_mask
-        output_lengths = non_padding_mask.long().sum(-1)
-        return x, output_lengths
-
-    @property
-    def num_classes_with_blank(self):
-        return self._num_classes
+from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType, LabelsType, LogprobsType
 
 
 class Wav2VecASRModel(Wav2VecBase, ASRModel):
@@ -128,6 +73,21 @@ class Wav2VecASRModel(Wav2VecBase, ASRModel):
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         return None
+
+    @property
+    def input_types(self):
+        return {
+            "input_signal": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_lengths": NeuralType(tuple("B"), LengthsType())
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "encoded_len": NeuralType(tuple('B'), LengthsType()),
+            "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
+        }
 
     @typecheck()
     def forward(self, input_signal, audio_lengths):
