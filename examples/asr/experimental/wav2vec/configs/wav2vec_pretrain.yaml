@@ -43,7 +43,7 @@ trainer:
   max_epochs: 100
   max_steps: null # computed at runtime if not set
   val_check_interval: 0.5 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  distributed_backend: ddp
+  accelerator: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   amp_level: O0 # O1/O2 for mixed precision
@@ -63,6 +63,7 @@ exp_manager:
   create_checkpoint_callback: true
   create_wandb_logger: false
   wandb_logger_kwargs:
-  project: null
+    name: null
+    project: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

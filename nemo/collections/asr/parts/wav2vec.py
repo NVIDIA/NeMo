@@ -19,7 +19,6 @@
 import math
 from typing import List, Tuple
 
-import torch.nn.functional as F
 from nemo.collections.asr.models.wav2vec.wav2vec_config import (
     Wav2VecConvExtractorMode,
     Wav2VecTransformerConfig,

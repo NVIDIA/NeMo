@@ -29,7 +29,7 @@ See :class:`Wav2VecCriterion` for more information.
 
 Reference: https://arxiv.org/abs/2006.11477
 
-python examples/asr/experimental/wav2vec/wav2vec.py \
+python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
         model.train_ds.manifest_path="./examples/asr/train.tsv" \
         model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
         trainer.gpus=1 \
@@ -37,7 +37,7 @@ python examples/asr/experimental/wav2vec/wav2vec.py \
         
         
 Basic run (on CPU for 50 epochs):
-    python examples/asr/experimental/wav2vec/wav2vec.py \
+    python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
         model.train_ds.manifest_path="./examples/asr/train.tsv" \
         model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
         trainer.gpus=1 \
@@ -53,7 +53,7 @@ Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")
 PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
 
 Override some args of optimizer:
-    python examples/asr/experimental/wav2vec/wav2vec.py \
+    python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
         model.train_ds.manifest_path="./examples/asr/train.tsv" \
         model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
         trainer.gpus=2 \
@@ -62,7 +62,7 @@ Override some args of optimizer:
         model.optim.args.params.weight_decay=0.0001
 
 Override optimizer entirely
-    python examples/asr/experimental/wav2vec/wav2vec.py \
+    python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
         model.train_ds.manifest_path="./examples/asr/train.tsv" \
         model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
         trainer.gpus=2 \
@@ -74,7 +74,7 @@ Override optimizer entirely
 """
 
 
-@hydra_runner(config_path="configs", config_name="wav2vec")
+@hydra_runner(config_path="configs", config_name="wav2vec_pretrain")
 def main(cfg: DictConfig):
     logging.info("Application config\n" + cfg.pretty())
 

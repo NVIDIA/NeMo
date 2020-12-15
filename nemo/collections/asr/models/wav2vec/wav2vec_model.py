@@ -16,8 +16,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Optional, Dict
 
 import torch
 from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss
@@ -30,7 +29,9 @@ from nemo.collections.asr.modules.wav2vec_modules import (
     compute_mask_indices,
 )
 from nemo.collections.asr.parts.wav2vec import ConvFeatureEncoder, Wav2VecTransformerEncoder
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import NeuralType, AudioSignal, MaskType, EncodedRepresentation, LossType
+from nemo.core.neural_types.elements import BoolType, FloatType
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch import nn
@@ -55,21 +56,6 @@ class GradMultiply(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad):
         return grad * ctx.scale, None
-
-
-@dataclass
-class Wav2VecEncoderOutput:
-    """
-    Helper class for storing all the outputs from the Encoder model.
-    """
-
-    logits: torch.tensor
-    targets: torch.tensor
-    sampled_negatives: torch.tensor
-    padding_mask: torch.tensor
-    features_penalty: torch.tensor
-    probs_ppl: torch.tensor
-    cur_codebook_temp: float
 
 
 class Wav2VecEncoderModel(Wav2VecBase):
@@ -189,13 +175,13 @@ class Wav2VecEncoderModel(Wav2VecBase):
         padding_mask = self._create_padding_mask(audio_lengths)
 
         self._update_quantizer_temp()
-        model_output = self(audio_signal, padding_mask)
+        logits, targets, sampled_negatives, _, features_penalty, prob_ppl_loss, _ = self(audio_signal, padding_mask)
         loss, feature_loss, prob_ppl_loss = self.loss(
-            logits=model_output.logits,
-            targets=model_output.targets,
-            negatives=model_output.sampled_negatives,
-            prob_ppl_loss=model_output.probs_ppl,
-            feature_loss=model_output.features_penalty,
+            logits=logits,
+            targets=targets,
+            negatives=sampled_negatives,
+            prob_ppl_loss=prob_ppl_loss,
+            feature_loss=features_penalty,
         )
         return loss, feature_loss, prob_ppl_loss
 
@@ -296,8 +282,29 @@ class Wav2VecEncoderModel(Wav2VecBase):
         )  # to NxBxTxC
         return negs, neg_idxs
 
-    def forward(self, source, padding_mask=None, mask=True, features_only=False) -> Union[tuple, Wav2VecEncoderOutput]:
-        prob_ppl, cur_codebook_temp = None, None
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "source": NeuralType(('B', 'T'), AudioSignal(freq=self.preprocessor._sample_rate)),
+            "padding_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "mask": NeuralType(elements_type=BoolType(), optional=True),
+            "features_only": NeuralType(elements_type=BoolType(), optional=True),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "logits": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "targets": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "sampled_negatives": NeuralType(('N', 'B', 'T', 'D'), EncodedRepresentation()),
+            "prob_ppl_loss": NeuralType(elements_type=LossType()),
+            "features_penalty": NeuralType(elements_type=LossType()),
+            "cur_codebook_temp": NeuralType(elements_type=FloatType()),
+        }
+
+    @typecheck()
+    def forward(self, source, padding_mask=None, mask=True, features_only=False) -> tuple:
+        prob_ppl_loss, cur_codebook_temp = None, None
 
         if self.feature_grad_mult > 0:
             features = self.feature_extractor(source)
@@ -327,66 +334,61 @@ class Wav2VecEncoderModel(Wav2VecBase):
         unmasked_features = self.dropout_features(unmasked_features)
 
         if self.input_quantizer:
-            features, prob_ppl, cur_codebook_temp = self.input_quantizer(features)
+            features, prob_ppl_loss, cur_codebook_temp = self.input_quantizer(features)
             features = self.project_inp(features)
         if mask:
-            x, mask_indices = self.apply_mask(features, padding_mask)
+            logits, mask_indices = self.apply_mask(features, padding_mask)
             if mask_indices is not None:
-                y = unmasked_features[mask_indices].view(unmasked_features.size(0), -1, unmasked_features.size(-1))
+                targets = unmasked_features[mask_indices].view(unmasked_features.size(0), -1,
+                                                               unmasked_features.size(-1))
             else:
-                y = unmasked_features
+                targets = unmasked_features
         else:
-            x = features
-            y = unmasked_features
+            logits = features
+            targets = unmasked_features
             mask_indices = None
 
-        x = self.encoder(x, padding_mask=padding_mask)
+        logits = self.encoder(logits, padding_mask=padding_mask)
 
         if features_only:
-            return x, padding_mask
+            return logits, padding_mask
 
         if self.quantizer:
-            y, prob_ppl, cur_codebook_temp = self.quantizer(y)
-            y = self.project_q(y)
+            targets, prob_ppl_loss, cur_codebook_temp = self.quantizer(targets)
+            targets = self.project_q(targets)
 
             if self.negatives_from_everywhere:
                 neg_cands, *_ = self.quantizer(unmasked_features)
-                sampled_negatives, _ = self.sample_negatives(neg_cands, y.size(1))
+                sampled_negatives, _ = self.sample_negatives(neg_cands, targets.size(1))
                 sampled_negatives = self.project_q(sampled_negatives)
             else:
-                sampled_negatives, _ = self.sample_negatives(y, y.size(1))
+                sampled_negatives, _ = self.sample_negatives(targets, targets.size(1))
 
             if self.codebook_negatives > 0:
-                cb_negs = self.quantizer.sample_from_codebook(y.size(0) * y.size(1), self.codebook_negatives)
-                cb_negs = cb_negs.view(self.codebook_negatives, y.size(0), y.size(1), -1)  # order doesnt matter
+                cb_negs = self.quantizer.sample_from_codebook(targets.size(0) * targets.size(1),
+                                                              self.codebook_negatives)
+                cb_negs = cb_negs.view(self.codebook_negatives, targets.size(0), targets.size(1),
+                                       -1)  # order doesnt matter
                 cb_negs = self.project_q(cb_negs)
                 sampled_negatives = torch.cat([sampled_negatives, cb_negs], dim=0)
         else:
-            y = self.project_q(y)
+            targets = self.project_q(targets)
 
             if self.negatives_from_everywhere:
-                sampled_negatives, _ = self.sample_negatives(unmasked_features, y.size(1))
+                sampled_negatives, _ = self.sample_negatives(unmasked_features, targets.size(1))
                 sampled_negatives = self.project_q(sampled_negatives)
             else:
-                sampled_negatives, _ = self.sample_negatives(y, y.size(1))
+                sampled_negatives, _ = self.sample_negatives(targets, targets.size(1))
 
-        x = x[mask_indices].view(x.size(0), -1, x.size(-1))
+        logits = logits[mask_indices].view(logits.size(0), -1, logits.size(-1))
 
         if self.target_glu:
-            y = self.target_glu(y)
+            targets = self.target_glu(targets)
             sampled_negatives = self.target_glu(sampled_negatives)
 
-        x = self.final_proj(x)
-        output = Wav2VecEncoderOutput(
-            logits=x,
-            targets=y,
-            sampled_negatives=sampled_negatives,
-            padding_mask=padding_mask,
-            features_penalty=features_penalty,
-            probs_ppl=prob_ppl,
-            cur_codebook_temp=cur_codebook_temp,
-        )
-        return output
+        logits = self.final_proj(logits)
+
+        return logits, targets, sampled_negatives, padding_mask, features_penalty, prob_ppl_loss, cur_codebook_temp
 
     def extract_features(self, source, audio_lengths, mask=False):
         padding_mask = self._create_padding_mask(audio_lengths)

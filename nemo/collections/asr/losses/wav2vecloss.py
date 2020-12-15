@@ -19,34 +19,77 @@
 
 import torch
 import torch.nn.functional as F
-from nemo.core import Loss
+from nemo.core import Loss, typecheck
+from nemo.core.neural_types import NeuralType, LossType, LogitsType, EncodedRepresentation
 
 
 class Wav2VecLoss(Loss):
-    def __init__(self, feature_loss_weight, prob_ppl_weight, logit_temp):
+    @property
+    def input_types(self):
+        """Input types definitions for Wav2VecLoss.
+        """
+        '''
+        torch.Size([8, 24, 768])
+torch.Size([8, 24, 768])
+torch.Size([100, 8, 24, 768])
+tensor(0.7101, device='cuda:0', grad_fn=<DivBackward0>)
+tensor(0.2828, device='cuda:0', grad_fn=<MeanBackward0>)
+        '''
+        return {
+            "logits": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "targets": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "negatives": NeuralType(('N', 'B', 'T', 'D'), EncodedRepresentation()),
+            "prob_ppl_loss": NeuralType(elements_type=LossType()),
+            "feature_loss": NeuralType(elements_type=LossType()),
+        }
+
+    @property
+    def output_types(self):
+        """Output types definitions for Wav2VecLoss.
+        loss:
+            NeuralType(None)
+        """
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+            "feature_loss": NeuralType(elements_type=LossType()),
+            "prob_ppl_loss": NeuralType(elements_type=LossType())
+        }
+
+    def __init__(
+            self,
+            feature_loss_weight: float,
+            prob_ppl_weight: float,
+            logit_temp: float,
+            reduce: bool = True):
+        """
+        Compute the contrastive loss with respect to the model outputs and sampled negatives from quantizer codebooks.
+        Args:
+            feature_loss_weight: Feature penalty weight (L2 Norm)
+            prob_ppl_weight: Perplexity Loss with respect to probabilities during quantization
+            logit_temp: Temperature normalization applied in loss.
+            reduce: Reduce loss via sum reduction (Default true)
+        """
         super().__init__()
         self.feature_loss_weight = feature_loss_weight
         self.prob_ppl_weight = prob_ppl_weight
         self.logit_temp = logit_temp
+        self.reduce = reduce
 
+    @typecheck()
     def forward(
-        self,
-        logits: torch.tensor,
-        targets: torch.tensor,
-        negatives: torch.tensor,
-        prob_ppl_loss: torch.tensor,
-        feature_loss: torch.tensor,
-        reduce=True,
-    ) -> [torch.tensor, torch.tensor, torch.tensor]:
+            self,
+            logits: torch.tensor,
+            targets: torch.tensor,
+            negatives: torch.tensor,
+            prob_ppl_loss: torch.tensor,
+            feature_loss: torch.tensor) -> [torch.tensor, torch.tensor, torch.tensor]:
         """
-        Compute the contrastive loss with respect to the model outputs and sampled negatives from quantizer codebooks.
         Args:
             logits: Model activations
             targets: The true target quantized representations
             negatives: Sampled negatives from the quantizer codebooks. Sampled from all other timesteps.
             feature_loss: Feature penalty (L2 Norm)
             prob_ppl_loss: Perplexity Loss with respect to probs in quantization
-            reduce: Reduce loss via sum reduction (Default true)
         Returns:
             output loss values, feature loss, prob_ppl loss (after scaling).
         """
@@ -61,7 +104,7 @@ class Wav2VecLoss(Loss):
         similarity_scores = similarity_scores.transpose(0, 2)
         similarity_scores = similarity_scores.reshape(-1, similarity_scores.size(-1))
 
-        loss = F.cross_entropy(similarity_scores, similarity_targets, reduction="sum" if reduce else "none")
+        loss = F.cross_entropy(similarity_scores, similarity_targets, reduction="sum" if self.reduce else "none")
 
         sample_size = similarity_targets.numel()
 
