@@ -23,7 +23,7 @@ import torch
 from scipy.io import wavfile
 
 from nemo.collections import asr as nemo_asr
-from nemo.collections.asr.metrics.wer import WER, word_error_rate
+from nemo.collections.asr.metrics.wer import WER
 
 parser = argparse.ArgumentParser(description="Cut audio on the segments based on segments")
 parser.add_argument("--output_dir", default='output', type=str, help='Path to output directory')
@@ -61,9 +61,7 @@ def add_transcript_to_manifest(
         with open(manifest_updated, 'w', encoding='utf8') as f_updated:
             for i, line in enumerate(f):
                 info = json.loads(line)
-                info['transcript'] = transcripts[i].strip()
-                info['WER'] = round(word_error_rate([transcripts[i]], [info['text']]) * 100, 2)
-                info['CER'] = round(word_error_rate([transcripts[i]], [info['text']], use_cer=True) * 100, 2)
+                info['transcript'] = transcripts[i]
                 json.dump(info, f_updated, ensure_ascii=False)
                 f_updated.write('\n')
 
