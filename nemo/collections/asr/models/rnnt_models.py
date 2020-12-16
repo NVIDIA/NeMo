@@ -120,6 +120,14 @@ class EncDecRNNTModel(ASRModel):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        # setting up the variational noise for the decoder
+        if hasattr(self.cfg, 'variational_noise'):
+            self._optim_variational_noise_std = self.cfg['variational_noise'].get('std', None)
+            self._optim_variational_noise_start = self.cfg['variational_noise'].get('start_step', 0)
+        else:
+            self._optim_variational_noise_std = 0
+            self._optim_variational_noise_start = 0
+
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         """
@@ -568,3 +576,17 @@ class EncDecRNNTModel(ASRModel):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
+
+    def on_after_backward(self):
+        super().on_after_backward()
+        if self._optim_variational_noise_std > 0 and self.global_step >= self._optim_variational_noise_start:
+            for param_name, param in self.decoder.named_parameters():
+                if param.grad is not None:
+                    noise = torch.normal(
+                        mean=0.0,
+                        std=self._optim_variational_noise_std,
+                        size=param.size(),
+                        device=param.device,
+                        dtype=param.dtype,
+                    )
+                    param.grad.data.add_(noise)
