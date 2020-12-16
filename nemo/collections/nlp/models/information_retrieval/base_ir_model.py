@@ -23,9 +23,7 @@ from pytorch_lightning import Trainer
 from nemo.collections.nlp.data import BertInformationRetrievalDataset
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.modelPT import ModelPT
 
 __all__ = ['BaseIRModel']
 
