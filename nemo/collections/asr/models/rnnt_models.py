@@ -583,6 +583,10 @@ class EncDecRNNTModel(ASRModel):
             for param_name, param in self.decoder.named_parameters():
                 if param.grad is not None:
                     noise = torch.normal(
-                        mean=0.0, std=self._optim_variational_noise_std, size=param.size(), device=param.device, dtype=param.dtype
+                        mean=0.0,
+                        std=self._optim_variational_noise_std,
+                        size=param.size(),
+                        device=param.device,
+                        dtype=param.dtype,
                     )
                     param.grad.data.add_(noise)
