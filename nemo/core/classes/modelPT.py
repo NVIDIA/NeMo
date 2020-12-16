@@ -165,9 +165,6 @@ class ModelPT(LightningModule, Model):
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
-        self._var_noise_std = 0
-        self._var_noise_start = 0
-
     def register_artifact(self, config_path: str, src: str):
         """
         Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
