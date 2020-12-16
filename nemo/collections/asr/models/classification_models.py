@@ -141,7 +141,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
         return labels
 
     def prepare_manifest(self, config):
-        manifest_vad_input = config['manifest_vad_input']
+        manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
         input_audios = []
         with open(config['manifest_filepath'], 'r') as manifest:
             for line in manifest.readlines():
@@ -165,30 +165,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
 
         return manifest_vad_input
 
-    def prepare_manifest(self, config):
-        manifest_vad_input = config['manifest_vad_input']
-        input_audios = []
-        with open(config['manifest_filepath'], 'r') as manifest:
-            for line in manifest.readlines():
-                input_audios.append(json.loads(line.strip()))
-
-        p = Pool(processes=config['num_workers'])
-        args_func = {
-            'label': 'infer',
-            'split_duration': config['split_duration'],
-            'time_length': config['time_length'],
-        }
-        results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
-        p.close()
-
-        with open(manifest_vad_input, 'a') as fout:
-            for res in results:
-                for r in res:
-                    json.dump(r, fout)
-                    fout.write('\n')
-                    fout.flush()
-
-        return manifest_vad_input
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if config.get('manifest_filepath') is None:

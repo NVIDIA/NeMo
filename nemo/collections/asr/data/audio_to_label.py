@@ -32,6 +32,19 @@ __all__ = [
     'AudioToClassificationLabelDataset',
 ]
 
+def repeat_signal(signal, sig_len, required_length):
+    repeat = required_length // sig_len
+    rem = required_length % sig_len
+    sub = signal[-rem:] if rem > 0 else torch.tensor([])
+    rep_sig = torch.cat(repeat * [signal])
+    signal = torch.cat((rep_sig, sub))
+    return signal
+
+
+def normalize(signal):
+    signal_minusmean = signal - signal.mean()
+    return signal_minusmean / signal_minusmean.abs().max()
+
 
 def _speech_collate_fn(batch, pad_id):
     """collate batch of audio sig, audio len, tokens, tokens len
@@ -73,7 +86,7 @@ def _speech_collate_fn(batch, pad_id):
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
-def fixed_seq_collate_fn(self, batch):
+def _fixed_seq_collate_fn(self, batch):
     """collate batch of audio sig, audio len, tokens, tokens len
         Args:
             batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
@@ -120,7 +133,7 @@ def fixed_seq_collate_fn(self, batch):
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
-def sliced_seq_collate_fn(self, batch):
+def _sliced_seq_collate_fn(self, batch):
     """collate batch of audio sig, audio len, tokens, tokens len
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
@@ -165,7 +178,7 @@ def sliced_seq_collate_fn(self, batch):
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
-def vad_frame_seq_collate_fn(self, batch):
+def _vad_frame_seq_collate_fn(self, batch):
     """collate batch of audio sig, audio len, tokens, tokens len
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
@@ -346,7 +359,7 @@ class AudioToClassificationLabelDataset(_AudioLabelDataset):
         return _speech_collate_fn(batch, pad_id=0)
 
 
-class AudioToSpeechLabelDataSet(Dataset):
+class AudioToSpeechLabelDataSet(_AudioLabelDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
     files, command class, and durations (in seconds). Each new line is a
@@ -413,7 +426,7 @@ class AudioToSpeechLabelDataSet(Dataset):
         shift_length: Optional[float] = 1,
         normalize_audio: bool = False,
     ):
-        super().__init__()
+        # super().__init__()
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
         )
@@ -462,19 +475,14 @@ class AudioToSpeechLabelDataSet(Dataset):
 
         return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
+    def fixed_seq_collate_fn(self, batch):
+        return _fixed_seq_collate_fn(self, batch)
 
-def repeat_signal(signal, sig_len, required_length):
-    repeat = required_length // sig_len
-    rem = required_length % sig_len
-    sub = signal[-rem:] if rem > 0 else torch.tensor([])
-    rep_sig = torch.cat(repeat * [signal])
-    signal = torch.cat((rep_sig, sub))
-    return signal
-
-
-def normalize(signal):
-    signal_minusmean = signal - signal.mean()
-    return signal_minusmean / signal_minusmean.abs().max()
+    def sliced_seq_collate_fn(self, batch):
+        return _sliced_seq_collate_fn(self, batch)
+    
+    def vad_frame_seq_collate_fn(self, batch):
+        return _vad_frame_seq_collate_fn(self, batch)
 
 
 class TarredAudioToSpeechLabelDataSet(IterableDataset):
