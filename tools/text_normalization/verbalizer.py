@@ -95,15 +95,15 @@ def expand_year(data):
 def expand_date(data, verbalize):
     try:
         data["month"] = _month_dict[data["month"]]
-    except:
+    except Exception:
         pass
     try:
         data["day"] = expand_ordinal({"value": data["day"]})
-    except:
+    except Exception:
         pass
     try:
         data["year"] = expand_year({"value": data["year"]})
-    except:
+    except Exception:
         pass
     data = {k: data[k] for k in data if k in _date_components_whitelist}
     result = verbalize(**data)
@@ -112,7 +112,7 @@ def expand_date(data, verbalize):
 
 def _expand_hundreds(text):
     number = float(text)
-    if number > 1000 < 10000 and (number % 100 == 0) and (number % 1000 != 0):
+    if 1000 < number < 10000 and (number % 100 == 0) and (number % 1000 != 0):
         return _inflect.number_to_words(int(number / 100)) + " hundred"
     else:
         return _inflect.number_to_words(text)
