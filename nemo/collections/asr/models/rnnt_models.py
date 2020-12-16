@@ -121,9 +121,9 @@ class EncDecRNNTModel(ASRModel):
             self.joint.set_wer(self.wer)
 
         # setting up the variational noise for the decoder
-        if hasattr(self.cfg, 'var_noise'):
-            self._optim_variational_noise_std = self.cfg['var_noise'].get('std', None)
-            self._optim_variational_noise_start = self.cfg['var_noise'].get('start_step', 0)
+        if hasattr(self.cfg, 'variational_noise'):
+            self._optim_variational_noise_std = self.cfg['variational_noise'].get('std', None)
+            self._optim_variational_noise_start = self.cfg['variational_noise'].get('start_step', 0)
         else:
             self._optim_variational_noise_std = 0
             self._optim_variational_noise_start = 0
