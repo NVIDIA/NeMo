@@ -382,7 +382,7 @@ class SquadDataset(Dataset):
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
-    def get_raw_scores(self, preds: Dict[str, str]):
+    def get_raw_scores(self, preds: Dict[str, Dict[str, str]]):
         """
         Computes the exact and f1 scores from the examples
         and the model predictions
@@ -404,8 +404,8 @@ class SquadDataset(Dataset):
                 continue
 
             prediction = preds[qas_id]
-            exact_scores[qas_id] = max(exact_match_score(a, prediction) for a in gold_answers)
-            f1_scores[qas_id] = max(f1_score(a, prediction) for a in gold_answers)
+            exact_scores[qas_id] = max(exact_match_score(a, prediction['text']) for a in gold_answers)
+            f1_scores[qas_id] = max(f1_score(a, prediction['text']) for a in gold_answers)
 
         return exact_scores, f1_scores
 
