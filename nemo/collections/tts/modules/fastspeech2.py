@@ -53,7 +53,7 @@ class Encoder(NeuralModule):
             d_model: Model input (embedding) dimension. Defaults to 256.
             d_attn_head: Dimensionality of the attention heads. Defaults to 256.
             d_inner: Encoder hidden dimension. Defaults to 1024.
-            kernel_size: Encoder Conv1D kernel size (kernel_size, 1). Defaults to 9.
+            kernel_size: Encoder Conv1d kernel size (kernel_size, 1). Defaults to 9.
             dropout: Encoder feed-forward Transformer dropout. Defaults to 0.2.
             attn_dropout: Encoder attention dropout. Defaults to 0.1.
         """
@@ -90,12 +90,21 @@ class Encoder(NeuralModule):
 class VarianceAdaptor(NeuralModule):
     def __init__(
         self,
-        pitch=True,
-        energy=True,
+        d_model=256,
+        dropout=0.5,
+        dur_d_hidden=256,
+        dur_kernel_size=3,
         max_duration=100,
+        va_hidden=256,
+        pitch=True,
         log_pitch=True,
+        n_f0_bins=256,
+        pitch_kernel_size=3,
         pitch_min=80.0,
         pitch_max=800.0,
+        energy=True,
+        n_energy_bins=256,
+        energy_kernel_size=3,
         energy_min=0.0,
         energy_max=600.0,
     ):
@@ -104,52 +113,69 @@ class VarianceAdaptor(NeuralModule):
         Sets of conv1D blocks with ReLU and dropout.
 
         Args:
+            d_model: Input and hidden dimension. Defaults to 256 (default encoder output dim).
+            dropout: Variance adaptor dropout. Defaults to 0.5.
+            dur_d_hidden: Hidden dim of the duration predictor. Defaults to 256.
+            dur_kernel_size: Kernel size for the duration predictor. Defaults to 3.
+            max_duration: ### Currently unused ###
+            va_hidden: Hidden dimension of the variance adaptor, i.e. the output of the pitch predictor and
+                energy predictor. Defaults to 256.
+            pitch (bool): Whether or not to use the pitch predictor.
+            log_pitch (bool): If True, uses log pitch. Defaults to True.
+            n_f0_bins: Number of F0 bins for the pitch predictor. Defaults to 256.
+            pitch_kernel_size: Kernel size for the pitch predictor. Defaults to 3.
+            pitch_min: Defaults to 80.0.
+            pitch_max: Defaults to 800.0.
+            pitch_d_hidden: Hidden dim of the pitch predictor.
+            energy (bool): Whether or not to use the energy predictor.
+            n_energy_bins: Number of energy bins. Defaults to 256.
+            energy_kernel_size: Kernel size for the energy predictor. Defaults to 3.
+            energy_min: Defaults to 0.0.
+            energy_max: Defaults to 600.0.
         """
-        # TODO: documentation of params
         super().__init__()
-        # TODO: need to set all the other default min/max params - based on dataset?
 
-        """In the variance predictor, the kernel sizes of the
-        1D-convolution are set to 3, with input/output sizes of 256/256 for both layers and the dropout rate
-        is set to 0.5."""
         # -- Duration Setup --
-        # TODO: what should this max duration be? should this be set at all?
+        # TODO: what should this max duration be? should this be set at all? (Not currently used.)
         self.max_duration = max_duration
-        self.duration_predictor = VariancePredictor(d_model=256, d_inner=256, kernel_size=3, dropout=0.5)
+        self.duration_predictor = VariancePredictor(
+            d_model=d_model, d_inner=dur_d_hidden, kernel_size=dur_kernel_size, dropout=dropout
+        )
         self.length_regulator = LengthRegulator()
+
         self.pitch = pitch
         self.energy = energy
 
+        # -- Pitch Setup --
+        # NOTE: Pitch is clamped to 1e-5 which gets mapped to bin 1. But it is padded with 0s that get mapped to bin 0.
         if self.pitch:
             if log_pitch:
                 pitch_min = np.log(pitch_min)
                 pitch_max = np.log(pitch_max)
             pitch_operator = torch.exp if log_pitch else lambda x: x
-            pitch_bins = pitch_operator(torch.linspace(start=pitch_min, end=pitch_max, steps=255))
+            pitch_bins = pitch_operator(torch.linspace(start=pitch_min, end=pitch_max, steps=n_f0_bins-1))
             # Prepend 0 for unvoiced frames
             pitch_bins = torch.cat((torch.tensor([0.0]), pitch_bins))
 
-            # -- Pitch Setup --
-            # NOTE: Pitch is clamped to 1e-5 which gets mapped to bin 1. But it is padded with 0s that get mapped to bin 0.
             self.register_buffer("pitch_bins", pitch_bins)
             self.pitch_predictor = VariancePredictor(
-                d_model=256, d_inner=256, kernel_size=3, dropout=0.5  # va_hidden_size  # n_f0_bins
+                d_model=d_model, d_inner=n_f0_bins, kernel_size=pitch_kernel_size, dropout=dropout
             )
             # Predictor outputs values directly rather than one-hot vectors, therefore Embedding
-            self.pitch_lookup = nn.Embedding(256, 256)  # f0_bins, va_hidden_size
+            self.pitch_lookup = nn.Embedding(n_f0_bins, d_model)
 
+        # -- Energy Setup --
         if self.energy:
-            # -- Energy Setup --
             self.register_buffer(  # Linear scale bins
-                "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=255)  # n_energy_bins - 1
+                "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=n_energy_bins-1)
             )
             self.energy_predictor = VariancePredictor(
-                d_model=256,
-                d_inner=256,
-                kernel_size=3,
-                dropout=0.5,  # va_hidden_size, n_energy_bins, kernel size, dropout
+                d_model=d_model,
+                d_inner=n_energy_bins,
+                kernel_size=energy_kernel_size,
+                dropout=dropout,
             )
-            self.energy_lookup = nn.Embedding(256, 256)  # n_energy_bins, va_hidden_size
+            self.energy_lookup = nn.Embedding(n_energy_bins, d_model)
 
     @property
     def input_types(self):
@@ -188,11 +214,11 @@ class VarianceAdaptor(NeuralModule):
             dur_out = self.length_regulator(x, dur_preds)
         out = dur_out
 
+        # Pitch
+        # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
+        #       (see Appendix C of the FastSpeech 2/2s paper).
         pitch_preds = None
         if self.pitch:
-            # Pitch
-            # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
-            #       (see Appendix C of the FastSpeech 2/2s paper).
             pitch_preds = self.pitch_predictor(dur_out.transpose(1, 2))
             if self.training:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
@@ -200,9 +226,9 @@ class VarianceAdaptor(NeuralModule):
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
             out += pitch_out
 
+        # Energy
         energy_preds = None
         if self.energy:
-            # Energy
             energy_preds = self.energy_predictor(dur_out.transpose(1, 2))
             if self.training:
                 energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))

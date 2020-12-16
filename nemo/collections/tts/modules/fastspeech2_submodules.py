@@ -328,6 +328,15 @@ class Tranpose(nn.Module):
 # The following are not from DeepLearningExamples.
 class VariancePredictor(nn.Module):
     def __init__(self, d_model, d_inner, kernel_size, dropout):
+        """
+        Variance predictor submodule for FastSpeech 2/2s, used for pitch and energy prediction.
+
+        Args:
+            d_model: Input dimension.
+            d_inner: Hidden dimension of the variance predictor.
+            kernel_size: Conv1d kernel size.
+            dropout: Dropout value for the variance predictor.
+        """
         super().__init__()
 
         self.d_model = d_model
