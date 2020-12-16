@@ -209,7 +209,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     if is_global_rank_zero():
         if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, log_dir, checkpoint_name, params=cfg.checkpoint_callback_params)
+            configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
 
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
