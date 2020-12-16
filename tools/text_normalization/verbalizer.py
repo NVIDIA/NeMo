@@ -45,16 +45,22 @@ read_tsv = csv.reader(_whitelist_tsv, delimiter="\t")
 _whitelist_dict = dict(read_tsv)
 
 
-def expand_whitelist(data):
+def expand_whitelist(data: dict) -> str:
     """
     Verbalizes whitelisted tokens.
+    Args:
+        data: detected data
+    Returns string
     """
     return _whitelist_dict[data["value"]]
 
 
-def expand_roman(data):
+def expand_roman(data: dict) -> str:
     """
     Verbalizes roman numerals.
+    Args:
+        data: detected data
+    Returns string
     """
     num = data["value"]
     result = 0
@@ -66,16 +72,22 @@ def expand_roman(data):
     return _inflect.number_to_words(result).replace("-", " ").replace(" and ", " ").replace(",", "")
 
 
-def expand_cardinal(data):
+def expand_cardinal(data: dict) -> str:
     """
     Verbalizes cardinal data.
+    Args:
+        data: detected data
+    Returns string
     """
     return _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
 
 
-def expand_ordinal(data):
+def expand_ordinal(data: dict) -> str:
     """
     Verbalizes ordinal data.
+    Args:
+        data: detected data
+    Returns string
     """
     if data["value"] is None:
         return None
@@ -83,9 +95,12 @@ def expand_ordinal(data):
     return result.replace("-", " ").replace(" and ", " ").replace(",", "")
 
 
-def expand_year(data):
+def expand_year(data: dict) -> str:
     """
     Verbalizes measurement data.
+    Args:
+        data: detected data
+    Returns string
     """
     if data["value"] is None:
         return None
@@ -107,9 +122,13 @@ def expand_year(data):
     return result
 
 
-def expand_date(data, verbalize):
+def expand_date(data: dict, verbalize: object) -> str:
     """
     Verbalizes date data.
+    Args:
+        data: detected data
+        verbalize: verbalization function
+    Returns string
     """
     try:
         data["month"] = _month_dict[data["month"]]
@@ -173,17 +192,23 @@ def _expand_currency(data):
         return 'zero' + ' ' + currency + 's'
 
 
-def expand_money(data):
+def expand_money(data: dict) -> str:
     """
     Verbalizes money data.
+    Args:
+        data: detected data
+    Returns string
     """
     result = _expand_currency(data)
     return result.replace(',', '').replace('-', ' ').replace(' and ', ' ')
 
 
-def expand_measurement(data):
+def expand_measurement(data: dict) -> str:
     """
     Verbalizes measurement data.
+    Args:
+        data: detected data
+    Returns string
     """
     value = float(data["decimal"].replace(",", ""))
     value_verb = _inflect.number_to_words(data["decimal"]).replace(',', '').replace('-', ' ').replace(' and ', ' ')
@@ -203,9 +228,12 @@ def expand_measurement(data):
     return res
 
 
-def expand_time(data):
+def expand_time(data: dict) -> str:
     """
     Verbalizes time data.
+    Args:
+        data: detected data
+    Returns string
     """
     res = _inflect.number_to_words(data["hour"])
     if data.get("minutes") and int(data["minutes"]) != 0:

@@ -99,7 +99,6 @@ def clean_generic(text: str) -> str:
     """
     text = text.strip()
     text = text.lower()
-    # text = re.sub("[^ a-z0-9'.,?!\-]", "", text)
     return text
 
 
