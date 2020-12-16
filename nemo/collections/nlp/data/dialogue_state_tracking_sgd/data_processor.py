@@ -54,7 +54,6 @@ class SGDDataProcessor(object):
         tokenizer,
         schemas,
         schema_config,
-        overwrite_dial_files=False,
         subsample=False,
     ):
         """
@@ -65,7 +64,6 @@ class SGDDataProcessor(object):
             dialogues_example_dir (str): path to  store processed dialogue examples
             tokenizer (Tokenizer): such as NemoBertTokenizer
             schemas (Obj): contains information about schemas
-            overwrite_dial_files (bool): whether to overwite dialogue files
         """
         self.data_dir = data_dir
 
@@ -91,6 +89,8 @@ class SGDDataProcessor(object):
         }
 
         self._tokenizer = tokenizer
+        self._subsample = subsample
+        self._dialogues_example_dir = dialogues_example_dir
 
         self.dial_files = {}
 
@@ -98,7 +98,6 @@ class SGDDataProcessor(object):
         # looked into when a switch between two services happens in the dialogue and we can not find any value for a slot in the current user utterance.
         # This file would get generated from the dialogues in the training set.
         self.slots_relation_file = os.path.join(dialogues_example_dir, f"{task_name}_train_slots_relation_list.np")
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         for dataset in ["train", "dev", "test"]:
             # Process dialogue files
             dial_file = f"{task_name}_{dataset}_examples.processed"
@@ -109,28 +108,29 @@ class SGDDataProcessor(object):
             dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
             for dialog in dialogs:
                 self._seen_services[dataset].update(set(dialog['services']))
+
+    def save_dialog_examples(self, overwrite_dial_files):
+        for dataset in ["train", "dev", "test"]:
+            dial_file = self.dial_files[(self._task_name, dataset)]
             if not os.path.exists(dial_file) or overwrite_dial_files:
                 logging.debug(f"Start generating the dialogue examples for {dataset} dataset.")
-                if master_device:
-                    if not os.path.exists(dialogues_example_dir):
-                        os.makedirs(dialogues_example_dir)
-                    dial_examples, slots_relation_list = self._generate_dialog_examples(dataset, schemas, subsample)
-                    with open(dial_file, "wb") as f:
-                        np.save(f, dial_examples)
+                if not os.path.exists(self._dialogues_example_dir):
+                    os.makedirs(self._dialogues_example_dir)
+                dial_examples, slots_relation_list = self._generate_dialog_examples(dataset, self.schemas, self._subsample)
+                with open(dial_file, "wb") as f:
+                    np.save(f, dial_examples)
 
-                    if dataset == "train":
-                        with open(self.slots_relation_file, "wb") as f:
-                            pickle.dump(slots_relation_list, f)
-                        logging.debug(
-                            f"The slot carry-over list for train set is stored at {self.slots_relation_file}"
-                        )
+                if dataset == "train":
+                    with open(self.slots_relation_file, "wb") as f:
+                        pickle.dump(slots_relation_list, f)
+                    logging.debug(
+                        f"The slot carry-over list for train set is stored at {self.slots_relation_file}"
+                    )
 
-                    logging.debug(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
+                logging.debug(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
                 logging.debug(f"Finish generating the dialogue examples for {dataset} dataset.")
 
-            # wait until the master process writes to the dialogue processed file
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
+
 
     def get_dialog_examples(self, dataset):
         """

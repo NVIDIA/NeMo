@@ -33,6 +33,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['SGDQAModel']
 
@@ -286,9 +287,8 @@ class SGDQAModel(NLPModel):
         all_logit_noncat_slot_end = []
         all_start_char_idx = []
         all_end_char_idx = []
-
-        if torch.distributed.is_initialized():
-            world_size = torch.distributed.get_world_size()
+        if self.trainer.gpus:
+            world_size = self.trainer.world_size
             for ind in range(world_size):
                 all_example_id_num.append(torch.empty_like(example_id_num))
                 all_service_id.append(torch.empty_like(service_id))
@@ -329,7 +329,7 @@ class SGDQAModel(NLPModel):
             all_start_char_idx.append(start_char_idx)
             all_end_char_idx.append(end_char_idx)
 
-        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        if self.trainer.global_rank == 0:
             ids_to_service_names_dict = self.dialogues_processor.schemas._services_id_to_vocab
             example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
             intent_status = torch.nn.Sigmoid()(logit_intent_status)
@@ -387,7 +387,7 @@ class SGDQAModel(NLPModel):
             )
             ##############
             # we'll write predictions to file in Dstc8/SGD format during evaluation callback
-            prediction_dir = self.self.trainer.log_dir
+            prediction_dir = self.trainer.log_dir
             prediction_dir = os.path.join(
                 prediction_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, self._cfg.dataset.task_name)
             )
@@ -451,6 +451,7 @@ class SGDQAModel(NLPModel):
         for dataset_split in ['train', 'test', 'dev']:
             all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
         schemas = Schema(all_schema_json_paths)
+
         self.dialogues_processor = SGDDataProcessor(
             task_name=self._cfg.dataset.task_name,
             data_dir=self._cfg.dataset.data_dir,
@@ -459,8 +460,10 @@ class SGDQAModel(NLPModel):
             schemas=schemas,
             schema_config=schema_config,
             subsample=self._cfg.dataset.subsample,
-            overwrite_dial_files=not self._cfg.dataset.use_cache,
         )
+        if is_global_rank_zero:
+            overwrite_dial_files = not self._cfg.dataset.use_cache
+            self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         self.prepare_data()
