@@ -90,7 +90,7 @@ class ExpManagerConfig:
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: CallbackParams = CallbackParams()
     # Additional exp_manager arguments
-    files_to_copy: Optional[str] = None
+    files_to_copy: Optional[List[str]] = None
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
@@ -210,11 +210,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if is_global_rank_zero():
         if cfg.create_checkpoint_callback:
             configure_checkpointing(
-                trainer,
-                log_dir,
-                checkpoint_name,
-                checkpoint_callback_class=NeMoModelCheckpoint,
-                params=cfg.checkpoint_callback_params,
+                trainer, log_dir, checkpoint_name, params=cfg.checkpoint_callback_params,
             )
 
         # Move files_to_copy to folder and add git information if present
@@ -564,11 +560,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer',
-    log_dir: Path,
-    name: str,
-    checkpoint_callback_class: 'NeMoModelCheckpoint',
-    params: Dict,
+    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict,
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
@@ -584,10 +576,8 @@ def configure_checkpointing(
         raise CheckpointMisconfigurationError(
             "The pytorch lightning was passed weights_save_path. This variable is ignored by exp_manager"
         )
-    else:
-        logging.warning("trainer had a weights_save_path of cwd(). This was ignored.")
-    # Create the callback and attach it to trainer
 
+    # Create the callback and attach it to trainer
     if params.filepath is None:
         params.filepath = Path(log_dir / 'checkpoints' / f'--{{{params.monitor}:.2f}}-{{epoch}}')
     if params.prefix is None:
@@ -601,5 +591,5 @@ def configure_checkpointing(
             "returned metrics. Please ensure that validation is run within trainer.max_epochs."
         )
 
-    checkpoint_callback = checkpoint_callback_class(**params)
+    checkpoint_callback = NeMoModelCheckpoint(**params)
     trainer.callbacks.append(checkpoint_callback)
