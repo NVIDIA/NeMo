@@ -156,6 +156,10 @@ class EncDecClassificationModel(ASRModel, Exportable):
         results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
         p.close()
 
+        if os.path.exists(manifest_vad_input):
+            logging.info("The prepared manifest file exists. Overwriting!")
+            os.remove(manifest_vad_input)
+
         with open(manifest_vad_input, 'a') as fout:
             for res in results:
                 for r in res:
