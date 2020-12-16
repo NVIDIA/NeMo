@@ -28,48 +28,46 @@ from nemo.core.neural_types import *
 from nemo.utils import logging
 
 
-""" From the paper:
-Our FastSpeech 2 consists of 4 feed-forward Transformer (FFT) blocks [20]
-in the encoder and the mel-spectrogram decoder. In each FFT block, the dimension of phoneme
-embeddings and the hidden size of the self-attention are set to 256. The number of attention heads
-is set to 2 and the kernel sizes of the 1D-convolution in the 2-layer convolutional network after
-the self-attention layer are set to 9 and 1, with input/output size of 256/1024 for the first layer and
-1024/256 in the second layer. The output linear layer converts the 256-dimensional hidden states into
-80-dimensional mel-spectrograms and optimized with mean absolute error (MAE). The size of the
-phoneme vocabulary is 76, including punctuations. In the variance predictor, the kernel sizes of the
-1D-convolution are set to 3, with input/output sizes of 256/256 for both layers and the dropout rate
-is set to 0.5. Our waveform decoder consists of 1-layer transposed 1D-convolution with filter size
-64 and 30 layers of dilated residual convolution blocks, whose skip channel size and kernel size of
-1D-convolution are set to 64 and 3. The configurations of the discriminator in FastSpeech 2s are the
-same as Parallel WaveGAN [27]. We list hyperparameters and configurations of all models used in
-our experiments in Appendix A."""
-
-# Very WIP.
-# Hyperparams hard-coded for now to the best of my understanding
-
-
 @experimental
 class Encoder(NeuralModule):
-    def __init__(self):
+    def __init__(
+        self,
+        n_layers=4,
+        n_attn_heads=2,
+        d_model=256,
+        d_attn_head=256,
+        d_inner=1024,
+        kernel_size=9,
+        dropout=0.2,
+        attn_dropout=0.1
+    ):
         """
         FastSpeech 2 encoder. Converts phoneme sequence to the phoneme hidden sequence.
-        Consists of a phoneme embedding lookup, positional encoding, and four feed-forward
-        Transformer blocks.
+        Consists of a phoneme embedding lookup, positional encoding, and feed-forward
+        Transformer blocks (4 by default).
 
         Args:
+            n_layers: Number of feed-forward Transformer layers in the encoder. Defaults to 4.
+            n_attn_heads: Number of attention heads for the feed-forward Transformer in the encoder.
+                Defaults to 2.
+            d_model: Model input (embedding) dimension. Defaults to 256.
+            d_attn_head: Dimensionality of the attention heads. Defaults to 256.
+            d_inner: Encoder hidden dimension. Defaults to 1024.
+            kernel_size: Encoder Conv1D kernel size (kernel_size, 1). Defaults to 9.
+            dropout: Encoder feed-forward Transformer dropout. Defaults to 0.2.
+            attn_dropout: Encoder attention dropout. Defaults to 0.1.
         """
-        # TODO: documentation of params
         super().__init__()
 
         self.encoder = FFTransformer(
-            n_layer=4,
-            n_head=2,
-            d_model=256,
-            d_head=256,
-            d_inner=1024,
-            kernel_size=(9, 1),
-            dropout=0.2,
-            dropatt=0.1,  # ??? Not sure if this is right, don't see it in paper
+            n_layer=n_layers,
+            n_head=n_attn_heads,
+            d_model=d_model,
+            d_head=d_attn_head,
+            d_inner=d_inner,
+            kernel_size=(kernel_size, 1),
+            dropout=dropout,
+            dropatt=attn_dropout,  # TODO: ?? Not sure if this is right, don't see it in paper
             embed_input=True,  # For the encoder, need to do embedding lookup
         )
 
