@@ -120,6 +120,52 @@ class EncDecRNNTModel(ASRModel):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        if hasattr(self.cfg, 'var_noise'):
+            self._var_noise_std = self.cfg['var_noise'].get('std', None)
+            self._var_noise_start = self.cfg['var_noise'].get('start_step', 0)
+        else:
+            self._var_noise_std = 0
+            self._var_noise_start = 0
+
+        # if self._var_noise_std > 0:
+        #     self.decoder.register_backward_hook(functools.partial(EncDecRNNTModel.apply_var_noise, self))
+
+    # def apply_var_noise(model, module, grad_input, grad_output):
+    #     from time import time
+    #     start = time()
+    #     grad_output_new = []
+    #     if module._var_noise_std > 0 and model.global_step >= module._var_noise_start:
+    #         print(module)
+    #         for grad in grad_input:
+    #             print(grad.size())
+    #             print(grad)
+    #
+    #             noise = torch.normal(
+    #                 mean=0.0, std=module._var_noise_std, size=grad.size(), device=grad.device, dtype=grad.dtype
+    #             )
+    #             grad_output_new.append(grad + noise)
+    #
+    #     # for param_name, param in module.named_parameters():
+    #         #     print(param_name)
+    #         #     noise = torch.normal(
+    #         #         mean=0.0, std=module._var_noise_std, size=param.size(), device=param.device, dtype=param.dtype
+    #         #     )
+    #         #     param.grad.data.add_(noise)
+    #
+    #         # print(grad_input[0].size())
+    #         # print(grad_output[0].size())
+    #         # for param_name, param in module.named_parameters():
+    #         #     if param.grad is not None and param_name.startswith('decoder.'):
+    #         #         print(param_name)
+    #         #         noise = torch.normal(
+    #         #             mean=0.0, std=module._var_noise_std, size=param.size(), device=param.device, dtype=param.dtype
+    #         #         )
+    #         #         param.grad.data.add_(noise)
+    #
+    #     print(time()-start)
+    #     return tuple(grad_output_new)
+
+
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         """
@@ -568,3 +614,18 @@ class EncDecRNNTModel(ASRModel):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
+
+    def on_after_backward(self):
+        super().on_after_backward()
+        from time import time
+        start = time()
+        if self._var_noise_std > 0 and self.global_step >= self._var_noise_start:
+            for param_name, param in self.decoder.named_parameters():
+                if param.grad is not None: # and param_name.startswith('decoder.'):
+                    print(param_name)
+                    noise = torch.normal(
+                        mean=0.0, std=self._var_noise_std, size=param.size(), device=param.device, dtype=param.dtype
+                    )
+                    param.grad.data.add_(noise)
+
+        print(time()-start)
