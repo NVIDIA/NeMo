@@ -31,7 +31,7 @@ import torch
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import InputExample
 from nemo.utils import logging
 
-__all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor']
+__all__ = ['SGDDataProcessor']
 
 FILE_RANGES = {
     "sgd_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
@@ -41,9 +41,6 @@ FILE_RANGES = {
     "multiwoz": {"train": range(1, 18), "dev": range(1, 3), "test": range(1, 3)},
     "debug_sample": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
 }
-
-# Name of the file containing all predictions and their corresponding frame metrics.
-PER_FRAME_OUTPUT_FILENAME = "dialogues_and_metrics.json"
 
 
 class SGDDataProcessor(object):
@@ -71,7 +68,6 @@ class SGDDataProcessor(object):
             overwrite_dial_files (bool): whether to overwite dialogue files
         """
         self.data_dir = data_dir
-        self.dialogues_examples_dir = dialogues_example_dir
 
         self._task_name = task_name
         # {'MAX_NUM_CAT_SLOT': 6, 'MAX_NUM_NONCAT_SLOT': 12, 'MAX_NUM_VALUE_PER_CAT_SLOT': 12, 'MAX_NUM_INTENT': 4, 'EMBEDDING_DIMENSION': 768, 'MAX_SEQ_LENGTH': 80}
@@ -95,7 +91,6 @@ class SGDDataProcessor(object):
         }
 
         self._tokenizer = tokenizer
-        self._max_seq_length = self.schema_config["MAX_SEQ_LENGTH"]
 
         self.dial_files = {}
 
@@ -103,7 +98,6 @@ class SGDDataProcessor(object):
         # looked into when a switch between two services happens in the dialogue and we can not find any value for a slot in the current user utterance.
         # This file would get generated from the dialogues in the training set.
         self.slots_relation_file = os.path.join(dialogues_example_dir, f"{task_name}_train_slots_relation_list.np")
-
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         for dataset in ["train", "dev", "test"]:
             # Process dialogue files
@@ -112,7 +106,7 @@ class SGDDataProcessor(object):
             self.dial_files[(task_name, dataset)] = dial_file
 
             dialog_paths = SGDDataProcessor.get_dialogue_files(data_dir, dataset, task_name)
-            dialogs = SGDDataProcessor.load_dialogues(dialog_paths, num2str=False)
+            dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
             for dialog in dialogs:
                 self._seen_services[dataset].update(set(dialog['services']))
             if not os.path.exists(dial_file) or overwrite_dial_files:
@@ -202,9 +196,6 @@ class SGDDataProcessor(object):
 
         with open(self.slots_relation_file, "rb") as f:
             self.schemas._slots_relation_list = pickle.load(f)
-        import ipdb
-
-        ipdb.set_trace()
         logging.info(
             f"Loaded the slot relation list for value carry-over between services from {self.slots_relation_file}."
         )
@@ -227,7 +218,7 @@ class SGDDataProcessor(object):
         dialog_paths = [
             os.path.join(self.data_dir, dataset, "dialogues_{:03d}.json".format(i)) for i in self._file_ranges[dataset]
         ]
-        dialogs = SGDDataProcessor.load_dialogues(dialog_paths, num2str=self._num2str)
+        dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
 
         examples = []
         slot_carryover_candlist = collections.defaultdict(int)

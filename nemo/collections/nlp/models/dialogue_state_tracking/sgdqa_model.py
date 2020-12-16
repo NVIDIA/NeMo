@@ -22,8 +22,7 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 import nemo.collections.nlp.data.dialogue_state_tracking_sgd.prediction_utils as pred_utils
-from nemo.collections.nlp.data import SGDDataset
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd import Schema, SGDDataProcessor
+from nemo.collections.nlp.data import Schema, SGDDataProcessor, SGDDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.evaluate import evaluate, get_in_domain_services
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -388,7 +387,7 @@ class SGDQAModel(NLPModel):
             )
             ##############
             # we'll write predictions to file in Dstc8/SGD format during evaluation callback
-            prediction_dir = 'pred_dir'
+            prediction_dir = self.self.trainer.log_dir
             prediction_dir = os.path.join(
                 prediction_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, self._cfg.dataset.task_name)
             )

@@ -18,7 +18,6 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 
 from nemo.utils import logging
 
-truncate_seq_pair
 __all__ = ['InputExample', 'STR_DONTCARE', 'STATUS_OFF', 'STATUS_ACTIVE', 'STATUS_DONTCARE']
 
 STR_DONTCARE = "dontcare"
