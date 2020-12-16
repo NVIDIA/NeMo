@@ -224,7 +224,7 @@ To run tutorials:
      - `Question answering Squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b3/tutorials/nlp/Question_Answering_Squad.ipynb>`_
    * - NLP
      - Token Classification (Named Entity Recognition)
-     - `Token classification: named entity recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b3/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
+     - `Token classification: named entity recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
    * - NLP
      - Joint Intent Classification and Slot Filling
      - `Joint Intent and Slot Classification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b3/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb>`_
@@ -233,7 +233,7 @@ To run tutorials:
      - `GLUE benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b3/tutorials/nlp/GLUE_Benchmark.ipynb>`_
    * - NLP
      - Punctuation and Capitialization
-     - `Punctuation and capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b3/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+     - `Punctuation and capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - NLP
      - Named Entity Recognition - BioMegatron
      - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
