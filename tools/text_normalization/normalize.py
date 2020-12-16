@@ -91,7 +91,7 @@ def verbalizer(text: str, tags: List[Tag]) -> str:
     return text
 
 
-def normalize_numbers(text, verbose):
+def normalize_numbers(text: str, verbose: bool):
     """
     main function. normalizes alphanumerical tokens in given text to its verbalized form:
     e.g. "12kg -> twelve kilograms"
@@ -108,7 +108,7 @@ def normalize_numbers(text, verbose):
     return output
 
 
-def normalize_identity(un_normalized: List[str], verbose=False) -> List[str]:
+def normalize_identity(un_normalized: List[str], verbose: bool = False) -> List[str]:
     """
     Identity normalizer. Returns input unchanged
     Args:
@@ -118,7 +118,14 @@ def normalize_identity(un_normalized: List[str], verbose=False) -> List[str]:
     return un_normalized
 
 
-def normalize_nemo(un_normalized: List[str], verbose=False) -> List[str]:
+def normalize_nemo(un_normalized: List[str], verbose: bool = False) -> List[str]:
+    """
+    Text normalization with NeMo algorithm.
+    Args:
+        un_normalized: List of unnormlized strings
+        verbose: if specified prints debugging info
+    Returns list of normalized strings
+    """
     res = []
     for input in tqdm(un_normalized):
         text = normalize_numbers(input, verbose=verbose)

@@ -46,10 +46,16 @@ _whitelist_dict = dict(read_tsv)
 
 
 def expand_whitelist(data):
+    """
+    Verbalizes whitelisted tokens.
+    """
     return _whitelist_dict[data["value"]]
 
 
 def expand_roman(data):
+    """
+    Verbalizes roman numerals.
+    """
     num = data["value"]
     result = 0
     for i, c in enumerate(num):
@@ -61,10 +67,16 @@ def expand_roman(data):
 
 
 def expand_cardinal(data):
+    """
+    Verbalizes cardinal data.
+    """
     return _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
 
 
 def expand_ordinal(data):
+    """
+    Verbalizes ordinal data.
+    """
     if data["value"] is None:
         return None
     result = _inflect.number_to_words(data["value"] + "th")
@@ -72,6 +84,9 @@ def expand_ordinal(data):
 
 
 def expand_year(data):
+    """
+    Verbalizes measurement data.
+    """
     if data["value"] is None:
         return None
     number = int(data["value"])
@@ -93,6 +108,9 @@ def expand_year(data):
 
 
 def expand_date(data, verbalize):
+    """
+    Verbalizes date data.
+    """
     try:
         data["month"] = _month_dict[data["month"]]
     except Exception:
@@ -156,11 +174,17 @@ def _expand_currency(data):
 
 
 def expand_money(data):
+    """
+    Verbalizes money data.
+    """
     result = _expand_currency(data)
     return result.replace(',', '').replace('-', ' ').replace(' and ', ' ')
 
 
 def expand_measurement(data):
+    """
+    Verbalizes measurement data.
+    """
     value = float(data["decimal"].replace(",", ""))
     value_verb = _inflect.number_to_words(data["decimal"]).replace(',', '').replace('-', ' ').replace(' and ', ' ')
     res = value_verb
@@ -180,6 +204,9 @@ def expand_measurement(data):
 
 
 def expand_time(data):
+    """
+    Verbalizes time data.
+    """
     res = _inflect.number_to_words(data["hour"])
     if data.get("minutes") and int(data["minutes"]) != 0:
         if data["minutes"][0] == "0":

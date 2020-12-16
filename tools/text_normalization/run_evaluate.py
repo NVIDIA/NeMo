@@ -34,7 +34,11 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", type=str)
     parser.add_argument(
-        "--normalizer", default='nemo', help="normlizer to use (" + ", ".join(normalizers.keys()) + ")", type=str
+        "--normalizer",
+        default='nemo',
+        help="normalizer to use (" + ", ".join(normalizers.keys()) + ")",
+        type=str,
+        choices=normalizers.keys(),
     )
     parser.add_argument(
         "--cat", dest="category", help="focus on class only (" + ", ".join(known_types) + ")", type=str, default=None

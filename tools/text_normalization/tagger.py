@@ -69,7 +69,7 @@ class Tag:
         start: start index of unnormalized substring
         end: end index of unnormalized substring
         normalize: verbalization function that takes data as input and returns normalized output
-        data: 
+        data: input data
     """
 
     def __init__(self, kind, start, end, normalize, data):
@@ -83,6 +83,10 @@ class Tag:
     def overlap(tag1, tag2) -> bool:
         """
         checks if given tags overlap in their text span
+        Args:
+            tag1: first tag object
+            tag2: second tag object
+        Returns true if both tags overlap in their respective span
         """
         return (tag1.start <= tag2.start < tag1.end) or (tag2.start <= tag1.start < tag2.end)
 
