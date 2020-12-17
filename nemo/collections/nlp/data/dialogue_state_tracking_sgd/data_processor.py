@@ -184,12 +184,12 @@ class SGDDataProcessor(object):
             raise ValueError(
                 f"Slots relation file {self.slots_relation_file} does not exist. It is needed for the carry-over mechanism of state tracker for switches between services."
             )
-
-        with open(self.slots_relation_file, "rb") as f:
-            self.schemas._slots_relation_list = pickle.load(f)
-        logging.info(
-            f"Loaded the slot relation list for value carry-over between services from {self.slots_relation_file}."
-        )
+        if os.path.getsize(self.slots_relation_file) > 0:
+            with open(self.slots_relation_file, "rb") as f:
+                self.schemas._slots_relation_list = pickle.load(f)
+            logging.info(
+                f"Loaded the slot relation list for value carry-over between services from {self.slots_relation_file}."
+            )
 
         return dial_examples
 
