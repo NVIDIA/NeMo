@@ -12,6 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Given NMT model's .nemo file, this script can be used to translate text.
+USAGE Example:
+1. Obtain text file in src language. You can use sacrebleu to obtain standard test sets like so:
+    sacrebleu -t wmt14 -l de-en --echo src > wmt14-de-en.src
+2. Translate:
+    python nmt_transformer_infer.py --model=[Path to .nemo file] --srctext=wmt14-de-en.src --tgtout=wmt14-de-en.pre
+"""
+
+
 from argparse import ArgumentParser
 
 import torch
@@ -23,31 +33,47 @@ from nemo.utils import logging
 def main():
     parser = ArgumentParser()
     parser.add_argument("--model", type=str, required=True, help="")
-    parser.add_argument("--text2translate", type=str, required=True, help="")
-    parser.add_argument("--output", type=str, required=True, help="")
+    parser.add_argument("--srctext", type=str, required=True, help="")
+    parser.add_argument("--tgtout", type=str, required=True, help="")
+    parser.add_argument("--batch_size", type=int, default=256, help="")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
-        model = nemo_nlp.models.MTEncDecModel.restore_from(restore_path=args.model)
-    elif args.model.endswith(".ckpt"):
-        logging.info("Attempting to initialize from .ckpt file")
-        model = nemo_nlp.models.MTEncDecModel.load_from_checkpoint(checkpoint_path=args.model)
+        model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=args.model)
+        src_text = []
+        tgt_text = []
+    else:
+        raise NotImplemented(f"Only support .nemo files, but got: {args.model}")
+
     if torch.cuda.is_available():
         model = model.cuda()
 
-    logging.info(f"Translating: {args.text2translate}")
-    txt_to_translate = []
-    with open(args.text2translate, 'r') as fin:
-        for line in fin:
-            txt_to_translate.append(line.strip())
-    print(txt_to_translate)
-    translation = model.translate(text=txt_to_translate)
-    with open(args.output, 'w') as fout:
-        for txt in translation:
-            fout.write(txt + "\n")
-    logging.info("all done")
+    logging.info(f"Translating: {args.srctext}")
+
+    count = 0
+    with open(args.srctext, 'r') as src_f:
+        for line in src_f:
+            src_text.append(line.strip())
+            if len(src_text) == args.batch_size:
+                res = model.translate(text=src_text)
+                if len(res) != len(src_text):
+                    print(len(res))
+                    print(len(src_text))
+                    print(res)
+                    print(src_text)
+                tgt_text += res
+                src_text = []
+            count += 1
+            # if count % 300 == 0:
+            #    print(f"Translated {count} sentences")
+        if len(src_text) > 0:
+            tgt_text += model.translate(text=src_text)
+
+    with open(args.tgtout, 'w') as tgt_f:
+        for line in tgt_text:
+            tgt_f.write(line + "\n")
 
 
 if __name__ == '__main__':

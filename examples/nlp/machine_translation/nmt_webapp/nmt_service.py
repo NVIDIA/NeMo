@@ -19,11 +19,13 @@ from flask import Flask, json, request
 import nemo.collections.nlp as nemo_nlp
 from nemo.utils import logging
 
+PATH2NEMO_FILE = '/home/okuchaiev/Workspace/MTModels/DeEn/de-en-big.nemo'
+
 model = None
 api = Flask(__name__)
 
 logging.info("Starting NMT service")
-model = nemo_nlp.models.machine_translation.TransformerMTModel.restore_from(restore_path="TransformerMT.nemo")
+model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=PATH2NEMO_FILE)
 if torch.cuda.is_available():
     logging.info("CUDA is available. Running on GPU")
     model = model.cuda()
