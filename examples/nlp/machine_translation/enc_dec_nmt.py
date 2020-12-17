@@ -25,6 +25,7 @@ from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
+
 """
 Usage:
  1. If you need to start docker and install NeMo, otherwise skip this step:
@@ -42,7 +43,7 @@ Usage:
  3. Start training:
  
 
- (This example for "base" model on 2 GPUs for 150000 steps with batch size of 50000 tokens per GPU)
+ (This example for "base" model on 2 GPUs for 150000 steps with batch size of 12500 tokens per GPU)
  
  python enc_dec_nmt.py \
       --config-path=conf \
@@ -67,7 +68,7 @@ Usage:
       model.decoder.ffn_dropout=0.1 \
       model.train_ds.src_file_name=/mnt/D1/Data/NMT/wmt16_de_en/train.clean.de.shuffled \
       model.train_ds.tgt_file_name=/mnt/D1/Data/NMT/wmt16_de_en/train.clean.en.shuffled \
-      model.train_ds.tokens_in_batch=50000 \
+      model.train_ds.tokens_in_batch=12500 \
       model.validation_ds.src_file_name=/mnt/D1/Data/NMT/wmt16_de_en/wmt14-en-de.ref \
       model.validation_ds.tgt_file_name=/mnt/D1/Data/NMT/wmt16_de_en/wmt14-en-de.src \
       model.validation_ds.tokens_in_batch=8192 \
