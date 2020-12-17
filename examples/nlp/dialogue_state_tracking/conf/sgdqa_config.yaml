@@ -53,6 +53,7 @@ model:
     max_seq_length: 128 # the maximum length BERT supports is 512
     task_name: sgd_single_domain
     state_tracker: nemotracker
+    prediction_dir: ???
     data_dir: ???
     dialogues_example_dir: ???
     subsample: false 

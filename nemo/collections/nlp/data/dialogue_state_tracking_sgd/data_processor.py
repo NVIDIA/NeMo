@@ -106,7 +106,7 @@ class SGDDataProcessor(object):
         for dataset in ["train", "dev", "test"]:
             dial_file = self.dial_files[(self._task_name, dataset)]
             if not os.path.exists(dial_file) or overwrite_dial_files:
-                logging.debug(f"Start generating the dialogue examples for {dataset} dataset.")
+                logging.info(f"Start generating the dialogue examples for {dataset} dataset.")
                 if not os.path.exists(self._dialogues_example_dir):
                     os.makedirs(self._dialogues_example_dir)
                 dial_examples, slots_relation_list = self._generate_dialog_examples(
@@ -118,10 +118,10 @@ class SGDDataProcessor(object):
                 if dataset == "train":
                     with open(self.slots_relation_file, "wb") as f:
                         pickle.dump(slots_relation_list, f)
-                    logging.debug(f"The slot carry-over list for train set is stored at {self.slots_relation_file}")
+                    logging.info(f"The slot carry-over list for train set is stored at {self.slots_relation_file}")
 
-                logging.debug(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
-                logging.debug(f"Finish generating the dialogue examples for {dataset} dataset.")
+                logging.info(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
+                logging.info(f"Finish generating the dialogue examples for {dataset} dataset.")
 
     def get_dialog_examples(self, dataset):
         """

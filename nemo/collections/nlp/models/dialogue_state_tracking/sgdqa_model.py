@@ -231,6 +231,7 @@ class SGDQAModel(NLPModel):
             noncategorical_slot_value_end=noncategorical_slot_value_end,
             task_mask=task_mask,
         )
+        
 
         tensors = {
             'example_id_num': example_id_num,
@@ -314,6 +315,7 @@ class SGDQAModel(NLPModel):
             torch.distributed.all_gather(all_logit_noncat_slot_end, logit_noncat_slot_end)
             torch.distributed.all_gather(all_start_char_idx, start_char_idx)
             torch.distributed.all_gather(all_end_char_idx, end_char_idx)
+
         else:
             all_example_id_num.append(example_id_num)
             all_service_id.append(service_id)
@@ -328,7 +330,7 @@ class SGDQAModel(NLPModel):
             all_start_char_idx.append(start_char_idx)
             all_end_char_idx.append(end_char_idx)
 
-        # after this: all_x is list of tensors, of length world_size
+        # # after this: all_x is list of tensors, of length world_size
         example_id_num = torch.cat(all_example_id_num)
         service_id = torch.cat(all_service_id)
         is_real_example = torch.cat(all_is_real_example)
@@ -341,65 +343,67 @@ class SGDQAModel(NLPModel):
         logit_noncat_slot_end = torch.cat(all_logit_noncat_slot_end)
         start_char_idx = torch.cat(all_start_char_idx)
         end_char_idx = torch.cat(all_end_char_idx)
+
+        ids_to_service_names_dict = self.dialogues_processor.schemas._services_id_to_vocab
+        example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
+        intent_status = torch.nn.Sigmoid()(logit_intent_status)
+
+        # Scores are output for each requested slot.
+        req_slot_status = torch.nn.Sigmoid()(logit_req_slot_status)
+
+        # For categorical slots, the status of each slot and the predicted value are output.
+        cat_slot_status_dist = torch.nn.Softmax(dim=-1)(logit_cat_slot_status)
+
+        cat_slot_status = torch.argmax(logit_cat_slot_status, axis=-1)
+        cat_slot_status_p = cat_slot_status_dist
+        cat_slot_value_status = torch.nn.Sigmoid()(logit_cat_slot_value_status)
+
+        # For non-categorical slots, the status of each slot and the indices for spans are output.
+        noncat_slot_status_dist = torch.nn.Softmax(dim=-1)(logit_noncat_slot_status)
+
+        noncat_slot_status = torch.argmax(logit_noncat_slot_status, axis=-1)
+        noncat_slot_status_p = noncat_slot_status_dist
+
+        softmax = torch.nn.Softmax(dim=-1)
+        start_scores = softmax(logit_noncat_slot_start)
+        end_scores = softmax(logit_noncat_slot_end)
+
+        batch_size, max_num_tokens = end_scores.size()
+        # Find the span with the maximum sum of scores for start and end indices.
+        total_scores = torch.unsqueeze(start_scores, axis=2) + torch.unsqueeze(end_scores, axis=1)
+        # Mask out scores where start_index > end_index.
+        # device = total_scores.get_device()
+        start_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, -1, 1)
+        end_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, 1, -1)
+        invalid_index_mask = (start_idx > end_idx).repeat(batch_size, 1, 1)
+        total_scores = torch.where(
+            invalid_index_mask,
+            torch.zeros(total_scores.size(), device=total_scores.get_device(), dtype=total_scores.dtype),
+            total_scores,
+        )
+        max_span_index = torch.argmax(total_scores.view(-1, max_num_tokens ** 2), axis=-1)
+        max_span_p = torch.max(total_scores.view(-1, max_num_tokens ** 2), axis=-1)[0]
+        noncat_slot_p = max_span_p
+
+        span_start_index = torch.floor_divide(max_span_index, max_num_tokens)
+        span_end_index = torch.fmod(max_span_index, max_num_tokens)
+
+        noncat_slot_start = span_start_index
+        noncat_slot_end = span_end_index
+
+        # Add inverse alignments.
+        noncat_alignment_start = start_char_idx
+        noncat_alignment_end = end_char_idx
+
+        in_domain_services = get_in_domain_services(
+            os.path.join(self._cfg.dataset.data_dir, eval_dataset, "schema.json"),
+            self.dialogues_processor.get_seen_services("train"),
+        )
+            # ##############
+        
         if self.trainer.global_rank == 0:
-            ids_to_service_names_dict = self.dialogues_processor.schemas._services_id_to_vocab
-            example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
-            intent_status = torch.nn.Sigmoid()(logit_intent_status)
-
-            # Scores are output for each requested slot.
-            req_slot_status = torch.nn.Sigmoid()(logit_req_slot_status)
-
-            # For categorical slots, the status of each slot and the predicted value are output.
-            cat_slot_status_dist = torch.nn.Softmax(dim=-1)(logit_cat_slot_status)
-
-            cat_slot_status = torch.argmax(logit_cat_slot_status, axis=-1)
-            cat_slot_status_p = cat_slot_status_dist
-            cat_slot_value_status = torch.nn.Sigmoid()(logit_cat_slot_value_status)
-
-            # For non-categorical slots, the status of each slot and the indices for spans are output.
-            noncat_slot_status_dist = torch.nn.Softmax(dim=-1)(logit_noncat_slot_status)
-
-            noncat_slot_status = torch.argmax(logit_noncat_slot_status, axis=-1)
-            noncat_slot_status_p = noncat_slot_status_dist
-
-            softmax = torch.nn.Softmax(dim=-1)
-            start_scores = softmax(logit_noncat_slot_start)
-            end_scores = softmax(logit_noncat_slot_end)
-
-            batch_size, max_num_tokens = end_scores.size()
-            # Find the span with the maximum sum of scores for start and end indices.
-            total_scores = torch.unsqueeze(start_scores, axis=2) + torch.unsqueeze(end_scores, axis=1)
-            # Mask out scores where start_index > end_index.
-            # device = total_scores.get_device()
-            start_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, -1, 1)
-            end_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, 1, -1)
-            invalid_index_mask = (start_idx > end_idx).repeat(batch_size, 1, 1)
-            total_scores = torch.where(
-                invalid_index_mask,
-                torch.zeros(total_scores.size(), device=total_scores.get_device(), dtype=total_scores.dtype),
-                total_scores,
-            )
-            max_span_index = torch.argmax(total_scores.view(-1, max_num_tokens ** 2), axis=-1)
-            max_span_p = torch.max(total_scores.view(-1, max_num_tokens ** 2), axis=-1)[0]
-            noncat_slot_p = max_span_p
-
-            span_start_index = torch.floor_divide(max_span_index, max_num_tokens)
-            span_end_index = torch.fmod(max_span_index, max_num_tokens)
-
-            noncat_slot_start = span_start_index
-            noncat_slot_end = span_end_index
-
-            # Add inverse alignments.
-            noncat_alignment_start = start_char_idx
-            noncat_alignment_end = end_char_idx
-
-            in_domain_services = get_in_domain_services(
-                os.path.join(self._cfg.dataset.data_dir, eval_dataset, "schema.json"),
-                self.dialogues_processor.get_seen_services("train"),
-            )
-            ##############
             # we'll write predictions to file in Dstc8/SGD format during evaluation callback
-            prediction_dir = self.trainer.log_dir
+            prediction_dir = self._cfg.dataset.prediction_dir
             prediction_dir = os.path.join(
                 prediction_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, self._cfg.dataset.task_name)
             )
@@ -447,10 +451,10 @@ class SGDQAModel(NLPModel):
                 joint_acc_across_turn=False,
                 no_fuzzy_match=False,
             )
-
+        # torch.distributed.barrier()
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
 
-    def prepare_data(self):
+    def prepare_dat(self):
         schema_config = {
             "MAX_NUM_CAT_SLOT": 6,
             "MAX_NUM_NONCAT_SLOT": 12,
@@ -479,7 +483,7 @@ class SGDQAModel(NLPModel):
             self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
-        self.prepare_data()
+        self.prepare_dat()
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split='train')
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
