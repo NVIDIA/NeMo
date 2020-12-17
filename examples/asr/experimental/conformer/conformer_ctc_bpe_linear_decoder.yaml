@@ -16,6 +16,7 @@ model:
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
     num_workers: 8
     pin_memory: false
     use_start_end_token: false
@@ -112,10 +113,6 @@ model:
     betas: [0.8, 0.5]
     weight_decay: 0.001
 
-    # variational noise added to prevent over-fitting
-    var_noise:
-      std: 0.0 # variance of the Gaussian noise, recommended: 0.075
-      start_step: 0
     # scheduler setup
     sched:
       name: CosineAnnealing
@@ -131,7 +128,7 @@ trainer:
   max_epochs: 100
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  distributed_backend: ddp
+  accelerator: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   amp_level: O0 # O1/O2 for mixed precision

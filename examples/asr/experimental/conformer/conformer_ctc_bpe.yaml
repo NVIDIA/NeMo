@@ -1,16 +1,13 @@
-name: &name "Conformer-CTC-Char"
+name: &name "Conformer-CTC-BPE"
 
 model:
   sample_rate: 16000
-  labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-                   "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
   log_prediction: true
   load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
 
   train_ds:
     manifest_filepath: ???
-    labels: *labels
     sample_rate: ${model.sample_rate}
     batch_size: 32
     trim_silence: false
@@ -22,24 +19,29 @@ model:
     tarred_shard_strategy: "scatter"
     num_workers: 8
     pin_memory: false
+    use_start_end_token: false
 
   validation_ds:
     manifest_filepath: ???
-    labels: *labels
     sample_rate: ${model.sample_rate}
-    batch_size: 32
+    batch_size: 16
     shuffle: false
     num_workers: 8
     pin_memory: false
+    use_start_end_token: false
 
   test_ds:
     manifest_filepath: null
-    labels: *labels
     sample_rate: ${model.sample_rate}
-    batch_size: 32
+    batch_size: 16
     shuffle: false
     num_workers: 8
     pin_memory: false
+    use_start_end_token: false
+
+  tokenizer:
+    dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
+    type: ???  # Can be either bpe or wpe
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -66,6 +68,7 @@ model:
     rect_masks: 0 # set to zero to disable the cut-off augmentation
     rect_time: 120
     rect_freq: 50
+
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
@@ -100,8 +103,8 @@ model:
   decoder:
     _target_: nemo.collections.asr.modules.LSTMDecoder
     feat_in: null # If not provided, the feat_out of the encoder would be used
-    num_classes: 28
-    vocabulary: *labels
+    num_classes: -1  # filled with vocabulary size from tokenizer at runtime
+    vocabulary: []  # filled with vocabulary from tokenizer at runtime
     lstm_hidden_size: 640
     bidirectional: False
     num_layers: 1
@@ -128,7 +131,7 @@ trainer:
   max_epochs: 100
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  distributed_backend: ddp
+  accelerator: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   amp_level: O0 # O1/O2 for mixed precision
