@@ -231,7 +231,6 @@ class SGDQAModel(NLPModel):
             noncategorical_slot_value_end=noncategorical_slot_value_end,
             task_mask=task_mask,
         )
-        
 
         tensors = {
             'example_id_num': example_id_num,
@@ -399,11 +398,11 @@ class SGDQAModel(NLPModel):
             os.path.join(self._cfg.dataset.data_dir, eval_dataset, "schema.json"),
             self.dialogues_processor.get_seen_services("train"),
         )
-            # ##############
-        
+        # ##############
+
+        prediction_dir = self.trainer.log_dir  # self._cfg.dataset.prediction_dir
         if self.trainer.global_rank == 0:
             # we'll write predictions to file in Dstc8/SGD format during evaluation callback
-            prediction_dir = self._cfg.dataset.prediction_dir
             prediction_dir = os.path.join(
                 prediction_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, self._cfg.dataset.task_name)
             )
