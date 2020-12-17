@@ -268,13 +268,21 @@ class EncDecClassificationModel(ASRModel, Exportable):
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
+        
+        # preserve config
+        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
-        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
 
+        # preserve config
+        self._update_dataset_config(dataset_name='test', config=test_data_config)
+
+        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
+    
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
