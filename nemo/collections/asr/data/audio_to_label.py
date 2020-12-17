@@ -396,22 +396,6 @@ class AudioToSpeechLabelDataSet(_AudioLabelDataset):
         normalize_audio (bool): Whether to normalize audio signal. 
             Defaults to False.
     """
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
-        return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'label': NeuralType(tuple('B'), LabelsType()),
-            'label_length': NeuralType(tuple('B'), LengthsType()),
-        }
-
     def __init__(
         self,
         *,
@@ -426,54 +410,22 @@ class AudioToSpeechLabelDataSet(_AudioLabelDataset):
         shift_length: Optional[float] = 1,
         normalize_audio: bool = False,
     ):
-        # super().__init__()
-        self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
-        )
 
-        self.featurizer = featurizer
-        self.trim = trim
-        self.load_audio = load_audio
+        logging.info("Time length considered for collate func is {}".format(time_length ))
+        logging.info("Shift length considered for collate func is {}".format(time_length ))
         self.time_length = time_length
         self.shift_length = shift_length
         self.normalize_audio = normalize_audio
-
-        logging.info("Time length considered for collate func is {}".format(time_length))
-        logging.info("Shift length considered for collate func is {}".format(shift_length))
-
-        self.labels = labels if labels else self.collection.uniq_labels
-        self.num_classes = len(self.labels)
-
-        self.label2id, self.id2label = {}, {}
-        for label_id, label in enumerate(self.labels):
-            self.label2id[label] = label_id
-            self.id2label[label_id] = label
-
-        for idx in range(len(self.labels[:5])):
-            logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
-
-    def __len__(self):
-        return len(self.collection)
-
-    def __getitem__(self, index):
-        sample = self.collection[index]
-        if self.load_audio:
-            offset = sample.offset
-
-            if offset is None:
-                offset = 0
-
-            features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim
-            )
-            f, fl = features, torch.tensor(features.shape[0]).long()
-        else:
-            f, fl = None, None
-
-        t = self.label2id[sample.label]
-        tl = 1  # For compatibility with collate_fn used later
-
-        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+       
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            labels=labels,
+            featurizer=featurizer,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            trim=trim,
+            load_audio=load_audio,
+        )
 
     def fixed_seq_collate_fn(self, batch):
         return _fixed_seq_collate_fn(self, batch)
@@ -485,7 +437,8 @@ class AudioToSpeechLabelDataSet(_AudioLabelDataset):
         return _vad_frame_seq_collate_fn(self, batch)
 
 
-class TarredAudioToSpeechLabelDataSet(IterableDataset):
+@experimental
+class _TarredAudioLabelDataSet(IterableDataset):
     """
     A similar Dataset to the AudioToSpeechLabelDataSet, but which loads tarred audio files.
 
@@ -518,43 +471,43 @@ class TarredAudioToSpeechLabelDataSet(IterableDataset):
     after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
    
     Args:
-    audio_tar_filepaths: Either a list of audio tarball filepaths, or a
-        string (can be brace-expandable).
-    manifest_filepath (str): Path to the manifest.
-    labels (list): Dataset parameter.
-        List of target classes that can be output by the speaker recognition model.
-    min_duration (float): Dataset parameter.
-        All training files which have a duration less than min_duration
-        are dropped. Note: Duration is read from the manifest JSON.
-        Defaults to 0.1.
-    max_duration (float): Dataset parameter.
-        All training files which have a duration more than max_duration
-        are dropped. Note: Duration is read from the manifest JSON.
-        Defaults to None.
-    trim(bool): Whether to use trim silence from beginning and end
-        of audio signal using librosa.effects.trim().
-        Defaults to False.
-    load_audio (bool): Dataset parameter.
-        Controls whether the dataloader loads the audio signal and
-        transcript or just the transcript.
-        Defaults to True.
-    time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task 
-    shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
-    normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
-    shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
-        -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
-            a unique set of shards, which are permanently pre-allocated and never changed at runtime.
-        -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
-            available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
-            The benefit of replication is that it allows each node to sample data points from the entire
-            dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+        audio_tar_filepaths: Either a list of audio tarball filepaths, or a
+            string (can be brace-expandable).
+        manifest_filepath (str): Path to the manifest.
+        labels (list): Dataset parameter.
+            List of target classes that can be output by the speaker recognition model.
+        min_duration (float): Dataset parameter.
+            All training files which have a duration less than min_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to 0.1.
+        max_duration (float): Dataset parameter.
+            All training files which have a duration more than max_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to None.
+        trim(bool): Whether to use trim silence from beginning and end
+            of audio signal using librosa.effects.trim().
+            Defaults to False.
+        load_audio (bool): Dataset parameter.
+            Controls whether the dataloader loads the audio signal and
+            transcript or just the transcript.
+            Defaults to True.
+        time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task 
+        shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
+        normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
+        shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+            -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
+                a unique set of shards, which are permanently pre-allocated and never changed at runtime.
+            -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
+                available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
+                The benefit of replication is that it allows each node to sample data points from the entire
+                dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
 
-            Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-            and therefore more than one node may sample the same tarfile, and even sample the same
-            data points! As such, there is no assured guarantee that all samples in the dataset will be
-            sampled at least once during 1 epoch.
-    global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
-    world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
+                and therefore more than one node may sample the same tarfile, and even sample the same
+                data points! As such, there is no assured guarantee that all samples in the dataset will be
+                sampled at least once during 1 epoch.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
     """
 
     def __init__(
@@ -568,9 +521,6 @@ class TarredAudioToSpeechLabelDataSet(IterableDataset):
         max_duration: Optional[float] = None,
         trim: bool = False,
         load_audio: bool = True,
-        time_length: Optional[float] = 8,
-        shift_length: Optional[float] = 1,
-        normalize_audio: bool = False,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 0,
@@ -585,12 +535,6 @@ class TarredAudioToSpeechLabelDataSet(IterableDataset):
         self.featurizer = featurizer
         self.trim = trim
         self.load_audio = load_audio
-        self.time_length = time_length
-        self.shift_length = shift_length
-        self.normalize_audio = normalize_audio
-
-        logging.info("Time length considered for collate func is {}".format(time_length))
-        logging.info("Shift length considered for collate func is {}".format(shift_length))
 
         self.labels = labels if labels else self.collection.uniq_labels
         self.num_classes = len(self.labels)
@@ -683,146 +627,6 @@ class TarredAudioToSpeechLabelDataSet(IterableDataset):
 
         return TarredAudioFilter(self.collection)
 
-    def fixed_seq_collate_fn(self, batch):
-        """collate batch of audio sig, audio len, tokens, tokens len
-        Args:
-            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-                LongTensor):  A tuple of tuples of signal, signal lengths,
-                encoded tokens, and encoded tokens length.  This collate func
-                assumes the signals are 1d torch tensors (i.e. mono audio).
-        """
-        fixed_length = self.featurizer.sample_rate * self.time_length
-        _, audio_lengths, _, tokens_lengths = zip(*batch)
-
-        has_audio = audio_lengths[0] is not None
-        fixed_length = int(min(fixed_length, max(audio_lengths)))
-
-        audio_signal, tokens, new_audio_lengths = [], [], []
-        for sig, sig_len, tokens_i, _ in batch:
-            if has_audio:
-                sig_len = sig_len.item()
-                chunck_len = sig_len - fixed_length
-
-                if chunck_len < 0:
-                    repeat = fixed_length // sig_len
-                    rem = fixed_length % sig_len
-                    sub = sig[-rem:] if rem > 0 else torch.tensor([])
-                    rep_sig = torch.cat(repeat * [sig])
-                    signal = torch.cat((rep_sig, sub))
-                    new_audio_lengths.append(torch.tensor(fixed_length))
-                else:
-                    start_idx = torch.randint(0, chunck_len, (1,)) if chunck_len else torch.tensor(0)
-                    end_idx = start_idx + fixed_length
-                    signal = sig[start_idx:end_idx]
-                    new_audio_lengths.append(torch.tensor(fixed_length))
-
-                audio_signal.append(signal)
-            tokens.append(tokens_i)
-
-        if has_audio:
-            audio_signal = torch.stack(audio_signal)
-            audio_lengths = torch.stack(new_audio_lengths)
-        else:
-            audio_signal, audio_lengths = None, None
-        tokens = torch.stack(tokens)
-        tokens_lengths = torch.stack(tokens_lengths)
-
-        return audio_signal, audio_lengths, tokens, tokens_lengths
-
-    def sliced_seq_collate_fn(self, batch):
-        """collate batch of audio sig, audio len, tokens, tokens len
-        Args:
-            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-                LongTensor):  A tuple of tuples of signal, signal lengths,
-                encoded tokens, and encoded tokens length.  This collate func
-                assumes the signals are 1d torch tensors (i.e. mono audio).
-        """
-        slice_length = self.featurizer.sample_rate * self.time_length
-        _, audio_lengths, _, tokens_lengths = zip(*batch)
-        shift = self.shift_length * self.featurizer.sample_rate
-        has_audio = audio_lengths[0] is not None
-
-        audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
-        for sig, sig_len, tokens_i, _ in batch:
-            if has_audio:
-                sig_len = sig_len.item()
-                dur = sig_len / self.featurizer.sample_rate
-                base = math.ceil((dur - self.time_length) / self.shift_length)
-                slice_length = int(slice_length)
-                shift = int(shift)
-                slices = 1 if base < 0 else base + 1
-                for slice_id in range(slices):
-                    start_idx = slice_id * shift
-                    end_idx = start_idx + slice_length
-                    signal = sig[start_idx:end_idx]
-                    if len(signal) < slice_length:
-                        signal = repeat_signal(signal, len(signal), slice_length)
-                    audio_signal.append(signal)
-
-                num_slices.append(slices)
-                tokens.extend([tokens_i] * slices)
-                audio_lengths.extend([slice_length] * slices)
-
-        if has_audio:
-            audio_signal = torch.stack(audio_signal)
-            audio_lengths = torch.tensor(audio_lengths)
-        else:
-            audio_signal, audio_lengths = None, None
-        tokens = torch.stack(tokens)
-        tokens_lengths = torch.tensor(num_slices)  # each embedding length
-
-        return audio_signal, audio_lengths, tokens, tokens_lengths
-
-    def vad_frame_seq_collate_fn(self, batch):
-        """collate batch of audio sig, audio len, tokens, tokens len
-        Args:
-            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-                LongTensor):  A tuple of tuples of signal, signal lengths,
-                encoded tokens, and encoded tokens length.  This collate func
-                assumes the signals are 1d torch tensors (i.e. mono audio).
-                batch size equals to 1.      
-        """
-        slice_length = int(self.featurizer.sample_rate * self.time_length)
-        _, audio_lengths, _, tokens_lengths = zip(*batch)
-        slice_length = min(slice_length, max(audio_lengths))
-        shift = int(self.featurizer.sample_rate * self.shift_length)
-        has_audio = audio_lengths[0] is not None
-
-        audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
-
-        append_len_start = slice_length // 2
-        append_len_end = slice_length - slice_length // 2
-        for sig, sig_len, tokens_i, _ in batch:
-            if self.normalize_audio:
-                sig = normalize(sig)
-            start = torch.zeros(append_len_start)
-            end = torch.zeros(append_len_end)
-            sig = torch.cat((start, sig, end))
-            sig_len += slice_length
-
-            if has_audio:
-                slices = (sig_len - slice_length) // shift
-                for slice_id in range(slices):
-                    start_idx = slice_id * shift
-                    end_idx = start_idx + slice_length
-                    signal = sig[start_idx:end_idx]
-                    audio_signal.append(signal)
-
-                num_slices.append(slices)
-                tokens.extend([tokens_i] * slices)
-                audio_lengths.extend([slice_length] * slices)
-
-        if has_audio:
-            audio_signal = torch.stack(audio_signal)
-            audio_lengths = torch.tensor(audio_lengths)
-        else:
-            audio_signal, audio_lengths = None, None
-
-        tokens = torch.stack(tokens)
-        tokens_lengths = torch.tensor(num_slices)
-        return audio_signal, audio_lengths, tokens, tokens_lengths
-
-    ## todo group collate_fn
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
         """
@@ -868,3 +672,180 @@ class TarredAudioToSpeechLabelDataSet(IterableDataset):
 
     def __len__(self):
         return len(self.collection)
+
+
+
+@experimental
+class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataSet):
+    """
+    A similar Dataset to the AudioToClassificationLabelDataset, but which loads tarred audio files.
+
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToClassificationLabelDataset),
+    as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
+    contain the information for one audio file, including at least the transcript and name of the audio
+    file within the tarball.
+
+    Valid formats for the audio_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
+
+    See the WebDataset documentation for more information about accepted data and input formats.
+
+    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    even split among workers. If it is not divisible, logging will give a warning but training will proceed.
+    In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
+    is applied. We currently do not check for this, but your program may hang if the shards are uneven!
+
+    Notice that a few arguments are different from the AudioToBPEDataset; for example, shuffle (bool) has been
+    replaced by shuffle_n (int).
+
+    Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
+    after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
+
+    Args:
+        audio_tar_filepaths: Either a list of audio tarball filepaths, or a
+            string (can be brace-expandable).
+        manifest_filepath (str): Path to the manifest.
+        labels (list): Dataset parameter.
+            List of target classes that can be output by the speaker recognition model.
+        min_duration (float): Dataset parameter.
+            All training files which have a duration less than min_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to 0.1.
+        max_duration (float): Dataset parameter.
+            All training files which have a duration more than max_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to None.
+        trim(bool): Whether to use trim silence from beginning and end
+            of audio signal using librosa.effects.trim().
+            Defaults to False.
+        load_audio (bool): Dataset parameter.
+            Controls whether the dataloader loads the audio signal and
+            transcript or just the transcript.
+            Defaults to True.
+        shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+            -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
+                a unique set of shards, which are permanently pre-allocated and never changed at runtime.
+            -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
+                available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
+                The benefit of replication is that it allows each node to sample data points from the entire
+                dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+
+                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
+                and therefore more than one node may sample the same tarfile, and even sample the same
+                data points! As such, there is no assured guarantee that all samples in the dataset will be
+                sampled at least once during 1 epoch.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+    """
+        # self.labels = labels if labels else self.collection.uniq_labels
+        # self.num_commands = len(self.labels)
+
+    def _collate_fn(self, batch):
+        return _speech_collate_fn(batch, pad_id=0)
+
+
+class TarredAudioToSpeechLabelDataSet(_TarredAudioLabelDataSet):
+    """
+    A similar Dataset to the AudioToSpeechLabelDataSet, but which loads tarred audio files.
+
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToSpeechLabelDataSet),
+    as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
+    contain the information for one audio file, including at least the transcript and name of the audio
+    file within the tarball.
+
+    Valid formats for the audio_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
+
+    See the WebDataset documentation for more information about accepted data and input formats.
+
+    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    even split among workers. If it is not divisible, logging will give a warning but training will proceed.
+    In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
+    is applied. We currently do not check for this, but your program may hang if the shards are uneven!
+
+    Notice that a few arguments are different from the AudioToBPEDataset; for example, shuffle (bool) has been
+    replaced by shuffle_n (int).
+
+    Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
+    after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
+
+    Args:
+        audio_tar_filepaths: Either a list of audio tarball filepaths, or a
+            string (can be brace-expandable).
+        manifest_filepath (str): Path to the manifest.
+        labels (list): Dataset parameter.
+            List of target classes that can be output by the speaker recognition model.
+        min_duration (float): Dataset parameter.
+            All training files which have a duration less than min_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to 0.1.
+        max_duration (float): Dataset parameter.
+            All training files which have a duration more than max_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to None.
+        trim(bool): Whether to use trim silence from beginning and end
+            of audio signal using librosa.effects.trim().
+            Defaults to False.
+        load_audio (bool): Dataset parameter.
+            Controls whether the dataloader loads the audio signal and
+            transcript or just the transcript.
+            Defaults to True.
+        time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task 
+        shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
+        normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
+        shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+            -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
+                a unique set of shards, which are permanently pre-allocated and never changed at runtime.
+            -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
+                available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
+                The benefit of replication is that it allows each node to sample data points from the entire
+                dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+
+                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
+                and therefore more than one node may sample the same tarfile, and even sample the same
+                data points! As such, there is no assured guarantee that all samples in the dataset will be
+                sampled at least once during 1 epoch.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+    """
+    def __init__(
+        self,
+        *,
+        manifest_filepath: str,
+        labels: List[str],
+        featurizer,
+        min_duration: Optional[float] = 0.1,
+        max_duration: Optional[float] = None,
+        trim: bool = False,
+        load_audio: bool = True,
+        time_length: Optional[float] = 8,
+        shift_length: Optional[float] = 1,
+        normalize_audio: bool = False,
+    ):
+
+        logging.info("Time length considered for collate func is {}".format(time_length ))
+        logging.info("Shift length considered for collate func is {}".format(time_length ))
+        self.time_length = time_length
+        self.shift_length = shift_length
+        self.normalize_audio = normalize_audio
+       
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            labels=labels,
+            featurizer=featurizer,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            trim=trim,
+            load_audio=load_audio,
+        )
+
+    def fixed_seq_collate_fn(self, batch):
+        return _fixed_seq_collate_fn(self, batch)
+
+    def sliced_seq_collate_fn(self, batch):
+        return _sliced_seq_collate_fn(self, batch)
+    
+    def vad_frame_seq_collate_fn(self, batch):
+        return _vad_frame_seq_collate_fn(self, batch)

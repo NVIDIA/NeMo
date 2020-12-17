@@ -111,10 +111,7 @@ def main():
     print(f"Inference on {len(data)} audio files/json lines!")
 
     status = get_status(data)
-
-    print("data loader",len(vad_model.test_dataloader()))
     for i, test_batch in enumerate(vad_model.test_dataloader()):
-        print(i)
         test_batch = [x.to(device) for x in test_batch]
         with autocast():
             log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
