@@ -25,6 +25,7 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
+# todo consistency !
 __all__ = [
     'AudioToSpeechLabelDataSet',
     'AudioToClassificationLabelDataset',
@@ -440,7 +441,7 @@ class AudioToSpeechLabelDataSet(_AudioLabelDataset):
 @experimental
 class _TarredAudioLabelDataSet(IterableDataset):
     """
-    A similar Dataset to the AudioToSpeechLabelDataSet, but which loads tarred audio files.
+    A similar Dataset to the AudioLabelDataSet, but which loads tarred audio files.
 
     Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToSpeechLabelDataSet),
     as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
@@ -464,7 +465,7 @@ class _TarredAudioLabelDataSet(IterableDataset):
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
 
-    Notice that a few arguments are different from the AudioToCharDataset; for example, shuffle (bool) has been
+    Notice that a few arguments are different from the AudioLabelDataSet; for example, shuffle (bool) has been
     replaced by shuffle_n (int).
 
     Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
@@ -813,6 +814,7 @@ class TarredAudioToSpeechLabelDataSet(_TarredAudioLabelDataSet):
     def __init__(
         self,
         *,
+        audio_tar_filepaths: Union[str, List[str]],
         manifest_filepath: str,
         labels: List[str],
         featurizer,
@@ -823,6 +825,9 @@ class TarredAudioToSpeechLabelDataSet(_TarredAudioLabelDataSet):
         time_length: Optional[float] = 8,
         shift_length: Optional[float] = 1,
         normalize_audio: bool = False,
+        shard_strategy: str = "scatter",
+        global_rank: int = 0,
+        world_size: int = 0,
     ):
 
         logging.info("Time length considered for collate func is {}".format(time_length ))
@@ -832,6 +837,7 @@ class TarredAudioToSpeechLabelDataSet(_TarredAudioLabelDataSet):
         self.normalize_audio = normalize_audio
        
         super().__init__(
+            audio_tar_filepaths=audio_tar_filepaths,
             manifest_filepath=manifest_filepath,
             labels=labels,
             featurizer=featurizer,
@@ -839,6 +845,9 @@ class TarredAudioToSpeechLabelDataSet(_TarredAudioLabelDataSet):
             max_duration=max_duration,
             trim=trim,
             load_audio=load_audio,
+            shard_strategy=shard_strategy,
+            global_rank=global_rank,
+            world_size=world_size,
         )
 
     def fixed_seq_collate_fn(self, batch):
