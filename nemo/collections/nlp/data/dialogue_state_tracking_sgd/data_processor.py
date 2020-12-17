@@ -47,14 +47,7 @@ class SGDDataProcessor(object):
     """Data generator for SGD dialogues."""
 
     def __init__(
-        self,
-        task_name,
-        data_dir,
-        dialogues_example_dir,
-        tokenizer,
-        schemas,
-        schema_config,
-        subsample=False,
+        self, task_name, data_dir, dialogues_example_dir, tokenizer, schemas, schema_config, subsample=False,
     ):
         """
         Constructs SGD8DataProcessor
@@ -116,21 +109,19 @@ class SGDDataProcessor(object):
                 logging.debug(f"Start generating the dialogue examples for {dataset} dataset.")
                 if not os.path.exists(self._dialogues_example_dir):
                     os.makedirs(self._dialogues_example_dir)
-                dial_examples, slots_relation_list = self._generate_dialog_examples(dataset, self.schemas, self._subsample)
+                dial_examples, slots_relation_list = self._generate_dialog_examples(
+                    dataset, self.schemas, self._subsample
+                )
                 with open(dial_file, "wb") as f:
                     np.save(f, dial_examples)
 
                 if dataset == "train":
                     with open(self.slots_relation_file, "wb") as f:
                         pickle.dump(slots_relation_list, f)
-                    logging.debug(
-                        f"The slot carry-over list for train set is stored at {self.slots_relation_file}"
-                    )
+                    logging.debug(f"The slot carry-over list for train set is stored at {self.slots_relation_file}")
 
                 logging.debug(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
                 logging.debug(f"Finish generating the dialogue examples for {dataset} dataset.")
-
-
 
     def get_dialog_examples(self, dataset):
         """

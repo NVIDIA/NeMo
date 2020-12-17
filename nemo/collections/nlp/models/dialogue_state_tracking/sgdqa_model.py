@@ -302,7 +302,6 @@ class SGDQAModel(NLPModel):
                 all_logit_noncat_slot_end.append(torch.empty_like(logit_noncat_slot_end))
                 all_start_char_idx.append(torch.empty_like(start_char_idx))
                 all_end_char_idx.append(torch.empty_like(end_char_idx))
-
             torch.distributed.all_gather(all_example_id_num, example_id_num)
             torch.distributed.all_gather(all_service_id, service_id)
             torch.distributed.all_gather(all_is_real_example, is_real_example)
@@ -329,6 +328,19 @@ class SGDQAModel(NLPModel):
             all_start_char_idx.append(start_char_idx)
             all_end_char_idx.append(end_char_idx)
 
+        # after this: all_x is list of tensors, of length world_size
+        example_id_num = torch.cat(all_example_id_num)
+        service_id = torch.cat(all_service_id)
+        is_real_example = torch.cat(all_is_real_example)
+        logit_intent_status = torch.cat(all_logit_intent_status)
+        logit_req_slot_status = torch.cat(all_logit_req_slot_status)
+        logit_cat_slot_status = torch.cat(all_logit_cat_slot_status)
+        logit_cat_slot_value_status = torch.cat(all_logit_cat_slot_value_status)
+        logit_noncat_slot_status = torch.cat(all_logit_noncat_slot_status)
+        logit_noncat_slot_start = torch.cat(all_logit_noncat_slot_start)
+        logit_noncat_slot_end = torch.cat(all_logit_noncat_slot_end)
+        start_char_idx = torch.cat(all_start_char_idx)
+        end_char_idx = torch.cat(all_end_char_idx)
         if self.trainer.global_rank == 0:
             ids_to_service_names_dict = self.dialogues_processor.schemas._services_id_to_vocab
             example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
@@ -461,7 +473,8 @@ class SGDQAModel(NLPModel):
             schema_config=schema_config,
             subsample=self._cfg.dataset.subsample,
         )
-        if is_global_rank_zero:
+
+        if is_global_rank_zero():
             overwrite_dial_files = not self._cfg.dataset.use_cache
             self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
 
