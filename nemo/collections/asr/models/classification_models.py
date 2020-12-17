@@ -26,7 +26,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_label_dataset
-from nemo.collections.asr.data.audio_to_label import AudioToClassificationLabelDataset, AudioToSpeechLabelDataSet
+from nemo.collections.asr.data.audio_to_label import AudioToClassificationLabelDataset, AudioToSpeechLabelDataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations

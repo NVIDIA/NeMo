@@ -27,9 +27,9 @@ from nemo.utils.decorators import experimental
 
 # todo consistency !
 __all__ = [
-    'AudioToSpeechLabelDataSet',
+    'AudioToSpeechLabelDataset',
     'AudioToClassificationLabelDataset',
-    'TarredAudioToSpeechLabelDataSet',
+    'TarredAudioToSpeechLabelDataset',
     'AudioToClassificationLabelDataset',
 ]
 
@@ -360,7 +360,7 @@ class AudioToClassificationLabelDataset(_AudioLabelDataset):
         return _speech_collate_fn(batch, pad_id=0)
 
 
-class AudioToSpeechLabelDataSet(_AudioLabelDataset):
+class AudioToSpeechLabelDataset(_AudioLabelDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
     files, command class, and durations (in seconds). Each new line is a
@@ -439,7 +439,7 @@ class AudioToSpeechLabelDataSet(_AudioLabelDataset):
 
 
 @experimental
-class _TarredAudioLabelDataSet(IterableDataset):
+class _TarredAudioLabelDataset(IterableDataset):
     """
     A similar Dataset to the AudioLabelDataSet, but which loads tarred audio files.
 
@@ -677,7 +677,7 @@ class _TarredAudioLabelDataSet(IterableDataset):
 
 
 @experimental
-class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataSet):
+class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
     """
     A similar Dataset to the AudioToClassificationLabelDataset, but which loads tarred audio files.
 
@@ -746,7 +746,7 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataSet):
         return _speech_collate_fn(batch, pad_id=0)
 
 
-class TarredAudioToSpeechLabelDataSet(_TarredAudioLabelDataSet):
+class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
     """
     A similar Dataset to the AudioToSpeechLabelDataSet, but which loads tarred audio files.
 

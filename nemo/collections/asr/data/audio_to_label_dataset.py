@@ -50,7 +50,7 @@ def get_speech_label_dataset(
     featurizer, 
     config: dict, 
     augmentor: Optional['AudioAugmentor'] = None
-    ) -> audio_to_label.AudioToSpeechLabelDataSet:
+    ) -> audio_to_label.AudioToSpeechLabelDataset:
     """
     Instantiates a Speech Label (e.g. VAD, speaker recognition) AudioLabelDataset.
 
@@ -59,9 +59,9 @@ def get_speech_label_dataset(
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
-        An instance of AudioToSpeechLabelDataSet.
+        An instance of AudioToSpeechLabelDataset.
     """
-    dataset = audio_to_label.AudioToSpeechLabelDataSet(
+    dataset = audio_to_label.AudioToSpeechLabelDataset(
         manifest_filepath=config['manifest_filepath'],
         labels=config['labels'],
         featurizer=featurizer,
@@ -120,12 +120,12 @@ def get_tarred_speech_label_dataset(
     global_rank: int, 
     world_size: int, 
     augmentor: Optional['AudioAugmentor'] = None
-) -> audio_to_label.TarredAudioToSpeechLabelDataSet:
+) -> audio_to_label.TarredAudioToSpeechLabelDataset:
     """
     InInstantiates a Speech Label (e.g. VAD, speaker recognition) TarredAudioLabelDataset.
 
     Args:
-        config: Config of the TarredAudioToSpeechLabelDataSet.
+        config: Config of the TarredAudioToSpeechLabelDataset.
         shuffle_n: How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
         global_rank: Global rank of this device.
@@ -133,9 +133,9 @@ def get_tarred_speech_label_dataset(
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
-        An instance of TarredAudioToSpeechLabelDataSet.
+        An instance of TarredAudioToSpeechLabelDataset.
     """
-    dataset = audio_to_label.TarredAudioToSpeechLabelDataSet(
+    dataset = audio_to_label.TarredAudioToSpeechLabelDataset(
         audio_tar_filepaths=config['tarred_audio_filepaths'],
         manifest_filepath=config['manifest_filepath'],
         labels=config['labels'],
