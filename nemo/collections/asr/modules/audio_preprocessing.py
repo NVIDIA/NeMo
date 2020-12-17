@@ -35,8 +35,8 @@ from nemo.utils import logging
 
 try:
     import torchaudio
-    import torchaudio.transforms
     import torchaudio.functional
+    import torchaudio.transforms
 
     TORCHAUDIO_VERSION = version.parse(torchaudio.__version__)
     TORCHAUDIO_VERSION_MIN = version.parse('0.5')
