@@ -25,6 +25,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.asr.data import audio_to_label_dataset
 from nemo.collections.asr.data.audio_to_label import AudioToClassificationLabelDataset, AudioToSpeechLabelDataSet
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
@@ -140,6 +141,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
             logging.set_verbosity(logging_level)
         return labels
 
+
     def prepare_manifest(self, config):
         manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
         input_audios = []
@@ -171,8 +173,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
 
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        if config.get('manifest_filepath') is None:
-            return
 
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
@@ -183,38 +183,56 @@ class EncDecClassificationModel(ASRModel, Exportable):
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
 
-        if 'vad_stream' in config and config['vad_stream']:
-
-            logging.info("Split long audio file to avoid CUDA memory issue")
-            manifest_vad_input = self.prepare_manifest(config)
-
-            logging.info("Perform streaming frame-level VAD")
-            dataset = AudioToSpeechLabelDataSet(
-                manifest_filepath=manifest_vad_input,
-                labels=config['labels'],
+        # Instantiate tarred dataset loader or normal dataset loader
+        if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `manifest_filepath` is None or "
+                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
+                )
+                return None
+            
+            if 'vad_stream' in config and config['vad_stream']:
+                logging.warning("VAD inference does not support tarred dataset now")
+                return None
+           
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            dataset = audio_to_label_dataset.get_tarred_classification_label_dataset(
                 featurizer=featurizer,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                trim=config.get('trim_silence', True),
-                load_audio=config.get('load_audio', True),
-                time_length=config.get('time_length', 0.31),
-                shift_length=config.get('shift_length', 0.01),
-                normalize_audio=config.get('normalize_audio', False),
+                config=config,
+                shuffle_n=shuffle_n,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                augmentor=augmentor,
             )
-            batch_size = 1
-            collate_func = dataset.vad_frame_seq_collate_fn
-        else:
-            dataset = AudioToClassificationLabelDataset(
-                manifest_filepath=config['manifest_filepath'],
-                labels=config['labels'],
-                featurizer=featurizer,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                trim=config.get('trim_silence', True),
-                load_audio=config.get('load_audio', True),
-            )
+            shuffle = False
             batch_size = config['batch_size']
             collate_func = dataset.collate_fn
+            
+        else:
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+                logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+                return None
+        
+            if 'vad_stream' in config and config['vad_stream']:
+                logging.info("Split long audio file to avoid CUDA memory issue") 
+                config['manifest_filepath'] = self.prepare_manifest(config)
+                logging.info("Perform streaming frame-level VAD")
+                dataset = audio_to_label_dataset.get_speech_label_dataset(
+                    featurizer=featurizer,
+                    config=config, 
+                    augmentor=augmentor)
+                batch_size = 1
+                collate_func = dataset.vad_frame_seq_collate_fn
+            else:
+                dataset = audio_to_label_dataset.get_classification_label_dataset(
+                    featurizer=featurizer,
+                    config=config, 
+                    augmentor=augmentor)
+                batch_size = config['batch_size']
+                collate_func = dataset.collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
