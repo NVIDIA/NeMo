@@ -97,6 +97,10 @@ class MelGanModel(Vocoder):
         spec, _ = self.audio_to_melspec_precessor(audio, audio_len)
         audio_pred = self(spec=spec)
 
+        # TODO: Lightning has a bug in 1.1.0, just always log something as a workaround
+        # https://github.com/PyTorchLightning/pytorch-lightning/issues/5063
+        self.log("Dummy", 0.0, logger=False)
+
         # train discriminator
         if optimizer_idx == 0 and self.start_training_disc:
             fake_score = self.discriminator(x=audio_pred.detach())[0]

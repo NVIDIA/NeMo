@@ -64,8 +64,61 @@ def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
                     review = review.lower()
                 review = review.replace("<br />", "")
                 outfiles[mode].write(f'{review}\t{label}\n')
+
     for mode in modes:
         outfiles[mode].close()
+
+    class_labels_file = open(os.path.join(outfold, 'label_ids.tsv'), 'w')
+    class_labels_file.write('negative\npositive\n')
+    class_labels_file.close()
+
+
+def process_sst2(infold, outfold, uncased, splits=['train', 'dev']):
+    """Process sst2 dataset."""
+    # "test" split doesn't have labels, so it is skipped
+    if not os.path.exists(infold):
+        link = 'https://dl.fbaipublicfiles.com/glue/data/SST-2.zip'
+        raise ValueError(
+            f'Data not found at {infold}. Please download SST-2 dataset from `{link}` and '
+            f'extract it into the folder specified by `source_data_dir` argument.'
+        )
+
+    logging.info(f'Processing SST-2 dataset')
+    os.makedirs(outfold, exist_ok=True)
+
+    def _read_tsv(input_file, quotechar=None):
+        """Read a tab separated value file."""
+        with open(input_file, "r") as f:
+            reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
+            lines = []
+            for line in reader:
+                lines.append(line)
+            return lines
+
+    for split in splits:
+        # Load input file.
+        input_file = os.path.join(infold, split + '.tsv')
+        lines = _read_tsv(input_file)
+        # Create output.
+        outfile = open(os.path.join(outfold, split + '.tsv'), 'w')
+
+        # Copy lines, skip the header (line 0).
+        for line in lines[1:]:
+            text = line[0]
+            label = line[1]
+            # Lowercase when required.
+            if uncased:
+                text = text.lower()
+            # Write output.
+            outfile.write(f'{text}\t{label}\n')
+        # Close file.
+        outfile.close()
+
+    class_labels_file = open(os.path.join(outfold, 'label_ids.tsv'), 'w')
+    class_labels_file.write('negative\npositive\n')
+    class_labels_file.close()
+
+    logging.info(f'Result stored at {outfold}')
 
 
 def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'dev']):

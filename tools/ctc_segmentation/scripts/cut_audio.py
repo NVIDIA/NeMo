@@ -253,7 +253,14 @@ def process_alignment(alignment_file: str, args):
     if missing_audio > 15:
         raise ValueError(f'{round(missing_audio)}s or ~ {round(missing_audio/60)}min is missing. Check the args')
 
-    stats = f'{args.output_dir}\t{base_name}\t{round(original_duration)}\t{round(high_score_dur)}\t{round(low_score_dur)}\t{round(del_duration)}\n'
+    stats = (
+        args.output_dir,
+        base_name,
+        round(original_duration),
+        round(high_score_dur),
+        round(low_score_dur),
+        round(del_duration),
+    )
     return stats
 
 
@@ -278,12 +285,27 @@ if __name__ == '__main__':
     else:
         alignment_files = [Path(alignment_files)]
 
-    with open(os.path.join(args.output_dir, 'stats.tsv'), 'w') as f:
+    stats_file = os.path.join(args.output_dir, 'stats.tsv')
+    with open(stats_file, 'w') as f:
         f.write('Folder\tSegment\tOriginal dur (s)\tHigh quality dur (s)\tLow quality dur (s)\tDeleted dur (s)\n')
+
+        high_score_dur = 0
+        low_score_dur = 0
+        del_duration = 0
 
         for alignment_file in alignment_files:
             stats = process_alignment(alignment_file, args)
+            high_score_dur += stats[-3]
+            low_score_dur += stats[-2]
+            del_duration += stats[-1]
+            stats = '\t'.join([str(t) for t in stats]) + '\n'
             f.write(stats)
 
-        total_time = time.time() - start_time
-        print(f'Total execution time: ~{round(total_time / 60)}min')
+        f.write(f'Total\t\t{round(high_score_dur)}\t{round(low_score_dur)}\t{del_duration}')
+
+    total_time = time.time() - start_time
+    print(f'High score segments duration: {round(high_score_dur)}')
+    print(f'Low score segments duration:  {round(low_score_dur)}')
+    print(f'Deleted segments duration:    {round(del_duration)}')
+    print(f'Stats saved at {stats_file}')
+    print(f'Total execution time: ~{round(total_time / 60)}min')
