@@ -20,6 +20,7 @@ from nemo.collections.asr.models.wav2vec.wav2vec_model import Wav2VecEncoderMode
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
+
 """
 Fine-tune a pre-trained Wav2Vec 2.0 model on ASR data. 
 Assumes you've pretrained a model on audio using the wav2vec.py script.

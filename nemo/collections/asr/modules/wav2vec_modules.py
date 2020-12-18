@@ -25,24 +25,24 @@ import torch.nn.functional as F
 from pytorch_lightning import Trainer
 from torch import nn
 
-from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecMaskType, Wav2VecCTCEncoderConfig
+from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecCTCEncoderConfig, Wav2VecMaskType
 from nemo.core import NeuralModule
-from nemo.core.neural_types import NeuralType, LossType, EncodedRepresentation, VoidType, AudioSignal, LengthsType
+from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, LossType, NeuralType, VoidType
 
 
 class GumbelVectorQuantizer(NeuralModule):
     def __init__(
-            self,
-            dim,
-            num_vars,
-            temp,
-            groups,
-            combine_groups,
-            vq_dim,
-            time_first,
-            activation=nn.GELU(),
-            weight_proj_depth=1,
-            weight_proj_factor=1,
+        self,
+        dim,
+        num_vars,
+        temp,
+        groups,
+        combine_groups,
+        vq_dim,
+        time_first,
+        activation=nn.GELU(),
+        weight_proj_depth=1,
+        weight_proj_factor=1,
     ):
         """Vector quantization using gumbel softmax
 
@@ -130,12 +130,8 @@ class GumbelVectorQuantizer(NeuralModule):
         """Returns definitions of module input ports.
         """
         if self.time_first:
-            return {
-                "x": NeuralType(('B', 'T', 'D'), EncodedRepresentation())
-            }
-        return {
-            "x": NeuralType(('B', 'D', 'T'), EncodedRepresentation())
-        }
+            return {"x": NeuralType(('B', 'T', 'D'), EncodedRepresentation())}
+        return {"x": NeuralType(('B', 'D', 'T'), EncodedRepresentation())}
 
     @property
     def output_types(self):
@@ -204,19 +200,14 @@ class TransposeLast(NeuralModule):
 
     @property
     def input_types(self):
-        return {
-            "x": NeuralType(elements_type=VoidType())
-        }
+        return {"x": NeuralType(elements_type=VoidType())}
 
     @property
     def output_types(self):
-        return {
-            "x": NeuralType(elements_type=VoidType())
-        }
+        return {"x": NeuralType(elements_type=VoidType())}
 
 
 class SamePad(NeuralModule):
-
     def __init__(self, kernel_size):
         super().__init__()
         self.remove = kernel_size % 2 == 0
@@ -228,23 +219,17 @@ class SamePad(NeuralModule):
 
     @property
     def input_types(self):
-        return {
-            "x": NeuralType(('B', 'T', 'C', 'D'), EncodedRepresentation())
-        }
+        return {"x": NeuralType(('B', 'T', 'C', 'D'), EncodedRepresentation())}
 
     @property
     def output_types(self):
-        return {
-            "x": NeuralType(('B', 'T', 'C', 'D'), EncodedRepresentation())
-        }
+        return {"x": NeuralType(('B', 'T', 'C', 'D'), EncodedRepresentation())}
 
 
 class Wav2VecCTCEncoder(NeuralModule):
-    def __init__(self,
-                 wav2vec_encoder: 'Wav2VecEncoderModel',
-                 cfg: Wav2VecCTCEncoderConfig,
-                 encoder_dim: int,
-                 trainer: Trainer):
+    def __init__(
+        self, wav2vec_encoder: 'Wav2VecEncoderModel', cfg: Wav2VecCTCEncoderConfig, encoder_dim: int, trainer: Trainer
+    ):
         super().__init__()
         self.trainer = trainer
         self.final_dropout = nn.Dropout(cfg.final_dropout)
@@ -271,7 +256,7 @@ class Wav2VecCTCEncoder(NeuralModule):
 
     def forward(self, audio_signal, audio_lengths):
         freeze_encoder_at_step = (
-                self.freeze_encoder_after_steps is not None and self.freeze_encoder_after_steps <= self.trainer.global_step
+            self.freeze_encoder_after_steps is not None and self.freeze_encoder_after_steps <= self.trainer.global_step
         )
 
         if freeze_encoder_at_step:
@@ -299,27 +284,27 @@ class Wav2VecCTCEncoder(NeuralModule):
     def input_types(self):
         return {
             "audio_signal": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_lengths": NeuralType(tuple("B"), LengthsType())
+            "audio_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
             "x": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "output_lengths": NeuralType(tuple("B"), LengthsType())
+            "output_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
 
 def compute_mask_indices(
-        shape: Tuple[int, int],
-        padding_mask: Optional[torch.Tensor],
-        mask_prob: float,
-        mask_length: int,
-        mask_type: Wav2VecMaskType = Wav2VecMaskType.static,
-        mask_other: float = 0.0,
-        min_masks: int = 0,
-        no_overlap: bool = False,
-        min_space: int = 0,
+    shape: Tuple[int, int],
+    padding_mask: Optional[torch.Tensor],
+    mask_prob: float,
+    mask_length: int,
+    mask_type: Wav2VecMaskType = Wav2VecMaskType.static,
+    mask_other: float = 0.0,
+    min_masks: int = 0,
+    no_overlap: bool = False,
+    min_space: int = 0,
 ) -> np.ndarray:
     """
     Computes random mask spans for a given shape

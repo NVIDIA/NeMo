@@ -22,7 +22,7 @@ import torch
 import torch.nn.functional as F
 
 from nemo.core import Loss, typecheck
-from nemo.core.neural_types import NeuralType, LossType, EncodedRepresentation
+from nemo.core.neural_types import EncodedRepresentation, LossType, NeuralType
 
 
 class Wav2VecLoss(Loss):
@@ -45,15 +45,10 @@ class Wav2VecLoss(Loss):
         return {
             "loss": NeuralType(elements_type=LossType()),
             "feature_loss": NeuralType(elements_type=LossType()),
-            "prob_ppl_loss": NeuralType(elements_type=LossType())
+            "prob_ppl_loss": NeuralType(elements_type=LossType()),
         }
 
-    def __init__(
-            self,
-            feature_loss_weight: float,
-            prob_ppl_weight: float,
-            logit_temp: float,
-            reduce: bool = True):
+    def __init__(self, feature_loss_weight: float, prob_ppl_weight: float, logit_temp: float, reduce: bool = True):
         """
         Compute the contrastive loss with respect to the model outputs and sampled negatives from quantizer codebooks.
         Args:
@@ -70,12 +65,13 @@ class Wav2VecLoss(Loss):
 
     @typecheck()
     def forward(
-            self,
-            logits: torch.tensor,
-            targets: torch.tensor,
-            negatives: torch.tensor,
-            prob_ppl_loss: torch.tensor,
-            feature_loss: torch.tensor) -> [torch.tensor, torch.tensor, torch.tensor]:
+        self,
+        logits: torch.tensor,
+        targets: torch.tensor,
+        negatives: torch.tensor,
+        prob_ppl_loss: torch.tensor,
+        feature_loss: torch.tensor,
+    ) -> [torch.tensor, torch.tensor, torch.tensor]:
         """
         Args:
             logits: Model activations

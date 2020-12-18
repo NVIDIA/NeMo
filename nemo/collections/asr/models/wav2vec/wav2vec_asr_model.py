@@ -30,7 +30,7 @@ from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecCTCEncoder
 from nemo.collections.asr.models.wav2vec.wav2vec_model import Wav2VecEncoderModel
 from nemo.collections.asr.modules.wav2vec_modules import Wav2VecCTCEncoder
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType, LabelsType, LogprobsType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
 
 
 class Wav2VecASRModel(Wav2VecBase, ASRModel):
@@ -78,7 +78,7 @@ class Wav2VecASRModel(Wav2VecBase, ASRModel):
     def input_types(self):
         return {
             "input_signal": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_lengths": NeuralType(tuple("B"), LengthsType())
+            "audio_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -126,10 +126,10 @@ class Wav2VecASRModel(Wav2VecBase, ASRModel):
         loss, predictions, transcript, transcript_len = self.model_forward_and_loss(batch)
         self._wer.update(predictions, transcript, transcript_len)
         wer, wer_num, wer_denom = self._wer.compute()
-        self.log_dict({'val_loss': loss, 'val_wer': wer, }, sync_dist=True, prog_bar=True, on_epoch=True)
+        self.log_dict({'val_loss': loss, 'val_wer': wer,}, sync_dist=True, prog_bar=True, on_epoch=True)
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         loss, predictions, transcript, transcript_len = self.model_forward_and_loss(batch)
         self._wer.update(predictions, transcript, transcript_len)
         wer, wer_num, wer_denom = self._wer.compute()
-        self.log_dict({'test_loss': loss, 'test_wer': wer, }, sync_dist=True, prog_bar=True, on_epoch=True)
+        self.log_dict({'test_loss': loss, 'test_wer': wer,}, sync_dist=True, prog_bar=True, on_epoch=True)

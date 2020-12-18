@@ -20,6 +20,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+
 """
 Pre-train a wav2vec 2.0 transformer model on audio. Uses a contrastive loss function to pre-train on unlabelled audio,
 using a task similar to masked language modeling in NLP. In wav2vec, we mask portions of the audio 

@@ -21,16 +21,10 @@ import math
 from typing import List, Tuple
 
 import torch
-from nemo.collections.asr.models.wav2vec.wav2vec_config import (
-    Wav2VecConvExtractorMode,
-    Wav2VecTransformerConfig,
-)
-from nemo.collections.asr.modules.wav2vec_modules import (
-    SamePad,
-    TransposeLast,
-    init_bert_params,
-)
 from torch import nn
+
+from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecConvExtractorMode, Wav2VecTransformerConfig
+from nemo.collections.asr.modules.wav2vec_modules import SamePad, TransposeLast, init_bert_params
 
 
 class ConvFeatureEncoder(nn.Module):
@@ -40,15 +34,15 @@ class ConvFeatureEncoder(nn.Module):
     """
 
     def __init__(
-            self,
-            conv_layers: List[Tuple[int, int, int]],
-            mode: Wav2VecConvExtractorMode = Wav2VecConvExtractorMode.default,
-            conv_bias: bool = False,
+        self,
+        conv_layers: List[Tuple[int, int, int]],
+        mode: Wav2VecConvExtractorMode = Wav2VecConvExtractorMode.default,
+        conv_bias: bool = False,
     ):
         super().__init__()
 
         def block(
-                n_in, n_out, k, stride, is_layer_norm=False, is_group_norm=False, conv_bias=False,
+            n_in, n_out, k, stride, is_layer_norm=False, is_group_norm=False, conv_bias=False,
         ):
             def make_conv():
                 conv = nn.Conv1d(n_in, n_out, k, stride=stride, bias=conv_bias)
@@ -64,7 +58,7 @@ class ConvFeatureEncoder(nn.Module):
                     nn.GELU(),
                 )
             elif is_group_norm:
-                return nn.Sequential(make_conv(), nn.GroupNorm(dim, dim, affine=True), nn.GELU(), )
+                return nn.Sequential(make_conv(), nn.GroupNorm(dim, dim, affine=True), nn.GELU(),)
             else:
                 return nn.Sequential(make_conv(), nn.GELU())
 

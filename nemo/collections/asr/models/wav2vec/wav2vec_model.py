@@ -17,25 +17,21 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import torch
-from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss
-from nemo.collections.asr.models.wav2vec.wav2vec_base import Wav2VecBase
-from nemo.collections.asr.models.wav2vec.wav2vec_config import (
-    Wav2VecEncoderModelConfig,
-)
-from nemo.collections.asr.modules.wav2vec_modules import (
-    GumbelVectorQuantizer,
-    compute_mask_indices,
-)
-from nemo.collections.asr.parts.wav2vec import ConvFeatureEncoder, Wav2VecTransformerEncoder, GradMultiply
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import NeuralType, AudioSignal, MaskType, EncodedRepresentation, LossType
-from nemo.core.neural_types.elements import BoolType, FloatType
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch import nn
+
+from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss
+from nemo.collections.asr.models.wav2vec.wav2vec_base import Wav2VecBase
+from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecEncoderModelConfig
+from nemo.collections.asr.modules.wav2vec_modules import GumbelVectorQuantizer, compute_mask_indices
+from nemo.collections.asr.parts.wav2vec import ConvFeatureEncoder, GradMultiply, Wav2VecTransformerEncoder
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LossType, MaskType, NeuralType
+from nemo.core.neural_types.elements import BoolType, FloatType
 
 
 def buffered_arange(max):
@@ -165,8 +161,7 @@ class Wav2VecEncoderModel(Wav2VecBase):
 
         self._update_quantizer_temp()
         logits, targets, sampled_negatives, _, features_penalty, prob_ppl_loss, _ = self(
-            source=audio_signal,
-            padding_mask=padding_mask
+            source=audio_signal, padding_mask=padding_mask
         )
         loss, feature_loss, prob_ppl_loss = self.loss(
             logits=logits,
@@ -239,8 +234,9 @@ class Wav2VecEncoderModel(Wav2VecBase):
         if mask:
             logits, mask_indices = self.apply_mask(features, padding_mask)
             if mask_indices is not None:
-                targets = unmasked_features[mask_indices].view(unmasked_features.size(0), -1,
-                                                               unmasked_features.size(-1))
+                targets = unmasked_features[mask_indices].view(
+                    unmasked_features.size(0), -1, unmasked_features.size(-1)
+                )
             else:
                 targets = unmasked_features
         else:
@@ -265,10 +261,12 @@ class Wav2VecEncoderModel(Wav2VecBase):
                 sampled_negatives, _ = self.sample_negatives(targets, targets.size(1))
 
             if self.codebook_negatives > 0:
-                cb_negs = self.quantizer.sample_from_codebook(targets.size(0) * targets.size(1),
-                                                              self.codebook_negatives)
-                cb_negs = cb_negs.view(self.codebook_negatives, targets.size(0), targets.size(1),
-                                       -1)  # order doesnt matter
+                cb_negs = self.quantizer.sample_from_codebook(
+                    targets.size(0) * targets.size(1), self.codebook_negatives
+                )
+                cb_negs = cb_negs.view(
+                    self.codebook_negatives, targets.size(0), targets.size(1), -1
+                )  # order doesnt matter
                 cb_negs = self.project_q(cb_negs)
                 sampled_negatives = torch.cat([sampled_negatives, cb_negs], dim=0)
         else:
@@ -292,12 +290,7 @@ class Wav2VecEncoderModel(Wav2VecBase):
 
     def extract_features(self, source, audio_lengths, mask=False):
         padding_mask = self._create_padding_mask(audio_lengths)
-        return self(
-            source=source,
-            padding_mask=padding_mask,
-            mask=mask,
-            features_only=True
-        )
+        return self(source=source, padding_mask=padding_mask, mask=mask, features_only=True)
 
     def remove_pretraining_modules(self):
         self.quantizer = None
