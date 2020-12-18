@@ -440,7 +440,6 @@ class SGDQAModel(NLPModel):
                 in_domain_services=in_domain_services,
                 cat_value_thresh=0.0,
                 non_cat_value_thresh=0.0,
-                probavg=False,
             )
             metrics = evaluate(
                 prediction_dir,
