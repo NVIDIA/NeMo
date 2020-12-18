@@ -16,6 +16,7 @@ import copy
 import json
 import os
 import tempfile
+from math import ceil
 from itertools import repeat
 from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
@@ -46,6 +47,15 @@ class EncDecClassificationModel(ASRModel, Exportable):
     """Encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        self.global_rank = 0
+        self.world_size = 1
+        self.local_rank = 0
+        if trainer is not None:
+            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.local_rank = trainer.local_rank
+
         super().__init__(cfg=cfg, trainer=trainer)
         self._update_decoder_config(self._cfg.decoder)
 
@@ -182,6 +192,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
+        shuffle = config['shuffle']
 
         # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
@@ -239,7 +250,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
             batch_size=batch_size,
             collate_fn=collate_func,
             drop_last=config.get('drop_last', False),
-            shuffle=config['shuffle'],
+            shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
             pin_memory=config.get('pin_memory', False),
         )

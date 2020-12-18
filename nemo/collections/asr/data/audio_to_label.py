@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
+import io
 import os
+import math
 from typing import Dict, List, Optional, Union
 
 import braceexpand
@@ -243,6 +244,7 @@ target_label_n, "offset": offset_in_sec_n}
     Args:
         manifest_filepath (str): Dataset parameter. Path to JSON containing data.
         labels (list): Dataset parameter. List of target classes that can be output by the speaker recognition model.
+        featurizer 
         min_duration (float): Dataset parameter. All training files which have a duration less than min_duration
             are dropped. Note: Duration is read from the manifest JSON.
             Defaults to 0.1.
@@ -286,7 +288,9 @@ target_label_n, "offset": offset_in_sec_n}
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
+            manifests_files=manifest_filepath.split(','), 
+            min_duration=min_duration, 
+            max_duration=max_duration,
         )
 
         self.featurizer = featurizer
@@ -477,6 +481,10 @@ class _TarredAudioLabelDataset(IterableDataset):
         manifest_filepath (str): Path to the manifest.
         labels (list): Dataset parameter.
             List of target classes that can be output by the speaker recognition model.
+        featurizer
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
         min_duration (float): Dataset parameter.
             All training files which have a duration less than min_duration
             are dropped. Note: Duration is read from the manifest JSON.
@@ -518,6 +526,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         manifest_filepath: str,
         labels: List[str],
         featurizer,
+        shuffle_n: int = 0,
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
@@ -530,7 +539,7 @@ class _TarredAudioLabelDataset(IterableDataset):
             manifests_files=manifest_filepath.split(','),
             min_duration=min_duration,
             max_duration=max_duration,
-            index_by_file_id=True,
+            index_by_file_id=True # Must set this so the manifest lines can be indexed by file ID
         )
 
         self.featurizer = featurizer
@@ -653,18 +662,12 @@ class _TarredAudioLabelDataset(IterableDataset):
         )
 
         audio_filestream.close()
-
+        
         # Audio features
         f, fl = features, torch.tensor(features.shape[0]).long()
 
-        # Text features
-        t, tl = manifest_entry.text_tokens, len(manifest_entry.text_tokens)
-        if self.bos_id is not None:
-            t = [self.bos_id] + t
-            tl += 1
-        if self.eos_id is not None:
-            t = t + [self.eos_id]
-            tl += 1
+        t =  self.label2id[manifest_entry.label]
+        tl = 1  # For compatibility with collate_fn used later
 
         return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
@@ -709,6 +712,10 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
         manifest_filepath (str): Path to the manifest.
         labels (list): Dataset parameter.
             List of target classes that can be output by the speaker recognition model.
+        featurizer
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
         min_duration (float): Dataset parameter.
             All training files which have a duration less than min_duration
             are dropped. Note: Duration is read from the manifest JSON.
@@ -778,6 +785,10 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         manifest_filepath (str): Path to the manifest.
         labels (list): Dataset parameter.
             List of target classes that can be output by the speaker recognition model.
+        featurizer
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
         min_duration (float): Dataset parameter.
             All training files which have a duration less than min_duration
             are dropped. Note: Duration is read from the manifest JSON.
@@ -818,6 +829,7 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         manifest_filepath: str,
         labels: List[str],
         featurizer,
+        shuffle_n: int = 0,
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
@@ -841,6 +853,7 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
             manifest_filepath=manifest_filepath,
             labels=labels,
             featurizer=featurizer,
+            shuffle_n=shuffle_n,
             min_duration=min_duration,
             max_duration=max_duration,
             trim=trim,
