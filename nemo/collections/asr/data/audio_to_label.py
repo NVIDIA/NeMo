@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
-import os
 import math
+import os
 from typing import Dict, List, Optional, Union
 
 import braceexpand
@@ -33,6 +33,7 @@ __all__ = [
     'TarredAudioToSpeechLabelDataset',
     'AudioToClassificationLabelDataset',
 ]
+
 
 def repeat_signal(signal, sig_len, required_length):
     repeat = required_length // sig_len
@@ -288,9 +289,7 @@ target_label_n, "offset": offset_in_sec_n}
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), 
-            min_duration=min_duration, 
-            max_duration=max_duration,
+            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
         )
 
         self.featurizer = featurizer
@@ -357,8 +356,9 @@ class AudioToClassificationLabelDataset(_AudioLabelDataset):
         trim: Boolean flag whether to trim the audio
         load_audio: Boolean flag indicate whether do or not load audio
     """
-        # self.labels = labels if labels else self.collection.uniq_labels
-        # self.num_commands = len(self.labels)
+
+    # self.labels = labels if labels else self.collection.uniq_labels
+    # self.num_commands = len(self.labels)
 
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=0)
@@ -401,6 +401,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         normalize_audio (bool): Whether to normalize audio signal. 
             Defaults to False.
     """
+
     def __init__(
         self,
         *,
@@ -416,12 +417,12 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         normalize_audio: bool = False,
     ):
 
-        logging.info("Time length considered for collate func is {}".format(time_length ))
-        logging.info("Shift length considered for collate func is {}".format(time_length ))
+        logging.info("Time length considered for collate func is {}".format(time_length))
+        logging.info("Shift length considered for collate func is {}".format(time_length))
         self.time_length = time_length
         self.shift_length = shift_length
         self.normalize_audio = normalize_audio
-       
+
         super().__init__(
             manifest_filepath=manifest_filepath,
             labels=labels,
@@ -437,7 +438,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
 
     def sliced_seq_collate_fn(self, batch):
         return _sliced_seq_collate_fn(self, batch)
-    
+
     def vad_frame_seq_collate_fn(self, batch):
         return _vad_frame_seq_collate_fn(self, batch)
 
@@ -539,7 +540,7 @@ class _TarredAudioLabelDataset(IterableDataset):
             manifests_files=manifest_filepath.split(','),
             min_duration=min_duration,
             max_duration=max_duration,
-            index_by_file_id=True # Must set this so the manifest lines can be indexed by file ID
+            index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
         )
 
         self.featurizer = featurizer
@@ -662,11 +663,11 @@ class _TarredAudioLabelDataset(IterableDataset):
         )
 
         audio_filestream.close()
-        
+
         # Audio features
         f, fl = features, torch.tensor(features.shape[0]).long()
 
-        t =  self.label2id[manifest_entry.label]
+        t = self.label2id[manifest_entry.label]
         tl = 1  # For compatibility with collate_fn used later
 
         return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
@@ -676,7 +677,6 @@ class _TarredAudioLabelDataset(IterableDataset):
 
     def __len__(self):
         return len(self.collection)
-
 
 
 @experimental
@@ -746,8 +746,9 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
     """
-        # self.labels = labels if labels else self.collection.uniq_labels
-        # self.num_commands = len(self.labels)
+
+    # self.labels = labels if labels else self.collection.uniq_labels
+    # self.num_commands = len(self.labels)
 
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=0)
@@ -822,6 +823,7 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
     """
+
     def __init__(
         self,
         *,
@@ -842,12 +844,12 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         world_size: int = 0,
     ):
 
-        logging.info("Time length considered for collate func is {}".format(time_length ))
-        logging.info("Shift length considered for collate func is {}".format(time_length ))
+        logging.info("Time length considered for collate func is {}".format(time_length))
+        logging.info("Shift length considered for collate func is {}".format(time_length))
         self.time_length = time_length
         self.shift_length = shift_length
         self.normalize_audio = normalize_audio
-       
+
         super().__init__(
             audio_tar_filepaths=audio_tar_filepaths,
             manifest_filepath=manifest_filepath,
@@ -868,6 +870,6 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
 
     def sliced_seq_collate_fn(self, batch):
         return _sliced_seq_collate_fn(self, batch)
-    
+
     def vad_frame_seq_collate_fn(self, batch):
         return _vad_frame_seq_collate_fn(self, batch)

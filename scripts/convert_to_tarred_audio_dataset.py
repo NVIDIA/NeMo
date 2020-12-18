@@ -81,8 +81,8 @@ def create_shard(entries, target_dir, new_entries, shard_id):
             'audio_filepath': squashed_filename,
             'duration': entry['duration'],
             'text': entry['text'],
-            'label' : entry['label'],
-            'offset' : entry['offset'],
+            'label': entry['label'],
+            'offset': entry['offset'],
             'shard_id': shard_id,  # Keep shard ID for recordkeeping
         }
         new_entries.append(new_entry)

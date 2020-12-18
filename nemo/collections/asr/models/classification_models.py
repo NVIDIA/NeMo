@@ -16,8 +16,8 @@ import copy
 import json
 import os
 import tempfile
-from math import ceil
 from itertools import repeat
+from math import ceil
 from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
 
@@ -151,7 +151,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
             logging.set_verbosity(logging_level)
         return labels
 
-
     def prepare_manifest(self, config):
         manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
         input_audios = []
@@ -181,7 +180,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
 
         return manifest_vad_input
 
-
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
         if 'augmentor' in config:
@@ -204,11 +202,11 @@ class EncDecClassificationModel(ASRModel, Exportable):
                     f"`tarred_audio_filepaths` is None. Provided config : {config}"
                 )
                 return None
-            
+
             if 'vad_stream' in config and config['vad_stream']:
                 logging.warning("VAD inference does not support tarred dataset now")
                 return None
-           
+
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
             dataset = audio_to_label_dataset.get_tarred_classification_label_dataset(
                 featurizer=featurizer,
@@ -221,27 +219,25 @@ class EncDecClassificationModel(ASRModel, Exportable):
             shuffle = False
             batch_size = config['batch_size']
             collate_func = dataset.collate_fn
-            
+
         else:
             if 'manifest_filepath' in config and config['manifest_filepath'] is None:
                 logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
                 return None
-        
+
             if 'vad_stream' in config and config['vad_stream']:
-                logging.info("Split long audio file to avoid CUDA memory issue") 
+                logging.info("Split long audio file to avoid CUDA memory issue")
                 config['manifest_filepath'] = self.prepare_manifest(config)
                 logging.info("Perform streaming frame-level VAD")
                 dataset = audio_to_label_dataset.get_speech_label_dataset(
-                    featurizer=featurizer,
-                    config=config, 
-                    augmentor=augmentor)
+                    featurizer=featurizer, config=config, augmentor=augmentor
+                )
                 batch_size = 1
                 collate_func = dataset.vad_frame_seq_collate_fn
             else:
                 dataset = audio_to_label_dataset.get_classification_label_dataset(
-                    featurizer=featurizer,
-                    config=config, 
-                    augmentor=augmentor)
+                    featurizer=featurizer, config=config, augmentor=augmentor
+                )
                 batch_size = config['batch_size']
                 collate_func = dataset.collate_fn
 
@@ -279,7 +275,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
-        
+
         # preserve config
         self._update_dataset_config(dataset_name='validation', config=val_data_config)
 
@@ -293,7 +289,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
         self._update_dataset_config(dataset_name='test', config=test_data_config)
 
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
-    
+
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl

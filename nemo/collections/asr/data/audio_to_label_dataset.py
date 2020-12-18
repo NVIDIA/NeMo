@@ -21,9 +21,7 @@ from nemo.collections.asr.data import audio_to_label
 
 
 def get_classification_label_dataset(
-    featurizer, 
-    config: dict, 
-    augmentor: Optional['AudioAugmentor'] = None
+    featurizer, config: dict, augmentor: Optional['AudioAugmentor'] = None
 ) -> audio_to_label.AudioToClassificationLabelDataset:
     """
     Instantiates a Classification AudioLabelDataset.
@@ -46,11 +44,10 @@ def get_classification_label_dataset(
     )
     return dataset
 
+
 def get_speech_label_dataset(
-    featurizer, 
-    config: dict, 
-    augmentor: Optional['AudioAugmentor'] = None
-    ) -> audio_to_label.AudioToSpeechLabelDataset:
+    featurizer, config: dict, augmentor: Optional['AudioAugmentor'] = None
+) -> audio_to_label.AudioToSpeechLabelDataset:
     """
     Instantiates a Speech Label (e.g. VAD, speaker recognition) AudioLabelDataset.
 
@@ -77,12 +74,12 @@ def get_speech_label_dataset(
 
 
 def get_tarred_classification_label_dataset(
-    featurizer, 
-    config: dict, 
-    shuffle_n: int, 
-    global_rank: int, 
-    world_size: int, 
-    augmentor: Optional['AudioAugmentor'] = None
+    featurizer,
+    config: dict,
+    shuffle_n: int,
+    global_rank: int,
+    world_size: int,
+    augmentor: Optional['AudioAugmentor'] = None,
 ) -> audio_to_label.TarredAudioToClassificationLabelDataset:
     """
     Instantiates a Classification TarredAudioLabelDataset.
@@ -115,12 +112,12 @@ def get_tarred_classification_label_dataset(
 
 
 def get_tarred_speech_label_dataset(
-    featurizer, 
-    config: dict, 
-    shuffle_n: int, 
-    global_rank: int, 
-    world_size: int, 
-    augmentor: Optional['AudioAugmentor'] = None
+    featurizer,
+    config: dict,
+    shuffle_n: int,
+    global_rank: int,
+    world_size: int,
+    augmentor: Optional['AudioAugmentor'] = None,
 ) -> audio_to_label.TarredAudioToSpeechLabelDataset:
     """
     InInstantiates a Speech Label (e.g. VAD, speaker recognition) TarredAudioLabelDataset.
