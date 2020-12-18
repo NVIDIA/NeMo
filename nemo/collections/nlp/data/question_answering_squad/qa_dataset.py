@@ -107,6 +107,14 @@ class SquadDataset(Dataset):
             )
         )
 
+        # check number of samples. Should be either -1 not to limit or positive number
+        if num_samples == 0:
+            raise ValueError(
+                f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}."
+            )
+        elif num_samples > 0:
+            self.examples = self.examples[:num_samples]
+
         if use_cache and os.path.exists(cached_features_file):
             logging.info(f"loading from {cached_features_file}")
             with open(cached_features_file, "rb") as reader:
@@ -129,14 +137,6 @@ class SquadDataset(Dataset):
                     logging.info("  Saving train features into cached file %s", cached_features_file)
                     with open(cached_features_file, "wb") as writer:
                         pickle.dump(self.features, writer)
-
-        # check number of samples. Should be either -1 not to limit or positive number
-        if num_samples == 0:
-            raise ValueError(
-                f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}."
-            )
-        elif num_samples > 0:
-            self.examples = self.examples[:num_samples]
 
     def __len__(self):
         return len(self.features)
