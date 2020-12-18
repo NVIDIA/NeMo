@@ -592,7 +592,6 @@ class ModelPT(LightningModule, Model):
 
         finally:
             cls._set_model_restore_state(is_being_restored=False)
-
         return checkpoint
 
     @abstractmethod
