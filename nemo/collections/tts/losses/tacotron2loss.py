@@ -60,7 +60,7 @@ class L2MelLoss(Loss):
         mask = ~get_mask_from_lengths(spec_target_len, max_len=max_len)
         mask = mask.expand(spec_target.shape[1], mask.size(0), mask.size(1))
         mask = mask.permute(1, 0, 2)
-        spec_pred.data.masked_fill_(mask, pad_value)
+        spec_pred.masked_fill_(mask, pad_value)
 
         mel_loss = torch.nn.functional.mse_loss(spec_pred, spec_target)
         return mel_loss

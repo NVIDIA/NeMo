@@ -13,6 +13,7 @@ ignore_file: ???
 model:
   add_energy_predictor: True
   add_pitch_predictor: True
+  duration_coeff: 0.25
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.data.datalayers.FastSpeechWithDurs"

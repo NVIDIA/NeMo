@@ -51,6 +51,12 @@ class FastSpeech2Config:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
+class DurationLoss(torch.nn.Module):
+    def forward(self, duration_pred, duration_target, mask):
+        duration_pred.masked_fill_(~mask.squeeze(), 0)
+        return torch.nn.functional.mse_loss(duration_pred, duration_target)
+
+
 class FastSpeech2Model(SpectrogramGenerator):
     """FastSpeech 2 model used to convert between text (phonemes) and mel-spectrograms."""
 
@@ -70,6 +76,8 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.energy = cfg.add_energy_predictor
         self.pitch = cfg.add_pitch_predictor
+        self.duration = True
+        self.duration_coeff = cfg.duration_coeff
 
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.encoder = Encoder()
@@ -77,6 +85,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         self.mel_decoder = MelSpecDecoder()
         self.loss = L2MelLoss()
         self.mseloss = torch.nn.MSELoss()
+        self.durationloss = DurationLoss()
 
         self.log_train_images = False
 
@@ -99,20 +108,24 @@ class FastSpeech2Model(SpectrogramGenerator):
             # Need to get spec_len from predicted duration
             if not self.training:
                 spec_len = torch.sum(dur_preds, dim=1)
+            # else:
+            #     assert spec_len == torch.sum(durations, dim=1)
             mel = self.mel_decoder(decoder_input=aligned_text, lengths=spec_len)
-            return mel, dur_preds, pitch_preds, energy_preds
+            return mel, dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx):
         f, fl, t, tl, durations, pitch, energies = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-        mel, dur_preds, pitch_preds, energy_preds = self(
+        mel, dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
             spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies
         )
-        loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
-        self.log(name="train_mel_loss", value=loss)
-        dur_loss = self.mseloss(dur_preds, durations.float())
-        self.log(name="train_dur_loss", value=dur_loss)
-        total_loss = loss + dur_loss
+        total_loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
+        self.log(name="train_mel_loss", value=total_loss.clone().detach())
+        if self.duration:
+            dur_loss = self.durationloss(dur_preds, durations.float(), encoded_text_mask)
+            dur_loss *= self.duration_coeff
+            self.log(name="train_dur_loss", value=dur_loss)
+            total_loss += dur_loss
         if self.pitch:
             pitch_loss = self.mseloss(pitch_preds, pitch)
             total_loss += pitch_loss
@@ -122,6 +135,15 @@ class FastSpeech2Model(SpectrogramGenerator):
             total_loss += energy_loss
             self.log(name="train_energy_loss", value=energy_loss)
         self.log(name="train_loss", value=total_loss)
+        # if (self.global_step + 1) % 200 == 0:
+        #     logging.info(f"train_loss: {total_loss}")
+        #     logging.info(f"train_mel_loss: {loss}")
+        #     if self.duration:
+        #         logging.info(f"train_dur_loss: {dur_loss}")
+        #     if self.pitch:
+        #         logging.info(f"train_pitch_loss: {pitch_loss}")
+        #     if self.energy:
+        #         logging.info(f"train_energy_loss: {energy_loss}")
         return {"loss": total_loss, "outputs": [spec, mel]}
 
     def training_epoch_end(self, training_step_outputs):
@@ -148,7 +170,7 @@ class FastSpeech2Model(SpectrogramGenerator):
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, durations = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-        mel, dur_preds, _, _ = self(spec_len=spec_len, text=t, text_length=tl)
+        mel, dur_preds, _, _, _ = self(spec_len=spec_len, text=t, text_length=tl)
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return {
             "val_loss": loss,
