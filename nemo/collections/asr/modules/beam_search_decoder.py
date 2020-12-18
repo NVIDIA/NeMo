@@ -61,8 +61,7 @@ class BeamSearchDecoderWithLM(NeuralModule):
     ):
 
         try:
-            from ctc_decoders import Scorer
-            from ctc_decoders import ctc_beam_search_decoder_batch
+            from ctc_decoders import Scorer, ctc_beam_search_decoder_batch
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "BeamSearchDecoderWithLM requires the "
