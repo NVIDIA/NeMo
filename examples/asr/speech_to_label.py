@@ -76,8 +76,11 @@ python speech_to_label.py \
     +trainer.amp_level=O1  # needed if using PyTorch < 1.6
 ```
 
-# Optional: Use Tarred dataset to speech up data loading.
+# Optional: Use tarred dataset to speech up data loading. Apply to both tasks.
 ## Prepare tarred dataset. 
+   Prepare ONE manifest that contains all training data you would like to include. 
+   Validation is same to training; Note that tarred dataset is optional and feel free to use a regular dataset for validation.
+   
    Use the `convert_to_tarred_audio_dataset.py` script under <NEMO_ROOT>/scripts in order to prepare tarred audio dataset.
    For details, please see TarredAudioToClassificationLabelDataset in <NEMO_ROOT>/nemo/collections/asr/data/audio_to_label.py
 
@@ -86,12 +89,9 @@ python speech_to_label.py \
     --config-name=<name of config without .yaml e.g. "matchboxnet_3x1x64_vad"> \
     model.train_ds.manifest_filepath=<path to train tarred_audio_manifest.json> \
     model.train_ds.is_tarred=True \
-    model.validation_ds.tarred_audio_filepaths=<path to validation tarred audio dataset e.g. audio_{0..2}.tar> \
-    model.validation_ds.manifest_filepath=<path to train tarred_audio_manifest.json>\
-    model.validation_ds.is_tarred=True \
-    model.validation_ds.tarred_audio_filepaths=<path to train tarred audio dataset e.g. audio_{0..2}.tar> \
+    model.train_ds.tarred_audio_filepaths=<path to train tarred audio dataset e.g. audio_{0..2}.tar> \
     +model.train_ds.num_worker=<num_shards used generating tarred dataset> \
-    +model.validation_ds.num_worker=<num_shards used generating tarred dataset> \
+    model.validation_ds.manifest_filepath=<path to validation audio_manifest.json>\
     trainer.gpus=2 \
     trainer.accelerator="ddp" \
     trainer.max_epochs=200 \
