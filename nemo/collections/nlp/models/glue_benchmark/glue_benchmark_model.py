@@ -28,7 +28,6 @@ from nemo.collections.nlp.models.glue_benchmark.metrics_for_glue import compute_
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceClassifier, SequenceRegression
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import NeuralType

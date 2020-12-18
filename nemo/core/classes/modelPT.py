@@ -48,7 +48,6 @@ try:
 except ImportError:
     _EFF_PRESENT_ = False
 
-
 __all__ = ['ModelPT']
 
 """
@@ -68,7 +67,7 @@ _MODEL_RESTORE_PATH:
     artifact objects.
     If it is an archive file, during restoration, the cwd will be temporarily moved to inside the
     archive itself.
-    
+
 _MODEL_EFF_SAVE:
     A global flag that switches the format of the archive file that will be stored.
     This flag only enables EFF when the package support is available.
@@ -593,7 +592,6 @@ class ModelPT(LightningModule, Model):
 
         finally:
             cls._set_model_restore_state(is_being_restored=False)
-
         return checkpoint
 
     @abstractmethod

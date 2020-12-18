@@ -17,6 +17,7 @@ import tempfile
 import onnx
 import pytest
 import pytorch_lightning as pl
+import torch
 import wget
 from omegaconf import DictConfig, OmegaConf
 
@@ -73,7 +74,7 @@ class TestExportableClassifiers:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_IntentSlotClassificationModel(self, dummy_data):
+    def test_IntentSlotClassificationModel_export_to_onnx(self, dummy_data):
         with tempfile.TemporaryDirectory() as tmpdir:
             wget.download(
                 'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
@@ -102,6 +103,38 @@ class TestExportableClassifiers:
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'intent_logits'
             assert onnx_model.graph.output[1].name == 'slot_logits'
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_IntentSlotClassificationModel_export_to_torchscript(self, dummy_data):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            wget.download(
+                'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
+                'nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml',
+                tmpdir,
+            )
+            config_file = os.path.join(tmpdir, 'intent_slot_classification_config.yaml')
+            config = OmegaConf.load(config_file)
+            config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
+            config.model.data_dir = dummy_data
+            config.trainer.gpus = 1
+            config.trainer.precision = 32
+            config.trainer.accelerator = None
+            trainer = pl.Trainer(**config.trainer)
+            model = IntentSlotClassificationModel(config.model, trainer=trainer)
+            filename = os.path.join(tmpdir, 'isc.pt')
+            model.export(output=filename, check_trace=True)
+            torchscript_model = torch.jit.load(filename)
+            inputs = list(torchscript_model.graph.inputs())
+            assert inputs[1].debugName() == 'input_ids.1'
+            assert inputs[2].debugName() == 'input.1'
+            assert inputs[3].debugName() == 'attention_mask.1'
+            modules = list(torchscript_model.modules())
+            assert len(modules) == 230
+            assert modules[2].original_name == 'BertEmbeddings'
+            assert modules[46].original_name == 'BertSelfAttention'
+            assert modules[217].original_name == 'SequenceTokenClassifier'
+            assert modules[219].original_name == 'MultiLayerPerceptron'
 
     def test_TokenClassificationModel_export_to_onnx(self):
         model = nemo_nlp.models.TokenClassificationModel.from_pretrained(model_name="NERModel")
