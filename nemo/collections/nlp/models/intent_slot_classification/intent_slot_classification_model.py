@@ -31,11 +31,10 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.exportable import Exportable, ExportFormat
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
@@ -125,7 +124,30 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         cfg.data_desc.slot_weights = data_desc.slot_weights
 
         cfg.data_desc.pad_label = data_desc.pad_label
+
+        # for older(pre - 1.0.0.b3) configs compatibility
+        if not hasattr(cfg, "class_labels") or cfg.class_labels is None:
+            cfg.class_labels = {}
+            cfg.class_labels = OmegaConf.create(
+                {'intent_labels_file': 'intent_labels.csv', 'slot_labels_file': 'slot_labels.csv'}
+            )
+
+        slot_labels_file = os.path.join(data_dir, cfg.class_labels.slot_labels_file)
+        intent_labels_file = os.path.join(data_dir, cfg.class_labels.intent_labels_file)
+        self._save_label_ids(data_desc.slots_label_ids, slot_labels_file)
+        self._save_label_ids(data_desc.intents_label_ids, intent_labels_file)
+
+        self.register_artifact(cfg.class_labels.intent_labels_file, intent_labels_file)
+        self.register_artifact(cfg.class_labels.slot_labels_file, slot_labels_file)
         OmegaConf.set_struct(cfg, True)
+
+    def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
+        """ Saves label ids map to a file """
+        with open(filename, 'w') as out:
+            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+            out.write('\n'.join(labels))
+            logging.info(f'Labels: {label_ids}')
+            logging.info(f'Labels mapping saved to : {out.name}')
 
     def _reconfigure_classifier(self):
         """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
@@ -482,6 +504,22 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
                 "Passed input and output examples will be ignored and recomputed since"
                 " IntentSlotClassificationModel consists of two separate models with different"
                 " inputs and outputs."
+            )
+
+        if Exportable.get_format(output) is ExportFormat.TORCHSCRIPT:
+            return super().export(
+                output,
+                self.bert_model.input_example(),
+                None,
+                verbose,
+                export_params,
+                do_constant_folding,
+                keep_initializers_as_inputs,
+                onnx_opset_version,
+                try_script,
+                set_eval,
+                check_trace,
+                use_dynamic_axes,
             )
 
         qual_name = self.__module__ + '.' + self.__class__.__qualname__

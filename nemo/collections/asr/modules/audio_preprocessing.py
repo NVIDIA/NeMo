@@ -32,12 +32,11 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 try:
     import torchaudio
-    import torchaudio.transforms
     import torchaudio.functional
+    import torchaudio.transforms
 
     TORCHAUDIO_VERSION = version.parse(torchaudio.__version__)
     TORCHAUDIO_VERSION_MIN = version.parse('0.5')

@@ -20,8 +20,8 @@ model:
     is_tarred: false
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
-    num_workers: 4
-    pin_memory: true
+    num_workers: 8
+    pin_memory: false
 
   validation_ds:
     manifest_filepath: ???
@@ -29,8 +29,8 @@ model:
     sample_rate: 16000
     batch_size: 32
     shuffle: false
-    num_workers: 4
-    pin_memory: true
+    num_workers: 8
+    pin_memory: false
 
   test_ds:
     manifest_filepath: null
@@ -38,8 +38,8 @@ model:
     sample_rate: 16000
     batch_size: 32
     shuffle: false
-    num_workers: 4
-    pin_memory: true
+    num_workers: 8
+    pin_memory: false
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -77,7 +77,7 @@ model:
     # Sub-sampling params
     subsampling: vggnet # vggnet or striding
     subsampling_factor: 4 # must be power of 2
-    subsampling_conv_channels: 64 # set to -1 to make it equal to the d_model
+    subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
 
     # Feed forward module's params
     ff_expansion_factor: 4
@@ -87,6 +87,7 @@ model:
     pos_emb_max_len: 5000
     n_heads: 4
     xscaling: true
+    untie_biases: false
 
     # Convolution module's params
     conv_kernel_size: 31
@@ -116,9 +117,9 @@ model:
     sched:
       name: CosineAnnealing
       # scheduler config override
-      warmup_steps: 1000
+      warmup_steps: 2000
       warmup_ratio: null
-      min_lr: 1e-9
+      min_lr: 1e-6
       last_epoch: -1
 
 trainer:
@@ -126,7 +127,7 @@ trainer:
   num_nodes: 1
   max_epochs: 100
   max_steps: null # computed at runtime if not set
-  val_check_interval: 1 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   distributed_backend: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0

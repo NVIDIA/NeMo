@@ -32,7 +32,6 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
@@ -212,16 +211,26 @@ class TokenClassificationModel(NLPModel, Exportable):
             train_data_config = self._cfg.train_ds
 
         labels_file = os.path.join(self._cfg.dataset.data_dir, train_data_config.labels_file)
+
+        # for older(pre - 1.0.0.b3) configs compatibility
+        if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
+            OmegaConf.set_struct(self._cfg, False)
+            self._cfg.class_labels = {}
+            self._cfg.class_labels = OmegaConf.create({'class_labels_file': 'label_ids.csv'})
+            OmegaConf.set_struct(self._cfg, True)
+
         label_ids, label_ids_filename, self.class_weights = get_label_ids(
             label_file=labels_file,
             is_training=True,
             pad_label=self._cfg.dataset.pad_label,
             label_ids_dict=self._cfg.label_ids,
             get_weights=True,
+            class_labels_file_artifact=self._cfg.class_labels.class_labels_file,
         )
         # save label maps to the config
         self._cfg.label_ids = OmegaConf.create(label_ids)
-        self.register_artifact('label_ids.csv', label_ids_filename)
+
+        self.register_artifact(self._cfg.class_labels.class_labels_file, label_ids_filename)
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):

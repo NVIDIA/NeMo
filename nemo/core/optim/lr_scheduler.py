@@ -653,12 +653,13 @@ def compute_max_steps(
         # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
 
     steps_per_epoch = _round(sampler_num_samples / batch_size)
-
     if isinstance(limit_train_batches, int) or limit_train_batches == 0.0:
         steps_per_epoch = min(steps_per_epoch, int(limit_train_batches))
     elif steps_per_epoch != float('inf'):
         # limit_train_batches is a percentage of batches per epoch
         steps_per_epoch = int(steps_per_epoch * limit_train_batches)
+        if accumulate_grad_batches == 1:
+            steps_per_epoch = max(steps_per_epoch, 1)
 
     return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
 

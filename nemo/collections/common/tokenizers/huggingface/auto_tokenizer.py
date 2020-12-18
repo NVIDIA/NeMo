@@ -15,7 +15,6 @@
 import re
 from typing import Optional
 
-from transformers import ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
 from transformers import AutoTokenizer as AUTOTOKENIZER
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -78,6 +77,7 @@ class AutoTokenizer(TokenizerSpec):
         sep_token: Optional[str] = None,
         cls_token: Optional[str] = None,
         unk_token: Optional[str] = None,
+        use_fast: Optional[bool] = False,
     ):
 
         """
@@ -94,14 +94,20 @@ class AutoTokenizer(TokenizerSpec):
             sep_token: token used for separating sequences
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
+            use_fast: whether to use fast HuggingFace tokenizer
         """
         try:
             if vocab_file is not None:
+                message = 'Using "slow" HuggingFace tokenizer'
+                if use_fast:
+                    message += f'{vocab_file} is ignored in "fast" tokenizers, using a "slow" version'
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file
+                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=False
                 )
             else:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(pretrained_model_name_or_path=pretrained_model_name)
+                self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                    pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast
+                )
         except Exception as e:
             raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
 

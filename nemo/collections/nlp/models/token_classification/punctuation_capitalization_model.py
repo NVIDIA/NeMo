@@ -29,11 +29,9 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
@@ -260,11 +258,23 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
 
+        # for older(pre - 1.0.0.b3) configs compatibility
+        if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
+            OmegaConf.set_struct(self._cfg, False)
+            self._cfg.class_labels = {}
+            self._cfg.class_labels = OmegaConf.create(
+                {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
+            )
+
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            self.register_artifact('punct_label_ids.csv', self._train_dl.dataset.punct_label_ids_file)
-            self.register_artifact('capit_label_ids.csv', self._train_dl.dataset.capit_label_ids_file)
+            self.register_artifact(
+                self._cfg.class_labels.punct_labels_file, self._train_dl.dataset.punct_label_ids_file
+            )
+            self.register_artifact(
+                self._cfg.class_labels.capit_labels_file, self._train_dl.dataset.capit_label_ids_file
+            )
 
             # save label maps to the config
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
@@ -308,6 +318,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ignore_start_end=self._cfg.dataset.ignore_start_end,
             use_cache=self._cfg.dataset.use_cache,
             num_samples=cfg.num_samples,
+            punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
+            capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
         )
 
         return torch.utils.data.DataLoader(

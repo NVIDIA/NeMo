@@ -38,6 +38,10 @@ class ASRBPEMixin(ABC):
     """
 
     def _setup_tokenizer(self, tokenizer_cfg: DictConfig):
+        # Prevent tokenizer parallelism (unless user has explicitly set it)
+        if 'TOKENIZERS_PARALLELISM' not in os.environ:
+            os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
         self.tokenizer_cfg = OmegaConf.to_container(tokenizer_cfg, resolve=True)  # type: dict
         self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
         self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type

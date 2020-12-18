@@ -19,13 +19,12 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
-from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
 
 import hydra
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
@@ -49,7 +48,6 @@ try:
 except ImportError:
     _EFF_PRESENT_ = False
 
-
 __all__ = ['ModelPT']
 
 """
@@ -69,7 +67,7 @@ _MODEL_RESTORE_PATH:
     artifact objects.
     If it is an archive file, during restoration, the cwd will be temporarily moved to inside the
     archive itself.
-    
+
 _MODEL_EFF_SAVE:
     A global flag that switches the format of the archive file that will be stored.
     This flag only enables EFF when the package support is available.
@@ -99,26 +97,25 @@ class ModelPT(LightningModule, Model):
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
-        if is_dataclass(cfg):
-            cfg = OmegaConf.structured(cfg)
-        if not isinstance(cfg, DictConfig):
-            raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
         if trainer is not None and not isinstance(trainer, Trainer):
             raise ValueError(
                 f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
             )
         super().__init__()
+
+        # Convert config to a DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+
+        # Convert config to support Hydra 1.0+ instantiation
+        cfg = model_utils.maybe_update_config_version(cfg)
+
         if 'target' not in cfg:
             # This is for Jarvis service.
             OmegaConf.set_struct(cfg, False)
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
 
-        config = OmegaConf.to_container(cfg, resolve=True)
-        config = OmegaConf.create(config)
-        OmegaConf.set_struct(config, True)
-
-        self._cfg = config
+        self._cfg = cfg
 
         self.save_hyperparameters(self._cfg)
         self._train_dl = None
@@ -595,7 +592,6 @@ class ModelPT(LightningModule, Model):
 
         finally:
             cls._set_model_restore_state(is_being_restored=False)
-
         return checkpoint
 
     @abstractmethod
@@ -715,11 +711,15 @@ class ModelPT(LightningModule, Model):
 
             # See if internal config has `optim` namespace before preservation
             if self._cfg is not None and hasattr(self._cfg, 'optim'):
-                self._cfg.optim = optim_config
+                if self._cfg.optim is None:
+                    self._cfg.optim = copy.deepcopy(optim_config)
+                else:
+                    with open_dict(self._cfg.optim):
+                        self._cfg.optim = copy.deepcopy(optim_config)
 
         # Setup optimizer and scheduler
         if optim_config is not None and isinstance(optim_config, DictConfig):
-            optim_config = OmegaConf.to_container(optim_config)
+            optim_config = OmegaConf.to_container(optim_config, resolve=True)
 
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
@@ -756,7 +756,7 @@ class ModelPT(LightningModule, Model):
             scheduler_config = None
 
         # Check if caller provided optimizer name, default to Adam otherwise
-        optimizer_cls = optim_config.get('cls', None)
+        optimizer_cls = optim_config.get('_target_', None)
 
         if optimizer_cls is None:
             # Try to get optimizer name for dynamic resolution, defaulting to Adam
@@ -772,9 +772,6 @@ class ModelPT(LightningModule, Model):
         # But maybe user forgot to pass it to this function
         lr = optim_config.get('lr', None)
 
-        if lr is None:
-            raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
-
         # Check if caller has optimizer kwargs, default to empty dictionary
         if 'args' in optim_config:
             optimizer_args = optim_config.pop('args')
@@ -788,10 +785,14 @@ class ModelPT(LightningModule, Model):
             optimizer_args.pop('cls', None)
             optimizer_args.pop('lr', None)
 
+        # Adaptive schedulers don't need `lr`
+        if lr is not None:
+            optimizer_args['lr'] = lr
+
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
             if inspect.isclass(optimizer_cls):
-                optimizer = optimizer_cls(self.parameters(), lr=lr, **optimizer_args)
+                optimizer = optimizer_cls(self.parameters(), **optimizer_args)
                 logging.info("Optimizer config = %s", str(optimizer))
 
                 self._optimizer = optimizer
@@ -799,8 +800,11 @@ class ModelPT(LightningModule, Model):
             else:
                 # Attempt class path resolution
                 try:
-                    optimizer_cls = OmegaConf.create({'cls': optimizer_cls})
-                    optimizer_config = {'lr': lr}
+                    optimizer_cls = OmegaConf.create({'_target_': optimizer_cls})
+                    if lr is not None:
+                        optimizer_config = {'lr': lr}
+                    else:
+                        optimizer_config = {}
                     optimizer_config.update(optimizer_args)
 
                     optimizer_instance = hydra.utils.instantiate(
@@ -821,7 +825,7 @@ class ModelPT(LightningModule, Model):
 
         else:
             optimizer = optim.get_optimizer(optimizer_name)
-            optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
+            optimizer = optimizer(self.parameters(), **optimizer_args)
 
             logging.info("Optimizer config = %s", str(optimizer))
 

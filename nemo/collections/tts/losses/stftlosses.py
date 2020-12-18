@@ -61,7 +61,7 @@ def stft(x, fft_size, hop_size, win_length, window):
     Returns:
         Tensor: Magnitude spectrogram (B, #frames, fft_size // 2 + 1).
     """
-    x_stft = torch.stft(x, fft_size, hop_size, win_length, window)
+    x_stft = torch.stft(x, fft_size, hop_size, win_length, window, return_complex=False)
     real = x_stft[..., 0]
     imag = x_stft[..., 1]
 
@@ -181,6 +181,8 @@ class STFTLoss(Loss):
             Tensor: Spectral convergence loss value.
             Tensor: Log STFT magnitude loss value.
         """
+        if self.window.device != x.device:
+            self.window = self.window.to(x.device)
         x_mag = stft(x, self.fft_size, self.shift_size, self.win_length, self.window)
         y_mag = stft(y, self.fft_size, self.shift_size, self.win_length, self.window)
         sc_loss = self.spectral_convergence_loss(x_mag=x_mag, y_mag=y_mag)

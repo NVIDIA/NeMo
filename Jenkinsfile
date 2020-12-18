@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-            image 'nvcr.io/nvidia/pytorch:20.09-py3'
+            image 'nvcr.io/nvidia/pytorch:20.11-py3'
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -232,6 +232,8 @@ pipeline {
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
             model.tokenizer.type="wpe" \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=10 \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
@@ -287,6 +289,67 @@ pipeline {
           }
         }
       }
+    }
+
+    stage('L2: Segmentation Tool') {
+         when {
+            anyOf {
+              branch 'main'
+              changeRequest target: 'main'
+            }
+         }
+       stages {
+        stage('Install ctc_segmentation requirements') {
+            steps {
+            sh 'cd tools/ctc_segmentation && \
+            pip install -r requirements.txt && \
+            apt-get install -y ffmpeg'
+            }
+        }
+
+        stage('Parallel ctc_segmentation test') {
+         failFast true
+         parallel {
+          stage('L2: Eng QN with .wav') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
+            --DATA_DIR=/home/TestData/ctc_segmentation/eng \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output \
+            --LANGUAGE=eng \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.wav && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
+            -g /home/TestData/ctc_segmentation/eng/output/verified_segments/nv_test_segments.txt && \
+            rm -rf eng/output'
+            }
+          }
+          stage('L2: Ru QN with .mp3') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
+            --DATA_DIR=/home/TestData/ctc_segmentation/ru \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
+            --LANGUAGE=ru \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.mp3 \
+            --ADDITIONAL_SPLIT_SYMBOLS=";" && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
+            -g /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
+            rm -rf ru/output'
+            }
+           }
+         }
+       }
+     }
     }
 
     stage('L2: Multi-GPU Megatron finetuning') {
@@ -394,9 +457,7 @@ pipeline {
         trainer.amp_level=O1 \
         trainer.gpus=[1] \
         +trainer.fast_dev_run=true \
-        exp_manager.exp_dir=exp_megabert_base_uncased \
-        '
-        sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
+        exp_manager=null'
       }
     }
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
@@ -480,7 +541,8 @@ pipeline {
             model.test_ds.prefix=dev \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
-            exp_manager=null'
+            exp_manager.exp_dir=checkpoints'
+            sh 'rm -rf checkpoints'
           }
         }
       }
@@ -612,9 +674,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -662,9 +724,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -687,9 +749,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
