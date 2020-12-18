@@ -77,14 +77,23 @@ def create_shard(entries, target_dir, new_entries, shard_id):
         squashed_filename = f'{base}{ext}'
         tar.add(entry['audio_filepath'], arcname=squashed_filename)
 
-        new_entry = {
-            'audio_filepath': squashed_filename,
-            'duration': entry['duration'],
-            'text': entry['text'],
-            'label': entry['label'],
-            'offset': entry['offset'],
-            'shard_id': shard_id,  # Keep shard ID for recordkeeping
-        }
+        if entry['label']:
+            new_entry = {
+                'audio_filepath': squashed_filename,
+                'duration': entry['duration'],
+                'text': entry['text'],
+                'label': entry['label'],
+                'offset': entry['offset'],
+                'shard_id': shard_id,  # Keep shard ID for recordkeeping
+            }
+        else:
+            new_entry = {
+                'audio_filepath': squashed_filename,
+                'duration': entry['duration'],
+                'text': entry['text'],
+                'shard_id': shard_id,  # Keep shard ID for recordkeeping
+            }
+
         new_entries.append(new_entry)
 
     tar.close()
