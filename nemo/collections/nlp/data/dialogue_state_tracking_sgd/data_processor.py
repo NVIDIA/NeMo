@@ -602,25 +602,6 @@ class SGDDataProcessor(object):
         inverse_alignments = list(zip(bert_tokens_start_chars, bert_tokens_end_chars))
         return bert_tokens, alignments, inverse_alignments
 
-    def get_num_dialog_examples(self, dataset):
-        """
-        Gets the number of dilaog examples in the data split.
-        Args:
-          dataset: str. can be "train", "dev", or "test".
-        Returns:from nemo_nlp.data.datasets.sgd import data_utils
-          example_count: int. number of examples in the specified dataset.
-        """
-        example_count = 0
-        dialog_paths = [
-            os.path.join(self.data_dir, dataset, "dialogues_{:03d}.json".format(i)) for i in self._file_ranges[dataset]
-        ]
-        dst_set = SGDDataProcessor.load_dialogues(dialog_paths)
-        for dialog in dst_set:
-            for turn in dialog["turns"]:
-                if turn["speaker"] == "USER":
-                    example_count += len(turn["frames"])
-        return example_count
-
     @classmethod
     def _naive_tokenize(cls, s):
         """
@@ -636,44 +617,7 @@ class SGDDataProcessor(object):
         return seq_tok
 
     @classmethod
-    def convert_number2string(cls, dialogs):
-        p = inflect.engine()
-        for dialog_idx, dialog in enumerate(dialogs):
-            for turn_idx, turn in enumerate(dialog["turns"]):
-                utt_orig = turn["utterance"]
-                int_list = [(num.start(0), num.end(0)) for num in re.finditer("\\d+", utt_orig)]
-                # int_list = [s for s in utt_orig.split() if s.isdigit()]
-                valid_int_list = []
-                for (start_idx, end_idx) in int_list[-1::-1]:
-                    inside_noncat = False
-                    for frame in turn["frames"]:
-                        for slot in frame["slots"]:
-                            if (start_idx >= slot["start"] and start_idx < slot["exclusive_end"]) or (
-                                end_idx > slot["start"] and end_idx <= slot["exclusive_end"]
-                            ):
-                                inside_noncat = True
-                                break
-                    if not inside_noncat:
-                        valid_int_list.append((start_idx, end_idx, utt_orig[start_idx:end_idx]))
-
-                for (start_idx, end_idx, num) in valid_int_list:
-                    turn["utterance"] = (
-                        turn["utterance"][: start_idx + len(num)]
-                        + " "
-                        + p.number_to_words(int(num))
-                        + turn["utterance"][start_idx + len(num) :]
-                    )
-                if turn["utterance"] != utt_orig:
-                    # print("Replaced cat number!")
-                    for frame in turn["frames"]:
-                        for slot in frame["slots"]:
-                            slot_value = utt_orig[slot["start"] : slot["exclusive_end"]]
-                            slot["start"] = turn["utterance"].index(slot_value, slot["start"])
-                            slot["exclusive_end"] = slot["start"] + len(slot_value)
-        return dialogs
-
-    @classmethod
-    def load_dialogues(cls, dialog_json_filepaths, num2str=False):
+    def load_dialogues(cls, dialog_json_filepaths):
         """
         Obtain the list of all dialogues from specified json files.
         Args:
@@ -686,8 +630,6 @@ class SGDDataProcessor(object):
             with open(dialog_json_filepath, 'r') as f:
                 dialogs.extend(json.load(f))
                 f.close()
-        if num2str:
-            dialogs = SGDDataProcessor.convert_number2string(dialogs)
         return dialogs
 
     @classmethod
