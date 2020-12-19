@@ -23,6 +23,7 @@ import json
 import os
 import pickle
 import re
+from typing import Dict, List
 
 import inflect
 import numpy as np
@@ -47,21 +48,27 @@ class SGDDataProcessor(object):
     """Data generator for SGD dialogues."""
 
     def __init__(
-        self, task_name, data_dir, dialogues_example_dir, tokenizer, schemas, schema_config, subsample=False,
+        self,
+        task_name: str,
+        data_dir: str,
+        dialogues_example_dir: str,
+        tokenizer: object,
+        schemas: object,
+        schema_config: Dict[str, int],
+        subsample: bool = False,
     ):
         """
-        Constructs SGD8DataProcessor
+        Constructs SGDDataProcessor
         Args:
-            task_name (str): task  name, for  example, "single_domain"
-            data_dir (str): path to data directory
-            dialogues_example_dir (str): path to  store processed dialogue examples
-            tokenizer (Tokenizer): such as NemoBertTokenizer
-            schemas (Obj): contains information about schemas
+            task_name: task  name, for  example, "single_domain"
+            data_dir: path to data directory
+            dialogues_example_dir: path to store processed dialogue examples
+            tokenizer: Tokenizer such as BertTokenizer
+            schemas: Schema object 
         """
         self.data_dir = data_dir
 
         self._task_name = task_name
-        # {'MAX_NUM_CAT_SLOT': 6, 'MAX_NUM_NONCAT_SLOT': 12, 'MAX_NUM_VALUE_PER_CAT_SLOT': 12, 'MAX_NUM_INTENT': 4, 'EMBEDDING_DIMENSION': 768, 'MAX_SEQ_LENGTH': 80}
         self.schemas = schemas
         self.schema_config = schema_config
 
@@ -102,7 +109,12 @@ class SGDDataProcessor(object):
             for dialog in dialogs:
                 self._seen_services[dataset].update(set(dialog['services']))
 
-    def save_dialog_examples(self, overwrite_dial_files):
+    def save_dialog_examples(self, overwrite_dial_files: bool):
+        """
+        Preprocesses dialogues and saves to disk.
+        Args:
+            overwrite_dial_files: whether or not to overwrite saved file if already exists
+        """
         for dataset in ["train", "dev", "test"]:
             dial_file = self.dial_files[(self._task_name, dataset)]
             if not os.path.exists(dial_file) or overwrite_dial_files:
@@ -123,13 +135,13 @@ class SGDDataProcessor(object):
                 logging.info(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
                 logging.info(f"Finish generating the dialogue examples for {dataset} dataset.")
 
-    def get_dialog_examples(self, dataset):
+    def get_dialog_examples(self, dataset: str) -> List[object]:
         """
-        Returns a list of `InputExample`s of the data splits' dialogues.
+        Loads preprocessed dialogue examples from disk. 
         Args:
-          dataset(str): can be "train", "dev", or "test".
+            dataset: dataset split
         Returns:
-          examples: a list of `InputExample`s.
+            list of InputExample's.
         """
         if (self._task_name, dataset) not in self.dial_files or not os.path.exists(
             self.dial_files[(self._task_name, dataset)]
@@ -193,15 +205,22 @@ class SGDDataProcessor(object):
 
         return dial_examples
 
-    def get_seen_services(self, dataset_split):
+    def get_seen_services(self, dataset_split: str):
+        """
+        Returns list of seen services, i.e. both in given and training split
+        Args:
+            dataset_split: data split
+        """
+
         return self._seen_services[dataset_split]
 
-    def _generate_dialog_examples(self, dataset, schemas, subsample):
+    def _generate_dialog_examples(self, dataset: str, schemas: object, subsample: bool):
         """
         Returns a list of `InputExample`s of the data splits' dialogues.
         Args:
-          dataset(str): can be "train", "dev", or "test".
-          schemas(Schema): for all services and all datasets processed by the schema_processor
+            dataset: data split, can be "train", "dev", or "test".
+            schemas: schema for all services and all datasets processed by the schema_processor
+            subsample: whether to balance postive and negative samples in the dataset
         Returns:
           examples: a list of `InputExample`s.
         """
@@ -232,14 +251,17 @@ class SGDDataProcessor(object):
 
         return examples, slots_relation_list
 
-    def _create_examples_from_dialog(self, dialog, schemas, dataset, slot_carryover_candlist, subsample):
+    def _create_examples_from_dialog(
+        self, dialog: dict, schemas: object, dataset: str, slot_carryover_candlist: dict, subsample: bool
+    ):
         """
-        Create examples for every turn in the dialog.
+        Create examples for every turn in the dialogue.
         Args:
-            dialog (dict): dialogue example
-            schemas(Schema): for all services and all datasets processed by the schema_processor
-            dataset(str): can be "train", "dev", or "test".
-            slot_carryover_candlist(dict): a dictionary to keep and count the number of carry-over cases between two slots from two different services
+            dialog: dialogue example
+            schemas: schema for all services and all datasets processed by the schema_processor
+            dataset: data split, can be "train", "dev", or "test".
+            slot_carryover_candlist: a dictionary to keep and count the number of carry-over cases between two slots from two different services
+            subsample: whether to balance postive and negative samples in the dataset
         Returns:
             examples: a list of `InputExample`s.
         """
@@ -286,15 +308,14 @@ class SGDDataProcessor(object):
                                 slot_carryover_candlist[(service1, slot1, service2, slot2)] += 1
         return examples
 
-    def _get_state_update(self, current_state, prev_state):
+    def _get_state_update(self, current_state: dict, prev_state: dict) -> dict:
         """
         Updates dialogue state
         Args:
-            current_state (dict): dict of slot - slot values pairs for the current dialogue turn
-            prev_state (dict): dict of slot - slot values pairs for the previous dialogue turns
+            current_state: dict of slot - slot values pairs for the current dialogue turn
+            prev_state: dict of slot - slot values pairs for the previous dialogue turns
         Returns:
-            state_update (dict): dict of slot - slot values pairs that very added/updated during the current
-                dialogue turn
+            state_update: dict of slot - slot values pairs that very added/updated during the current dialogue turn
         """
         state_update = dict(current_state)
         for slot, values in current_state.items():
@@ -304,21 +325,30 @@ class SGDDataProcessor(object):
         return state_update
 
     def _create_examples_from_turn(
-        self, turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, subsample
+        self,
+        turn_id: int,
+        system_utterance: str,
+        user_utterance: str,
+        system_frames: dict,
+        user_frames: dict,
+        prev_states: dict,
+        schemas: object,
+        subsample: bool,
     ):
         """
         Creates an example for each frame in the user turn.
         Args:
-            turn_id (int): turn number
-            system_utterance (str): last system utterance
-            user_utterance (str): lst user utterance
-            system_frames (dict): all system utterances and slot - slot value pairs
-            user_frames (dict): all user utterances and slot - slot value pairs
-            prev_states (dict): slot - slot value pairs from the previous turns
-            schemas (obj): carries information about the service from the current turn
+            turn_id: turn number
+            system_utterance: last system utterance
+            user_utterance: lst user utterance
+            system_frames: all system utterances and slot - slot value pairs
+            user_frames: all user utterances and slot - slot value pairs
+            prev_states: slot - slot value pairs from the previous turns
+            schemas: carries information about the service from the current turn
+            subsample: whether to balance postive and negative samples in the dataset
         Returns:
             examples: a list of `InputExample`s.
-            prev_states (dict): updated dialogue state {'Restaurants_1': {'city': ['San Jose'], 'cuisine': ['American']}}
+            prev_states: updated dialogue state e.g. {'Restaurants_1': {'city': ['San Jose'], 'cuisine': ['American']}}
         """
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
@@ -532,8 +562,25 @@ class SGDDataProcessor(object):
 
         return examples, states, slot_carryover_values
 
-    def _find_subword_indices(self, slot_values, utterance, char_slot_spans, alignments, subwords, bias):
-        """Find indices for subwords corresponding to slot values."""
+    def _find_subword_indices(
+        self,
+        slot_values: dict,
+        utterance: str,
+        char_slot_spans: dict,
+        alignments: List[int],
+        subwords: List[str],
+        bias: int,
+    ):
+        """
+        Find indices for subwords corresponding to slot values.
+        Args:
+            slot_values:
+            utterance:
+            char_slot_spans:
+            alignments:
+            subwords:
+            bias:
+        """
         span_boundaries = {}
         for slot, values in slot_values.items():
             # Get all values present in the utterance for the specified slot.
@@ -552,23 +599,24 @@ class SGDDataProcessor(object):
                     break
         return span_boundaries
 
-    def _tokenize(self, utterance):
-        """Tokenize the utterance using word-piece tokenization used by BERT.
+    def _tokenize(self, utterance: str):
+        """
+        Tokenize the utterance
 
         Args:
-          utterance: A string containing the utterance to be tokenized.
+            utterance: A string containing the utterance to be tokenized.
 
         Returns:
-          bert_tokens: A list of tokens obtained by word-piece tokenization of the
-            utterance.
-          alignments: A dict mapping indices of characters corresponding to start
-            and end positions of words (not subwords) to corresponding indices in
-            bert_tokens list.
-          inverse_alignments: A list of size equal to bert_tokens. Each element is a
-            tuple containing the index of the starting and inclusive ending
-            character of the word corresponding to the subword. This list is used
-            during inference to map word-piece indices to spans in the original
-            utterance.
+            bert_tokens: A list of tokens obtained by word-piece tokenization of the
+                utterance.
+            alignments: A dict mapping indices of characters corresponding to start
+                and end positions of words (not subwords) to corresponding indices in
+                bert_tokens list.
+            inverse_alignments: A list of size equal to bert_tokens. Each element is a
+                tuple containing the index of the starting and inclusive ending
+                character of the word corresponding to the subword. This list is used
+                during inference to map word-piece indices to spans in the original
+                utterance.
         """
         # utterance = tokenization.convert_to_unicode(utterance)
 
@@ -603,13 +651,13 @@ class SGDDataProcessor(object):
         return bert_tokens, alignments, inverse_alignments
 
     @classmethod
-    def _naive_tokenize(cls, s):
+    def _naive_tokenize(cls, s: str):
         """
         Tokenizes a string, separating words, spaces and punctuations.
         Args:
-            s (str): a string
+            s: a string
         Returns:
-            seq_tok (list): list of words, spaces and punctuations from the s
+            seq_tok: list of words, spaces and punctuations from the s
         """
         # Spaces and punctuation marks are all retained, i.e. direct concatenation
         # of all the tokens in the sequence will be the original string.
@@ -617,13 +665,13 @@ class SGDDataProcessor(object):
         return seq_tok
 
     @classmethod
-    def load_dialogues(cls, dialog_json_filepaths):
+    def load_dialogues(cls, dialog_json_filepaths: List[str]):
         """
         Obtain the list of all dialogues from specified json files.
         Args:
-            dialog_json_filepaths (list): list of json files
+            dialog_json_filepaths: list of json files
         Returns:
-            dialogs  (list): the list of all dialogues
+            dialogs: the list of all dialogues
         """
         dialogs = []
         for dialog_json_filepath in sorted(dialog_json_filepaths):
@@ -633,15 +681,15 @@ class SGDDataProcessor(object):
         return dialogs
 
     @classmethod
-    def get_dialogue_files(cls, data_dir, dataset_split, task_name):
+    def get_dialogue_files(cls, data_dir: str, dataset_split: str, task_name: str):
         """
         Obtain the list of all dialogue json files
         Args:
-            data_dir (str): path to the data folde
-            dataset_split (str): dev, test or train
-            task_name (str): SGD task name, see keys of the FILE_RANGES
+            data_dir: path to the data folde
+            dataset_split: dev, test or train
+            task_name: SGD task name, see keys of the FILE_RANGES
         Returns:
-            dialogs (list): the list of all dialogue json files paths
+            dialog: the list of all dialogue json files paths
         """
         return [
             os.path.join(data_dir, dataset_split, 'dialogues_{:03d}.json'.format(fid))

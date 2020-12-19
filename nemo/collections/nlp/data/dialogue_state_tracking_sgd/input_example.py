@@ -11,10 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """
 This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/data_utils.py
 """
+
+from typing import List, Optional
 
 from nemo.utils import logging
 
@@ -34,26 +37,25 @@ class InputExample(object):
 
     def __init__(
         self,
-        schema_config,
-        service_schema=None,
-        example_id="NONE",
-        example_id_num=[],
-        is_real_example=False,
-        tokenizer=None,
+        schema_config: dict,
+        tokenizer: object,
+        service_schema: object = None,
+        example_id: str = "NONE",
+        example_id_num: List[int] = [],
+        is_real_example: bool = False,
     ):
-        """Constructs an InputExample.
-
+        """
+        Constructs an InputExample.
         Args:
-          max_seq_length: The maximum length of the sequence. Sequences longer than
-            this value will be truncated.
-          service_schema: A ServiceSchema object wrapping the schema for the service
-            corresponding to this example.
-          example_id: Unique identifier for the example, like: 'train-1_00000-00-Restaurants_1'
-          example_id_num: dialogue_id and turn_id combined and service id combined into a list of ints,
-            like: [1, 0, 0, 18]
-          is_real_example: Indicates if an example is real or used for padding in a
-            minibatch.
-          tokenizer (Tokenizer): such as NemoBertTokenizer
+            schema_config: configuration
+            tokenizer: tokenizer such as NemoBertTokenizer
+            service_schema: A ServiceSchema object wrapping the schema for the service
+                corresponding to this example.
+            example_id: Unique identifier for the example, like: 'train-1_00000-00-Restaurants_1'
+            example_id_num: dialogue_id and turn_id combined and service id combined into a list of ints,
+                like: [1, 0, 0, 18]
+            is_real_example: Indicates if an example is real or used for padding in a
+                minibatch.
         """
         self.schema_config = schema_config
         self.service_schema = service_schema

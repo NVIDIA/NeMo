@@ -30,8 +30,8 @@ class SGDDataset(Dataset):
     """ 
     Processes SGD dataset
     Args:
-        dataset_split (str): train/dev/test
-        dialogues_processor (obj): Data generator for SGD dialogues
+        dataset_split: train/dev/test
+        dialogues_processor: Data generator for SGD dialogues
     """
 
     @property
@@ -57,13 +57,13 @@ class SGDDataset(Dataset):
             "task_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
-    def __init__(self, dataset_split, dialogues_processor):
+    def __init__(self, dataset_split: str, dialogues_processor: object):
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
 
     def __len__(self):
         return len(self.features)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         ex = self.features[idx]
         service_id = ex.service_schema.service_id
 

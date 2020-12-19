@@ -38,8 +38,14 @@ UNSEEN_SERVICES = "#UNSEEN_SERVICES"
 PER_FRAME_OUTPUT_FILENAME = "dialogues_and_metrics.json"
 
 
-def get_service_set(schema_path):
-    """Get the set of all services present in a schema."""
+def get_service_set(schema_path: str):
+    """
+    Get the set of all services present in a schema.
+    Args:
+        schema_path: schema file path
+    Returns:
+        service_set: set of services in file
+    """
     service_set = set()
     with open(schema_path) as f:
         schema = json.load(f)
@@ -49,17 +55,20 @@ def get_service_set(schema_path):
     return service_set
 
 
-def get_in_domain_services(schema_path, service_set):
+def get_in_domain_services(schema_path: str, service_set: set):
     """Get the set of common services between a schema and set of services.
     Args:
-        schema_path (str): path to schema file
-        service_set (set): set of services
+        schema_path: path to schema file
+        service_set: set of services
     """
     return get_service_set(schema_path) & service_set
 
 
 def get_dataset_as_dict(file_path_patterns):
-    """Read the DSTC8/SGD json dialogue data as dictionary with dialog ID as keys."""
+    """Read the DSTC8/SGD json dialogue data as dictionary with dialog ID as keys.
+    Args:
+        file_path_patterns: list or directory of files 
+    """
     dataset_dict = {}
     if isinstance(file_path_patterns, list):
         list_fp = file_path_patterns
@@ -83,20 +92,20 @@ def get_dataset_as_dict(file_path_patterns):
 def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
     """Calculate the DSTC8/SGD metrics.
 
-  Args:
-    dataset_ref: The ground truth dataset represented as a dict mapping dialogue
-      id to the corresponding dialogue.
-    dataset_hyp: The predictions in the same format as `dataset_ref`.
-    service_schemas: A dict mapping service name to the schema for the service.
-    in_domain_services: The set of services which are present in the training
-      set.
-    schemas: Schemas with information for all services
+    Args:
+        dataset_ref: The ground truth dataset represented as a dict mapping dialogue
+        id to the corresponding dialogue.
+        dataset_hyp: The predictions in the same format as `dataset_ref`.
+        service_schemas: A dict mapping service name to the schema for the service.
+        in_domain_services: The set of services which are present in the training
+        set.
+        schemas: Schemas with information for all services
 
-  Returns:
-    A dict mapping a metric collection name to a dict containing the values
-    for various metrics. Each metric collection aggregates the metrics across
-    a specific set of frames in the dialogues.
-  """
+    Returns:
+        A dict mapping a metric collection name to a dict containing the values
+        for various metrics. Each metric collection aggregates the metrics across
+        a specific set of frames in the dialogues.
+    """
     # Metrics can be aggregated in various ways, eg over all dialogues, only for
     # dialogues containing unseen services or for dialogues corresponding to a
     # single service. This aggregation is done through metric_collections, which
