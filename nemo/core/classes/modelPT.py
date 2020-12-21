@@ -799,7 +799,7 @@ class ModelPT(LightningModule, Model):
             self._var_noise_start = optimizer_args['var_noise'].get('start_step', 0)
             optimizer_args.pop('var_noise')
         else:
-            self._var_noise_std = None
+            self._var_noise_std = 0
             self._var_noise_start = 0
 
         # Actually instantiate the optimizer
