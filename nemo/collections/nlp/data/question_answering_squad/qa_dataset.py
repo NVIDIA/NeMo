@@ -107,18 +107,20 @@ class SquadDataset(Dataset):
             )
         )
 
+        # check number of samples. Should be either -1 not to limit or positive number
+        if num_samples == 0:
+            raise ValueError(
+                f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}."
+            )
+        elif num_samples > 0:
+            self.examples = self.examples[:num_samples]
+
         if use_cache and os.path.exists(cached_features_file):
             logging.info(f"loading from {cached_features_file}")
             with open(cached_features_file, "rb") as reader:
                 self.features = pickle.load(reader)
         else:
             logging.info(f"Preprocessing data.")
-            if num_samples == 0:
-                raise ValueError(
-                    f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}."
-                )
-            elif num_samples > 0:
-                self.examples = self.examples[:num_samples]
 
             self.features = convert_examples_to_features(
                 examples=self.examples,
@@ -186,6 +188,10 @@ class SquadDataset(Dataset):
         all_nbest_json = collections.OrderedDict()
         scores_diff_json = collections.OrderedDict()
         for (example_index, example) in enumerate(self.examples):
+
+            # finish this loop if we went through all batch examples
+            if example_index >= len(unique_ids):
+                break
 
             features = example_index_to_features[example_index]
 
@@ -288,6 +294,7 @@ class SquadDataset(Dataset):
                     seen_predictions[final_text] = True
 
                 nbest.append(_NbestPrediction(text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit))
+
             # if we didn't include the empty option in the n-best, include it
             if version_2_with_negative:
                 if "" not in seen_predictions:
@@ -319,6 +326,7 @@ class SquadDataset(Dataset):
             nbest_json = []
             for (i, entry) in enumerate(nbest):
                 output = collections.OrderedDict()
+                output["question"] = example.question_text
                 output["text"] = entry.text
                 output["probability"] = probs[i]
                 output["start_logit"] = (
@@ -328,18 +336,19 @@ class SquadDataset(Dataset):
                 nbest_json.append(output)
 
             assert len(nbest_json) >= 1
-
+            all_predictions[example.qas_id] = collections.OrderedDict()
+            all_predictions[example.qas_id]["question"] = example.question_text
             if not version_2_with_negative:
-                all_predictions[example.qas_id] = nbest_json[0]["text"]
+                all_predictions[example.qas_id]["text"] = nbest_json[0]["text"]
             else:
                 # predict "" iff the null score -
                 # the score of best non-null > threshold
                 score_diff = score_null - best_non_null_entry.start_logit - (best_non_null_entry.end_logit)
                 scores_diff_json[example.qas_id] = score_diff
                 if score_diff > null_score_diff_threshold:
-                    all_predictions[example.qas_id] = ""
+                    all_predictions[example.qas_id]["text"] = ""
                 else:
-                    all_predictions[example.qas_id] = best_non_null_entry.text
+                    all_predictions[example.qas_id]["text"] = best_non_null_entry.text
             all_nbest_json[example.qas_id] = nbest_json
 
         return all_predictions, all_nbest_json, scores_diff_json
@@ -350,7 +359,9 @@ class SquadDataset(Dataset):
         no_answer_probs: Optional[float] = None,
         no_answer_probability_threshold: float = 1.0,
     ):
-        qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in self.examples}
+        qas_id_to_has_answer = {
+            example.qas_id: bool(example.answers) for example in self.examples[: len(all_predictions)]
+        }
         has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
         no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
         if no_answer_probs is None:
@@ -380,7 +391,7 @@ class SquadDataset(Dataset):
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
-    def get_raw_scores(self, preds: Dict[str, str]):
+    def get_raw_scores(self, preds: Dict[str, Dict[str, str]]):
         """
         Computes the exact and f1 scores from the examples
         and the model predictions
@@ -402,8 +413,8 @@ class SquadDataset(Dataset):
                 continue
 
             prediction = preds[qas_id]
-            exact_scores[qas_id] = max(exact_match_score(a, prediction) for a in gold_answers)
-            f1_scores[qas_id] = max(f1_score(a, prediction) for a in gold_answers)
+            exact_scores[qas_id] = max(exact_match_score(a, prediction['text']) for a in gold_answers)
+            f1_scores[qas_id] = max(f1_score(a, prediction['text']) for a in gold_answers)
 
         return exact_scores, f1_scores
 

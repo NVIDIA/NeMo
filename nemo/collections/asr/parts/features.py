@@ -266,6 +266,7 @@ class FilterbankFeatures(nn.Module):
                 win_length=self.win_length,
                 center=False if stft_exact_pad else True,
                 window=self.window.to(dtype=torch.float),
+                return_complex=False,
             )
 
         self.normalize = normalize
