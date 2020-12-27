@@ -128,6 +128,7 @@ class ClusteringSDModel(DiarizationModel):
             'embedding_dir': self._speaker_dir,
             'labels': None,
             'task': "diarization",
+            'num_workers': 0
         }
         self._speaker_model.setup_test_data(spk_dl_config)
 
@@ -302,11 +303,17 @@ class ClusteringSDModel(DiarizationModel):
             else:
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
-        self._extract_embeddings(self._vad_out_file)
+        # self._extract_embeddings(self._vad_out_file)
         reco2num = self._reco2num
         RTTM_DIR = self._cfg.diarizer.groundtruth_RTTM_dir
         OUT_RTTM_DIR = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(OUT_RTTM_DIR, exist_ok=True)
+
+        embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
+        prefix = self._vad_out_file.split('/')[-1].split('.')[-2]
+        name = os.path.join(embedding_dir, prefix)
+        self._embeddings_file = name + '_embeddings.pkl'
+        
         DER, CER, FA, MISS = get_score(
             embeddings_file=self._embeddings_file,
             reco2num=reco2num,
