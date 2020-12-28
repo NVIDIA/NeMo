@@ -120,7 +120,7 @@ def fuzzy_string_match(str_ref, str_hyp):
     return fuzz.token_sort_ratio(str_ref, str_hyp) / 100.0
 
 
-def noncat_slot_value_match(str_ref_list, str_hyp, no_fuzzy_match):
+def noncat_slot_value_match(str_ref_list, str_hyp, use_fuzzy_match):
     """Calculate non-categorical slots correctness.
     Args:
       str_ref_list: a list of reference strings.
@@ -131,15 +131,15 @@ def noncat_slot_value_match(str_ref_list, str_hyp, no_fuzzy_match):
     """
     score = 0.0
     for str_ref in str_ref_list:
-        if no_fuzzy_match:
-            match_score = float(str_ref == str_hyp)
-        else:
+        if use_fuzzy_match:
             match_score = fuzzy_string_match(str_ref, str_hyp)
+        else:
+            match_score = float(str_ref == str_hyp)
         score = max(score, match_score)
     return score
 
 
-def compare_slot_values(slot_values_ref, slot_values_hyp, service, no_fuzzy_match):
+def compare_slot_values(slot_values_ref, slot_values_hyp, service, use_fuzzy_match):
     """Compare and get correctness of goal state's slot_values.
 
     Args:
@@ -179,7 +179,7 @@ def compare_slot_values(slot_values_ref, slot_values_hyp, service, no_fuzzy_matc
                 if slot["is_categorical"]:
                     cor = float(value_ref_list[0] == value_hyp)
                 else:
-                    cor = noncat_slot_value_match(value_ref_list, value_hyp, no_fuzzy_match)
+                    cor = noncat_slot_value_match(value_ref_list, value_hyp, use_fuzzy_match)
                 list_cor.append(cor)
                 list_cor_status.append(1.0)
                 list_cor_value.append(cor)
@@ -260,7 +260,7 @@ def get_requested_slots_f1(frame_ref, frame_hyp):
     return compute_f1(frame_ref["state"]["requested_slots"], frame_hyp["state"]["requested_slots"])
 
 
-def get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service, no_fuzzy_match):
+def get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service, use_fuzzy_match):
     """Get average and joint goal accuracies of a frame.
 
     Args:
@@ -278,7 +278,7 @@ def get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service, no_fuzzy_
     goal_acc = {}
 
     list_acc, slot_active, slot_cat, list_status_acc, list_value_acc = compare_slot_values(
-        frame_ref["state"]["slot_values"], frame_hyp["state"]["slot_values"], service, no_fuzzy_match
+        frame_ref["state"]["slot_values"], frame_hyp["state"]["slot_values"], service, use_fuzzy_match
     )
 
     # (4) Average goal accuracy.

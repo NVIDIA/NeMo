@@ -441,8 +441,8 @@ class SGDQAModel(NLPModel):
                 self._cfg.dataset.data_dir,
                 eval_dataset,
                 in_domain_services,
-                joint_acc_across_turn=False,
-                no_fuzzy_match=False,
+                joint_acc_across_turn=self._cfg.dataset.joint_acc_across_turn,
+                use_fuzzy_match=self._cfg.dataset.use_fuzzy_match,
             )
 
             for k, v in metrics.items():

@@ -100,7 +100,7 @@ def get_metrics(
     service_schemas: dict,
     in_domain_services: set,
     joint_acc_across_turn: bool,
-    no_fuzzy_match: bool,
+    use_fuzzy_match: bool,
 ):
     """Calculate the DSTC8/SGD metrics.
     Args:
@@ -109,7 +109,7 @@ def get_metrics(
         service_schemas: A dict mapping service name to the schema for the service.
         in_domain_services: The set of services which are present in the training set.
         joint_acc_across_turn: Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
-        no_fuzzy_match: Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
+        use_fuzzy_match: Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
 
     Returns:
         all_metric_aggregate: A dict mapping a metric collection name to a dict containing the values
@@ -173,7 +173,7 @@ def get_metrics(
                 )
                 requested_slots_f1_scores = metrics.get_requested_slots_f1(frame_ref, frame_hyp)
                 goal_accuracy_dict = metrics.get_average_and_joint_goal_accuracy(
-                    frame_ref, frame_hyp, service, no_fuzzy_match
+                    frame_ref, frame_hyp, service, use_fuzzy_match
                 )
 
                 frame_metric = {
@@ -234,7 +234,7 @@ def evaluate(
     eval_dataset: str,
     in_domain_services: set,
     joint_acc_across_turn: bool,
-    no_fuzzy_match: bool,
+    use_fuzzy_match: bool,
 ) -> dict:
     """Calculate the DSTC8/SGD metrics for given data.
 
@@ -244,7 +244,7 @@ def evaluate(
         eval_dataset: evaluation data split
         in_domain_services: The set of services which are present in the training set.
         joint_acc_across_turn: Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
-        no_fuzzy_match: Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
+        use_fuzzy_match: Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
 
     Returns:
         A dict mapping a metric collection name to a dict containing the values
@@ -263,7 +263,7 @@ def evaluate(
 
     # has ALLSERVICE, SEEN_SERVICES, UNSEEN_SERVICES, SERVICE, DOMAIN
     all_metric_aggregate, _ = get_metrics(
-        dataset_ref, dataset_hyp, eval_services, in_domain_services, joint_acc_across_turn, no_fuzzy_match
+        dataset_ref, dataset_hyp, eval_services, in_domain_services, joint_acc_across_turn, use_fuzzy_match
     )
     if SEEN_SERVICES in all_metric_aggregate:
         logging.info(f'Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}')

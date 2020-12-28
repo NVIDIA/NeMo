@@ -57,6 +57,8 @@ model:
     dialogues_example_dir: ???
     subsample: false 
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
+    use_fuzzy_match: true # Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
+    joint_acc_across_turn: false # Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
 
   train_ds:
     batch_size: 128
