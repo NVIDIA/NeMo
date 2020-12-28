@@ -456,11 +456,11 @@ class SGDQAModel(NLPModel):
         Preprocessed schema and dialogues and caches this
         """
         schema_config = {
-            "MAX_NUM_CAT_SLOT": 6,
-            "MAX_NUM_NONCAT_SLOT": 12,
-            "MAX_NUM_VALUE_PER_CAT_SLOT": 12,
-            "MAX_NUM_INTENT": 4,
-            "NUM_TASKS": 6,
+            "MAX_NUM_CAT_SLOT": self._cfg.dataset.max_num_cat_slot,
+            "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
+            "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
+            "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
+            "NUM_TASKS": self._cfg.dataset.num_tasks,
             "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
         }
         all_schema_json_paths = []

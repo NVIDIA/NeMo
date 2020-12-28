@@ -51,6 +51,11 @@ model:
 
   dataset:
     max_seq_length: 128 # the maximum length BERT supports is 512
+    max_num_cat_slot: 6,
+    max_num_noncat_slot: 12,
+    max_value_per_cat_slot: 12, 
+    max_num_intent: 4,
+    num_tasks: 6
     task_name: sgd_single_domain
     state_tracker: nemotracker
     data_dir: ???
