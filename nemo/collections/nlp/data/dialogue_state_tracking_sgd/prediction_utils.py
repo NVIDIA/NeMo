@@ -40,7 +40,7 @@ MIN_SLOT_RELATION = 25
 __all__ = ['write_predictions_to_file']
 
 
-def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_values, sys_slots_agg, cat_value_thresh):
+def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_values, sys_slots_agg):
     """
     Extract predicted categorical slot information 
     Args:
@@ -59,17 +59,15 @@ def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_valu
             tmp = predictions_value[slot_idx]
             value_idx = max(tmp, key=lambda k: tmp[k]['cat_slot_value_status'][0].item())
             value_prob = max([v['cat_slot_value_status'][0].item() for k, v in predictions_value[slot_idx].items()])
-            if sys_slots_agg is None or value_prob > cat_value_thresh:
-                out_dict[slot] = cat_slot_values[slot][value_idx]
-            elif slot in sys_slots_agg:
-                # retrieval
-                out_dict[slot] = sys_slots_agg[slot]
+            # if sys_slots_agg is None or value_prob > cat_value_thresh:
+            out_dict[slot] = cat_slot_values[slot][value_idx]
+            # elif slot in sys_slots_agg:
+            #     # retrieval
+            #     out_dict[slot] = sys_slots_agg[slot]
     return out_dict
 
 
-def set_noncat_slot(
-    predictions_status, predictions_value, non_cat_slots, user_utterance, sys_slots_agg, non_cat_value_thresh
-):
+def set_noncat_slot(predictions_status, predictions_value, non_cat_slots, user_utterance, sys_slots_agg):
     """
     write predicted slot and values into out_dict 
     """
@@ -93,7 +91,7 @@ def set_noncat_slot(
     return out_dict
 
 
-def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker, cat_value_thresh, non_cat_value_thresh):
+def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker):
     # Overwrite the labels in the turn with the predictions from the model. For
     # test set, these labels are missing from the data and hence they are added.
     dialog_id = dialog["dialogue_id"]
@@ -147,7 +145,6 @@ def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker, cat_va
                     cat_slots=service_schema.categorical_slots,
                     cat_slot_values=service_schema.categorical_slot_values,
                     sys_slots_agg=None,
-                    cat_value_thresh=cat_value_thresh,
                 )
                 for k, v in cat_out_dict.items():
                     slot_values[k] = v
@@ -159,7 +156,6 @@ def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker, cat_va
                     non_cat_slots=service_schema.non_categorical_slots,
                     user_utterance=system_user_utterance,
                     sys_slots_agg=sys_slots_agg.get(frame["service"], None),
-                    non_cat_value_thresh=non_cat_value_thresh,
                 )
                 for k, v in noncat_out_dict.items():
                     slot_values[k] = v
@@ -196,8 +192,6 @@ def write_predictions_to_file(
     state_tracker: str,
     eval_debug: bool,
     in_domain_services: set,
-    cat_value_thresh: float,
-    non_cat_value_thresh: float,
 ):
     """Write the predicted dialogues as json files.
 
@@ -232,9 +226,7 @@ def write_predictions_to_file(
             logging.debug(f'{input_file_path} file is loaded')
             pred_dialogs = []
             for d in dialogs:
-                pred_dialog = get_predicted_dialog(
-                    d, all_predictions, schemas, state_tracker, cat_value_thresh, non_cat_value_thresh
-                )
+                pred_dialog = get_predicted_dialog(d, all_predictions, schemas, state_tracker)
                 pred_dialogs.append(pred_dialog)
             f.close()
         input_file_name = os.path.basename(input_file_path)

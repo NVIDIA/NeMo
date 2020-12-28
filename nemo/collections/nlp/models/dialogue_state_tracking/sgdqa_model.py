@@ -433,8 +433,6 @@ class SGDQAModel(NLPModel):
                 state_tracker=self._cfg.dataset.state_tracker,
                 eval_debug=False,
                 in_domain_services=in_domain_services,
-                cat_value_thresh=0.0,
-                non_cat_value_thresh=0.0,
             )
             metrics = evaluate(
                 prediction_dir,
