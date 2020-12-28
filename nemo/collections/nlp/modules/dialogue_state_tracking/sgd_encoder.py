@@ -27,8 +27,7 @@ ACT2FN = {"tanh": nn.functional.tanh, "relu": nn.functional.relu}
 
 class SGDEncoder(Classifier):
     """
-    Neural module which extracts the first token from the BERT representation of the utterance
-    followed by a fully connected layer.
+    Neural module which encodes BERT hidden states
     """
 
     @property
@@ -48,9 +47,10 @@ class SGDEncoder(Classifier):
 
         """
         Args:
-            hidden_size (int): hidden size of the BERT model
-            activation (str): activation function applied
-            dropout (float): dropout ratio
+            hidden_size: hidden size of the BERT model
+            activation: activation function applied
+            dropout: dropout ratio
+            use_transformer_init: use transformer initialization
         """
         super().__init__(hidden_size=hidden_size, dropout=dropout)
         self.fc = nn.Linear(hidden_size, hidden_size)
@@ -66,6 +66,8 @@ class SGDEncoder(Classifier):
     @typecheck()
     def forward(self, hidden_states):
         """
+        Args:
+            hidden_states: bert output hidden states
         """
         first_token_hidden_states = hidden_states[:, 0]
         logits = self.fc(first_token_hidden_states)

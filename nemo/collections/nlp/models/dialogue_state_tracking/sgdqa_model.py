@@ -59,10 +59,14 @@ def get_str_example_id(eval_dataset, ids_to_service_names_dict, example_id_num):
     return list(map(format_turn_id, tensor2list(example_id_num)))
 
 
-def combine_predictions_in_example(predictions, batch_size):
+def combine_predictions_in_example(predictions: dict, batch_size: int):
     '''
     Combines predicted values to a single example. 
-    Dict: sample idx-> keys-> values
+    Args:
+        predictions: predictions ordered by keys then batch
+        batch_size: batch size
+    Returns:
+        examples_preds: predictions ordered by batch then key
     '''
     examples_preds = [{} for _ in range(batch_size)]
     for k, v in predictions.items():
@@ -248,8 +252,9 @@ class SGDQAModel(NLPModel):
 
     def validation_epoch_end(self, outputs):
         """
-        Called at the end of validation to aggregate outputs.
-        outputs: list of individual outputs of each validation step.
+        Called at the end of validation to aggregate outputs across all GPU workers.
+        Args:
+            outputs: list of individual outputs of each validation step.
         """
 
         prefix = 'val'
@@ -445,6 +450,9 @@ class SGDQAModel(NLPModel):
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
 
     def prepare_dat(self):
+        """
+        Preprocessed schema and dialogues and caches this
+        """
         schema_config = {
             "MAX_NUM_CAT_SLOT": 6,
             "MAX_NUM_NONCAT_SLOT": 12,

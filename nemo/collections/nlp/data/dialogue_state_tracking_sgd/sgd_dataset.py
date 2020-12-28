@@ -27,17 +27,11 @@ __all__ = ['SGDDataset']
 
 
 class SGDDataset(Dataset):
-    """ 
-    Processes SGD dataset
-    Args:
-        dataset_split: train/dev/test
-        dialogues_processor: Data generator for SGD dialogues
-    """
+    """Processes SGD dataset"""
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             "example_id_num": NeuralType(('B', 'T'), ChannelType()),
             "service_id": NeuralType(('B'), ChannelType()),
@@ -57,6 +51,11 @@ class SGDDataset(Dataset):
         }
 
     def __init__(self, dataset_split: str, dialogues_processor: object):
+        """ Constructor
+        Args:
+            dataset_split: dataset split
+            dialogues_processor: Data generator for SGD dialogues
+        """
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
 
     def __len__(self):

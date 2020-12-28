@@ -365,9 +365,7 @@ class SGDDataProcessor(object):
         slot_carryover_values = collections.defaultdict(list)
         for service, user_frame in user_frames.items():
 
-            base_example = InputExample(
-                schema_config=self.schema_config, tokenizer=self._tokenizer,
-            )
+            base_example = InputExample(schema_config=self.schema_config, tokenizer=self._tokenizer,)
             base_example.service_schema = schemas.get_service_schema(service)
             system_frame = system_frames.get(service, None)
             state = user_frame["state"]["slot_values"]

@@ -16,10 +16,10 @@
 Wrappers for schemas of different services.
 This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst/schema.py
-https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
 
 import json
+from typing import List, Optional, Union
 
 from nemo.utils import logging
 
@@ -29,15 +29,20 @@ __all__ = ['Schema']
 class ServiceSchema(object):
     """A wrapper for schema for a service."""
 
-    def __init__(self, schema_json, service_id=None):
+    def __init__(self, schema_json: dict, service_id: Optional[int] = None):
+        """
+        Constructor for ServiceSchema.
+        Args:
+            schema_json: schema json dict
+            service_id: service ID
+        """
         self._service_name = schema_json["service_name"]
         self._description = schema_json["description"]
         self._schema_json = schema_json
         self._service_id = service_id
 
         # Construct the vocabulary for intents, slots, categorical slots,
-        # non-categorical slots and categorical slot values. These vocabs are used
-        # for generating indices for their embedding matrix.
+        # non-categorical slots and categorical slot values.
         self._intents = ["NONE"] + sorted(i["name"] for i in schema_json["intents"])
         self._intent_descriptions = {i["name"]: i["description"] for i in schema_json["intents"]}
         self._intent_descriptions["NONE"] = "none"
@@ -72,11 +77,12 @@ class ServiceSchema(object):
         self._non_categorical_slot_ids = non_categorical_slot_ids
 
     @property
-    def schema_json(self):
+    def schema_json(self) -> dict:
+        """Returns schema json dictionary"""
         return self._schema_json
 
     @property
-    def state_slots(self):
+    def state_slots(self) -> set:
         """Set of slots which are permitted to be in the dialogue state."""
         state_slots = set()
         for intent in self._schema_json["intents"]:
@@ -156,9 +162,8 @@ class ServiceSchema(object):
 class Schema(object):
     """Wrapper for schemas for all services in a dataset."""
 
-    def __init__(self, schema_json_paths):
+    def __init__(self, schema_json_paths: Union[str, List[str]]):
         """
-        TODO fix:
         schema_json_paths: list of .json path to schema files of a single str with path to the json file.
         """
         # Load the schema from the json file.
@@ -193,13 +198,13 @@ class Schema(object):
         self._schemas = all_schemas
         self._slots_relation_list = {}
 
-    def get_service_id(self, service):
+    def get_service_id(self, service: str):
         return self._services_vocab[service]
 
-    def get_service_from_id(self, service_id):
+    def get_service_from_id(self, service_id: int):
         return self._services[service_id]
 
-    def get_service_schema(self, service):
+    def get_service_schema(self, service: str):
         return self._service_schemas[service]
 
     @property
@@ -207,5 +212,10 @@ class Schema(object):
         return self._services
 
     def save_to_file(self, file_path):
+        """
+        Saves schema object to file
+        Args:
+            file_path: path to store schema object at
+        """
         with open(file_path, "w") as f:
             json.dump(self._schemas, f, indent=2)

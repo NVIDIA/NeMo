@@ -80,10 +80,10 @@ class SGDDialogueStateLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, reduction='mean'):
+    def __init__(self, reduction: str = 'mean'):
         """
         Args:
-            reduction (str): specifies the reduction to apply to the final loss, choose 'mean' or 'sum'
+            reduction: specifies the reduction to apply to the final loss, choose 'mean' or 'sum'
         """
         super().__init__()
 
@@ -95,7 +95,17 @@ class SGDDialogueStateLoss(Loss):
         self._cross_entropy = torch.nn.CrossEntropyLoss(reduction=self.reduction)
         self._cross_entropy_bin = torch.nn.BCEWithLogitsLoss(reduction=self.reduction)
 
-    def _helper(self, logits, labels, loss_mask):
+    def _helper(self, logits, labels, loss_mask=None):
+        """
+        flattens logits and labels according loss mask
+        Args:
+            logits: logits
+            labels: labels
+            loss_mask: loss mask
+        Returns:
+            logits_flatten: flattened logits where loss mask is true
+            labels_flatten: flattened labels where loss mask is true
+        """
         logits_flatten = torch.flatten(logits, start_dim=0, end_dim=-2)
         labels_flatten = torch.flatten(labels, start_dim=0, end_dim=-1)
 

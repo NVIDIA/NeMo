@@ -21,6 +21,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 import json
 import os
 from collections import OrderedDict, defaultdict
+from typing import List
 
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import (
     STATUS_ACTIVE,
@@ -41,7 +42,13 @@ __all__ = ['write_predictions_to_file']
 
 def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_values, sys_slots_agg, cat_value_thresh):
     """
-    write predicted slot and values into out_dict 
+    Extract predicted categorical slot information 
+    Args:
+        predictions_status:
+        predictions_value:
+        cat_slots
+        cat_slot_values:
+        sys_slots_agg:
     """
     out_dict = {}
     for slot_idx, slot in enumerate(cat_slots):
@@ -182,26 +189,29 @@ def get_requested_slot(predictions, slots):
 
 
 def write_predictions_to_file(
-    predictions,
-    input_json_files,
-    output_dir,
-    schemas,
-    state_tracker,
-    eval_debug,
-    in_domain_services,
-    cat_value_thresh,
-    non_cat_value_thresh,
+    predictions: List[dict],
+    input_json_files: List[str],
+    output_dir: str,
+    schemas: object,
+    state_tracker: str,
+    eval_debug: bool,
+    in_domain_services: set,
+    cat_value_thresh: float,
+    non_cat_value_thresh: float,
 ):
     """Write the predicted dialogues as json files.
 
-  Args:
-    predictions: An iterator containing model predictions. This is the output of
-      the predict method in the estimator.
-    input_json_files: A list of json paths containing the dialogues to run
-      inference on.
-    schemas: Schemas to all services in the dst dataset (train, dev and test splits).
-    output_dir: The directory where output json files will be created.
-  """
+    Args:
+        predictions: An iterator containing model predictions. This is the output of
+            the predict method in the estimator.
+        input_json_files: A list of json paths containing the dialogues to run
+            inference on.
+        output_dir: The directory where output json files will be created.
+        schemas: Schemas to all services in the dst dataset
+        state_tracker: state tracker option
+        eval_debug: output evaluation debugging information
+        in_domain_services: in domain services
+    """
     logging.info(f"Writing predictions to {output_dir} started.")
 
     # Index all predictions.

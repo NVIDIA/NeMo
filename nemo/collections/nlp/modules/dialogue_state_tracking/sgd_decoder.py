@@ -24,14 +24,14 @@ __all__ = ['SGDDecoder']
 
 
 class LogitsQA(nn.Module):
-    def __init__(self, num_classes, embedding_dim):
-        """Get logits for elements by conditioning on utterance embedding.
+    def __init__(self, num_classes: int, embedding_dim: int):
+        """Get logits for elements by conditioning on input embedding.
         Args:
-          num_classes (int): An int containing the number of classes for which logits are to be generated.
-          embedding_dim (int): hidden size of the BERT
+          num_classes: An int containing the number of classes for which logits are to be generated.
+          embedding_dim: hidden size of the BERT
     
         Returns:
-          A tensor of shape (batch_size, num_elements, num_classes) containing the logits.
+          A tensor of shape (batch_size, num_classes) containing the logits.
         """
         super().__init__()
         self.num_classes = num_classes
@@ -42,7 +42,8 @@ class LogitsQA(nn.Module):
 
     def forward(self, encoded_utterance):
         """
-        encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
+        Args:
+            encoded_utterance: [CLS] token hidden state from BERT encoding of the utterance
         """
 
         # Project the utterance embeddings.
@@ -55,8 +56,7 @@ class LogitsQA(nn.Module):
 
 class SGDDecoder(NeuralModule):
     """
-    Neural module which extracts the first token from the BERT representation of the utterance
-    followed by a fully connected layer.
+    SGDDecoder
     """
 
     @property
@@ -79,9 +79,7 @@ class SGDDecoder(NeuralModule):
         """Get logits for elements by conditioning on utterance embedding.
 
         Args:
-            embedding_dim (int): hidden size of the BERT
-            schema_emb_processor (obj): contains schema embeddings for services and config file
-            head_transform (str): transformation to use for computing head
+            embedding_dim: hidden size of the BERT
         """
         super().__init__()
 
@@ -102,6 +100,12 @@ class SGDDecoder(NeuralModule):
 
     @typecheck()
     def forward(self, encoded_utterance, token_embeddings, utterance_mask):
+        """
+        Args:
+            encoded_utterance: [CLS] token hidden state from BERT encoding of the utterance
+            token_embeddings: token embeddings from BERT encoding of the utterance
+            utterance_mask: utterance mask wiht 0 for padding
+        """
         batch_size, emb_dim = encoded_utterance.size()
         logit_intent_status = self._get_intents(encoded_utterance)
 
@@ -128,15 +132,18 @@ class SGDDecoder(NeuralModule):
         )
 
     def _get_intents(self, encoded_utterance):
-        """
+        """Obtain logits for intents.
         Args:
-            encoded_utterance - representation of untterance
+            encoded_utterance: representation of utterance
         """
         logits = self.intent_layer(encoded_utterance=encoded_utterance,)
         return logits
 
     def _get_requested_slots(self, encoded_utterance):
-        """Obtain logits for requested slots."""
+        """Obtain logits for requested slots.
+        Args:
+            encoded_utterance: representation of utterance
+        """
 
         logits = self.requested_slots_layer(encoded_utterance=encoded_utterance)
         return logits
@@ -145,6 +152,8 @@ class SGDDecoder(NeuralModule):
         """
         Obtain logits for status and values for categorical slots
         Slot status values: none, dontcare, active
+        Args:
+            encoded_utterance: representation of utterance
         """
 
         # Predict the status of all categorical slots.
@@ -157,6 +166,10 @@ class SGDDecoder(NeuralModule):
         """
         Obtain logits for status and slot spans for non-categorical slots.
         Slot status values: none, dontcare, active
+        Args:
+            encoded_utterance: [CLS] token hidden state from BERT encoding of the utterance
+            utterance_mask: utterance mask wiht 0 for padding
+            token_embeddings: token embeddings from BERT encoding of the utterance
         """
         status_logits = self.slot_status_layer(encoded_utterance=encoded_utterance)
 
@@ -179,8 +192,10 @@ class SGDDecoder(NeuralModule):
         return status_logits, span_start_logits, span_end_logits
 
     def _get_negative_logits(self, logits):
-        # returns tensor with negative logits that will be used to mask out unused values
-        # for a particular service
+        """Returns tensor with negative logits that will be used to mask out unused values for a particular service 
+        Args:
+            logits: logits whose shape and type will be used to create negative tensor
+        """
         negative_logits = (torch.finfo(logits.dtype).max * -0.7) * torch.ones(
             logits.size(), dtype=logits.dtype, device=logits.get_device()
         )
