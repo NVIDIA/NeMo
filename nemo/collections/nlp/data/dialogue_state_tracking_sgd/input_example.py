@@ -56,6 +56,9 @@ class InputExample(object):
         """
         self.schema_config = schema_config
         self.service_schema = service_schema
+        self.service_id = None
+        if service_schema:
+            self.service_id = service_schema.service_id
         self.example_id = example_id
         self.example_id_num = example_id_num
         self._max_seq_length = schema_config["MAX_SEQ_LENGTH"]

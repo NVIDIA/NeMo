@@ -34,15 +34,19 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 
 __all__ = ['SGDQAModel']
 
 
-def tensor2list(tensor):
-    return tensor.detach().cpu().tolist()
-
-
-def get_str_example_id(eval_dataset, ids_to_service_names_dict, example_id_num):
+def get_str_example_id(eval_dataset: str, ids_to_service_names_dict: dict, example_id_num: torch.Tensor) -> str:
+    """
+    Constructs string representation of example ID
+    Args:
+        eval_dataset: evaluation data split
+        ids_to_service_names_dict: id to service name mapping
+        example_id_num: tensor example id
+    """
     def format_turn_id(ex_id_num):
         dialog_id_1, dialog_id_2, turn_id, service_id, model_task_id, slot_intent_id, value_id = ex_id_num
         return "{}-{}_{:05d}-{:02d}-{}-{}-{}-{}".format(
@@ -447,7 +451,7 @@ class SGDQAModel(NLPModel):
                 self.log(f'{prefix}_{k}', v)
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
 
-    def prepare_dat(self):
+    def prepare_data(self):
         """
         Preprocessed schema and dialogues and caches this
         """
@@ -479,7 +483,7 @@ class SGDQAModel(NLPModel):
             self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
-        self.prepare_dat()
+        self.prepare_data()
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split='train')
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):

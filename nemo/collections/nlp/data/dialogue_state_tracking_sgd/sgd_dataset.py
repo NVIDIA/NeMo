@@ -63,7 +63,7 @@ class SGDDataset(Dataset):
 
     def __getitem__(self, idx: int):
         ex = self.features[idx]
-        service_id = ex.service_schema.service_id
+        service_id = ex.service_id
 
         return (
             np.array(ex.example_id_num),

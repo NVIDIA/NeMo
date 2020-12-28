@@ -126,6 +126,17 @@ class SGDDataProcessor(object):
                 dial_examples, slots_relation_list = self._generate_dialog_examples(
                     dataset, self.schemas, self._subsample
                 )
+                for ex in dial_examples:
+                    del ex.service_schema
+                    del ex._tokenizer
+                    del ex.schema_config
+                    del ex.user_utterance
+                    del ex.categorical_slot_id
+                    del ex.system_utterance
+                    del ex.noncategorical_slot_id
+                    del ex.categorical_slot_value_id
+                    del ex.requested_slot_id
+                    del ex.intent_id
                 with open(dial_file, "wb") as f:
                     np.save(f, dial_examples)
 
@@ -158,42 +169,32 @@ class SGDDataProcessor(object):
             dial_examples = np.load(f, allow_pickle=True)
             f.close()
 
-        train_overlap = 0
-        task_count = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
-        task_neg = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
-        for ex in dial_examples:
-            del ex._tokenizer
-            if ex.service_schema.service_name in self._seen_services["train"]:
-                train_overlap += 1
-            del ex.schema_config
-            del ex.user_utterance
-            del ex.categorical_slot_id
-            del ex.system_utterance
-            del ex.noncategorical_slot_id
-            del ex.categorical_slot_value_id
-            del ex.requested_slot_id
-            del ex.intent_id
-            for i in range(6):
-                task_count[i] += ex.task_mask[i]
-                if ex.task_mask[i] and i == 0:
-                    task_neg[i] += ex.intent_status == 0
-                elif ex.task_mask[i] and i == 1:
-                    task_neg[i] += ex.requested_slot_status == 0
-                elif ex.task_mask[i] and i == 2:
-                    task_neg[i] += ex.categorical_slot_status == 0
-                elif ex.task_mask[i] and i == 3:
-                    task_neg[i] += ex.categorical_slot_value_status == 0
-                elif ex.task_mask[i] and i == 4:
-                    task_neg[i] += ex.noncategorical_slot_status == 0
+        # train_overlap = 0
+        # task_count = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        # task_neg = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        # for ex in dial_examples:
+        #     if ex.service_schema.service_name in self._seen_services["train"]:
+        #         train_overlap += 1
+        #     for i in range(6):
+        #         task_count[i] += ex.task_mask[i]
+        #         if ex.task_mask[i] and i == 0:
+        #             task_neg[i] += ex.intent_status == 0
+        #         elif ex.task_mask[i] and i == 1:
+        #             task_neg[i] += ex.requested_slot_status == 0
+        #         elif ex.task_mask[i] and i == 2:
+        #             task_neg[i] += ex.categorical_slot_status == 0
+        #         elif ex.task_mask[i] and i == 3:
+        #             task_neg[i] += ex.categorical_slot_value_status == 0
+        #         elif ex.task_mask[i] and i == 4:
+        #             task_neg[i] += ex.noncategorical_slot_status == 0
 
-        logging.info(
-            f"{task_count[0]}, {task_count[1]}, {task_count[2]} + {task_count[4]}, {task_count[3]}, {task_count[5]} "
-        )
+        # logging.info(
+        #     f"{task_count[0]}, {task_count[1]}, {task_count[2]} + {task_count[4]}, {task_count[3]}, {task_count[5]} "
+        # )
 
-        logging.info(f"neg {task_neg[0]}, {task_neg[1]}, {task_neg[2]} + {task_neg[4]}, {task_neg[3]}, {task_neg[5]} ")
+        # logging.info(f"neg {task_neg[0]}, {task_neg[1]}, {task_neg[2]} + {task_neg[4]}, {task_neg[3]}, {task_neg[5]} ")
 
-        logging.info(f"over lap of {dataset_split} with train is {train_overlap}/{len(dial_examples)}")
-        gc.collect()
+        # logging.info(f"over lap of {dataset_split} with train is {train_overlap}/{len(dial_examples)}")
         if not os.path.exists(self.slots_relation_file):
             raise ValueError(
                 f"Slots relation file {self.slots_relation_file} does not exist. It is needed for the carry-over mechanism of state tracker for switches between services."
@@ -367,6 +368,7 @@ class SGDDataProcessor(object):
 
             base_example = InputExample(schema_config=self.schema_config, tokenizer=self._tokenizer,)
             base_example.service_schema = schemas.get_service_schema(service)
+            base_example.service_id = schemas.get_service_schema(service).service_id
             system_frame = system_frames.get(service, None)
             state = user_frame["state"]["slot_values"]
             state_update = self._get_state_update(state, prev_states.get(service, {}))
