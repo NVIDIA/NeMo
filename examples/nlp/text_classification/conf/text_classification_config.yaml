@@ -49,7 +49,6 @@ model:
   classifier_head:
     num_output_layers: 2
     fc_dropout: 0.1
-    activation: relu
 
   class_labels:
     class_labels_file : null # optional to specify a file containing the list of the labels
