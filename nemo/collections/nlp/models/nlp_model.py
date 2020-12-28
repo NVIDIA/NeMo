@@ -15,8 +15,6 @@
 import hashlib
 import json
 import os
-import pytorch_lightning
-from nemo.utils import app_state
 from typing import List
 
 import pytorch_lightning
@@ -28,7 +26,6 @@ from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.accelerators.accelerator import Accelerator
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
@@ -36,7 +33,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 __all__ = ['NLPModel']
 
