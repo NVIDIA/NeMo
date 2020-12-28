@@ -449,7 +449,9 @@ class SGDQAModel(NLPModel):
                 joint_acc_across_turn=False,
                 no_fuzzy_match=False,
             )
-        # torch.distributed.barrier()
+
+            for k, v in metrics.items():
+                self.log(f'{prefix}_{k}', v)
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
 
     def prepare_dat(self):
