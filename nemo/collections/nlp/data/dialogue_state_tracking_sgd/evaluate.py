@@ -38,7 +38,7 @@ UNSEEN_SERVICES = "#UNSEEN_SERVICES"
 PER_FRAME_OUTPUT_FILENAME = "dialogues_and_metrics.json"
 
 
-def get_service_set(schema_path: str):
+def get_service_set(schema_path: str) -> set:
     """
     Get the set of all services present in a schema.
     Args:
@@ -55,19 +55,24 @@ def get_service_set(schema_path: str):
     return service_set
 
 
-def get_in_domain_services(schema_path: str, service_set: set):
+def get_in_domain_services(schema_path: str, service_set: set) -> set:
     """Get the set of common services between a schema and set of services.
     Args:
         schema_path: path to schema file
         service_set: set of services
+    Returns: 
+        joint_services: joint services between schema path file and service set
     """
-    return get_service_set(schema_path) & service_set
+    joint_services = get_service_set(schema_path) & service_set
+    return joint_services
 
 
-def get_dataset_as_dict(file_path_patterns):
+def get_dataset_as_dict(file_path_patterns) -> dict:
     """Read the DSTC8/SGD json dialogue data as dictionary with dialog ID as keys.
     Args:
         file_path_patterns: list or directory of files 
+    Returns:
+        dataset_dict: dataset dictionary with dialog ID as keys
     """
     dataset_dict = {}
     if isinstance(file_path_patterns, list):
@@ -89,22 +94,27 @@ def get_dataset_as_dict(file_path_patterns):
     return dataset_dict
 
 
-def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
+def get_metrics(
+    dataset_ref: dict,
+    dataset_hyp: dict,
+    service_schemas: dict,
+    in_domain_services: set,
+    joint_acc_across_turn: bool,
+    no_fuzzy_match: bool,
+):
     """Calculate the DSTC8/SGD metrics.
-
     Args:
-        dataset_ref: The ground truth dataset represented as a dict mapping dialogue
-        id to the corresponding dialogue.
+        dataset_ref: The ground truth dataset represented as a dict mapping dialogue id to the corresponding dialogue.
         dataset_hyp: The predictions in the same format as `dataset_ref`.
         service_schemas: A dict mapping service name to the schema for the service.
-        in_domain_services: The set of services which are present in the training
-        set.
-        schemas: Schemas with information for all services
+        in_domain_services: The set of services which are present in the training set.
+        joint_acc_across_turn: Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
+        no_fuzzy_match: Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
 
     Returns:
-        A dict mapping a metric collection name to a dict containing the values
-        for various metrics. Each metric collection aggregates the metrics across
-        a specific set of frames in the dialogues.
+        all_metric_aggregate: A dict mapping a metric collection name to a dict containing the values
+            for various metrics. Each metric collection aggregates the metrics across a specific set of frames in the dialogues.
+        per_frame_metric: metrics aggregated for each frame
     """
     # Metrics can be aggregated in various ways, eg over all dialogues, only for
     # dialogues containing unseen services or for dialogues corresponding to a
@@ -218,7 +228,28 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
     return all_metric_aggregate, per_frame_metric
 
 
-def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
+def evaluate(
+    prediction_dir: str,
+    data_dir: str,
+    eval_dataset: str,
+    in_domain_services: set,
+    joint_acc_across_turn: bool,
+    no_fuzzy_match: bool,
+) -> dict:
+    """Calculate the DSTC8/SGD metrics for given data.
+
+    Args:
+        prediction_dir: prediction location
+        data_dir: ground truth data location.
+        eval_dataset: evaluation data split
+        in_domain_services: The set of services which are present in the training set.
+        joint_acc_across_turn: Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
+        no_fuzzy_match: Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
+
+    Returns:
+        A dict mapping a metric collection name to a dict containing the values
+        for various metrics for all dialogues and all services
+    """
 
     with open(os.path.join(data_dir, eval_dataset, "schema.json")) as f:
         eval_services = {}

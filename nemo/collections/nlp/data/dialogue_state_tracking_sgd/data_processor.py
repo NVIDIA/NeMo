@@ -60,11 +60,13 @@ class SGDDataProcessor(object):
         """
         Constructs SGDDataProcessor
         Args:
-            task_name: task  name, for  example, "single_domain"
+            task_name: task name, e.g. "sgd_single_domain"
             data_dir: path to data directory
             dialogues_example_dir: path to store processed dialogue examples
-            tokenizer: Tokenizer such as BertTokenizer
-            schemas: Schema object 
+            tokenizer: tokenizer object
+            schemas: schema object 
+            schema_config: schema configuration
+            subsample: whether to balance positive and negative samples in dataset
         """
         self.data_dir = data_dir
 
@@ -135,21 +137,21 @@ class SGDDataProcessor(object):
                 logging.info(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
                 logging.info(f"Finish generating the dialogue examples for {dataset} dataset.")
 
-    def get_dialog_examples(self, dataset: str) -> List[object]:
+    def get_dialog_examples(self, dataset_split: str) -> List[object]:
         """
         Loads preprocessed dialogue examples from disk. 
         Args:
-            dataset: dataset split
+            dataset_split: dataset split
         Returns:
-            list of InputExample's.
+            dial_examples:  list of InputExample's.
         """
-        if (self._task_name, dataset) not in self.dial_files or not os.path.exists(
-            self.dial_files[(self._task_name, dataset)]
+        if (self._task_name, dataset_split) not in self.dial_files or not os.path.exists(
+            self.dial_files[(self._task_name, dataset_split)]
         ):
             raise ValueError(
-                f"{dataset} dialogue examples were not processed for {self._task_name} task. Re-initialize SGDDataProcessor and add {dataset} dataset to datasets arg."
+                f"{dataset_split} dialogue examples were not processed for {self._task_name} task. Re-initialize SGDDataProcessor and add {dataset_split} dataset split to datasets arg."
             )
-        dial_file = self.dial_files[(self._task_name, dataset)]
+        dial_file = self.dial_files[(self._task_name, dataset_split)]
         logging.info(f"Loading dialogue examples from {dial_file}.")
 
         with open(dial_file, "rb") as f:
@@ -190,7 +192,7 @@ class SGDDataProcessor(object):
 
         logging.info(f"neg {task_neg[0]}, {task_neg[1]}, {task_neg[2]} + {task_neg[4]}, {task_neg[3]}, {task_neg[5]} ")
 
-        logging.info(f"over lap of {dataset} with train is {train_overlap}/{len(dial_examples)}")
+        logging.info(f"over lap of {dataset_split} with train is {train_overlap}/{len(dial_examples)}")
         gc.collect()
         if not os.path.exists(self.slots_relation_file):
             raise ValueError(
@@ -210,23 +212,26 @@ class SGDDataProcessor(object):
         Returns list of seen services, i.e. both in given and training split
         Args:
             dataset_split: data split
+        Returns:
+            seen_services: list of seen services
         """
+        seen_services = self._seen_services[dataset_split]
+        return seen_services
 
-        return self._seen_services[dataset_split]
-
-    def _generate_dialog_examples(self, dataset: str, schemas: object, subsample: bool):
+    def _generate_dialog_examples(self, dataset_split: str, schemas: object, subsample: bool):
         """
         Returns a list of `InputExample`s of the data splits' dialogues.
         Args:
-            dataset: data split, can be "train", "dev", or "test".
-            schemas: schema for all services and all datasets processed by the schema_processor
+            dataset_split: data split, can be "train", "dev", or "test".
+            schemas: schema for all services of all datasets 
             subsample: whether to balance postive and negative samples in the dataset
         Returns:
-          examples: a list of `InputExample`s.
+            examples: a list of `InputExample`s.
         """
         logging.info(f'Creating examples and slot relation list from the dialogues started...')
         dialog_paths = [
-            os.path.join(self.data_dir, dataset, "dialogues_{:03d}.json".format(i)) for i in self._file_ranges[dataset]
+            os.path.join(self.data_dir, dataset_split, "dialogues_{:03d}.json".format(i))
+            for i in self._file_ranges[dataset_split]
         ]
         dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
 
@@ -236,7 +241,7 @@ class SGDDataProcessor(object):
             if dialog_idx % 1000 == 0:
                 logging.info(f'Processed {dialog_idx} dialogues.')
             examples.extend(
-                self._create_examples_from_dialog(dialog, schemas, dataset, slot_carryover_candlist, subsample)
+                self._create_examples_from_dialog(dialog, schemas, dataset_split, slot_carryover_candlist, subsample)
             )
 
         slots_relation_list = collections.defaultdict(list)
@@ -252,14 +257,14 @@ class SGDDataProcessor(object):
         return examples, slots_relation_list
 
     def _create_examples_from_dialog(
-        self, dialog: dict, schemas: object, dataset: str, slot_carryover_candlist: dict, subsample: bool
+        self, dialog: dict, schemas: object, dataset_split: str, slot_carryover_candlist: dict, subsample: bool
     ):
         """
         Create examples for every turn in the dialogue.
         Args:
             dialog: dialogue example
-            schemas: schema for all services and all datasets processed by the schema_processor
-            dataset: data split, can be "train", "dev", or "test".
+            schemas: schema for all services of all datasets
+            dataset_split: data split
             slot_carryover_candlist: a dictionary to keep and count the number of carry-over cases between two slots from two different services
             subsample: whether to balance postive and negative samples in the dataset
         Returns:
@@ -281,7 +286,7 @@ class SGDDataProcessor(object):
                     system_utterance = ""
                     system_frames = {}
 
-                turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
+                turn_id = "{}-{}-{:02d}".format(dataset_split, dialog_id, turn_idx)
                 turn_examples, prev_states, slot_carryover_values = self._create_examples_from_turn(
                     turn_id,
                     system_utterance,
@@ -312,10 +317,10 @@ class SGDDataProcessor(object):
         """
         Updates dialogue state
         Args:
-            current_state: dict of slot - slot values pairs for the current dialogue turn
-            prev_state: dict of slot - slot values pairs for the previous dialogue turns
+            current_state: slot values pairs for the current dialogue turn
+            prev_state: slot values pairs for the previous dialogue turns
         Returns:
-            state_update: dict of slot - slot values pairs that very added/updated during the current dialogue turn
+            state_update: slot values pairs that are added/updated during the current dialogue turn
         """
         state_update = dict(current_state)
         for slot, values in current_state.items():
@@ -344,7 +349,7 @@ class SGDDataProcessor(object):
             system_frames: all system utterances and slot - slot value pairs
             user_frames: all user utterances and slot - slot value pairs
             prev_states: slot - slot value pairs from the previous turns
-            schemas: carries information about the service from the current turn
+            schemas: schema for all services of all datasets
             subsample: whether to balance postive and negative samples in the dataset
         Returns:
             examples: a list of `InputExample`s.
@@ -361,7 +366,7 @@ class SGDDataProcessor(object):
         for service, user_frame in user_frames.items():
 
             base_example = InputExample(
-                schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer,
+                schema_config=self.schema_config, tokenizer=self._tokenizer,
             )
             base_example.service_schema = schemas.get_service_schema(service)
             system_frame = system_frames.get(service, None)
@@ -570,16 +575,18 @@ class SGDDataProcessor(object):
         alignments: List[int],
         subwords: List[str],
         bias: int,
-    ):
+    ) -> dict:
         """
         Find indices for subwords corresponding to slot values.
         Args:
-            slot_values:
-            utterance:
-            char_slot_spans:
-            alignments:
-            subwords:
-            bias:
+            slot_values: slot - slot value pairs
+            utterance: utterance
+            char_slot_spans: char - slot spans
+            alignments: alignments
+            subwords: subtokens mapping
+            bias: offset
+        Returns:
+            span_boundaries: span boundaries
         """
         span_boundaries = {}
         for slot, values in slot_values.items():
@@ -657,7 +664,7 @@ class SGDDataProcessor(object):
         Args:
             s: a string
         Returns:
-            seq_tok: list of words, spaces and punctuations from the s
+            seq_tok: list of words, spaces and punctuations from the string
         """
         # Spaces and punctuation marks are all retained, i.e. direct concatenation
         # of all the tokens in the sequence will be the original string.
@@ -665,7 +672,7 @@ class SGDDataProcessor(object):
         return seq_tok
 
     @classmethod
-    def load_dialogues(cls, dialog_json_filepaths: List[str]):
+    def load_dialogues(cls, dialog_json_filepaths: List[str]) -> List[dict]:
         """
         Obtain the list of all dialogues from specified json files.
         Args:
@@ -685,8 +692,8 @@ class SGDDataProcessor(object):
         """
         Obtain the list of all dialogue json files
         Args:
-            data_dir: path to the data folde
-            dataset_split: dev, test or train
+            data_dir: path to the data folder
+            dataset_split: data split
             task_name: SGD task name, see keys of the FILE_RANGES
         Returns:
             dialog: the list of all dialogue json files paths

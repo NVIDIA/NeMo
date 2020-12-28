@@ -41,7 +41,6 @@ class SGDDataset(Dataset):
         return {
             "example_id_num": NeuralType(('B', 'T'), ChannelType()),
             "service_id": NeuralType(('B'), ChannelType()),
-            "is_real_example": NeuralType(('B'), ChannelType()),
             "utterance_ids": NeuralType(('B', 'T'), ChannelType()),
             "token_type_ids": NeuralType(('B', 'T'), ChannelType()),  # utterance segment
             "attention_mask": NeuralType(('B', 'T'), ChannelType()),  # utterance mask
@@ -70,7 +69,6 @@ class SGDDataset(Dataset):
         return (
             np.array(ex.example_id_num),
             np.array(service_id),
-            np.array(ex.is_real_example, dtype=int),
             np.array(ex.utterance_ids),
             np.array(ex.utterance_segment),
             np.array(ex.utterance_mask, dtype=np.long),

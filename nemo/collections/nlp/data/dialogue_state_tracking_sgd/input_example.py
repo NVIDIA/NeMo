@@ -42,75 +42,74 @@ class InputExample(object):
         service_schema: object = None,
         example_id: str = "NONE",
         example_id_num: List[int] = [],
-        is_real_example: bool = False,
     ):
         """
         Constructs an InputExample.
         Args:
             schema_config: configuration
-            tokenizer: tokenizer such as NemoBertTokenizer
+            tokenizer: tokenizer object
             service_schema: A ServiceSchema object wrapping the schema for the service
                 corresponding to this example.
             example_id: Unique identifier for the example, like: 'train-1_00000-00-Restaurants_1'
             example_id_num: dialogue_id and turn_id combined and service id combined into a list of ints,
                 like: [1, 0, 0, 18]
-            is_real_example: Indicates if an example is real or used for padding in a
-                minibatch.
         """
         self.schema_config = schema_config
         self.service_schema = service_schema
         self.example_id = example_id
         self.example_id_num = example_id_num
-
-        self.is_real_example = is_real_example
         self._max_seq_length = schema_config["MAX_SEQ_LENGTH"]
         self._tokenizer = tokenizer
-        if self.is_real_example and self._tokenizer is None:
-            raise ValueError("Must specify tokenizer when input is a real example.")
+        if self._tokenizer is None:
+            raise ValueError("Must specify tokenizer")
 
         self.user_utterance = ''
         self.system_utterance = ''
         # The id of each subword in the vocabulary for BERT.
         self.utterance_ids = [0] * self._max_seq_length
-        # Denotes the identity of the sequence. Takes values 0 (system utterance) and 1 (user utterance).
+        # Denotes the identity of the sequence. Takes values 0 (schema description) and 1 (system and user utterance).
         self.utterance_segment = [0] * self._max_seq_length
         # Mask which takes the value 0 for padded tokens and 1 otherwise.
         self.utterance_mask = [0] * self._max_seq_length
         # Start and inclusive end character indices in the original utterance
         # corresponding to the tokens. This is used to obtain the character indices
         # from the predicted subword indices during inference.
-        # NOTE: A positive value indicates the character indices in the user
-        # utterance whereas a negative value indicates the character indices in the
-        # system utterance. The indices are offset by 1 to prevent ambiguity in the
-        # 0 index, which could be in either the user or system utterance by the
+        # NOTE: A positive value indicates the character indices in the schema description
+        # whereas a negative value indicates the character indices in the
+        # utterance. The indices are offset by 1 to prevent ambiguity in the
+        # 0 index, which could be in either the schema description or utterance by the
         # above convention. Now the 0 index corresponds to padded tokens.
         self.start_char_idx = [0] * self._max_seq_length
         self.end_char_idx = [0] * self._max_seq_length
 
-        # Id of categorical slot present in the service.
+        # Id of categorical slot present in the example or 0 if not present.
         self.categorical_slot_id = 0
-        # Id of categorical slot present in the service.
+        # Id of non categorical slot present in the example or 0 if not present.
         self.noncategorical_slot_id = 0
-        # The status of each categorical slot in the service.
+        # The status of categorical slot in the example.
         self.categorical_slot_status = STATUS_OFF
+        # The status of non categorical slot in the example.
         self.noncategorical_slot_status = STATUS_OFF
-        # Masks out categorical status for padded cat slots
+        # Masks out tasks not represented by example
         self.task_mask = [0] * schema_config["NUM_TASKS"]
 
+        # The index of the starting subword corresponding to the slot span
+        # for a non-categorical slot value.
         self.noncategorical_slot_value_start = 0
         # The index of the ending (inclusive) subword corresponding to the slot span
         # for a non-categorical slot value.
         self.noncategorical_slot_value_end = 0
 
-        # Total number of slots present in the service. All slots are included here
-        # since every slot can be requested.
+        # Id of categorical slot value present in the example or 0 if not present.
         self.categorical_slot_value_id = 0
+        # The status of categorical slot value in the example.
         self.categorical_slot_value_status = STATUS_OFF
+        # Id of requested slot present in the example or 0 if not present.
         self.requested_slot_id = 0
         # Takes value 1 if the corresponding slot is requested, 0 otherwise.
         self.requested_slot_status = STATUS_OFF
 
-        # Total number of intents present in the service.
+        # ID of intent present in the example.
         self.intent_id = 0
         # Takes value 1 if the intent is active, 0 otherwise.
         self.intent_status = STATUS_OFF
@@ -165,26 +164,25 @@ class InputExample(object):
     def add_utterance_features(
         self, system_tokens, system_inv_alignments, user_tokens, user_inv_alignments, system_utterance, user_utterance
     ):
-        """Add utterance related features input to bert.
+        """Add utterance related features input to InputExample.
 
         Note: this method modifies the system tokens and user_tokens in place to
         make their total length <= the maximum input length for BERT model.
 
         Args:
-          system_tokens: a list of strings which represents system utterance.
+          system_tokens: a list of strings which represents schema description.
           system_inv_alignments: a list of tuples which denotes the start and end
             charater of the tpken that a bert token originates from in the original
-            system utterance.
-          user_tokens: a list of strings which represents user utterance.
+            schema description.
+          user_tokens: a list of strings which represents utterance.
           user_inv_alignments: a list of tuples which denotes the start and end
             charater of the token that a bert token originates from in the original
-            user utterance.
+            system and user utterance.
         """
-        # Make user-system utterance input (in BERT format)
         # Input sequence length for utterance BERT encoder
         max_utt_len = self._max_seq_length
 
-        # Modify lengths of sys & usr utterance so that length of total utt
+        # Modify lengths of schema description & utterance so that length of total utt
         # (including cls_token, setp_token, sep_token) is no more than max_utt_len
         is_too_long = truncate_seq_pair(system_tokens, user_tokens, max_utt_len - 3)
         if is_too_long:
@@ -193,8 +191,8 @@ class InputExample(object):
             )
 
         # Construct the tokens, segment mask and valid token mask which will be
-        # input to BERT, using the tokens for system utterance (sequence A) and
-        # user utterance (sequence B).
+        # input to BERT, using the tokens for schema description (sequence A) and
+        # system and user utterance (sequence B).
         utt_subword = []
         utt_seg = []
         utt_mask = []
@@ -260,20 +258,19 @@ class InputExample(object):
             service_schema=self.service_schema,
             example_id=self.example_id,
             example_id_num=self.example_id_num.copy(),
-            is_real_example=self.is_real_example,
             tokenizer=self._tokenizer,
         )
         return new_example
 
     def make_copy_of_categorical_features(self):
-        """Make a copy of the current example with utterance features."""
+        """Make a copy of the current example with utterance and categorical features."""
         new_example = self.make_copy()
 
         new_example.categorical_slot_status = self.categorical_slot_status
         return new_example
 
     def make_copy_of_non_categorical_features(self):
-        """Make a copy of the current example with utterance features."""
+        """Make a copy of the current example with utterance features and non categorical features."""
         new_example = self.make_copy()
         new_example.noncategorical_slot_id = self.noncategorical_slot_id
         new_example.noncategorical_slot_status = self.noncategorical_slot_status
@@ -289,8 +286,11 @@ class InputExample(object):
         new_example.noncategorical_slot_value_end = self.noncategorical_slot_value_end
         return new_example
 
-    def add_categorical_slots(self, state_update):
-        """Add features for categorical slots."""
+    def add_categorical_slots(self, state_update: dict):
+        """Add features for categorical slots.
+        Args:
+            state_update: slot value pairs of the state update
+        """
 
         categorical_slots = self.service_schema.categorical_slots
         if not categorical_slots:
@@ -308,8 +308,13 @@ class InputExample(object):
                 self.categorical_slot_value_id == self.service_schema.get_categorical_slot_value_id(slot, values[0])
             )
 
-    def add_noncategorical_slots(self, state_update, system_span_boundaries, user_span_boundaries):
-        """Add features for non-categorical slots."""
+    def add_noncategorical_slots(self, state_update: dict, system_span_boundaries: dict, user_span_boundaries: dict):
+        """Add features for non-categorical slots.
+        Args:
+            state_update: slot value pairs of state update
+            system_span_boundaries: span boundaries of schema description
+            user_span_boundaries: span boundaries of utterance 
+        """
 
         noncategorical_slots = self.service_schema.non_categorical_slots
         slot = noncategorical_slots[self.noncategorical_slot_id]
@@ -341,13 +346,21 @@ class InputExample(object):
             self.noncategorical_slot_value_start = start
             self.noncategorical_slot_value_end = end
 
-    def add_requested_slots(self, frame):
+    def add_requested_slots(self, frame: dict):
+        """Add requested slots to InputExample
+        Args:
+            frame: frame object from which requested slots are extracted
+        """
         all_slots = self.service_schema.slots
         slot = all_slots[self.requested_slot_id]
         if slot in frame["state"]["requested_slots"]:
             self.requested_slot_status = STATUS_ACTIVE
 
     def add_intents(self, frame):
+        """Add intents to InputExample
+        Args:
+            frame: frame object from which intents are extracted
+        """
         all_intents = self.service_schema.intents
         intent = all_intents[self.intent_id]
         if intent == frame["state"]["active_intent"]:
@@ -356,8 +369,15 @@ class InputExample(object):
 
 # Modified from run_classifier._truncate_seq_pair in the public bert model repo.
 # https://github.com/google-research/bert/blob/master/run_classifier.py.
-def truncate_seq_pair(tokens_a, tokens_b, max_length):
-    """Truncate a seq pair in place so that their total length <= max_length."""
+def truncate_seq_pair(tokens_a: List[int], tokens_b: List[int], max_length: int) -> bool:
+    """Truncate a seq pair in place so that their total length <= max_length.
+    Args:
+        tokens_a: first token sequence
+        tokens_b: second token sequence
+        max_length: truncated sequence length
+    Returns:
+        is_too_long: whether combined sequences exceed maximum sequence length
+    """
     is_too_long = False
     # This is a simple heuristic which will always truncate the longer sequence
     # one token at a time. This makes more sense than truncating an equal percent

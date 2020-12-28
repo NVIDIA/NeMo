@@ -134,7 +134,6 @@ class SGDQAModel(NLPModel):
         (
             example_id_num,
             service_id,
-            is_real_example,
             utterance_ids,
             token_type_ids,
             attention_mask,
@@ -190,7 +189,6 @@ class SGDQAModel(NLPModel):
         (
             example_id_num,
             service_id,
-            is_real_example,
             utterance_ids,
             token_type_ids,
             attention_mask,
@@ -235,7 +233,6 @@ class SGDQAModel(NLPModel):
         tensors = {
             'example_id_num': example_id_num,
             'service_id': service_id,
-            'is_real_example': is_real_example,
             'logit_intent_status': logit_intent_status,
             'logit_req_slot_status': logit_req_slot_status,
             'logit_cat_slot_status': logit_cat_slot_status,
@@ -262,7 +259,6 @@ class SGDQAModel(NLPModel):
 
         example_id_num = torch.cat([x[f'{prefix}_tensors']['example_id_num'] for x in outputs])
         service_id = torch.cat([x[f'{prefix}_tensors']['service_id'] for x in outputs])
-        is_real_example = torch.cat([x[f'{prefix}_tensors']['is_real_example'] for x in outputs])
         logit_intent_status = torch.cat([x[f'{prefix}_tensors']['logit_intent_status'] for x in outputs])
         logit_req_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_req_slot_status'] for x in outputs])
         logit_cat_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_cat_slot_status'] for x in outputs])
@@ -277,7 +273,6 @@ class SGDQAModel(NLPModel):
 
         all_example_id_num = []
         all_service_id = []
-        all_is_real_example = []
         all_logit_intent_status = []
         all_logit_req_slot_status = []
         all_logit_cat_slot_status = []
@@ -292,7 +287,6 @@ class SGDQAModel(NLPModel):
             for ind in range(world_size):
                 all_example_id_num.append(torch.empty_like(example_id_num))
                 all_service_id.append(torch.empty_like(service_id))
-                all_is_real_example.append(torch.empty_like(is_real_example))
                 all_logit_intent_status.append(torch.empty_like(logit_intent_status))
                 all_logit_req_slot_status.append(torch.empty_like(logit_req_slot_status))
                 all_logit_cat_slot_status.append(torch.empty_like(logit_cat_slot_status))
@@ -304,7 +298,6 @@ class SGDQAModel(NLPModel):
                 all_end_char_idx.append(torch.empty_like(end_char_idx))
             torch.distributed.all_gather(all_example_id_num, example_id_num)
             torch.distributed.all_gather(all_service_id, service_id)
-            torch.distributed.all_gather(all_is_real_example, is_real_example)
             torch.distributed.all_gather(all_logit_intent_status, logit_intent_status)
             torch.distributed.all_gather(all_logit_req_slot_status, logit_req_slot_status)
             torch.distributed.all_gather(all_logit_cat_slot_status, logit_cat_slot_status)
@@ -318,7 +311,6 @@ class SGDQAModel(NLPModel):
         else:
             all_example_id_num.append(example_id_num)
             all_service_id.append(service_id)
-            all_is_real_example.append(is_real_example)
             all_logit_intent_status.append(logit_intent_status)
             all_logit_req_slot_status.append(logit_req_slot_status)
             all_logit_cat_slot_status.append(logit_cat_slot_status)
@@ -332,7 +324,6 @@ class SGDQAModel(NLPModel):
         # # after this: all_x is list of tensors, of length world_size
         example_id_num = torch.cat(all_example_id_num)
         service_id = torch.cat(all_service_id)
-        is_real_example = torch.cat(all_is_real_example)
         logit_intent_status = torch.cat(all_logit_intent_status)
         logit_req_slot_status = torch.cat(all_logit_req_slot_status)
         logit_cat_slot_status = torch.cat(all_logit_cat_slot_status)
@@ -415,7 +406,6 @@ class SGDQAModel(NLPModel):
             predictions = {}
             predictions['example_id'] = example_id
             predictions['service_id'] = service_id
-            predictions['is_real_example'] = is_real_example
             predictions['intent_status'] = intent_status
             predictions['req_slot_status'] = req_slot_status
             predictions['cat_slot_status'] = cat_slot_status

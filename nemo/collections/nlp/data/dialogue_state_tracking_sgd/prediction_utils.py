@@ -207,8 +207,6 @@ def write_predictions_to_file(
     # Index all predictions.
     all_predictions = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
     for idx, prediction in enumerate(predictions):
-        if not prediction["is_real_example"]:
-            continue
         eval_dataset, dialog_id, turn_id, service_name, model_task, slot_intent_id, value_id = prediction[
             'example_id'
         ].split('-')
