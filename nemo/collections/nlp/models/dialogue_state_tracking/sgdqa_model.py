@@ -401,7 +401,6 @@ class SGDQAModel(NLPModel):
         example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
 
         # ##############
-        print(noncat_alignment_end.shape)
         prediction_dir = self.trainer.log_dir  # self._cfg.dataset.prediction_dir
         if self.trainer.global_rank == 0:
             # we'll write predictions to file in Dstc8/SGD format during evaluation callback
