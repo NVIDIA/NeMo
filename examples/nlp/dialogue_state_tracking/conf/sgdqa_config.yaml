@@ -66,6 +66,7 @@ model:
     joint_acc_across_turn: false # Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
 
   train_ds:
+    ds_item: "train"
     batch_size: 128
     shuffle: true
     num_samples: -1 # number of samples to be considered, -1 means all the dataset
@@ -74,6 +75,7 @@ model:
     pin_memory: false
 
   validation_ds:
+    ds_item: ["dev", "test"]
     batch_size: 8
     shuffle: false
     num_samples: -1 # number of samples to be considered, -1 means all the dataset

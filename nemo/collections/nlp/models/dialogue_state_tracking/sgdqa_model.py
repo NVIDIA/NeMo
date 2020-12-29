@@ -195,7 +195,7 @@ class SGDQAModel(NLPModel):
             'lr': lr,
         }
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         prefix = 'val'
         (
             example_id_num,
@@ -249,17 +249,6 @@ class SGDQAModel(NLPModel):
         all_logit_spans = []
         all_start_char_idx = []
         all_end_char_idx = []
-        # example_id_num = example_id_num.detach()
-        # service_id = service_id.detach()
-        # logit_intent_status = logit_intent_status.detach()
-        # logit_req_slot_status = logit_req_slot_status.detach()
-        # logit_cat_slot_status = logit_cat_slot_status.detach()
-        # logit_cat_slot_value_status = logit_cat_slot_value_status.detach()
-        # logit_noncat_slot_status = logit_noncat_slot_status.detach()
-        # logit_noncat_slot_start = logit_noncat_slot_start.detach()
-        # logit_noncat_slot_end = logit_noncat_slot_end.detach()
-        # start_char_idx = start_char_idx.detach()
-        # end_char_idx = end_char_idx.detach()
 
         if self.trainer.gpus:
             world_size = self.trainer.world_size
@@ -370,7 +359,7 @@ class SGDQAModel(NLPModel):
         self.log(f'{prefix}_loss', loss)
         return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
 
-    def validation_epoch_end(self, outputs):
+    def multi_validation_epoch_end(self, outputs, dataloader_idx=0):
         """
         Called at the end of validation to aggregate outputs across all GPU workers.
         Args:
@@ -378,7 +367,7 @@ class SGDQAModel(NLPModel):
         """
 
         prefix = 'val'
-        eval_dataset = 'dev'
+        eval_dataset = self._validation_names[dataloader_idx][:-1]
 
         avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
 
@@ -398,7 +387,9 @@ class SGDQAModel(NLPModel):
         noncat_alignment_end = torch.cat([x[f'{prefix}_tensors']['noncat_alignment_end'] for x in outputs])
 
         ids_to_service_names_dict = self.dialogues_processor.schemas._services_id_to_vocab
-        example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
+        example_id = get_str_example_id(
+            self._validation_dl[dataloader_idx].dataset, ids_to_service_names_dict, example_id_num
+        )
 
         # ##############
         prediction_dir = self.trainer.log_dir  # self._cfg.dataset.prediction_dir
@@ -453,7 +444,7 @@ class SGDQAModel(NLPModel):
             )
 
             for k, v in metrics.items():
-                self.log(f'{prefix}_{k}', v)
+                self.log(f'{eval_dataset}_{k}', v)
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
 
     def prepare_data(self):
@@ -489,10 +480,10 @@ class SGDQAModel(NLPModel):
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         self.prepare_data()
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split='train')
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split=train_data_config.ds_item)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, split='dev')
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, split=val_data_config.ds_item)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, split: str) -> DataLoader:
         dataset_cfg = self._cfg.dataset

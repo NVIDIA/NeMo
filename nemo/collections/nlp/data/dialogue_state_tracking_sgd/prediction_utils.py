@@ -40,7 +40,7 @@ MIN_SLOT_RELATION = 25
 __all__ = ['write_predictions_to_file']
 
 
-def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_values, sys_slots_agg):
+def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_values):
     """
     Extract predicted categorical slot information 
     Args:
@@ -48,7 +48,6 @@ def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_valu
         predictions_value:
         cat_slots
         cat_slot_values:
-        sys_slots_agg:
     """
     out_dict = {}
     for slot_idx, slot in enumerate(cat_slots):
@@ -59,11 +58,7 @@ def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_valu
             tmp = predictions_value[slot_idx]
             value_idx = max(tmp, key=lambda k: tmp[k]['cat_slot_value_status'][0].item())
             value_prob = max([v['cat_slot_value_status'][0].item() for k, v in predictions_value[slot_idx].items()])
-            # if sys_slots_agg is None or value_prob > cat_value_thresh:
             out_dict[slot] = cat_slot_values[slot][value_idx]
-            # elif slot in sys_slots_agg:
-            #     # retrieval
-            #     out_dict[slot] = sys_slots_agg[slot]
     return out_dict
 
 
@@ -83,7 +78,7 @@ def set_noncat_slot(predictions_status, predictions_value, non_cat_slots, user_u
             ch_start_idx = predictions_value[slot_idx][0]["noncat_alignment_start"][tok_start_idx]
             ch_end_idx = predictions_value[slot_idx][0]["noncat_alignment_end"][tok_end_idx]
             if ch_start_idx > 0 and ch_end_idx > 0:
-                # Add span from the user utterance.
+                # Add span from the utterance.
                 out_dict[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]
             elif sys_slots_agg and slot in sys_slots_agg:
                 # system retrieval
@@ -131,25 +126,22 @@ def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker):
                 state["active_intent"] = get_predicted_intent(
                     predictions=predictions[0], intents=service_schema.intents
                 )
-                # state["active_intent"] = "NONE"
                 # Add prediction for requested slots.
                 state["requested_slots"] = get_requested_slot(predictions=predictions[1], slots=service_schema.slots)
                 # state["requested_slots"] = []
 
                 # Add prediction for user goal (slot values).
                 # Categorical slots.
-                # cat_out_dict = set_cat_slot(predictions_status=predictions[2], predictions_value=predictions[3], cat_slots=service_schema.categorical_slots, cat_slot_values=service_schema.categorical_slot_values, sys_slots_agg=sys_slots_agg.get(frame["service"], None), cat_value_thresh=cat_value_thresh)
                 cat_out_dict = set_cat_slot(
                     predictions_status=predictions[2],
                     predictions_value=predictions[3],
                     cat_slots=service_schema.categorical_slots,
                     cat_slot_values=service_schema.categorical_slot_values,
-                    sys_slots_agg=None,
                 )
                 for k, v in cat_out_dict.items():
                     slot_values[k] = v
 
-                # # Non-categorical slots.
+                # Non-categorical slots.
                 noncat_out_dict = set_noncat_slot(
                     predictions_status=predictions[4],
                     predictions_value=predictions[5],
