@@ -70,8 +70,7 @@ class SGDDecoder(NeuralModule):
             "logit_cat_slot_status": NeuralType(('B', 'T'), LogitsType()),
             "logit_cat_slot_value_status": NeuralType(('B', 'T'), LogitsType()),  #'B'
             "logit_noncat_slot_status": NeuralType(('B', 'T'), LogitsType()),
-            "logit_noncat_slot_start": NeuralType(('B', 'T'), LogitsType()),
-            "logit_noncat_slot_end": NeuralType(('B', 'T'), LogitsType()),
+            "logit_spans": NeuralType(('B', 'T', 'D'), LogitsType()),
         }
 
     def __init__(self, embedding_dim: int) -> None:
@@ -115,8 +114,7 @@ class SGDDecoder(NeuralModule):
 
         (
             logit_noncat_slot_status,
-            logit_noncat_slot_start,
-            logit_noncat_slot_end,
+            logit_spans
         ) = self._get_noncategorical_slot_goals(
             encoded_utterance=encoded_utterance, utterance_mask=utterance_mask, token_embeddings=token_embeddings
         )
@@ -127,8 +125,7 @@ class SGDDecoder(NeuralModule):
             logit_cat_slot_status,
             logit_cat_slot_value_status,
             logit_noncat_slot_status,
-            logit_noncat_slot_start,
-            logit_noncat_slot_end,
+            logit_spans
         )
 
     def _get_intents(self, encoded_utterance):
@@ -187,9 +184,7 @@ class SGDDecoder(NeuralModule):
 
         span_logits = torch.where(repeated_utterance_mask, span_logits, negative_logits)
 
-        # Shape of both tensors: (batch_size, max_num_slots, max_num_tokens).
-        span_start_logits, span_end_logits = torch.unbind(span_logits, dim=-1)
-        return status_logits, span_start_logits, span_end_logits
+        return status_logits, span_logits
 
     def _get_negative_logits(self, logits):
         """Returns tensor with negative logits that will be used to mask out unused values for a particular service 

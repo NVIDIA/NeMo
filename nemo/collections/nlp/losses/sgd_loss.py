@@ -48,8 +48,7 @@ class SGDDialogueStateLoss(Loss):
             logit_noncat_slot_status (float): Output of SGD model
             noncategorical_slot_status (int): The status of each noncategorical slot in the service
             noncat_slot_status_mask (bool): masks noncategorical slots not used for the particular service
-            logit_noncat_slot_start (float): Output of SGD model
-            logit_noncat_slot_end (float): Output of SGD model
+            logit_spans (float): Output of SGD model
             noncategorical_slot_value_start (int): The index of the starting subword corresponding to the slot span for a non-categorical slot value
             noncategorical_slot_value_end (int): The index of the ending (inclusive) subword corresponding to the slot span for a non-categorical slot value
         """
@@ -64,8 +63,7 @@ class SGDDialogueStateLoss(Loss):
             "categorical_slot_value_status": NeuralType(('B'), LabelsType()),
             "logit_noncat_slot_status": NeuralType(('B', 'T'), LogitsType()),
             "noncategorical_slot_status": NeuralType(('B'), LabelsType()),
-            "logit_noncat_slot_start": NeuralType(('B', 'T'), LogitsType()),
-            "logit_noncat_slot_end": NeuralType(('B', 'T'), LogitsType()),
+            "logit_spans": NeuralType(('B', 'T', 'D'), LogitsType()),
             "noncategorical_slot_value_start": NeuralType(('B'), LabelsType()),
             "noncategorical_slot_value_end": NeuralType(('B'), LabelsType()),
             "task_mask": NeuralType(('B', 'T'), ChannelType()),
@@ -131,13 +129,13 @@ class SGDDialogueStateLoss(Loss):
         categorical_slot_value_status,
         logit_noncat_slot_status,
         noncategorical_slot_status,
-        logit_noncat_slot_start,
-        logit_noncat_slot_end,
+        logit_spans,
         noncategorical_slot_value_start,
         noncategorical_slot_value_end,
         task_mask,
     ):
         # Intent loss
+
         old_logit_intent_status = logit_intent_status
         logit_intent_status, intent_status = self._helper(logit_intent_status, intent_status, task_mask[:, 0])
         if len(intent_status) == 0:
@@ -181,6 +179,9 @@ class SGDDialogueStateLoss(Loss):
             noncat_slot_status_loss = torch.clamp(torch.max(old_logit_noncat_slot_status.view(-1)), 0, 0)
         else:
             noncat_slot_status_loss = self._cross_entropy(logit_noncat_slot_status, noncategorical_slot_status,)
+
+
+        logit_noncat_slot_start, logit_noncat_slot_end = torch.unbind(logit_spans, dim=-1)
 
         _, max_num_tokens = logit_noncat_slot_start.size()
         old_logit_noncat_slot_start = logit_noncat_slot_start
