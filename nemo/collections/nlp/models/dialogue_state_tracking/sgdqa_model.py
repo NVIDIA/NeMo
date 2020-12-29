@@ -45,11 +45,11 @@ def print_cuda(s):
     logging.info(f"{s}, max_memory_allocated {a}, max_memory_cached {b}")
 
 
-def get_str_example_id(eval_dataset: str, ids_to_service_names_dict: dict, example_id_num: torch.Tensor) -> str:
+def get_str_example_id(split: str, ids_to_service_names_dict: dict, example_id_num: torch.Tensor) -> str:
     """
     Constructs string representation of example ID
     Args:
-        eval_dataset: evaluation data split
+        split: evaluation data split
         ids_to_service_names_dict: id to service name mapping
         example_id_num: tensor example id
     """
@@ -57,7 +57,7 @@ def get_str_example_id(eval_dataset: str, ids_to_service_names_dict: dict, examp
     def format_turn_id(ex_id_num):
         dialog_id_1, dialog_id_2, turn_id, service_id, model_task_id, slot_intent_id, value_id = ex_id_num
         return "{}-{}_{:05d}-{:02d}-{}-{}-{}-{}".format(
-            eval_dataset,
+            split,
             dialog_id_1,
             dialog_id_2,
             turn_id,
@@ -105,6 +105,7 @@ class SGDQAModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
+        self.data_prepared = False
         self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
         self.bert_model = get_lm_model(
@@ -195,8 +196,38 @@ class SGDQAModel(NLPModel):
             'lr': lr,
         }
 
-    def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
-        prefix = 'val'
+    def validation_step(self, batch: List[torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> dict:
+        """
+        Called at every validation step to aggregate and postprocess outputs on each GPU
+        Args:
+            batch: input batch at validation step
+            batch_idx: batch index 
+            dataloader_idx: dataloader index
+        """
+        loss, tensors = self.test_step_helper(batch=batch)
+        self.log(f'val_loss', loss)
+        return {f'val_loss': loss, f'tensors': tensors}
+
+    def test_step(self, batch: List[torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> dict:
+        """
+        Called at every test step to aggregate and postprocess outputs on each GPU
+        Args:
+            batch: input batch at test step
+            batch_idx: batch index 
+            dataloader_idx: dataloader index
+        """
+        loss, tensors = self.test_step_helper(batch=batch)
+        return {f'test_loss': loss, f'tensors': tensors}
+
+    def test_step_helper(self, batch: List[torch.Tensor]):
+        """
+        Helper called at every validation/test step to aggregate and postprocess outputs on each GPU
+        Args:
+            batch: input batch at step
+        Returns:
+            loss: averaged batch loss
+            tensors: collection of aggregagated output tensors across all GPU workers
+        """
         (
             example_id_num,
             service_id,
@@ -250,7 +281,7 @@ class SGDQAModel(NLPModel):
         all_start_char_idx = []
         all_end_char_idx = []
 
-        if self.trainer.gpus:
+        if self.trainer.gpus and self.trainer.world_size > 1:
             world_size = self.trainer.world_size
             for ind in range(world_size):
                 all_example_id_num.append(torch.empty_like(example_id_num))
@@ -286,7 +317,7 @@ class SGDQAModel(NLPModel):
             all_start_char_idx.append(start_char_idx)
             all_end_char_idx.append(end_char_idx)
 
-        # # after this: all_x is list of tensors, of length world_size
+        # after this: all_x is list of tensors, of length world_size
         example_id_num = torch.cat(all_example_id_num)
         service_id = torch.cat(all_service_id)
         logit_intent_status = torch.cat(all_logit_intent_status)
@@ -356,52 +387,83 @@ class SGDQAModel(NLPModel):
             'noncat_alignment_start': start_char_idx,
             'noncat_alignment_end': end_char_idx,
         }
-        self.log(f'{prefix}_loss', loss)
-        return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
+        return loss, tensors
 
-    def multi_validation_epoch_end(self, outputs, dataloader_idx=0):
+    def multi_validation_epoch_end(self, outputs: List[dict], dataloader_idx: int = 0):
         """
-        Called at the end of validation to aggregate outputs across all GPU workers.
+        Called at the end of validation to post process outputs into human readable format
         Args:
-            outputs: list of individual outputs of each validation step.
+            outputs: list of individual outputs of each validation step
+            dataloader_idx: dataloader index
+        """
+        avg_loss = torch.stack([x[f'val_loss'] for x in outputs]).mean()
+        split = self._validation_names[dataloader_idx][:-1]
+        dataloader = self._validation_dl[dataloader_idx]
+        metrics = self.multi_test_epoch_end_helper(outputs=outputs, split=split, dataloader=dataloader)
+
+        for k, v in metrics.items():
+            self.log(f'{split}_{k}', v)
+
+        self.log(f'val_loss', avg_loss, prog_bar=True)
+
+    def multi_test_epoch_end(self, outputs: List[dict], dataloader_idx: int = 0):
+        """
+        Called at the end of test to post process outputs into human readable format
+        Args:
+            outputs: list of individual outputs of each test step
+            dataloader_idx: dataloader index
+        """
+        avg_loss = torch.stack([x[f'test_loss'] for x in outputs]).mean()
+        split = self._test_names[dataloader_idx][:-1]
+        dataloader = self._test_dl[dataloader_idx]
+        metrics = self.multi_test_epoch_end_helper(outputs=outputs, split=split, dataloader=dataloader)
+
+        for k, v in metrics.items():
+            self.log(f'{split}_{k}', v)
+
+        self.log(f'test_loss', avg_loss, prog_bar=True)
+
+    def multi_test_epoch_end_helper(
+        self, outputs: List[dict], split: str, dataloader: torch.utils.data.DataLoader
+    ) -> dict:
+        """
+        Helper called at the end of evaluation to post process outputs into human readable format
+        Args:
+            outputs: list of individual outputs of each step
+            split: data split
+            dataloader: dataloader
+        Returns:
+            metrics: metrics collection
         """
 
-        prefix = 'val'
-        eval_dataset = self._validation_names[dataloader_idx][:-1]
-
-        avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
-
-        example_id_num = torch.cat([x[f'{prefix}_tensors']['example_id_num'] for x in outputs])
-        service_id = torch.cat([x[f'{prefix}_tensors']['service_id'] for x in outputs])
-        intent_status = torch.cat([x[f'{prefix}_tensors']['intent_status'] for x in outputs])
-        req_slot_status = torch.cat([x[f'{prefix}_tensors']['req_slot_status'] for x in outputs])
-        cat_slot_status = torch.cat([x[f'{prefix}_tensors']['cat_slot_status'] for x in outputs])
-        cat_slot_status_p = torch.cat([x[f'{prefix}_tensors']['cat_slot_status_p'] for x in outputs])
-        cat_slot_value_status = torch.cat([x[f'{prefix}_tensors']['cat_slot_value_status'] for x in outputs])
-        noncat_slot_status = torch.cat([x[f'{prefix}_tensors']['noncat_slot_status'] for x in outputs])
-        noncat_slot_status_p = torch.cat([x[f'{prefix}_tensors']['noncat_slot_status_p'] for x in outputs])
-        noncat_slot_p = torch.cat([x[f'{prefix}_tensors']['noncat_slot_p'] for x in outputs])
-        noncat_slot_start = torch.cat([x[f'{prefix}_tensors']['noncat_slot_start'] for x in outputs])
-        noncat_slot_end = torch.cat([x[f'{prefix}_tensors']['noncat_slot_end'] for x in outputs])
-        noncat_alignment_start = torch.cat([x[f'{prefix}_tensors']['noncat_alignment_start'] for x in outputs])
-        noncat_alignment_end = torch.cat([x[f'{prefix}_tensors']['noncat_alignment_end'] for x in outputs])
+        example_id_num = torch.cat([x[f'tensors']['example_id_num'] for x in outputs])
+        service_id = torch.cat([x[f'tensors']['service_id'] for x in outputs])
+        intent_status = torch.cat([x[f'tensors']['intent_status'] for x in outputs])
+        req_slot_status = torch.cat([x[f'tensors']['req_slot_status'] for x in outputs])
+        cat_slot_status = torch.cat([x[f'tensors']['cat_slot_status'] for x in outputs])
+        cat_slot_status_p = torch.cat([x[f'tensors']['cat_slot_status_p'] for x in outputs])
+        cat_slot_value_status = torch.cat([x[f'tensors']['cat_slot_value_status'] for x in outputs])
+        noncat_slot_status = torch.cat([x[f'tensors']['noncat_slot_status'] for x in outputs])
+        noncat_slot_status_p = torch.cat([x[f'tensors']['noncat_slot_status_p'] for x in outputs])
+        noncat_slot_p = torch.cat([x[f'tensors']['noncat_slot_p'] for x in outputs])
+        noncat_slot_start = torch.cat([x[f'tensors']['noncat_slot_start'] for x in outputs])
+        noncat_slot_end = torch.cat([x[f'tensors']['noncat_slot_end'] for x in outputs])
+        noncat_alignment_start = torch.cat([x[f'tensors']['noncat_alignment_start'] for x in outputs])
+        noncat_alignment_end = torch.cat([x[f'tensors']['noncat_alignment_end'] for x in outputs])
 
         ids_to_service_names_dict = self.dialogues_processor.schemas._services_id_to_vocab
-        example_id = get_str_example_id(
-            self._validation_dl[dataloader_idx].dataset, ids_to_service_names_dict, example_id_num
-        )
+        example_id = get_str_example_id(dataloader.dataset, ids_to_service_names_dict, example_id_num)
 
-        # ##############
-        prediction_dir = self.trainer.log_dir  # self._cfg.dataset.prediction_dir
+        metrics = {}
+        prediction_dir = self.trainer.log_dir
         if self.trainer.global_rank == 0:
-            # we'll write predictions to file in Dstc8/SGD format during evaluation callback
             prediction_dir = os.path.join(
-                prediction_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, self._cfg.dataset.task_name)
+                prediction_dir, 'predictions', 'pred_res_{}_{}'.format(split, self._cfg.dataset.task_name)
             )
             os.makedirs(prediction_dir, exist_ok=True)
 
             input_json_files = SGDDataProcessor.get_dialogue_files(
-                self._cfg.dataset.data_dir, eval_dataset, self._cfg.dataset.task_name
+                self._cfg.dataset.data_dir, split, self._cfg.dataset.task_name
             )
 
             predictions = {}
@@ -421,10 +483,12 @@ class SGDQAModel(NLPModel):
             predictions['noncat_alignment_end'] = noncat_alignment_end
 
             in_domain_services = get_in_domain_services(
-                os.path.join(self._cfg.dataset.data_dir, eval_dataset, "schema.json"),
+                os.path.join(self._cfg.dataset.data_dir, split, "schema.json"),
                 self.dialogues_processor.get_seen_services("train"),
             )
             predictions = combine_predictions_in_example(predictions, service_id.shape[0])
+
+            # write predictions to file in Dstc8/SGD format
             pred_utils.write_predictions_to_file(
                 predictions,
                 input_json_files,
@@ -437,20 +501,20 @@ class SGDQAModel(NLPModel):
             metrics = evaluate(
                 prediction_dir,
                 self._cfg.dataset.data_dir,
-                eval_dataset,
+                split,
                 in_domain_services,
                 joint_acc_across_turn=self._cfg.dataset.joint_acc_across_turn,
                 use_fuzzy_match=self._cfg.dataset.use_fuzzy_match,
             )
 
-            for k, v in metrics.items():
-                self.log(f'{eval_dataset}_{k}', v)
-        self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
+        return metrics
 
     def prepare_data(self):
         """
         Preprocessed schema and dialogues and caches this
         """
+        if self.data_prepared:
+            return
         schema_config = {
             "MAX_NUM_CAT_SLOT": self._cfg.dataset.max_num_cat_slot,
             "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
@@ -478,12 +542,19 @@ class SGDQAModel(NLPModel):
             overwrite_dial_files = not self._cfg.dataset.use_cache
             self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
 
+        self.data_prepared = True
+
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         self.prepare_data()
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split=train_data_config.ds_item)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
+        self.prepare_data()
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, split=val_data_config.ds_item)
+
+    def setup_test_data(self, test_data_config: Optional[DictConfig] = None):
+        self.prepare_data()
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, split=test_data_config.ds_item)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, split: str) -> DataLoader:
         dataset_cfg = self._cfg.dataset

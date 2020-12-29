@@ -83,6 +83,15 @@ model:
     drop_last: false
     pin_memory: false
 
+  test_ds:
+    ds_item: ["test"]
+    batch_size: 8
+    shuffle: false
+    num_samples: -1 # number of samples to be considered, -1 means all the dataset
+    num_workers: 3
+    drop_last: false
+    pin_memory: false
+
   optim:
     name: adamw
     lr: 1e-4

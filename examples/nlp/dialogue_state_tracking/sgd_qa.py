@@ -31,45 +31,33 @@ def main(cfg: DictConfig) -> None:
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
     do_training = True
-    if not cfg.pretrained_model:
-        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
-        model = SGDQAModel(cfg.model, trainer=trainer)
-    else:
+    if cfg.pretrained_model:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
-        # TODO: Remove strict, when lightning has persistent parameter support for add_state()
-        model = SGDQAModel.from_pretrained(cfg.pretrained_model, strict=False)
+        model = SGDQAModel.from_pretrained(cfg.pretrained_model)
         if do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
-            model.setup_validation_data(val_data_config=cfg.model.validation_ds)
+            model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)
+    elif cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path):
+        model = SGDQAModel.restore_from(cfg.model.nemo_path)
+        logging.info(f'Restoring model from {cfg.model.nemo_path}')
+        if do_training:
+            model.setup_training_data(train_data_config=cfg.model.train_ds)
+            model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)
+    else:
+        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+        model = SGDQAModel(cfg.model, trainer=trainer)
 
     if do_training:
         trainer.fit(model)
         if cfg.model.nemo_path:
             model.save_to(cfg.model.nemo_path)
 
-    # if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.file is not None:
-    #     gpu = 1 if cfg.trainer.gpus != 0 else 0
-    #     trainer = pl.Trainer(gpus=gpu)
-    #     model.setup_test_data(test_data_config=cfg.model.test_ds)
-    #     if model.prepare_test(trainer):
-    #         trainer.test(model)
-
-    # # change to path if you want results to be written to file e.g. os.path.join(exp_dir, "output_nbest_file.txt")
-    # output_nbest_file = None
-    # # change to path if you want results to be written to file e.g.  os.path.join(exp_dir, "output_prediction_file.txt")
-    # output_prediction_file = None
-    # inference_samples = 5  # for test purposes. To use entire inference dataset set to -1
-    # all_preds, all_nbests = model.inference(
-    #     file=cfg.model.validation_ds.file,
-    #     batch_size=1,
-    #     num_samples=inference_samples,
-    #     output_nbest_file=output_nbest_file,
-    #     output_prediction_file=output_prediction_file,
-    # )
-
-    # for question_id, answer in all_preds.items():
-    #     if answer != "empty":
-    #         print(f"Question ID: {question_id}, answer: {answer}")
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.ds_item is not None:
+        gpu = 1 if cfg.trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu)
+        model.setup_multiple_test_data(test_data_config=cfg.model.test_ds)
+        if model.prepare_test(trainer):
+            trainer.test(model)
 
 
 if __name__ == '__main__':

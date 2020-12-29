@@ -40,7 +40,7 @@ MIN_SLOT_RELATION = 25
 __all__ = ['write_predictions_to_file']
 
 
-def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_values):
+def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_values) -> dict:
     """
     Extract predicted categorical slot information 
     Args:
@@ -48,6 +48,8 @@ def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_valu
         predictions_value:
         cat_slots
         cat_slot_values:
+    Returns:
+        out_dict:
     """
     out_dict = {}
     for slot_idx, slot in enumerate(cat_slots):
@@ -62,9 +64,19 @@ def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_valu
     return out_dict
 
 
-def set_noncat_slot(predictions_status, predictions_value, non_cat_slots, user_utterance, sys_slots_agg):
+def set_noncat_slot(
+    predictions_status, predictions_value, non_cat_slots, user_utterance, sys_slots_agg: Optional[dict] = None
+):
     """
-    write predicted slot and values into out_dict 
+    Extract predicted categorical slot information 
+    Args:
+        predictions_status:
+        predictions_value:
+        non_cat_slots:
+        user_utterance:
+        sys_slots_agg:
+    Returns:
+        out_dict:
     """
     out_dict = {}
     for slot_idx, slot in enumerate(non_cat_slots):
@@ -87,8 +99,16 @@ def set_noncat_slot(predictions_status, predictions_value, non_cat_slots, user_u
 
 
 def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker):
-    # Overwrite the labels in the turn with the predictions from the model. For
-    # test set, these labels are missing from the data and hence they are added.
+    """Overwrite the labels in the turn with the predictions from the model. For test set, these labels are missing from the data and hence they are added. 
+    Args:
+        dialog:
+        all_predictions:
+        schemas:
+        state_tracker:
+    Returns:
+        dialog:
+    """
+
     dialog_id = dialog["dialogue_id"]
     if state_tracker == "baseline":
         sys_slots_agg = {}
@@ -158,18 +178,29 @@ def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker):
     return dialog
 
 
-def get_predicted_intent(predictions, intents):
+def get_predicted_intent(predictions, intents) -> str:
     """
-    returns intent name with maximum score
+    Returns intent name with maximum score
+    Args:
+        predictions:
+        intents:
+    Returns:
+        intent:
     """
     assert len(predictions) == len(intents)
     active_intent_id = max(predictions, key=lambda k: predictions[k][0]['intent_status'])
-    return intents[active_intent_id]
+    intent = intents[active_intent_id]
+    return intent
 
 
-def get_requested_slot(predictions, slots):
+def get_requested_slot(predictions, slots) -> List[str]:
     """
-    returns list of slots which are predicted to be requested
+    Returns list of slots which are predicted to be requested
+    Args:
+        predictions:
+        slots:
+    Returns:
+        requested_slots:
     """
     active_indices = [k for k in predictions if predictions[k][0]["req_slot_status"] > REQ_SLOT_THRESHOLD]
     requested_slots = list(map(lambda k: slots[k], active_indices))
@@ -185,7 +216,7 @@ def write_predictions_to_file(
     eval_debug: bool,
     in_domain_services: set,
 ):
-    """Write the predicted dialogues as json files.
+    """Save predicted dialogues as json files.
 
     Args:
         predictions: An iterator containing model predictions. This is the output of
