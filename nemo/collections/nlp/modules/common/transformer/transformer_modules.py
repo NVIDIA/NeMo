@@ -73,11 +73,12 @@ class TransformerEmbedding(nn.Module):
         num_token_types=2,
         embedding_dropout=0.0,
         learn_positional_encodings=False,
+        padding_idx=0,
     ):
         super().__init__()
 
         self.max_sequence_length = max_sequence_length
-        self.token_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
+        self.token_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=padding_idx)
         if learn_positional_encodings:
             self.position_embedding = nn.Embedding(max_sequence_length, hidden_size)
         else:

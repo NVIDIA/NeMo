@@ -2,7 +2,7 @@ name: &name FastSpeech2
 sample_rate: &sr 22050
 n_fft: &n_fft 1024
 n_mels: &n_mels 80
-fmax: &fmax null
+fmax: &fmax 8000
 n_stride: &n_window_stride 256
 pad_value: &pad_value -11.52
 train_dataset: ???

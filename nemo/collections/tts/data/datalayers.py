@@ -705,6 +705,7 @@ class FastSpeechWithDurs(Dataset):
 
     def _collate_fn(self, batch):
         pad_id = len(self.mapping)
+        # logging.debug(pad_id)
         if self.load_supplementary_values:
             _, audio_lengths, _, tokens_lengths, duration, pitches, energies = zip(*batch)
         else:
