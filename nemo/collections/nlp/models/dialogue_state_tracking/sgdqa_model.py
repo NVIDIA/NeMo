@@ -39,59 +39,6 @@ from nemo.utils.get_rank import is_global_rank_zero
 __all__ = ['SGDQAModel']
 
 
-def print_cuda(s):
-    a = torch.cuda.max_memory_allocated(device=0)
-    b = torch.cuda.max_memory_cached(0)
-    logging.info(f"{s}, max_memory_allocated {a}, max_memory_cached {b}")
-
-
-def get_str_example_id(split: str, ids_to_service_names_dict: dict, example_id_num: torch.Tensor) -> str:
-    """
-    Constructs string representation of example ID
-    Args:
-        split: evaluation data split
-        ids_to_service_names_dict: id to service name mapping
-        example_id_num: tensor example id
-    """
-
-    def format_turn_id(ex_id_num):
-        dialog_id_1, dialog_id_2, turn_id, service_id, model_task_id, slot_intent_id, value_id = ex_id_num
-        return "{}-{}_{:05d}-{:02d}-{}-{}-{}-{}".format(
-            split,
-            dialog_id_1,
-            dialog_id_2,
-            turn_id,
-            ids_to_service_names_dict[service_id],
-            model_task_id,
-            slot_intent_id,
-            value_id,
-        )
-
-    return list(map(format_turn_id, tensor2list(example_id_num)))
-
-
-def combine_predictions_in_example(predictions: dict, batch_size: int):
-    '''
-    Combines predicted values to a single example. 
-    Args:
-        predictions: predictions ordered by keys then batch
-        batch_size: batch size
-    Returns:
-        examples_preds: predictions ordered by batch then key
-    '''
-    examples_preds = [{} for _ in range(batch_size)]
-    for k, v in predictions.items():
-        if k != 'example_id':
-            v = torch.chunk(v, batch_size)
-
-        for i in range(batch_size):
-            if k == 'example_id':
-                examples_preds[i][k] = v[i]
-            else:
-                examples_preds[i][k] = v[i].view(-1)
-    return examples_preds
-
-
 class SGDQAModel(NLPModel):
     """Dialogue State Tracking Model SGD-QA"""
 
@@ -435,6 +382,51 @@ class SGDQAModel(NLPModel):
         Returns:
             metrics: metrics collection
         """
+
+        def get_str_example_id(split: str, ids_to_service_names_dict: dict, example_id_num: torch.Tensor) -> str:
+            """
+            Constructs string representation of example ID
+            Args:
+                split: evaluation data split
+                ids_to_service_names_dict: id to service name mapping
+                example_id_num: tensor example id
+            """
+
+            def format_turn_id(ex_id_num):
+                dialog_id_1, dialog_id_2, turn_id, service_id, model_task_id, slot_intent_id, value_id = ex_id_num
+                return "{}-{}_{:05d}-{:02d}-{}-{}-{}-{}".format(
+                    split,
+                    dialog_id_1,
+                    dialog_id_2,
+                    turn_id,
+                    ids_to_service_names_dict[service_id],
+                    model_task_id,
+                    slot_intent_id,
+                    value_id,
+                )
+
+            return list(map(format_turn_id, tensor2list(example_id_num)))
+
+        def combine_predictions_in_example(predictions: dict, batch_size: int):
+            '''
+            Combines predicted values to a single example. 
+            Args:
+                predictions: predictions ordered by keys then batch
+                batch_size: batch size
+            Returns:
+                examples_preds: predictions ordered by batch then key
+            '''
+            examples_preds = [{} for _ in range(batch_size)]
+            for k, v in predictions.items():
+                if k != 'example_id':
+                    v = torch.chunk(v, batch_size)
+
+                for i in range(batch_size):
+                    if k == 'example_id':
+                        examples_preds[i][k] = v[i]
+                    else:
+                        examples_preds[i][k] = v[i].view(-1)
+            return examples_preds
 
         example_id_num = torch.cat([x[f'tensors']['example_id_num'] for x in outputs])
         service_id = torch.cat([x[f'tensors']['service_id'] for x in outputs])

@@ -21,7 +21,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 import json
 import os
 from collections import OrderedDict, defaultdict
-from typing import List
+from typing import Dict, List, Optional
 
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import (
     STATUS_ACTIVE,
@@ -40,19 +40,18 @@ MIN_SLOT_RELATION = 25
 __all__ = ['write_predictions_to_file']
 
 
-def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_values) -> dict:
+def set_cat_slot(predictions_status: dict, predictions_value: dict, cat_slot_values: Dict[str, List[str]]) -> dict:
     """
     Extract predicted categorical slot information 
     Args:
-        predictions_status:
-        predictions_value:
-        cat_slots
-        cat_slot_values:
+        predictions_status: predicted statuses
+        predictions_value: predicted slot values
+        cat_slot_values: possible categorical slots and their potential values for this service
     Returns:
-        out_dict:
+        out_dict: predicted slot value pairs
     """
     out_dict = {}
-    for slot_idx, slot in enumerate(cat_slots):
+    for slot_idx, slot in enumerate(cat_slot_values):
         slot_status = predictions_status[slot_idx][0]["cat_slot_status"]
         if slot_status == STATUS_DONTCARE:
             out_dict[slot] = STR_DONTCARE
@@ -65,18 +64,22 @@ def set_cat_slot(predictions_status, predictions_value, cat_slots, cat_slot_valu
 
 
 def set_noncat_slot(
-    predictions_status, predictions_value, non_cat_slots, user_utterance, sys_slots_agg: Optional[dict] = None
-):
+    predictions_status: dict,
+    predictions_value: dict,
+    non_cat_slots: List[str],
+    user_utterance: str,
+    sys_slots_agg: Optional[dict] = None,
+) -> dict:
     """
-    Extract predicted categorical slot information 
+    Extract predicted non categorical slot information 
     Args:
-        predictions_status:
-        predictions_value:
-        non_cat_slots:
-        user_utterance:
-        sys_slots_agg:
+        predictions_status: predicted statuses
+        predictions_value: predicted slot values
+        non_cat_slots: list of possible non categorical slots for this service
+        user_utterance: system and user utterance
+        sys_slots_agg: system retrieval lookup table. Contains for each slot the most recent value seen in the history
     Returns:
-        out_dict:
+        out_dict: predicted slot value pairs
     """
     out_dict = {}
     for slot_idx, slot in enumerate(non_cat_slots):
@@ -98,17 +101,16 @@ def set_noncat_slot(
     return out_dict
 
 
-def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker):
+def get_predicted_dialog(dialog: dict, all_predictions: dict, schemas: object, state_tracker: str) -> dict:
     """Overwrite the labels in the turn with the predictions from the model. For test set, these labels are missing from the data and hence they are added. 
     Args:
-        dialog:
-        all_predictions:
-        schemas:
-        state_tracker:
+        dialog: ground truth dialog
+        all_predictions: predictions
+        schemas: schema object of all services of all datasets
+        state_tracker: state tracker option, e.g. nemotracker
     Returns:
-        dialog:
+        dialog: dialog overwritten with prediction information
     """
-
     dialog_id = dialog["dialogue_id"]
     if state_tracker == "baseline":
         sys_slots_agg = {}
@@ -155,7 +157,6 @@ def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker):
                 cat_out_dict = set_cat_slot(
                     predictions_status=predictions[2],
                     predictions_value=predictions[3],
-                    cat_slots=service_schema.categorical_slots,
                     cat_slot_values=service_schema.categorical_slot_values,
                 )
                 for k, v in cat_out_dict.items():
@@ -178,14 +179,14 @@ def get_predicted_dialog(dialog, all_predictions, schemas, state_tracker):
     return dialog
 
 
-def get_predicted_intent(predictions, intents) -> str:
+def get_predicted_intent(predictions: dict, intents: List[str]) -> str:
     """
     Returns intent name with maximum score
     Args:
-        predictions:
-        intents:
+        predictions: predictions
+        intents: list of possible intents for this service
     Returns:
-        intent:
+        intent: predicted intent
     """
     assert len(predictions) == len(intents)
     active_intent_id = max(predictions, key=lambda k: predictions[k][0]['intent_status'])
@@ -193,14 +194,14 @@ def get_predicted_intent(predictions, intents) -> str:
     return intent
 
 
-def get_requested_slot(predictions, slots) -> List[str]:
+def get_requested_slot(predictions: dict, slots: List[str]) -> List[str]:
     """
     Returns list of slots which are predicted to be requested
     Args:
-        predictions:
-        slots:
+        predictions: predictions
+        slots: list of possible slots
     Returns:
-        requested_slots:
+        requested_slots: list of requested slots
     """
     active_indices = [k for k in predictions if predictions[k][0]["req_slot_status"] > REQ_SLOT_THRESHOLD]
     requested_slots = list(map(lambda k: slots[k], active_indices))
