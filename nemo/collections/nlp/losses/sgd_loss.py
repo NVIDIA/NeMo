@@ -180,7 +180,6 @@ class SGDDialogueStateLoss(Loss):
         else:
             noncat_slot_status_loss = self._cross_entropy(logit_noncat_slot_status, noncategorical_slot_status,)
 
-
         logit_noncat_slot_start, logit_noncat_slot_end = torch.unbind(logit_spans, dim=-1)
 
         _, max_num_tokens = logit_noncat_slot_start.size()

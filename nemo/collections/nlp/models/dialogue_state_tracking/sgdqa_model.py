@@ -29,19 +29,21 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
 
 __all__ = ['SGDQAModel']
+
 
 def print_cuda(s):
     a = torch.cuda.max_memory_allocated(device=0)
     b = torch.cuda.max_memory_cached(0)
     logging.info(f"{s}, max_memory_allocated {a}, max_memory_cached {b}")
+
 
 def get_str_example_id(eval_dataset: str, ids_to_service_names_dict: dict, example_id_num: torch.Tensor) -> str:
     """
@@ -51,6 +53,7 @@ def get_str_example_id(eval_dataset: str, ids_to_service_names_dict: dict, examp
         ids_to_service_names_dict: id to service name mapping
         example_id_num: tensor example id
     """
+
     def format_turn_id(ex_id_num):
         dialog_id_1, dialog_id_2, turn_id, service_id, model_task_id, slot_intent_id, value_id = ex_id_num
         return "{}-{}_{:05d}-{:02d}-{}-{}-{}-{}".format(
@@ -137,7 +140,7 @@ class SGDQAModel(NLPModel):
             logit_cat_slot_status,
             logit_cat_slot_value_status,
             logit_noncat_slot_status,
-            logit_spans
+            logit_spans,
         )
 
     def training_step(self, batch, batch_idx):
@@ -164,7 +167,7 @@ class SGDQAModel(NLPModel):
             logit_cat_slot_status,
             logit_cat_slot_value_status,
             logit_noncat_slot_status,
-            logit_spans
+            logit_spans,
         ) = self(input_ids=utterance_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
         loss = self.loss(
             logit_intent_status=logit_intent_status,
@@ -193,7 +196,6 @@ class SGDQAModel(NLPModel):
         }
 
     def validation_step(self, batch, batch_idx):
-        print_cuda(f"eval {batch_idx}")
         prefix = 'val'
         (
             example_id_num,
@@ -218,7 +220,7 @@ class SGDQAModel(NLPModel):
             logit_cat_slot_status,
             logit_cat_slot_value_status,
             logit_noncat_slot_status,
-            logit_spans
+            logit_spans,
         ) = self(input_ids=utterance_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
         loss = self.loss(
             logit_intent_status=logit_intent_status,
@@ -236,7 +238,6 @@ class SGDQAModel(NLPModel):
             noncategorical_slot_value_end=noncategorical_slot_value_end,
             task_mask=task_mask,
         )
-
 
         all_example_id_num = []
         all_service_id = []
@@ -295,7 +296,7 @@ class SGDQAModel(NLPModel):
             all_logit_spans.append(logit_spans)
             all_start_char_idx.append(start_char_idx)
             all_end_char_idx.append(end_char_idx)
-       
+
         # # after this: all_x is list of tensors, of length world_size
         example_id_num = torch.cat(all_example_id_num)
         service_id = torch.cat(all_service_id)
@@ -307,7 +308,6 @@ class SGDQAModel(NLPModel):
         logit_spans = torch.cat(all_logit_spans)
         start_char_idx = torch.cat(all_start_char_idx)
         end_char_idx = torch.cat(all_end_char_idx)
-
 
         intent_status = torch.nn.Sigmoid()(logit_intent_status)
 
@@ -328,7 +328,7 @@ class SGDQAModel(NLPModel):
         noncat_slot_status_p = torch.max(noncat_slot_status_dist, axis=-1)[0]
 
         softmax = torch.nn.Softmax(dim=1)
-        
+
         scores = softmax(logit_spans)
         start_scores, end_scores = torch.unbind(scores, dim=-1)
 
@@ -370,9 +370,7 @@ class SGDQAModel(NLPModel):
         self.log(f'{prefix}_loss', loss)
         return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
 
-
     def validation_epoch_end(self, outputs):
-        print_cuda(f"eval epoch end start")
         """
         Called at the end of validation to aggregate outputs across all GPU workers.
         Args:
@@ -386,140 +384,24 @@ class SGDQAModel(NLPModel):
 
         example_id_num = torch.cat([x[f'{prefix}_tensors']['example_id_num'] for x in outputs])
         service_id = torch.cat([x[f'{prefix}_tensors']['service_id'] for x in outputs])
-        logit_intent_status = torch.cat([x[f'{prefix}_tensors']['logit_intent_status'] for x in outputs])
-        logit_req_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_req_slot_status'] for x in outputs])
-        logit_cat_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_cat_slot_status'] for x in outputs])
-        logit_cat_slot_value_status = torch.cat(
-            [x[f'{prefix}_tensors']['logit_cat_slot_value_status'] for x in outputs]
-        )
-        logit_noncat_slot_status = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_status'] for x in outputs])
-        logit_noncat_slot_start = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_start'] for x in outputs])
-        logit_noncat_slot_end = torch.cat([x[f'{prefix}_tensors']['logit_noncat_slot_end'] for x in outputs])
-        start_char_idx = torch.cat([x[f'{prefix}_tensors']['start_char_idx'] for x in outputs])
-        end_char_idx = torch.cat([x[f'{prefix}_tensors']['end_char_idx'] for x in outputs])
+        intent_status = torch.cat([x[f'{prefix}_tensors']['intent_status'] for x in outputs])
+        req_slot_status = torch.cat([x[f'{prefix}_tensors']['req_slot_status'] for x in outputs])
+        cat_slot_status = torch.cat([x[f'{prefix}_tensors']['cat_slot_status'] for x in outputs])
+        cat_slot_status_p = torch.cat([x[f'{prefix}_tensors']['cat_slot_status_p'] for x in outputs])
+        cat_slot_value_status = torch.cat([x[f'{prefix}_tensors']['cat_slot_value_status'] for x in outputs])
+        noncat_slot_status = torch.cat([x[f'{prefix}_tensors']['noncat_slot_status'] for x in outputs])
+        noncat_slot_status_p = torch.cat([x[f'{prefix}_tensors']['noncat_slot_status_p'] for x in outputs])
+        noncat_slot_p = torch.cat([x[f'{prefix}_tensors']['noncat_slot_p'] for x in outputs])
+        noncat_slot_start = torch.cat([x[f'{prefix}_tensors']['noncat_slot_start'] for x in outputs])
+        noncat_slot_end = torch.cat([x[f'{prefix}_tensors']['noncat_slot_end'] for x in outputs])
+        noncat_alignment_start = torch.cat([x[f'{prefix}_tensors']['noncat_alignment_start'] for x in outputs])
+        noncat_alignment_end = torch.cat([x[f'{prefix}_tensors']['noncat_alignment_end'] for x in outputs])
 
-        all_example_id_num = []
-        all_service_id = []
-        all_logit_intent_status = []
-        all_logit_req_slot_status = []
-        all_logit_cat_slot_status = []
-        all_logit_cat_slot_value_status = []
-        all_logit_noncat_slot_status = []
-        all_logit_noncat_slot_start = []
-        all_logit_noncat_slot_end = []
-        all_start_char_idx = []
-        all_end_char_idx = []
-        if self.trainer.gpus:
-            world_size = self.trainer.world_size
-            for ind in range(world_size):
-                all_example_id_num.append(torch.empty_like(example_id_num))
-                all_service_id.append(torch.empty_like(service_id))
-                all_logit_intent_status.append(torch.empty_like(logit_intent_status))
-                all_logit_req_slot_status.append(torch.empty_like(logit_req_slot_status))
-                all_logit_cat_slot_status.append(torch.empty_like(logit_cat_slot_status))
-                all_logit_cat_slot_value_status.append(torch.empty_like(logit_cat_slot_value_status))
-                all_logit_noncat_slot_status.append(torch.empty_like(logit_noncat_slot_status))
-                all_logit_noncat_slot_start.append(torch.empty_like(logit_noncat_slot_start))
-                all_logit_noncat_slot_end.append(torch.empty_like(logit_noncat_slot_end))
-                all_start_char_idx.append(torch.empty_like(start_char_idx))
-                all_end_char_idx.append(torch.empty_like(end_char_idx))
-            torch.distributed.all_gather(all_example_id_num, example_id_num)
-            torch.distributed.all_gather(all_service_id, service_id)
-            torch.distributed.all_gather(all_logit_intent_status, logit_intent_status)
-            torch.distributed.all_gather(all_logit_req_slot_status, logit_req_slot_status)
-            torch.distributed.all_gather(all_logit_cat_slot_status, logit_cat_slot_status)
-            torch.distributed.all_gather(all_logit_cat_slot_value_status, logit_cat_slot_value_status)
-            torch.distributed.all_gather(all_logit_noncat_slot_status, logit_noncat_slot_status)
-            torch.distributed.all_gather(all_logit_noncat_slot_start, logit_noncat_slot_start)
-            torch.distributed.all_gather(all_logit_noncat_slot_end, logit_noncat_slot_end)
-            torch.distributed.all_gather(all_start_char_idx, start_char_idx)
-            torch.distributed.all_gather(all_end_char_idx, end_char_idx)
-
-        else:
-            all_example_id_num.append(example_id_num)
-            all_service_id.append(service_id)
-            all_logit_intent_status.append(logit_intent_status)
-            all_logit_req_slot_status.append(logit_req_slot_status)
-            all_logit_cat_slot_status.append(logit_cat_slot_status)
-            all_logit_cat_slot_value_status.append(logit_cat_slot_value_status)
-            all_logit_noncat_slot_status.append(logit_noncat_slot_status)
-            all_logit_noncat_slot_start.append(logit_noncat_slot_start)
-            all_logit_noncat_slot_end.append(logit_noncat_slot_end)
-            all_start_char_idx.append(start_char_idx)
-            all_end_char_idx.append(end_char_idx)
-
-        # # after this: all_x is list of tensors, of length world_size
-        example_id_num = torch.cat(all_example_id_num)
-        service_id = torch.cat(all_service_id)
-        logit_intent_status = torch.cat(all_logit_intent_status)
-        logit_req_slot_status = torch.cat(all_logit_req_slot_status)
-        logit_cat_slot_status = torch.cat(all_logit_cat_slot_status)
-        logit_cat_slot_value_status = torch.cat(all_logit_cat_slot_value_status)
-        logit_noncat_slot_status = torch.cat(all_logit_noncat_slot_status)
-        logit_noncat_slot_start = torch.cat(all_logit_noncat_slot_start)
-        logit_noncat_slot_end = torch.cat(all_logit_noncat_slot_end)
-        start_char_idx = torch.cat(all_start_char_idx)
-        end_char_idx = torch.cat(all_end_char_idx)
-
-
-
-
-        intent_status = torch.nn.Sigmoid()(logit_intent_status)
-
-        # Scores are output for each requested slot.
-        req_slot_status = torch.nn.Sigmoid()(logit_req_slot_status)
-
-        # For categorical slots, the status of each slot and the predicted value are output.
-        cat_slot_status_dist = torch.nn.Softmax(dim=-1)(logit_cat_slot_status)
-
-        cat_slot_status = torch.argmax(logit_cat_slot_status, axis=-1)
-        cat_slot_status_p = torch.max(cat_slot_status_dist, axis=-1)[0]
-        cat_slot_value_status = torch.nn.Sigmoid()(logit_cat_slot_value_status)
-
-        # For non-categorical slots, the status of each slot and the indices for spans are output.
-        noncat_slot_status_dist = torch.nn.Softmax(dim=-1)(logit_noncat_slot_status)
-
-        noncat_slot_status = torch.argmax(logit_noncat_slot_status, axis=-1)
-        noncat_slot_status_p = torch.max(noncat_slot_status_dist, axis=-1)[0]
-
-        softmax = torch.nn.Softmax(dim=-1)
-        start_scores = softmax(logit_noncat_slot_start)
-        end_scores = softmax(logit_noncat_slot_end)
-
-        batch_size, max_num_tokens = end_scores.size()
-        # Find the span with the maximum sum of scores for start and end indices.
-        total_scores = torch.unsqueeze(start_scores, axis=2) + torch.unsqueeze(end_scores, axis=1)
-        # Mask out scores where start_index > end_index.
-        # device = total_scores.get_device()
-        start_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, -1, 1)
-        end_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, 1, -1)
-        invalid_index_mask = (start_idx > end_idx).repeat(batch_size, 1, 1)
-        total_scores = torch.where(
-            invalid_index_mask,
-            torch.zeros(total_scores.size(), device=total_scores.get_device(), dtype=total_scores.dtype),
-            total_scores,
-        )
-        max_span_index = torch.argmax(total_scores.view(-1, max_num_tokens ** 2), axis=-1)
-        max_span_p = torch.max(total_scores.view(-1, max_num_tokens ** 2), axis=-1)[0]
-        noncat_slot_p = max_span_p
-
-        span_start_index = torch.floor_divide(max_span_index, max_num_tokens)
-        span_end_index = torch.fmod(max_span_index, max_num_tokens)
-
-        noncat_slot_start = span_start_index
-        noncat_slot_end = span_end_index
-
-        # Add inverse alignments.
-        noncat_alignment_start = start_char_idx
-        noncat_alignment_end = end_char_idx
-
-
-        
         ids_to_service_names_dict = self.dialogues_processor.schemas._services_id_to_vocab
         example_id = get_str_example_id(self._validation_dl.dataset, ids_to_service_names_dict, example_id_num)
 
         # ##############
-
+        print(noncat_alignment_end.shape)
         prediction_dir = self.trainer.log_dir  # self._cfg.dataset.prediction_dir
         if self.trainer.global_rank == 0:
             # we'll write predictions to file in Dstc8/SGD format during evaluation callback
@@ -574,8 +456,6 @@ class SGDQAModel(NLPModel):
             for k, v in metrics.items():
                 self.log(f'{prefix}_{k}', v)
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
-        
-        print_cuda(f"eval epoch end end")
 
     def prepare_data(self):
         """

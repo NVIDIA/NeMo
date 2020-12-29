@@ -112,10 +112,7 @@ class SGDDecoder(NeuralModule):
 
         logit_cat_slot_status, logit_cat_slot_value_status = self._get_categorical_slot_goals(encoded_utterance)
 
-        (
-            logit_noncat_slot_status,
-            logit_spans
-        ) = self._get_noncategorical_slot_goals(
+        (logit_noncat_slot_status, logit_spans) = self._get_noncategorical_slot_goals(
             encoded_utterance=encoded_utterance, utterance_mask=utterance_mask, token_embeddings=token_embeddings
         )
 
@@ -125,7 +122,7 @@ class SGDDecoder(NeuralModule):
             logit_cat_slot_status,
             logit_cat_slot_value_status,
             logit_noncat_slot_status,
-            logit_spans
+            logit_spans,
         )
 
     def _get_intents(self, encoded_utterance):
