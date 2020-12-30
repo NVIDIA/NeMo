@@ -18,16 +18,13 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
 
 import collections
-import gc
 import json
 import os
 import pickle
 import re
 from typing import Dict, List
 
-import inflect
 import numpy as np
-import torch
 
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import InputExample
 from nemo.utils import logging
