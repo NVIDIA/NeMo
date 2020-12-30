@@ -402,8 +402,8 @@ pipeline {
         trainer.max_steps=1 \
         trainer.max_epochs=1 \
         model.train_ds.batch_size=2 \
-        model.validation.batch_size=2 \
-        model.test.batch_size=2 \
+        model.validation_ds.batch_size=2 \
+        model.test_ds.batch_size=2 \
         model.nemo_path=null \
         trainer.val_check_interval=0.0 \
         trainer.gpus=[0,1] \

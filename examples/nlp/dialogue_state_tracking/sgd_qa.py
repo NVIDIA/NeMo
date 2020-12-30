@@ -28,7 +28,7 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
-    exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+    exp_manager(trainer, cfg.get("exp_manager", None))
 
     do_training = True
     if cfg.pretrained_model:

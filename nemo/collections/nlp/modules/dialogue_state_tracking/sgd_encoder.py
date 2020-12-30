@@ -19,7 +19,7 @@ from torch import nn as nn
 
 from nemo.collections.nlp.modules.common.classifier import Classifier
 from nemo.core.classes import typecheck
-from nemo.core.neural_types import ChannelType, LogitsType, LogprobsType, NeuralType
+from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 
 __all__ = ['SGDEncoder']
 

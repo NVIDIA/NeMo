@@ -22,7 +22,7 @@ from typing import Dict, Optional
 import numpy as np
 
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.core.neural_types import ChannelType, LabelsType, NeuralType
 
 __all__ = ['SGDDataset']
 

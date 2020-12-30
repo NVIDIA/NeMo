@@ -20,7 +20,6 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 
 import torch
 
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import STATUS_ACTIVE
 from nemo.core.classes import Loss, Typing, typecheck
 from nemo.core.neural_types import ChannelType, LabelsType, LogitsType, LossType, NeuralType
 from nemo.utils import logging
@@ -28,7 +27,7 @@ from nemo.utils import logging
 __all__ = ['SGDDialogueStateLoss']
 
 
-class SGDDialogueStateLoss(Loss):
+class SGDDialogueStateLoss(Loss, Typing):
     """
     Neural module which implements loss for SGD model.
     """
@@ -36,22 +35,20 @@ class SGDDialogueStateLoss(Loss):
     @property
     def input_types(self):
         """Returns definitions of module input ports.
-            logit_intent_status (float): Output of SGD model
-            intent_status_labels (int): Intent labels
-            logit_req_slot_status (float): Output of SGD model
-            requested_slot_status (float): Takes value 1 if the corresponding slot is requested, 0 otherwise
-            req_slot_mask (bool): Masks requested slots not used for the particular service
-            logit_cat_slot_status (float): Output of SGD model
-            categorical_slot_status (int): The status of each categorical slot in the service
-            cat_slot_status_mask (bool): Masks categorical slots not used for the particular service
-            logit_cat_slot_value (float): Output of SGD model
-            categorical_slot_values (int): The index of the correct value for each categorical slot
-            logit_noncat_slot_status (float): Output of SGD model
-            noncategorical_slot_status (int): The status of each noncategorical slot in the service
-            noncat_slot_status_mask (bool): masks noncategorical slots not used for the particular service
-            logit_spans (float): Output of SGD model
-            noncategorical_slot_value_start (int): The index of the starting subword corresponding to the slot span for a non-categorical slot value
-            noncategorical_slot_value_end (int): The index of the ending (inclusive) subword corresponding to the slot span for a non-categorical slot value
+            logit_intent_status: Output of SGD model
+            intent_status: intent label
+            logit_req_slot_status: Output of SGD model
+            requested_slot_status: Takes value 1 if the corresponding slot is requested, 0 otherwise
+            logit_cat_slot_status: Output of SGD model
+            categorical_slot_status: The status of each categorical slot in the service
+            logit_cat_slot_value_status: Output of SGD model
+            categorical_slot_value_status: Takes value 1 if the corresponding slot value is correct, 0 otherwise
+            logit_noncat_slot_status: Output of SGD model
+            noncategorical_slot_status: The status of each noncategorical slot in the service\
+            logit_spans: Output of SGD model
+            noncategorical_slot_value_start: The index of the starting subword corresponding to the slot span for a non-categorical slot value
+            noncategorical_slot_value_end: The index of the ending (inclusive) subword corresponding to the slot span for a non-categorical slot value
+            task_mask: Mask contains 1 if its the current task, 0 otherwise
         """
         return {
             "logit_intent_status": NeuralType(('B', 'T'), LogitsType()),

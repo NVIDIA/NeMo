@@ -18,8 +18,8 @@ from typing import Dict, Optional
 import torch
 from torch import nn as nn
 
-from nemo.core.classes import Exportable, NeuralModule, typecheck
-from nemo.core.neural_types import ChannelType, LogitsType, LogprobsType, NeuralType
+from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.neural_types import LogitsType, NeuralType
 
 __all__ = ['SGDDecoder']
 
@@ -106,7 +106,7 @@ class SGDDecoder(NeuralModule):
             token_embeddings: token embeddings from BERT encoding of the utterance
             utterance_mask: utterance mask wiht 0 for padding
         """
-        batch_size, emb_dim = encoded_utterance.size()
+        _, _ = encoded_utterance.size()
         logit_intent_status = self._get_intents(encoded_utterance)
 
         logit_req_slot_status = self._get_requested_slots(encoded_utterance)

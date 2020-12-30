@@ -27,7 +27,6 @@ from typing import Dict, List, Optional
 from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import (
     STATUS_ACTIVE,
     STATUS_DONTCARE,
-    STATUS_OFF,
     STR_DONTCARE,
 )
 from nemo.utils import logging
@@ -59,7 +58,8 @@ def set_cat_slot(predictions_status: dict, predictions_value: dict, cat_slot_val
         elif slot_status == STATUS_ACTIVE:
             tmp = predictions_value[slot_idx]
             value_idx = max(tmp, key=lambda k: tmp[k]['cat_slot_value_status'][0].item())
-            value_prob = max([v['cat_slot_value_status'][0].item() for k, v in predictions_value[slot_idx].items()])
+            # for debugging
+            # value_prob = max([v['cat_slot_value_status'][0].item() for k, v in predictions_value[slot_idx].items()])
             out_dict[slot] = cat_slot_values[slot][value_idx]
     return out_dict
 
@@ -88,7 +88,8 @@ def set_noncat_slot(
         if slot_status == STATUS_DONTCARE:
             out_dict[slot] = STR_DONTCARE
         elif slot_status == STATUS_ACTIVE:
-            value_prob = predictions_value[slot_idx][0]["noncat_slot_p"]
+            # for debugging
+            # value_prob = predictions_value[slot_idx][0]["noncat_slot_p"]
             tok_start_idx = predictions_value[slot_idx][0]["noncat_slot_start"]
             tok_end_idx = predictions_value[slot_idx][0]["noncat_slot_end"]
             ch_start_idx = predictions_value[slot_idx][0]["noncat_alignment_start"][tok_start_idx]
