@@ -149,10 +149,10 @@ def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_
         if NUM_SPEAKERS >= 2:
             emb = embeddings[uniq_key]
             emb = np.asarray(emb)
-            cluster_labels = COSclustering(uniq_key,emb,emb)
+            # cluster_labels = COSclustering(uniq_key,emb,emb)
 
-            # cluster_method = SpectralClusterer(min_clusters=NUM_SPEAKERS, max_clusters=NUM_SPEAKERS)
-            # cluster_labels = cluster_method.predict(emb)
+            cluster_method = SpectralClusterer(min_clusters=NUM_SPEAKERS, max_clusters=NUM_SPEAKERS)
+            cluster_labels = cluster_method.predict(emb)
             # cluster_method = SpectralClustering(n_clusters=NUM_SPEAKERS, random_state=42)
             # cluster_method.fit(emb)
             # cluster_labels = cluster_method.labels_
