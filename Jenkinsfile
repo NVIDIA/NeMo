@@ -291,6 +291,67 @@ pipeline {
       }
     }
 
+    stage('L2: Segmentation Tool') {
+         when {
+            anyOf {
+              branch 'main'
+              changeRequest target: 'main'
+            }
+         }
+       stages {
+        stage('Install ctc_segmentation requirements') {
+            steps {
+            sh 'cd tools/ctc_segmentation && \
+            pip install -r requirements.txt && \
+            apt-get install -y ffmpeg'
+            }
+        }
+
+        stage('Parallel ctc_segmentation test') {
+         failFast true
+         parallel {
+          stage('L2: Eng QN with .wav') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
+            --DATA_DIR=/home/TestData/ctc_segmentation/eng \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output \
+            --LANGUAGE=eng \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.wav && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
+            -g /home/TestData/ctc_segmentation/eng/output/verified_segments/nv_test_segments.txt && \
+            rm -rf eng/output'
+            }
+          }
+          stage('L2: Ru QN with .mp3') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
+            --DATA_DIR=/home/TestData/ctc_segmentation/ru \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
+            --LANGUAGE=ru \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.mp3 \
+            --ADDITIONAL_SPLIT_SYMBOLS=";" && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
+            -g /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
+            rm -rf ru/output'
+            }
+           }
+         }
+       }
+     }
+    }
+
     stage('L2: Multi-GPU Megatron finetuning') {
      when {
         anyOf{
@@ -480,7 +541,8 @@ pipeline {
             model.test_ds.prefix=dev \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
-            exp_manager=null'
+            exp_manager.exp_dir=checkpoints'
+            sh 'rm -rf checkpoints'
           }
         }
       }
