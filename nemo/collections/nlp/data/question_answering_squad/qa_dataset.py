@@ -107,18 +107,20 @@ class SquadDataset(Dataset):
             )
         )
 
+        # check number of samples. Should be either -1 not to limit or positive number
+        if num_samples == 0:
+            raise ValueError(
+                f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}."
+            )
+        elif num_samples > 0:
+            self.examples = self.examples[:num_samples]
+
         if use_cache and os.path.exists(cached_features_file):
             logging.info(f"loading from {cached_features_file}")
             with open(cached_features_file, "rb") as reader:
                 self.features = pickle.load(reader)
         else:
             logging.info(f"Preprocessing data.")
-            if num_samples == 0:
-                raise ValueError(
-                    f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}."
-                )
-            elif num_samples > 0:
-                self.examples = self.examples[:num_samples]
 
             self.features = convert_examples_to_features(
                 examples=self.examples,
@@ -186,6 +188,10 @@ class SquadDataset(Dataset):
         all_nbest_json = collections.OrderedDict()
         scores_diff_json = collections.OrderedDict()
         for (example_index, example) in enumerate(self.examples):
+
+            # finish this loop if we went through all batch examples
+            if example_index >= len(unique_ids):
+                break
 
             features = example_index_to_features[example_index]
 
@@ -288,6 +294,7 @@ class SquadDataset(Dataset):
                     seen_predictions[final_text] = True
 
                 nbest.append(_NbestPrediction(text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit))
+
             # if we didn't include the empty option in the n-best, include it
             if version_2_with_negative:
                 if "" not in seen_predictions:
@@ -352,7 +359,9 @@ class SquadDataset(Dataset):
         no_answer_probs: Optional[float] = None,
         no_answer_probability_threshold: float = 1.0,
     ):
-        qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in self.examples}
+        qas_id_to_has_answer = {
+            example.qas_id: bool(example.answers) for example in self.examples[: len(all_predictions)]
+        }
         has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
         no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
         if no_answer_probs is None:
