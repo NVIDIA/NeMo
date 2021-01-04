@@ -39,6 +39,8 @@ def stft_patch(
     """
     Patch over torch.stft for PyTorch <= 1.6.
     Arguments are same as torch.stft().
+
+    # TODO: Remove once PyTorch 1.7+ is a requirement.
     """
     global TORCH_VERSION
     if TORCH_VERSION is None:
