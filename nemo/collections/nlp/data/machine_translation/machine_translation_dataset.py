@@ -46,8 +46,6 @@ class TranslationDataConfig:
 class TranslationDataset(Dataset):
     def __init__(
         self,
-        tokenizer_src,
-        tokenizer_tgt,
         dataset_src,
         dataset_tgt,
         tokens_in_batch=1024,
@@ -60,34 +58,45 @@ class TranslationDataset(Dataset):
         cache_data_per_node=False,
         use_cache=False,
     ):
-
-        self.src_tokenizer = tokenizer_src
-        self.tgt_tokenizer = tokenizer_tgt
+        self.dataset_src = dataset_src
+        self.dataset_tgt = dataset_tgt
         self.tokens_in_batch = tokens_in_batch
+        self.cache_ids = cache_ids
+        self.use_cache = use_cache
+        self.clean = clean
+        self.cache_data_per_node = cache_data_per_node
+        self.max_seq_length = max_seq_length
+        self.min_seq_length = min_seq_length
+        self.max_seq_length_diff = max_seq_length_diff
+        self.max_seq_length_ratio = max_seq_length_ratio
 
+    def batchify(self, tokenizer_src, tokenizer_tgt):
         src_ids = dataset_to_ids(
-            dataset_src,
+            self.dataset_src,
             tokenizer_src,
-            cache_ids=cache_ids,
-            cache_data_per_node=cache_data_per_node,
-            use_cache=use_cache,
+            cache_ids=self.cache_ids,
+            cache_data_per_node=self.cache_data_per_node,
+            use_cache=self.use_cache,
         )
         tgt_ids = dataset_to_ids(
-            dataset_tgt,
+            self.dataset_tgt,
             tokenizer_tgt,
-            cache_ids=cache_ids,
-            cache_data_per_node=cache_data_per_node,
-            use_cache=use_cache,
+            cache_ids=self.cache_ids,
+            cache_data_per_node=self.cache_data_per_node,
+            use_cache=self.use_cache,
         )
-        if clean:
+        if self.clean:
             src_ids, tgt_ids = self.clean_src_and_target(
                 src_ids,
                 tgt_ids,
-                max_tokens=max_seq_length,
-                min_tokens=min_seq_length,
-                max_tokens_diff=max_seq_length_diff,
-                max_tokens_ratio=max_seq_length_ratio,
+                max_tokens=self.max_seq_length,
+                min_tokens=self.min_seq_length,
+                max_tokens_diff=self.max_seq_length_diff,
+                max_tokens_ratio=self.max_seq_length_ratio,
             )
+        self.src_pad_id = tokenizer_src.pad_id
+        self.tgt_pad_id = tokenizer_tgt.pad_id
+
         self.batch_indices = self.pack_data_into_batches(src_ids, tgt_ids)
         self.batches = self.pad_batches(src_ids, tgt_ids, self.batch_indices)
 
@@ -99,8 +108,8 @@ class TranslationDataset(Dataset):
         tgt = self.batches[idx]["tgt"]
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
-        src_mask = (src_ids != self.src_tokenizer.pad_id).astype(np.int32)
-        tgt_mask = (tgt_ids != self.tgt_tokenizer.pad_id).astype(np.int32)
+        src_mask = (src_ids != self.src_pad_id).astype(np.int32)
+        tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         sent_ids = np.array(self.batch_indices[idx])
         return src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids
 
@@ -114,8 +123,8 @@ class TranslationDataset(Dataset):
         for batch_idx, b in enumerate(batch_indices):
             src_len = max([len(src_ids[i]) for i in b])
             tgt_len = max([len(tgt_ids[i]) for i in b])
-            src_ids_ = self.src_tokenizer.pad_id * np.ones((len(b), src_len), dtype=np.int)
-            tgt_ids_ = self.tgt_tokenizer.pad_id * np.ones((len(b), tgt_len), dtype=np.int)
+            src_ids_ = self.src_pad_id * np.ones((len(b), src_len), dtype=np.int)
+            tgt_ids_ = self.tgt_pad_id * np.ones((len(b), tgt_len), dtype=np.int)
             for i, sentence_idx in enumerate(b):
                 src_ids_[i][: len(src_ids[sentence_idx])] = src_ids[sentence_idx]
                 tgt_ids_[i][: len(tgt_ids[sentence_idx])] = tgt_ids[sentence_idx]

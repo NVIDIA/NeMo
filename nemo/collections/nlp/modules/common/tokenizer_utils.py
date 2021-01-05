@@ -52,6 +52,7 @@ def get_tokenizer(
     vocab_file: Optional[str] = None,
     special_tokens: Optional[Dict[str, str]] = None,
     use_fast: Optional[bool] = False,
+    bpe_dropout: Optional[float] = 0.0
 ):
     """
     Args:
@@ -80,7 +81,7 @@ def get_tokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens
         )
     elif tokenizer_name == 'yttm':
-        return YouTokenToMeTokenizer(model_path=tokenizer_model)
+        return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
     elif tokenizer_name == 'word':
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
     elif tokenizer_name == 'char':
