@@ -16,8 +16,6 @@ import argparse
 import youtokentome as yttm
 import os
 from pathlib import Path
-import torch.utils.data as pt_data
-import torch
 import pickle
 import time
 
