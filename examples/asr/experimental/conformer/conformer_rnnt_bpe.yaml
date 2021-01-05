@@ -148,15 +148,16 @@ model:
       alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
 
   optim:
-    name: novograd
-    lr: 0.01
+    name: adam
+    lr: 5
     # optimizer arguments
-    betas: [0.8, 0.5]
-    weight_decay: 0.001
+    betas: [0.9, 0.98]
+    weight_decay: 1e-6
 
     # scheduler setup
     sched:
-      name: CosineAnnealing
+      name: NoamAnnealing
+      d_model: 256
       # scheduler config override
       warmup_steps: 4000
       warmup_ratio: null
