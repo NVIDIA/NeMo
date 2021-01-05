@@ -29,6 +29,12 @@ pipeline {
       }
     }
 
+    stage('PyTorch STFT Patch check') {
+      steps {
+        sh 'python /home/TestData/check_stft_patch.py --dir .'
+      }
+    }
+
     stage('Code formatting checks') {
       steps {
         sh 'python setup.py style'
