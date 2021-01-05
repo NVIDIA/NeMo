@@ -23,8 +23,20 @@ from pyannote.metrics.diarization import DiarizationErrorRate
 from sklearn.cluster import SpectralClustering
 from spectralcluster import SpectralClusterer
 from nemo.collections.asr.parts.nmse_clustering import COSclustering
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import MinMaxScaler
+
 
 from nemo.utils import logging
+
+scaler = MinMaxScaler(feature_range=(0, 1))
+
+def get_eigen_matrix(emb):
+    sim_d = cosine_similarity(emb)
+    scaler.fit(sim_d)
+    sim_d = scaler.transform(sim_d)
+
+    return sim_d
 
 
 def get_contiguous_stamps(stamps):
@@ -149,10 +161,11 @@ def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_
         if NUM_SPEAKERS >= 2:
             emb = embeddings[uniq_key]
             emb = np.asarray(emb)
-            # cluster_labels = COSclustering(uniq_key,emb,emb)
+            sim_d = get_eigen_matrix(emb)
+            cluster_labels = COSclustering(uniq_key,sim_d,sim_d)
 
-            cluster_method = SpectralClusterer(min_clusters=NUM_SPEAKERS, max_clusters=NUM_SPEAKERS)
-            cluster_labels = cluster_method.predict(emb)
+            # cluster_method = SpectralClusterer(min_clusters=NUM_SPEAKERS, max_clusters=NUM_SPEAKERS)
+            # cluster_labels = cluster_method.predict(emb)
             # cluster_method = SpectralClustering(n_clusters=NUM_SPEAKERS, random_state=42)
             # cluster_method.fit(emb)
             # cluster_labels = cluster_method.labels_
