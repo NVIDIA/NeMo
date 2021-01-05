@@ -44,8 +44,6 @@ if __name__ == '__main__':
                 help='Max Sequence Length')
     parser.add_argument('--min_seq_length', type=int, default=1,
                 help='Min Sequence Length')
-    parser.add_argument('--num_workers', type=int, default=8,
-                help='Number of workers')
     parser.add_argument('--tokens_in_batch', type=str, default="8000,12000,16000,40000",
                 help='# Tokens per batch per GPU')
 
@@ -108,20 +106,6 @@ if __name__ == '__main__':
             dataset,
             open(os.path.join(args.out_dir, 'batches.tokens.%d.pkl' % (num_tokens)), 'wb')
         )
-        '''
-        pickle.dump({
-            'batches': dataset.batches,
-            'batch_indices': dataset.batch_indices,
-            'src_fname': args.src_fname,
-            'tgt_fname': args.tgt_fname,
-            'tokens_in_batch': num_tokens,
-            'max_seq_length': args.max_seq_length,
-            'min_seq_length': args.min_seq_length,
-            'max_seq_length_diff': args.max_seq_length,
-            'max_seq_length_ratio': args.max_seq_length,
-            'clean': args.clean,
-        }, open(os.path.join(args.out_dir, 'batches.%d.pkl' % (num_tokens)), 'wb'))
-        '''
         end = time.time()
         print('Took %f time to pickle' % (end - start))
         start = time.time()

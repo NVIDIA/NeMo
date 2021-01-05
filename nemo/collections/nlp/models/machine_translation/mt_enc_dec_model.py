@@ -259,6 +259,7 @@ class MTEncDecModel(EncDecNLPModel):
             if cfg.src_file_name != cfg.tgt_file_name:
                 raise ValueError("src must be equal to target for cached dataset")
             dataset = pickle.load(open(cfg.src_file_name, 'rb'))
+            dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
         else:
             dataset = TranslationDataset(
                 dataset_src=str(Path(cfg.src_file_name).expanduser()),
@@ -272,6 +273,7 @@ class MTEncDecModel(EncDecNLPModel):
                 cache_ids=cfg.get("cache_ids", False),
                 cache_data_per_node=cfg.get("cache_data_per_node", False),
                 use_cache=cfg.get("use_cache", False),
+                reverse_lang_direction=cfg.get("reverse_lang_direction", False)
             )
             dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
         if cfg.shuffle:

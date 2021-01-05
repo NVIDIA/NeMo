@@ -57,6 +57,7 @@ class TranslationDataset(Dataset):
         cache_ids=False,
         cache_data_per_node=False,
         use_cache=False,
+        reverse_lang_direction=False
     ):
         self.dataset_src = dataset_src
         self.dataset_tgt = dataset_tgt
@@ -69,6 +70,7 @@ class TranslationDataset(Dataset):
         self.min_seq_length = min_seq_length
         self.max_seq_length_diff = max_seq_length_diff
         self.max_seq_length_ratio = max_seq_length_ratio
+        self.reverse_lang_direction = reverse_lang_direction
 
     def batchify(self, tokenizer_src, tokenizer_tgt):
         src_ids = dataset_to_ids(
@@ -106,6 +108,8 @@ class TranslationDataset(Dataset):
     def __getitem__(self, idx):
         src_ids = self.batches[idx]["src"]
         tgt = self.batches[idx]["tgt"]
+        if self.reverse_lang_direction:
+            src_ids, tgt = tgt, src_ids
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
