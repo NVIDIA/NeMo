@@ -16,7 +16,6 @@ model:
     conv_feature_encoder:
       extractor_mode: default
       conv_bias: False
-      conv_feature_layers: [ (512, 10, 5) ] + [(512, 3, 2)] * 4 + [(512, 2, 2)] + [(512, 2, 2)]
     transformer_encoder:
       dropout: 0.1
       conv:
