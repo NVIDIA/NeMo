@@ -67,7 +67,7 @@ class Wav2VecTransformerEncoderConfig:
     embedding_dim: int = field(default=768, metadata={'help': 'Encoder embedding dim'})
     ffn_embedding_dim: int = field(default=3072, metadata={'help': 'Encoder embedding dim for feed forward'})
     num_attention_heads: int = field(default=8, metadata={'help': 'Number of encoder attention heads'})
-    dropout: float = field(default=0.1, metadata={'help': 'Dropout probability for transformer'})
+    dropout: float = field(default=0.1, metadata={'help': 'Dropout probability for transformer encoder'})
     activation_fn: Wav2VecActivationType = field(
         default=Wav2VecActivationType.gelu, metadata={'help': 'Activation for transformer'}
     )

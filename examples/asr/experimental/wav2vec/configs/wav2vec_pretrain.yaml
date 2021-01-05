@@ -1,6 +1,60 @@
 name: &name "Wav2vec_Pretrain"
 
 model:
+  wav2vec:
+    loss:
+      prob_ppl_weight: 0.1
+      feature_loss_weight: 0
+    quantize:
+      quantize_targets: True
+      quantize_input: False
+      same_quantizer: False
+      latent_vars: 320
+      latent_groups: 2
+      latent_dim: 0
+      latent_temp: (2, 0.5, 0.999995)
+    conv_feature_encoder:
+      extractor_mode: default
+      conv_bias: False
+      conv_feature_layers: [ (512, 10, 5) ] + [(512, 3, 2)] * 4 + [(512, 2, 2)] + [(512, 2, 2)]
+    transformer_encoder:
+      dropout: 0.1
+      conv:
+        conv_pos: 128
+        conv_pos_groups: 16
+      encoder:
+        encoder_layers: 12
+        encoder_layerdrop: 0.05
+        embedding_dim: 768
+        ffn_embedding_dim: 3072
+        num_attention_heads: 8
+        dropout: 0.1
+        activation_fn: gelu
+        layer_norm_first: False
+    mask:
+      mask_prob: 0.65
+      mask_type: static
+      mask_other: 0
+      mask_length: 10
+      no_mask_overlap: False
+      mask_min_space: 1
+      mask_channel_prob: 0
+      mask_channel_type: static
+      mask_channel_other: 0
+      mask_channel_length: 10
+      no_mask_channel_overlap: False
+      mask_channel_min_space: 1
+    dropout_input: 0.1
+    dropout_features: 0.1
+    final_dim: 0
+    n_negatives: 100
+    cross_sample_negatives: 0
+    codebook_negatives: 0
+    negatives_from_everywhere: False
+    logit_temp: 0.1
+    target_glu: False
+    feature_grad_mult: 0.1
+
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000
