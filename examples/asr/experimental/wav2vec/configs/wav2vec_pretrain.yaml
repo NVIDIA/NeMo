@@ -12,7 +12,7 @@ model:
       latent_vars: 320
       latent_groups: 2
       latent_dim: 0
-      latent_temp: (2, 0.5, 0.999995)
+      latent_temp: [2, 0.5, 0.999995]
     conv_feature_encoder:
       extractor_mode: default
       conv_bias: False

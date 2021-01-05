@@ -45,7 +45,7 @@ def buffered_arange(max):
 
 @dataclass
 class Wav2VecPretrainConfig:
-    wav2vec: Wav2VecEncoderModelConfig = MISSING
+    wav2vec: Wav2VecEncoderModelConfig = Wav2VecEncoderModelConfig()
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
     test_ds: Optional[Dict[Any, Any]] = None
