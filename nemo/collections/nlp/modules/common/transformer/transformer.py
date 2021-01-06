@@ -45,7 +45,7 @@ class TransformerConfig:
 
 
 @dataclass
-class TransformerEncoderConfig:
+class TransformerEncoderConfig(TransformerConfig):
     mask_future: bool = False
     _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoderNM'
 
@@ -100,7 +100,7 @@ class TransformerEncoderNM(EncoderModule):
 
 
 @dataclass
-class TransformerDecoderConfig:
+class TransformerDecoderConfig(TransformerConfig):
     _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoderNM'
 
 
