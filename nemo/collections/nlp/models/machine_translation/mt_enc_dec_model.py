@@ -14,6 +14,7 @@
 
 import itertools
 import math
+import pickle
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
+from sacremoses import MosesDetokenizer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
@@ -129,9 +131,12 @@ class MTEncDecModel(EncDecNLPModel):
         """
         src_embeddings = self.encoder_embedding(input_ids=src)
         src_hiddens = self.encoder(src_embeddings, src_mask)
-        tgt_embeddings = self.decoder_embedding(input_ids=tgt)
-        tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
-        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        if tgt is not None:
+            tgt_embeddings = self.decoder_embedding(input_ids=tgt)
+            tgt_hiddens = self.decoder(tgt_embeddings, tgt_mask, src_hiddens, src_mask)
+            log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        else:
+            log_probs = None
         beam_results = None
         if not self.training:
             beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
@@ -210,6 +215,10 @@ class MTEncDecModel(EncDecNLPModel):
         # eval_perplexity = self.eval_perplexity.compute()
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
+        # __TODO__ add target language so detokenizer can be lang specific.
+        detokenizer = MosesDetokenizer()
+        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
+        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
         assert len(translations) == len(ground_truths)
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
         dataset_name = "Validation" if mode == 'val' else "Test"
@@ -246,21 +255,28 @@ class MTEncDecModel(EncDecNLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        dataset = TranslationDataset(
-            tokenizer_src=self.encoder_tokenizer,
-            tokenizer_tgt=self.decoder_tokenizer,
-            dataset_src=str(Path(cfg.src_file_name).expanduser()),
-            dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
-            tokens_in_batch=cfg.tokens_in_batch,
-            clean=cfg.get("clean", False),
-            max_seq_length=cfg.get("max_seq_length", 512),
-            min_seq_length=cfg.get("min_seq_length", 1),
-            max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
-            max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
-            cache_ids=cfg.get("cache_ids", False),
-            cache_data_per_node=cfg.get("cache_data_per_node", False),
-            use_cache=cfg.get("use_cache", False),
-        )
+        if cfg.get("load_from_cached_dataset", False):
+            logging.info('Loading from cached dataset %s' % (cfg.src_file_name))
+            if cfg.src_file_name != cfg.tgt_file_name:
+                raise ValueError("src must be equal to target for cached dataset")
+            dataset = pickle.load(open(cfg.src_file_name, 'rb'))
+            dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
+        else:
+            dataset = TranslationDataset(
+                dataset_src=str(Path(cfg.src_file_name).expanduser()),
+                dataset_tgt=str(Path(cfg.tgt_file_name).expanduser()),
+                tokens_in_batch=cfg.tokens_in_batch,
+                clean=cfg.get("clean", False),
+                max_seq_length=cfg.get("max_seq_length", 512),
+                min_seq_length=cfg.get("min_seq_length", 1),
+                max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+                max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
+                cache_ids=cfg.get("cache_ids", False),
+                cache_data_per_node=cfg.get("cache_data_per_node", False),
+                use_cache=cfg.get("use_cache", False),
+                reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+            )
+            dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
         if cfg.shuffle:
             sampler = pt_data.RandomSampler(dataset)
         else:
@@ -275,7 +291,7 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
     @torch.no_grad()
-    def translate(self, text: List[str]) -> List[str]:
+    def translate(self, text: List[str], target_lang: str = 'en') -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization
@@ -286,6 +302,7 @@ class MTEncDecModel(EncDecNLPModel):
             list of translated strings
         """
         mode = self.training
+        detokenizer = MosesDetokenizer(lang=target_lang)
         try:
             self.eval()
             res = []
@@ -299,7 +316,8 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
-                res.append(self.decoder_tokenizer.ids_to_text(translation_ids))
+                translation = self.decoder_tokenizer.ids_to_text(translation_ids)
+                res.append(detokenizer.detokenize(translation.split()))
         finally:
             self.train(mode=mode)
         return res

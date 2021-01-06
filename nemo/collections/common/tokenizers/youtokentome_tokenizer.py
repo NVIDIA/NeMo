@@ -22,20 +22,21 @@ __all__ = ['YouTokenToMeTokenizer']
 
 
 class YouTokenToMeTokenizer(TokenizerSpec):
-    def __init__(self, model_path):
+    def __init__(self, model_path, bpe_dropout=0.0):
         model_path = Path(model_path).expanduser()
         self.tokenizer = yttm.BPE(model=str(model_path))
         self.vocab_size = len(self.tokenizer.vocab())
         self.special_tokens = self.tokens_to_ids(["<PAD>", "<UNK>", "<BOS>", "<EOS>"])
+        self.bpe_dropout = bpe_dropout
 
     def text_to_tokens(self, text):
-        return self.tokenizer.encode(text, output_type=yttm.OutputType.SUBWORD)
+        return self.tokenizer.encode(text, output_type=yttm.OutputType.SUBWORD, dropout_prob=self.bpe_dropout)
 
     def tokens_to_text(self, tokens):
         return self.ids_to_text(self.tokens_to_ids(tokens))
 
     def text_to_ids(self, text):
-        return self.tokenizer.encode(text, output_type=yttm.OutputType.ID)
+        return self.tokenizer.encode(text, output_type=yttm.OutputType.ID, dropout_prob=self.bpe_dropout)
 
     def ids_to_text(self, ids):
         ids_ = [id_ for id_ in ids if id_ not in self.special_tokens]

@@ -36,6 +36,9 @@ def main():
     parser.add_argument("--srctext", type=str, required=True, help="")
     parser.add_argument("--tgtout", type=str, required=True, help="")
     parser.add_argument("--batch_size", type=int, default=256, help="")
+    parser.add_argument("--beam_size", type=int, default=4, help="")
+    parser.add_argument("--len_pen", type=float, default=0.6, help="")
+    parser.add_argument("--target_lang", type=str, default="en", help="")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -69,7 +72,7 @@ def main():
             # if count % 300 == 0:
             #    print(f"Translated {count} sentences")
         if len(src_text) > 0:
-            tgt_text += model.translate(text=src_text)
+            tgt_text += model.translate(text=src_text, target_lang=args.target_lang)
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:
