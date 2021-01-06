@@ -614,7 +614,7 @@ class BeamRNNTInfer(Typing):
                         y_sequence=hyp.y_sequence[:],
                         dec_state=hyp.dec_state,
                         lm_state=hyp.lm_state,
-                        timestep=hyp.timestep[:],length=encoded_lengths
+                        timestep=hyp.timestep[:],length=i
                     )
 
                     # Add blank prediction to A
@@ -642,7 +642,7 @@ class BeamRNNTInfer(Typing):
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
                             dec_state=self.decoder.batch_select_state(beam_state, h_states_idx),
                             lm_state=hyp.lm_state,
-                            timestep=hyp.timestep[:]+[i],length=encoded_lengths
+                            timestep=hyp.timestep[:]+[i],length=i
                         )
 
                         A.append(new_hyp)

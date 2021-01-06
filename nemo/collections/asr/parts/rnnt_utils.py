@@ -58,6 +58,8 @@ class Hypothesis:
     y: List[torch.tensor] = None
     lm_state: Union[Dict[str, Any], List[Any]] = None
     lm_scores: torch.Tensor = None
+    tokens: Union[List[int], torch.Tensor] = None
+    text: str = None
 
 
 @dataclass

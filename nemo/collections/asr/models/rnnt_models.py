@@ -129,7 +129,7 @@ class EncDecRNNTModel(ASRModel):
             self._optim_variational_noise_start = 0
 
     @torch.no_grad()
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4,return_string=True) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
@@ -171,7 +171,7 @@ class EncDecRNNTModel(ASRModel):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    hypotheses += self.decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len)
+                    hypotheses += self.decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len,return_string)
                     del test_batch
         finally:
             # set mode back to its original value
