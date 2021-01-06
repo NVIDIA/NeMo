@@ -3,7 +3,6 @@ onnx>=1.8.0
 pytorch-lightning>=1.1.2
 python-dateutil
 torch>=1.7.1
-torchaudio>=0.7.0
 wget
 wrapt
 ruamel.yaml
