@@ -14,12 +14,12 @@
 
 import itertools
 import math
-import random
 import pickle
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
-from sacremoses import MosesDetokenizer
+
 import numpy as np
 import torch
 import torch.utils.data as pt_data
@@ -28,6 +28,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
+from sacremoses import MosesDetokenizer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
@@ -273,7 +274,7 @@ class MTEncDecModel(EncDecNLPModel):
                 cache_ids=cfg.get("cache_ids", False),
                 cache_data_per_node=cfg.get("cache_data_per_node", False),
                 use_cache=cfg.get("use_cache", False),
-                reverse_lang_direction=cfg.get("reverse_lang_direction", False)
+                reverse_lang_direction=cfg.get("reverse_lang_direction", False),
             )
             dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
         if cfg.shuffle:
@@ -290,7 +291,7 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
     @torch.no_grad()
-    def translate(self, text: List[str], target_lang: str='en') -> List[str]:
+    def translate(self, text: List[str], target_lang: str = 'en') -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization

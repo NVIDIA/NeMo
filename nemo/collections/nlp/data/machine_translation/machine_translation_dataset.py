@@ -57,7 +57,7 @@ class TranslationDataset(Dataset):
         cache_ids=False,
         cache_data_per_node=False,
         use_cache=False,
-        reverse_lang_direction=False
+        reverse_lang_direction=False,
     ):
         self.dataset_src = dataset_src
         self.dataset_tgt = dataset_tgt
