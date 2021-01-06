@@ -51,15 +51,6 @@ class FixedPositionalEncoding(nn.Module):
         return torch.embedding(self.pos_enc, position_ids)
 
 
-@dataclass
-class TransformerEmbeddingConfig:
-    max_sequence_length: int = 512
-    num_token_types: int = 2
-    embedding_dropout: float = 0.0
-    learn_positional_encodings: bool = False
-    _target_: str = "nemo.collections.nlp.modules.common.transformer.TransformerEmbedding"
-
-
 class TransformerEmbedding(nn.Module):
     """
     Embedding from token and position embeddings.

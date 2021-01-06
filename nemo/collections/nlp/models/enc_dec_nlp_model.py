@@ -12,8 +12,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 class EncDecNLPModelConfig:
     encoder_tokenizer: Any = MISSING
     decoder_tokenizer: Any = MISSING
-    encoder_embedding: Any = MISSING
-    decoder_embedding: Any = MISSING
     encoder: Any = MISSING
     decoder: Any = MISSING
     head: Any = MISSING
@@ -49,22 +47,6 @@ class EncDecNLPModel(NLPModel):
     @decoder_tokenizer.setter
     def decoder_tokenizer(self, tokenizer):
         self._decoder_tokenizer = tokenizer
-
-    @property
-    def encoder_embedding(self):
-        return self._encoder_embedding
-
-    @encoder_embedding.setter
-    def encoder_embedding(self, embedding):
-        self._encoder_embedding = embedding
-
-    @property
-    def decoder_embedding(self):
-        return self._decoder_embedding
-
-    @decoder_embedding.setter
-    def decoder_embedding(self, embedding):
-        self._decoder_embedding = embedding
 
     @property
     def encoder(self):

@@ -12,11 +12,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+from omegaconf.omegaconf import MISSING
+
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
+
+
+@dataclass
+class TransformerConfig:
+    vocab_size: int = MISSING
+    hidden_size: int = MISSING
+    num_layers: int = MISSING
+    inner_size: int = MISSING
+
+    # embedding
+    max_sequence_length: int = 512
+    num_token_types: int = 2
+    embedding_dropout: float = 0.0
+    learn_positional_encodings: bool = False
+
+    # transformer
+    num_attention_heads: int = 1
+    ffn_dropout: float = 0.0
+    attn_score_dropout: float = 0.0
+    attn_layer_dropout: float = 0.0
+    hidden_act: str = 'relu'
+    pre_ln: bool = False
+
+
+@dataclass
+class TransformerEncoderConfig:
+    mask_future: bool = False
+    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoderNM'
 
 
 class TransformerEncoderNM(EncoderModule):
@@ -66,6 +97,11 @@ class TransformerEncoderNM(EncoderModule):
         embeddings = self.embedding(input_ids)
         encoder_hidden_states = self.encoder(embeddings, encoder_mask)
         return encoder_hidden_states
+
+
+@dataclass
+class TransformerDecoderConfig:
+    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoderNM'
 
 
 class TransformerDecoderNM(DecoderModule):

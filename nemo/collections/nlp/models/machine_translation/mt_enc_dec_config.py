@@ -23,7 +23,6 @@ from nemo.collections.nlp.modules.common.token_classifier import TokenClassifier
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoderConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoderConfig
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbeddingConfig
 from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
 
 
@@ -68,7 +67,6 @@ class AAYNBaseConfig(ModelConfig):
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
 
-    encoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig()
     encoder: TransformerEncoderConfig = TransformerEncoderConfig(
         hidden_size=512,
         inner_size=2048,
@@ -79,7 +77,6 @@ class AAYNBaseConfig(ModelConfig):
         attn_layer_dropout=0.1,
     )
 
-    decoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig()
     decoder: TransformerDecoderConfig = TransformerDecoderConfig(
         hidden_size=512,
         inner_size=2048,

@@ -96,20 +96,6 @@ class TransformerDecoderBlock(NeuralModule):
         return output_states
 
 
-@dataclass
-class TransformerDecoderConfig:
-    hidden_size: int = MISSING
-    inner_size: int = MISSING
-    num_layers: int = MISSING
-    num_attention_heads: int = 1
-    ffn_dropout: float = 0.0
-    attn_score_dropout: float = 0.0
-    attn_layer_dropout: float = 0.0
-    hidden_act: str = 'relu'
-    pre_ln: bool = False
-    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoder'
-
-
 class TransformerDecoder(nn.Module):
     def __init__(self, num_layers: int, hidden_size: int, **kwargs):
         super().__init__()
