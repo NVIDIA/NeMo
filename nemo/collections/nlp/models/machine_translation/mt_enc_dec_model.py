@@ -53,10 +53,10 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # encoder should subclass EncoderModule
+        # TODO: remove instantiate (eventually use get_encoder function)
         self.encoder = instantiate(cfg.encoder)
 
-        # decoder should subclass DecoderModule
+        # TODO: remove isntantiate (eventually use get_decoder function)
         self.decoder = instantiate(cfg.decoder)
 
         self.log_softmax = TokenClassifier(

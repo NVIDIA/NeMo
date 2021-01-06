@@ -114,7 +114,7 @@ model:
     _target_: nemo.collections.nlp.modules.common.transformer.TransformerDecoder
 
   head:
-    hidden_size: 512
+    hidden_size: ${model.decoder.hidden_size}
     num_classes: 37000
     num_layers: 1
     activation: relu
