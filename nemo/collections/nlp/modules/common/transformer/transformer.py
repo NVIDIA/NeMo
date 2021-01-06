@@ -1,0 +1,114 @@
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
+from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
+from nemo.core.classes import NeuralModule
+
+
+class TransformerEncoderNM(NeuralModule):
+    def __init__(
+        self,
+        vocab_size: int,
+        hidden_size: int,
+        num_layers: int,
+        inner_size: int,
+        max_sequence_length: int = 512,
+        num_token_types: int = 2,
+        embedding_dropout: float = 0.0,
+        learn_positional_encodings: bool = False,
+        num_attention_heads: int = 1,
+        ffn_dropout: float = 0.0,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        hidden_act: str = 'relu',
+        mask_future: bool = False,
+        pre_ln: bool = False,
+    ):
+        super().__init__()
+
+        self.embedding = TransformerEmbedding(
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            max_sequence_length=max_sequence_length,
+            num_token_types=num_token_types,
+            embedding_dropout=embedding_dropout,
+            learn_positional_encodings=learn_positional_encodings,
+        )
+
+        self.encoder = TransformerEncoder(
+            hidden_size,
+            num_layers,
+            inner_size,
+            num_attention_heads,
+            ffn_dropout,
+            attn_score_dropout,
+            attn_layer_dropout,
+            hidden_act,
+            mask_future,
+            pre_ln,
+        )
+
+    def forward(self, input_ids, encoder_mask):
+        embeddings = self.embedding(input_ids)
+        hidden_states = self.encoder(embeddings, encoder_mask)
+        return hidden_states
+
+
+class TransformerDecoderNM(NeuralModule):
+    def __init__(
+        self,
+        vocab_size: int,
+        hidden_size: int,
+        num_layers: int,
+        inner_size: int,
+        max_sequence_length: int = 512,
+        num_token_types: int = 2,
+        embedding_dropout: float = 0.0,
+        learn_positional_encodings: bool = False,
+        num_attention_heads: int = 1,
+        ffn_dropout: float = 0.0,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        hidden_act: str = 'relu',
+        pre_ln: bool = False,
+    ):
+        super().__init__()
+
+        self.embedding = TransformerEmbedding(
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            max_sequence_length=max_sequence_length,
+            num_token_types=num_token_types,
+            embedding_dropout=embedding_dropout,
+            learn_positional_encodings=learn_positional_encodings,
+        )
+
+        self.decoder = TransformerDecoder(
+            hidden_size,
+            inner_size,
+            num_layers,
+            num_attention_heads,
+            ffn_dropout,
+            attn_score_dropout,
+            attn_layer_dropout,
+            hidden_act,
+            pre_ln,
+        )
+
+    def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
+        decoder_embeddings = self.embedding(input_ids)
+        hidden_states = self.decoder(decoder_embeddings, decoder_mask, encoder_embeddings, encoder_mask)
+        return hidden_states
