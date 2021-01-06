@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
-from nemo.core.classes import NeuralModule
 
 
-class TransformerEncoderNM(NeuralModule):
+class TransformerEncoderNM(EncoderModule):
     def __init__(
         self,
         vocab_size: int,
@@ -63,11 +64,11 @@ class TransformerEncoderNM(NeuralModule):
 
     def forward(self, input_ids, encoder_mask):
         embeddings = self.embedding(input_ids)
-        hidden_states = self.encoder(embeddings, encoder_mask)
-        return hidden_states
+        encoder_hidden_states = self.encoder(embeddings, encoder_mask)
+        return encoder_hidden_states
 
 
-class TransformerDecoderNM(NeuralModule):
+class TransformerDecoderNM(DecoderModule):
     def __init__(
         self,
         vocab_size: int,
@@ -110,5 +111,5 @@ class TransformerDecoderNM(NeuralModule):
 
     def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
         decoder_embeddings = self.embedding(input_ids)
-        hidden_states = self.decoder(decoder_embeddings, decoder_mask, encoder_embeddings, encoder_mask)
-        return hidden_states
+        decoder_hidden_states = self.decoder(decoder_embeddings, decoder_mask, encoder_embeddings, encoder_mask)
+        return decoder_hidden_states
