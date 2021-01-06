@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import editdistance
 import torch
@@ -136,7 +136,7 @@ class AbstractRNNTDecoding(ABC):
 
     def rnnt_decoder_predictions_tensor(
         self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, return_hypotheses: bool = False
-    ) -> (List[str], Optional[List[List[str]]], Optional[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]):
+    ) -> (List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]):
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
 
@@ -189,7 +189,7 @@ class AbstractRNNTDecoding(ABC):
 
     def decode_hypothesis(
         self, hypotheses_list: List[Hypothesis]
-    ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
+    ) -> List[Union[Hypothesis, NBestHypotheses]]:
         """
         Decode a list of hypotheses into a list of strings.
 
