@@ -281,7 +281,7 @@ class MelSpecDecoder(NeuralModule):
             dropatt=attn_dropout,   # TODO: Don't see this in paper
             embed_input=False,
         )
-        self.linear = nn.Linear(d_inner, d_out)
+        self.linear = nn.Linear(d_model, d_out)
 
     @property
     def input_types(self):
