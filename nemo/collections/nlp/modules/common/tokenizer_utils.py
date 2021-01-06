@@ -44,6 +44,7 @@ class TokenizerConfig:
     tokenizer_model: Optional[str] = None
     vocab_file: Optional[str] = None
     special_tokens: Optional[Dict[str, str]] = None
+    bpe_dropout: Optional[float] = 0.0
 
 
 def get_tokenizer(
