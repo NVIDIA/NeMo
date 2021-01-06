@@ -22,3 +22,9 @@ from nemo.collections.asr.modules.audio_preprocessing import (
     SpectrogramAugmentationConfig,
 )
 from nemo.collections.asr.modules.conv_asr import ConvASRDecoderConfig, ConvASREncoderConfig, JasperEncoderConfig
+from nemo.collections.asr.models.configs.quartznet_config import (
+    QuartzNetConfig,
+    QuartzNetModelConfig,
+    QuartzNet15x5,
+    QuartzNetConfigBuilder,
+)

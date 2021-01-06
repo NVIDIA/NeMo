@@ -38,6 +38,7 @@ class OptimizerParams:
     Base Optimizer params with no values. User can chose it to explicitly override via
     command line arguments
     """
+    lr: Optional[float] = None
 
 
 @dataclass
