@@ -32,13 +32,13 @@ from nemo.utils import logging
 class Encoder(NeuralModule):
     def __init__(
         self,
+        d_model=256,
         n_layers=4,
         n_attn_heads=2,
-        d_model=256,
         d_attn_head=256,
         d_inner=1024,
         kernel_size=9,
-        dropout=0.2,
+        dropout=0.1,
         attn_dropout=0.1
     ):
         """
@@ -47,14 +47,14 @@ class Encoder(NeuralModule):
         Transformer blocks (4 by default).
 
         Args:
+            d_model: Model input (embedding) dimension. Defaults to 256.
             n_layers: Number of feed-forward Transformer layers in the encoder. Defaults to 4.
             n_attn_heads: Number of attention heads for the feed-forward Transformer in the encoder.
                 Defaults to 2.
-            d_model: Model input (embedding) dimension. Defaults to 256.
             d_attn_head: Dimensionality of the attention heads. Defaults to 256.
             d_inner: Encoder hidden dimension. Defaults to 1024.
             kernel_size: Encoder Conv1d kernel size (kernel_size, 1). Defaults to 9.
-            dropout: Encoder feed-forward Transformer dropout. Defaults to 0.2.
+            dropout: Encoder feed-forward Transformer dropout. Defaults to 0.1.
             attn_dropout: Encoder attention dropout. Defaults to 0.1.
         """
         super().__init__()
@@ -241,28 +241,47 @@ class VarianceAdaptor(NeuralModule):
 
 @experimental
 class MelSpecDecoder(NeuralModule):
-    def __init__(self):
+    def __init__(
+        self,
+        d_model=256,
+        d_out=80,
+        n_layers=4,
+        n_attn_heads=2,
+        d_attn_head=256,
+        d_inner=1024,
+        kernel_size=9,
+        dropout=0.1,
+        attn_dropout=0.1
+    ):
         """
         FastSpeech 2 mel-spectrogram decoder. Converts adapted hidden sequence to a mel-spectrogram sequence.
         Consists of four feed-forward Transformer blocks.
 
         Args:
+            d_model: Input dimension. Defaults to 256.
+            d_out: Dimensionality of output. Defaults to 80.
+            n_layers: Number of feed-forward Transformer layers in the mel-spec decoder. Defaults to 4.
+            n_attn_heads: Number of attention heads for the feed-forward Transformer. Defaults to 2.
+            d_attn_head: Dimensionality of the attention heads. Defaults to 256.
+            d_inner: Mel-spec decoder hidden dimension. Defaults to 1024.
+            kernel_size: Mel-spec decoder Conv1d kernel size (kernel_size, 1). Defaults to 9.
+            dropout: Mel-spec decoder feed-forward Transformer dropout. Defaults to 0.1.
+            attn_dropout: Mel-spec decoder attention dropout. Defaults to 0.1.
         """
         super().__init__()
 
-        self.linear1 = nn.Linear(256, 384)  # Since input is 256
         self.decoder = FFTransformer(
-            n_layer=4,
-            n_head=2,
-            d_model=384,  # Some paragraphs say 256, the table in the appendix says 384
-            d_head=384,
-            d_inner=1024,
-            kernel_size=(9, 1),
-            dropout=0.2,
-            dropatt=0.1,  # ??? Not mentioned? Or am I just blind?
+            n_layer=n_layers,
+            n_head=n_attn_heads,
+            d_model=d_model,
+            d_head=d_attn_head,
+            d_inner=d_inner,
+            kernel_size=(kernel_size, 1),
+            dropout=dropout,
+            dropatt=attn_dropout,   # TODO: Don't see this in paper
             embed_input=False,
         )
-        self.linear2 = nn.Linear(384, 80)
+        self.linear = nn.Linear(d_inner, d_out)
 
     @property
     def input_types(self):
@@ -276,9 +295,8 @@ class MelSpecDecoder(NeuralModule):
 
     @typecheck()
     def forward(self, *, decoder_input, lengths):
-        decoder_input = self.linear1(decoder_input)
         decoder_out, _ = self.decoder(decoder_input, lengths)
-        mel_out = self.linear2(decoder_out)
+        mel_out = self.linear(decoder_out)
         return mel_out
 
 
@@ -307,15 +325,24 @@ class WaveformDecoder(NeuralModule):
         Consists of one transposed conv1d layer, and 30 layers of dilated residual conv blocks.
 
         Args:
-            in_channels (int): Number of input channels to the waveform decoder
-            out_channels (int)
-            gen_trans_kernel_size (int): Filter size of the upsampling transposed 1D convolution in the generator
-            gen_n_layers (int): Number of layers of dilated residual convolutional blocks in the generator
+            in_channels (int): Number of input channels to the waveform decoder. Defaults to 256.
+            gen_out_channels (int): Number of output channels of the waveform decoder generator. Defaults to 1.
+            gen_trans_kernel_size (int): Filter size of the upsampling transposed 1D convolution in the generator.
+                Defaults to 64.
+            gen_hop_size (int): Hop size for input upsampling in the waveform generator. Defaults to 256.
+            gen_n_layers (int): Number of layers of dilated residual convolutional blocks in the generator.
+                Defaults to 30.
             gen_dilation_cycle (int): The number of layers with a given dilation before moving up by a power of two.
-                `n_layers` should be divisible by `dilation_cycle`.
-            gen_dilated_kernel_size (int): Kernel size for the dilated conv1Ds in the generator
-            gen_residual_channels (int)
-            gen_skip_channels (int)
+                `gen_n_layers` should be divisible by `dilation_cycle`. Defaults to 3.
+            gen_dilated_kernel_size (int): Kernel size for the dilated conv1Ds in the generator. Defaults to 3.
+            gen_residual_channels (int): Number of residual channels in the waveform generator. Defaults to 64.
+            gen_skip_channels (int): Number of skip channels in the waveform generator. Defaults to 64.
+            dis_out_channels (int): Number of output channels for the discriminator. Defaults to 1.
+            dis_n_layers (int): Number of layers in the discriminator. Defaults to 10.
+            dis_kernel_size (int): Kernel size for the 1D convolutions in the discriminator. Defaults to 3.
+            dis_conv_channels (int): Number of conv channels for the discriminator. Defaults to 64.
+            dis_conv_stride (int): Convolution stride for the 1D convs in the discriminator. Defaults to 1.
+            dis_relu_alpha (float): Leaky ReLU alpha (or "negative slope") for the discriminator. Defaults to 0.2.
         """
         super().__init__()
 
