@@ -53,10 +53,10 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # encoder should be TransformerEncoderNM (HF and Megatron encoders are work in progress)
+        # encoder should subclass EncoderModule
         self.encoder = instantiate(cfg.encoder)
 
-        # decoder should be TransformerDecoderNM (HF and Megatron decoders are work in progress)
+        # decoder should subclass DecoderModule
         self.decoder = instantiate(cfg.decoder)
 
         self.log_softmax = TokenClassifier(
