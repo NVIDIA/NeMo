@@ -63,10 +63,10 @@ def main():
     cfg.name = "Custom QuartzNet15x5"
 
     # train ds
-    cfg.model.train_ds.manifest_filepath = "<path to train dataset>"
+    cfg.model.train_ds.manifest_filepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/train_manifest.json"
 
     # validation ds
-    cfg.model.validation_ds.manifest_filepath = "<path to test dataset>"
+    cfg.model.validation_ds.manifest_filepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/test_manifest.json"
 
     # Trainer config
     cfg.trainer.gpus = 1

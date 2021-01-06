@@ -143,8 +143,8 @@ class QuartzNetConfig(model_cfg.ModelPTConfig):
 @dataclass
 class QuartzNet15x5(QuartzNetConfig):
     # Model global arguments
-    name = 'Quartznet15x5'
-    model = QuartzNetModelConfig(
+    name: str = 'Quartznet15x5'
+    model: QuartzNetModelConfig = QuartzNetModelConfig(
         spec_augment=SpectrogramAugmentationConfig(rect_masks=5, rect_freq=50, rect_time=120),
         encoder=ConvASREncoderConfig(jasper=qn_15x5(), activation="relu"),
         decoder=ConvASRDecoderConfig()

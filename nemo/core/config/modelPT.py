@@ -32,7 +32,6 @@ class SchedConfig:
 @dataclass
 class OptimConfig:
     name: str = MISSING
-    lr: Optional[float] = MISSING
     sched: Optional[SchedConfig] = None
 
 
@@ -85,10 +84,26 @@ class ModelPTConfigBuilder:
         self.model_cfg.model.test_ds = cfg
 
     def set_optim(self, cfg: OptimConfig, sched_cfg: Optional[SchedConfig] = None):
-        if sched_cfg is not None:
-            cfg.sched = sched_cfg
+        @dataclass
+        class WrappedOptimConfig(OptimConfig, cfg.__class__):
+            pass
 
-        self.model_cfg.model.optim = cfg
+        # Setup optim
+        optim_name = cfg.__class__.__name__.replace("Params", "").lower()
+        wrapped_cfg = WrappedOptimConfig(name=optim_name, sched=None, **vars(cfg))
+
+        if sched_cfg is not None:
+            @dataclass
+            class WrappedSchedConfig(SchedConfig, sched_cfg.__class__):
+                pass
+
+            # Setup scheduler
+            sched_name = sched_cfg.__class__.__name__.replace("Params", "")
+            wrapped_sched_cfg = WrappedSchedConfig(name=sched_name, **vars(sched_cfg))
+
+            wrapped_cfg.sched = wrapped_sched_cfg
+
+        self.model_cfg.model.optim = wrapped_cfg
 
     def _finalize_cfg(self):
         raise NotImplementedError()
