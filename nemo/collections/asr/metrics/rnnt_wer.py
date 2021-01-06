@@ -135,15 +135,15 @@ class AbstractRNNTDecoding(ABC):
             )
 
     def rnnt_decoder_predictions_tensor(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor,return_string:bool=True
-    ) -> (List[str], Optional[List[List[str]]]):
+        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, return_hypotheses: bool = False
+    ) -> (List[str], Optional[List[List[str]]], Optional[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]):
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
 
         Args:
             encoder_output: torch.Tensor of shape [B, D, T].
             encoded_lengths: torch.Tensor containing lengths of the padded encoder outputs. Shape [B].
-            return_string: bool
+            return_hypotheses: bool. If set to True it will return list of Hypothesis or NBestHypotheses
 
         Returns:
             If `return_best_hypothesis` is set:
@@ -178,16 +178,18 @@ class AbstractRNNTDecoding(ABC):
                 decoded_hyps = self.decode_hypothesis(n_hyps)  # type: List[str]
                 hypotheses.append(decoded_hyps[0])  # best hypothesis
                 all_hypotheses.append(decoded_hyps)
-            if return_string:
-                return [h.text for h in hypotheses],[h.text for hh in all_hypotheses for h in hh]
-            return hypotheses, all_hypotheses
+            if return_hypotheses:
+                return hypotheses, all_hypotheses
+            return [h.text for h in hypotheses], [h.text for hh in all_hypotheses for h in hh]
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
-            if return_string:
-                return [h.text for h in hypotheses], None
-            return hypotheses, None
+            if return_hypotheses:
+                return hypotheses, None
+            return [h.text for h in hypotheses], None
 
-    def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[str]:
+    def decode_hypothesis(
+        self, hypotheses_list: List[Hypothesis]
+    ) -> List[Union[rnnt_utils.Hypothesis, rnnt_utils.NBestHypotheses]]:
         """
         Decode a list of hypotheses into a list of strings.
 

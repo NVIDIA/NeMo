@@ -37,11 +37,17 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 
 
-def pack_hypotheses(hypotheses,timesteps,logitlen):
+def pack_hypotheses(
+    hypotheses: List[List[int]], timesteps: List[List[int]], logitlen: torch.Tensor
+) -> List[rnnt_utils.Hypothesis]:
+    logitlen_cpu = logitlen.to("cpu")
     return [
-        rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0,timestep=timestep,length=l.item())
-        for sent,timestep,l in zip(hypotheses,timesteps,logitlen)
+        rnnt_utils.Hypothesis(
+            y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0, timestep=timestep, length=length
+        )
+        for sent, timestep, length in zip(hypotheses, timesteps, logitlen_cpu)
     ]
+
 
 class _GreedyRNNTInfer(Typing):
     """A greedy transducer decoder.
@@ -207,16 +213,18 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             self.joint.eval()
 
             hypotheses = []
+            timesteps = []
             # Process each sequence independently
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 for batch_idx in range(encoder_output.size(0)):
                     inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
                     logitlen = encoded_lengths[batch_idx]
-                    sentence = self._greedy_decode(inseq, logitlen)
+                    sentence, timestep = self._greedy_decode(inseq, logitlen)
                     hypotheses.append(sentence)
+                    timesteps.append(timestep)
 
             # Pack results into Hypotheses
-            packed_result = pack_hypotheses(hypotheses,timesteps,logitlen)
+            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -277,7 +285,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 # Increment token counter.
                 symbols_added += 1
 
-        return label,timesteps
+        return label, timesteps
 
 
 class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
@@ -342,13 +350,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                hypotheses,timesteps = self._greedy_decode(inseq, logitlen, device=inseq.device)
+                hypotheses, timesteps = self._greedy_decode(inseq, logitlen, device=inseq.device)
 
             # Pack the hypotheses results
-            packed_result = pack_hypotheses(hypotheses,timesteps,logitlen)
+            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen)
 
-
-            del hypotheses,timesteps
+            del hypotheses, timesteps
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -451,11 +458,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # once they have occured (normally stopping condition of sample level loop).
                         for kidx, ki in enumerate(k):
                             if blank_mask[kidx] == 0:
-                                label[kidx].append(ki.item())
+                                label[kidx].append(ki)
                                 timesteps[kidx].append(time_idx)
 
                         symbols_added += 1
-        return label,timesteps
+        return label, timesteps
 
     @torch.no_grad()
     def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
@@ -561,9 +568,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # once they have occured (normally stopping condition of sample level loop).
                     for kidx, ki in enumerate(k):
                         if blank_mask[kidx] == 0:
-                            label[kidx].append(ki.item())
+                            label[kidx].append(ki)
                             timesteps[kidx].append(time_idx)
 
                 symbols_added += 1
 
-        return label,timesteps
+        return label, timesteps
