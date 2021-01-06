@@ -135,7 +135,7 @@ class AbstractRNNTDecoding(ABC):
             )
 
     def rnnt_decoder_predictions_tensor(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
+        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor,return_string:bool=True
     ) -> (List[str], Optional[List[List[str]]]):
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
@@ -143,6 +143,7 @@ class AbstractRNNTDecoding(ABC):
         Args:
             encoder_output: torch.Tensor of shape [B, D, T].
             encoded_lengths: torch.Tensor containing lengths of the padded encoder outputs. Shape [B].
+            return_string: bool
 
         Returns:
             If `return_best_hypothesis` is set:
@@ -177,10 +178,13 @@ class AbstractRNNTDecoding(ABC):
                 decoded_hyps = self.decode_hypothesis(n_hyps)  # type: List[str]
                 hypotheses.append(decoded_hyps[0])  # best hypothesis
                 all_hypotheses.append(decoded_hyps)
-
+            if return_string:
+                return [h.text for h in hypotheses],[h.text for hh in all_hypotheses for h in hh]
             return hypotheses, all_hypotheses
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
+            if return_string:
+                return [h.text for h in hypotheses], None
             return hypotheses, None
 
     def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[str]:
@@ -193,7 +197,6 @@ class AbstractRNNTDecoding(ABC):
         Returns:
             A list of strings.
         """
-        hypotheses = []
         for ind in range(len(hypotheses_list)):
             # Extract the integer encoded hypothesis
             prediction = hypotheses_list[ind].y_sequence
@@ -207,9 +210,9 @@ class AbstractRNNTDecoding(ABC):
 
             # De-tokenize the integer tokens
             hypothesis = self.decode_tokens_to_str(prediction)
-            hypotheses.append(hypothesis)
-
-        return hypotheses
+            hypotheses_list[ind].text = hypothesis
+            hypotheses_list[ind].tokens = self.tokenizer.ids_to_tokens(prediction)
+        return hypotheses_list
 
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:

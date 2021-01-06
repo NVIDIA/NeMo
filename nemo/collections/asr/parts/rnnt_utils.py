@@ -52,6 +52,8 @@ class Hypothesis:
 
     score: float
     y_sequence: Union[List[int], torch.Tensor]
+    timestep: Union[List[int], torch.Tensor]
+    length:int
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     y: List[torch.tensor] = None
     lm_state: Union[Dict[str, Any], List[Any]] = None
