@@ -69,9 +69,9 @@ model:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     # SpecAug params
     freq_masks: 2 # set to zero to disable the SpecAug augmentation
-    time_masks: 10 # set to zero to disable the SpecAug augmentation
+    time_masks: 2 # set to zero to disable the SpecAug augmentation
     freq_width: 27
-    time_width: 0.05
+    time_width: 100
     # Cut-off params
     rect_masks: 0 # set to zero to disable the cut-off augmentation
     rect_time: 120
