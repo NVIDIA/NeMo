@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from typing import Any
 
 from omegaconf.omegaconf import MISSING
@@ -49,7 +51,7 @@ class EncDecNLPModel(NLPModel):
         self._decoder_tokenizer = tokenizer
 
     @property
-    def encoder(self):
+    def encoder(self) -> EncoderModule:
         return self._encoder
 
     @encoder.setter
@@ -57,7 +59,7 @@ class EncDecNLPModel(NLPModel):
         self._encoder = encoder
 
     @property
-    def decoder(self):
+    def decoder(self) -> DecoderModule:
         return self._decoder
 
     @decoder.setter

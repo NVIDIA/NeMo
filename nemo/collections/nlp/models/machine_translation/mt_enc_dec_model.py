@@ -83,10 +83,10 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
         # tie weights of embedding and softmax matrices
-        self.log_softmax.mlp.layer0.weight = self.decoder_embedding.token_embedding.weight
+        self.log_softmax.mlp.layer0.weight = self.decoder.embedding.token_embedding.weight
 
         # TODO: encoder and decoder with different hidden size?
-        std_init_range = 1 / cfg.encoder.hidden_size ** 0.5
+        std_init_range = 1 / self.encoder.hidden_size ** 0.5
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         self.loss_fn = SmoothedCrossEntropyLoss(

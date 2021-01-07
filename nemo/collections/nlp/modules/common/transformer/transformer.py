@@ -71,6 +71,9 @@ class TransformerEncoderNM(EncoderModule):
     ):
         super().__init__()
 
+        self.vocab_size = vocab_size
+        self.hidden_size = hidden_size
+
         self.embedding = TransformerEmbedding(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
