@@ -82,27 +82,22 @@ class TransformerEncoderNM(EncoderModule):
         )
 
         self.encoder = TransformerEncoder(
-            hidden_size,
-            num_layers,
-            inner_size,
-            num_attention_heads,
-            ffn_dropout,
-            attn_score_dropout,
-            attn_layer_dropout,
-            hidden_act,
-            mask_future,
-            pre_ln,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            inner_size=inner_size,
+            num_attention_heads=num_attention_heads,
+            ffn_dropout=ffn_dropout,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            hidden_act=hidden_act,
+            mask_future=mask_future,
+            pre_ln=pre_ln,
         )
 
     def forward(self, input_ids, encoder_mask):
         embeddings = self.embedding(input_ids)
         encoder_hidden_states = self.encoder(embeddings, encoder_mask)
         return encoder_hidden_states
-
-
-@dataclass
-class TransformerDecoderConfig(TransformerConfig):
-    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerDecoderNM'
 
 
 class TransformerDecoderNM(DecoderModule):
@@ -135,15 +130,15 @@ class TransformerDecoderNM(DecoderModule):
         )
 
         self.decoder = TransformerDecoder(
-            hidden_size,
-            inner_size,
-            num_layers,
-            num_attention_heads,
-            ffn_dropout,
-            attn_score_dropout,
-            attn_layer_dropout,
-            hidden_act,
-            pre_ln,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            inner_size=inner_size,
+            num_attention_heads=num_attention_heads,
+            ffn_dropout=ffn_dropout,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            hidden_act=hidden_act,
+            pre_ln=pre_ln,
         )
 
     def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
