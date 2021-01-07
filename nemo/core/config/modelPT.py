@@ -56,17 +56,6 @@ class HydraConfig:
 
 
 @dataclass
-class ModelPTConfig:
-    name: str = MISSING
-    model: ModelConfig = MISSING
-    trainer: config.TrainerConfig = config.TrainerConfig(
-        accelerator="ddp", checkpoint_callback=False, logger=False, log_every_n_steps=1
-    )
-    exp_manager: Optional[Any] = exp_manager.ExpManagerConfig()
-    hydra: HydraConfig = HydraConfig()
-
-
-@dataclass
 class NemoConfig:
     name: str = MISSING
     model: ModelConfig = MISSING
