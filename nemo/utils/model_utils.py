@@ -356,8 +356,8 @@ def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'ModelPTConfig'])
     Returns:
         The equivalent DictConfig
     """
-    if is_dataclass(cfg):
-        cfg = OmegaConf.structured(cfg)
+    # if is_dataclass(cfg):
+    #     cfg = OmegaConf.structured(cfg)
 
     if not isinstance(cfg, DictConfig):
         raise ValueError(f"cfg constructor argument must be of type DictConfig/dict but got {type(cfg)} instead.")
