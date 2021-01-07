@@ -15,8 +15,6 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from hydra.utils import instantiate
-
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import AAYNBaseConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.core.config import hydra_runner
@@ -24,6 +22,8 @@ from nemo.core.config.modelPT import NemoConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
+
+from pytorch_lightning import Trainer
 
 
 """
@@ -93,12 +93,12 @@ class MTEncDecConfig(NemoConfig):
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
 
 
-@hydra_runner(config_path="conf", config_name="aayn_base")
+@hydra_runner(config_path="conf", config_name="aayn_base", schema=MTEncDecConfig)
 def main(cfg: MTEncDecConfig) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'Config: {cfg.pretty()}')
 
-    trainer = instantiate(cfg.trainer)
+    trainer = Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.exp_manager)
     mt_model = MTEncDecModel(cfg.model, trainer=trainer)
 

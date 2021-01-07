@@ -87,9 +87,7 @@ class AAYNBaseConfig(ModelConfig):
         attn_layer_dropout=0.1,
     )
 
-    head: TokenClassifierConfig = TokenClassifierConfig(
-        hidden_size=decoder.hidden_size, num_classes=32768, log_softmax=True
-    )
+    head: TokenClassifierConfig = TokenClassifierConfig(log_softmax=True)
 
     # dataset configurations
     train_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
