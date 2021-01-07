@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 
-import pytorch_lightning as ptl
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 
 from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config
@@ -53,7 +53,8 @@ def main(cfg: DictConfig):
     lenet5.setup_optimization()
 
     # Create trainer.
-    trainer = ptl.Trainer(**(cfg.trainer))
+    # trainer = ptl.Trainer(**(cfg.trainer))
+    trainer = instantiate(cfg.trainer)
 
     # Train.
     trainer.fit(model=lenet5)
