@@ -55,10 +55,40 @@ class MTEncDecModel(EncDecNLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: use get_encoder function with support for HF and Megatron
-        self.encoder = TransformerEncoderNM(**cfg.encoder)
+        self.encoder = TransformerEncoderNM(
+            vocab_size=self.encoder_vocab_size,
+            hidden_size=cfg.encoder.hidden_size,
+            num_layers=cfg.encoder.num_layers,
+            inner_size=cfg.encoder.inner_size,
+            max_sequence_length=cfg.encoder.max_sequence_length,
+            embedding_dropout=cfg.encoder.embedding_dropout,
+            learn_positional_encodings=cfg.encoder.learn_positional_encodings,
+            num_attention_heads=cfg.encoder.learn_positional_encodings,
+            ffn_dropout=cfg.encoder.ffn_dropout,
+            attn_score_dropout=cfg.encoder.attn_score_dropout,
+            attn_layer_dropout=cfg.encoder.attn_layer_dropout,
+            hidden_act=cfg.encoder.hidden_act,
+            mask_future=cfg.encoder.mask_future,
+            pre_ln=cfg.encoder.pre_ln,
+        )
 
         # TODO: user get_decoder function with support for HF and Megatron
-        self.decoder = TransformerDecoderNM(**cfg.decoder)
+        self.decoder = TransformerDecoderNM(
+            vocab_size=self.decoder_vocab_size,
+            hidden_size=cfg.decoder.hidden_size,
+            num_layers=cfg.decoder.num_layers,
+            inner_size=cfg.decoder.inner_size,
+            max_sequence_length=cfg.decoder.max_sequence_length,
+            embedding_dropout=cfg.decoder.embedding_dropout,
+            learn_positional_encodings=cfg.decoder.learn_positional_encodings,
+            num_attention_heads=cfg.decoder.learn_positional_encodings,
+            ffn_dropout=cfg.decoder.ffn_dropout,
+            attn_score_dropout=cfg.decoder.attn_score_dropout,
+            attn_layer_dropout=cfg.decoder.attn_layer_dropout,
+            hidden_act=cfg.decoder.hidden_act,
+            mask_future=cfg.decoder.mask_future,
+            pre_ln=cfg.decoder.pre_ln,
+        )
 
         self.log_softmax = TokenClassifier(
             hidden_size=cfg.decoder.hidden_size,

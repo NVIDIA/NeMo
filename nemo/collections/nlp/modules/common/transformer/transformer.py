@@ -24,7 +24,6 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 
 @dataclass
 class TransformerConfig:
-    vocab_size: int = MISSING
     hidden_size: int = MISSING
     num_layers: int = MISSING
     inner_size: int = MISSING
@@ -47,7 +46,6 @@ class TransformerConfig:
 @dataclass
 class TransformerEncoderConfig(TransformerConfig):
     mask_future: bool = False
-    _target_: str = 'nemo.collections.nlp.modules.common.transformer.TransformerEncoderNM'
 
 
 class TransformerEncoderNM(EncoderModule):
