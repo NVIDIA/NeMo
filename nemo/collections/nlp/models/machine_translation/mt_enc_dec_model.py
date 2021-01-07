@@ -86,7 +86,6 @@ class MTEncDecModel(EncDecNLPModel):
             attn_score_dropout=cfg.decoder.attn_score_dropout,
             attn_layer_dropout=cfg.decoder.attn_layer_dropout,
             hidden_act=cfg.decoder.hidden_act,
-            mask_future=cfg.decoder.mask_future,
             pre_ln=cfg.decoder.pre_ln,
         )
 
