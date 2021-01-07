@@ -32,13 +32,6 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# build torchaudio (change latest release version to match pytorch)
-WORKDIR /tmp/torchaudio_build
-RUN git clone --depth 1 --branch release/0.7 https://github.com/pytorch/audio.git && \
-    cd audio && \
-    BUILD_SOX=1 python setup.py install && \
-    cd .. && rm -r audio
-
 # build RNN-T loss
 WORKDIR /workspace/deps/rnnt
 RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
@@ -71,10 +64,12 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
-RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
-
-# install quantization support
-RUN git clone https://github.com/NVIDIA/TensorRT.git && \
+RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done && \
+pip uninstall -y torchvision && \
+pip uninstall -y torchtext && \
+pip uninstall -y torch && \
+for f in $(ls requirements/*.req); do pip install --disable-pip-version-check --no-cache-dir -r $f; done && \
+git clone https://github.com/NVIDIA/TensorRT.git && \
     cd TensorRT/tools/pytorch-quantization && \
     python setup.py install && \
     cd - && \

@@ -46,7 +46,6 @@ class TestExportable:
             decoder.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert len(onnx_model.graph.node) == 3
             assert onnx_model.graph.node[0].name == 'Conv_0'
             assert onnx_model.graph.input[0].name == 'encoder_output'
             assert onnx_model.graph.output[0].name == 'logprobs'
@@ -67,11 +66,12 @@ class TestExportable:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 15) <= 2
-            assert onnx_model.graph.node[12].name.startswith('DC')
+            assert onnx_model.graph.node[-2].name.startswith('DC')
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logprobs'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_EncDecClassificationModel_export_to_onnx(self, speech_classification_model):
         model = speech_classification_model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -79,11 +79,12 @@ class TestExportable:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 24) <= 2
-            assert onnx_model.graph.node[12].name.startswith('EDC')
+            assert onnx_model.graph.node[-2].name.startswith('EDC')
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logits'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_EncDecSpeakerLabelModel_export_to_onnx(self, speaker_label_model):
         model = speaker_label_model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -91,10 +92,7 @@ class TestExportable:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 31) <= 2
-            assert onnx_model.graph.node[0].name == 'Conv_0'
-            assert onnx_model.graph.node[12].name.startswith('SL')
-            assert onnx_model.graph.node[29].name.startswith('SL')
+            assert onnx_model.graph.node[-2].name.startswith('SL')
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logits'
 

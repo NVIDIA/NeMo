@@ -1,12 +1,12 @@
 numpy>=1.18.2
-onnx>=1.8.0
-pytorch-lightning>=1.1.2
+onnx>=1.7.0
+pytorch-lightning>=1.1.0
 python-dateutil
-torch>=1.7.1
+torch
 wget
 wrapt
 ruamel.yaml
-scikit-learn>=0.24.0
+scikit-learn
 omegaconf>=2.0.5
 hydra-core>=1.0.4
 transformers>=4.0.1
