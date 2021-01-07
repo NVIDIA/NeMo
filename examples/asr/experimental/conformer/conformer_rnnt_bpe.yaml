@@ -1,8 +1,11 @@
+# default learning parameters in this config are set for effective batch size of 2k with mini-batch size of 32 per GPU
+# It needs 64 GPUs. You may reduce the batch size and tune learning parameters or use higher accumulate_grad_batches
+
 name: &name "Conformer-RNNT-BPE"
 
 model:
   sample_rate: &sample_rate 16000
-  compute_eval_loss: true
+  compute_eval_loss: false
   log_prediction: true
   load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
@@ -49,7 +52,7 @@ model:
 
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
-    type: ???  # Can be either bpe or wpe
+    type: ???  # Can be either bpe (sentencepiece tokenizer) or wpe (wordpiece tokenizer)
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -68,15 +71,10 @@ model:
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     # SpecAug params
-    freq_masks: 2 # set to zero to disable the SpecAug augmentation
-    time_masks: 2 # set to zero to disable the SpecAug augmentation
+    freq_masks: 2 # set to zero to disable it
+    time_masks: 10 # set to zero to disable it
     freq_width: 27
-    time_width: 100
-    # Cut-off params
-    rect_masks: 0 # set to zero to disable the cut-off augmentation
-    rect_time: 120
-    rect_freq: 50
-
+    time_width: 0.05
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
@@ -98,7 +96,7 @@ model:
     pos_emb_max_len: 5000
     n_heads: 4
     xscaling: true
-    untie_biases: false
+    untie_biases: true
 
     # Convolution module's params
     conv_kernel_size: 31
@@ -126,7 +124,7 @@ model:
 
     # fused mode
     experimental_fuse_loss_wer: false
-    fused_batch_size: 1
+    fused_batch_size: 16
 
     jointnet:
       joint_hidden: ${model.model_defaults.joint_hidden}
