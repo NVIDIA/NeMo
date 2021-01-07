@@ -34,22 +34,22 @@ class DecoderModule(NeuralModule):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
-    @property
-    def hidden_size(self) -> Optional[int]:
-        pass
+    # @property
+    # def hidden_size(self) -> Optional[int]:
+    #     pass
 
-    @property
-    def vocab_size(self) -> Optional[int]:
-        pass
+    # @property
+    # def vocab_size(self) -> Optional[int]:
+    #     pass
 
-    @property
-    def embedding(self) -> Optional[Any]:
-        pass
+    # @property
+    # def embedding(self) -> Optional[Any]:
+    #     pass
 
-    @property
-    def decoder(self) -> Optional[Any]:
-        pass
+    # @property
+    # def decoder(self) -> Optional[Any]:
+    #     pass
 
-    @property
-    def max_sequence_length(self) -> Optional[int]:
-        pass
+    # @property
+    # def max_sequence_length(self) -> Optional[int]:
+    #     pass

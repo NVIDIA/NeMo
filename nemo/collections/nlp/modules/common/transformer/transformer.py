@@ -120,6 +120,9 @@ class TransformerDecoderNM(DecoderModule):
     ):
         super().__init__()
 
+        self.hidden_size = hidden_size
+        self.max_sequence_length = max_sequence_length
+
         self.embedding = TransformerEmbedding(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
