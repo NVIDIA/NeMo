@@ -36,7 +36,7 @@ class TrainerConfig:
     """
 
     _target_: str = 'pytorch_lightning.Trainer'
-    logger: Any = True
+    logger: Any = False
     checkpoint_callback: Any = True
     callbacks: Optional[Any] = None
     default_root_dir: Optional[str] = None
