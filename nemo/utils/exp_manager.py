@@ -82,7 +82,7 @@ class ExpManagerConfig:
     resume_past_end: Optional[bool] = False
     resume_ignore_no_checkpoint: Optional[bool] = False
     # Logging parameters
-    create_tensorboard_logger: Optional[bool] = True
+    create_tensorboard_logger: Optional[bool] = False
     summary_writer_kwargs: Optional[Dict[Any, Any]] = None
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
