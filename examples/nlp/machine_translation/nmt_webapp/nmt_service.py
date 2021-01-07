@@ -19,7 +19,8 @@ from flask import Flask, json, request
 import nemo.collections.nlp as nemo_nlp
 from nemo.utils import logging
 
-PATH2NEMO_FILE = '/home/okuchaiev/Workspace/MTModels/DeEn/de-en-big.nemo'
+PATH2NEMO_FILE = '[PATH TO YOUR NMT MODEL .nemo FILE]'
+# PATH2NEMO_FILE = '/home/okuchaiev/Workspace/MTModels/DeEn/de-en-big.nemo'
 
 model = None
 api = Flask(__name__)

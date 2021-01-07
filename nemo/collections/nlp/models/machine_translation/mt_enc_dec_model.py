@@ -13,10 +13,8 @@
 # limitations under the License.
 
 import itertools
-import math
 import pickle
 import random
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -38,7 +36,7 @@ from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MT
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEmbedding
 from nemo.core.classes.common import typecheck
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 __all__ = ['MTEncDecModel']
 
@@ -49,7 +47,8 @@ class MTEncDecModel(EncDecNLPModel):
     """
 
     def __init__(self, cfg: MTEncDecModelConfig, trainer: Trainer = None):
-
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
         self.setup_enc_dec_tokenizers(cfg)
 
         super().__init__(cfg=cfg, trainer=trainer)
