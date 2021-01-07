@@ -142,7 +142,8 @@ class EncDecRNNTModel(ASRModel):
         But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference. \
         Bigger will result in better throughput performance but would use more memory.
-
+            return_hypotheses: (bool) Either return hypotheses or text
+        With hypotheses can do some postprocessing like getting timestamp or rescoring
         Returns:
 
             A list of transcriptions in the same order as paths2audio_files

@@ -180,16 +180,17 @@ class AbstractRNNTDecoding(ABC):
                 all_hypotheses.append(decoded_hyps)
             if return_hypotheses:
                 return hypotheses, all_hypotheses
-            return [h.text for h in hypotheses], [h.text for hh in all_hypotheses for h in hh]
+            best_hyp_text = [h.text for h in hypotheses]
+            all_hyp_text = [h.text for hh in all_hypotheses for h in hh]
+            return best_hyp_text, all_hyp_text
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
             if return_hypotheses:
                 return hypotheses, None
-            return [h.text for h in hypotheses], None
+            best_hyp_text = [h.text for h in hypotheses]
+            return best_hyp_text, None
 
-    def decode_hypothesis(
-        self, hypotheses_list: List[Hypothesis]
-    ) -> List[Union[Hypothesis, NBestHypotheses]]:
+    def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
         """
         Decode a list of hypotheses into a list of strings.
 
