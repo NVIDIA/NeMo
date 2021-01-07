@@ -26,7 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -52,14 +52,14 @@ class Hypothesis:
 
     score: float
     y_sequence: Union[List[int], torch.Tensor]
-    timestep: Union[List[int], torch.Tensor]
-    length: int
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     y: List[torch.tensor] = None
     lm_state: Union[Dict[str, Any], List[Any]] = None
     lm_scores: torch.Tensor = None
     tokens: Union[List[int], torch.Tensor] = None
     text: str = None
+    timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
+    length: int = 0
 
 
 @dataclass
