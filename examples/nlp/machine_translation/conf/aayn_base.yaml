@@ -74,14 +74,11 @@ model:
     vocab_file: null
     special_tokens: null
 
-  encoder_embedding:
+  encoder:
     max_sequence_length: 512
     num_token_types: 2
     embedding_dropout: 0.1
     learn_positional_encodings: false
-    _target_: nemo.collections.nlp.modules.common.transformer.TransformerEmbedding
-
-  encoder:
     hidden_size: 512
     num_layers: 6
     inner_size: 2048
@@ -94,14 +91,11 @@ model:
     pre_ln: false
     _target_: nemo.collections.nlp.modules.common.transformer.TransformerEncoder
 
-  decoder_embedding:
+  decoder:
     max_sequence_length: 512
     num_token_types: 2
     embedding_dropout: 0.1
     learn_positional_encodings: false
-    _target_: nemo.collections.nlp.modules.common.transformer.TransformerEmbedding
-
-  decoder:
     hidden_size: 512
     inner_size: 2048
     num_layers: 6

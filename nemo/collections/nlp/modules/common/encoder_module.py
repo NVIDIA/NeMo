@@ -18,7 +18,7 @@ from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import logging
 
-__all__ = ['BertModule']
+__all__ = ['EncoderModule']
 
 
 class EncoderModule(NeuralModule):

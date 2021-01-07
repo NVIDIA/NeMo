@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
-from nemo.utils import logging
 
-__all__ = ['BertModule']
+__all__ = ['DecoderModule']
 
 
 class DecoderModule(NeuralModule):
@@ -35,3 +34,22 @@ class DecoderModule(NeuralModule):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
+    @property
+    def hidden_size(self) -> Optional[int]:
+        pass
+
+    @property
+    def vocab_size(self) -> Optional[int]:
+        pass
+
+    @property
+    def embedding(self) -> Optional[Any]:
+        pass
+
+    @property
+    def decoder(self) -> Optional[Any]:
+        pass
+
+    @property
+    def max_sequence_length(self) -> Optional[int]:
+        pass

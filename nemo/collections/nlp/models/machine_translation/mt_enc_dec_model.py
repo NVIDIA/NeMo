@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
 import pickle
 import random
 from pathlib import Path
@@ -34,7 +35,7 @@ from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TransformerEmbedding
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
@@ -53,11 +54,11 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # TODO: remove instantiate (eventually use get_encoder function)
-        self.encoder = instantiate(cfg.encoder)
+        # TODO: use get_encoder function with support for HF and Megatron
+        self.encoder = TransformerEncoderNM(**cfg.encoder)
 
-        # TODO: remove isntantiate (eventually use get_decoder function)
-        self.decoder = instantiate(cfg.decoder)
+        # TODO: user get_decoder function with support for HF and Megatron
+        self.decoder = TransformerDecoderNM(**cfg.decoder)
 
         self.log_softmax = TokenClassifier(
             hidden_size=cfg.decoder.hidden_size,
@@ -69,10 +70,10 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
         self.beam_search = BeamSearchSequenceGenerator(
-            embedding=self.decoder_embedding,
-            decoder=self.decoder,
+            embedding=self.decoder.embedding,
+            decoder=self.decoder.decoder,
             log_softmax=self.log_softmax,
-            max_sequence_length=cfg.decoder_embedding.max_sequence_length,
+            max_sequence_length=self.decoder.max_sequence_length,
             beam_size=cfg.beam_size,
             bos=self.decoder_tokenizer.bos_id,
             pad=self.decoder_tokenizer.pad_id,
