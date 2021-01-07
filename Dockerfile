@@ -68,7 +68,9 @@ RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-chec
 pip uninstall -y torchvision && \
 pip uninstall -y torchtext && \
 pip uninstall -y torch && \
-for f in $(ls requirements/*.req); do pip install --disable-pip-version-check --no-cache-dir -r $f; done && \
+ls -al && \
+ls -al requirements && \
+pip install --disable-pip-version-check --no-cache-dir -r requirements/docker.req && \
 git clone https://github.com/NVIDIA/TensorRT.git && \
     cd TensorRT/tools/pytorch-quantization && \
     python setup.py install && \
