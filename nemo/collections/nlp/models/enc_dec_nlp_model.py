@@ -1,12 +1,12 @@
 from dataclasses import dataclass
-from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
-from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from typing import Any
 
 from omegaconf.omegaconf import MISSING
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 
 

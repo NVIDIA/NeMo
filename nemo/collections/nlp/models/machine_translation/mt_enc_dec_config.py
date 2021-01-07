@@ -21,8 +21,7 @@ from nemo.collections.nlp.data.machine_translation.machine_translation_dataset i
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
-from nemo.collections.nlp.modules.common.transformer.transformer import TransformerConfig
-from nemo.collections.nlp.modules.common.transformer.transformer import TransformerEncoderConfig
+from nemo.collections.nlp.modules.common.transformer.transformer import TransformerConfig, TransformerEncoderConfig
 from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
 
 

@@ -15,6 +15,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from pytorch_lightning import Trainer
+
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import AAYNBaseConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.core.config import hydra_runner
@@ -22,8 +24,6 @@ from nemo.core.config.modelPT import NemoConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
-
-from pytorch_lightning import Trainer
 
 
 """

@@ -13,12 +13,13 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+
 from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
+from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
 
 
