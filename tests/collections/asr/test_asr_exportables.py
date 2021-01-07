@@ -118,8 +118,8 @@ class TestExportable:
                         'dropout': 0.0,
                         'residual': False,
                         'separable': True,
-                        'se': True,
-                        'se_context_size': -1,
+                        'se': False,
+                        #'se_context_size': -1,
                     }
                 ],
             },
