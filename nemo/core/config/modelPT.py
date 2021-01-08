@@ -65,9 +65,9 @@ class NemoConfig:
     hydra: HydraConfig = HydraConfig()
 
 
-class ModelPTConfigBuilder:
+class ModelConfigBuilder:
 
-    def __init__(self, model_cfg: ModelPTConfig):
+    def __init__(self, model_cfg: ModelConfig):
         self.model_cfg = model_cfg
         self.train_ds_cfg = None
         self.validation_ds_cfg = None
@@ -75,13 +75,13 @@ class ModelPTConfigBuilder:
         self.optim_cfg = None
 
     def set_train_ds(self, cfg: Optional[DatasetConfig] = None):
-        self.model_cfg.model.train_ds = cfg
+        self.model_cfg.train_ds = cfg
 
     def set_validation_ds(self, cfg: Optional[DatasetConfig] = None):
-        self.model_cfg.model.validation_ds = cfg
+        self.model_cfg.validation_ds = cfg
 
     def set_test_ds(self, cfg: Optional[DatasetConfig] = None):
-        self.model_cfg.model.test_ds = cfg
+        self.model_cfg.test_ds = cfg
 
     def set_optim(self, cfg: OptimConfig, sched_cfg: Optional[SchedConfig] = None):
         @dataclass
@@ -103,12 +103,12 @@ class ModelPTConfigBuilder:
 
             wrapped_cfg.sched = wrapped_sched_cfg
 
-        self.model_cfg.model.optim = wrapped_cfg
+        self.model_cfg.optim = wrapped_cfg
 
     def _finalize_cfg(self):
         raise NotImplementedError()
 
-    def build(self) -> ModelPTConfig:
+    def build(self) -> ModelConfig:
         # validate config
         self._finalize_cfg()
 

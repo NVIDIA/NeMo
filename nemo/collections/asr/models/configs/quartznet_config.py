@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
 from omegaconf import MISSING
 
@@ -26,7 +26,7 @@ from nemo.core.config import modelPT as model_cfg
 from nemo.collections.asr.models.configs import ctc_models_config as ctc_cfg
 
 
-# fmt: on
+# fmt: off
 def qn_15x5():
     config = [
         JasperEncoderConfig(filters=256, repeat=1, kernel=[33], stride=[2], dilation=[1], dropout=0.0,
@@ -103,11 +103,69 @@ def qn_15x5():
                             se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)
     ]
     return config
+
+
+def jasper_10x5_dr():
+    config = [
+        JasperEncoderConfig(filters=256, repeat=1, kernel=[11], stride=[2], dilation=[1], dropout=0.2,
+                            residual=False, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=256, repeat=5, kernel=[11], stride=[1], dilation=[1], dropout=0.2,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=256, repeat=5, kernel=[11], stride=[1], dilation=[1], dropout=0.2,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=384, repeat=5, kernel=[13], stride=[1], dilation=[1], dropout=0.2,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=384, repeat=5, kernel=[13], stride=[1], dilation=[1], dropout=0.2,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=512, repeat=5, kernel=[17], stride=[1], dilation=[1], dropout=0.2,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=512, repeat=5, kernel=[17], stride=[1], dilation=[1], dropout=0.2,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=640, repeat=5, kernel=[21], stride=[1], dilation=[1], dropout=0.3,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=640, repeat=5, kernel=[21], stride=[1], dilation=[1], dropout=0.3,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=768, repeat=5, kernel=[25], stride=[1], dilation=[1], dropout=0.3,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=768, repeat=5, kernel=[25], stride=[1], dilation=[1], dropout=0.3,
+                            residual=True, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=True, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=896, repeat=1, kernel=[29], stride=[1], dilation=[2], dropout=0.4,
+                            residual=False, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=1024, repeat=1, kernel=[1], stride=[1], dilation=[1], dropout=0.4,
+                            residual=False, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)
+    ]
+    return config
 # fmt: on
 
 
 @dataclass
-class QuartzNetModelConfig(model_cfg.ModelConfig):
+class QuartzNetModelConfig(ctc_cfg.EncDecCTCConfig):
     # Model global arguments
     sample_rate: int = 16000
     repeat: int = 1
@@ -134,106 +192,109 @@ class QuartzNetModelConfig(model_cfg.ModelConfig):
     decoder: ConvASRDecoderConfig = ConvASRDecoderConfig()
 
 
-# Base QuartzNet class
 @dataclass
-class QuartzNetConfig(model_cfg.ModelPTConfig):
-    model: QuartzNetModelConfig = MISSING
+class JasperModelConfig(QuartzNetModelConfig):
+    separable: bool = False
 
 
-@dataclass
-class QuartzNet15x5(QuartzNetConfig):
-    # Model global arguments
-    name: str = 'Quartznet15x5'
-    model: QuartzNetModelConfig = QuartzNetModelConfig(
-        spec_augment=SpectrogramAugmentationConfig(rect_masks=5, rect_freq=50, rect_time=120),
-        encoder=ConvASREncoderConfig(jasper=qn_15x5(), activation="relu"),
-        decoder=ConvASRDecoderConfig()
-    )
+class EncDecCTCModelConfigBuilder(model_cfg.ModelConfigBuilder):
+    VALID_CONFIGS = ['quartznet_15x5', 'quartznet_15x5_zh', 'jasper_10x5dr']
 
-
-class QuartzNetConfigBuilder(model_cfg.ModelPTConfigBuilder):
-    VALID_CONFIGS = ['quartznet_15x5', 'quartznet_15x5_zh']
-
-    def __init__(self, name: str = 'quartznet_15x5'):
-        if name not in QuartzNetConfigBuilder.VALID_CONFIGS:
-            raise ValueError("`name` must be one of : \n"
-                             f"{QuartzNetConfigBuilder.VALID_CONFIGS}")
+    def __init__(self, name: str = 'quartznet_15x5', encoder_cfg_func: Optional[Callable[[], List[Any]]] = None):
+        if name not in EncDecCTCModelConfigBuilder.VALID_CONFIGS:
+            raise ValueError("`name` must be one of : \n" f"{EncDecCTCModelConfigBuilder.VALID_CONFIGS}")
 
         self.name = name
 
-        if '15x5' in name:
-            model_cfg = QuartzNet15x5()
-        else:
-            raise ValueError("Invalid config name")
+        if 'quartznet_15x5' in name:
+            if encoder_cfg_func is None:
+                encoder_cfg_func = qn_15x5
 
-        super(QuartzNetConfigBuilder, self).__init__(model_cfg)
-        self.model_cfg: QuartzNetConfig = model_cfg  # enable type hinting
+            model_cfg = QuartzNetModelConfig(
+                repeat=5,
+                separable=True,
+                spec_augment=SpectrogramAugmentationConfig(rect_masks=5, rect_freq=50, rect_time=120),
+                encoder=ConvASREncoderConfig(jasper=encoder_cfg_func(), activation="relu"),
+                decoder=ConvASRDecoderConfig(),
+            )
+
+        elif 'jasper_10x5' in name:
+            if encoder_cfg_func is None:
+                encoder_cfg_func = jasper_10x5_dr
+
+            model_cfg = JasperModelConfig(
+                repeat=5,
+                separable=False,
+                spec_augment=SpectrogramAugmentationConfig(rect_masks=5, rect_freq=50, rect_time=120),
+                encoder=ConvASREncoderConfig(jasper=encoder_cfg_func(), activation="relu"),
+                decoder=ConvASRDecoderConfig(),
+            )
+
+        else:
+            raise ValueError(f"Invalid config name submitted to {self.__class__.__name__}")
+
+        super(EncDecCTCModelConfigBuilder, self).__init__(model_cfg)
+        self.model_cfg: ctc_cfg.EncDecCTCConfig = model_cfg  # enable type hinting
 
     def set_labels(self, labels: List[str]):
-        self.model_cfg.model.labels = labels
+        self.model_cfg.labels = labels
 
     def set_separable(self, separable: bool):
-        self.model_cfg.model.separable = separable
+        self.model_cfg.separable = separable
 
     def set_repeat(self, repeat: int):
-        self.model_cfg.model.repeat = repeat
+        self.model_cfg.repeat = repeat
 
     def set_sample_rate(self, sample_rate: int):
-        self.model_cfg.model.sample_rate = sample_rate
+        self.model_cfg.sample_rate = sample_rate
 
     def set_dropout(self, dropout: float = 0.0):
-        self.model_cfg.model.dropout = dropout
+        self.model_cfg.dropout = dropout
 
     # Note: Autocomplete for users wont work without these overrides
     # But practically it is not needed since python will infer at runtime
 
     # def set_train_ds(self, cfg: Optional[ctc_cfg.EncDecCTCDatasetConfig] = None):
-    #     super(QuartzNetConfigBuilder, self).set_train_ds(cfg)
+    #     super().set_train_ds(cfg)
     #
     # def set_validation_ds(self, cfg: Optional[ctc_cfg.EncDecCTCDatasetConfig] = None):
-    #     super(QuartzNetConfigBuilder, self).set_validation_ds(cfg)
+    #     super().set_validation_ds(cfg)
     #
     # def set_test_ds(self, cfg: Optional[ctc_cfg.EncDecCTCDatasetConfig] = None):
-    #     super(QuartzNetConfigBuilder, self).set_test_ds(cfg)
+    #     super().set_test_ds(cfg)
 
     def _finalize_cfg(self):
-        # propagate labels 
-        self.model_cfg.model.train_ds.labels = self.model_cfg.model.labels
-        self.model_cfg.model.validation_ds.labels = self.model_cfg.model.labels
-        self.model_cfg.model.test_ds.labels = self.model_cfg.model.labels
-        self.model_cfg.model.decoder.vocabulary = self.model_cfg.model.labels
+        # propagate labels
+        self.model_cfg.train_ds.labels = self.model_cfg.labels
+        self.model_cfg.validation_ds.labels = self.model_cfg.labels
+        self.model_cfg.test_ds.labels = self.model_cfg.labels
+        self.model_cfg.decoder.vocabulary = self.model_cfg.labels
 
         # propagate num classes
-        self.model_cfg.model.decoder.num_classes = len(self.model_cfg.model.labels)
+        self.model_cfg.decoder.num_classes = len(self.model_cfg.labels)
 
         # propagate sample rate
-        self.model_cfg.model.sample_rate = self.model_cfg.model.sample_rate
-        self.model_cfg.model.preprocessor.sample_rate = self.model_cfg.model.sample_rate
-        self.model_cfg.model.train_ds.sample_rate = self.model_cfg.model.sample_rate
-        self.model_cfg.model.validation_ds.sample_rate = self.model_cfg.model.sample_rate
-        self.model_cfg.model.test_ds.sample_rate = self.model_cfg.model.sample_rate
+        self.model_cfg.sample_rate = self.model_cfg.sample_rate
+        self.model_cfg.preprocessor.sample_rate = self.model_cfg.sample_rate
+        self.model_cfg.train_ds.sample_rate = self.model_cfg.sample_rate
+        self.model_cfg.validation_ds.sample_rate = self.model_cfg.sample_rate
+        self.model_cfg.test_ds.sample_rate = self.model_cfg.sample_rate
 
         # propagate filters
-        self.model_cfg.model.encoder.feat_in = self.model_cfg.model.preprocessor.features
-        self.model_cfg.model.decoder.feat_in = self.model_cfg.model.encoder.jasper[-1].filters
+        self.model_cfg.encoder.feat_in = self.model_cfg.preprocessor.features
+        self.model_cfg.decoder.feat_in = self.model_cfg.encoder.jasper[-1].filters
 
         # propagate separable
-        for layer in self.model_cfg.model.encoder.jasper[:-1]:  # type: JasperEncoderConfig
-            layer.separable = self.model_cfg.model.separable
+        for layer in self.model_cfg.encoder.jasper[:-1]:  # type: JasperEncoderConfig
+            layer.separable = self.model_cfg.separable
 
         # propagate repeat
-        for layer in self.model_cfg.model.encoder.jasper[1:-2]:  # type: JasperEncoderConfig
-            layer.repeat = self.model_cfg.model.repeat
+        for layer in self.model_cfg.encoder.jasper[1:-2]:  # type: JasperEncoderConfig
+            layer.repeat = self.model_cfg.repeat
 
         # propagate dropout
-        for layer in self.model_cfg.model.encoder.jasper:  # type: JasperEncoderConfig
-            layer.dropout = self.model_cfg.model.dropout
+        for layer in self.model_cfg.encoder.jasper:  # type: JasperEncoderConfig
+            layer.dropout = self.model_cfg.dropout
 
-    def build(self) -> QuartzNetConfig:
-        return super(QuartzNetConfigBuilder, self).build()
-
-
-if __name__ == '__main__':
-
-    cfg = QuartzNet15x5()
-    print(cfg)
+    def build(self) -> ctc_cfg.EncDecCTCConfig:
+        return super().build()

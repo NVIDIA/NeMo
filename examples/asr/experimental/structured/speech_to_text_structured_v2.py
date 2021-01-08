@@ -17,7 +17,7 @@ from dataclasses import asdict
 import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecCTCModel, configs
-from nemo.core.config import optimizers, schedulers
+from nemo.core.config import optimizers, schedulers, modelPT
 from nemo.utils.exp_manager import exp_manager
 
 """
@@ -48,25 +48,29 @@ sched_cfg = schedulers.CosineAnnealingParams(
 
 
 def main():
-    # Generate default asr model config
-    builder = configs.QuartzNetConfigBuilder(name='quartznet_15x5')
+    # NeMo Model config
+    cfg = modelPT.ModelPTConfig(name='Custom QuartzNet')
 
-    # set global values
+    # Generate default asr model config
+    builder = configs.EncDecCTCModelConfigBuilder(name='quartznet_15x5')
+
+    # set model global values
     builder.set_repeat(5)
     builder.set_labels(LABELS)
     builder.set_optim(cfg=optim_cfg, sched_cfg=sched_cfg)
 
-    cfg = builder.build()
+    model_cfg = builder.build()
+
+    # set the model config to the NeMo Model
+    cfg.model = model_cfg
 
     # Update values
     # MODEL UPDATES
-    cfg.name = "Custom QuartzNet15x5"
-
     # train ds
-    cfg.model.train_ds.manifest_filepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/train_manifest.json"
+    model_cfg.train_ds.manifest_filepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/train_manifest.json"
 
     # validation ds
-    cfg.model.validation_ds.manifest_filepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/test_manifest.json"
+    model_cfg.validation_ds.manifest_filepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/test_manifest.json"
 
     # Trainer config
     cfg.trainer.gpus = 1

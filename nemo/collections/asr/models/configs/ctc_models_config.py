@@ -73,8 +73,8 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     # Model component configs
     preprocessor: AudioToMelSpectrogramPreprocessorConfig = AudioToMelSpectrogramPreprocessorConfig()
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
-    encoder: Any = ConvASREncoderConfig()
-    decoder: Any = ConvASRDecoderConfig()
+    encoder: ConvASREncoderConfig = ConvASREncoderConfig()
+    decoder: ConvASRDecoderConfig = ConvASRDecoderConfig()
 
 
 @dataclass
