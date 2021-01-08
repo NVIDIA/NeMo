@@ -14,6 +14,7 @@
 import io
 import math
 import os
+from collections import Counter
 from typing import Dict, List, Optional, Union
 
 import braceexpand
@@ -463,7 +464,7 @@ class _TarredAudioLabelDataset(IterableDataset):
     Supported closing braces - } <=> ), ], > and the special tag _CL_.
     For SLURM based tasks, we suggest the use of the special tags for ease of use.
 
-    See the WebDataset documentation for more information about accepted data and input formats.
+    See the documentation for more information about accepted data and input formats.
 
     If using multiple processes the number of shards should be divisible by the number of workers to ensure an
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
@@ -542,6 +543,15 @@ class _TarredAudioLabelDataset(IterableDataset):
             max_duration=max_duration,
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
         )
+
+        def count_occurence(manifest_file_id):
+            count = dict()
+            for i in manifest_file_id:
+                audio_filename = i.split("-sub")[0]
+                count[audio_filename] = count.get(audio_filename, 0) + 1
+            return count
+
+        self.file_occurence = count_occurence(self.collection.mapping)
 
         self.featurizer = featurizer
         self.trim = trim
@@ -622,29 +632,34 @@ class _TarredAudioLabelDataset(IterableDataset):
         """
 
         class TarredAudioFilter:
-            def __init__(self, collection):
+            def __init__(self, collection, file_occurence):
                 self.iterator = iterator
                 self.collection = collection
+                self.file_occurence = file_occurence
 
             def __iter__(self):
+                for i, tup in enumerate(self.iterator):
+                    audio_bytes, audio_filename = tup
+                    file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+                    if audio_filename in self.file_occurence:
+                        for j in range(0, self.file_occurence[file_id]):
+                            if j == 0:
+                                audio_filename = file_id
+                            else:
+                                audio_filename = file_id + "-sub" + str(j)
+                            yield audio_bytes, audio_filename
                 return self
 
-            def __next__(self):
-                while True:
-                    audio_bytes, audio_filename = next(self.iterator)
-                    file_id, _ = os.path.splitext(os.path.basename(audio_filename))
-                    if file_id in self.collection.mapping:
-                        return audio_bytes, audio_filename
-
-        return TarredAudioFilter(self.collection)
+        return TarredAudioFilter(self.collection, self.file_occurence)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
         """
-        audio_bytes, audio_filename = tup
 
+        audio_bytes, audio_filename = tup
         # Grab manifest entry from self.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+
         manifest_idx = self.collection.mapping[file_id]
         manifest_entry = self.collection[manifest_idx]
 
