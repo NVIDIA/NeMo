@@ -15,9 +15,9 @@
 import hashlib
 import json
 import os
-from typing import List
+from typing import Any, Dict, List
+from megatron.checkpointing import get_checkpoint_version
 
-import pytorch_lightning
 import torch
 from megatron import mpu
 from omegaconf import DictConfig, OmegaConf
@@ -33,7 +33,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 __all__ = ['NLPModel']
 
@@ -310,3 +310,8 @@ class NLPModel(ModelPT):
                 ):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
+
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        if isinstance(self.bert_model, MegatronBertEncoder):
+            checkpoint['checkpoint_version'] = get_checkpoint_version()
+        return None
