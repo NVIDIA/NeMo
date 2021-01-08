@@ -68,14 +68,13 @@ RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-chec
 pip uninstall -y torchvision && \
 pip uninstall -y torchtext && \
 pip uninstall -y torch && \
-ls -al && \
-ls -al requirements && \
-pip install --disable-pip-version-check --no-cache-dir -r requirements/docker.req && \
+pip install --disable-pip-version-check --no-cache-dir -r docker.req && \
 git clone https://github.com/NVIDIA/TensorRT.git && \
     cd TensorRT/tools/pytorch-quantization && \
     python setup.py install && \
     cd - && \
     rm -rf TensorRT
+
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
