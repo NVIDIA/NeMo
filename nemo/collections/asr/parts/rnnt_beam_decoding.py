@@ -338,7 +338,7 @@ class BeamRNNTInfer(Typing):
         dec_state = self.decoder.initialize_state(h)
 
         # Initialize first hypothesis for the beam (blank)
-        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state)]
+        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0)]
         cache = {}
 
         for i in range(int(encoded_lengths)):
@@ -374,6 +374,8 @@ class BeamRNNTInfer(Typing):
                         y_sequence=max_hyp.y_sequence[:],
                         dec_state=max_hyp.dec_state,
                         lm_state=max_hyp.lm_state,
+                        timestep=max_hyp.timestep[:],
+                        length=encoded_lengths,
                     )
 
                     # if current token is blank, dont update sequence, just store the current hypothesis
@@ -383,6 +385,7 @@ class BeamRNNTInfer(Typing):
                         # if non-blank token was predicted, update state and sequence and then search more hypothesis
                         new_hyp.dec_state = state
                         new_hyp.y_sequence.append(int(k))
+                        new_hyp.timestep.append(i)
 
                         hyps.append(new_hyp)
 
@@ -425,7 +428,15 @@ class BeamRNNTInfer(Typing):
         )  # [L, B, H], [L, B, H] (for LSTMs)
 
         # Initialize first hypothesis for the beam (blank)
-        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0))]
+        B = [
+            Hypothesis(
+                y_sequence=[self.blank],
+                score=0.0,
+                dec_state=self.decoder.batch_select_state(beam_state, 0),
+                timestep=[-1],
+                length=0,
+            )
+        ]
         cache = {}
 
         for i in range(int(encoded_lengths)):
@@ -462,6 +473,8 @@ class BeamRNNTInfer(Typing):
                                 y_sequence=hyp.y_sequence[:],
                                 dec_state=hyp.dec_state,
                                 lm_state=hyp.lm_state,
+                                timestep=hyp.timestep[:],
+                                length=encoded_lengths,
                             )
                         )
                     else:
@@ -484,6 +497,8 @@ class BeamRNNTInfer(Typing):
                                 y_sequence=(hyp.y_sequence + [int(k)]),
                                 dec_state=self.decoder.batch_select_state(beam_state, j),
                                 lm_state=hyp.lm_state,
+                                timestep=hyp.timestep[:] + [i],
+                                length=encoded_lengths,
                             )
 
                             D.append(new_hyp)
@@ -533,7 +548,15 @@ class BeamRNNTInfer(Typing):
             u_max = int(self.alsd_max_target_length)
 
         # Initialize first hypothesis for the beam (blank)
-        B = [Hypothesis(y_sequence=[self.blank], score=0.0, dec_state=self.decoder.batch_select_state(beam_state, 0))]
+        B = [
+            Hypothesis(
+                y_sequence=[self.blank],
+                score=0.0,
+                dec_state=self.decoder.batch_select_state(beam_state, 0),
+                timestep=[-1],
+                length=0,
+            )
+        ]
 
         final = []
         cache = {}
@@ -610,6 +633,8 @@ class BeamRNNTInfer(Typing):
                         y_sequence=hyp.y_sequence[:],
                         dec_state=hyp.dec_state,
                         lm_state=hyp.lm_state,
+                        timestep=hyp.timestep[:],
+                        length=i,
                     )
 
                     # Add blank prediction to A
@@ -637,6 +662,8 @@ class BeamRNNTInfer(Typing):
                             y_sequence=(hyp.y_sequence[:] + [int(k)]),
                             dec_state=self.decoder.batch_select_state(beam_state, h_states_idx),
                             lm_state=hyp.lm_state,
+                            timestep=hyp.timestep[:] + [i],
+                            length=i,
                         )
 
                         A.append(new_hyp)
