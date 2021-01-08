@@ -40,6 +40,8 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['SGDQAModel']
 
+NUM_TASKS = 6  # number of multi-head tasks
+
 
 class SGDQAModel(NLPModel):
     """Dialogue State Tracking Model SGD-QA"""
@@ -153,7 +155,7 @@ class SGDQAModel(NLPModel):
             batch_idx: batch index 
             dataloader_idx: dataloader index
         """
-        loss, tensors = self.test_step_helper(batch=batch)
+        loss, tensors = self.eval_step_helper(batch=batch)
         self.log(f'val_loss', loss)
         return {f'val_loss': loss, f'tensors': tensors}
 
@@ -165,10 +167,10 @@ class SGDQAModel(NLPModel):
             batch_idx: batch index 
             dataloader_idx: dataloader index
         """
-        loss, tensors = self.test_step_helper(batch=batch)
+        loss, tensors = self.eval_step_helper(batch=batch)
         return {f'test_loss': loss, f'tensors': tensors}
 
-    def test_step_helper(self, batch: List[torch.Tensor]):
+    def eval_step_helper(self, batch: List[torch.Tensor]):
         """
         Helper called at every validation/test step to aggregate and postprocess outputs on each GPU
         Args:
@@ -304,8 +306,6 @@ class SGDQAModel(NLPModel):
         batch_size, max_num_tokens = end_scores.size()
         # Find the span with the maximum sum of scores for start and end indices.
         total_scores = torch.unsqueeze(start_scores, axis=2) + torch.unsqueeze(end_scores, axis=1)
-        # Mask out scores where start_index > end_index.
-        # device = total_scores.get_device()
         start_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, -1, 1)
         end_idx = torch.arange(max_num_tokens, device=total_scores.get_device()).view(1, 1, -1)
         invalid_index_mask = (start_idx > end_idx).repeat(batch_size, 1, 1)
@@ -348,7 +348,7 @@ class SGDQAModel(NLPModel):
         avg_loss = torch.stack([x[f'val_loss'] for x in outputs]).mean()
         split = self._validation_names[dataloader_idx][:-1]
         dataloader = self._validation_dl[dataloader_idx]
-        metrics = self.multi_test_epoch_end_helper(outputs=outputs, split=split, dataloader=dataloader)
+        metrics = self.multi_eval_epoch_end_helper(outputs=outputs, split=split, dataloader=dataloader)
 
         for k, v in metrics.items():
             self.log(f'{split}_{k}', v)
@@ -365,14 +365,14 @@ class SGDQAModel(NLPModel):
         avg_loss = torch.stack([x[f'test_loss'] for x in outputs]).mean()
         split = self._test_names[dataloader_idx][:-1]
         dataloader = self._test_dl[dataloader_idx]
-        metrics = self.multi_test_epoch_end_helper(outputs=outputs, split=split, dataloader=dataloader)
+        metrics = self.multi_eval_epoch_end_helper(outputs=outputs, split=split, dataloader=dataloader)
 
         for k, v in metrics.items():
             self.log(f'{split}_{k}', v)
 
         self.log(f'test_loss', avg_loss, prog_bar=True)
 
-    def multi_test_epoch_end_helper(
+    def multi_eval_epoch_end_helper(
         self, outputs: List[dict], split: str, dataloader: torch.utils.data.DataLoader
     ) -> dict:
         """
@@ -514,7 +514,7 @@ class SGDQAModel(NLPModel):
             "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
             "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
             "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
-            "NUM_TASKS": self._cfg.dataset.num_tasks,
+            "NUM_TASKS": NUM_TASKS,
             "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
         }
         all_schema_json_paths = []

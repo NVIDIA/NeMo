@@ -244,7 +244,7 @@ def evaluate(
         data_dir: ground truth data location.
         eval_dataset: evaluation data split
         in_domain_services: The set of services which are present in the training set.
-        joint_acc_across_turn: Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
+        joint_acc_across_turn: Whether to compute joint goal accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
         use_fuzzy_match: Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
 
     Returns:

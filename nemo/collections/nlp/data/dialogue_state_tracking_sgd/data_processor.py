@@ -1,4 +1,5 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -355,7 +356,7 @@ class SGDDataProcessor(object):
                 schemas.get_service_id(service),
             ]
 
-            for model_task in range(6):
+            for model_task in range(self.schema_config["NUM_TASKS"]):
                 if model_task == 0:
                     for intent_id, intent in enumerate(schemas.get_service_schema(service).intents):
                         task_example = base_example.make_copy()
@@ -404,7 +405,7 @@ class SGDDataProcessor(object):
                         task_example = base_example.make_copy()
                         task_example.task_mask[model_task] = 1
 
-                        assert task_example.task_mask == [0, 0, 1, 0, 0, 0]
+                        # assert task_example.task_mask == [0, 0, 1, 0, 0, 0]
                         task_example.categorical_slot_id = slot_id
                         task_example.example_id += f"-{model_task}-{slot_id}-0"
                         task_example.example_id_num.extend([model_task, slot_id, 0])
@@ -432,7 +433,7 @@ class SGDDataProcessor(object):
                             if dataset_split != 'train' or task_example.categorical_slot_status == 1:
                                 task_example = old_example.make_copy_of_categorical_features()
                                 task_example.task_mask[3] = 1
-                                assert task_example.task_mask == [0, 0, 0, 1, 0, 0]
+                                # assert task_example.task_mask == [0, 0, 0, 1, 0, 0]
                                 task_example.categorical_slot_id = slot_id
                                 task_example.categorical_slot_value_id = value_id
                                 task_example.example_id = base_example.example_id + f"-3-{slot_id}-{value_id}"
@@ -465,7 +466,7 @@ class SGDDataProcessor(object):
                     for slot_id, slot in enumerate(schemas.get_service_schema(service).non_categorical_slots):
                         task_example = base_example.make_copy()
                         task_example.task_mask[model_task] = 1
-                        assert task_example.task_mask == [0, 0, 0, 0, 1, 0]
+                        # assert task_example.task_mask == [0, 0, 0, 0, 1, 0]
                         task_example.noncategorical_slot_id = slot_id
                         task_example.example_id += f"-{model_task}-{slot_id}-0"
                         task_example.example_id_num.extend([model_task, slot_id, 0])
@@ -511,7 +512,7 @@ class SGDDataProcessor(object):
                         if dataset_split != 'train' or task_example.noncategorical_slot_status == 1:
                             task_example = task_example.make_copy_of_non_categorical_features()
                             task_example.task_mask[5] = 1
-                            assert task_example.task_mask == [0, 0, 0, 0, 0, 1]
+                            # assert task_example.task_mask == [0, 0, 0, 0, 0, 1]
                             task_example.example_id = base_example.example_id + f"-5-{slot_id}-0"
                             task_example.example_id_num = base_example.example_id_num + [5, slot_id, 0]
                             examples.append(task_example)

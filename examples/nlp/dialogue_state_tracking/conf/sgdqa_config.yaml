@@ -14,8 +14,9 @@
 
 
 pretrained_model: null # pretrained QAModel model from list_available_models()
+do_training: true # training mode, for testing change to false
 trainer:
-  gpus: 1 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
+  gpus: 8 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
   num_nodes: 1
   max_epochs: 3
   max_steps: null # precedence over max_epochs
@@ -50,19 +51,18 @@ model:
 
   dataset:
     max_seq_length: 128 # the maximum length BERT supports is 512
-    max_num_cat_slot: 6,
-    max_num_noncat_slot: 12,
-    max_value_per_cat_slot: 12, 
-    max_num_intent: 4,
-    num_tasks: 6
-    task_name: sgd_single_domain
-    state_tracker: nemotracker
+    max_num_cat_slot: 6
+    max_num_noncat_slot: 12
+    max_value_per_cat_slot: 12
+    max_num_intent: 4
+    task_name: sgd_single_domain # or from [sgd_all, sgd_all_single, sgd_debug]
+    state_tracker: nemotracker # or baseline
     data_dir: ???
-    dialogues_example_dir: ???
-    subsample: false 
+    dialogues_example_dir: ??? # cache location to store or load preprocessed data from. To use cache, specify `use_cache`
+    subsample: false # balances negative and positive training examples for improved performance
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
     use_fuzzy_match: true # Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
-    joint_acc_across_turn: false # Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
+    joint_acc_across_turn: false # Whether to compute joint goal accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
 
   train_ds:
     ds_item: "train"

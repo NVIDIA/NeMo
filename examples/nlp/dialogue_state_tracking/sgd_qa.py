@@ -30,24 +30,21 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    do_training = True
-    if cfg.pretrained_model:
-        logging.info(f'Loading pretrained model {cfg.pretrained_model}')
-        model = SGDQAModel.from_pretrained(cfg.pretrained_model)
-        if do_training:
-            model.setup_training_data(train_data_config=cfg.model.train_ds)
-            model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)
-    elif cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path):
-        model = SGDQAModel.restore_from(cfg.model.nemo_path)
-        logging.info(f'Restoring model from {cfg.model.nemo_path}')
-        if do_training:
+    if cfg.pretrained_model or (cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path)):
+        if cfg.pretrained_model:
+            logging.info(f'Loading pretrained model {cfg.pretrained_model}')
+            model = SGDQAModel.from_pretrained(cfg.pretrained_model)
+        else:
+            logging.info(f'Restoring model from {cfg.model.nemo_path}')
+            model = SGDQAModel.restore_from(cfg.model.nemo_path)
+        if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
             model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)
     else:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         model = SGDQAModel(cfg.model, trainer=trainer)
 
-    if do_training:
+    if cfg.do_training:
         trainer.fit(model)
         if cfg.model.nemo_path:
             model.save_to(cfg.model.nemo_path)

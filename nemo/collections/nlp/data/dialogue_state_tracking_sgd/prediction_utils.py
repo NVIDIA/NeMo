@@ -34,9 +34,6 @@ from nemo.utils import logging
 REQ_SLOT_THRESHOLD = 0.5
 
 
-# MIN_SLOT_RELATION specifes the minimum number of relations between two slots in the training dialogues to get considered for carry-over
-MIN_SLOT_RELATION = 25
-
 __all__ = ['write_predictions_to_file']
 
 
@@ -58,8 +55,6 @@ def set_cat_slot(predictions_status: dict, predictions_value: dict, cat_slot_val
         elif slot_status == STATUS_ACTIVE:
             tmp = predictions_value[slot_idx]
             value_idx = max(tmp, key=lambda k: tmp[k]['cat_slot_value_status'][0].item())
-            # for debugging
-            # value_prob = max([v['cat_slot_value_status'][0].item() for k, v in predictions_value[slot_idx].items()])
             out_dict[slot] = cat_slot_values[slot][value_idx]
     return out_dict
 
@@ -88,8 +83,6 @@ def set_noncat_slot(
         if slot_status == STATUS_DONTCARE:
             out_dict[slot] = STR_DONTCARE
         elif slot_status == STATUS_ACTIVE:
-            # for debugging
-            # value_prob = predictions_value[slot_idx][0]["noncat_slot_p"]
             tok_start_idx = predictions_value[slot_idx][0]["noncat_slot_start"]
             tok_end_idx = predictions_value[slot_idx][0]["noncat_slot_end"]
             ch_start_idx = predictions_value[slot_idx][0]["noncat_alignment_start"][tok_start_idx]
@@ -121,7 +114,6 @@ def get_predicted_dialog(dialog: dict, all_predictions: dict, schemas: object, s
     all_slot_values = defaultdict(dict)
     for turn_idx, turn in enumerate(dialog["turns"]):
         if turn["speaker"] == "SYSTEM" and state_tracker == 'nemotracker':
-            # sys_slots_last = defaultdict(OrderedDict)
             for frame in turn["frames"]:
                 if frame["service"] not in sys_slots_agg:
                     sys_slots_agg[frame["service"]] = OrderedDict()
@@ -152,7 +144,6 @@ def get_predicted_dialog(dialog: dict, all_predictions: dict, schemas: object, s
                 )
                 # Add prediction for requested slots.
                 state["requested_slots"] = get_requested_slot(predictions=predictions[1], slots=service_schema.slots)
-                # state["requested_slots"] = []
 
                 # Add prediction for user goal (slot values).
                 # Categorical slots.
@@ -254,9 +245,7 @@ def write_predictions_to_file(
             for d in dialogs:
                 pred_dialog = get_predicted_dialog(d, all_predictions, schemas, state_tracker)
                 pred_dialogs.append(pred_dialog)
-            f.close()
         input_file_name = os.path.basename(input_file_path)
         output_file_path = os.path.join(output_dir, input_file_name)
         with open(output_file_path, "w") as f:
             json.dump(pred_dialogs, f, indent=2, separators=(",", ": "), sort_keys=True)
-            f.close()
