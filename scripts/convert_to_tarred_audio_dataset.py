@@ -81,7 +81,7 @@ def create_shard(entries, target_dir, new_entries, shard_id):
 
         if entry['label']:
             base, ext = os.path.splitext(squashed_filename)
-            # no suffix is single sample or starting sub parts, sub1 for the second subpart
+            # no suffix if it's single sample or starting sub parts, -sub1 for the second subpart -sub2 -sub3 ,etc.
             if squashed_filename not in count:
                 to_write = squashed_filename
                 count[squashed_filename] = 1
