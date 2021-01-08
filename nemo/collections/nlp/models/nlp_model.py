@@ -17,6 +17,7 @@ import json
 import os
 from typing import Any, Dict, List
 from megatron.checkpointing import get_checkpoint_version
+from pytorch_lightning.utilities.cloud_io import atomic_save
 
 import torch
 from megatron import mpu
@@ -25,7 +26,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
+from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
@@ -33,7 +35,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 __all__ = ['NLPModel']
 
@@ -281,6 +283,7 @@ class NLPModel(ModelPT):
                 self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
                 # Update PTL trainer to use our _clip_gradients
                 self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
+                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
@@ -314,4 +317,46 @@ class NLPModel(ModelPT):
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
+        return None
+
+
+class NLPCheckpointConnector(CheckpointConnector):
+    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM. 
+    """
+
+    def __init__(self, trainer):
+        super().__init__(trainer)
+
+    def save_checkpoint(self, filepath, weights_only: bool):
+        """Slightly modified version of PyTorch Lightning's save_checkpoint.
+
+        Args:
+            filepath ([str]): [description]
+            weights_only (bool): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            # filepath needs to be updated to include mp_rank
+            filepath = f'{filepath}/mp_rank_{app_state.model_parallel_rank:.02d}'
+
+            # dump states as a checkpoint dictionary object
+            checkpoint = self.dump_checkpoint(weights_only)
+
+            # each model parallel rank needs to save a copy of its model
+            if app_state.data_parallel_rank == 0:
+                # write the checkpoint dictionary on the file
+                if self.trainer.accelerator_backend:
+                    checkpoint = self.trainer.accelerator_backend.on_save(checkpoint)
+                try:
+                    atomic_save(checkpoint, filepath)
+                except AttributeError as err:
+                    if LightningModule.CHECKPOINT_HYPER_PARAMS_KEY in checkpoint:
+                        del checkpoint[LightningModule.CHECKPOINT_HYPER_PARAMS_KEY]
+                    rank_zero_warn(
+                        'Warning, `hyper_parameters` dropped from checkpoint.' f' An attribute is not picklable {err}'
+                    )
+                    atomic_save(checkpoint, filepath)
         return None
