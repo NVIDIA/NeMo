@@ -139,13 +139,13 @@ class AudioSegment(object):
         else:
             samples = Audio.from_file(audio_file)
             sample_rate = samples.frame_rate
-            samples = np.array(samples.get_array_of_samples())
             if offset > 0:
                 # pydub does things in milliseconds
                 seconds = offset * 1000
                 samples = samples[int(seconds * sample_rate) :]
             if duration > 0:
                 samples = samples[int(duration) :]
+            samples = np.array(samples.get_array_of_samples())
 
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 
