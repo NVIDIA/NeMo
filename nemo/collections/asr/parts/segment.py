@@ -144,7 +144,7 @@ class AudioSegment(object):
                 seconds = offset * 1000
                 samples = samples[int(seconds * sample_rate) :]
             if duration > 0:
-                samples = samples[int(duration) :]
+                samples = samples[: int(duration)]
             samples = np.array(samples.get_array_of_samples())
 
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
