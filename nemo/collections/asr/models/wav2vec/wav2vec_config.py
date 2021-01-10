@@ -19,7 +19,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List, Optional
+from typing import List
 
 
 class Wav2VecActivationType(Enum):
@@ -173,22 +173,3 @@ class Wav2VecEncoderModelConfig:
     logit_temp: float = field(default=0.1, metadata={'help': 'Temperature to divide logits by'})
     target_glu: bool = field(default=False, metadata={'help': 'Adds project and applies GLU to targets'})
     feature_grad_mult: float = field(default=0.1, metadata={'help': 'Multiply extracted feature gradients'})
-
-
-@dataclass
-class Wav2VecDecoderMaskConfig(Wav2VecMaskConfig):
-    apply_mask: bool = field(default=True, metadata={'help': 'Apply pre-training mask when training CTC'})
-    mask_channel_prob: float = field(default=0.5, metadata={'help': 'Probability to apply channel mask'})
-    mask_channel_length: int = field(default=64, metadata={'help': 'Length of channel mask'})
-
-
-@dataclass
-class Wav2VecCTCEncoderConfig:
-    mask: Wav2VecDecoderMaskConfig = Wav2VecDecoderMaskConfig()
-    final_dropout: float = field(
-        default=0.0, metadata={'help': 'Dropout probability before final classification layer'}
-    )
-    vocabulary: Optional[List] = field(default=None, metadata={'help': 'Vocabulary containing classification tokens'})
-    freeze_encoder_after_steps: Optional[int] = field(
-        default=None, metadata={'help': 'Freeze encoder after certain number of steps (default off)'}
-    )
