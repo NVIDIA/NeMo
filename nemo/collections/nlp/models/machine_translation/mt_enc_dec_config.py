@@ -39,7 +39,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
 @dataclass
 class AAYNBaseSchedConfig(SchedConfig):
     name: str = 'InverseSquareRootAnnealing'
-    warmup_ratio: float = 0.1
+    warmup_ratio: Optional[float] = None
     last_epoch: int = -1
 
 

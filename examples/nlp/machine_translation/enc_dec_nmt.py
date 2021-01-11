@@ -23,6 +23,7 @@ from nemo.core.config import hydra_runner
 from nemo.core.config.modelPT import NemoConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
+from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
 
@@ -95,6 +96,9 @@ class MTEncDecConfig(NemoConfig):
 
 @hydra_runner(config_path="conf", config_name="aayn_base")
 def main(cfg: MTEncDecConfig) -> None:
+    # # merge default config with user specified config
+    default_cfg = MTEncDecConfig()
+    cfg = update_model_config(default_cfg, cfg)
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'Config: {cfg.pretty()}')
 

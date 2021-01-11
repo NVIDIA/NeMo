@@ -7,13 +7,13 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig, get_tokenizer
 
 
 @dataclass
 class EncDecNLPModelConfig:
-    encoder_tokenizer: Any = MISSING
-    decoder_tokenizer: Any = MISSING
+    encoder_tokenizer: TokenizerConfig = MISSING
+    decoder_tokenizer: TokenizerConfig = MISSING
     encoder: Any = MISSING
     decoder: Any = MISSING
     head: Any = MISSING
@@ -74,7 +74,6 @@ class EncDecNLPModel(NLPModel):
 
         if cfg.encoder_tokenizer.tokenizer_name != 'yttm' or cfg.decoder_tokenizer.tokenizer_name != 'yttm':
             raise NotImplemented(f"Currently we only support yttm tokenizer.")
-
         self.encoder_tokenizer = get_tokenizer(
             tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
             tokenizer_model=self.register_artifact(
@@ -82,7 +81,6 @@ class EncDecNLPModel(NLPModel):
             ),
             bpe_dropout=cfg.encoder_tokenizer.bpe_dropout,
         )
-
         self.decoder_tokenizer = get_tokenizer(
             tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
             tokenizer_model=self.register_artifact(

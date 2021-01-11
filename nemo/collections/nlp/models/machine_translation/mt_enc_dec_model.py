@@ -122,9 +122,6 @@ class MTEncDecModel(EncDecNLPModel):
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
 
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
-
         # self.training_perplexity = Perplexity(dist_sync_on_step=True)
         # self.eval_perplexity = Perplexity(compute_on_step=False)
 
