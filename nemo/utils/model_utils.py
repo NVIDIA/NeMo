@@ -356,7 +356,7 @@ def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'ModelPTConfig'])
     Returns:
         The equivalent DictConfig
     """
-    if is_dataclass(cfg):
+    if not isinstance(cfg, (OmegaConf, DictConfig)) and is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
     if not isinstance(cfg, DictConfig):
