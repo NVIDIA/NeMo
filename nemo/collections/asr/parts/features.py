@@ -45,6 +45,7 @@ from torch_stft import STFT
 
 from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
+from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.utils import logging
 
 CONSTANT = 1e-5
@@ -259,7 +260,7 @@ class FilterbankFeatures(nn.Module):
             window_fn = torch_windows.get(window, None)
             window_tensor = window_fn(self.win_length, periodic=False) if window_fn else None
             self.register_buffer("window", window_tensor)
-            self.stft = lambda x: torch.stft(
+            self.stft = lambda x: stft_patch(
                 x,
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
