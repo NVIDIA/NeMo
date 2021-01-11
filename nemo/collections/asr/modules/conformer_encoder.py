@@ -18,7 +18,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-from nemo.collections.asr.parts.conformer_modules import ConformerEncoderBlock
+from nemo.collections.asr.parts.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.multi_head_attention import (
     PositionalEncoding,
     RelPositionalEncoding,
@@ -170,7 +170,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 dropout_rate=dropout,
                 max_len=pos_emb_max_len,
                 xscale=self.xscale,
-                dropout_emb_rate=dropout_emb,
+                dropout_rate_emb=dropout_emb,
             )
             # self.pos_enc2 = RelPositionalEncoding2(
             #     d_model=d_model,
@@ -191,14 +191,14 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_u = None
             pos_bias_v = None
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, reverse=False, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale
             )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
         self.layers = nn.ModuleList()
         for i in range(n_layers):
-            layer = ConformerEncoderBlock(
+            layer = ConformerLayer(
                 d_model=d_model,
                 d_ff=d_ff,
                 conv_kernel_size=conv_kernel_size,

@@ -23,10 +23,10 @@ from nemo.collections.asr.parts.multi_head_attention import (
     RelPositionMultiHeadAttention2,
 )
 
-__all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerEncoderBlock']
+__all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
 
-class ConformerEncoderBlock(torch.nn.Module):
+class ConformerLayer(torch.nn.Module):
     """A single block of the Conformer encoder.
 
     Args:
@@ -50,7 +50,7 @@ class ConformerEncoderBlock(torch.nn.Module):
         pos_bias_u,
         pos_bias_v,
     ):
-        super(ConformerEncoderBlock, self).__init__()
+        super(ConformerLayer, self).__init__()
 
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads

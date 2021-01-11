@@ -48,7 +48,7 @@ __all__ = [
 
 
 class MultiHeadAttention(nn.Module):
-    """Multi-Head Attention layer.
+    """Multi-Head Attention layer of Transformer.
     Args:
         n_head (int): number of heads
         n_feat (int): size of the features
@@ -134,7 +134,7 @@ class MultiHeadAttention(nn.Module):
 
 
 class RelPositionMultiHeadAttention(MultiHeadAttention):
-    """Multi-Head Attention layer with relative position encoding.
+    """Multi-Head Attention layer of Transformer-XL with support of relative positional encoding.
     Paper: https://arxiv.org/abs/1901.02860
     Args:
         n_head (int): number of heads
@@ -234,7 +234,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
 
 class PositionalEncoding(torch.nn.Module):
-    """Positional encoding.
+    """Fixed sinusoidal positional encoding.
     Args:
         d_model (int): embedding dim
         dropout_rate (float): dropout rate
@@ -242,32 +242,33 @@ class PositionalEncoding(torch.nn.Module):
         reverse (int): whether to reverse the input position
     """
 
-    def __init__(self, d_model, dropout_rate, max_len=5000, reverse=False, xscale=None):
+    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None):
         """Construct an PositionalEncoding object."""
         super(PositionalEncoding, self).__init__()
         self.d_model = d_model
-        self.reverse = reverse
         self.xscale = xscale
         self.dropout = torch.nn.Dropout(p=dropout_rate)
         self.pe = None
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
+        self.pos_type = "Transformer"
 
     def extend_pe(self, x):
         """Reset the positional encodings."""
-        if self.reverse:
-            needed_size = 2 * x.size(1) - 1
-        else:
+        if self.pos_type == "Transformer":
             needed_size = x.size(1)
+        elif self.pos_type == "TransformerXL":
+            needed_size = 2 * x.size(1) - 1
         if self.pe is not None:
             if self.pe.size(1) >= needed_size:
                 if self.pe.dtype != x.dtype or self.pe.device != x.device:
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
         pe = torch.zeros(needed_size, self.d_model)
-        if self.reverse:
-            position = torch.arange(-(x.size(1) - 1), x.size(1), 1.0, dtype=torch.float32).unsqueeze(1)
-        else:
+        if self.pos_type == "Transformer":
             position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
+        elif self.pos_type == "TransformerXL":
+            position = torch.arange(-(x.size(1) - 1), x.size(1), 1.0, dtype=torch.float32).unsqueeze(1)
+
         div_term = torch.exp(
             torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
         )
@@ -277,7 +278,7 @@ class PositionalEncoding(torch.nn.Module):
         self.pe = pe.to(device=x.device, dtype=x.dtype)
 
     def forward(self, x: torch.Tensor):
-        """Add positional encoding.
+        """Adds positional encoding.
         Args:
             x (torch.Tensor): Input. Its shape is (batch, time, ...)
         Returns:
@@ -291,7 +292,7 @@ class PositionalEncoding(torch.nn.Module):
 
 
 class RelPositionalEncoding(PositionalEncoding):
-    """Relative positional encoding module.
+    """Relative positional encoding module for TransformerXL's layers
     See : Appendix B in https://arxiv.org/abs/1901.02860
     Args:
         d_model (int): embedding dim
@@ -299,15 +300,16 @@ class RelPositionalEncoding(PositionalEncoding):
         max_len (int): maximum input length
     """
 
-    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_emb_rate=0.0):
-        super().__init__(d_model, dropout_rate, max_len, reverse=True, xscale=xscale)
+    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
+        super().__init__(d_model, dropout_rate, max_len, xscale=xscale)
 
-        if dropout_emb_rate > 0:
-            self.dropout_emb = nn.Dropout(dropout_emb_rate)
+        if dropout_rate_emb > 0:
+            self.dropout_emb = nn.Dropout(dropout_rate_emb)
         else:
             self.dropout_emb = None
 
         self.max_len = max_len
+        self.pos_type = "TransformerXL"
 
     def forward(self, x):
         """Compute positional encoding.

@@ -96,13 +96,11 @@ model:
     dropout_emb: 0.0 # The dropout used embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 
-
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoder
     feat_in: null
     num_classes: -1
     vocabulary: *labels
-
 
   optim:
     name: novograd
