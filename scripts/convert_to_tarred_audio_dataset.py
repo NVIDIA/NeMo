@@ -68,6 +68,7 @@ def create_shard(entries, target_dir, new_entries, shard_id):
     """
     tar = tarfile.open(os.path.join(target_dir, f'audio_{shard_id}.tar'), mode='w')
 
+    count = dict()
     for entry in entries:
         # We squash the filename since we do not preserve directory structure of audio files in the tarball.
         base, ext = os.path.splitext(entry['audio_filepath'])
@@ -75,14 +76,36 @@ def create_shard(entries, target_dir, new_entries, shard_id):
         # Need the following replacement as long as WebDataset splits on first period
         base = base.replace('.', '_')
         squashed_filename = f'{base}{ext}'
-        tar.add(entry['audio_filepath'], arcname=squashed_filename)
+        if squashed_filename not in count:
+            tar.add(entry['audio_filepath'], arcname=squashed_filename)
 
-        new_entry = {
-            'audio_filepath': squashed_filename,
-            'duration': entry['duration'],
-            'text': entry['text'],
-            'shard_id': shard_id,  # Keep shard ID for recordkeeping
-        }
+        if entry['label']:
+            base, ext = os.path.splitext(squashed_filename)
+            # no suffix if it's single sample or starting sub parts, -sub1 for the second subpart -sub2 -sub3 ,etc.
+            if squashed_filename not in count:
+                to_write = squashed_filename
+                count[squashed_filename] = 1
+            else:
+                to_write = base + "-sub" + str(count[squashed_filename]) + ext
+                count[squashed_filename] += 1
+
+            new_entry = {
+                'audio_filepath': to_write,
+                'duration': entry['duration'],
+                'text': entry['text'],
+                'label': entry['label'],
+                'offset': entry['offset'],
+                'shard_id': shard_id,  # Keep shard ID for recordkeeping
+            }
+        else:
+            count[squashed_filename] = 1
+            new_entry = {
+                'audio_filepath': squashed_filename,
+                'duration': entry['duration'],
+                'text': entry['text'],
+                'shard_id': shard_id,  # Keep shard ID for recordkeeping
+            }
+
         new_entries.append(new_entry)
 
     tar.close()
