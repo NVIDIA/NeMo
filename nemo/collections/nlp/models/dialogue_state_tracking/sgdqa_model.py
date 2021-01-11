@@ -26,9 +26,9 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-import nemo.collections.nlp.data.dialogue_state_tracking_sgd.prediction_utils as pred_utils
+import nemo.collections.nlp.data.dialogue_state_tracking.sgd.prediction_utils as pred_utils
 from nemo.collections.nlp.data import Schema, SGDDataProcessor, SGDDataset
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.evaluate import evaluate, get_in_domain_services
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.evaluate import evaluate, get_in_domain_services
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
@@ -177,7 +177,7 @@ class SGDQAModel(NLPModel):
             batch: input batch at step
         Returns:
             loss: averaged batch loss
-            tensors: collection of aggregagated output tensors across all GPU workers
+            tensors: collection of aggregated output tensors across all GPU workers
         """
         (
             example_id_num,

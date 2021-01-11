@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from nemo.collections.nlp.data.data_utils import *
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.data_processor import SGDDataProcessor
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.schema import Schema
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.sgd_dataset import SGDDataset
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.data_processor import SGDDataProcessor
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.schema import Schema
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.dataset import SGDDataset
 from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
     BertInformationRetrievalDataset,
 )

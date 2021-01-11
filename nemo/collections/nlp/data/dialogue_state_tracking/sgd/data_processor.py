@@ -27,7 +27,7 @@ from typing import Dict, List
 
 import numpy as np
 
-from nemo.collections.nlp.data.dialogue_state_tracking_sgd.input_example import InputExample
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.input_example import InputExample
 from nemo.utils import logging
 
 __all__ = ['SGDDataProcessor']

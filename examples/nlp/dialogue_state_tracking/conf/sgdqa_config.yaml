@@ -51,11 +51,11 @@ model:
 
   dataset:
     max_seq_length: 128 # the maximum length BERT supports is 512
-    max_num_cat_slot: 6
-    max_num_noncat_slot: 12
-    max_value_per_cat_slot: 12
-    max_num_intent: 4
-    task_name: sgd_single_domain # or from [sgd_all, sgd_all_single, sgd_debug]
+    max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 
+    max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset 
+    max_value_per_cat_slot: 12 # maximum number of different categorical slot values per service in dataset 
+    max_num_intent: 4 # maximum number of different intents per service in dataset 
+    task_name: sgd_single_domain # or from [sgd_all, sgd_all_single, sgd_multi_domain, debug_sample]
     state_tracker: nemotracker # or baseline
     data_dir: ???
     dialogues_example_dir: ??? # cache location to store or load preprocessed data from. To use cache, specify `use_cache`
@@ -73,7 +73,7 @@ model:
     pin_memory: false
 
   validation_ds:
-    ds_item: ["dev", "test"]
+    ds_item: ["dev"] # ["dev", "test"]
     batch_size: 8
     shuffle: false
     num_workers: 3

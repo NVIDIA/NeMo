@@ -26,7 +26,7 @@ import os
 
 import numpy as np
 
-import nemo.collections.nlp.data.dialogue_state_tracking_sgd.metrics as metrics
+import nemo.collections.nlp.data.dialogue_state_tracking.sgd.metrics as metrics
 from nemo.utils import logging
 
 __all__ = ['get_in_domain_services']
