@@ -123,8 +123,9 @@ class AudioSegment(object):
         :param duration: duration in seconds when loading audio
         :return: numpy array of samples
         """
-        ext = Path(audio_file).suffix
-        if ext == ".wav":
+        if isinstance(audio_file, (str, Path)):
+            ext = Path(audio_file).suffix
+        if not isinstance(audio_file, (str, Path)) or ext == ".wav":
             with sf.SoundFile(audio_file, 'r') as f:
                 dtype = 'int32' if int_values else 'float32'
                 sample_rate = f.samplerate
