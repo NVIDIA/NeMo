@@ -25,9 +25,11 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 
 @dataclass
 class TransformerConfig:
+    # must be configured by the user
     hidden_size: int = MISSING
     num_layers: int = MISSING
     inner_size: int = MISSING
+    num_attention_heads: int = MISSING
 
     # embedding
     max_sequence_length: int = 512
@@ -36,7 +38,6 @@ class TransformerConfig:
     learn_positional_encodings: bool = False
 
     # transformer
-    num_attention_heads: int = 1
     ffn_dropout: float = 0.0
     attn_score_dropout: float = 0.0
     attn_layer_dropout: float = 0.0
@@ -56,11 +57,11 @@ class TransformerEncoderNM(EncoderModule):
         hidden_size: int,
         num_layers: int,
         inner_size: int,
+        num_attention_heads: int,
         max_sequence_length: int = 512,
         num_token_types: int = 2,
         embedding_dropout: float = 0.0,
         learn_positional_encodings: bool = False,
-        num_attention_heads: int = 1,
         ffn_dropout: float = 0.0,
         attn_score_dropout: float = 0.0,
         attn_layer_dropout: float = 0.0,
@@ -74,8 +75,8 @@ class TransformerEncoderNM(EncoderModule):
         self.hidden_size = hidden_size
 
         self.embedding = TransformerEmbedding(
-            vocab_size=vocab_size,
-            hidden_size=hidden_size,
+            vocab_size=self.vocab_size,
+            hidden_size=self.hidden_size,
             max_sequence_length=max_sequence_length,
             num_token_types=num_token_types,
             embedding_dropout=embedding_dropout,
@@ -83,7 +84,7 @@ class TransformerEncoderNM(EncoderModule):
         )
 
         self.encoder = TransformerEncoder(
-            hidden_size=hidden_size,
+            hidden_size=self.hidden_size,
             num_layers=num_layers,
             inner_size=inner_size,
             num_attention_heads=num_attention_heads,
@@ -108,11 +109,11 @@ class TransformerDecoderNM(DecoderModule):
         hidden_size: int,
         num_layers: int,
         inner_size: int,
+        num_attention_heads: int,
         max_sequence_length: int = 512,
         num_token_types: int = 2,
         embedding_dropout: float = 0.0,
         learn_positional_encodings: bool = False,
-        num_attention_heads: int = 1,
         ffn_dropout: float = 0.0,
         attn_score_dropout: float = 0.0,
         attn_layer_dropout: float = 0.0,
@@ -125,8 +126,8 @@ class TransformerDecoderNM(DecoderModule):
         self.max_sequence_length = max_sequence_length
 
         self.embedding = TransformerEmbedding(
-            vocab_size=vocab_size,
-            hidden_size=hidden_size,
+            vocab_size=self.vocab_size,
+            hidden_size=self.hidden_size,
             max_sequence_length=max_sequence_length,
             num_token_types=num_token_types,
             embedding_dropout=embedding_dropout,
@@ -134,7 +135,7 @@ class TransformerDecoderNM(DecoderModule):
         )
 
         self.decoder = TransformerDecoder(
-            hidden_size=hidden_size,
+            hidden_size=self.hidden_size,
             num_layers=num_layers,
             inner_size=inner_size,
             num_attention_heads=num_attention_heads,
