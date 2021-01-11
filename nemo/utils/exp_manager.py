@@ -27,6 +27,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.loggers.base import DummyLogger
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
@@ -249,12 +250,19 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             "hydra.run.dir=. to your python script."
         )
     if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger):
-        raise LoggerMisconfigurationError(
-            "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
-            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
-            f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
-            " logger."
-        )
+        if isinstance(trainer.logger, DummyLogger):
+            logging.warning(
+                "Trainer was constructed with a DummyLogger. Did you run with fast_dev_run? NeMo will overwrite this "
+                "DummyLogger"
+            )
+            trainer.logger = None
+        else:
+            raise LoggerMisconfigurationError(
+                "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
+                f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
+                f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
+                " logger."
+            )
     if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
         logging.error(
             "You are running multi-node without slurm. Please note that this is not tested in NeMo and could result in "
