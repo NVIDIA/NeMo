@@ -85,7 +85,9 @@ def main():
             )
         hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
         for batch_ind in range(greedy_predictions.shape[0]):
-            reference = ''.join([labels_map[c] for c in test_batch[2][batch_ind].cpu().detach().numpy()])
+            seq_len = test_batch[3][batch_ind].cpu().detach().numpy()
+            seq_ids = test_batch[2][batch_ind].cpu().detach().numpy()
+            reference = ''.join([labels_map[c] for c in seq_ids[0:seq_len]])
             references.append(reference)
         del test_batch
     wer_value = word_error_rate(hypotheses=hypotheses, references=references)
