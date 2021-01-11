@@ -249,8 +249,8 @@ class PositionalEncoding(torch.nn.Module):
         self.xscale = xscale
         self.dropout = torch.nn.Dropout(p=dropout_rate)
         self.pe = None
-        self.extend_pe(torch.tensor(0.0).expand(1, max_len))
         self.pos_type = "Transformer"
+        self.extend_pe(torch.tensor(0.0).expand(1, max_len))
 
     def extend_pe(self, x):
         """Reset the positional encodings."""
