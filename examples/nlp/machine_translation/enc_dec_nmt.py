@@ -93,7 +93,7 @@ class MTEncDecConfig(NemoConfig):
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
 
 
-@hydra_runner(config_path="conf", config_name="aayn_base", schema=MTEncDecConfig)
+@hydra_runner(config_path="conf", config_name="aayn_base")
 def main(cfg: MTEncDecConfig) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'Config: {cfg.pretty()}')
