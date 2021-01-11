@@ -224,7 +224,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     timesteps.append(timestep)
 
             # Pack results into Hypotheses
-            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen)
+            packed_result = pack_hypotheses(hypotheses, timesteps, encoded_lengths)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
