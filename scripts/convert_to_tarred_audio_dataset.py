@@ -11,11 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+"""
 # This script converts an existing audio dataset with a manifest to
 # a tarred and sharded audio dataset that can be read by the
 # TarredAudioToTextDataLayer.
 
+# Please make sure your audio_filepath DOES NOT CONTAIN '-sub'!
+# Because we will use it to handle files which have duplicate filenames but with different offsets
+# (see function create_shard for details)
+"""
 import argparse
 import json
 import os
