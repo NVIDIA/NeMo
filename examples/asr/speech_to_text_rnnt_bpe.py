@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-
+import torch
+from nemo.utils import logging
 from nemo.collections.asr.models import EncDecRNNTBPEModel
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
@@ -75,13 +76,20 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecRNNTBPEModel(cfg=cfg.model, trainer=trainer)
 
+    # initialize the model with the weights of the checkpoint specified by 'load_weights_from_checkpoint' in the configs
+    # You may use this option to start the training from a pre-trained checkpoint
+    checkpoint_path = cfg.model.get("load_weights_from_checkpoint", None)
+    if checkpoint_path:
+        logging.info(f'Initializing the model with the checkpoint at "{checkpoint_path}"')
+        asr_model.load_state_dict(torch.load(checkpoint_path, map_location=asr_model.device)["state_dict"])
+
     trainer.fit(asr_model)
 
-    # if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-    #     gpu = 1 if cfg.trainer.gpus != 0 else 0
-    #     trainer = pl.Trainer(gpus=gpu, precision=cfg.trainer.precision)
-    #     if asr_model.prepare_test(trainer):
-    #         trainer.test(asr_model)
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        gpu = 1 if cfg.trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu, precision=cfg.trainer.precision)
+        if asr_model.prepare_test(trainer):
+            trainer.test(asr_model)
 
 
 if __name__ == '__main__':

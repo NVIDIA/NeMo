@@ -66,6 +66,7 @@ def main(cfg):
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 
     # initialize the model with the weights of the checkpoint specified by 'load_weights_from_checkpoint' in the configs
+    # You may use this option to start the training from a pre-trained checkpoint
     checkpoint_path = cfg.model.get("load_weights_from_checkpoint", None)
     if checkpoint_path:
         logging.info(f'Initializing the model with the checkpoint at "{checkpoint_path}"')
