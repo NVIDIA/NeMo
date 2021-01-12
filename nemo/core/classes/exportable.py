@@ -18,8 +18,8 @@ from enum import Enum
 from typing import Dict
 
 import onnx
-import torch
 import onnx_graphsurgeon as gs
+import torch
 
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
@@ -169,7 +169,7 @@ class Exportable(ABC):
                         onnx_model = gs.export_onnx(graph.fold_constants().cleanup())
                         onnx.checker.check_model(onnx_model, full_check=True)
                         onnx.save(onnx_model, output)
-                        
+
                     return onnx_model
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
