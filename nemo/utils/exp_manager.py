@@ -559,6 +559,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
+        if trainer.fast_dev_run:
+            return None
         # Load the best model and then re-save it
         if self.save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
