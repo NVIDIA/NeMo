@@ -22,10 +22,11 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch import nn
+
 from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecMaskType
 from nemo.core import NeuralModule
 from nemo.core.neural_types import EncodedRepresentation, LossType, NeuralType
-from torch import nn
 
 
 class GumbelVectorQuantizer(NeuralModule):

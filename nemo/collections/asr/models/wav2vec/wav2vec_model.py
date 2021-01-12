@@ -16,6 +16,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+from math import ceil
+
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
 from typing import Dict, Optional, Union
@@ -24,19 +27,17 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch import nn
-import logging
-from math import ceil
 
+from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss
 from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecEncoderModelConfig
 from nemo.collections.asr.modules.wav2vec_modules import GumbelVectorQuantizer, compute_mask_indices
+from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.asr.parts.wav2vec import ConvFeatureEncoder, GradMultiply, Wav2VecTransformerEncoder
+from nemo.core import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LossType, MaskType, NeuralType
 from nemo.core.neural_types.elements import BoolType, FloatType
-from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.core import ModelPT
 
 
 def buffered_arange(max):

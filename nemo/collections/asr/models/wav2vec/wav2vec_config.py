@@ -19,7 +19,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 class Wav2VecActivationType(Enum):
