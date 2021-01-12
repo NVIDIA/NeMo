@@ -1,58 +1,57 @@
 name: &name "Wav2vec_Pretrain"
-
+# For more details on the model parameters, see nemo/collections/asr/models/wav2vec/wav2vec_config.py
 model:
-  wav2vec:
-    loss:
-      prob_ppl_weight: 0.1
-      feature_loss_weight: 0
-    quantize:
-      quantize_targets: True
-      quantize_input: False
-      same_quantizer: False
-      latent_vars: 320
-      latent_groups: 2
-      latent_dim: 0
-      latent_temp: [2, 0.5, 0.999995]
-    conv_feature_encoder:
-      extractor_mode: default
-      conv_bias: False
-    transformer_encoder:
-      dropout: 0.1
-      conv:
-        conv_pos: 128
-        conv_pos_groups: 16
-      encoder:
-        encoder_layers: 12
-        encoder_layerdrop: 0.05
-        embedding_dim: 768
-        ffn_embedding_dim: 3072
-        num_attention_heads: 8
-        dropout: 0.1
-        activation_fn: gelu
-        layer_norm_first: False
-    mask:
-      mask_prob: 0.65
-      mask_type: static
-      mask_other: 0
-      mask_length: 10
-      no_mask_overlap: False
-      mask_min_space: 1
-      mask_channel_prob: 0
-      mask_channel_type: static
-      mask_channel_other: 0
-      mask_channel_length: 10
-      no_mask_channel_overlap: False
-      mask_channel_min_space: 1
-    dropout_input: 0.1
-    dropout_features: 0.1
-    final_dim: 0
-    n_negatives: 100
-    cross_sample_negatives: 0
-    codebook_negatives: 0
-    negatives_from_everywhere: False
-    logit_temp: 0.1
-    target_glu: False
-    feature_grad_mult: 0.1
+  transformer_encoder:
+    dropout: 0.1 # Dropout probability for the transformer
+    conv:
+      conv_pos: 128 # Number of filters for convolutional positional embeddings
+      conv_pos_groups: 16 # Number of groups for convolutional positional embeddings
+    encoder:
+      encoder_layers: 12 # Number of encoder layers in transformer model
+      encoder_layerdrop: 0.05 # Probability of dropping transformer layers
+      embedding_dim: 768 # Encoder embedding dim
+      ffn_embedding_dim: 3072 # Encoder embedding dim for feed forward
+      num_attention_heads: 8 # Number of encoder attention heads
+      dropout: 0.1 # Dropout probability for transformer encoder
+      activation_fn: gelu # Activation for transformer
+      layer_norm_first: False # Apply layer norm first within the transformer
+  loss:
+    prob_ppl_weight: 0.1 # Weight applied to quantized prob perplexity loss
+    feature_loss_weight: 0 # Weight applied to feature L2 Norm
+  quantizer:
+    quantize_targets: True # Quantize targets
+    quantize_input: False # Quantize inputs
+    same_quantizer: False # Use the same quantizer for inputs and targets (If both enabled)
+    latent_vars: 320 # Number of latent variables in each group of the codebook
+    latent_groups: 2 # Number of groups within the codebook
+    latent_dim: 0 # If greater than 0, use the dim for latest variables else inferred by final dim / latent groups
+    latent_temp: [2, 0.5, 0.999995] # Quantize temperature (start, stop, decay factor)
+  conv_feature_encoder:
+    extractor_mode: default # Mode for feature extractor. [Default, layer_norm]
+    conv_bias: False # Include bias in convolution feature extractor model
+  masking:
+    mask_prob: 0.65 # Probability of replacing token with mask
+    mask_type: static # Used to select configuration to compute mask lengths [static, uniform, normal, poisson]
+    mask_other: 0 # Secondary mask used for complex distributions (see help in compute_mask_indices)
+    mask_length: 10 # Length of mask when masking time steps
+    no_mask_overlap: False # Whether to allow masks to overlap
+    mask_min_space: 1 # Minimum space beetween spans (if no overlap is enabled)
+    mask_channel_prob: 0 # Probability of replacing a feature with 0
+    mask_channel_type: static # Used to select configuration to compute mask channel lengths [static, uniform, normal, poisson]
+    mask_channel_other: 0 # Secondary mask argument (used for more complex distributions (see help in compute_mask_indices)
+    mask_channel_length: 10 # Length of masks for features (channels)
+    no_mask_channel_overlap: False # Whether to allow channel masks to overlap
+    mask_channel_min_space: 1 # Minimum space between spans (if no overlap is enabled)
+  dropout_input: 0.1 # Dropout applied to input raw features
+  dropout_features: 0.1 # Dropout applied to the features generator by convolutions
+  final_dim: 0 # Project final representations and targets to this dimension
+  n_negatives: 100 # Number of negatives to sample from the same audio sample
+  cross_sample_negatives: 0 # Number of negatives to sample from any sample in the batch
+  codebook_negatives: 0 # Number of negative examples in codebook
+  negatives_from_everywhere: False # Sample negatives from everywhere, not just masked states
+  logit_temp: 0.1 # Temperature to divide logits by
+  target_glu: False # Adds project and applies GLU to targets
+  feature_grad_mult: 0.1 # Multiply extracted feature gradients
 
   train_ds:
     manifest_filepath: ???

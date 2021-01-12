@@ -22,12 +22,10 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-from pytorch_lightning import Trainer
-from torch import nn
-
-from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecCTCEncoderConfig, Wav2VecMaskType
+from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecMaskType
 from nemo.core import NeuralModule
-from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, LossType, NeuralType, VoidType
+from nemo.core.neural_types import EncodedRepresentation, LossType, NeuralType
+from torch import nn
 
 
 class GumbelVectorQuantizer(NeuralModule):
@@ -190,111 +188,6 @@ class GumbelVectorQuantizer(NeuralModule):
         return x, quantize_prob_ppl, cur_codebook_temp
 
 
-class TransposeLast(NeuralModule):
-    """
-    Transposes last dimension. Useful for adding to a sequential block.
-    """
-
-    def forward(self, x):
-        return x.transpose(-2, -1)
-
-    @property
-    def input_types(self):
-        return {"x": NeuralType(elements_type=VoidType())}
-
-    @property
-    def output_types(self):
-        return {"x": NeuralType(elements_type=VoidType())}
-
-
-class SamePad(NeuralModule):
-    def __init__(self, kernel_size):
-        super().__init__()
-        self.remove = kernel_size % 2 == 0
-
-    def forward(self, x):
-        if self.remove:
-            x = x[:, :, :-1]
-        return x
-
-    @property
-    def input_types(self):
-        return {"x": NeuralType(('B', 'T', 'C', 'D'), EncodedRepresentation())}
-
-    @property
-    def output_types(self):
-        return {"x": NeuralType(('B', 'T', 'C', 'D'), EncodedRepresentation())}
-
-
-class Wav2VecCTCEncoder(NeuralModule):
-    def __init__(
-        self, wav2vec_encoder: 'Wav2VecEncoderModel', cfg: Wav2VecCTCEncoderConfig, encoder_dim: int, trainer: Trainer
-    ):
-        super().__init__()
-        self.trainer = trainer
-        self.final_dropout = nn.Dropout(cfg.final_dropout)
-        # Add 1 for blank char
-        self.vocabulary = cfg.vocabulary
-        self.freeze_encoder_after_steps = cfg.freeze_encoder_after_steps
-        self._num_classes = len(self.vocabulary) + 1
-        self.apply_mask = cfg.mask.apply_mask
-        self.wav2vec_encoder = wav2vec_encoder
-
-        if self.apply_mask:
-            # Override encoder mask cfg with ctc encoder mask cfg
-            self.wav2vec_encoder.mask_cfg = cfg.mask
-        self.wav2vec_encoder.remove_pretraining_modules()
-
-        self.proj = self.linear(encoder_dim, self._num_classes)
-
-    def linear(self, in_features, out_features, bias=True):
-        m = nn.Linear(in_features, out_features, bias)
-        nn.init.xavier_uniform_(m.weight)
-        if bias:
-            nn.init.constant_(m.bias, 0.0)
-        return m
-
-    def forward(self, audio_signal, audio_lengths):
-        freeze_encoder_at_step = (
-            self.freeze_encoder_after_steps is not None and self.freeze_encoder_after_steps <= self.trainer.global_step
-        )
-
-        if freeze_encoder_at_step:
-            with torch.no_grad():
-                x, padding_mask = self.wav2vec_encoder.extract_features(
-                    source=audio_signal, audio_lengths=audio_lengths, mask=self.apply_mask and self.training
-                )
-        else:
-            x, padding_mask = self.wav2vec_encoder.extract_features(
-                source=audio_signal, audio_lengths=audio_lengths, mask=self.apply_mask and self.training
-            )
-
-        x = self.final_dropout(x)
-        x = self.proj(x)
-
-        non_padding_mask = ~padding_mask
-        output_lengths = non_padding_mask.long().sum(-1)
-        return x, output_lengths
-
-    @property
-    def num_classes_with_blank(self):
-        return self._num_classes
-
-    @property
-    def input_types(self):
-        return {
-            "audio_signal": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_lengths": NeuralType(tuple("B"), LengthsType()),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "x": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "output_lengths": NeuralType(tuple("B"), LengthsType()),
-        }
-
-
 def compute_mask_indices(
     shape: Tuple[int, int],
     padding_mask: Optional[torch.Tensor],
@@ -410,29 +303,3 @@ def compute_mask_indices(
         mask[i, mask_idc] = True
 
     return mask
-
-
-def init_bert_params(module):
-    """
-    Initialize the weights specific to the BERT Model.
-    This overrides the default initializations depending on the specified arguments.
-        1. If normal_init_linear_weights is set then weights of linear
-           layer will be initialized using the normal distribution and
-           bias will be set to the specified value.
-        2. If normal_init_embed_weights is set then weights of embedding
-           layer will be initialized using the normal distribution.
-        3. If normal_init_proj_weights is set then weights of
-           in_project_weight for MultiHeadAttention initialized using
-           the normal distribution (to be validated).
-    """
-
-    if isinstance(module, nn.Linear):
-        module.weight.data.normal_(mean=0.0, std=0.02)
-        if module.bias is not None:
-            module.bias.data.zero_()
-    if isinstance(module, nn.Embedding):
-        module.weight.data.normal_(mean=0.0, std=0.02)
-        if module.padding_idx is not None:
-            module.weight.data[module.padding_idx].zero_()
-    if isinstance(module, nn.TransformerEncoderLayer):
-        module.self_attn.in_proj_weight.data.normal_(mean=0.0, std=0.02)

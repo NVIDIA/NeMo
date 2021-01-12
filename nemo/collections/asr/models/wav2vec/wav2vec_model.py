@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -45,20 +45,11 @@ def buffered_arange(max):
     return buffered_arange.buf[:max]
 
 
-@dataclass
-class Wav2VecPretrainConfig:
-    wav2vec: Wav2VecEncoderModelConfig = Wav2VecEncoderModelConfig()
-    train_ds: Optional[Dict[Any, Any]] = None
-    validation_ds: Optional[Dict[Any, Any]] = None
-    test_ds: Optional[Dict[Any, Any]] = None
-    optim: Optional[Dict[Any, Any]] = None
-
-
 class Wav2VecEncoderModel(Wav2VecBase):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
 
-        schema = OmegaConf.structured(Wav2VecPretrainConfig)
+        schema = OmegaConf.structured(Wav2VecEncoderModelConfig)
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         elif not isinstance(cfg, DictConfig):
@@ -66,48 +57,47 @@ class Wav2VecEncoderModel(Wav2VecBase):
 
         cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
         cfg = OmegaConf.merge(schema, cfg)
-        wav2vec_cfg: Wav2VecEncoderModelConfig = cfg.wav2vec
 
-        feature_enc_layers = wav2vec_cfg.conv_feature_encoder.conv_feature_layers
+        feature_enc_layers = cfg.conv_feature_encoder.conv_feature_layers
         self.embed = feature_enc_layers[-1][0]  # Select last conv output layer dimension
 
         self.feature_extractor = ConvFeatureEncoder(
             conv_layers=feature_enc_layers,
-            mode=wav2vec_cfg.conv_feature_encoder.extractor_mode,
-            conv_bias=wav2vec_cfg.conv_feature_encoder.conv_bias,
+            mode=cfg.conv_feature_encoder.extractor_mode,
+            conv_bias=cfg.conv_feature_encoder.conv_bias,
         )
 
-        encoder_embed_dim = wav2vec_cfg.transformer_encoder.encoder.embedding_dim
+        encoder_embed_dim = cfg.transformer_encoder.encoder.embedding_dim
         self.post_extract_proj = (
             nn.Linear(self.embed, encoder_embed_dim)
-            if self.embed != encoder_embed_dim and not wav2vec_cfg.quantize.quantize_input
+            if self.embed != encoder_embed_dim and not cfg.quantizer.quantize_input
             else None
         )
 
-        self.mask_cfg = wav2vec_cfg.mask
+        self.mask_cfg = cfg.masking
 
-        self.dropout_input = nn.Dropout(wav2vec_cfg.dropout_input)
-        self.dropout_features = nn.Dropout(wav2vec_cfg.dropout_features)
+        self.dropout_input = nn.Dropout(cfg.dropout_input)
+        self.dropout_features = nn.Dropout(cfg.dropout_features)
 
-        self.feature_grad_mult = wav2vec_cfg.feature_grad_mult
+        self.feature_grad_mult = cfg.feature_grad_mult
 
         self.quantizer = None
         self.input_quantizer = None
 
-        self.n_negatives = wav2vec_cfg.n_negatives
-        self.cross_sample_negatives = wav2vec_cfg.cross_sample_negatives
-        self.codebook_negatives = wav2vec_cfg.codebook_negatives
-        self.negatives_from_everywhere = wav2vec_cfg.negatives_from_everywhere
+        self.n_negatives = cfg.n_negatives
+        self.cross_sample_negatives = cfg.cross_sample_negatives
+        self.codebook_negatives = cfg.codebook_negatives
+        self.negatives_from_everywhere = cfg.negatives_from_everywhere
 
-        final_dim = wav2vec_cfg.final_dim if wav2vec_cfg.final_dim > 0 else encoder_embed_dim
+        final_dim = cfg.final_dim if cfg.final_dim > 0 else encoder_embed_dim
         self.final_dim = final_dim
-        if wav2vec_cfg.quantize.quantize_targets:
-            vq_dim = wav2vec_cfg.quantize.latent_dim if wav2vec_cfg.quantize.latent_dim > 0 else final_dim
+        if cfg.quantizer.quantize_targets:
+            vq_dim = cfg.quantizer.latent_dim if cfg.quantizer.latent_dim > 0 else final_dim
             self.quantizer = GumbelVectorQuantizer(
                 dim=self.embed,
-                num_vars=wav2vec_cfg.quantize.latent_vars,
-                temp=wav2vec_cfg.quantize.latent_temp,
-                groups=wav2vec_cfg.quantize.latent_groups,
+                num_vars=cfg.quantizer.latent_vars,
+                temp=cfg.quantizer.latent_temp,
+                groups=cfg.quantizer.latent_groups,
                 combine_groups=False,
                 vq_dim=vq_dim,
                 time_first=True,
@@ -116,17 +106,17 @@ class Wav2VecEncoderModel(Wav2VecBase):
         else:
             self.project_q = nn.Linear(self.embed, final_dim)
 
-        if wav2vec_cfg.quantize.quantize_input:
-            if wav2vec_cfg.quantize.same_quantizer and self.quantizer is not None:
+        if cfg.quantizer.quantize_input:
+            if cfg.quantizer.same_quantizer and self.quantizer is not None:
                 vq_dim = final_dim
                 self.input_quantizer = self.quantizer
             else:
-                vq_dim = wav2vec_cfg.quantize.latent_dim if wav2vec_cfg.quantize.latent_dim > 0 else encoder_embed_dim
+                vq_dim = cfg.quantizer.latent_dim if cfg.quantizer.latent_dim > 0 else encoder_embed_dim
                 self.input_quantizer = GumbelVectorQuantizer(
                     dim=self.embed,
-                    num_vars=wav2vec_cfg.quantize.latent_vars,
-                    temp=wav2vec_cfg.quantize.latent_temp,
-                    groups=wav2vec_cfg.quantize.latent_groups,
+                    num_vars=cfg.quantizer.latent_vars,
+                    temp=cfg.quantizer.latent_temp,
+                    groups=cfg.quantizer.latent_groups,
                     combine_groups=False,
                     vq_dim=vq_dim,
                     time_first=True,
@@ -135,18 +125,18 @@ class Wav2VecEncoderModel(Wav2VecBase):
 
         self.mask_emb = nn.Parameter(torch.FloatTensor(encoder_embed_dim).uniform_())
 
-        self.encoder = Wav2VecTransformerEncoder(wav2vec_cfg.transformer_encoder)
+        self.encoder = Wav2VecTransformerEncoder(cfg.transformer_encoder)
         self.layer_norm = nn.LayerNorm(self.embed)
 
         self.target_glu = None
-        if wav2vec_cfg.target_glu:
+        if cfg.target_glu:
             self.target_glu = nn.Sequential(nn.Linear(final_dim, final_dim * 2), nn.GLU())
 
         self.final_proj = nn.Linear(encoder_embed_dim, final_dim)
         self.loss = Wav2VecLoss(
-            feature_loss_weight=wav2vec_cfg.loss.feature_loss_weight,
-            prob_ppl_weight=wav2vec_cfg.loss.prob_ppl_weight,
-            logit_temp=wav2vec_cfg.logit_temp,
+            feature_loss_weight=cfg.loss.feature_loss_weight,
+            prob_ppl_weight=cfg.loss.prob_ppl_weight,
+            logit_temp=cfg.logit_temp,
         )
 
     def training_step(self, batch, batch_idx):

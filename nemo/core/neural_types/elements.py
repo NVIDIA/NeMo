@@ -273,7 +273,7 @@ class IntType(ElementType):
 
 
 class FloatType(ElementType):
-    """Element type representing a single integer"""
+    """Element type representing a single float"""
 
 
 class TokenIndex(IntType):

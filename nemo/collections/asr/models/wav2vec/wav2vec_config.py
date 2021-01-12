@@ -19,7 +19,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List
+from typing import List, Optional, Dict, Any
 
 
 class Wav2VecActivationType(Enum):
@@ -82,7 +82,7 @@ class Wav2VecTransformerConfig:
 
 
 @dataclass
-class QuantizeConfig:
+class QuantizerConfig:
     quantize_targets: bool = field(default=True, metadata={'help': 'Use quantized targets'})
     quantize_input: bool = field(default=False, metadata={'help': 'Use quantized inputs'})
     same_quantizer: bool = field(default=False, metadata={'help': 'Use the same quantizer for inputs and targets'})
@@ -118,7 +118,7 @@ class LossConfig:
 
 
 @dataclass
-class Wav2VecMaskConfig:
+class Wav2VecMaskingConfig:
     mask_prob: float = field(default=0.65, metadata={'help': 'Probability of replacing token with mask'})
     mask_type: Wav2VecMaskType = field(default=Wav2VecMaskType.static,)
     mask_other: int = field(
@@ -150,10 +150,10 @@ class Wav2VecMaskConfig:
 @dataclass
 class Wav2VecEncoderModelConfig:
     loss: LossConfig = LossConfig()
-    quantize: QuantizeConfig = QuantizeConfig()
+    quantizer: QuantizerConfig = QuantizerConfig()
     conv_feature_encoder: ConvFeatureEncoderConfig = ConvFeatureEncoderConfig()
     transformer_encoder: Wav2VecTransformerConfig = Wav2VecTransformerConfig()
-    mask: Wav2VecMaskConfig = Wav2VecMaskConfig()
+    masking: Wav2VecMaskingConfig = Wav2VecMaskingConfig()
 
     dropout_input: float = field(default=0.1, metadata={'help': 'Dropout applied to input raw features'})
     dropout_features: float = field(
@@ -173,3 +173,8 @@ class Wav2VecEncoderModelConfig:
     logit_temp: float = field(default=0.1, metadata={'help': 'Temperature to divide logits by'})
     target_glu: bool = field(default=False, metadata={'help': 'Adds project and applies GLU to targets'})
     feature_grad_mult: float = field(default=0.1, metadata={'help': 'Multiply extracted feature gradients'})
+
+    train_ds: Optional[Dict[Any, Any]] = None
+    validation_ds: Optional[Dict[Any, Any]] = None
+    test_ds: Optional[Dict[Any, Any]] = None
+    optim: Optional[Dict[Any, Any]] = None
