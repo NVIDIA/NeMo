@@ -273,7 +273,9 @@ class BeamRNNTInfer(Typing):
         dec_state = self.decoder.initialize_state(h)
 
         # Construct initial hypothesis
-        hyp = Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state)
+        hyp = Hypothesis(
+            score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=encoded_lengths
+        )
         cache = {}
 
         # Initialize state and first token
@@ -303,6 +305,7 @@ class BeamRNNTInfer(Typing):
                     hyp.y_sequence.append(int(pred))
                     hyp.score += float(logp)
                     hyp.dec_state = state
+                    hyp.timestep.append(i)
 
                     # Compute next state and token
                     y, state, _ = self.decoder.score_hypothesis(hyp, cache)
