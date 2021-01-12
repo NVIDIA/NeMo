@@ -1,5 +1,6 @@
-# default learning parameters in this config are set for effective batch size of 2k with mini-batch size of 32 per GPU
-# It needs 64 GPUs. You may reduce the batch size and tune learning parameters or use higher accumulate_grad_batches
+# It is the config file containing the default values for training a Conformer medium size with RNNT-Loss
+# Default learning parameters in this config are set for effective batch size of 2k on 64 GPUs
+# To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches
 
 name: &name "Conformer-RNNT-BPE"
 
@@ -116,20 +117,20 @@ model:
       pred_hidden: ${model.model_defaults.pred_hidden}
       pred_rnn_layers: 1
       t_max: null
-      dropout: 0.0
+      dropout: 0.1
 
   joint:
     _target_: nemo.collections.asr.modules.RNNTJoint
-    log_softmax: null  # sets it according to cpu/gpu device
+    log_softmax: null  # 'null' would set it automatically according to CPU/GPU device
 
     # fused mode
-    experimental_fuse_loss_wer: false
+    experimental_fuse_loss_wer: true
     fused_batch_size: 16
 
     jointnet:
       joint_hidden: ${model.model_defaults.joint_hidden}
       activation: "relu"
-      dropout: 0.0
+      dropout: 0.1
 
   decoding:
     strategy: "greedy_batch"
