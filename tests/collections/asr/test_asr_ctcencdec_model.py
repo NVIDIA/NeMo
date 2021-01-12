@@ -111,22 +111,22 @@ class TestEncDecCTCModel:
 
         with torch.no_grad():
             # batch size 1
-            logits_instance = []
+            logprobs_instance = []
             for i in range(input_signal.size(0)):
-                logits_ins, _, _ = asr_model.forward(
+                logprobs_ins, _, _ = asr_model.forward(
                     input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
                 )
-                logits_instance.append(logits_ins)
-                print(len(logits_ins))
-            logits_instance = torch.cat(logits_instance, 0)
+                logprobs_instance.append(logprobs_ins)
+                print(len(logprobs_ins))
+            logprobs_instance = torch.cat(logprobs_instance, 0)
 
             # batch size 4
-            logits_batch, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=length)
+            logprobs_batch, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=length)
 
-        assert logits_instance.shape == logits_batch.shape
-        diff = torch.mean(torch.abs(logits_instance - logits_batch))
+        assert logprobs_instance.shape == logprobs_batch.shape
+        diff = torch.mean(torch.abs(logprobs_instance - logprobs_batch))
         assert diff <= 1e-6
-        diff = torch.max(torch.abs(logits_instance - logits_batch))
+        diff = torch.max(torch.abs(logprobs_instance - logprobs_batch))
         assert diff <= 1e-6
 
     @pytest.mark.unit
