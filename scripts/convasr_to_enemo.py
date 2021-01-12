@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import os
+import tarfile
 
 from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel, EncDecSpeakerLabelModel
 from nemo.utils import logging
-import os
-import tarfile
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Convert .nemo file to onnx file (encoder and decoder fused)")
@@ -27,7 +28,7 @@ def get_parser():
         "--onnx_file", default=None, type=str, required=True, help="Path to the onnx output",
     )
     parser.add_argument(
-        "--enemo_file", default=None, type=str, required=False, help="Path to the enemo output, consiting of onnx file",
+        "--enemo_file", default=None, type=str, required=True, help="Path to the enemo output, consiting of onnx file",
     )
     parser.add_argument(
         "--model_type",
@@ -58,17 +59,11 @@ def main(
     model.export(onnx_file, onnx_opset_version=12)
     logging.info("succesfully ported onnx file")
 
-    # tar = tarfile.open(nemo_file)
-    # for tarinfo in tar:
     with tarfile.open(nemo_file, 'r') as archive:
-        archive.list()
         archive.extract('./model_config.yaml')
-        nemo_config_handle = archive.extractfile('./model_config.yaml')
         with tarfile.open(enemo_file, 'w') as enemo_archive:
             enemo_archive.add('./model_config.yaml')
             enemo_archive.addfile(tarfile.TarInfo("model_graph.onnx"), open(onnx_file))
-            enemo_archive.list()
-    # tar.close()
 
 
 if __name__ == "__main__":
