@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC
 from typing import Dict, Optional
 
 from nemo.core.classes import NeuralModule
@@ -21,7 +22,9 @@ from nemo.utils import logging
 __all__ = ['EncoderModule']
 
 
-class EncoderModule(NeuralModule):
+class EncoderModule(NeuralModule, ABC):
+    """ Base class for encoder neural module to be used in NLP models. """
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
@@ -33,3 +36,7 @@ class EncoderModule(NeuralModule):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+
+    @property
+    def hidden_size(self) -> Optional[int]:
+        raise NotImplementedError

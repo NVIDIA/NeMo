@@ -71,20 +71,20 @@ class TransformerEncoderNM(EncoderModule):
     ):
         super().__init__()
 
-        self.vocab_size = vocab_size
-        self.hidden_size = hidden_size
+        self._vocab_size = vocab_size
+        self._hidden_size = hidden_size
 
-        self.embedding = TransformerEmbedding(
-            vocab_size=self.vocab_size,
-            hidden_size=self.hidden_size,
+        self._embedding = TransformerEmbedding(
+            vocab_size=self._vocab_size,
+            hidden_size=self._hidden_size,
             max_sequence_length=max_sequence_length,
             num_token_types=num_token_types,
             embedding_dropout=embedding_dropout,
             learn_positional_encodings=learn_positional_encodings,
         )
 
-        self.encoder = TransformerEncoder(
-            hidden_size=self.hidden_size,
+        self._encoder = TransformerEncoder(
+            hidden_size=self._hidden_size,
             num_layers=num_layers,
             inner_size=inner_size,
             num_attention_heads=num_attention_heads,
@@ -97,9 +97,13 @@ class TransformerEncoderNM(EncoderModule):
         )
 
     def forward(self, input_ids, encoder_mask):
-        embeddings = self.embedding(input_ids)
-        encoder_hidden_states = self.encoder(embeddings, encoder_mask)
+        embeddings = self._embedding(input_ids)
+        encoder_hidden_states = self._encoder(embeddings, encoder_mask)
         return encoder_hidden_states
+
+    @property
+    def hidden_size(self):
+        return self._hidden_size
 
 
 class TransformerDecoderNM(DecoderModule):
@@ -122,11 +126,11 @@ class TransformerDecoderNM(DecoderModule):
     ):
         super().__init__()
 
-        self.vocab_size = vocab_size
-        self.hidden_size = hidden_size
-        self.max_sequence_length = max_sequence_length
+        self._vocab_size = vocab_size
+        self._hidden_size = hidden_size
+        self._max_sequence_length = max_sequence_length
 
-        self.embedding = TransformerEmbedding(
+        self._embedding = TransformerEmbedding(
             vocab_size=self.vocab_size,
             hidden_size=self.hidden_size,
             max_sequence_length=max_sequence_length,
@@ -135,7 +139,7 @@ class TransformerDecoderNM(DecoderModule):
             learn_positional_encodings=learn_positional_encodings,
         )
 
-        self.decoder = TransformerDecoder(
+        self._decoder = TransformerDecoder(
             hidden_size=self.hidden_size,
             num_layers=num_layers,
             inner_size=inner_size,
@@ -148,6 +152,26 @@ class TransformerDecoderNM(DecoderModule):
         )
 
     def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
-        decoder_embeddings = self.embedding(input_ids)
-        decoder_hidden_states = self.decoder(decoder_embeddings, decoder_mask, encoder_embeddings, encoder_mask)
+        decoder_embeddings = self._embedding(input_ids)
+        decoder_hidden_states = self._decoder(decoder_embeddings, decoder_mask, encoder_embeddings, encoder_mask)
         return decoder_hidden_states
+
+    @property
+    def hidden_size(self):
+        return self._hidden_size
+
+    @property
+    def vocab_size(self):
+        return self._vocab_size
+
+    @property
+    def max_sequence_length(self):
+        return self._max_sequence_length
+
+    @property
+    def embedding(self):
+        return self._embedding
+
+    @property
+    def decoder(self):
+        return self._decoder

@@ -90,7 +90,7 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
         self.log_softmax = TokenClassifier(
-            hidden_size=cfg.decoder.hidden_size,
+            hidden_size=self.decoder.hidden_size,
             num_classes=self.decoder_vocab_size,
             activation=cfg.head.activation,
             log_softmax=cfg.head.log_softmax,

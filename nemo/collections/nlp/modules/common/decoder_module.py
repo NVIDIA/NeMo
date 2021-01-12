@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC
 from typing import Any, Dict, Optional
 
 from nemo.core.classes import NeuralModule
@@ -20,7 +21,9 @@ from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 __all__ = ['DecoderModule']
 
 
-class DecoderModule(NeuralModule):
+class DecoderModule(NeuralModule, ABC):
+    """ Base class for decoder neural module to be used in NLP models. """
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
@@ -34,22 +37,22 @@ class DecoderModule(NeuralModule):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
-    # @property
-    # def hidden_size(self) -> Optional[int]:
-    #     pass
+    @property
+    def hidden_size(self) -> Optional[int]:
+        raise NotImplementedError
 
-    # @property
-    # def vocab_size(self) -> Optional[int]:
-    #     pass
+    @property
+    def vocab_size(self) -> Optional[int]:
+        raise NotImplementedError
 
-    # @property
-    # def embedding(self) -> Optional[Any]:
-    #     pass
+    @property
+    def embedding(self) -> Optional[Any]:
+        raise NotImplementedError
 
-    # @property
-    # def decoder(self) -> Optional[Any]:
-    #     pass
+    @property
+    def decoder(self) -> Optional[Any]:
+        raise NotImplementedError
 
-    # @property
-    # def max_sequence_length(self) -> Optional[int]:
-    #     pass
+    @property
+    def max_sequence_length(self) -> Optional[int]:
+        raise NotImplementedError
