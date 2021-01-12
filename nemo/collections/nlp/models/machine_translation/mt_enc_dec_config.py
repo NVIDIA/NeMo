@@ -21,9 +21,7 @@ from nemo.collections.nlp.data.machine_translation.machine_translation_dataset i
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
-from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoderConfig
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoderConfig
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbeddingConfig
+from nemo.collections.nlp.modules.common.transformer.transformer import TransformerConfig, TransformerEncoderConfig
 from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
 
 
@@ -41,7 +39,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
 @dataclass
 class AAYNBaseSchedConfig(SchedConfig):
     name: str = 'InverseSquareRootAnnealing'
-    warmup_ratio: float = 0.1
+    warmup_ratio: Optional[float] = None
     last_epoch: int = -1
 
 
@@ -68,7 +66,6 @@ class AAYNBaseConfig(ModelConfig):
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
 
-    encoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig()
     encoder: TransformerEncoderConfig = TransformerEncoderConfig(
         hidden_size=512,
         inner_size=2048,
@@ -79,8 +76,7 @@ class AAYNBaseConfig(ModelConfig):
         attn_layer_dropout=0.1,
     )
 
-    decoder_embedding: TransformerEmbeddingConfig = TransformerEmbeddingConfig()
-    decoder: TransformerDecoderConfig = TransformerDecoderConfig(
+    decoder: TransformerConfig = TransformerConfig(
         hidden_size=512,
         inner_size=2048,
         num_layers=6,
@@ -90,9 +86,7 @@ class AAYNBaseConfig(ModelConfig):
         attn_layer_dropout=0.1,
     )
 
-    head: TokenClassifierConfig = TokenClassifierConfig(
-        hidden_size=decoder.hidden_size, num_classes=32768, log_softmax=True
-    )
+    head: TokenClassifierConfig = TokenClassifierConfig(log_softmax=True)
 
     # dataset configurations
     train_ds: Optional[TranslationDataConfig] = TranslationDataConfig(

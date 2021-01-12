@@ -35,7 +35,6 @@ class TrainerConfig:
         https://pytorch-lightning.readthedocs.io/en/latest/trainer.html#
     """
 
-    _target_: str = 'pytorch_lightning.Trainer'
     logger: Any = False
     checkpoint_callback: Any = True
     callbacks: Optional[Any] = None
