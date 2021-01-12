@@ -1,5 +1,6 @@
-# default learning parameters in this config are set for effective batch size of 2k with mini-batch size of 32 per GPU
-# It needs 64 GPUs. You may reduce the batch size and tune learning parameters or use higher accumulate_grad_batches
+# It contains the default values for training a Conformer ASR model medium size with CTC loss and BPE-based vocabulary.
+# Default learning parameters in this config are set for effective batch size of 2k on 64 GPUs.
+# To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
 name: &name "Conformer-CTC-BPE"
 
