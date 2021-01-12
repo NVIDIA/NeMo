@@ -26,7 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import torch
 
@@ -35,6 +35,18 @@ from nemo.collections.asr.parts import rnnt_utils
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+
+
+def pack_hypotheses(
+    hypotheses: List[List[int]], timesteps: List[List[int]], logitlen: torch.Tensor
+) -> List[rnnt_utils.Hypothesis]:
+    logitlen_cpu = logitlen.to("cpu")
+    return [
+        rnnt_utils.Hypothesis(
+            y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0, timestep=timestep, length=length
+        )
+        for sent, timestep, length in zip(hypotheses, timesteps, logitlen_cpu)
+    ]
 
 
 class _GreedyRNNTInfer(Typing):
@@ -201,19 +213,18 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             self.joint.eval()
 
             hypotheses = []
+            timesteps = []
             # Process each sequence independently
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 for batch_idx in range(encoder_output.size(0)):
                     inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
                     logitlen = encoded_lengths[batch_idx]
-                    sentence = self._greedy_decode(inseq, logitlen)
+                    sentence, timestep = self._greedy_decode(inseq, logitlen)
                     hypotheses.append(sentence)
+                    timesteps.append(timestep)
 
             # Pack results into Hypotheses
-            packed_result = [
-                rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
-                for sent in hypotheses
-            ]
+            packed_result = pack_hypotheses(hypotheses, timesteps, encoded_lengths)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -228,6 +239,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         # Initialize blank state and empty label set
         hidden = None
         label = []
+        timesteps = []
 
         # For timestep t in X_t
         for time_idx in range(out_len):
@@ -267,12 +279,13 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 else:
                     # Append token to label set, update RNN state.
                     label.append(k)
+                    timesteps.append(time_idx)
                     hidden = hidden_prime
 
                 # Increment token counter.
                 symbols_added += 1
 
-        return label
+        return label, timesteps
 
 
 class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
@@ -337,15 +350,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                hypotheses = self._greedy_decode(inseq, logitlen, device=inseq.device)
+                hypotheses, timesteps = self._greedy_decode(inseq, logitlen, device=inseq.device)
 
             # Pack the hypotheses results
-            packed_result = [
-                rnnt_utils.Hypothesis(y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0)
-                for sent in hypotheses
-            ]
+            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen)
 
-            del hypotheses
+            del hypotheses, timesteps
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -364,6 +374,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Output string buffer
             label = [[] for _ in range(batchsize)]
+            timesteps = [[] for _ in range(batchsize)]
 
             # Last Label buffer + Last Label without blank buffer
             # batch level equivalent of the last_label
@@ -374,7 +385,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Get max sequence length
             max_out_len = out_len.max()
-
             for time_idx in range(max_out_len):
                 f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
 
@@ -389,7 +399,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
                 # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
                 blank_mask = time_idx >= out_len
-
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
 
@@ -450,10 +459,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         for kidx, ki in enumerate(k):
                             if blank_mask[kidx] == 0:
                                 label[kidx].append(ki)
+                                timesteps[kidx].append(time_idx)
 
                         symbols_added += 1
-
-        return label
+        return label, timesteps
 
     @torch.no_grad()
     def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
@@ -467,6 +476,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         # Output string buffer
         label = [[] for _ in range(batchsize)]
+        timesteps = [[] for _ in range(batchsize)]
 
         # Last Label buffer + Last Label without blank buffer
         # batch level equivalent of the last_label
@@ -559,7 +569,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     for kidx, ki in enumerate(k):
                         if blank_mask[kidx] == 0:
                             label[kidx].append(ki)
+                            timesteps[kidx].append(time_idx)
 
                 symbols_added += 1
 
-        return label
+        return label, timesteps
