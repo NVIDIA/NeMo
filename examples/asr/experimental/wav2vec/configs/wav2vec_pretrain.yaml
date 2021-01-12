@@ -3,7 +3,7 @@ name: &name "Wav2vec_Pretrain"
 model:
   transformer_encoder:
     dropout: 0.1 # Dropout probability for the transformer
-    conv:
+    conv: # Config for convolutional model that generates positional embeddings required for attention layer
       conv_pos: 128 # Number of filters for convolutional positional embeddings
       conv_pos_groups: 16 # Number of groups for convolutional positional embeddings
     encoder:
@@ -26,7 +26,7 @@ model:
     latent_groups: 2 # Number of groups within the codebook
     latent_dim: 0 # If greater than 0, use the dim for latest variables else inferred by final dim / latent groups
     latent_temp: [2, 0.5, 0.999995] # Quantize temperature (start, stop, decay factor)
-  conv_feature_encoder:
+  conv_feature_encoder: # Config for feature extractor taking raw audio waveform and converting to features
     extractor_mode: default # Mode for feature extractor. [Default, layer_norm]
     conv_bias: False # Include bias in convolution feature extractor model
   masking:
