@@ -48,6 +48,7 @@ python speech_to_text_bpe.py \
 """
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
+import torch
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.core.config import hydra_runner
@@ -63,6 +64,12 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
+
+    # initialize the model with the weights of the checkpoint specified by 'load_weights_from_checkpoint' in the configs
+    checkpoint_path = cfg.model.get("load_weights_from_checkpoint", None)
+    if checkpoint_path:
+        logging.info(f'Initializing the model with the checkpoint at "{checkpoint_path}"')
+        asr_model.load_state_dict(torch.load(checkpoint_path, map_location=asr_model.device)["state_dict"])
 
     trainer.fit(asr_model)
 
