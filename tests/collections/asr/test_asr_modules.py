@@ -55,18 +55,19 @@ class TestASRModulesBasicTests:
             input_signal = torch.randn(size=(4, 512))
             length = torch.randint(low=161, high=500, size=[4])
 
-            # batch size 1
-            res_instance, length_instance = [], []
-            for i in range(input_signal.size(0)):
-                res_ins, length_ins = instance1(input_signal=input_signal[i: i + 1], length=length[i: i + 1])
-                res_instance.append(res_ins)
-                length_instance.append(length_ins)
+            with torch.no_grad():
+                # batch size 1
+                res_instance, length_instance = [], []
+                for i in range(input_signal.size(0)):
+                    res_ins, length_ins = instance1(input_signal=input_signal[i : i + 1], length=length[i : i + 1])
+                    res_instance.append(res_ins)
+                    length_instance.append(length_ins)
 
-            res_instance = torch.cat(res_instance, 0)
-            length_instance = torch.cat(length_instance, 0)
+                res_instance = torch.cat(res_instance, 0)
+                length_instance = torch.cat(length_instance, 0)
 
-            # batch size 4
-            res_batch, length_batch = instance1(input_signal=input_signal, length=length)
+                # batch size 4
+                res_batch, length_batch = instance1(input_signal=input_signal, length=length)
 
             assert res_instance.shape == res_batch.shape
             assert length_instance.shape == length_batch.shape
