@@ -14,3 +14,4 @@
 
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
 from nemo.collections.common.metrics.perplexity import Perplexity
+from nemo.collections.common.metrics.loss import Loss

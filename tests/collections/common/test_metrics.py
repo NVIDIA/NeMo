@@ -19,8 +19,9 @@ from typing import Callable
 import pytest
 import torch
 
+from .loss_inputs import _all_num_measurements_are_zero, _no_zero_num_measurements, _some_num_measurements_are_zero
 from .perplexity_inputs import _no_probs_no_logits, _only_logits1, _only_logits100, _only_probs, _probs_and_logits
-from .pl_utils import PerplexityTester
+from .pl_utils import LossTester, PerplexityTester
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
 
 
@@ -128,4 +129,26 @@ class TestPerplexity(PerplexityTester):
     def test_perplexity(self, ddp, dist_sync_on_step, probs, logits):
         self.run_class_perplexity_test(
             ddp=ddp, probs=probs, logits=logits, dist_sync_on_step=dist_sync_on_step,
+        )
+
+
+@pytest.mark.parametrize("ddp", [True, False])
+@pytest.mark.parametrize("dist_sync_on_step", [True, False])
+@pytest.mark.parametrize("take_avg_loss", [True, False])
+@pytest.mark.parametrize(
+    "loss_sum_or_avg, num_measurements",
+    [
+        (_no_zero_num_measurements.loss_sum_or_avg, _no_zero_num_measurements.num_measurements),
+        (_some_num_measurements_are_zero.loss_sum_or_avg, _some_num_measurements_are_zero.num_measurements),
+        (_all_num_measurements_are_zero.loss_sum_or_avg, _all_num_measurements_are_zero.num_measurements),
+    ],
+)
+class TestLoss(LossTester):
+    def test_loss(self, ddp, dist_sync_on_step, loss_sum_or_avg,  num_measurements, take_avg_loss):
+        self.run_class_loss_test(
+            ddp=ddp,
+            loss_sum_or_avg=loss_sum_or_avg,
+            num_measurements=num_measurements,
+            dist_sync_on_step=dist_sync_on_step,
+            take_avg_loss=take_avg_loss,
         )
