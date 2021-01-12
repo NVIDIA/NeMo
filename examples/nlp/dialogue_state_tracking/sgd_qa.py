@@ -16,7 +16,7 @@
 """
 This script contains an example of how to train and test the NeMo SGD-QA Model.
 The SGD-QA model is a fast multi-pass schema-guided state-tracking model, that is trained on the Google schema-guided state tracking dataset (https://arxiv.org/abs/1909.05855).
-The model take dialogue as input and outpus the dialogue state, which include slot-value pairs. 
+The model takes dialogue as input and outputs the dialogue state, which includes slot-value pairs. 
 The model consists of two components: a neural natural language understanding model (NLU), and a rule-based state tracker.
 The NLU takes in a dialogue turn and different schema (entity) information options and outputs their match score. The state tracker takes the highest rated entities and composes
 the dialogue state across turns.
@@ -93,7 +93,7 @@ by default. You may update the config file from the file directly. The other opt
     model.test_ds.ds_item=<LIST_OF_SPLITS>
 
 To load a pretrained checkpoint from the cloud prior to training (e.g. for fine-tuning) or evaluation you can set cfg.from_pretrained=<MODEL_NAME>. You can find all pretrained model names by using 
-QAModel.list_available_models(). To load a local checkpoint use model.restore_from(<PATH_TO_CHECKPOINT>)
+SGDQAModel.list_available_models(). To load a local checkpoint use model.restore_from(<PATH_TO_CHECKPOINT>)
 
 """
 

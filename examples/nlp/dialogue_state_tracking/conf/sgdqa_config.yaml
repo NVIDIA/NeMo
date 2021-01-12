@@ -111,3 +111,5 @@ exp_manager:
   name: "SGDQA"  # The name of your model
   create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
