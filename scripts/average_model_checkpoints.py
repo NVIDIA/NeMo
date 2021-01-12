@@ -43,7 +43,7 @@ HYDRA_FULL_ERROR=1 python average_model_checkpoints.py \
     --config-path="<path to config directory>" \
     --config-name="<config name>" \
     name=<name of the averaged checkpoint> \
-    +checkpoint_paths=[/path/to/ptl_1.ckpt,/path/to/ptl_2.ckpt,/path/to/ptl_3.ckpt,...]
+    +checkpoint_paths=\"[/path/to/ptl_1.ckpt,/path/to/ptl_2.ckpt,/path/to/ptl_3.ckpt,...]\"
 
 
 ## Saving an averaged pytorch checkpoint (loaded with torch.load(...))
@@ -51,7 +51,7 @@ HYDRA_FULL_ERROR=1 python average_model_checkpoints.py \
     --config-path="<path to config directory>" \
     --config-name="<config name>" \
     name=<name of the averaged checkpoint> \
-    +checkpoint_paths=[/path/to/ptl_1.ckpt,/path/to/ptl_2.ckpt,/path/to/ptl_3.ckpt,...] \
+    +checkpoint_paths=\"[/path/to/ptl_1.ckpt,/path/to/ptl_2.ckpt,/path/to/ptl_3.ckpt,...]\" \
     +save_ckpt_only=true
 
 """
@@ -85,6 +85,11 @@ def process_config(cfg: OmegaConf):
         if 'save_ckpt_only' in cfg:
             save_ckpt_only = cfg.pop('save_ckpt_only')
 
+    if type(checkpoint_paths) not in (list, tuple):
+        checkpoint_paths = str(checkpoint_paths).replace("[", "").replace("]", "")
+        checkpoint_paths = checkpoint_paths.split(",")
+        checkpoint_paths = [ckpt_path.strip() for ckpt_path in checkpoint_paths]
+
     return name_prefix, checkpoint_paths, save_ckpt_only
 
 
@@ -98,7 +103,7 @@ def main(cfg):
         # <<< Change model class here ! >>>
         # Model architecture which will contain the averaged checkpoints
         # Change the model constructor to the one you would like (if needed)
-        model = EncDecCTCModelBPE(cfg=cfg, trainer=trainer)
+        model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 
     """ < Checkpoint Averaging Logic > """
     # load state dicts
