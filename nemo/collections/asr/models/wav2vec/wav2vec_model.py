@@ -12,14 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
+
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 from dataclasses import dataclass
-from typing import Dict, Optional, Any
+
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+from typing import Any, Dict, Optional
 
 import torch
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning import Trainer
+from torch import nn
+
 from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss
 from nemo.collections.asr.models.wav2vec.wav2vec_base import Wav2VecBase
 from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecEncoderModelConfig
@@ -28,9 +34,6 @@ from nemo.collections.asr.parts.wav2vec import ConvFeatureEncoder, GradMultiply,
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LossType, MaskType, NeuralType
 from nemo.core.neural_types.elements import BoolType, FloatType
-from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
-from torch import nn
 
 
 def buffered_arange(max):
