@@ -201,7 +201,7 @@ class VarianceAdaptor(NeuralModule):
 
         # Duration predictions (or ground truth) fed into Length Regulator to
         # expand the hidden states of the encoder embedding
-        dur_preds = self.duration_predictor(x.transpose(1, 2))
+        dur_preds = self.duration_predictor(x)
         # Output is Batch, Time
         if self.training:
             dur_out = self.length_regulator(x, dur_target)
@@ -219,7 +219,7 @@ class VarianceAdaptor(NeuralModule):
         #       (see Appendix C of the FastSpeech 2/2s paper).
         pitch_preds = None
         if self.pitch:
-            pitch_preds = self.pitch_predictor(dur_out.transpose(1, 2))
+            pitch_preds = self.pitch_predictor(dur_out)
             if self.training:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
             else:
@@ -229,7 +229,7 @@ class VarianceAdaptor(NeuralModule):
         # Energy
         energy_preds = None
         if self.energy:
-            energy_preds = self.energy_predictor(dur_out.transpose(1, 2))
+            energy_preds = self.energy_predictor(dur_out)
             if self.training:
                 energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
             else:

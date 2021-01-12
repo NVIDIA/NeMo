@@ -319,7 +319,7 @@ class FFTransformer(nn.Module):
         return out, mask
 
 
-class Tranpose(nn.Module):
+class Transpose(nn.Module):
     def forward(self, x):
         return x.transpose(1, 2)
 
@@ -343,15 +343,16 @@ class VariancePredictor(nn.Module):
         self.kernel_size = kernel_size
 
         self.layers = nn.Sequential(
+            Transpose(),
             nn.Conv1d(d_model, d_inner, kernel_size, stride=1, padding=(kernel_size // 2)),
             nn.ReLU(),
-            Tranpose(),
+            Transpose(),
             nn.LayerNorm(d_inner),
-            Tranpose(),
+            Transpose(),
             nn.Dropout(dropout),
             nn.Conv1d(d_inner, d_inner, kernel_size, stride=1, padding=(kernel_size // 2)),
             nn.ReLU(),
-            Tranpose(),
+            Transpose(),
             nn.LayerNorm(d_inner),
             nn.Dropout(dropout),
             nn.Linear(d_inner, 1),
