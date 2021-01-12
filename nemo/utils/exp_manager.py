@@ -148,8 +148,16 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
             exp_dir, name, and version.
     """
+    # Add rank information to logger
+    # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
+    global_rank = trainer.node_rank * trainer.num_gpus + trainer.local_rank
+    logging.rank = global_rank
+
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
+        return
+    if trainer.fast_dev_run:
+        logging.info("Trainer was called with fast_dev_run. exp_manager will return without any functionality.")
         return
 
     # Ensure passed cfg is compliant with ExpManagerConfig
@@ -188,11 +196,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     trainer._default_root_dir = log_dir
 
     # Handle Loggers by creating file and handle DEBUG statements
-    # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_gpus + trainer.local_rank
     log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{trainer.local_rank}.txt'
     logging.add_file_handler(log_file)
-    logging.rank = global_rank
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
     # not just global rank 0.
@@ -250,19 +255,12 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             "hydra.run.dir=. to your python script."
         )
     if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger):
-        if isinstance(trainer.logger, DummyLogger):
-            logging.warning(
-                "Trainer was constructed with a DummyLogger. Did you run with fast_dev_run? NeMo will overwrite this "
-                "DummyLogger"
-            )
-            trainer.logger = None
-        else:
-            raise LoggerMisconfigurationError(
-                "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
-                f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
-                f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
-                " logger."
-            )
+        raise LoggerMisconfigurationError(
+            "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
+            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: "
+            f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
+            " logger."
+        )
     if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
         logging.error(
             "You are running multi-node without slurm. Please note that this is not tested in NeMo and could result in "
