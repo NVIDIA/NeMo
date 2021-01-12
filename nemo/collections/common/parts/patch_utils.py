@@ -61,7 +61,7 @@ def stft_patch(
             center=center,
             pad_mode=pad_mode,
             normalized=normalized,
-            onesided=onesided,
+            onesided=True,
         )
     else:
         return torch.stft(
