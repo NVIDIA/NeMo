@@ -30,20 +30,27 @@ See :class:`Wav2VecCriterion` for more information.
 
 Reference: https://arxiv.org/abs/2006.11477
 
-python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
-        model.train_ds.manifest_path="./examples/asr/train.tsv" \
-        model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
+    python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
+        model.train_ds.manifest_filepath="./examples/asr/train.tsv" \
+        model.validation_ds.manifest_filepath="./examples/asr/valid.tsv" \
         trainer.gpus=1 \
         trainer.max_epochs=100
         
-        
 Basic run (on CPU for 50 epochs):
     python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
-        model.train_ds.manifest_path="./examples/asr/train.tsv" \
-        model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
+        model.train_ds.manifest_filepath="./examples/asr/train.tsv" \
+        model.validation_ds.manifest_filepath="./examples/asr/valid.tsv" \
         trainer.gpus=1 \
         trainer.max_epochs=50
 
+Using wav2vec-large with mixed precision:
+    python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
+        --config-name=wav2vec_pretrain_large \
+        model.train_ds.manifest_filepath="./examples/asr/train.tsv" \
+        model.validation_ds.manifest_filepath="./examples/asr/valid.tsv" \
+        trainer.gpus=1 \
+        trainer.max_epochs=100 \
+        trainer.precision=16
 
 Add PyTorch Lightning Trainer arguments from CLI:
     python wav2vec.py \
@@ -55,8 +62,8 @@ PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/l
 
 Override some args of optimizer:
     python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
-        model.train_ds.manifest_path="./examples/asr/train.tsv" \
-        model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
+        model.train_ds.manifest_filepath="./examples/asr/train.tsv" \
+        model.validation_ds.manifest_filepath="./examples/asr/valid.tsv" \
         trainer.gpus=2 \
         trainer.max_epochs=2 \
         model.optim.args.params.betas=[0.8,0.5] \
@@ -64,8 +71,8 @@ Override some args of optimizer:
 
 Override optimizer entirely
     python examples/asr/experimental/wav2vec/wav2vec_pretrain.py \
-        model.train_ds.manifest_path="./examples/asr/train.tsv" \
-        model.validation_ds.manifest_path="./examples/asr/valid.tsv" \
+        model.train_ds.manifest_filepath="./examples/asr/train.tsv" \
+        model.validation_ds.manifest_filepath="./examples/asr/valid.tsv" \
         trainer.gpus=2 \
         trainer.max_epochs=2 \
         ~model.optim.args \
