@@ -16,11 +16,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import logging
-from math import ceil
-
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
+import logging
+from math import ceil
 from typing import Dict, Optional, Union
 
 import torch
