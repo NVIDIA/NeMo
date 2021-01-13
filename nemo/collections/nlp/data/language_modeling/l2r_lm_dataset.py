@@ -161,6 +161,10 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "}")
 
+        if isinstance(text_tar_filepaths, str):
+            # Brace expand
+            text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
+
         if shard_strategy == 'scatter':
             logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
 
