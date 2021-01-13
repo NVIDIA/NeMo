@@ -2,19 +2,19 @@
 # Default learning parameters in this config are set for effective batch size of 2k on 64 GPUs.
 # To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
-name: &name "Conformer-CTC-Char"
+name: "Conformer-CTC-Char"
 
 model:
   sample_rate: 16000
-  labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-                   "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
+  labels:  [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+            "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
   log_prediction: true # enables logging sample predictions in the output during training
   load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
 
   train_ds:
     manifest_filepath: ???
-    labels: *labels
+    labels: ${model.labels}
     sample_rate: ${model.sample_rate}
     batch_size: 32
     trim_silence: false
@@ -31,7 +31,7 @@ model:
 
   validation_ds:
     manifest_filepath: ???
-    labels: *labels
+    labels: ${model.labels}
     sample_rate: ${model.sample_rate}
     batch_size: 32
     shuffle: false
@@ -40,7 +40,7 @@ model:
 
   test_ds:
     manifest_filepath: null
-    labels: *labels
+    labels: ${model.labels}
     sample_rate: ${model.sample_rate}
     batch_size: 32
     shuffle: false
@@ -70,7 +70,7 @@ model:
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
-    feat_in: ${preprocessor.features}
+    feat_in: ${model.preprocessor.features}
     feat_out: -1 # you may set it if you need different output size other than the default d_model
     n_layers: 16
     d_model: 256
@@ -102,7 +102,7 @@ model:
     _target_: nemo.collections.asr.modules.ConvASRDecoder
     feat_in: null
     num_classes: -1
-    vocabulary: *labels
+    vocabulary: ${model.labels}
 
   optim:
     name: adam
@@ -143,7 +143,7 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:

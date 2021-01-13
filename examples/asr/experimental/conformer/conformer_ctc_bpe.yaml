@@ -2,7 +2,7 @@
 # Default learning parameters in this config are set for effective batch size of 2k on 64 GPUs.
 # To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
-name: &name "Conformer-CTC-BPE"
+name: "Conformer-CTC-BPE"
 
 model:
   sample_rate: 16000
@@ -72,7 +72,7 @@ model:
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
-    feat_in: ${preprocessor.features}
+    feat_in: ${model.preprocessor.features}
     feat_out: -1 # you may set it if you need different output size other than the default d_model
     n_layers: 18
     d_model: 256
@@ -144,7 +144,7 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
