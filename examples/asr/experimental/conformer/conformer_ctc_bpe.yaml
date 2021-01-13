@@ -18,6 +18,8 @@ model:
     max_duration: 16.7
     min_duration: 0.1
     shuffle: true
+    # tarred dataset format (Using Webdataset library) is recommended for the training set of large datasets
+    # you may use 'scripts/convert_to_tarred_audio_dataset.py' script to convert the dataset into tarred format
     is_tarred: false
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
@@ -45,7 +47,7 @@ model:
 
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
-    type: ???  # Can be either bpe (sentencepiece tokenizer) or wpe (wordpiece tokenizer)
+    type: wpe  # Can be either bpe (sentencepiece tokenizer) or wpe (wordpiece tokenizer)
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -63,7 +65,6 @@ model:
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    # SpecAug params
     freq_masks: 2 # set to zero to disable it
     time_masks: 10 # set to zero to disable it
     freq_width: 27
@@ -85,7 +86,7 @@ model:
     ff_expansion_factor: 4
 
     # Multi-headed Attention Module's params
-    self_attention_model: rel_pos # rel_pos, abs_pos
+    self_attention_model: rel_pos # rel_pos or abs_pos
     pos_emb_max_len: 5000
     n_heads: 4
     xscaling: true
@@ -95,8 +96,8 @@ model:
     conv_kernel_size: 31
 
     ### regularization
-    dropout: 0.1 # The dropout used inside the Conformer Modules
-    dropout_emb: 0.0 # The dropout used embeddings
+    dropout: 0.1 # The dropout used in most of the Conformer Modules
+    dropout_emb: 0.0 # The dropout used for embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 
   decoder:
@@ -106,23 +107,24 @@ model:
     vocabulary: []
 
   optim:
-    name: novograd
-    lr: 0.01
+    name: adam
+    lr: 3
     # optimizer arguments
-    betas: [0.8, 0.5]
-    weight_decay: 0.001
+    betas: [0.9, 0.98]
+    weight_decay: 1e-6
 
     # scheduler setup
     sched:
-      name: CosineAnnealing
+      name: NoamAnnealing
+      d_model: 256
       # scheduler config override
-      warmup_steps: 4000
+      warmup_steps: 10000
       warmup_ratio: null
       min_lr: 1e-6
       last_epoch: -1
 
 trainer:
-  gpus: 0 # number of gpus
+  gpus: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 100
   max_steps: null # computed at runtime if not set
@@ -133,6 +135,7 @@ trainer:
   amp_level: O0 # O1/O2 for mixed precision
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 10  # Interval of logging.
+  progress_bar_refresh_rate: 10
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
@@ -145,9 +148,15 @@ exp_manager:
   name: *name
   create_tensorboard_logger: true
   create_checkpoint_callback: true
+  checkpoint_callback_params:
+    # in case of multiple validation sets, first one is used
+    monitor: "val_wer"
+    mode: "min"
+    save_top_k: 3
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
+
   create_wandb_logger: false
   wandb_logger_kwargs:
     name: null
     project: null
-  resume_if_exists: false
-  resume_ignore_no_checkpoint: false
