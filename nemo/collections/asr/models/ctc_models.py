@@ -15,9 +15,10 @@ import copy
 import json
 import os
 import tempfile
+import time
 from math import ceil
 from typing import Dict, List, Optional, Union
-import time
+
 import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -371,7 +372,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
     ):
 
-        #start = time.time()
+        # start = time.time()
 
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
@@ -400,7 +401,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-        #print("forward time:" + str(time.time() - start))
+        # print("forward time:" + str(time.time() - start))
 
         return log_probs, encoded_len, greedy_predictions
 
