@@ -42,7 +42,8 @@ import soundfile as sf
 from pydub import AudioSegment as Audio
 
 available_formats = sf.available_formats()
-sf_supported_formats = ["."+i.lower() for i in available_formats.keys()]
+sf_supported_formats = ["." + i.lower() for i in available_formats.keys()]
+
 
 class AudioSegment(object):
     """Monaural audio segment abstraction.
