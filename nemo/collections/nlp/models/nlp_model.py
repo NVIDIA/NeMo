@@ -303,6 +303,10 @@ class NLPModel(ModelPT):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             else:
-                if isinstance(self.bert_model, MegatronBertEncoder):
+                if (
+                    hasattr(self, 'bert_model')
+                    and self.bert_model is not None
+                    and isinstance(self.bert_model, MegatronBertEncoder)
+                ):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
