@@ -8,7 +8,7 @@ model:
   sample_rate: 16000
   labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
                    "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
-  log_prediction: true
+  log_prediction: true # enables logging sample predictions in the output during training
   load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
 
@@ -54,7 +54,7 @@ model:
     window_size: 0.025
     window_stride: 0.01
     window: "hann"
-    features: &n_mels 80
+    features: 80
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
@@ -70,7 +70,7 @@ model:
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
-    feat_in: *n_mels
+    feat_in: ${preprocessor.features}
     feat_out: -1 # you may set it if you need different output size other than the default d_model
     n_layers: 16
     d_model: 256
@@ -85,10 +85,10 @@ model:
 
     # Multi-headed Attention Module's params
     self_attention_model: rel_pos # rel_pos or abs_pos
-    pos_emb_max_len: 5000
     n_heads: 4
-    xscaling: true
+    xscaling: true # scales up the inputs by sqrt(d_model)
     untie_biases: true
+    pos_emb_max_len: 5000
 
     # Convolution module's params
     conv_kernel_size: 31
@@ -119,12 +119,11 @@ model:
       warmup_steps: 10000
       warmup_ratio: null
       min_lr: 1e-6
-      last_epoch: -1
 
 trainer:
   gpus: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
-  max_epochs: 100
+  max_epochs: 1000
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: ddp
