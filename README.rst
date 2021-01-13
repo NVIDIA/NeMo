@@ -96,8 +96,8 @@ Once requirements are satisfied, simply install using pip:
 
 Or if you want the latest (or particular) version from GitHub:
 
-* ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo.
-* ``./reinstall.sh`` - from NeMo's git root. This will install the version from current branch in developement mode.
+* ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo - installing in release mode.
+* ``./reinstall.sh`` - from NeMo's git root. This will by default install the version from the current branch in development mode. To change to release mode pass 'release'.
 
 Examples
 ~~~~~~~~
