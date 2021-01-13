@@ -34,10 +34,12 @@
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 
 import random
+from pathlib import Path
 
 import librosa
 import numpy as np
 import soundfile as sf
+from pydub import AudioSegment as Audio
 
 
 class AudioSegment(object):
@@ -121,17 +123,32 @@ class AudioSegment(object):
         :param duration: duration in seconds when loading audio
         :return: numpy array of samples
         """
-        with sf.SoundFile(audio_file, 'r') as f:
-            dtype = 'int32' if int_values else 'float32'
-            sample_rate = f.samplerate
-            if offset > 0:
-                f.seek(int(offset * sample_rate))
-            if duration > 0:
-                samples = f.read(int(duration * sample_rate), dtype=dtype)
-            else:
-                samples = f.read(dtype=dtype)
+        if isinstance(audio_file, (str, Path)):
+            ext = Path(audio_file).suffix
+        if not isinstance(audio_file, (str, Path)) or ext == ".wav":
+            with sf.SoundFile(audio_file, 'r') as f:
+                dtype = 'int32' if int_values else 'float32'
+                sample_rate = f.samplerate
+                if offset > 0:
+                    f.seek(int(offset * sample_rate))
+                if duration > 0:
+                    samples = f.read(int(duration * sample_rate), dtype=dtype)
+                else:
+                    samples = f.read(dtype=dtype)
 
-        samples = samples.transpose()
+            samples = samples.transpose()
+        else:
+            samples = Audio.from_file(audio_file)
+            sample_rate = samples.frame_rate
+            if offset > 0:
+                # pydub does things in milliseconds
+                seconds = offset * 1000
+                samples = samples[int(seconds * sample_rate) :]
+            if duration > 0:
+                seconds = duration * 1000
+                samples = samples[: int(seconds)]
+            samples = np.array(samples.get_array_of_samples())
+
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 
     @classmethod
