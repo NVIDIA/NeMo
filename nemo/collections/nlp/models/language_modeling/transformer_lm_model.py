@@ -98,7 +98,7 @@ class TransformerLMModel(ModelPT):
         self.validation_perplexity = Perplexity(compute_on_step=False)
 
         # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
+        self.setup_optimization()
 
     @typecheck()
     def forward(self, input_ids, attention_mask):
