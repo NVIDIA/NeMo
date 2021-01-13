@@ -26,9 +26,9 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-import nemo.collections.nlp.data.dialogue_state_tracking.sgd.prediction_utils as pred_utils
-from nemo.collections.nlp.data import Schema, SGDDataProcessor, SGDDataset
+from nemo.collections.nlp.data.dialogue_state_tracking import Schema, SGDDataProcessor, SGDDataset
 from nemo.collections.nlp.data.dialogue_state_tracking.sgd.evaluate import evaluate, get_in_domain_services
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.prediction_utils import write_predictions_to_file
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
@@ -483,7 +483,7 @@ class SGDQAModel(NLPModel):
             predictions = combine_predictions_in_example(predictions, service_id.shape[0])
 
             # write predictions to file in Dstc8/SGD format
-            pred_utils.write_predictions_to_file(
+            write_predictions_to_file(
                 predictions,
                 input_json_files,
                 output_dir=prediction_dir,

@@ -43,7 +43,7 @@ pipeline {
 
     stage('Installation') {
       steps {
-        sh './reinstall.sh'
+        sh './reinstall.sh release'
       }
     }
 
