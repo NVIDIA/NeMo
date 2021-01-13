@@ -72,9 +72,9 @@ class TestASRModulesBasicTests:
             assert res_instance.shape == res_batch.shape
             assert length_instance.shape == length_batch.shape
             diff = torch.mean(torch.abs(res_instance - res_batch))
-            assert diff <= 1e-6
+            assert diff <= 1e-3
             diff = torch.max(torch.abs(res_instance - res_batch))
-            assert diff <= 1e-6
+            assert diff <= 1e-3
 
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor2(self):
