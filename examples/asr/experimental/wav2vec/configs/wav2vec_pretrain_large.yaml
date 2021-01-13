@@ -1,0 +1,123 @@
+name: &name "Wav2vec_large_Pretrain"
+# For more details on the model parameters, see nemo/collections/asr/models/wav2vec/wav2vec_config.py
+# These parameters are based off the FairSeq implementation.
+# See here: https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/config/pretraining/wav2vec2_large_librivox.yaml
+model:
+  transformer_encoder:
+    dropout: 0.0 # Dropout probability for the transformer
+    conv: # Config for convolutional model that generates positional embeddings required for attention layer
+      conv_pos: 128 # Number of filters for convolutional positional embeddings
+      conv_pos_groups: 16 # Number of groups for convolutional positional embeddings
+    encoder:
+      encoder_layers: 24 # Number of encoder layers in transformer model
+      encoder_layerdrop: 0.0 # Probability of dropping transformer layers
+      embedding_dim: 1024 # Encoder embedding dim
+      ffn_embedding_dim: 4096 # Encoder embedding dim for feed forward
+      num_attention_heads: 16 # Number of encoder attention heads
+      dropout: 0.0 # Dropout probability for transformer encoder
+      activation_fn: gelu # Activation for transformer
+      layer_norm_first: True # Apply layer norm first within the transformer
+  loss:
+    prob_ppl_weight: 0.1 # Weight applied to quantized prob perplexity loss
+    feature_loss_weight: 0 # Weight applied to feature L2 Norm
+  quantizer:
+    quantize_targets: True # Quantize targets
+    quantize_input: False # Quantize inputs
+    same_quantizer: False # Use the same quantizer for inputs and targets (If both enabled)
+    latent_vars: 320 # Number of latent variables in each group of the codebook
+    latent_groups: 2 # Number of groups within the codebook
+    latent_dim: 0 # If greater than 0, use the dim for latest variables else inferred by final dim / latent groups
+    latent_temp: [2, 0.1, 0.999995] # Quantize temperature (start, stop, decay factor)
+  conv_feature_encoder: # Config for feature extractor taking raw audio waveform and converting to features
+    extractor_mode: layer_norm # Mode for feature extractor. [default, layer_norm]
+    conv_bias: True # Include bias in convolution feature extractor model
+  masking:
+    mask_prob: 0.65 # Probability of replacing token with mask
+    mask_type: static # Used to select configuration to compute mask lengths [static, uniform, normal, poisson]
+    mask_other: 0 # Secondary mask used for complex distributions (see help in compute_mask_indices)
+    mask_length: 10 # Length of mask when masking time steps
+    no_mask_overlap: False # Whether to allow masks to overlap
+    mask_min_space: 1 # Minimum space beetween spans (if no overlap is enabled)
+    mask_channel_prob: 0 # Probability of replacing a feature with 0
+    mask_channel_type: static # Used to select configuration to compute mask channel lengths [static, uniform, normal, poisson]
+    mask_channel_other: 0 # Secondary mask argument (used for more complex distributions (see help in compute_mask_indices)
+    mask_channel_length: 10 # Length of masks for features (channels)
+    no_mask_channel_overlap: False # Whether to allow channel masks to overlap
+    mask_channel_min_space: 1 # Minimum space between spans (if no overlap is enabled)
+  dropout_input: 0.0 # Dropout applied to input raw features
+  dropout_features: 0.0 # Dropout applied to the features generator by convolutions
+  final_dim: 768 # Project final representations and targets to this dimension
+  n_negatives: 100 # Number of negatives to sample from the same audio sample
+  cross_sample_negatives: 0 # Number of negatives to sample from any sample in the batch
+  codebook_negatives: 0 # Number of negative examples in codebook
+  negatives_from_everywhere: False # Sample negatives from everywhere, not just masked states
+  logit_temp: 0.1 # Temperature to divide logits by
+  target_glu: False # Adds project and applies GLU to targets
+  feature_grad_mult: 1.0 # Multiply extracted feature gradients
+
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: 16000
+    batch_size: 32
+    shuffle: True
+    num_workers: 4
+    labels: [ ] # No vocab needed for pre-training
+  validation_ds:
+    manifest_filepath: ???
+    sample_rate: 16000
+    batch_size: 32
+    shuffle: False
+    num_workers: 1
+    labels: [ ]
+  test_ds:
+    manifest_filepath: null
+    sample_rate: 16000
+    batch_size: 32
+    shuffle: False
+    num_workers: 4
+    labels: [ ]
+  optim:
+    name: adamw
+    lr: 0.0005
+    eps: 1e-06
+    # optimizer arguments
+    betas: [ 0.9, 0.98 ]
+    weight_decay: 0.01
+
+    # scheduler setup
+    sched:
+      name: PolynomialDecayAnnealing
+      min_lr: 0.000
+      # Scheduler params
+      warmup_steps: null
+      warmup_ratio: 0.1
+trainer:
+  gpus: 0 # number of gpus
+  num_nodes: 1
+  max_epochs: 100
+  max_steps: null # computed at runtime if not set
+  val_check_interval: 0.5 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  gradient_clip_val: 0.0
+  amp_level: O0 # O1/O2 for mixed precision
+  precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
+  log_every_n_steps: 10 # Interval of logging.
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
+  check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
+  sync_batchnorm: true
+
+  checkpoint_callback: false # Provided by exp_manager
+  logger: false # Provided by exp_manager
+exp_manager:
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
