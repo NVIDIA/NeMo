@@ -41,6 +41,8 @@ import numpy as np
 import soundfile as sf
 from pydub import AudioSegment as Audio
 
+available_formats = sf.available_formats()
+sf_supported_formats = ["."+i.lower() for i in available_formats.keys()]
 
 class AudioSegment(object):
     """Monaural audio segment abstraction.
@@ -125,7 +127,7 @@ class AudioSegment(object):
         """
         if isinstance(audio_file, (str, Path)):
             ext = Path(audio_file).suffix
-        if not isinstance(audio_file, (str, Path)) or ext == ".wav":
+        if not isinstance(audio_file, (str, Path)) or ext in sf_supported_formats:
             with sf.SoundFile(audio_file, 'r') as f:
                 dtype = 'int32' if int_values else 'float32'
                 sample_rate = f.samplerate
