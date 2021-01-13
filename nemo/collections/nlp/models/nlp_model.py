@@ -340,7 +340,7 @@ class NLPCheckpointConnector(CheckpointConnector):
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             # filepath needs to be updated to include mp_rank
-            filepath = f'{filepath}/mp_rank_{app_state.model_parallel_rank:.02d}'
+            filepath = f'{filepath}/mp_rank_{app_state.model_parallel_rank:02d}'
 
             # dump states as a checkpoint dictionary object
             checkpoint = self.dump_checkpoint(weights_only)
