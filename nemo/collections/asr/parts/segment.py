@@ -33,8 +33,8 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 
+import os
 import random
-from pathlib import Path
 
 import librosa
 import numpy as np
@@ -129,7 +129,7 @@ class AudioSegment(object):
         :return: numpy array of samples
         """
         samples = None
-        if not isinstance(audio_file, (str, Path)) or Path(audio_file).suffix.lower() in sf_supported_formats:
+        if not isinstance(audio_file, str) or os.path.splitext(audio_file)[-1] in sf_supported_formats:
             try:
                 with sf.SoundFile(audio_file, 'r') as f:
                     dtype = 'int32' if int_values else 'float32'
