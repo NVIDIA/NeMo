@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import argparse
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 def construct_negatives(input_file, output_file, num_passages, num_negatives):
@@ -34,13 +35,13 @@ def main():
     parser.add_argument("--num_passages", type=int, default=8841823, help="total number of passages")
     parser.add_argument("--num_negatives", type=int, default=10, help="number of negatives per positive")
     args = parser.parse_args()
-    
+
     for mode in ["train", "dev"]:
         construct_negatives(
             input_file=f"{args.data}/qrels.{mode}.tsv",
             output_file=f"{args.data}/query2passages.{mode}.tsv",
             num_passages=args.num_passages,
-            num_negatives=args.num_negatives
+            num_negatives=args.num_negatives,
         )
 
 
