@@ -261,7 +261,7 @@ class NLPModel(ModelPT):
         # TODO: implement model parallel for test stage
         if stage == 'fit':
             # adds self.bert_model config to .nemo file
-            if self.bert_model is not None:
+            if hasattr(self, 'bert_model') and self.bert_model is not None:
                 self.register_bert_model()
 
             app_state = AppState()
