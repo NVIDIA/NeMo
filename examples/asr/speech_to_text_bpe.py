@@ -37,13 +37,11 @@ python speech_to_text_bpe.py \
     trainer.accelerator="ddp" \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
-    model.optim.lr=0.1 \
+    model.optim.lr=0.001 \
     model.optim.betas=[0.9,0.999] \
     model.optim.weight_decay=0.0001 \
-    model.optim.sched.warmup_ratio=0.05 \
-    exp_manager.create_wandb_logger=True \
-    exp_manager.wandb_logger_kwargs.name="AN4-BPE-1024" \
-    exp_manager.wandb_logger_kwargs.project="AN4_BPE_1024"
+    model.optim.sched.warmup_steps=2000
+    ...
 ```
 """
 import pytorch_lightning as pl
