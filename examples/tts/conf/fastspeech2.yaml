@@ -72,13 +72,16 @@ model:
 
   optim:
     name: adam
+    betas: [0.9,0.98]
     lr: 1e-3
     weight_decay: 1e-6
-
+    # TODO: add warmup, decrease learning rate
     # scheduler setup
     sched:
-      name: CosineAnnealing
+      name: NoamAnnealing
+      warmup_steps: 4000
       min_lr: 1e-5
+      d_model: 256
 
 
 trainer:
@@ -89,7 +92,7 @@ trainer:
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  gradient_clip_val: 1.0
+  # gradient_clip_val: 1.0
   flush_logs_every_n_steps: 1000
   log_every_n_steps: 200
   check_val_every_n_epoch: 25
