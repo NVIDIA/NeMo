@@ -26,7 +26,23 @@ import os
 
 import numpy as np
 
-import nemo.collections.nlp.data.dialogue_state_tracking.sgd.metrics as metrics
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.metrics import (
+    ACTIVE_INTENT_ACCURACY,
+    JOINT_CAT_ACCURACY,
+    JOINT_GOAL_ACCURACY,
+    JOINT_NONCAT_ACCURACY,
+    NAN_VAL,
+    REQUESTED_SLOTS_F1,
+    REQUESTED_SLOTS_PRECISION,
+    REQUESTED_SLOTS_RECALL,
+    SLOT_TAGGING_F1,
+    SLOT_TAGGING_PRECISION,
+    SLOT_TAGGING_RECALL,
+    get_active_intent_accuracy,
+    get_average_and_joint_goal_accuracy,
+    get_requested_slots_f1,
+    get_slot_tagging_f1,
+)
 from nemo.utils import logging
 
 __all__ = ['get_in_domain_services']
@@ -141,7 +157,7 @@ def get_metrics(
                 "for dialogue with id {}".format(dial_id)
             )
 
-        joint_metrics = [metrics.JOINT_GOAL_ACCURACY, metrics.JOINT_CAT_ACCURACY, metrics.JOINT_NONCAT_ACCURACY]
+        joint_metrics = [JOINT_GOAL_ACCURACY, JOINT_CAT_ACCURACY, JOINT_NONCAT_ACCURACY]
         for turn_id, (turn_ref, turn_hyp) in enumerate(zip(dial_ref["turns"], dial_hyp["turns"])):
             metric_collections_per_turn = collections.defaultdict(lambda: collections.defaultdict(lambda: 1.0))
             if turn_ref["speaker"] != turn_hyp["speaker"]:
@@ -168,25 +184,23 @@ def get_metrics(
                 service = service_schemas[service_name]
                 frame_hyp = hyp_frames_by_service[service_name]
 
-                active_intent_acc = metrics.get_active_intent_accuracy(frame_ref, frame_hyp)
-                slot_tagging_f1_scores = metrics.get_slot_tagging_f1(
-                    frame_ref, frame_hyp, turn_ref["utterance"], service
-                )
-                requested_slots_f1_scores = metrics.get_requested_slots_f1(frame_ref, frame_hyp)
-                goal_accuracy_dict = metrics.get_average_and_joint_goal_accuracy(
+                active_intent_acc = get_active_intent_accuracy(frame_ref, frame_hyp)
+                slot_tagging_f1_scores = get_slot_tagging_f1(frame_ref, frame_hyp, turn_ref["utterance"], service)
+                requested_slots_f1_scores = get_requested_slots_f1(frame_ref, frame_hyp)
+                goal_accuracy_dict = get_average_and_joint_goal_accuracy(
                     frame_ref, frame_hyp, service, use_fuzzy_match
                 )
 
                 frame_metric = {
-                    metrics.ACTIVE_INTENT_ACCURACY: active_intent_acc,
-                    metrics.REQUESTED_SLOTS_F1: requested_slots_f1_scores.f1,
-                    metrics.REQUESTED_SLOTS_PRECISION: requested_slots_f1_scores.precision,
-                    metrics.REQUESTED_SLOTS_RECALL: requested_slots_f1_scores.recall,
+                    ACTIVE_INTENT_ACCURACY: active_intent_acc,
+                    REQUESTED_SLOTS_F1: requested_slots_f1_scores.f1,
+                    REQUESTED_SLOTS_PRECISION: requested_slots_f1_scores.precision,
+                    REQUESTED_SLOTS_RECALL: requested_slots_f1_scores.recall,
                 }
                 if slot_tagging_f1_scores is not None:
-                    frame_metric[metrics.SLOT_TAGGING_F1] = slot_tagging_f1_scores.f1
-                    frame_metric[metrics.SLOT_TAGGING_PRECISION] = slot_tagging_f1_scores.precision
-                    frame_metric[metrics.SLOT_TAGGING_RECALL] = slot_tagging_f1_scores.recall
+                    frame_metric[SLOT_TAGGING_F1] = slot_tagging_f1_scores.f1
+                    frame_metric[SLOT_TAGGING_PRECISION] = slot_tagging_f1_scores.precision
+                    frame_metric[SLOT_TAGGING_RECALL] = slot_tagging_f1_scores.recall
                 frame_metric.update(goal_accuracy_dict)
 
                 frame_id = "{:s}-{:03d}-{:s}".format(dial_id, turn_id, frame_hyp["service"])
@@ -204,7 +218,7 @@ def get_metrics(
                     domain_keys.append(UNSEEN_SERVICES)
                 for domain_key in domain_keys:
                     for metric_key, metric_value in frame_metric.items():
-                        if metric_value != metrics.NAN_VAL:
+                        if metric_value != NAN_VAL:
                             if joint_acc_across_turn and metric_key in joint_metrics:
                                 metric_collections_per_turn[domain_key][metric_key] *= metric_value
                             else:
@@ -224,7 +238,7 @@ def get_metrics(
                 # Metrics are macro-averaged across all frames.
                 domain_metric_aggregate[metric_key] = round(float(np.mean(value_list)) * 100.0, 2)
             else:
-                domain_metric_aggregate[metric_key] = metrics.NAN_VAL
+                domain_metric_aggregate[metric_key] = NAN_VAL
         all_metric_aggregate[domain_key] = domain_metric_aggregate
     return all_metric_aggregate, per_frame_metric
 
