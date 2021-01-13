@@ -31,6 +31,7 @@ from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
@@ -211,6 +212,12 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.create_wandb_logger,
             cfg.wandb_logger_kwargs,
         )
+
+    # for model parallel we need a checkpoint for each model parallel rank on data parallel rank 0
+    # app_state = AppState()
+    # if is_global_rank_zero() or app_state.data_parallel_rank == 0:
+    #     if cfg.create_checkpoint_callback:
+    #         configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
 
     if is_global_rank_zero():
         if cfg.create_checkpoint_callback:

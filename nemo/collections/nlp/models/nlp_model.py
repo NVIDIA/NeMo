@@ -16,18 +16,18 @@ import hashlib
 import json
 import os
 from typing import Any, Dict, List
-from megatron.checkpointing import get_checkpoint_version
-from pytorch_lightning.utilities.cloud_io import atomic_save
 
 import torch
 from megatron import mpu
+from megatron.checkpointing import get_checkpoint_version
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
-from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
+from pytorch_lightning.utilities.cloud_io import atomic_save
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
@@ -283,7 +283,7 @@ class NLPModel(ModelPT):
                 self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
                 # Update PTL trainer to use our _clip_gradients
                 self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
-                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
+                # self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
