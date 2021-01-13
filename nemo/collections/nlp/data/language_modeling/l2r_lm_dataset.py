@@ -16,6 +16,7 @@ import io
 import json
 from typing import Optional
 
+import braceexpand
 import numpy as np
 import webdataset as wd
 from torch.utils.data import Dataset, IterableDataset
