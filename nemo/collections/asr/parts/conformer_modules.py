@@ -108,7 +108,7 @@ class ConformerLayer(torch.nn.Module):
         x = self.norm_self_att(x)
         if self.self_attention_model == 'rel_pos' or self.self_attention_model == 'rel_pos2':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
-            #x = self.self_attn2(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
+            # x = self.self_attn2(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
@@ -154,7 +154,7 @@ class ConformerConvolution(nn.Module):
             bias=True,
         )
         self.batch_norm = nn.BatchNorm1d(d_model)
-        #self.batch_norm = nn.LayerNorm(d_model)
+        # self.batch_norm = nn.LayerNorm(d_model)
         self.activation = Swish()
         self.pointwise_conv2 = nn.Conv1d(
             in_channels=d_model, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
@@ -170,9 +170,9 @@ class ConformerConvolution(nn.Module):
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
         x = self.depthwise_conv(x)
 
-        #x = x.transpose(1, 2)
+        # x = x.transpose(1, 2)
         x = self.batch_norm(x)
-        #x = x.transpose(1, 2)
+        # x = x.transpose(1, 2)
 
         x = self.activation(x)
 

@@ -357,7 +357,7 @@ class RelPositionMultiHeadAttention2(nn.Module):
         self.d_k = n_feat // n_head
         self.h = n_head
         self.d_model = n_feat
-        #self.qkv_net = nn.Linear(n_feat, 3 * n_head * self.d_k, bias=False)
+        # self.qkv_net = nn.Linear(n_feat, 3 * n_head * self.d_k, bias=False)
         self.linear_q = nn.Linear(n_feat, n_feat)
         self.linear_k = nn.Linear(n_feat, n_feat)
         self.linear_v = nn.Linear(n_feat, n_feat)

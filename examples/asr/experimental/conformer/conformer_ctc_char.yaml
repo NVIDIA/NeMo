@@ -78,7 +78,7 @@ model:
     # Sub-sampling params
     subsampling: striding # vggnet or striding
     subsampling_factor: 4 # must be power of 2
-    subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
+    subsampling_conv_channels: -1 # set to -1 to make it equal to the d_model
 
     # Feed forward module's params
     ff_expansion_factor: 4
