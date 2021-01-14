@@ -36,6 +36,10 @@ def main(cfg: DictConfig) -> None:
     trainer.fit(model)
     logging.info('Training finished!')
 
+    # Stop further testing as fast_dev_run does not save checkpoints
+    if trainer.fast_dev_run:
+        return
+
     # after model training is done, you can load the model from the saved checkpoint
     # and evaluate it on a data file or on given queries.
     logging.info("================================================================================================")

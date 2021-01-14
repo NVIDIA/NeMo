@@ -107,7 +107,7 @@ class TestExpManager:
     def test_omegaconf(self):
         """Ensure omegaconf raises an error when an unexcepted argument is passed"""
         with pytest.raises(OmegaConfBaseException):
-            exp_manager(None, {"unused": 1})
+            exp_manager(pl.Trainer(), {"unused": 1})
 
     @pytest.mark.unit
     def test_trainer_loggers(self, cleanup_local_folder, tmp_path):
