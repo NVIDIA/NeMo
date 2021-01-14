@@ -16,6 +16,7 @@ import io
 import json
 from typing import Optional
 
+import braceexpand
 import numpy as np
 import webdataset as wd
 from torch.utils.data import Dataset, IterableDataset
@@ -160,6 +161,10 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
             for bkey in brace_keys_close:
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "}")
+
+        if isinstance(text_tar_filepaths, str):
+            # Brace expand
+            text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
 
         if shard_strategy == 'scatter':
             logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
