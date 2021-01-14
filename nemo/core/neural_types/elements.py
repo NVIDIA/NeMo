@@ -50,6 +50,7 @@ __all__ = [
     'TokenIndex',
     'Length',
     'IntType',
+    'FloatType',
     'NormalDistributionSamplesType',
     'NormalDistributionMeanType',
     'NormalDistributionLogVarianceType',
@@ -269,6 +270,10 @@ class BoolType(ElementType):
 
 class IntType(ElementType):
     """Element type representing a single integer"""
+
+
+class FloatType(ElementType):
+    """Element type representing a single float"""
 
 
 class TokenIndex(IntType):

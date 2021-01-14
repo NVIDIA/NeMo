@@ -18,6 +18,7 @@ import shutil
 import tempfile
 
 import pytest
+import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
@@ -104,6 +105,42 @@ class TestEncDecRNNTBPEModel:
         confdict = asr_model.to_config_dict()
         instance2 = EncDecRNNTBPEModel.from_config_dict(confdict)
         assert isinstance(instance2, EncDecRNNTBPEModel)
+
+    @pytest.mark.skipif(
+        not WARP_RNNT_AVAILABLE,
+        reason='RNNTLoss has not been compiled. Please compile and install '
+        'RNNT Loss first before running this test',
+    )
+    @pytest.mark.unit
+    def test_forward(self, asr_model):
+        asr_model = asr_model.eval()
+
+        asr_model.preprocessor.featurizer.dither = 0.0
+        asr_model.preprocessor.featurizer.pad_to = 0
+
+        asr_model.compute_eval_loss = False
+
+        input_signal = torch.randn(size=(4, 512))
+        length = torch.randint(low=161, high=500, size=[4])
+
+        with torch.no_grad():
+            # batch size 1
+            logprobs_instance = []
+            for i in range(input_signal.size(0)):
+                logprobs_ins, _ = asr_model.forward(
+                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
+                )
+                logprobs_instance.append(logprobs_ins)
+            logits_instance = torch.cat(logprobs_instance, 0)
+
+            # batch size 4
+            logprobs_batch, _ = asr_model.forward(input_signal=input_signal, input_signal_length=length)
+
+        assert logits_instance.shape == logprobs_batch.shape
+        diff = torch.mean(torch.abs(logits_instance - logprobs_batch))
+        assert diff <= 1e-6
+        diff = torch.max(torch.abs(logits_instance - logprobs_batch))
+        assert diff <= 1e-6
 
     @pytest.mark.skipif(
         not WARP_RNNT_AVAILABLE,
