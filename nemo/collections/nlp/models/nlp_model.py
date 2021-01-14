@@ -14,6 +14,8 @@
 
 import hashlib
 import json
+from nemo.utils.exp_manager import configure_checkpointing
+from nemo.utils.get_rank import is_global_rank_zero
 import os
 from typing import Any, Dict, List
 
@@ -35,7 +37,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 __all__ = ['NLPModel']
 
@@ -283,7 +285,18 @@ class NLPModel(ModelPT):
                 self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
                 # Update PTL trainer to use our _clip_gradients
                 self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
-                # self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
+                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
+
+                # Configure checkpointing for model parallel
+                if app_state.create_checkpoint_callback:
+                    # global rank 0 is configured by exp_manager
+                    if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
+                        configure_checkpointing(
+                            self._trainer,
+                            app_state.log_dir,
+                            app_state.checkpoint_name,
+                            app_state.checkpoint_callback_params,
+                        )
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
