@@ -22,8 +22,11 @@ ${PIP} uninstall -y nemo_simple_gan
 
 ${PIP} install -U setuptools
 
+<<<<<<< HEAD
 for f in $(ls requirements/*.txt); do ${PIP} install ${PIP_FLAGS}--disable-pip-version-check --no-cache-dir -r $f; done
 
+=======
+>>>>>>> nvidia/main
 echo 'Installing stuff'
 ${PIP} install ${PIP_INSTALL_OPTION} ".[all]"
 
