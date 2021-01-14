@@ -26,7 +26,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
-from sacremoses import MosesDetokenizer
+from sacremoses import MosesDetokenizer, MosesTokenizer, MosesPunctNormalizer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
@@ -302,22 +302,28 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
     @torch.no_grad()
-    def translate(self, text: List[str], target_lang: str = 'en') -> List[str]:
+    def translate(self, text: List[str], source_lang: str = 'en', target_lang: str = 'en') -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization
         Args:
             text: list of strings to translate
-
         Returns:
             list of translated strings
         """
         mode = self.training
-        detokenizer = MosesDetokenizer(lang=target_lang)
+        if source_lang != "None":
+            tokenizer = MosesTokenizer(lang=source_lang)
+            normalizer = MosesPunctNormalizer(lang=source_lang)
+        if target_lang != "None":
+            detokenizer = MosesDetokenizer(lang=target_lang)
         try:
             self.eval()
             res = []
             for txt in text:
+                if source_lang != "None":
+                    txt = normalizer.normalize(txt)
+                    txt = tokenizer.tokenize(txt, escape=False, return_str=True)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
@@ -328,7 +334,9 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                res.append(detokenizer.detokenize(translation.split()))
+                if target_lang != "None":
+                    translation = detokenizer.detokenize(translation.split())
+                res.append(translation)
         finally:
             self.train(mode=mode)
         return res
