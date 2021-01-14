@@ -30,8 +30,7 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
-from nemo.utils import logging
-from nemo.utils import app_state
+from nemo.utils import app_state, logging
 from nemo.utils.app_state import AppState
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
