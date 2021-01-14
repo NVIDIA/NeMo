@@ -17,10 +17,12 @@ import json
 import os
 from typing import List
 
+import pytorch_lightning
 import torch
 from megatron import mpu
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
@@ -31,7 +33,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 __all__ = ['NLPModel']
 
@@ -46,8 +48,6 @@ class NLPModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
-        self.bert_model = None  # Pretrained BERT encoder
-
         self.set_world_size(trainer)
 
     @rank_zero_only
@@ -86,12 +86,12 @@ class NLPModel(ModelPT):
     def setup_tokenizer(self, cfg: DictConfig):
         """Instantiates tokenizer based on config and registers tokenizer artifacts.
 
-           If model is being restored from .nemo file then the tokenizer.vocab_file will 
-           be used (if it exists). 
+           If model is being restored from .nemo file then the tokenizer.vocab_file will
+           be used (if it exists).
 
            Otherwise, we will use the vocab file provided in the config (if it exists).
 
-           Finally, if no vocab file is given (this happens frequently when using HF), 
+           Finally, if no vocab file is given (this happens frequently when using HF),
            we will attempt to extract the vocab from the tokenizer object and then register it.
 
         Args:
@@ -226,9 +226,34 @@ class NLPModel(ModelPT):
             logging.info("Did not detect model parallel using LightningModule.configure_ddp")
             return LightningModule.configure_ddp(self, model, device_ids)
 
+    def _clip_gradients(self, optimizer, clip_val=None):
+        """ Override of PTL Gradient Clipping.
+            Enables model parallel gradient clipping from Megatron-LM.
+
+        Args:
+            optimizer ([type]): [description]
+            clip_val ([type], optional): [description]. Defaults to None.
+        """
+        app_state = AppState()
+
+        # get clip_val from trainer if None is provided
+        if clip_val is None:
+            clip_val = float(self._trainer.gradient_clip_val)
+
+        if app_state.model_parallel_size is not None:
+            model = self._trainer.get_model()
+            parameters = model.parameters()
+            if mpu.model_parallel_is_initialized():
+                mpu.grads.clip_grad_norm(parameters=parameters, max_norm=clip_val)
+            else:
+                raise ValueError('Model parallel groups must be intialized to use model parallel gradient clipping.')
+
+        else:
+            return Accelerator._clip_gradients(self, optimizer, clip_val)
+
     def setup(self, stage: str) -> None:
         """ PTL hook that is called after DDP is initialized.
-            Called at the beginning of fit and test. 
+            Called at the beginning of fit and test.
 
         Args:
             stage (str): either 'fit' or 'test'
@@ -245,10 +270,21 @@ class NLPModel(ModelPT):
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
+                # mpu grad clipping needs parameters to have the attribute model_parallel
+                parameters = self._trainer.get_model().parameters()
+                for p in parameters:
+                    if not hasattr(p, 'model_parallel'):
+                        p.model_parallel = False
+
                 # Update PTL trainer to use our configure_ddp
-                self._trainer.accelerator_backend.configure_ddp = self.configure_ddp
+                self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
+                # Update PTL trainer to use our _clip_gradients
+                self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
+                    # finish megatron-lm initialization
+                    self.bert_model._lazy_init_fn()
+
                     logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
                     self.bert_model.restore_weights(self.bert_model._restore_path)
@@ -265,3 +301,7 @@ class NLPModel(ModelPT):
                     raise NotImplementedError(
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
+            else:
+                if isinstance(self.bert_model, MegatronBertEncoder):
+                    # finish megatron-lm initialization
+                    self.bert_model._lazy_init_fn()
