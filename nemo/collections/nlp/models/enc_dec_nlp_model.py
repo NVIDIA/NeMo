@@ -79,12 +79,12 @@ class EncDecNLPModel(NLPModel):
             tokenizer_model=self.register_artifact(
                 "cfg.encoder_tokenizer.tokenizer_model", cfg.encoder_tokenizer.tokenizer_model
             ),
-            bpe_dropout=cfg.encoder_tokenizer.bpe_dropout,
+            bpe_dropout=cfg.encoder_tokenizer.bpe_dropout if hasattr(cfg.encoder_tokenizer, 'bpe_dropout') else 0.0,
         )
         self.decoder_tokenizer = get_tokenizer(
             tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
             tokenizer_model=self.register_artifact(
                 "cfg.decoder_tokenizer.tokenizer_model", cfg.decoder_tokenizer.tokenizer_model
             ),
-            bpe_dropout=cfg.decoder_tokenizer.bpe_dropout,
+            bpe_dropout=cfg.cfg.decoder_tokenizer.bpe_dropout if hasattr(cfg.decoder_tokenizer, 'bpe_dropout') else 0.0,
         )
