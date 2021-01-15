@@ -69,7 +69,7 @@ class Exportable(ABC):
         output_example=None,
         verbose=False,
         export_params=True,
-        do_constant_folding=True,
+        do_constant_folding=False,
         keep_initializers_as_inputs=False,
         onnx_opset_version: int = 12,
         try_script: bool = False,
