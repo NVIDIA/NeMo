@@ -46,6 +46,37 @@ class TestASRModulesBasicTests:
             assert diff <= 1e-2
 
     @pytest.mark.unit
+    def test_AudioToMelSpectrogramPreprocessor_batch(self):
+        # Test 1 that should test the pure stft implementation as much as possible
+        instance1 = modules.AudioToMelSpectrogramPreprocessor(normalize="per_feature", dither=0, pad_to=0)
+
+        # Ensure that the two functions behave similarily
+        for _ in range(10):
+            input_signal = torch.randn(size=(4, 512))
+            length = torch.randint(low=161, high=500, size=[4])
+
+            with torch.no_grad():
+                # batch size 1
+                res_instance, length_instance = [], []
+                for i in range(input_signal.size(0)):
+                    res_ins, length_ins = instance1(input_signal=input_signal[i : i + 1], length=length[i : i + 1])
+                    res_instance.append(res_ins)
+                    length_instance.append(length_ins)
+
+                res_instance = torch.cat(res_instance, 0)
+                length_instance = torch.cat(length_instance, 0)
+
+                # batch size 4
+                res_batch, length_batch = instance1(input_signal=input_signal, length=length)
+
+            assert res_instance.shape == res_batch.shape
+            assert length_instance.shape == length_batch.shape
+            diff = torch.mean(torch.abs(res_instance - res_batch))
+            assert diff <= 1e-3
+            diff = torch.max(torch.abs(res_instance - res_batch))
+            assert diff <= 1e-3
+
+    @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor2(self):
         # Test 2 that should test the stft implementation as used in ASR models
         instance1 = modules.AudioToMelSpectrogramPreprocessor(dither=0, stft_conv=False)
