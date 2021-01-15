@@ -86,12 +86,12 @@ class NLPModel(ModelPT):
     def setup_tokenizer(self, cfg: DictConfig):
         """Instantiates tokenizer based on config and registers tokenizer artifacts.
 
-           If model is being restored from .nemo file then the tokenizer.vocab_file will 
-           be used (if it exists). 
+           If model is being restored from .nemo file then the tokenizer.vocab_file will
+           be used (if it exists).
 
            Otherwise, we will use the vocab file provided in the config (if it exists).
 
-           Finally, if no vocab file is given (this happens frequently when using HF), 
+           Finally, if no vocab file is given (this happens frequently when using HF),
            we will attempt to extract the vocab from the tokenizer object and then register it.
 
         Args:
@@ -253,7 +253,7 @@ class NLPModel(ModelPT):
 
     def setup(self, stage: str) -> None:
         """ PTL hook that is called after DDP is initialized.
-            Called at the beginning of fit and test. 
+            Called at the beginning of fit and test.
 
         Args:
             stage (str): either 'fit' or 'test'
@@ -277,7 +277,7 @@ class NLPModel(ModelPT):
                         p.model_parallel = False
 
                 # Update PTL trainer to use our configure_ddp
-                self._trainer.accelerator_backend.configure_ddp = self.configure_ddp
+                self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
                 # Update PTL trainer to use our _clip_gradients
                 self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
