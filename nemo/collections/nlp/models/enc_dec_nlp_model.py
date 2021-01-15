@@ -8,10 +8,11 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig, get_tokenizer
+from nemo.core.config.modelPT import ModelConfig
 
 
 @dataclass
-class EncDecNLPModelConfig:
+class EncDecNLPModelConfig(ModelConfig):
     encoder_tokenizer: TokenizerConfig = MISSING
     decoder_tokenizer: TokenizerConfig = MISSING
     encoder: Any = MISSING
@@ -86,7 +87,5 @@ class EncDecNLPModel(NLPModel):
             tokenizer_model=self.register_artifact(
                 "cfg.decoder_tokenizer.tokenizer_model", cfg.decoder_tokenizer.tokenizer_model
             ),
-            bpe_dropout=cfg.cfg.decoder_tokenizer.bpe_dropout
-            if hasattr(cfg.decoder_tokenizer, 'bpe_dropout')
-            else 0.0,
+            bpe_dropout=cfg.decoder_tokenizer.bpe_dropout if hasattr(cfg.decoder_tokenizer, 'bpe_dropout') else 0.0,
         )

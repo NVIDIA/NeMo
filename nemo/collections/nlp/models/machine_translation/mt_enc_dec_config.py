@@ -53,7 +53,7 @@ class AAYNBaseOptimConfig(OptimConfig):
 
 
 @dataclass
-class AAYNBaseConfig(ModelConfig):
+class AAYNBaseConfig(MTEncDecModelConfig):
     # machine translation configurations
     num_val_examples: int = 3
     num_test_examples: int = 3
