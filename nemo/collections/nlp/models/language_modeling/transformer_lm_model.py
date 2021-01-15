@@ -157,6 +157,30 @@ class TransformerLMModel(ModelPT):
         tensorboard_logs = {"val_loss": avg_loss, "val_ppl": validation_perplexity}
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
+    def test_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the test loop with the data from the test dataloader
+        passed in as `batch`.
+        """
+        output_dict = self.validation_step(batch, batch_idx)
+        result = {"test_loss": output_dict['val_loss'], "log": {}}
+        for k, v in output_dict['log'].items():
+            new_k = k.replace("val", "test")
+            result['log'][new_k] = v
+
+        return result
+
+    def test_epoch_end(self, outputs):
+        """
+        Called at the end of test step to aggregate outputs.
+        :param outputs: list of individual outputs of each test step.
+        """
+
+        avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
+        validation_perplexity = self.validation_perplexity.compute()
+        tensorboard_logs = {"test_loss": avg_loss, "test_ppl": validation_perplexity}
+        return {"test_loss": avg_loss, "log": tensorboard_logs}
+
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
