@@ -159,7 +159,7 @@ class TransformerLMModel(ModelPT):
 
     def test_step(self, batch, batch_idx):
         """
-        Lightning calls this inside the validation loop with the data from the validation dataloader
+        Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
         output_dict = self.validation_step(batch, batch_idx)
@@ -172,8 +172,8 @@ class TransformerLMModel(ModelPT):
 
     def test_epoch_end(self, outputs):
         """
-        Called at the end of validation to aggregate outputs.
-        :param outputs: list of individual outputs of each validation step.
+        Called at the end of test step to aggregate outputs.
+        :param outputs: list of individual outputs of each test step.
         """
 
         avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
