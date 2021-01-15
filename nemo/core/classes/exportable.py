@@ -80,7 +80,7 @@ class Exportable(ABC):
     ):
         if do_constant_folding is None:
             # If None, perform constant folding iff available, otherwise skip
-            logging.debug(f"Constant folding available = {ONNX_GRAPHSURGEON_AVAILABLE}")
+            logging.info(f"Constant folding available = {ONNX_GRAPHSURGEON_AVAILABLE}")
             do_constant_folding = ONNX_GRAPHSURGEON_AVAILABLE
 
         try:
