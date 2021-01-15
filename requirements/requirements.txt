@@ -12,5 +12,3 @@ hydra-core>=1.0.4
 transformers>=4.0.1
 sentencepiece<1.0.0
 webdataset
-nvidia-pyindex>=1.0.6
-onnx-graphsurgeon>=0.2.7
