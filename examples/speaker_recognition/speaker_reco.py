@@ -50,8 +50,9 @@ def main(cfg):
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)
-    model_path = os.path.join(log_dir, '..', 'spkr.nemo')
-    speaker_model.save_to(model_path)
+    if not trainer.fast_dev_run:
+        model_path = os.path.join(log_dir, '..', 'spkr.nemo')
+        speaker_model.save_to(model_path)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0
