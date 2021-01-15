@@ -22,8 +22,8 @@ import torch
 
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
-from nemo.utils.export_utils import replace_for_export
 from nemo.utils import logging
+from nemo.utils.export_utils import replace_for_export
 
 try:
     import onnx_graphsurgeon as gs
