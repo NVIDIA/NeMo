@@ -175,7 +175,6 @@ class StyleCommand(distutils_cmd.Command):
 
 ###############################################################################
 
-
 setuptools.setup(
     name=__package_name__,
     # Versions should comply with PEP440.  For a discussion on single-sourcing
@@ -233,7 +232,7 @@ setuptools.setup(
     ],
     packages=setuptools.find_packages(),
     install_requires=install_requires,
-    setup_requires=['pytest-runner'],
+    setup_requires=['pytest-runner', 'nvidia-pyindex'],
     tests_require=tests_requirements,
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
