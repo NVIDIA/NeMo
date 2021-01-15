@@ -18,12 +18,19 @@ from enum import Enum
 from typing import Dict
 
 import onnx
-import onnx_graphsurgeon as gs
 import torch
 
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
 from nemo.utils.export_utils import replace_for_export
+
+try:
+    import onnx_graphsurgeon as gs
+
+    ONNX_GRAPHSURGEON_AVAILABLE = True
+
+except (ImportError, ModuleNotFoundError):
+    ONNX_GRAPHSURGEON_AVAILABLE = False
 
 __all__ = ['ExportFormat', 'Exportable']
 
@@ -161,6 +168,14 @@ class Exportable(ABC):
                     onnx.checker.check_model(onnx_model, full_check=True)
 
                     if do_constant_folding:
+                        if not ONNX_GRAPHSURGEON_AVAILABLE:
+                            raise ImportError(
+                                "`onnx-graphsurgeon` could not be imported."
+                                "Please follow the instructions available at :"
+                                "https://github.com/NVIDIA/TensorRT/tree/master/tools/onnx-graphsurgeon"
+                                "to install it prior to attemtping export with constant folding."
+                            )
+
                         # This pass is to remove/recast certain constants that are generated as 'double'
                         # Those constants break ONNX -> TRT conversion (TRT does not support 'double' as of 7.2)
                         # Can probably be removed once TRT has automatic downcast for double ( NVBUG #3221866).
