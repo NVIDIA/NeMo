@@ -86,5 +86,7 @@ class EncDecNLPModel(NLPModel):
             tokenizer_model=self.register_artifact(
                 "cfg.decoder_tokenizer.tokenizer_model", cfg.decoder_tokenizer.tokenizer_model
             ),
-            bpe_dropout=cfg.cfg.decoder_tokenizer.bpe_dropout if hasattr(cfg.decoder_tokenizer, 'bpe_dropout') else 0.0,
+            bpe_dropout=cfg.cfg.decoder_tokenizer.bpe_dropout
+            if hasattr(cfg.decoder_tokenizer, 'bpe_dropout')
+            else 0.0,
         )

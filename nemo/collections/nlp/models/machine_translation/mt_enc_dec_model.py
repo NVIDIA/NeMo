@@ -26,7 +26,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
-from sacremoses import MosesDetokenizer, MosesTokenizer, MosesPunctNormalizer
+from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
@@ -60,9 +60,13 @@ class MTEncDecModel(EncDecNLPModel):
             hidden_size=cfg.encoder.hidden_size,
             num_layers=cfg.encoder.num_layers,
             inner_size=cfg.encoder.inner_size,
-            max_sequence_length=cfg.encoder.max_sequence_length if hasattr(cfg.encoder, 'max_sequence_length') else 512,
+            max_sequence_length=cfg.encoder.max_sequence_length
+            if hasattr(cfg.encoder, 'max_sequence_length')
+            else 512,
             embedding_dropout=cfg.encoder.embedding_dropout if hasattr(cfg.encoder, 'embedding_dropout') else 0.0,
-            learn_positional_encodings=cfg.encoder.learn_positional_encodings if hasattr(cfg.encoder, 'learn_positional_encodings') else False,
+            learn_positional_encodings=cfg.encoder.learn_positional_encodings
+            if hasattr(cfg.encoder, 'learn_positional_encodings')
+            else False,
             num_attention_heads=cfg.encoder.num_attention_heads,
             ffn_dropout=cfg.encoder.ffn_dropout,
             attn_score_dropout=cfg.encoder.attn_score_dropout,
@@ -78,9 +82,13 @@ class MTEncDecModel(EncDecNLPModel):
             hidden_size=cfg.decoder.hidden_size,
             num_layers=cfg.decoder.num_layers,
             inner_size=cfg.decoder.inner_size,
-            max_sequence_length=cfg.decoder.max_sequence_length if hasattr(cfg.decoder, 'max_sequence_length') else 512,
+            max_sequence_length=cfg.decoder.max_sequence_length
+            if hasattr(cfg.decoder, 'max_sequence_length')
+            else 512,
             embedding_dropout=cfg.decoder.embedding_dropout if hasattr(cfg.decoder, 'embedding_dropout') else 0.0,
-            learn_positional_encodings=cfg.decoder.learn_positional_encodings if hasattr(cfg.decoder, 'learn_positional_encodings') else False,
+            learn_positional_encodings=cfg.decoder.learn_positional_encodings
+            if hasattr(cfg.decoder, 'learn_positional_encodings')
+            else False,
             num_attention_heads=cfg.decoder.num_attention_heads,
             ffn_dropout=cfg.decoder.ffn_dropout,
             attn_score_dropout=cfg.decoder.attn_score_dropout,
