@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Dict
 
 import onnx
+import onnx_graphsurgeon as gs
 import torch
 
 from nemo.core.classes import typecheck
@@ -158,6 +159,17 @@ class Exportable(ABC):
                     # Verify the model can be read, and is valid
                     onnx_model = onnx.load(output)
                     onnx.checker.check_model(onnx_model, full_check=True)
+
+                    if do_constant_folding:
+                        # This pass is to remove/recast certain constants that are generated as 'double'
+                        # Those constants break ONNX -> TRT conversion (TRT does not support 'double' as of 7.2)
+                        # Can probably be removed once TRT has automatic downcast for double ( NVBUG #3221866).
+                        # However, it may still be useful even then.
+                        graph = gs.import_onnx(onnx_model)
+                        onnx_model = gs.export_onnx(graph.fold_constants().cleanup())
+                        onnx.checker.check_model(onnx_model, full_check=True)
+                        onnx.save(onnx_model, output)
+
                     return onnx_model
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')

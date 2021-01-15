@@ -93,10 +93,6 @@ class TestExportableClassifiers:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1167) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[30].name == 'Add_30'
-            assert onnx_model.graph.node[1165].name.startswith('ISC')
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[1].name == 'attention_mask'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
@@ -129,7 +125,6 @@ class TestExportableClassifiers:
             assert inputs[2].debugName() == 'input.1'
             assert inputs[3].debugName() == 'attention_mask.1'
             modules = list(torchscript_model.modules())
-            assert len(modules) == 230
             assert modules[2].original_name == 'BertEmbeddings'
             assert modules[46].original_name == 'BertSelfAttention'
             assert modules[217].original_name == 'SequenceTokenClassifier'
@@ -142,10 +137,6 @@ class TestExportableClassifiers:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1163) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[1161].name.startswith('TKCL')
-            assert onnx_model.graph.node[30].name == 'Add_30'
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
@@ -160,19 +151,11 @@ class TestExportableClassifiers:
             model.export(output=filename)
             onnx_model = onnx.load(punct_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1160) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[1158].name.startswith('PTCL')
-            assert onnx_model.graph.node[30].name == 'Add_30'
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
             onnx_model = onnx.load(capit_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1160) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[1158].name.startswith('CPCL')
-            assert onnx_model.graph.node[30].name == 'Add_30'
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
@@ -184,10 +167,6 @@ class TestExportableClassifiers:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1159) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[1157].name.startswith('QA')
-            assert onnx_model.graph.node[30].name == 'Add_30'
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
