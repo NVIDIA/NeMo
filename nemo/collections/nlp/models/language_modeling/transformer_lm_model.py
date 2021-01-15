@@ -163,10 +163,7 @@ class TransformerLMModel(ModelPT):
         passed in as `batch`.
         """
         output_dict = self.validation_step(batch, batch_idx)
-        result = {
-            "test_loss": output_dict['val_loss'],
-            "log": {}
-        }
+        result = {"test_loss": output_dict['val_loss'], "log": {}}
         for k, v in output_dict['log'].items():
             new_k = k.replace("val", "test")
             result['log'][new_k] = v
