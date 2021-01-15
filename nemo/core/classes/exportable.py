@@ -15,7 +15,7 @@ import os
 from abc import ABC
 from collections import defaultdict
 from enum import Enum
-from typing import Dict
+from typing import Dict, Optional
 
 import onnx
 import torch
@@ -23,6 +23,7 @@ import torch
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
 from nemo.utils.export_utils import replace_for_export
+from nemo.utils import logging
 
 try:
     import onnx_graphsurgeon as gs
@@ -69,7 +70,7 @@ class Exportable(ABC):
         output_example=None,
         verbose=False,
         export_params=True,
-        do_constant_folding=False,
+        do_constant_folding: Optional[bool] = None,
         keep_initializers_as_inputs=False,
         onnx_opset_version: int = 12,
         try_script: bool = False,
@@ -77,6 +78,11 @@ class Exportable(ABC):
         check_trace: bool = True,
         use_dynamic_axes: bool = True,
     ):
+        if do_constant_folding is None:
+            # If None, perform constant folding iff available, otherwise skip
+            logging.debug(f"Constant folding available = {ONNX_GRAPHSURGEON_AVAILABLE}")
+            do_constant_folding = ONNX_GRAPHSURGEON_AVAILABLE
+
         try:
             # Disable typechecks
             typecheck.set_typecheck_enabled(enabled=False)
