@@ -15,15 +15,15 @@
 import torch
 from pytorch_lightning.metrics import Metric
 
-__all__ = ['Loss']
+__all__ = ['GlobalAverageLossMetric']
 
 
-class Loss(Metric):
+class GlobalAverageLossMetric(Metric):
     """
-    This class is for averaging loss across multiple processes if a distributed backend is used. It does not accumulate
-    gradients so the averaged loss cannot be used for optimization. If ``take_avg_loss`` is ``True``, the :meth:`update`
-    method ``loss`` argument has to be a mean loss. If ``take_avg_loss`` is ``False`` then the :meth:`update` method
-    ``loss`` argument has to be a sum of losses.
+    This class is for averaging loss across multiple processes if a distributed backend is used. True average is
+    computed not running average. It does not accumulate gradients so the averaged loss cannot be used for optimization.
+    If ``take_avg_loss`` is ``True``, the :meth:`update` method ``loss`` argument has to be a mean loss. If
+    ``take_avg_loss`` is ``False`` then the :meth:`update` method ``loss`` argument has to be a sum of losses.
 
     See :doc:`PyTorch Lightning Metrics<pytorch-lightning:metrics>` for the metric usage instruction.
 

@@ -40,7 +40,7 @@ from scipy.stats import entropy
 from torch.distributions.utils import logits_to_probs
 from torch.multiprocessing import Pool, set_start_method
 
-from nemo.collections.common.metrics import Loss, Perplexity
+from nemo.collections.common.metrics import GlobalAverageLossMetric, Perplexity
 
 NUM_PROCESSES = 2
 NUM_BATCHES = 10
@@ -445,7 +445,7 @@ def _loss_class_test(
                 calculated across devices for each batch (and not just at the end)
     """
     # Instantiate lightning metric
-    loss_metric = Loss(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, take_avg_loss=take_avg_loss)
+    loss_metric = GlobalAverageLossMetric(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, take_avg_loss=take_avg_loss)
 
     # verify perplexity works after being loaded from pickled state
     pickled_metric = pickle.dumps(loss_metric)
