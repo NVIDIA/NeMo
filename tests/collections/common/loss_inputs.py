@@ -26,13 +26,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import namedtuple
+from dataclasses import dataclass
 
 import torch
 
 from .pl_utils import BATCH_SIZE, NUM_BATCHES, NUM_CLASSES
 
-LossInput = namedtuple('Input', ["loss_sum_or_avg", "num_measurements"])
+@dataclass(frozen=True)
+class LossInput:
+    """
+    The input for ``nemo.collections.common.metrics.GlobalAverageLossMetric`` metric tests.
+
+    Args:
+        loss_sum_or_avg: a one dimensional float tensor which contains losses for averaging. Each element is either a
+            sum or mean of several losses depending on the parameter ``take_avg_loss`` of the
+            ``nemo.collections.common.metrics.GlobalAverageLossMetric`` class.
+        num_measurements: a one dimensional integer tensor which contains number of measurements which sums or average
+            values are in ``loss_sum_or_avg``.
+    """
+    loss_sum_or_avg: torch.Tensor
+    num_measurements: torch.Tensor
 
 
 _no_zero_num_measurements = LossInput(
