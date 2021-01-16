@@ -58,29 +58,35 @@ def initialize(config_file_path: str):
 
 @api.route('/translate', methods=['GET', 'POST', 'OPTIONS'])
 def get_translation():
-    time_s = time.time()
-    langpair = request.args["langpair"]
-    src = request.args["text"]
-    do_moses = request.args.get('do_moses', False)
-    if langpair in MODELS_DICT:
-        if do_moses:
-            result = MODELS_DICT[langpair].translate(
-                [src], source_lang=langpair.split('-')[0], target_lang=langpair.split('-')[1]
-            )
-        else:
-            result = MODELS_DICT[langpair].translate([src])
+    try:
+        time_s = time.time()
+        langpair = request.args["langpair"]
+        src = request.args["text"]
+        do_moses = request.args.get('do_moses', False)
+        if langpair in MODELS_DICT:
+            if do_moses:
+                result = MODELS_DICT[langpair].translate(
+                    [src], source_lang=langpair.split('-')[0], target_lang=langpair.split('-')[1]
+                )
+            else:
+                result = MODELS_DICT[langpair].translate([src])
 
-        duration = time.time() - time_s
-        logging.info(
-            f"Translated in {duration}. Input was: {request.args['text']} <############> Translation was: {result[0]}"
-        )
-        res = {'translation': result[0]}
+            duration = time.time() - time_s
+            logging.info(
+                f"Translated in {duration}. Input was: {request.args['text']} <############> Translation was: {result[0]}"
+            )
+            res = {'translation': result[0]}
+            response = flask.jsonify(res)
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response
+
+        else:
+            logging.error(f"Got the following langpair: {langpair} which was not found")
+    except Exception as ex:
+        res = {'translation': str(ex)}
         response = flask.jsonify(res)
         response.headers.add('Access-Control-Allow-Origin', '*')
-        return response
-
-    else:
-        logging.error(f"Got the following langpair: {langpair} which was not found")
+        return res
 
 
 if __name__ == '__main__':
