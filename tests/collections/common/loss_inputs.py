@@ -36,8 +36,7 @@ LossInput = namedtuple('Input', ["loss_sum_or_avg", "num_measurements"])
 
 
 _no_zero_num_measurements = LossInput(
-    loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0,
-    num_measurements=torch.randint(1, 100, (NUM_BATCHES,)),
+    loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0, num_measurements=torch.randint(1, 100, (NUM_BATCHES,)),
 )
 
 _some_num_measurements_are_zero = LossInput(
@@ -45,12 +44,11 @@ _some_num_measurements_are_zero = LossInput(
     num_measurements=torch.cat(
         (
             torch.randint(1, 100, (NUM_BATCHES // 2,), dtype=torch.int32),
-            torch.zeros(NUM_BATCHES - NUM_BATCHES // 2, dtype=torch.int32)
+            torch.zeros(NUM_BATCHES - NUM_BATCHES // 2, dtype=torch.int32),
         )
-    )
+    ),
 )
 
 _all_num_measurements_are_zero = LossInput(
-    loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0,
-    num_measurements=torch.zeros(NUM_BATCHES, dtype=torch.int32)
+    loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0, num_measurements=torch.zeros(NUM_BATCHES, dtype=torch.int32),
 )

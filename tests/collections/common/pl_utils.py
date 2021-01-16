@@ -464,12 +464,12 @@ def _loss_class_test(
                         assert batch_result.isnan()
                     else:
                         assert (
-                            np.allclose(batch_result.numpy(), sk_batch_result, atol=atol), 
+                            np.allclose(batch_result.numpy(), sk_batch_result, atol=atol),
                             f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}",
                         )
         else:
-            ls = loss_sum_or_avg[i:i+1]
-            nm = num_measurements[i:i+1]
+            ls = loss_sum_or_avg[i : i + 1]
+            nm = num_measurements[i : i + 1]
             sk_batch_result = reference_loss_func(ls, nm, take_avg_loss)
             # assert for batch
             if check_batch:

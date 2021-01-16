@@ -144,7 +144,7 @@ class TestPerplexity(PerplexityTester):
     ],
 )
 class TestLoss(LossTester):
-    def test_loss(self, ddp, dist_sync_on_step, loss_sum_or_avg,  num_measurements, take_avg_loss):
+    def test_loss(self, ddp, dist_sync_on_step, loss_sum_or_avg, num_measurements, take_avg_loss):
         self.run_class_loss_test(
             ddp=ddp,
             loss_sum_or_avg=loss_sum_or_avg,

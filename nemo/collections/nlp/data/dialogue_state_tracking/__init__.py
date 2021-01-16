@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.metrics.global_average_loss_metric import GlobalAverageLossMetric
-from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
-from nemo.collections.common.metrics.perplexity import Perplexity
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.data_processor import SGDDataProcessor
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.dataset import SGDDataset
+from nemo.collections.nlp.data.dialogue_state_tracking.sgd.schema import Schema
