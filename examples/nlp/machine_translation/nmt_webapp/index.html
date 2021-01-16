@@ -11,12 +11,10 @@
       bottom: 17px;
     }
   </style>
+  <link rel="stylesheet" href="style.css">
   <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
   <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
   <script>
-  $( function() {
-    $( "input" ).checkboxradio();
-  } );
   $( function() {
     $( "#tgt_text" ).resizable({
       handles: "se"
@@ -29,14 +27,14 @@
   } );
   $( function() {
     $( "#translate_button" ).button();
-    $( "#translate_button" ).click( function( event ) {        
-        //$( "#tgt_text" ).val($( "#src_text" ).val());      
+    $( "#translate_button" ).click( function( event ) {
         $.ajax({
-          
-          url: "http://10.110.40.139:5000/translate",          
+          url: "http://127.0.0.1:5000/translate",
           type: "GET",                    
           data: {
-            text: $( "#src_text" ).val(),            
+            text: $( "#src_text" ).val(),
+            langpair: $('input[type=radio][name=langpair]:checked').attr('id'),
+            do_moses: true
           },
           success: function (result) {            
             $( "#tgt_text" ).val(result.translation);
@@ -50,20 +48,45 @@
   </script>
 </head>
 <body>
-<div class="widget">
-  <h1>Neural Machine Translation Demo</h1> 
+<div class="contact-us">
+  <h1>Neural Machine Translation Demo</h1>
+  <p>
   <fieldset>
     <legend>Select translation direction: </legend>
-    <label for="radio-1">English to German</label>
-    <input type="radio" name="radio-1" id="radio-1">
-    <label for="radio-2">German to English</label>
-    <input type="radio" name="radio-1" id="radio-2">
-  </fieldset> 
-</div>
-<div>
-  <textarea id="src_text" rows="20" cols="60"></textarea> 
-  <button id="translate_button">Translate !</button>
-  <textarea id="tgt_text" rows="20" cols="60" readonly></textarea>
+    <table>
+      <tr>
+        <td>
+          <label for="en-de">English to German</label>
+          <input type="radio" name="langpair" id="en-de">
+        </td>
+        <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td>
+          <label for="de-en" selected="selected">German to English</label>
+          <input type="radio" name="langpair" id="de-en" checked>
+        </td>
+      </tr>
+    </table>
+  </fieldset>
+  <div>
+    <table>
+      <tr>
+        <td>
+          <textarea id="src_text" rows="12" cols="60"></textarea>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <button id="translate_button">Translate !</button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <textarea id="tgt_text" rows="12" cols="60" readonly></textarea>
+        </td>
+      </tr>
+    </table>
+  </div>
+  </p>
 </div>
  
  

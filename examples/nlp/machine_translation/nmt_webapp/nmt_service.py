@@ -14,6 +14,7 @@
 import json
 import time
 
+import flask
 import torch
 from flask import Flask, json, request
 
@@ -55,7 +56,7 @@ def initialize(config_file_path: str):
     logging.info("NMT service started")
 
 
-@api.route('/translate', methods=['GET', 'POST'])
+@api.route('/translate', methods=['GET', 'POST', 'OPTIONS'])
 def get_translation():
     time_s = time.time()
     langpair = request.args["langpair"]
@@ -73,7 +74,11 @@ def get_translation():
         logging.info(
             f"Translated in {duration}. Input was: {request.args['text']} <############> Translation was: {result[0]}"
         )
-        return json.dumps(result[0])
+        res = {'translation': result[0]}
+        response = flask.jsonify(res)
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
     else:
         logging.error(f"Got the following langpair: {langpair} which was not found")
 
