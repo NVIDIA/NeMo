@@ -60,8 +60,15 @@ def get_translation():
     time_s = time.time()
     langpair = request.args["langpair"]
     src = request.args["text"]
+    do_moses = request.args.get('do_moses', False)
     if langpair in MODELS_DICT:
-        result = MODELS_DICT[langpair].translate([src])
+        if do_moses:
+            result = MODELS_DICT[langpair].translate(
+                [src], source_lang=langpair.split('-')[0], target_lang=langpair.split('-')[1]
+            )
+        else:
+            result = MODELS_DICT[langpair].translate([src])
+
         duration = time.time() - time_s
         logging.info(
             f"Translated in {duration}. Input was: {request.args['text']} <############> Translation was: {result[0]}"

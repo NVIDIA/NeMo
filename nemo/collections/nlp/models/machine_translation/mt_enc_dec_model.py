@@ -310,12 +310,14 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
     @torch.no_grad()
-    def translate(self, text: List[str], source_lang: str = 'de', target_lang: str = 'en') -> List[str]:
+    def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization
         Args:
             text: list of strings to translate
+            source_lang: if not None, corresponding MosesTokenizer and MosesPunctNormalizer will be run
+            target_lang: if not None, corresponding MosesDecokenizer will be run
         Returns:
             list of translated strings
         """
@@ -336,8 +338,7 @@ class MTEncDecModel(EncDecNLPModel):
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
                 src_mask = torch.ones_like(src)
-                src_embeddings = self.encoder._embedding(input_ids=src)
-                src_hiddens = self.encoder._encoder(src_embeddings, src_mask)
+                src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
