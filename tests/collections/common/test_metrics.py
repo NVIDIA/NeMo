@@ -19,9 +19,9 @@ from typing import Callable
 import pytest
 import torch
 
-from .loss_inputs import _all_num_measurements_are_zero, _no_zero_num_measurements, _some_num_measurements_are_zero
-from .perplexity_inputs import _no_probs_no_logits, _only_logits1, _only_logits100, _only_probs, _probs_and_logits
-from .pl_utils import LossTester, PerplexityTester
+from tests.collections.commmon.loss_inputs import _all_num_measurements_are_zero, _no_zero_num_measurements, _some_num_measurements_are_zero
+from tests.collecstions.common.perplexity_inputs import _no_probs_no_logits, _only_logits1, _only_logits100, _only_probs, _probs_and_logits
+from tests.collections.common.pl_utils import LossTester, PerplexityTester
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
 
 
