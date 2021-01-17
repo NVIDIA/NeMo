@@ -39,11 +39,6 @@ RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.gi
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
-WORKDIR /tmp/gs_build
-RUN git clone https://github.com/NVIDIA/TensorRT.git && \
-    cd TensorRT/tools/onnx-graphsurgeon && python setup.py install . && \
-    rm -fr  /tmp/gs_build
-
 # build RNN-T loss
 WORKDIR /workspace/deps/rnnt
 RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
@@ -78,12 +73,13 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
-# install quantization support
+#install TRT tools: PT quantization support and ONNX graph optimizer
+WORKDIR /tmp/trt_build
 RUN git clone https://github.com/NVIDIA/TensorRT.git && \
-    cd TensorRT/tools/pytorch-quantization && \
+    cd TensorRT/tools/onnx-graphsurgeon && python setup.py install . && \
+    cd ../pytorch-quantization && \
     python setup.py install && \
-    cd - && \
-    rm -rf TensorRT
+    rm -fr  /tmp/trt_build
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
