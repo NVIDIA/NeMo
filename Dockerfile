@@ -39,6 +39,11 @@ RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.gi
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
+WORKDIR /tmp/gs_build
+RUN git clone https://github.com/NVIDIA/TensorRT.git && \
+    cd TensorRT/tools/onnx-graphsurgeon && python setup.py install . && \
+    rm -fr  /tmp/gs_build
+
 # build RNN-T loss
 WORKDIR /workspace/deps/rnnt
 RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
