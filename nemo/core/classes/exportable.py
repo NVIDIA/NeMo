@@ -170,11 +170,12 @@ class Exportable(ABC):
 
                     if do_constant_folding:
                         if not ONNX_GRAPHSURGEON_AVAILABLE:
-                            logging.info(f"onnx-graphsurgeon module is not instlled."
-                                         "That may result in suboptimal optimization of exported ONNX graph (including unneeded DOUBLE initializers)."
-                                         "Please follow the instructions available at:"
-                                         "https://github.com/NVIDIA/TensorRT/tree/master/tools/onnx-graphsurgeon"
-                                         "to install onnx-graphsurgeon from source to improve exported graph."
+                            logging.info(
+                                f"onnx-graphsurgeon module is not instlled."
+                                "That may result in suboptimal optimization of exported ONNX graph (including unneeded DOUBLE initializers)."
+                                "Please follow the instructions available at:"
+                                "https://github.com/NVIDIA/TensorRT/tree/master/tools/onnx-graphsurgeon"
+                                "to install onnx-graphsurgeon from source to improve exported graph."
                             )
                         else:
                             # This pass is to remove/recast certain constants that are generated as 'double'
