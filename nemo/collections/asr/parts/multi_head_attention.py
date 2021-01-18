@@ -292,7 +292,7 @@ class PositionalEncoding(torch.nn.Module):
 
 
 class RelPositionalEncoding(PositionalEncoding):
-    """Relative positional encoding module for TransformerXL's layers
+    """Relative positional encoding for TransformerXL's layers
     See : Appendix B in https://arxiv.org/abs/1901.02860
     Args:
         d_model (int): embedding dim
