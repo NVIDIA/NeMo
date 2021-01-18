@@ -175,7 +175,6 @@ class StyleCommand(distutils_cmd.Command):
 
 ###############################################################################
 
-
 setuptools.setup(
     name=__package_name__,
     # Versions should comply with PEP440.  For a discussion on single-sourcing
