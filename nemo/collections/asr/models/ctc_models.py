@@ -489,7 +489,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         output_example=None,
         verbose=False,
         export_params=True,
-        do_constant_folding: Optional[bool] = None,
+        do_constant_folding=True,
         keep_initializers_as_inputs=False,
         onnx_opset_version: int = 12,
         try_script: bool = False,

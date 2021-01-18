@@ -15,7 +15,7 @@ import os
 from abc import ABC
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict
 
 import onnx
 import torch
@@ -70,7 +70,7 @@ class Exportable(ABC):
         output_example=None,
         verbose=False,
         export_params=True,
-        do_constant_folding: Optional[bool] = None,
+        do_constant_folding=True,
         keep_initializers_as_inputs=False,
         onnx_opset_version: int = 12,
         try_script: bool = False,
@@ -78,11 +78,6 @@ class Exportable(ABC):
         check_trace: bool = True,
         use_dynamic_axes: bool = True,
     ):
-        if do_constant_folding is None:
-            # If None, perform constant folding iff available, otherwise skip
-            logging.info(f"Constant folding available = {ONNX_GRAPHSURGEON_AVAILABLE}")
-            do_constant_folding = ONNX_GRAPHSURGEON_AVAILABLE
-
         try:
             # Disable typechecks
             typecheck.set_typecheck_enabled(enabled=False)
@@ -175,21 +170,22 @@ class Exportable(ABC):
 
                     if do_constant_folding:
                         if not ONNX_GRAPHSURGEON_AVAILABLE:
-                            raise ImportError(
-                                "`onnx-graphsurgeon` could not be imported."
-                                "Please follow the instructions available at :"
+                            logging.info(
+                                f"onnx-graphsurgeon module is not instlled."
+                                "That may result in suboptimal optimization of exported ONNX graph (including unneeded DOUBLE initializers)."
+                                "Please follow the instructions available at:"
                                 "https://github.com/NVIDIA/TensorRT/tree/master/tools/onnx-graphsurgeon"
-                                "to install it prior to attemtping export with constant folding."
+                                "to install onnx-graphsurgeon from source to improve exported graph."
                             )
-
-                        # This pass is to remove/recast certain constants that are generated as 'double'
-                        # Those constants break ONNX -> TRT conversion (TRT does not support 'double' as of 7.2)
-                        # Can probably be removed once TRT has automatic downcast for double ( NVBUG #3221866).
-                        # However, it may still be useful even then.
-                        graph = gs.import_onnx(onnx_model)
-                        onnx_model = gs.export_onnx(graph.fold_constants().cleanup())
-                        onnx.checker.check_model(onnx_model, full_check=True)
-                        onnx.save(onnx_model, output)
+                        else:
+                            # This pass is to remove/recast certain constants that are generated as 'double'
+                            # Those constants break ONNX -> TRT conversion (TRT does not support 'double' as of 7.2)
+                            # Can probably be removed once TRT has automatic downcast for double.
+                            # However, it may still be useful even then as it seems to always make the graph shorter.
+                            graph = gs.import_onnx(onnx_model)
+                            onnx_model = gs.export_onnx(graph.fold_constants().cleanup())
+                            onnx.checker.check_model(onnx_model, full_check=True)
+                            onnx.save(onnx_model, output)
 
                     return onnx_model
                 else:
