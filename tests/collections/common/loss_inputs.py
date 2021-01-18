@@ -49,11 +49,11 @@ class LossInput:
     num_measurements: torch.Tensor
 
 
-_no_zero_num_measurements = LossInput(
+NO_ZERO_NUM_MEASUREMENTS = LossInput(
     loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0, num_measurements=torch.randint(1, 100, (NUM_BATCHES,)),
 )
 
-_some_num_measurements_are_zero = LossInput(
+SOME_NUM_MEASUREMENTS_ARE_ZERO = LossInput(
     loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0,
     num_measurements=torch.cat(
         (
@@ -63,6 +63,6 @@ _some_num_measurements_are_zero = LossInput(
     ),
 )
 
-_all_num_measurements_are_zero = LossInput(
+ALL_NUM_MEASUREMENTS_ARE_ZERO = LossInput(
     loss_sum_or_avg=torch.rand(NUM_BATCHES) * 2.0 - 1.0, num_measurements=torch.zeros(NUM_BATCHES, dtype=torch.int32),
 )
