@@ -407,7 +407,26 @@ class PerplexityTester(MetricTester):
             )
 
 
-def reference_loss_func(loss_sum_or_avg, num_measurements, take_avg_loss):
+def reference_loss_func(loss_sum_or_avg: torch.Tensor, num_measurements: torch.Tensor, take_avg_loss: bool):
+    """
+    Returns average loss for data from``loss_sum_or_avg``. This function sums all losses from ``loss_sum_or_avg`` and
+    divides the sum by the sum of ``num_measurements`` elements.
+
+    If ``take_avg_loss`` is ``True`` then ``loss_sum_or_avg[i]`` elements are mean values of ``num_measurements[i]``
+    losses. In that case before computing sum of losses each element of ``loss_sum_or_avg`` is multiplied by
+    corresponding element of ``num_measurements``.
+
+    If ``num_measurements`` sum is zero then the function returns NaN tensor.
+
+    The function is used for testing ``nemo.collections.common.metrics.GlobalAverageLossMetric`` class.
+
+    Args:
+        loss_sum_or_avg: a one dimensional float ``torch.Tensor``. Sums or mean values of loss.
+        num_measurements: a one dimensional integer ``torch.Tensor``. Number of values on which sums of means in
+            ``loss_sum_or_avg`` are calculated.
+        take_avg_loss: if ``True`` then ``loss_sum_or_avg`` contains mean losses else ``loss_sum_or_avg`` contains
+            sums of losses.
+    """
     if take_avg_loss:
         for i in range(loss_sum_or_avg.shape[0]):
             loss_sum_or_avg[i] *= num_measurements[i]
@@ -433,9 +452,9 @@ def _loss_class_test(
         Args:
             rank: rank of current process
             worldsize: number of processes
-            loss: torch tensor with probabilities
-            logits: torch tensor with logits. The function checks ``probs`` and ``logits are mutually exclusive for
-                ``Perplexity`` metric.
+            loss_sum_or_avg: a one dimensional float torch tensor with loss sums or means.
+            num_measurements: a one dimensional integer torch tensor with number of values on which sums or means from
+                ``loss_sum_or_avg`` were computed.
             dist_sync_on_step: bool, if true will synchronize metric state across
                 processes at each ``forward()``
             take_avg_loss: dict with additional arguments used for class initialization
