@@ -33,11 +33,18 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 
+import os
 import random
 
 import librosa
 import numpy as np
 import soundfile as sf
+from pydub import AudioSegment as Audio
+
+from nemo.utils import logging
+
+available_formats = sf.available_formats()
+sf_supported_formats = ["." + i.lower() for i in available_formats.keys()]
 
 
 class AudioSegment(object):
@@ -121,17 +128,36 @@ class AudioSegment(object):
         :param duration: duration in seconds when loading audio
         :return: numpy array of samples
         """
-        with sf.SoundFile(audio_file, 'r') as f:
-            dtype = 'int32' if int_values else 'float32'
-            sample_rate = f.samplerate
-            if offset > 0:
-                f.seek(int(offset * sample_rate))
-            if duration > 0:
-                samples = f.read(int(duration * sample_rate), dtype=dtype)
-            else:
-                samples = f.read(dtype=dtype)
+        samples = None
+        if not isinstance(audio_file, str) or os.path.splitext(audio_file)[-1] in sf_supported_formats:
+            try:
+                with sf.SoundFile(audio_file, 'r') as f:
+                    dtype = 'int32' if int_values else 'float32'
+                    sample_rate = f.samplerate
+                    if offset > 0:
+                        f.seek(int(offset * sample_rate))
+                    if duration > 0:
+                        samples = f.read(int(duration * sample_rate), dtype=dtype)
+                    else:
+                        samples = f.read(dtype=dtype)
+                samples = samples.transpose()
+            except RuntimeError as e:
+                logging.error(
+                    f"Loading audio via SoundFile raised RuntimeError: `{e}`. NeMo will fallback to loading via pydub."
+                )
 
-        samples = samples.transpose()
+        if samples is None:
+            samples = Audio.from_file(audio_file)
+            sample_rate = samples.frame_rate
+            if offset > 0:
+                # pydub does things in milliseconds
+                seconds = offset * 1000
+                samples = samples[int(seconds * sample_rate) :]
+            if duration > 0:
+                seconds = duration * 1000
+                samples = samples[: int(seconds)]
+            samples = np.array(samples.get_array_of_samples())
+
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 
     @classmethod
