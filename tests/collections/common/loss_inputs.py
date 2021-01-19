@@ -30,7 +30,7 @@ from dataclasses import dataclass
 
 import torch
 
-from tests.collections.common.pl_utils import BATCH_SIZE, NUM_BATCHES, NUM_CLASSES
+from .pl_utils import BATCH_SIZE, NUM_BATCHES, NUM_CLASSES
 
 
 @dataclass(frozen=True)
