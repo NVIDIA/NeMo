@@ -45,6 +45,7 @@ class LossInput:
         num_measurements: a one dimensional integer tensor which contains number of measurements which sums or average
             values are in ``loss_sum_or_avg``.
     """
+
     loss_sum_or_avg: torch.Tensor
     num_measurements: torch.Tensor
 
