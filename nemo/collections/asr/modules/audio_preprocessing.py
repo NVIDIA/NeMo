@@ -450,7 +450,7 @@ class SpectrogramAugmentation(NeuralModule):
         rect_time=5,
         rect_freq=20,
         rng=None,
-        mask_value=0,
+        mask_value=0.0,
     ):
         super().__init__()
 

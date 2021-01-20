@@ -37,7 +37,7 @@ class SpecAugment(nn.Module):
     """
 
     def __init__(
-        self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None, mask_value=0,
+        self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None, mask_value=0.0,
     ):
         super(SpecAugment, self).__init__()
 
