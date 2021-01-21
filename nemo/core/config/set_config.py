@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import os
 import sys
-import functools
 from typing import Any, Callable, Optional
 
 from hydra._internal.utils import _run_hydra, get_args_parser
@@ -37,6 +37,7 @@ def hydra_runner(
         config_name: Pathname of the config file.
         schema: Structured config  type representing the schema used for validation/providing default values.
     """
+
     def decorator(task_function: TaskFunction) -> Callable[[], None]:
         @functools.wraps(task_function)
         def wrapper(cfg_passthrough: Optional[DictConfig] = None) -> Any:
@@ -47,7 +48,7 @@ def hydra_runner(
                 args = get_args_parser()
 
                 # Parse arguments in order to retrieve overrides
-                parsed_args = args.parse_args() # type: argparse.Namespace
+                parsed_args = args.parse_args()  # type: argparse.Namespace
 
                 # Get overriding args in dot string format
                 overrides = parsed_args.overrides  # type: list
@@ -72,16 +73,17 @@ def hydra_runner(
                         path, name = os.path.split(parsed_args.config_name)
                         # Make sure the path is not set - as this will disable validation scheme.
                         if path != '':
-                            sys.stderr.write(f"ERROR Cannot set config file path using `--config-name` when "
+                            sys.stderr.write(
+                                f"ERROR Cannot set config file path using `--config-name` when "
                                 "using schema. Please set path using `--config-path` and file name using "
                                 "`--config-name` separately.\n"
-                                )
+                            )
                             sys.exit(1)
                     else:
                         name = config_name
-                    
+
                     # Register the configuration as a node under the name in the group.
-                    cs.store(name=name, node=schema) # group=group, 
+                    cs.store(name=name, node=schema)  # group=group,
 
                 # Wrap a callable object with name `parse_args`
                 # This is to mimic the ArgParser.parse_args() API.

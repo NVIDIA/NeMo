@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf import MISSING, OmegaConf
 from dataclasses import dataclass
 
 import hydra
+from omegaconf import MISSING, OmegaConf
 
 from nemo.core.config.set_config import hydra_runner
 
@@ -32,11 +32,13 @@ class DefaultConfig:
     # Dataset. Available options: [imdb, sst2]
     dataset_name: str = MISSING
 
+
 @hydra_runner(config_name="DefaultConfig", schema=DefaultConfig)
 def my_app(cfg):
     print(OmegaConf.to_yaml(cfg))
     # Get dataset_name.
     dataset_name = cfg.dataset_name
-    
+
+
 if __name__ == "__main__":
     my_app()

@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import path
-import sys
-import pytest
 import subprocess
+import sys
+from os import path
+
+import pytest
 
 
 class TestHydraRunner:
@@ -24,65 +25,60 @@ class TestHydraRunner:
         """"Test app without config - fields missing causes error.
         """
         # Create system call.
-        call = ("python tests/hydra/my_app.py")
+        call = "python tests/hydra/my_app.py"
 
         with pytest.raises(subprocess.CalledProcessError):
             # Run the call as subprocess.
             subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
-
 
     @pytest.mark.integration
     def test_config1(self):
         """"Test injection of valid config1.
         """
         # Create system call.
-        call = ("python tests/hydra/my_app.py --config-name config1.yaml")
+        call = "python tests/hydra/my_app.py --config-name config1.yaml"
 
         # Run the call as subprocess.
         subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
-
 
     @pytest.mark.integration
     def test_config1_invalid(self):
         """"Test injection of invalid config1.
         """
         # Create system call.
-        call = ("python tests/hydra/my_app.py --config-name config1_invalid.yaml")
+        call = "python tests/hydra/my_app.py --config-name config1_invalid.yaml"
 
         with pytest.raises(subprocess.CalledProcessError):
             # Run the call as subprocess.
             subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
-
 
     @pytest.mark.integration
     def test_config2(self):
         """"Test injection of valid config2 from a different folder.
         """
         # Create system call.
-        call = ("python tests/hydra/my_app.py --config-path ala --config-name config2.yaml")
+        call = "python tests/hydra/my_app.py --config-path ala --config-name config2.yaml"
 
         # Run the call as subprocess.
         subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
-
 
     @pytest.mark.integration
     def test_config2_invalid(self):
         """"Test injection of invalid config2 from a different folder.
         """
         # Create system call.
-        call = ("python tests/hydra/my_app.py --config-path ala --config-name config2_invalid.yaml")
+        call = "python tests/hydra/my_app.py --config-path ala --config-name config2_invalid.yaml"
 
         with pytest.raises(subprocess.CalledProcessError):
             # Run the call as subprocess.
             subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
-
 
     @pytest.mark.integration
     def test_config2_filepath_schema(self):
         """"Test injection of valid config2 - using namepath with schema is prohibited.
         """
         # Create system call.
-        call = ("python tests/hydra/my_app.py --config-name ala/config2_invalid.yaml")
+        call = "python tests/hydra/my_app.py --config-name ala/config2_invalid.yaml"
 
         with pytest.raises(subprocess.CalledProcessError):
             # Run the call as subprocess.
