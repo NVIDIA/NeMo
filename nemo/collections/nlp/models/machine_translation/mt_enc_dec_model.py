@@ -29,6 +29,7 @@ from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
+from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
@@ -129,7 +130,7 @@ class MTEncDecModel(EncDecNLPModel):
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
-
+        self.eval_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
         # self.training_perplexity = Perplexity(dist_sync_on_step=True)
         # self.eval_perplexity = Perplexity(compute_on_step=False)
 
@@ -192,19 +193,17 @@ class MTEncDecModel(EncDecNLPModel):
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
-        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels).cpu().numpy()
+        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+        self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         # self.eval_perplexity(logits=log_probs)
         translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
-        tensorboard_logs = {f'{mode}_loss': eval_loss}
         return {
-            f'{mode}_loss': eval_loss,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
-            'log': tensorboard_logs,
         }
 
     def test_step(self, batch, batch_idx):
@@ -229,8 +228,7 @@ class MTEncDecModel(EncDecNLPModel):
         return self.eval_step(batch, batch_idx, 'val')
 
     def eval_epoch_end(self, outputs, mode):
-        counts = np.array([x['num_non_pad_tokens'] for x in outputs])
-        eval_loss = np.sum(np.array([x[f'{mode}_loss'] for x in outputs]) * counts) / counts.sum()
+        eval_loss = self.eval_loss.compute()
         # eval_perplexity = self.eval_perplexity.compute()
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
