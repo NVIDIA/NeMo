@@ -147,8 +147,16 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
             exp_dir, name, and version.
     """
+    # Add rank information to logger
+    # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
+    global_rank = trainer.node_rank * trainer.num_gpus + trainer.local_rank
+    logging.rank = global_rank
+
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
+        return
+    if trainer.fast_dev_run:
+        logging.info("Trainer was called with fast_dev_run. exp_manager will return without any functionality.")
         return
 
     # Ensure passed cfg is compliant with ExpManagerConfig
@@ -187,11 +195,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     trainer._default_root_dir = log_dir
 
     # Handle Loggers by creating file and handle DEBUG statements
-    # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_gpus + trainer.local_rank
     log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{trainer.local_rank}.txt'
     logging.add_file_handler(log_file)
-    logging.rank = global_rank
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
     # not just global rank 0.
@@ -551,6 +556,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
+        if trainer.fast_dev_run:
+            return None
         # Load the best model and then re-save it
         if self.save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
