@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import hydra
 from omegaconf import MISSING, OmegaConf
 
-from nemo.core.config.set_config import hydra_runner
+from nemo.core.config import hydra_runner
 
 
 @dataclass
