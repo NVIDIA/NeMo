@@ -28,13 +28,14 @@ python vad_infer.py  --vad_model="MatchboxNet-VAD-3x2" --dataset=<FULL PATH OF M
 
 
 import json
+import logging
 import os
 from argparse import ArgumentParser
 
 import torch
 
 from nemo.collections.asr.models import EncDecClassificationModel
-from nemo.collections.asr.parts.vad_utils import get_status
+from nemo.collections.asr.parts.vad_utils import get_vad_stream_status
 from nemo.utils import logging
 
 try:
@@ -108,9 +109,9 @@ def main():
     for line in open(args.dataset, 'r'):
         file = json.loads(line)['audio_filepath'].split("/")[-1]
         data.append(file.split(".wav")[0])
-    print(f"Inference on {len(data)} audio files/json lines!")
+    logging.info(f"Inference on {len(data)} audio files/json lines!")
 
-    status = get_status(data)
+    status = get_vad_stream_status(data)
     for i, test_batch in enumerate(vad_model.test_dataloader()):
         test_batch = [x.to(device) for x in test_batch]
         with autocast():
@@ -126,7 +127,7 @@ def main():
                 to_save = pred[trunc_l:]
             else:
                 to_save = pred
-            print(data[i], status[i])
+
             all_len += len(to_save)
             outpath = os.path.join(args.out_dir, data[i] + ".frame")
             with open(outpath, "a") as fout:
@@ -134,7 +135,7 @@ def main():
                     fout.write('{0:0.4f}\n'.format(to_save[f]))
         del test_batch
         if status[i] == 'end' or status[i] == 'single':
-            print(f"Overall length of prediction of {data[i]} is {all_len}!")
+            logging.debug(f"Overall length of prediction of {data[i]} is {all_len}!")
             all_len = 0
 
 

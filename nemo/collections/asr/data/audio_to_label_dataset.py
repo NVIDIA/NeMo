@@ -14,9 +14,6 @@
 
 from typing import Optional
 
-import torch
-from omegaconf import DictConfig
-
 from nemo.collections.asr.data import audio_to_label
 
 
@@ -39,7 +36,7 @@ def get_classification_label_dataset(
         featurizer=featurizer,
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
-        trim=config.get('trim_silence', True),
+        trim=config.get('trim_silence', False),
         load_audio=config.get('load_audio', True),
     )
     return dataset
@@ -64,7 +61,7 @@ def get_speech_label_dataset(
         featurizer=featurizer,
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
-        trim=config.get('trim_silence', True),
+        trim=config.get('trim_silence', False),
         load_audio=config.get('load_audio', True),
         time_length=config.get('time_length', 0.31),
         shift_length=config.get('shift_length', 0.01),
@@ -103,7 +100,7 @@ def get_tarred_classification_label_dataset(
         shuffle_n=shuffle_n,
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
-        trim=config.get('trim_silence', True),
+        trim=config.get('trim_silence', False),
         shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         global_rank=global_rank,
         world_size=world_size,
@@ -141,7 +138,7 @@ def get_tarred_speech_label_dataset(
         shuffle_n=shuffle_n,
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
-        trim=config.get('trim_silence', True),
+        trim=config.get('trim_silence', False),
         load_audio=config.get('load_audio', True),
         time_length=config.get('time_length', 0.31),
         shift_length=config.get('shift_length', 0.01),

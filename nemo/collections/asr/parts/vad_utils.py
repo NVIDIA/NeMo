@@ -92,7 +92,7 @@ def write_manifest_data(file, args_func):
     return res
 
 
-def get_status(data):
+def get_vad_stream_status(data):
     """
     Generate a list of status for each snippet in manifest. A snippet should be in single, start, next or end status. 
     Used for concatenate to full audio file.
@@ -118,7 +118,7 @@ def get_status(data):
     return status
 
 
-def gen_overlap_seq(frame_filepath, per_args):
+def generate_overlap_vad_seq(frame_filepath, per_args):
     """
     Given a frame level prediction, generate predictions with overlapping input segments by using it
     Args:
@@ -203,7 +203,7 @@ def gen_overlap_seq(frame_filepath, per_args):
         raise (e)
 
 
-def gen_seg_table(frame_filepath, per_args):
+def generate_vad_segment_table(frame_filepath, per_args):
 
     """
     Convert frame level prediction to speech/no-speech segment in start and end times format.
@@ -252,7 +252,7 @@ def gen_seg_table(frame_filepath, per_args):
     seg_table.to_csv(save_path, sep='\t', index=False, header=False)
 
 
-def write_manifest(vad_directory, audio_directory, manifest_file):
+def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
     vad_files = glob.glob(vad_directory + "/*.txt")
     with open(manifest_file, 'w') as outfile:
         for vad_file in vad_files:
@@ -268,5 +268,4 @@ def write_manifest(vad_directory, audio_directory, manifest_file):
                     meta = {"audio_filepath": audio_path, "offset": start, "duration": dur, "label": 'UNK'}
                     json.dump(meta, outfile)
                     outfile.write("\n")
-
             f.close()

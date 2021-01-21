@@ -14,7 +14,6 @@
 import io
 import math
 import os
-from collections import Counter
 from typing import Dict, List, Optional, Union
 
 import braceexpand
@@ -37,6 +36,14 @@ __all__ = [
 
 
 def repeat_signal(signal, sig_len, required_length):
+    """repeat signal to make short signal to have required_length
+    Args:
+        signal (FloatTensor): input signal
+        sig_len (LongTensor): length of input signal
+        required_length(float) : length of generated signal
+    Returns:
+        signal (FloatTensor): generated signal of required_length by repeating itself.
+    """
     repeat = required_length // sig_len
     rem = required_length % sig_len
     sub = signal[-rem:] if rem > 0 else torch.tensor([])
@@ -46,8 +53,26 @@ def repeat_signal(signal, sig_len, required_length):
 
 
 def normalize(signal):
+    """normalize signal
+    Args: 
+        signal(FloatTensor): signal to be normalized.
+    """
     signal_minusmean = signal - signal.mean()
     return signal_minusmean / signal_minusmean.abs().max()
+
+
+def count_occurence(manifest_file_id):
+    """Cound number of wav files in Dict manifest_file_id. Use for _TarredAudioToLabelDataset.
+    Args: 
+        manifest_file_id (Dict): Dict of files and their corresponding id. {'A-sub0' : 1, ..., 'S-sub10':100}
+    Returns:
+        count (Dict): Dict of wav files {'A' : 2, ..., 'S':10}
+    """
+    count = dict()
+    for i in manifest_file_id:
+        audio_filename = i.split("-sub")[0]
+        count[audio_filename] = count.get(audio_filename, 0) + 1
+    return count
 
 
 def _speech_collate_fn(batch, pad_id):
@@ -544,13 +569,6 @@ class _TarredAudioLabelDataset(IterableDataset):
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
         )
 
-        def count_occurence(manifest_file_id):
-            count = dict()
-            for i in manifest_file_id:
-                audio_filename = i.split("-sub")[0]
-                count[audio_filename] = count.get(audio_filename, 0) + 1
-            return count
-
         self.file_occurence = count_occurence(self.collection.mapping)
 
         self.featurizer = featurizer
@@ -670,11 +688,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         # Convert audio bytes to IO stream for processing (for SoundFile to read)
         audio_filestream = io.BytesIO(audio_bytes)
         features = self.featurizer.process(
-            audio_filestream,
-            offset=offset,
-            duration=manifest_entry.duration,
-            trim=self.trim,
-            # orig_sr=manifest_entry.orig_sr,
+            audio_filestream, offset=offset, duration=manifest_entry.duration, trim=self.trim,
         )
 
         audio_filestream.close()

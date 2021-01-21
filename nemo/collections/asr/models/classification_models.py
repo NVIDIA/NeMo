@@ -27,7 +27,6 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_label_dataset
-from nemo.collections.asr.data.audio_to_label import AudioToClassificationLabelDataset, AudioToSpeechLabelDataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -152,6 +151,10 @@ class EncDecClassificationModel(ASRModel, Exportable):
         return labels
 
     def prepare_manifest(self, config):
+        """
+        Perform VAD on long audio snippet might cause memory issue. 
+        Automatically split manifest entry by split_duration to avoid potential issue.
+        """
         manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
         input_audios = []
         with open(config['manifest_filepath'], 'r') as manifest:
