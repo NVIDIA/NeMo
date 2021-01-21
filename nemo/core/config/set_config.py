@@ -22,9 +22,6 @@ from hydra.core.config_store import ConfigStore
 from hydra.types import TaskFunction
 from omegaconf import DictConfig
 
-from nemo.core.config import Config
-
-
 def hydra_runner(
     config_path: Optional[str] = None, config_name: Optional[str] = None, schema: Optional[Any] = None
 ) -> Callable[[TaskFunction], Any]:
