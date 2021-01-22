@@ -450,7 +450,7 @@ class SGDQAModel(NLPModel):
 
         metrics = {}
         prediction_dir = (
-            self.trainer.log_dir if hasattr(self.trainer.log_dir) and self.trainer.log_dir is not None else ""
+            self.trainer.log_dir if hasattr(self.trainer, 'log_dir') and self.trainer.log_dir is not None else ""
         )
         if self.trainer.global_rank == 0:
             prediction_dir = os.path.join(
