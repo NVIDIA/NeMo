@@ -83,7 +83,7 @@ def create_shard(entries, target_dir, new_entries, shard_id):
         if squashed_filename not in count:
             tar.add(entry['audio_filepath'], arcname=squashed_filename)
 
-        if entry['label']:
+        if 'label' in entry:
             base, ext = os.path.splitext(squashed_filename)
             # no suffix if it's single sample or starting sub parts, -sub1 for the second subpart -sub2 -sub3 ,etc.
             if squashed_filename not in count:
