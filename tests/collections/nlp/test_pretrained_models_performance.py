@@ -51,7 +51,7 @@ def get_metrics(data_dir, model):
 class TestPretrainedModelPerformance(TestCase):
     @pytest.mark.unit
     def test_punct_capit_with_bert(self):
-        data_dir = '/home/ebakhturina/data/jenkins/token_classification_punctuation'
+        data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
         jenkins = os.path.exists(data_dir)
 
         if jenkins:
