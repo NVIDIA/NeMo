@@ -15,6 +15,8 @@ import glob
 import json
 import logging
 import os
+from itertools import repeat
+from multiprocessing import Pool
 
 import librosa
 import numpy as np

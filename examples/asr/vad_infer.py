@@ -66,9 +66,10 @@ def main():
     parser.add_argument("--time_length", type=float, default=0.63)
     parser.add_argument("--shift_length", type=float, default=0.01)
     parser.add_argument("--normalize_audio", type=bool, default=False)
-    parser.add_argument("--auto_split", type=bool, default=True, help="Whether to utomatically split manifest entry by split_duration to avoid potential issue.")
-    parser.add_argument("--split_duration", type=float, default=400)
     parser.add_argument("--num_workers", type=float, default=20)
+    parser.add_argument("--split_duration", type=float, default=400)
+    parser.add_argument("--not_auto_split", default=False, action='store_true', help="Whether to utomatically split manifest entry by split_duration to avoid potential issue.")
+    
     args = parser.parse_args()
 
     torch.set_grad_enabled(False)
@@ -85,18 +86,18 @@ def main():
 
     # Prepare manifest for streaming VAD
     manifest_vad_input = args.dataset
-    if arg.auto_split:
+    if not args.not_auto_split:
         logging.info("Split long audio file to avoid CUDA memory issue")
         logging.debug("Try smaller split_duration if still have CUDA memory issue")
         config = {
-            'manifest_vad_input': manifest_vad_input,
+            'manifest_filepath': manifest_vad_input,
             'time_length': args.time_length,
             'split_duration': args.split_duration,
             'num_workers': args.num_workers,
         }
         manifest_vad_input = prepare_manifest(config)
     else:
-        logging.warning("If encounter CUDA memory issue, split manifest entry by split_duration to avoid.")
+        logging.warning("If encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it.")
     
     # setup_test_data
     vad_model.setup_test_data(
@@ -105,7 +106,7 @@ def main():
             'sample_rate': 16000,
             'manifest_filepath': manifest_vad_input,
             'labels': ['infer',],
-            'num_workers': args.num_worker,
+            'num_workers': args.num_workers,
             'shuffle': False,
             'time_length': args.time_length,
             'shift_length': args.shift_length,

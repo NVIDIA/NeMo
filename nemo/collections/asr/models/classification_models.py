@@ -16,9 +16,7 @@ import copy
 import json
 import os
 import tempfile
-from itertools import repeat
 from math import ceil
-from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
 
 import onnx
