@@ -449,7 +449,10 @@ class SGDQAModel(NLPModel):
         example_id = get_str_example_id(dataloader.dataset, ids_to_service_names_dict, example_id_num)
 
         metrics = {}
-        prediction_dir = self.trainer.log_dir
+        try:
+            prediction_dir = self.trainer.log_dir if self.trainer.log_dir is not None else ""
+        except:
+            prediction_dir = ""
         if self.trainer.global_rank == 0:
             prediction_dir = os.path.join(
                 prediction_dir, 'predictions', 'pred_res_{}_{}'.format(split, self._cfg.dataset.task_name)
