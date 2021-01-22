@@ -30,7 +30,6 @@ class TestHydraRunner:
         with pytest.raises(subprocess.CalledProcessError):
             # Run the call as subprocess.
             subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
-        
 
     @pytest.mark.integration
     def test_config1(self):
@@ -46,7 +45,6 @@ class TestHydraRunner:
         assert not path.exists(f".hydra")
         # Make sure that default hydra log file is not present.
         assert not path.exists(f"my_app.log")
-
 
     @pytest.mark.integration
     def test_config1_invalid(self):
@@ -73,7 +71,6 @@ class TestHydraRunner:
         assert not path.exists(f".hydra")
         # Make sure that default hydra log file is not present.
         assert not path.exists(f"my_app.log")
-
 
     @pytest.mark.integration
     def test_config2_invalid(self):
