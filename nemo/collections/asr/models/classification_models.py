@@ -148,8 +148,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
             logging.set_verbosity(logging_level)
         return labels
 
-
-
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
         if 'augmentor' in config:

@@ -68,8 +68,13 @@ def main():
     parser.add_argument("--normalize_audio", type=bool, default=False)
     parser.add_argument("--num_workers", type=float, default=20)
     parser.add_argument("--split_duration", type=float, default=400)
-    parser.add_argument("--not_auto_split", default=False, action='store_true', help="Whether to utomatically split manifest entry by split_duration to avoid potential issue.")
-    
+    parser.add_argument(
+        "--not_auto_split",
+        default=False,
+        action='store_true',
+        help="Whether to utomatically split manifest entry by split_duration to avoid potential issue.",
+    )
+
     args = parser.parse_args()
 
     torch.set_grad_enabled(False)
@@ -98,10 +103,10 @@ def main():
         manifest_vad_input = prepare_manifest(config)
     else:
         logging.warning("If encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it.")
-    
+
     # setup_test_data
     vad_model.setup_test_data(
-        test_data_config = {
+        test_data_config={
             'vad_stream': True,
             'sample_rate': 16000,
             'manifest_filepath': manifest_vad_input,
