@@ -30,6 +30,7 @@ class TestHydraRunner:
         with pytest.raises(subprocess.CalledProcessError):
             # Run the call as subprocess.
             subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
+        
 
     @pytest.mark.integration
     def test_config1(self):
@@ -40,6 +41,12 @@ class TestHydraRunner:
 
         # Run the call as subprocess.
         subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
+
+        # Make sure that .hydra dir is not present.
+        assert not path.exists(f".hydra")
+        # Make sure that default hydra log file is not present.
+        assert not path.exists(f"my_app.log")
+
 
     @pytest.mark.integration
     def test_config1_invalid(self):
@@ -57,17 +64,23 @@ class TestHydraRunner:
         """"Test injection of valid config2 from a different folder.
         """
         # Create system call.
-        call = "python tests/hydra/my_app.py --config-path ala --config-name config2.yaml"
+        call = "python tests/hydra/my_app.py --config-path config_subdir --config-name config2.yaml"
 
         # Run the call as subprocess.
         subprocess.check_call(call, shell=True, stdout=sys.stdout, stderr=sys.stdout)
+
+        # Make sure that .hydra dir is not present.
+        assert not path.exists(f".hydra")
+        # Make sure that default hydra log file is not present.
+        assert not path.exists(f"my_app.log")
+
 
     @pytest.mark.integration
     def test_config2_invalid(self):
         """"Test injection of invalid config2 from a different folder.
         """
         # Create system call.
-        call = "python tests/hydra/my_app.py --config-path ala --config-name config2_invalid.yaml"
+        call = "python tests/hydra/my_app.py --config-path config_subdir --config-name config2_invalid.yaml"
 
         with pytest.raises(subprocess.CalledProcessError):
             # Run the call as subprocess.
@@ -78,7 +91,7 @@ class TestHydraRunner:
         """"Test injection of valid config2 - using namepath with schema is prohibited.
         """
         # Create system call.
-        call = "python tests/hydra/my_app.py --config-name ala/config2_invalid.yaml"
+        call = "python tests/hydra/my_app.py --config-name config_subdir/config2_invalid.yaml"
 
         with pytest.raises(subprocess.CalledProcessError):
             # Run the call as subprocess.
