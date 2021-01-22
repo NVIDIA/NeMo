@@ -50,51 +50,55 @@ def get_metrics(data_dir, model):
     return metrics
 
 
+def data_exists(data_dir):
+    return os.path.exists(data_dir)
+
+
 class TestPretrainedModelPerformance(TestCase):
     @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.skipif(
+        not data_exists('/home/TestData/nlp/token_classification_punctuation/fisher'), reason='Not a Jenkins machine'
+    )
     def test_punct_capit_with_bert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
-        jenkins = os.path.exists(data_dir)
+        model = models.PunctuationCapitalizationModel.from_pretrained("Punctuation_Capitalization_with_BERT")
+        metrics = get_metrics(data_dir, model)
 
-        if jenkins:
-            model = models.PunctuationCapitalizationModel.from_pretrained("Punctuation_Capitalization_with_BERT")
-
-            metrics = get_metrics(data_dir, model)
-
-            assert abs(metrics['punct_precision'] - 52.3024) < 0.001
-            assert abs(metrics['punct_recall'] - 58.9220) < 0.001
-            assert abs(metrics['punct_f1'] - 53.2976) < 0.001
-            assert abs(metrics['capit_precision'] - 87.0707) < 0.001
-            assert abs(metrics['capit_recall'] - 87.0707) < 0.001
-            assert abs(metrics['capit_f1'] - 87.0707) < 0.001
-            assert int(model.punct_class_report.total_examples) == 128
+        assert abs(metrics['punct_precision'] - 52.3024) < 0.001
+        assert abs(metrics['punct_recall'] - 58.9220) < 0.001
+        assert abs(metrics['punct_f1'] - 53.2976) < 0.001
+        assert abs(metrics['capit_precision'] - 87.0707) < 0.001
+        assert abs(metrics['capit_recall'] - 87.0707) < 0.001
+        assert abs(metrics['capit_f1'] - 87.0707) < 0.001
+        assert int(model.punct_class_report.total_examples) == 128
 
     @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.skipif(
+        not data_exists('/home/TestData/nlp/token_classification_punctuation/fisher'), reason='Not a Jenkins machine'
+    )
     def test_punct_capit_with_distilbert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
-        jenkins = os.path.exists(data_dir)
+        model = models.PunctuationCapitalizationModel.from_pretrained("Punctuation_Capitalization_with_DistilBERT")
+        metrics = get_metrics(data_dir, model)
 
-        if jenkins:
-            model = models.PunctuationCapitalizationModel.from_pretrained("Punctuation_Capitalization_with_DistilBERT")
-
-            metrics = get_metrics(data_dir, model)
-
-            assert abs(metrics['punct_precision'] - 53.0826) < 0.001
-            assert abs(metrics['punct_recall'] - 56.2905) < 0.001
-            assert abs(metrics['punct_f1'] - 52.4225) < 0.001
-            assert int(model.punct_class_report.total_examples) == 128
+        assert abs(metrics['punct_precision'] - 53.0826) < 0.001
+        assert abs(metrics['punct_recall'] - 56.2905) < 0.001
+        assert abs(metrics['punct_f1'] - 52.4225) < 0.001
+        assert int(model.punct_class_report.total_examples) == 128
 
     @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.skipif(
+        not data_exists('/home/TestData/nlp/token_classification_punctuation/gmb'), reason='Not a Jenkins machine'
+    )
     def test_ner_model(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/gmb'
-        jenkins = os.path.exists(data_dir)
+        model = models.TokenClassificationModel.from_pretrained("NERModel")
+        metrics = get_metrics(data_dir, model)
 
-        if jenkins:
-            model = models.TokenClassificationModel.from_pretrained("NERModel")
-
-            metrics = get_metrics(data_dir, model)
-
-            assert abs(metrics['precision'] - 96.0937) < 0.001
-            assert abs(metrics['recall'] - 96.0146) < 0.001
-            assert abs(metrics['f1'] - 95.6076) < 0.001
-            assert int(model.classification_report.total_examples) == 202
+        assert abs(metrics['precision'] - 96.0937) < 0.001
+        assert abs(metrics['recall'] - 96.0146) < 0.001
+        assert abs(metrics['f1'] - 95.6076) < 0.001
+        assert int(model.classification_report.total_examples) == 202
