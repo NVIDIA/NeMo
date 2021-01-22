@@ -150,38 +150,7 @@ class EncDecClassificationModel(ASRModel, Exportable):
             logging.set_verbosity(logging_level)
         return labels
 
-    def prepare_manifest(self, config):
-        """
-        Perform VAD on long audio snippet might cause memory issue. 
-        Automatically split manifest entry by split_duration to avoid potential issue.
-        """
-        manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
-        input_audios = []
-        with open(config['manifest_filepath'], 'r') as manifest:
-            for line in manifest.readlines():
-                input_audios.append(json.loads(line.strip()))
 
-        p = Pool(processes=config['num_workers'])
-        args_func = {
-            'label': 'infer',
-            'split_duration': config['split_duration'],
-            'time_length': config['time_length'],
-        }
-        results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
-        p.close()
-
-        if os.path.exists(manifest_vad_input):
-            logging.info("The prepared manifest file exists. Overwriting!")
-            os.remove(manifest_vad_input)
-
-        with open(manifest_vad_input, 'a') as fout:
-            for res in results:
-                for r in res:
-                    json.dump(r, fout)
-                    fout.write('\n')
-                    fout.flush()
-
-        return manifest_vad_input
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
@@ -229,8 +198,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
                 return None
 
             if 'vad_stream' in config and config['vad_stream']:
-                logging.info("Split long audio file to avoid CUDA memory issue")
-                config['manifest_filepath'] = self.prepare_manifest(config)
                 logging.info("Perform streaming frame-level VAD")
                 dataset = audio_to_label_dataset.get_speech_label_dataset(
                     featurizer=featurizer, config=config, augmentor=augmentor

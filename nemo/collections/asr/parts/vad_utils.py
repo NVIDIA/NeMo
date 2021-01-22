@@ -21,6 +21,40 @@ import numpy as np
 import pandas as pd
 
 
+def prepare_manifest(config):
+    """
+    Perform VAD on long audio snippet might cause memory issue. 
+    Automatically split manifest entry by split_duration to avoid potential issue.
+    """
+    manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
+    input_audios = []
+    with open(config['manifest_filepath'], 'r') as manifest:
+        for line in manifest.readlines():
+            input_audios.append(json.loads(line.strip()))
+
+    p = Pool(processes=config['num_workers'])
+    args_func = {
+        'label': 'infer',
+        'split_duration': config['split_duration'],
+        'time_length': config['time_length'],
+    }
+    results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
+    p.close()
+
+    if os.path.exists(manifest_vad_input):
+        logging.info("The prepared manifest file exists. Overwriting!")
+        os.remove(manifest_vad_input)
+
+    with open(manifest_vad_input, 'a') as fout:
+        for res in results:
+            for r in res:
+                json.dump(r, fout)
+                fout.write('\n')
+                fout.flush()
+
+    return manifest_vad_input
+
+
 def write_manifest_data(file, args_func):
     """
     Given a list of files, write them to manifest for dataloader with restrictions.
