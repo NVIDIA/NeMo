@@ -70,11 +70,11 @@ class ASRBPEMixin(ABC):
             vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
             self.vocab_path = vocab_path
 
-            vocabulary = {0: '<unk>'}
+            vocabulary = {'<unk>': 0}
             with open(vocab_path) as f:
                 for i, piece in enumerate(f):
                     piece = piece.replace('\n', '')
-                    vocabulary[i + 1] = piece
+                    vocabulary[piece] = i + 1
 
             # wrapper method to get vocabulary conveniently
             def get_vocab():
