@@ -19,7 +19,7 @@ import pytorch_lightning as ptl
 from omegaconf import DictConfig
 
 from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config
-from nemo.core.config import Config, TrainerConfig, set_config
+from nemo.core.config import Config, TrainerConfig, hydra_runner
 from nemo.utils import logging
 
 
@@ -39,7 +39,7 @@ class AppConfig(Config):
     model: MNISTLeNet5Config = MNISTLeNet5Config()
 
 
-@set_config(config=AppConfig)
+@hydra_runner(schema=AppConfig, config_name="AppConfig")
 def main(cfg: DictConfig):
     # Show configuration - user can modify every parameter from command line!
     logging.info("Application config\n" + cfg.pretty())

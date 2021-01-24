@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.core.config.base_config import Config
+from nemo.core.config.hydra_runner import hydra_runner
 from nemo.core.config.optimizers import (
     AdadeltaParams,
     AdagradParams,
@@ -44,4 +45,3 @@ from nemo.core.config.schedulers import (
     get_scheduler_config,
     register_scheduler_params,
 )
-from nemo.core.config.set_config import hydra_runner, set_config
