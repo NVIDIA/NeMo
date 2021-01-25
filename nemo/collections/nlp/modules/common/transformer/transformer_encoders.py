@@ -83,10 +83,31 @@ class TransformerEncoderBlock(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, num_layers: int, hidden_size: int, mask_future: bool = False, **kwargs):
+    def __init__(
+        self,
+        num_layers: int,
+        hidden_size: int,
+        inner_size: int,
+        mask_future: bool = False,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
+    ):
         super().__init__()
 
-        layer = TransformerEncoderBlock(hidden_size, **kwargs)
+        layer = TransformerEncoderBlock(
+            hidden_size,
+            inner_size,
+            num_attention_heads,
+            attn_score_dropout,
+            attn_layer_dropout,
+            ffn_dropout,
+            hidden_act,
+            pre_ln,
+        )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self.diag = 0 if mask_future else None
 
