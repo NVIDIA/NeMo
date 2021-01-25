@@ -18,11 +18,6 @@ model:
     max_duration: 16.7
     min_duration: 0.1
     shuffle: true
-    # tarred dataset format (Using Webdataset library) is recommended for the training set of large datasets
-    # you may use 'scripts/convert_to_tarred_audio_dataset.py' script to convert the dataset into tarred format
-    is_tarred: false
-    tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
     num_workers: 8
     pin_memory: false
     use_start_end_token: false
