@@ -51,7 +51,7 @@ class TransformerDecoderBlock(NeuralModule):
         attn_layer_dropout: float = 0.0,
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
-        pre_ln=False,
+        pre_ln: bool = False,
     ):
         super().__init__()
         self.pre_ln = pre_ln
@@ -97,10 +97,30 @@ class TransformerDecoderBlock(NeuralModule):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, num_layers: int, hidden_size: int, **kwargs):
+    def __init__(
+        self,
+        num_layers: int,
+        hidden_size: int,
+        inner_size: int,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
+    ):
         super().__init__()
 
-        layer = TransformerDecoderBlock(hidden_size, **kwargs)
+        layer = TransformerDecoderBlock(
+            hidden_size,
+            inner_size,
+            num_attention_heads,
+            attn_score_dropout,
+            attn_layer_dropout,
+            ffn_dropout,
+            hidden_act,
+            pre_ln,
+        )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
