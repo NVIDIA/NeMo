@@ -43,6 +43,7 @@ class AAYNBaseSchedConfig(SchedConfig):
     last_epoch: int = -1
 
 
+# TODO: Refactor this dataclass to to support more optimizers (it pins the optimizer to Adam-like optimizers).
 @dataclass
 class AAYNBaseOptimConfig(OptimConfig):
     name: str = 'adam'
