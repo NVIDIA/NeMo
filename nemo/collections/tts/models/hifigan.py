@@ -45,29 +45,29 @@ class HifiGanModel(Vocoder):
         self.sample_rate = self._cfg.preprocessor.sample_rate
 
     def configure_optimizers(self):
-        optim_g = torch.optim.AdamW(
+        self.optim_g = torch.optim.AdamW(
             self.generator.parameters(),
             self._cfg.optim.lr,
             betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2]
         )
-        optim_d = torch.optim.AdamW(
+        self.optim_d = torch.optim.AdamW(
             itertools.chain(self.msd.parameters(), self.mpd.parameters()),
             self._cfg.optim.lr,
             betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2]
         )
 
-        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
-            optim_g,
+        self.scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+            self.optim_g,
             gamma=self._cfg.optim.lr_decay,
             last_epoch=-1  # TODO: adjust last_epoch in case we load a checkpoint
         )
-        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
-            optim_d,
+        self.scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+            self.optim_d,
             gamma=self._cfg.optim.lr_decay,
             last_epoch=-1  # TODO: adjust last_epoch in case we load a checkpoint
         )
 
-        return [optim_g, optim_d], [scheduler_g, scheduler_d]
+        return [self.optim_g, self.optim_d], [self.scheduler_g, self.scheduler_d]
 
     @property
     def input_types(self):
@@ -94,56 +94,52 @@ class HifiGanModel(Vocoder):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         audio, audio_len = batch
-        audio_mel, _ = self.audio_to_melspec_precessor(audio, audio_len)
-        audio_pred = self(spec=audio_mel)
+        audio_mel, dummy = self.audio_to_melspec_precessor(audio, audio_len)
         audio = audio.unsqueeze(1)
 
-        # train generator
-        if optimizer_idx == 0:
-            audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
+        audio_pred = self.generator(x=audio_mel)
+        audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
 
-            # L1 melspec loss
-            loss_mel = F.l1_loss(audio_mel, audio_pred_mel) * 45
-
-            # feature matching loss
-            _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.mpd(y=audio, y_hat=audio_pred)
-            _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.msd(y=audio, y_hat=audio_pred)
-            loss_fm_mpd = feature_loss(fmap_mpd_real, fmap_mpd_gen)
-            loss_fm_msd = feature_loss(fmap_msd_real, fmap_msd_gen)
-            loss_gen_mpd, _ = generator_loss(mpd_score_gen)
-            loss_gen_msd, _ = generator_loss(msd_score_gen)
-            loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel
-
-            metrics = {
-                "g_l1_loss": loss_mel,
-                "g_loss_fm_mpd": loss_fm_mpd,
-                "g_loss_fm_msd": loss_fm_msd,
-                "g_loss_gen_mpd": loss_gen_mpd,
-                "g_loss_gen_msd": loss_gen_msd,
-                "g_loss": loss_g
-            }
-            self.log_dict(metrics, on_step=False, on_epoch=True, sync_dist=True)
-            return loss_g
-        
         # train discriminator
-        else:
-            mpd_score_real, mpd_score_gen, _, _ = self.mpd(y=audio, y_hat=audio_pred.detach())
-            loss_disc_mpd, _, _ = discriminator_loss(mpd_score_real, mpd_score_gen)
-            msd_score_real, msd_score_gen, _, _ = self.msd(y=audio, y_hat=audio_pred.detach())
-            loss_disc_msd, _, _ = discriminator_loss(msd_score_real, msd_score_gen)
-            loss_disc_all = loss_disc_msd + loss_disc_mpd
+        self.optim_d.zero_grad()
+        mpd_score_real, mpd_score_gen, _, _ = self.mpd(y=audio, y_hat=audio_pred.detach())
+        loss_disc_mpd, _, _ = discriminator_loss(mpd_score_real, mpd_score_gen)
+        msd_score_real, msd_score_gen, _, _ = self.msd(y=audio, y_hat=audio_pred.detach())
+        loss_disc_msd, _, _ = discriminator_loss(msd_score_real, msd_score_gen)
+        loss_d = loss_disc_msd + loss_disc_mpd
+        self.manual_backward(loss_d, self.optim_d)
+        self.optim_d.step()
 
-            metrics = {
-                "d_loss_mpd": loss_disc_mpd,
-                "d_loss_msd": loss_disc_msd,
-                "d_loss": loss_disc_all
-            }
-            self.log_dict(metrics, on_step=False, on_epoch=True, sync_dist=True)
-            return loss_disc_all
+        # train generator
+        self.optim_g.zero_grad()
+        loss_mel = F.l1_loss(audio_pred_mel, audio_mel) * 45
+        _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.mpd(y=audio, y_hat=audio_pred)
+        _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.msd(y=audio, y_hat=audio_pred)
+        loss_fm_mpd = feature_loss(fmap_mpd_real, fmap_mpd_gen)
+        loss_fm_msd = feature_loss(fmap_msd_real, fmap_msd_gen)
+        loss_gen_mpd, _ = generator_loss(mpd_score_gen)
+        loss_gen_msd, _ = generator_loss(msd_score_gen)
+        loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel
+        self.manual_backward(loss_g, self.optim_g)
+        self.optim_g.step()
+
+        metrics = {
+            "g_l1_loss": loss_mel,
+            "g_loss_fm_mpd": loss_fm_mpd,
+            "g_loss_fm_msd": loss_fm_msd,
+            "g_loss_gen_mpd": loss_gen_mpd,
+            "g_loss_gen_msd": loss_gen_msd,
+            "g_loss": loss_g,
+            "d_loss_mpd": loss_disc_mpd,
+            "d_loss_msd": loss_disc_msd,
+            "d_loss": loss_d,
+            "global_step": self.global_step,
+        }
+        self.log_dict(metrics, on_step=False, on_epoch=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len = batch
-        audio_mel, _ = self.audio_to_melspec_precessor(audio, audio_len)
+        audio_mel, audio_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
         audio_pred = self(spec=audio_mel)
 
         audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
@@ -153,31 +149,33 @@ class HifiGanModel(Vocoder):
 
         # plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger):
-            self.logger.experiment.log({
-                "audio": [
-                    wandb.Audio(
-                        audio[0].data.cpu().numpy(),
-                        caption="real audio",
-                        sample_rate=self.sample_rate
-                    ),
-                    wandb.Audio(
-                        audio_pred[0, 0].data.cpu().numpy(),
-                        caption="generated audio",
-                        sample_rate=self.sample_rate
-                    )
-                ],
-                "specs": [
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(audio_mel[0].data.cpu().numpy()),
-                        caption="real audio"
-                    ),
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(audio_pred_mel[0].data.cpu().numpy()),
-                        caption="generated audio"
-                    )
-                ],
-            },
-            commit=False)
+            clips = []
+            specs = []
+            for i in range(min(5, audio.shape[0])):
+                clips += [
+                        wandb.Audio(
+                            audio[i, :audio_len[i]].data.cpu().numpy(),
+                            caption=f"real audio {i}",
+                            sample_rate=self.sample_rate
+                        ),
+                        wandb.Audio(
+                            audio_pred[i, 0, :audio_len[i]].data.cpu().numpy().astype('float32'),
+                            caption=f"generated audio {i}",
+                            sample_rate=self.sample_rate
+                        )
+                ]
+                specs += [
+                        wandb.Image(
+                            plot_spectrogram_to_numpy(audio_mel[i, :, :audio_mel_len[i]].data.cpu().numpy()),
+                            caption=f"real audio {i}"
+                        ),
+                        wandb.Image(
+                            plot_spectrogram_to_numpy(audio_pred_mel[i, :, :audio_mel_len[i]].data.cpu().numpy()),
+                            caption=f"generated audio {i}"
+                        )
+                ]
+
+            self.logger.experiment.log({"audio": clips, "specs": specs}, commit=False)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
