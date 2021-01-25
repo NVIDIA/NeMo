@@ -261,7 +261,8 @@ class NLPModel(ModelPT):
         # TODO: implement model parallel for test stage
         if stage == 'fit':
             # adds self.bert_model config to .nemo file
-            self.register_bert_model()
+            if hasattr(self, 'bert_model') and self.bert_model is not None:
+                self.register_bert_model()
 
             app_state = AppState()
 
@@ -302,6 +303,10 @@ class NLPModel(ModelPT):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             else:
-                if isinstance(self.bert_model, MegatronBertEncoder):
+                if (
+                    hasattr(self, 'bert_model')
+                    and self.bert_model is not None
+                    and isinstance(self.bert_model, MegatronBertEncoder)
+                ):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()

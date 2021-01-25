@@ -19,6 +19,7 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
+from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -30,7 +31,6 @@ from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
-from nemo.core.config.modelPT import ModelPTConfig
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import config_utils, logging, model_utils
 from nemo.utils.app_state import AppState
