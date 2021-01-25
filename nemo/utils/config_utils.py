@@ -17,10 +17,10 @@ from dataclasses import is_dataclass
 
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.core.config.modelPT import ModelPTConfig
+from nemo.core.config.modelPT import NemoConfig
 
 
-def update_model_config(model_cls: ModelPTConfig, update_cfg: DictConfig, drop_missing_subconfigs: bool = True):
+def update_model_config(model_cls: NemoConfig, update_cfg: DictConfig, drop_missing_subconfigs: bool = True):
     """
     Helper class that updates the default values of a ModelPT config class with the values
     in a DictConfig that mirrors the structure of the config class.

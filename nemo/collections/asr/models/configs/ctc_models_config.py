@@ -78,5 +78,5 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
 
 
 @dataclass
-class EncDecCTCModelConfig(model_cfg.ModelPTConfig):
+class EncDecCTCModelConfig(model_cfg.NemoConfig):
     model: EncDecCTCConfig = EncDecCTCConfig()
