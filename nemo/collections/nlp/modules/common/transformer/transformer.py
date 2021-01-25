@@ -97,7 +97,7 @@ class TransformerEncoderNM(EncoderModule):
             pre_ln=pre_ln,
         )
 
-    @typecheck
+    # @typecheck
     def forward(self, input_ids, encoder_mask):
         embeddings = self._embedding(input_ids)
         encoder_hidden_states = self._encoder(embeddings, encoder_mask)
@@ -153,7 +153,7 @@ class TransformerDecoderNM(DecoderModule):
             pre_ln=pre_ln,
         )
 
-    @typecheck
+    # @typecheck
     def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
         decoder_embeddings = self._embedding(input_ids)
         decoder_hidden_states = self._decoder(decoder_embeddings, decoder_mask, encoder_embeddings, encoder_mask)
