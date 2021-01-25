@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from nemo.core.classes.common import typecheck
 
 from omegaconf.omegaconf import MISSING
 
@@ -22,6 +21,7 @@ from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
+from nemo.core.classes.common import typecheck
 
 
 @dataclass
