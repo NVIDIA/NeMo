@@ -63,7 +63,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       steps {
@@ -75,7 +75,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
@@ -103,7 +103,7 @@ pipeline {
     //   when {
     //     anyOf{
     //       branch 'main'
-    //       changeRequest target: 'main'
+    //       changeRequest target: 'r1.0.0b4'
     //     }
     //   }
     //   steps {
@@ -122,7 +122,7 @@ pipeline {
     //   when {
     //     anyOf{
     //       branch 'dev
-    //       changeRequest target: 'main'
+    //       changeRequest target: 'r1.0.0b4'
     //     }
     //   }
     //   steps {
@@ -134,7 +134,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
@@ -255,7 +255,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
@@ -301,7 +301,7 @@ pipeline {
          when {
             anyOf {
               branch 'main'
-              changeRequest target: 'main'
+              changeRequest target: 'r1.0.0b4'
             }
          }
        stages {
@@ -362,7 +362,7 @@ pipeline {
      when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
      }
      failFast true
@@ -387,7 +387,7 @@ pipeline {
      when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
      }
      failFast true
@@ -421,7 +421,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
@@ -504,7 +504,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
@@ -592,7 +592,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
@@ -624,7 +624,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
@@ -699,7 +699,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
@@ -811,7 +811,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       parallel {
@@ -850,7 +850,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
 
@@ -904,7 +904,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          changeRequest target: 'main'
+          changeRequest target: 'r1.0.0b4'
         }
       }
       failFast true
