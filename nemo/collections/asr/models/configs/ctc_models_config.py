@@ -77,7 +77,6 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     decoder: Any = ConvASRDecoderConfig()
 
 
-# This class needs a better name, this is more like an ASRAppConfig
 @dataclass
 class EncDecCTCModelConfig(model_cfg.NemoConfig):
     model: EncDecCTCConfig = EncDecCTCConfig()
