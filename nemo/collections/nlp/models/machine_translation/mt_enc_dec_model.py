@@ -138,17 +138,6 @@ class MTEncDecModel(EncDecNLPModel):
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
-        """
-        torch.nn.Module.forward method.
-        Args:
-            src: source ids
-            src_mask: src mask (mask padding)
-            tgt: target ids
-            tgt_mask: target mask
-
-        Returns:
-
-        """
         src_hiddens = self.encoder(src, src_mask)
         if tgt is not None:
             tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
