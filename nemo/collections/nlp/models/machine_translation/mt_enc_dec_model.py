@@ -234,7 +234,7 @@ class MTEncDecModel(EncDecNLPModel):
             logging.info(f"    Prediction:   {translations[ind]}")
             logging.info(f"    Ground Truth: {ground_truths[ind]}")
 
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score}  # , f"{mode}_ppl": eval_perplexity}
+        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score}
         ans['log'] = dict(ans)
         return ans
 
