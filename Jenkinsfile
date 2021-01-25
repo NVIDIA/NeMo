@@ -810,8 +810,8 @@ pipeline {
     stage('L2: NMT Attention is All You Need Base') {
       when {
         anyOf{
-          branch 'nmt'
-          changeRequest target: 'nmt'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
