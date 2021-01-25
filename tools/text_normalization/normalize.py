@@ -17,6 +17,7 @@ from typing import List
 
 from tools.text_normalization.tagger import (
     Tag,
+    TagType,
     tag_cardinal,
     tag_date,
     tag_decimal,
@@ -28,6 +29,25 @@ from tools.text_normalization.tagger import (
     tag_whitelist,
 )
 from tqdm import tqdm
+from verbalizer import (
+    expand_cardinal,
+    expand_date,
+    expand_decimal,
+    expand_digit,
+    expand_electronic,
+    expand_fraction,
+    expand_letter,
+    expand_measurement,
+    expand_money,
+    expand_ordinal,
+    expand_punct,
+    expand_roman,
+    expand_telephone,
+    expand_time,
+    expand_verbatim,
+    expand_whitelist,
+    expand_year,
+)
 
 taggers = [
     tag_whitelist,
@@ -41,6 +61,24 @@ taggers = [
     tag_verbatim,
 ]
 
+verbalizers = {
+    TagType.CARDINAL: [expand_cardinal, expand_roman],
+    TagType.DATE: [expand_date],
+    TagType.DECIMAL: [expand_decimal],
+    TagType.DIGIT: [expand_digit],
+    TagType.ELECTRONIC: [expand_electronic],
+    TagType.FRACTION: [expand_fraction],
+    TagType.LETTERS: [expand_letter],
+    TagType.MEASURE: [expand_measurement],
+    TagType.MONEY: [expand_money],
+    TagType.ORDINAL: [expand_ordinal],
+    TagType.PUNCT: [expand_punct],
+    TagType.TELEPHONE: [expand_telephone],
+    TagType.TIME: [expand_time],
+    TagType.VERBATIM: [expand_verbatim],
+    TagType.WHITELIST: [expand_whitelist],
+}
+
 
 def find_tags(text: str) -> List[Tag]:
     """
@@ -51,8 +89,21 @@ def find_tags(text: str) -> List[Tag]:
     """
     tags = []
     for tagger in taggers:
-        tags.extend(tagger(text))
+        foundTags = find_tag(text, tagger)
+        if foundTags:
+            tags.extend(foundTags)
     return tags
+
+
+def find_tag(text: str, tagger) -> List[Tag]:
+    """
+    Given text and tagger find all matching tags
+    Args:
+        text: string
+        tagger: tagger
+    Returns: List of Tags or None
+    """
+    return tagger(text)
 
 
 def select_tags(tags: List[Tag]) -> List[Tag]:
@@ -77,7 +128,7 @@ def select_tags(tags: List[Tag]) -> List[Tag]:
 
 def verbalizer(text: str, tags: List[Tag]) -> str:
     """
-    Given text and corresponding list of tags. Applies verbalizations for tagged substrings and return transduced text.
+    Given text and corresponding list of tags. Applies verbalization where possible for tagged substrings and returns transduced text.
     This is context-independent, i.e. normalization only looks at tagged substring.
     Args:
         text: input text
@@ -87,8 +138,25 @@ def verbalizer(text: str, tags: List[Tag]) -> str:
     # sort by last starting point
     tags = sorted(tags, key=lambda x: -x.start)
     for tag in tags:
-        text = text[: tag.start] + tag.normalize(tag.data) + text[tag.end :]
+        text = text[: tag.start] + verbalize(tag) + text[tag.end :]
     return text
+
+
+def verbalize(tag: Tag) -> str:
+    """
+    Given tag applies verbalization if possible and returns transduced text.
+    This is context-independent.
+    Args:
+        tag: tag
+    Returns: verbalized text
+    """
+    expand_funcs = verbalizers[tag.kind]
+    res = [f(tag.data) for f in expand_funcs]
+    res = [x for x in res if x]
+    if not res:
+        return tag.text
+    else:
+        return res[0]
 
 
 def normalize_numbers(text: str, verbose: bool):
@@ -103,8 +171,9 @@ def normalize_numbers(text: str, verbose: bool):
     tags = select_tags(tags)
     output = verbalizer(text, tags)
     if verbose:
-        print([str(tag) for tag in tags])
+        print(text)
         print(output)
+        print([str(tag) for tag in tags])
     return output
 
 
