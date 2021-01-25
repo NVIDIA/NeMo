@@ -831,7 +831,6 @@ pipeline {
         model.test_ds=null \
         model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
         model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-        model.head.num_classes=4096 \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
         exp_manager=null \
