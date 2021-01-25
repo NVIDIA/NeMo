@@ -215,10 +215,10 @@ class MTEncDecModel(EncDecNLPModel):
 
     def eval_epoch_end(self, outputs, mode):
         eval_loss = self.eval_loss.compute()
-        # eval_perplexity = self.eval_perplexity.compute()
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
-        # __TODO__ add target language so detokenizer can be lang specific.
+
+        # TODO: add target language so detokenizer can be lang specific.
         detokenizer = MosesDetokenizer()
         translations = [detokenizer.detokenize(sent.split()) for sent in translations]
         ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
