@@ -828,7 +828,10 @@ pipeline {
         model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
         model.validation_ds.cache_ids=false \
         model.validation_ds.use_cache=false \
-        model.test_ds=null \
+        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.cache_ids=false \
+        model.test_ds.use_cache=false \
         model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
         model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
         trainer.gpus=[0] \
