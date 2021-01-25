@@ -28,8 +28,8 @@ __all__ = ['TranslationDataset']
 
 @dataclass
 class TranslationDataConfig:
-    src_file_name: str = None  # MISSING
-    tgt_file_name: str = None  # MISSING
+    src_file_name: str = MISSING
+    tgt_file_name: str = MISSING
     tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
@@ -48,18 +48,18 @@ class TranslationDataConfig:
 class TranslationDataset(Dataset):
     def __init__(
         self,
-        dataset_src,
-        dataset_tgt,
-        tokens_in_batch=1024,
-        clean=False,
-        max_seq_length=512,
-        min_seq_length=1,
-        max_seq_length_diff=512,
-        max_seq_length_ratio=512,
-        cache_ids=False,
-        cache_data_per_node=False,
-        use_cache=False,
-        reverse_lang_direction=False,
+        dataset_src: str,
+        dataset_tgt: str,
+        tokens_in_batch: int = 1024,
+        clean: bool = False,
+        max_seq_length: int = 512,
+        min_seq_length: int = 1,
+        max_seq_length_diff: int = 512,
+        max_seq_length_ratio: int = 512,
+        cache_ids: bool = False,
+        cache_data_per_node: bool = False,
+        use_cache: bool = False,
+        reverse_lang_direction: bool = False,
     ):
         self.dataset_src = dataset_src
         self.dataset_tgt = dataset_tgt
