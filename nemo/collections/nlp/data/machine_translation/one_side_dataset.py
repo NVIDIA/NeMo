@@ -15,6 +15,7 @@
 """Pytorch Dataset for training Neural Machine Translation."""
 
 from collections import OrderedDict
+from typing import Any
 
 import numpy as np
 
@@ -27,13 +28,13 @@ __all__ = ['TranslationOneSideDataset']
 class TranslationOneSideDataset(Dataset):
     def __init__(
         self,
-        tokenizer,
-        dataset,
-        tokens_in_batch=1024,
-        clean=False,
-        cache_ids=False,
-        max_seq_length=512,
-        min_seq_length=1,
+        tokenizer: Any,
+        dataset: Any,
+        tokens_in_batch: int = 1024,
+        clean: bool = False,
+        cache_ids: bool = False,
+        max_seq_length: int = 512,
+        min_seq_length: int = 1,
     ):
 
         self.tokenizer = tokenizer
