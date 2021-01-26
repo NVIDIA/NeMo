@@ -17,7 +17,7 @@ from dataclasses import asdict
 import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecCTCModel, configs
-from nemo.core.config import optimizers, schedulers, modelPT
+from nemo.core.config import modelPT, optimizers, schedulers
 from nemo.utils.exp_manager import exp_manager
 
 """
