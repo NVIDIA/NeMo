@@ -67,10 +67,10 @@ def main():
     # Update values
     # MODEL UPDATES
     # train ds
-    model_cfg.train_ds.manifest_filepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/train_manifest.json"
+    model_cfg.train_ds.manifest_filepath = ""
 
     # validation ds
-    model_cfg.validation_ds.manifest_filepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/test_manifest.json"
+    model_cfg.validation_ds.manifest_filepath = ""
 
     # Trainer config
     cfg.trainer.gpus = 1
