@@ -40,7 +40,7 @@ def prepare_manifest(config):
         'split_duration': config['split_duration'],
         'time_length': config['time_length'],
     }
-    results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
+    results = p.starmap(write_vad_infer_manifest, zip(input_audios, repeat(args_func)))
     p.close()
 
     if os.path.exists(manifest_vad_input):
@@ -57,8 +57,9 @@ def prepare_manifest(config):
     return manifest_vad_input
 
 
-def write_manifest_data(file, args_func):
+def write_vad_infer_manifest(file, args_func):
     """
+    Used by prepare_manifest.
     Given a list of files, write them to manifest for dataloader with restrictions.
     Args:
         files : file to be processed

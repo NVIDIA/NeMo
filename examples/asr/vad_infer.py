@@ -69,10 +69,10 @@ def main():
     parser.add_argument("--num_workers", type=float, default=20)
     parser.add_argument("--split_duration", type=float, default=400)
     parser.add_argument(
-        "--not_auto_split",
+        "--dont_auto_split",
         default=False,
         action='store_true',
-        help="Whether to utomatically split manifest entry by split_duration to avoid potential issue.",
+        help="Whether to automatically split manifest entry by split_duration to avoid potential issue.",
     )
 
     args = parser.parse_args()
@@ -91,7 +91,7 @@ def main():
 
     # Prepare manifest for streaming VAD
     manifest_vad_input = args.dataset
-    if not args.not_auto_split:
+    if not args.dont_auto_split:
         logging.info("Split long audio file to avoid CUDA memory issue")
         logging.debug("Try smaller split_duration if still have CUDA memory issue")
         config = {

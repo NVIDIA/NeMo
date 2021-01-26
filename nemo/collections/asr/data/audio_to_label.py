@@ -26,14 +26,6 @@ from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralT
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-# todo consistency !
-__all__ = [
-    'AudioToSpeechLabelDataset',
-    'AudioToClassificationLabelDataset',
-    'TarredAudioToSpeechLabelDataset',
-    'AudioToClassificationLabelDataset',
-]
-
 
 def repeat_signal(signal, sig_len, required_length):
     """repeat signal to make short signal to have required_length
