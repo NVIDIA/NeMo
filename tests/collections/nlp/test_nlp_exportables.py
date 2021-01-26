@@ -19,12 +19,11 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import wget
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo.collections import nlp as nemo_nlp
 from nemo.collections.nlp.models import IntentSlotClassificationModel
 from nemo.collections.nlp.modules.common import (
-    BertPretrainingTokenClassifier,
     SequenceClassifier,
     SequenceRegression,
     SequenceTokenClassifier,

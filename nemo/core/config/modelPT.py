@@ -56,7 +56,7 @@ class HydraConfig:
 
 
 @dataclass
-class ModelPTConfig:
+class NemoConfig:
     name: str = MISSING
     model: ModelConfig = MISSING
     trainer: config.TrainerConfig = config.TrainerConfig(

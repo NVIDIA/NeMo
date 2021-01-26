@@ -169,3 +169,7 @@ docs/sources/source/test_build/
 # Checkpoints, config files and temporary files created in tutorials.
 examples/neural_graphs/*.chkpt
 examples/neural_graphs/*.yml
+
+.hydra/
+nemo_experiments/
+
