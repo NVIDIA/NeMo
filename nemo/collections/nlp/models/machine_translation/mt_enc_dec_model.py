@@ -19,7 +19,11 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
+import pytorch_lightning
+from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 import torch
+from torch.nn.parallel.distributed import DistributedDataParallel
 import torch.utils.data as pt_data
 from hydra.utils import instantiate
 from omegaconf import DictConfig
@@ -384,3 +388,14 @@ class MTEncDecModel(EncDecNLPModel):
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
+
+    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
+        logging.info('overriding ddp to test find_unused_parameters flag')
+        # if unset, default `find_unused_parameters` `False`
+        model = LightningDistributedDataParallel(model, device_ids=device_ids, find_unused_parameters=True)
+        return model
+
+    def setup(self, stage):
+        # Update PTL trainer to use our configure_ddp
+        self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
+
