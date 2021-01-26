@@ -807,6 +807,40 @@ pipeline {
       }
     }
 
+    stage('L2: NMT Attention is All You Need Base') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/machine_translation && \
+        python enc_dec_nmt.py \
+        --config-path=conf \
+        --config-name=aayn_base \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.train_ds.cache_ids=false \
+        model.train_ds.use_cache=false \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.cache_ids=false \
+        model.validation_ds.use_cache=false \
+        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.cache_ids=false \
+        model.test_ds.use_cache=false \
+        model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        trainer.gpus=[0] \
+        +trainer.fast_dev_run=true \
+        exp_manager=null \
+        '
+      }
+    }
+
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf{
