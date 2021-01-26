@@ -237,7 +237,7 @@ def assert_dataclass_signature_match(
 
         class_params = class_params - ignore_args
         dataclass_params = dataclass_params - ignore_args
-        logging.info(f"Removing deprecated arguments - {ignore_args}")
+        logging.info(f"Removing ignored arguments - {ignore_args}")
 
     if len(class_params) != len(dataclass_params):
         logging.error(f"Class {cls.__name__} arguments do not match " f"Dataclass {datacls.__name__}!")
