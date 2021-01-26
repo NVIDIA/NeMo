@@ -36,13 +36,13 @@ def update_model_config(model_cls: NemoConfig, update_cfg: DictConfig, drop_miss
         -   `optim` + nested `sched`.
 
     Args:
-        model_cls: A subclass of ModelPTConfig, that details in entirety all of the parameters that constitute
+        model_cls: A subclass of NemoConfig, that details in entirety all of the parameters that constitute
             the NeMo Model.
 
-        update_cfg: A DictConfig that mirrors the structure of the ModelPTConfig data class. Used to update the
+        update_cfg: A DictConfig that mirrors the structure of the NemoConfig data class. Used to update the
             default values of the config class.
 
-        drop_missing_subconfigs: Bool which determins whether to drop certain sub-configs from the ModelPTConfig
+        drop_missing_subconfigs: Bool which determins whether to drop certain sub-configs from the NemoConfig
             class, if the corresponding sub-config is missing from `update_cfg`.
 
     Returns:
@@ -92,7 +92,7 @@ def _update_subconfig(
     model_cfg: DictConfig, update_cfg: DictConfig, subconfig_key: str, drop_missing_subconfigs: bool
 ):
     """
-    Updates the ModelPTConfig DictConfig such that:
+    Updates the NemoConfig DictConfig such that:
     1)  If the sub-config key exists in the `update_cfg`, but does not exist in ModelPT config:
         - Add the sub-config from update_cfg to ModelPT config
 
@@ -100,14 +100,14 @@ def _update_subconfig(
         - Remove the sub-config from the ModelPT config; iff the `drop_missing_subconfigs` flag is set.
 
     Args:
-        model_cfg: A DictConfig instantiated from the ModelPTConfig subclass.
+        model_cfg: A DictConfig instantiated from the NemoConfig subclass.
         update_cfg: A DictConfig that mirrors the structure of `model_cfg`, used to update its default values.
         subconfig_key: A str key used to check and update the sub-config.
-        drop_missing_subconfigs: A bool flag, whether to allow deletion of the ModelPTConfig sub-config,
+        drop_missing_subconfigs: A bool flag, whether to allow deletion of the NemoConfig sub-config,
             if its mirror sub-config does not exist in the `update_cfg`.
 
     Returns:
-        The updated DictConfig for the ModelPTConfig
+        The updated DictConfig for the NemoConfig
     """
     with open_dict(model_cfg.model):
         # If update config has the key, but model cfg doesnt have the key
@@ -126,7 +126,7 @@ def _update_subconfig(
 
 def _add_subconfig_keys(model_cfg: DictConfig, update_cfg: DictConfig, subconfig_key: str):
     """
-    For certain sub-configs, the default values specified by the ModelPTConfig class is insufficient.
+    For certain sub-configs, the default values specified by the NemoConfig class is insufficient.
     In order to support every potential value in the merge between the `update_cfg`, it would require
     explicit definition of all possible cases.
 
@@ -139,13 +139,13 @@ def _add_subconfig_keys(model_cfg: DictConfig, update_cfg: DictConfig, subconfig
 
     In order to enable the merge, we first need to update the update sub-config to incorporate the keys,
     with dummy temporary values (merge update config with model config). This is done on a copy of the
-    update sub-config, as the actual override values might be overriden by the ModelPTConfig defaults.
+    update sub-config, as the actual override values might be overriden by the NemoConfig defaults.
 
     Then we perform a merge of this temporary sub-config with the actual override config in a later step
     (merge model_cfg with original update_cfg, done outside this function).
 
     Args:
-        model_cfg: A DictConfig instantiated from the ModelPTConfig subclass.
+        model_cfg: A DictConfig instantiated from the NemoConfig subclass.
         update_cfg: A DictConfig that mirrors the structure of `model_cfg`, used to update its default values.
         subconfig_key: A str key used to check and update the sub-config.
 

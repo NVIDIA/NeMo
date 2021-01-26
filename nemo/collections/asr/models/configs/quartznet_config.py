@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, List, Optional, Callable
 
 from omegaconf import MISSING
 
@@ -161,6 +161,66 @@ def jasper_10x5_dr():
                             se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)
     ]
     return config
+
+
+def matchboxnet_3x1x64():
+    config = [
+        JasperEncoderConfig(filters=128, repeat=1, kernel=[11], stride=[1], dilation=[1], dropout=0.0,
+                            residual=False, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=64, repeat=1, kernel=[13], stride=[1], dilation=[1], dropout=0.0,
+                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=64, repeat=1, kernel=[15], stride=[1], dilation=[1], dropout=0.0,
+                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=64, repeat=1, kernel=[17], stride=[1], dilation=[1], dropout=0.0,
+                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=128, repeat=1, kernel=[29], stride=[1], dilation=[2], dropout=0.0,
+                            residual=False, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=128, repeat=1, kernel=[1], stride=[1], dilation=[1], dropout=0.0,
+                            residual=False, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)
+    ]
+    return config
+
+
+def matchboxnet_3x1x64_vad():
+    config = [
+        JasperEncoderConfig(filters=128, repeat=1, kernel=[11], stride=[1], dilation=[1], dropout=0.0,
+                            residual=False, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=64, repeat=1, kernel=[13], stride=[1], dilation=[1], dropout=0.0,
+                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=64, repeat=1, kernel=[15], stride=[1], dilation=[1], dropout=0.0,
+                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=64, repeat=1, kernel=[17], stride=[1], dilation=[1], dropout=0.0,
+                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=128, repeat=1, kernel=[29], stride=[1], dilation=[2], dropout=0.0,
+                            residual=False, groups=1, separable=True, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
+        JasperEncoderConfig(filters=128, repeat=1, kernel=[1], stride=[1], dilation=[1], dropout=0.0,
+                            residual=False, groups=1, separable=False, heads=-1, residual_mode='add',
+                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
+                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)
+    ]
+    return config
 # fmt: on
 
 
@@ -236,6 +296,9 @@ class EncDecCTCModelConfigBuilder(model_cfg.ModelConfigBuilder):
         super(EncDecCTCModelConfigBuilder, self).__init__(model_cfg)
         self.model_cfg: ctc_cfg.EncDecCTCConfig = model_cfg  # enable type hinting
 
+        if 'zh' in name:
+            self.set_dataset_normalize(normalize=False)
+
     def set_labels(self, labels: List[str]):
         self.model_cfg.labels = labels
 
@@ -250,6 +313,11 @@ class EncDecCTCModelConfigBuilder(model_cfg.ModelConfigBuilder):
 
     def set_dropout(self, dropout: float = 0.0):
         self.model_cfg.dropout = dropout
+
+    def set_dataset_normalize(self, normalize: bool):
+        self.model_cfg.train_ds.normalize = normalize
+        self.model_cfg.validation_ds.normalize = normalize
+        self.model_cfg.test_ds.normalize = normalize
 
     # Note: Autocomplete for users wont work without these overrides
     # But practically it is not needed since python will infer at runtime

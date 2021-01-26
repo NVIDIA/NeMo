@@ -49,7 +49,7 @@ sched_cfg = schedulers.CosineAnnealingParams(
 
 def main():
     # NeMo Model config
-    cfg = modelPT.ModelPTConfig(name='Custom QuartzNet')
+    cfg = modelPT.NemoConfig(name='Custom QuartzNet')
 
     # Generate default asr model config
     builder = configs.EncDecCTCModelConfigBuilder(name='quartznet_15x5')

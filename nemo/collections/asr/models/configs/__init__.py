@@ -17,11 +17,23 @@ from nemo.collections.asr.models.configs.ctc_models_config import (
     EncDecCTCDatasetConfig,
     EncDecCTCModelConfig,
 )
+from nemo.collections.asr.models.configs.classification_models_config import (
+    EncDecClassificationConfig,
+    EncDecClassificationDatasetConfig,
+    EncDecClassificationModelConfig,
+)
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessorConfig,
+    AudioToMFCCPreprocessorConfig,
     SpectrogramAugmentationConfig,
+    CropOrPadSpectrogramAugmentationConfig,
 )
-from nemo.collections.asr.modules.conv_asr import ConvASRDecoderConfig, ConvASREncoderConfig, JasperEncoderConfig
+from nemo.collections.asr.modules.conv_asr import (
+    ConvASRDecoderConfig,
+    ConvASREncoderConfig,
+    ConvASRDecoderClassificationConfig,
+    JasperEncoderConfig,
+)
 from nemo.collections.asr.models.configs.quartznet_config import (
     QuartzNetModelConfig,
     JasperModelConfig,
