@@ -28,8 +28,7 @@ from tools.text_normalization.tagger import (
     tag_verbatim,
     tag_whitelist,
 )
-from tqdm import tqdm
-from verbalizer import (
+from tools.text_normalization.verbalizer import (
     expand_cardinal,
     expand_date,
     expand_decimal,
@@ -47,6 +46,7 @@ from verbalizer import (
     expand_verbatim,
     expand_whitelist,
 )
+from tqdm import tqdm
 
 TAGGERS = [
     tag_whitelist,
