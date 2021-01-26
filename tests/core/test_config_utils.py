@@ -81,16 +81,32 @@ class TestConfigUtils:
         assert len(dataclass_subset) > 0
 
     @pytest.mark.unit
-    def test_extra_args_exist_but_is_deprecated(self, cls):
+    def test_extra_args_exist_but_is_ignored(self, cls):
         @dataclass
         class DummyDataClass:
             a: int = -1
             b: int = 5
             c: int = 0
             d: Any = None
-            e: float = 0.0  # Assume deprecated
+            e: float = 0.0  # Assume ignored
 
         result = config_utils.assert_dataclass_signature_match(cls, DummyDataClass, ignore_args=['e'])
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
+
+    @pytest.mark.unit
+    def test_args_exist_but_is_remapped(self, cls):
+        @dataclass
+        class DummyDataClass:
+            a: int = -1
+            b: int = 5
+            c: int = 0
+            e: Any = None  # Assume remapped
+
+        result = config_utils.assert_dataclass_signature_match(cls, DummyDataClass, remap_args={'e': 'd'})
         signatures_match, cls_subset, dataclass_subset = result
 
         assert signatures_match
