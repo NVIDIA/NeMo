@@ -25,7 +25,6 @@ from nemo.collections.asr.modules.audio_preprocessing import (
 )
 from nemo.collections.asr.modules.conv_asr import (
     ConvASRDecoderClassificationConfig,
-    ConvASRDecoderConfig,
     ConvASREncoderConfig,
     JasperEncoderConfig,
 )

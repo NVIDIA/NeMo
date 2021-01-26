@@ -22,6 +22,11 @@ from nemo.collections.asr.models.configs.ctc_models_config import (
     EncDecCTCDatasetConfig,
     EncDecCTCModelConfig,
 )
+from nemo.collections.asr.models.configs.matchboxnet_config import (
+    EncDecClassificationModelConfigBuilder,
+    MatchboxNetModelConfig,
+    MatchboxNetVADModelConfig,
+)
 from nemo.collections.asr.models.configs.quartznet_config import (
     EncDecCTCModelConfigBuilder,
     JasperModelConfig,
