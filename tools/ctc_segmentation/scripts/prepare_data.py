@@ -23,7 +23,7 @@ from typing import List
 import scipy.io.wavfile as wav
 from num2words import num2words
 
-from .normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
+from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 from nemo.collections import asr as nemo_asr
 
 parser = argparse.ArgumentParser(description="Prepares text and audio files for segmentation")
