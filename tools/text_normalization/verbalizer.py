@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+""" partly adapted from https://github.com/keithito/tacotron """
+
 import csv
 import os
 from collections import OrderedDict
@@ -71,6 +73,12 @@ def expand_digit(data: dict) -> str:
 
 
 def expand_verbatim(data: dict) -> str:
+    """
+    Verbalizes verbatim tokens.
+    Args:
+        data: detected data
+    Returns string
+    """
     return "and"
 
 
@@ -85,6 +93,12 @@ def expand_whitelist(data: dict) -> str:
 
 
 def expand_decimal(data: dict) -> str:
+    """
+    Verbalizes decimal tokens.
+    Args:
+        data: detected data
+    Returns string
+    """
     return _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
 
 
@@ -174,15 +188,15 @@ def expand_date(data: dict) -> str:
     DAY = "day"
     try:
         res[MONTH] = month_mapping[data[MONTH]]
-    except:
+    except Exception:
         pass
     try:
         res[DAY] = expand_ordinal({"value": data[DAY]})
-    except:
+    except Exception:
         pass
     try:
         res[YEAR] = expand_year({"value": data[YEAR]})
-    except:
+    except Exception:
         pass
     res = {k: res[k] for k in res if k in _date_components_whitelist}
     meta_list = OrderedDict([x for x in data.items() if x[0] in _date_components_whitelist])
@@ -215,6 +229,12 @@ def _expand_hundreds(text):
 
 
 def _expand_currency(data: dict) -> str:
+    """
+    Verbalizes currency tokens.
+    Args:
+        data: detected data
+    Returns string
+    """
     currency = _currency_dict[data['currency']]
     quantity = data['integral'] + ('.' + data['fractional'] if data.get('fractional') else '')
     magnitude = data.get('magnitude')

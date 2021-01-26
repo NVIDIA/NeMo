@@ -13,76 +13,10 @@
 # limitations under the License.
 
 import json
-from enum import Enum
-from typing import List, Union
 
 import regex as re
-from tools.text_normalization.verbalizer import _currency_dict, _inflect, _measurements_dict, _whitelist_dict
-from verbalizer import _currency_dict, _measurements_dict, _whitelist_dict
-
-
-class TagType(Enum):
-    """
-    Class for Tagger types
-    """
-
-    PLAIN = 1
-    PUNCT = 2
-    DATE = 3
-    CARDINAL = 4  # counting
-    LETTERS = 5
-    VERBATIM = 6
-    MEASURE = 7
-    DECIMAL = 8
-    ORDINAL = 9
-    DIGIT = 10
-    MONEY = 11
-    TELEPHONE = 12
-    ELECTRONIC = 13
-    FRACTION = 14
-    TIME = 15
-    ADDRESS = 16
-    WHITELIST = 17
-
-
-class EnumEncoder(json.JSONEncoder):
-    def default(self, obj):
-        return str(obj)
-
-
-class Tag:
-    """
-    Class for tagger object that is created for each detected semiotic token.
-    Args:
-        kind: TagType
-        start: start index of unnormalized substring
-        end: end index of unnormalized substring
-        data: ordered dict of class dependent meta info
-        weight: weight of tag within unnormalized text, default 1.0
-        text: semiotic token string
-    """
-
-    def __init__(self, kind, start, end, data, weight=1.0):
-        self.kind = kind
-        self.start = start
-        self.end = end
-        self.data = data  # has order too
-        self.weight = weight
-        self.text = data["value"]
-
-    @staticmethod
-    def overlap(tag1, tag2) -> bool:
-        """
-        checks if given tags overlap in their text span
-        Args:
-            tag1: first tag object
-            tag2: second tag object
-        Returns true if both tags overlap in their respective span
-        """
-        return (tag1.start <= tag2.start < tag1.end) or (tag2.start <= tag1.start < tag2.end)
-
-    def __str__(self):
-        return json.dumps(self.__dict__, cls=EnumEncoder)
+from tools.text_normalization.tag import Tag, TagType
+from tools.text_normalization.verbalizer import _currency_dict, _measurements_dict, _whitelist_dict
 
 
 def make_re(re_inner: str, *args):

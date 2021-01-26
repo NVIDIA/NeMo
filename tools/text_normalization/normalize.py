@@ -46,10 +46,9 @@ from verbalizer import (
     expand_time,
     expand_verbatim,
     expand_whitelist,
-    expand_year,
 )
 
-taggers = [
+TAGGERS = [
     tag_whitelist,
     tag_money,
     tag_measure,
@@ -61,7 +60,7 @@ taggers = [
     tag_verbatim,
 ]
 
-verbalizers = {
+VERBALIZERS = {
     TagType.CARDINAL: [expand_cardinal, expand_roman],
     TagType.DATE: [expand_date],
     TagType.DECIMAL: [expand_decimal],
@@ -88,7 +87,7 @@ def find_tags(text: str) -> List[Tag]:
     Returns: List of tags
     """
     tags = []
-    for tagger in taggers:
+    for tagger in TAGGERS:
         foundTags = find_tag(text, tagger)
         if foundTags:
             tags.extend(foundTags)
@@ -126,7 +125,7 @@ def select_tags(tags: List[Tag]) -> List[Tag]:
     return res
 
 
-def verbalizer(text: str, tags: List[Tag]) -> str:
+def verbalize(text: str, tags: List[Tag]) -> str:
     """
     Given text and corresponding list of tags. Applies verbalization where possible for tagged substrings and returns transduced text.
     This is context-independent, i.e. normalization only looks at tagged substring.
@@ -138,11 +137,11 @@ def verbalizer(text: str, tags: List[Tag]) -> str:
     # sort by last starting point
     tags = sorted(tags, key=lambda x: -x.start)
     for tag in tags:
-        text = text[: tag.start] + verbalize(tag) + text[tag.end :]
+        text = text[: tag.start] + _verbalize(tag) + text[tag.end :]
     return text
 
 
-def verbalize(tag: Tag) -> str:
+def _verbalize(tag: Tag) -> str:
     """
     Given tag applies verbalization if possible and returns transduced text.
     This is context-independent.
@@ -150,7 +149,7 @@ def verbalize(tag: Tag) -> str:
         tag: tag
     Returns: verbalized text
     """
-    expand_funcs = verbalizers[tag.kind]
+    expand_funcs = VERBALIZERS[tag.kind]
     res = [f(tag.data) for f in expand_funcs]
     res = [x for x in res if x]
     if not res:
@@ -169,7 +168,7 @@ def normalize_numbers(text: str, verbose: bool):
     """
     tags = find_tags(text)
     tags = select_tags(tags)
-    output = verbalizer(text, tags)
+    output = verbalize(text, tags)
     if verbose:
         print(text)
         print(output)
