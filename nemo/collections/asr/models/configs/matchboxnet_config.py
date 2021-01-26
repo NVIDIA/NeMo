@@ -13,23 +13,23 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Callable
+from typing import Any, Callable, List, Optional
 
 from omegaconf import MISSING
 
+from nemo.collections.asr.models.configs import classification_models_config as clf_cfg
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMFCCPreprocessorConfig,
-    SpectrogramAugmentationConfig,
     CropOrPadSpectrogramAugmentationConfig,
+    SpectrogramAugmentationConfig,
 )
 from nemo.collections.asr.modules.conv_asr import (
-    ConvASREncoderConfig,
-    ConvASRDecoderConfig,
     ConvASRDecoderClassificationConfig,
+    ConvASRDecoderConfig,
+    ConvASREncoderConfig,
     JasperEncoderConfig,
 )
 from nemo.core.config import modelPT as model_cfg
-from nemo.collections.asr.models.configs import classification_models_config as clf_cfg
 
 
 # fmt: off

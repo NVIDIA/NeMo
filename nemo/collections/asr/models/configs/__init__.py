@@ -12,30 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.models.configs.ctc_models_config import (
-    EncDecCTCConfig,
-    EncDecCTCDatasetConfig,
-    EncDecCTCModelConfig,
-)
 from nemo.collections.asr.models.configs.classification_models_config import (
     EncDecClassificationConfig,
     EncDecClassificationDatasetConfig,
     EncDecClassificationModelConfig,
 )
+from nemo.collections.asr.models.configs.ctc_models_config import (
+    EncDecCTCConfig,
+    EncDecCTCDatasetConfig,
+    EncDecCTCModelConfig,
+)
+from nemo.collections.asr.models.configs.quartznet_config import (
+    EncDecCTCModelConfigBuilder,
+    JasperModelConfig,
+    QuartzNetModelConfig,
+)
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessorConfig,
     AudioToMFCCPreprocessorConfig,
-    SpectrogramAugmentationConfig,
     CropOrPadSpectrogramAugmentationConfig,
+    SpectrogramAugmentationConfig,
 )
 from nemo.collections.asr.modules.conv_asr import (
+    ConvASRDecoderClassificationConfig,
     ConvASRDecoderConfig,
     ConvASREncoderConfig,
-    ConvASRDecoderClassificationConfig,
     JasperEncoderConfig,
-)
-from nemo.collections.asr.models.configs.quartznet_config import (
-    QuartzNetModelConfig,
-    JasperModelConfig,
-    EncDecCTCModelConfigBuilder,
 )

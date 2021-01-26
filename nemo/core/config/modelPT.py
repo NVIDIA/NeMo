@@ -66,7 +66,6 @@ class NemoConfig:
 
 
 class ModelConfigBuilder:
-
     def __init__(self, model_cfg: ModelConfig):
         self.model_cfg = model_cfg
         self.train_ds_cfg = None
@@ -93,6 +92,7 @@ class ModelConfigBuilder:
         wrapped_cfg = WrappedOptimConfig(name=optim_name, sched=None, **vars(cfg))
 
         if sched_cfg is not None:
+
             @dataclass
             class WrappedSchedConfig(SchedConfig, sched_cfg.__class__):
                 pass
@@ -113,5 +113,3 @@ class ModelConfigBuilder:
         self._finalize_cfg()
 
         return self.model_cfg
-
-

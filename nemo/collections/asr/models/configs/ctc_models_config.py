@@ -52,6 +52,10 @@ class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     load_audio: bool = True
     parser: Optional[str] = 'en'
     add_misc: bool = False
+    eos_id: Optional[int] = None
+    bos_id: Optional[int] = None
+    pad_id: int = 0
+    use_start_end_token: bool = False
 
 
 @dataclass

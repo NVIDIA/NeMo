@@ -20,8 +20,8 @@ from omegaconf import MISSING
 import nemo.core.classes.dataset
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMFCCPreprocessorConfig,
-    SpectrogramAugmentationConfig,
     CropOrPadSpectrogramAugmentationConfig,
+    SpectrogramAugmentationConfig,
 )
 from nemo.collections.asr.modules.conv_asr import ConvASRDecoderClassificationConfig, ConvASREncoderConfig
 from nemo.core.config import modelPT as model_cfg

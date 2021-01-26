@@ -488,6 +488,6 @@ class ConvASRDecoderClassificationConfig:
     _target_: str = 'nemo.collections.asr.modules.ConvASRDecoderClassification'
     feat_in: int = MISSING
     num_classes: int = MISSING
-    init_mode: Optional[str] = "xavier_uniform",
+    init_mode: Optional[str] = "xavier_uniform"
     return_logits: bool = True
     pooling_type: str = 'avg'

@@ -13,17 +13,17 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Callable
+from typing import Any, Callable, List, Optional
 
 from omegaconf import MISSING
 
+from nemo.collections.asr.models.configs import ctc_models_config as ctc_cfg
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessorConfig,
     SpectrogramAugmentationConfig,
 )
 from nemo.collections.asr.modules.conv_asr import ConvASRDecoderConfig, ConvASREncoderConfig, JasperEncoderConfig
 from nemo.core.config import modelPT as model_cfg
-from nemo.collections.asr.models.configs import ctc_models_config as ctc_cfg
 
 
 # fmt: off
@@ -156,66 +156,6 @@ def jasper_10x5_dr():
                             residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
                             se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
         JasperEncoderConfig(filters=1024, repeat=1, kernel=[1], stride=[1], dilation=[1], dropout=0.4,
-                            residual=False, groups=1, separable=False, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)
-    ]
-    return config
-
-
-def matchboxnet_3x1x64():
-    config = [
-        JasperEncoderConfig(filters=128, repeat=1, kernel=[11], stride=[1], dilation=[1], dropout=0.0,
-                            residual=False, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=64, repeat=1, kernel=[13], stride=[1], dilation=[1], dropout=0.0,
-                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=64, repeat=1, kernel=[15], stride=[1], dilation=[1], dropout=0.0,
-                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=64, repeat=1, kernel=[17], stride=[1], dilation=[1], dropout=0.0,
-                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=128, repeat=1, kernel=[29], stride=[1], dilation=[2], dropout=0.0,
-                            residual=False, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=128, repeat=1, kernel=[1], stride=[1], dilation=[1], dropout=0.0,
-                            residual=False, groups=1, separable=False, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)
-    ]
-    return config
-
-
-def matchboxnet_3x1x64_vad():
-    config = [
-        JasperEncoderConfig(filters=128, repeat=1, kernel=[11], stride=[1], dilation=[1], dropout=0.0,
-                            residual=False, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=64, repeat=1, kernel=[13], stride=[1], dilation=[1], dropout=0.0,
-                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=64, repeat=1, kernel=[15], stride=[1], dilation=[1], dropout=0.0,
-                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=64, repeat=1, kernel=[17], stride=[1], dilation=[1], dropout=0.0,
-                            residual=True, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=128, repeat=1, kernel=[29], stride=[1], dilation=[2], dropout=0.0,
-                            residual=False, groups=1, separable=True, heads=-1, residual_mode='add',
-                            residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
-                            se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False),
-        JasperEncoderConfig(filters=128, repeat=1, kernel=[1], stride=[1], dilation=[1], dropout=0.0,
                             residual=False, groups=1, separable=False, heads=-1, residual_mode='add',
                             residual_dense=False, se=False, se_reduction_ratio=8, se_context_size=-1,
                             se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)

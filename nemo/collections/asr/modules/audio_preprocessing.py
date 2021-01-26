@@ -602,6 +602,7 @@ class SpectrogramAugmentationConfig:
     rect_masks: int = 0
     rect_time: int = 0
     rect_freq: int = 0
+    rng: Optional[Any] = None  # random.Random() type
 
 
 @dataclass
