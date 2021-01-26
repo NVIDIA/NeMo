@@ -453,6 +453,7 @@ class SGDQAModel(NLPModel):
             prediction_dir = self.trainer.log_dir if self.trainer.log_dir is not None else ""
         except:
             prediction_dir = ""
+
         if self.trainer.global_rank == 0:
             prediction_dir = os.path.join(
                 prediction_dir, 'predictions', 'pred_res_{}_{}'.format(split, self._cfg.dataset.task_name)
