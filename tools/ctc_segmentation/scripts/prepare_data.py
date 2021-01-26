@@ -147,16 +147,15 @@ def split_text(
         transcript = re.sub(r'(\{.*?\})', ' ', transcript)
 
     # find phrases in quotes
-    with_quotes = re.findall(r'“[A-Za-z ?]+.*?”', transcript)
+    with_quotes = re.finditer(r'“[A-Za-z ?]+.*?”', transcript)
     sentences = []
     last_idx = 0
-    for qq in with_quotes:
-        qq_idx = transcript.index(qq, last_idx)
-        if last_idx < qq_idx:
-            sentences.append(transcript[last_idx:qq_idx])
-
-        sentences.append(transcript[qq_idx : qq_idx + len(qq)])
-        last_idx = qq_idx + len(qq)
+    for match in with_quotes:
+        match_idx = match.span()[0]
+        if last_idx < match_idx:
+            sentences.append(transcript[last_idx:match_idx])
+        sentences.append(match[0])
+        last_idx = match.span()[1]
     sentences.append(transcript[last_idx:])
     sentences = [s.strip() for s in sentences if s.strip()]
 
