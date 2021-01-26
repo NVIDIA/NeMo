@@ -134,7 +134,7 @@ class MatchboxNetModelConfig(clf_cfg.EncDecClassificationConfig):
 @dataclass
 class MatchboxNetVADModelConfig(MatchboxNetModelConfig):
     timesteps: int = 64
-    labels: List[str] = field(default=['background', 'speech'])
+    labels: List[str] = field(default_factory=lambda: ['background', 'speech'])
 
     crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = None
 
