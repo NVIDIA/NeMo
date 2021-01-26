@@ -258,7 +258,7 @@ class TestEncDecCTCModel:
             'global_rank',
             'world_size',
             'use_start_end_token',
-            'load_audio'
+            'load_audio',
         ]
 
         REMAP_ARGS = {
