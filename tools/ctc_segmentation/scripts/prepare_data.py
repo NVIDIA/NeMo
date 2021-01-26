@@ -16,10 +16,10 @@ import argparse
 import multiprocessing
 import os
 import re
-import string
 from pathlib import Path
 from typing import List
 
+import regex
 import scipy.io.wavfile as wav
 from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 from num2words import num2words
@@ -43,9 +43,7 @@ parser.add_argument(
 parser.add_argument(
     '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
 )
-parser.add_argument(
-    '--min_length', type=int, default=20, help='Min number of chars of the text segment for alignment.'
-)
+parser.add_argument('--min_length', type=int, default=0, help='Min number of chars of the text segment for alignment.')
 parser.add_argument(
     '--max_length', type=int, default=100, help='Max number of chars of the text segment for alignment.'
 )
@@ -74,7 +72,7 @@ def convert_audio(in_file: str, wav_file: str = None, sample_rate: int = 16000) 
     if not os.path.exists(in_file):
         raise ValueError(f'{in_file} not found')
     if wav_file is None:
-        wav_file = in_file.replace(".mp3", f"_{sample_rate}.wav")
+        wav_file = in_file.replace(os.path.splitext(in_file)[-1], f"_{sample_rate}.wav")
 
     os.system(f'ffmpeg -i {in_file} -ac 1 -af aresample=resampler=soxr -ar {sample_rate} {wav_file} -y')
     return wav_file
@@ -88,7 +86,6 @@ def process_audio(in_file: str, wav_file: str = None, cut_prefix: int = 0, sampl
         wav_file: path to the output .wav file
         cut_prefix: number of seconds to cut from the beginning of the audio file
         sample_rate: target sampling rate
-
     """
     wav_audio = convert_audio(str(in_file), wav_file, sample_rate)
 
@@ -103,7 +100,7 @@ def split_text(
     out_file: str,
     vocabulary: List[str] = None,
     language='eng',
-    remove_square_brackets=True,
+    remove_brackets=True,
     do_lower_case=True,
     min_length=20,
     max_length=100,
@@ -118,9 +115,12 @@ def split_text(
         out_file: path to the output file
         vocabulary: ASR model vocabulary
         language: text language
-        remove_square_brackets: Set to True if square brackets [] should be removed from text.
-            Text in square brackets often contains unaudibale fragments like notes or translations
+        remove_brackets: Set to True if square [] and curly {} brackets should be removed from text.
+            Text in square/curly brackets often contains unaudibale fragments like notes or translations
         do_lower_case: flag that determines whether to apply lower case to the in_file text
+        min_length: Min number of chars of the text segment for alignment
+        max_length: Max number of chars of the text segment for alignment
+        additional_split_symbols: Additional symbols to use for sentence split if eos sentence split resulted in sequence longer than --max_length
     """
 
     print(f'Splitting text in {in_file} into sentences.')
@@ -132,57 +132,60 @@ def split_text(
         transcript.replace("\n", " ")
         .replace("\t", " ")
         .replace("…", "...")
-        .replace("»", "")
-        .replace("«", "")
-        .replace("\\", "")
-        .replace("”", "")
-        .replace("„", "")
-        .replace("´", "")
+        .replace("\\", " ")
         .replace("--", " -- ")
-        .replace("-", " - ")
+        .replace(". . .", "...")
+        .replace("‘", "’")
     )
     # remove extra space
     transcript = re.sub(r' +', ' ', transcript)
     transcript = re.sub(r'(\.+)', '. ', transcript)
 
-    if remove_square_brackets:
+    if remove_brackets:
         transcript = re.sub(r'(\[.*?\])', ' ', transcript)
         # remove text in curly brackets
         transcript = re.sub(r'(\{.*?\})', ' ', transcript)
 
-    # Read and split transcript by utterance (roughly, sentences)
-    split_pattern = "(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<![A-Z]\.)(?<=\.|\?|\!)\s"
+    # find phrases in quotes
+    with_quotes = re.findall(r'“[A-Za-z ?]+.*?”', transcript)
+    sentences = []
+    last_idx = 0
+    for qq in with_quotes:
+        qq_idx = transcript.index(qq, last_idx)
+        if last_idx < qq_idx:
+            sentences.append(transcript[last_idx:qq_idx])
 
+        sentences.append(transcript[qq_idx : qq_idx + len(qq)])
+        last_idx = qq_idx + len(qq)
+    sentences.append(transcript[last_idx:])
+    sentences = [s.strip() for s in sentences if s.strip()]
+
+    lower_case_unicode = ''
+    upper_case_unicode = ''
     if language == 'ru':
-        lower_case_ru_letters_unicode = '\u0430-\u04FF'
-        upper_case_ru_letters_unicode = '\u0410-\u042F'
-        # remove space in the middle of the lower case abbreviation to avoid spliting into separate sentences
-        matches = re.findall(r'[a-z\u0430-\u04FF]\.\s[a-z\u0430-\u04FF]\.', transcript)
-        for match in matches:
-            transcript = transcript.replace(match, match.replace('. ', '.'))
-
-        split_pattern = (
-            "(?<!\w\.\w.)(?<![A-Z"
-            + upper_case_ru_letters_unicode
-            + "][a-z"
-            + lower_case_ru_letters_unicode
-            + "]\.)(?<!["
-            + upper_case_ru_letters_unicode
-            + "]\.)(?<=\.|\?|\!)\s"
-        )
+        lower_case_unicode = '\u0430-\u04FF'
+        upper_case_unicode = '\u0410-\u042F'
     elif language not in ['ru', 'eng']:
         print(f'Consider using {language} unicode letters for better sentence split.')
 
-    sentences = re.split(split_pattern, transcript)
+    # remove space in the middle of the lower case abbreviation to avoid splitting into separate sentences
+    matches = re.findall(r'[a-z' + lower_case_unicode + ']\.\s[a-z' + lower_case_unicode + ']\.', transcript)
+    for match in matches:
+        transcript = transcript.replace(match, match.replace('. ', '.'))
+
+    # Read and split transcript by utterance (roughly, sentences)
+    split_pattern = f"(?<!\w\.\w.)(?<![A-Z{upper_case_unicode}][a-z{lower_case_unicode}]\.)(?<![A-Z{upper_case_unicode}]\.)(?<=\.|\?|\!|\.”|\?”\!”)\s"
+
+    new_sentences = []
+    for sent in sentences:
+        new_sentences.extend(regex.split(split_pattern, sent))
+    sentences = [s.strip() for s in new_sentences if s.strip()]
 
     def additional_split(sentences, split_on_symbols, max_length):
         if len(split_on_symbols) == 0:
             return sentences
 
         split_on_symbols = split_on_symbols.split('|')
-        for i, sym in enumerate(split_on_symbols):
-            if sym == '-':
-                split_on_symbols[i] = ' - '
 
         def _split(sentences, symbol, max_length):
             result = []
@@ -204,6 +207,11 @@ def split_text(
         return sentences
 
     sentences = additional_split(sentences, additional_split_symbols, max_length)
+
+    # check to make sure there will be no utterances for segmentation with only OOV symbols
+    no_space_voc = set(vocabulary)
+    no_space_voc.remove(' ')
+    sentences = [s for s in sentences if len(no_space_voc.intersection(set(s))) > 0]
 
     if min_length > 0:
         sentences_comb = []
@@ -231,12 +239,7 @@ def split_text(
     if do_lower_case:
         sentences = sentences.lower()
 
-    if language == 'eng':
-        # remove non acsii characters
-        sentences = ''.join(i for i in sentences if ord(i) < 128)
-    elif language == 'ru':
-        if vocabulary and '-' not in vocabulary:
-            sentences = sentences.replace('-', ' ')
+    if language == 'ru':
         # replace Latin characters with Russian
         for k, v in LATIN_TO_RU.items():
             sentences = sentences.replace(k, v)
@@ -266,12 +269,10 @@ def split_text(
         )
         raise
 
-    # make sure to leave punctuation present in vocabulary
-    all_punct_marks = string.punctuation + "–—’“”"
-    if vocabulary:
-        for v in vocabulary:
-            all_punct_marks = all_punct_marks.replace(v, '')
-    sentences = re.sub("[" + all_punct_marks + "]", "", sentences).strip()
+    # remove all OOV symbols
+    all_symbols = set(sentences)
+    symbols_to_remove = ''.join(all_symbols.difference(set(vocabulary + ['\n'])))
+    sentences = sentences.translate(''.maketrans(symbols_to_remove, len(symbols_to_remove) * ' '))
 
     # remove extra space
     sentences = re.sub(r' +', ' ', sentences)
