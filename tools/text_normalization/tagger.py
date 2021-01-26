@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 
 import regex as re
 from tools.text_normalization.tag import Tag, TagType
