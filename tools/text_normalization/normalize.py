@@ -15,9 +15,8 @@
 import sys
 from typing import List
 
+from tools.text_normalization.tag import Tag, TagType
 from tools.text_normalization.tagger import (
-    Tag,
-    TagType,
     tag_cardinal,
     tag_date,
     tag_decimal,
