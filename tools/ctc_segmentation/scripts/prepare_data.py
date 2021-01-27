@@ -146,19 +146,6 @@ def split_text(
         # remove text in curly brackets
         transcript = re.sub(r'(\{.*?\})', ' ', transcript)
 
-    # find phrases in quotes
-    with_quotes = re.finditer(r'“[A-Za-z ?]+.*?”', transcript)
-    sentences = []
-    last_idx = 0
-    for match in with_quotes:
-        match_idx = match.span()[0]
-        if last_idx < match_idx:
-            sentences.append(transcript[last_idx:match_idx])
-        sentences.append(match[0])
-        last_idx = match.span()[1]
-    sentences.append(transcript[last_idx:])
-    sentences = [s.strip() for s in sentences if s.strip()]
-
     lower_case_unicode = ''
     upper_case_unicode = ''
     if language == 'ru':
@@ -171,6 +158,20 @@ def split_text(
     matches = re.findall(r'[a-z' + lower_case_unicode + ']\.\s[a-z' + lower_case_unicode + ']\.', transcript)
     for match in matches:
         transcript = transcript.replace(match, match.replace('. ', '.'))
+
+    # find phrases in quotes
+    with_quotes = re.finditer(r'“[A-Za-z ?]+.*?”', transcript)
+    sentences = []
+    last_idx = 0
+    for m in with_quotes:
+        match = m.group()
+        match_idx = m.start()
+        if last_idx < match_idx:
+            sentences.append(transcript[last_idx:match_idx])
+        sentences.append(match)
+        last_idx = m.end()
+    sentences.append(transcript[last_idx:])
+    sentences = [s.strip() for s in sentences if s.strip()]
 
     # Read and split transcript by utterance (roughly, sentences)
     split_pattern = f"(?<!\w\.\w.)(?<![A-Z{upper_case_unicode}][a-z{lower_case_unicode}]\.)(?<![A-Z{upper_case_unicode}]\.)(?<=\.|\?|\!|\.”|\?”\!”)\s"
@@ -251,13 +252,11 @@ def split_text(
         for i, m in enumerate(p.finditer(sentences)):
             match = m.group()
             match_start = m.start()
-            match_len = len(match)
-
             if i == 0:
                 new_text = sentences[:match_start]
             else:
                 new_text += sentences[match_end:match_start]
-            match_end = match_start + match_len
+            match_end = m.end()
             new_text += sentences[match_start:match_end].replace(match, num2words(match, lang=language))
         new_text += sentences[match_end:]
         sentences = new_text
