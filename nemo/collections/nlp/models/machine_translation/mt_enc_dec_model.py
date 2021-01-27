@@ -20,17 +20,17 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import pytorch_lightning
-from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 import torch
-from torch.nn.parallel.distributed import DistributedDataParallel
 import torch.utils.data as pt_data
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+from torch.nn.parallel.distributed import DistributedDataParallel
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -397,4 +397,3 @@ class MTEncDecModel(EncDecNLPModel):
     def setup(self, stage):
         # Update PTL trainer to use our configure_ddp
         self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
-
