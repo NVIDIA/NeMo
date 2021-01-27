@@ -108,7 +108,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             'num_workers': self._cfg.vad.num_workers,
             'manifest_filepath': config['manifest'],
             'manifest_vad_input': self._vad_in_file,
-            'split_duration': self._vad_split_duration,
+            'split_duration': self._cfg.vad.split_duration,
             'sample_rate': self._cfg.sample_rate,
             'vad_stream': True,
             'split_duration': self._cfg.vad.split_duration,
