@@ -24,10 +24,10 @@ from os import path
 from typing import Callable, Dict, List, Optional, Union
 
 import hydra
-from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.parallel.distributed import DistributedDataParallel
 
