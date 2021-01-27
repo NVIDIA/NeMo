@@ -193,15 +193,11 @@ class EncDecClassificationModel(ASRModel, Exportable):
 
             if 'vad_stream' in config and config['vad_stream']:
                 logging.info("Perform streaming frame-level VAD")
-                dataset = audio_to_label_dataset.get_speech_label_dataset(
-                    featurizer=featurizer, config=config
-                )
+                dataset = audio_to_label_dataset.get_speech_label_dataset(featurizer=featurizer, config=config)
                 batch_size = 1
                 collate_func = dataset.vad_frame_seq_collate_fn
             else:
-                dataset = audio_to_label_dataset.get_classification_label_dataset(
-                    featurizer=featurizer, config=config
-                )
+                dataset = audio_to_label_dataset.get_classification_label_dataset(featurizer=featurizer, config=config)
                 batch_size = config['batch_size']
                 collate_func = dataset.collate_fn
 

@@ -102,7 +102,9 @@ def main():
         }
         manifest_vad_input = prepare_manifest(config)
     else:
-        logging.warning("If you encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it.")
+        logging.warning(
+            "If you encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it."
+        )
 
     # setup_test_data
     vad_model.setup_test_data(
