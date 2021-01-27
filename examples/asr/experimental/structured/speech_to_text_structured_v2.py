@@ -55,7 +55,6 @@ def main():
     builder = configs.EncDecCTCModelConfigBuilder(name='quartznet_15x5')
 
     # set model global values
-    builder.set_repeat(5)
     builder.set_labels(LABELS)
     builder.set_optim(cfg=optim_cfg, sched_cfg=sched_cfg)
 
