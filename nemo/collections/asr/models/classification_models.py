@@ -28,7 +28,6 @@ from nemo.collections.asr.data import audio_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.collections.asr.parts.vad_utils import write_manifest_data
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -195,13 +194,13 @@ class EncDecClassificationModel(ASRModel, Exportable):
             if 'vad_stream' in config and config['vad_stream']:
                 logging.info("Perform streaming frame-level VAD")
                 dataset = audio_to_label_dataset.get_speech_label_dataset(
-                    featurizer=featurizer, config=config, augmentor=augmentor
+                    featurizer=featurizer, config=config
                 )
                 batch_size = 1
                 collate_func = dataset.vad_frame_seq_collate_fn
             else:
                 dataset = audio_to_label_dataset.get_classification_label_dataset(
-                    featurizer=featurizer, config=config, augmentor=augmentor
+                    featurizer=featurizer, config=config
                 )
                 batch_size = config['batch_size']
                 collate_func = dataset.collate_fn
