@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import numpy as np
-from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
+from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from torch.nn.parallel.distributed import DistributedDataParallel
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
