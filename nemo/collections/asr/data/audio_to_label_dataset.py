@@ -18,14 +18,13 @@ from nemo.collections.asr.data import audio_to_label
 
 
 def get_classification_label_dataset(
-    featurizer, config: dict, augmentor: Optional['AudioAugmentor'] = None
+    featurizer, config: dict, 
 ) -> audio_to_label.AudioToClassificationLabelDataset:
     """
     Instantiates a Classification AudioLabelDataset.
 
     Args:
         config: Config of the AudioToClassificationLabelDataset.
-        augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
         An instance of AudioToClassificationLabelDataset.
@@ -43,14 +42,13 @@ def get_classification_label_dataset(
 
 
 def get_speech_label_dataset(
-    featurizer, config: dict, augmentor: Optional['AudioAugmentor'] = None
+    featurizer, config: dict
 ) -> audio_to_label.AudioToSpeechLabelDataset:
     """
     Instantiates a Speech Label (e.g. VAD, speaker recognition) AudioLabelDataset.
 
     Args:
         config: Config of the AudioToSpeechLabelDataSet.
-        augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
         An instance of AudioToSpeechLabelDataset.
@@ -76,7 +74,6 @@ def get_tarred_classification_label_dataset(
     shuffle_n: int,
     global_rank: int,
     world_size: int,
-    augmentor: Optional['AudioAugmentor'] = None,
 ) -> audio_to_label.TarredAudioToClassificationLabelDataset:
     """
     Instantiates a Classification TarredAudioLabelDataset.
@@ -87,7 +84,6 @@ def get_tarred_classification_label_dataset(
             See WebDataset documentation for more details.
         global_rank: Global rank of this device.
         world_size: Global world size in the training method.
-        augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
         An instance of TarredAudioToClassificationLabelDataset.
@@ -114,7 +110,6 @@ def get_tarred_speech_label_dataset(
     shuffle_n: int,
     global_rank: int,
     world_size: int,
-    augmentor: Optional['AudioAugmentor'] = None,
 ) -> audio_to_label.TarredAudioToSpeechLabelDataset:
     """
     InInstantiates a Speech Label (e.g. VAD, speaker recognition) TarredAudioLabelDataset.
@@ -125,7 +120,6 @@ def get_tarred_speech_label_dataset(
             See WebDataset documentation for more details.
         global_rank: Global rank of this device.
         world_size: Global world size in the training method.
-        augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
         An instance of TarredAudioToSpeechLabelDataset.

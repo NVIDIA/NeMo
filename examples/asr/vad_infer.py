@@ -93,7 +93,7 @@ def main():
     manifest_vad_input = args.dataset
     if not args.dont_auto_split:
         logging.info("Split long audio file to avoid CUDA memory issue")
-        logging.debug("Try smaller split_duration if still have CUDA memory issue")
+        logging.debug("Try smaller split_duration if you still have CUDA memory issue")
         config = {
             'manifest_filepath': manifest_vad_input,
             'time_length': args.time_length,
@@ -102,7 +102,7 @@ def main():
         }
         manifest_vad_input = prepare_manifest(config)
     else:
-        logging.warning("If encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it.")
+        logging.warning("If you encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it.")
 
     # setup_test_data
     vad_model.setup_test_data(

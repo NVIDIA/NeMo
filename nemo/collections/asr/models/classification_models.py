@@ -41,7 +41,7 @@ __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
 class EncDecClassificationModel(ASRModel, Exportable):
-    """Encoder decoder CTC-based models."""
+    """Encoder decoder Classification models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
@@ -182,7 +182,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
                 shuffle_n=shuffle_n,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                augmentor=augmentor,
             )
             shuffle = False
             batch_size = config['batch_size']

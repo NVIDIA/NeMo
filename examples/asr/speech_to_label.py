@@ -76,7 +76,7 @@ python speech_to_label.py \
     +trainer.amp_level=O1  # needed if using PyTorch < 1.6
 ```
 
-# Optional: Use tarred dataset to speech up data loading. Apply to both tasks.
+# Optional: Use tarred dataset to speed up data loading. Apply to both tasks.
 ## Prepare tarred dataset. 
    Prepare ONE manifest that contains all training data you would like to include. Validation should use non-tarred dataset.
    Note that it's possible that tarred datasets impacts validation scores because it drop values in order to have same amount of files per tarfile; 
