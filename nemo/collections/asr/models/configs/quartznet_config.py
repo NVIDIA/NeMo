@@ -165,12 +165,12 @@ def jasper_10x5_dr():
 
 
 @dataclass
-class QuartzNetModelConfig(ctc_cfg.EncDecCTCConfig):
+class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
     # Model global arguments
     sample_rate: int = 16000
     repeat: int = 1
     dropout: float = 0.0
-    separable: bool = True
+    separable: bool = False
     labels: List[str] = MISSING
 
     # Dataset configs
@@ -193,8 +193,8 @@ class QuartzNetModelConfig(ctc_cfg.EncDecCTCConfig):
 
 
 @dataclass
-class JasperModelConfig(QuartzNetModelConfig):
-    separable: bool = False
+class QuartzNetModelConfig(JasperModelConfig):
+    separable: bool = True
 
 
 class EncDecCTCModelConfigBuilder(model_cfg.ModelConfigBuilder):
