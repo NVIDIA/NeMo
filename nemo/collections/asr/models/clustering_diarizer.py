@@ -72,6 +72,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         elif self._cfg.vad.model_path.endswith('.nemo'):
             self._vad_model = EncDecClassificationModel.restore_from(cfg.vad.model_path)
             self.has_vad_model = True
+        elif cfg.vad.model_path.endswith('.ckpt'):
+            self._vad_model  = EncDecClassificationModel.load_from_checkpoint(cfg.vad.model_path)
+            self.has_vad_model = True
         self._vad_time_length = self._cfg.vad.time_length
         self._vad_shift_length = self._cfg.vad.shift_length
         #self._vad_split_duration = self._cfg.vad.split_duration
