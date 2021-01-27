@@ -328,12 +328,3 @@ class MelGanModel(Vocoder):
         # TODO
         pass
 
-    # def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
-    #     logging.info('overriding ddp to set find_unused_parameters to True')
-    #     model = LightningDistributedDataParallel(model, device_ids=device_ids, find_unused_parameters=True)
-    #     return model
-
-    # def setup(self, stage):
-    #     if stage == "fit":
-    #         # Update PTL trainer to use our configure_ddp
-    #         self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
