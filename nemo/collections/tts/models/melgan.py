@@ -327,4 +327,3 @@ class MelGanModel(Vocoder):
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         # TODO
         pass
-
