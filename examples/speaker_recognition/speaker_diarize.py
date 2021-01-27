@@ -18,7 +18,7 @@ import pytorch_lightning as pl
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning import seed_everything
 
-from nemo.collections.asr.models import ClusteringSDModel
+from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -34,10 +34,10 @@ seed_everything(42)
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    # sd_model=ClusteringSDModel.restore_from("/data3/sdtest/model.nemo")
-    sd_model = ClusteringSDModel(cfg=cfg.model)
-    sd_model.diarize()
-    # sd_model.save_to("/data3/sdtest/model2.nemo")
+    sd_model=ClusteringDiarizer.restore_from("/data3/sdtest/model.nemo")
+    # sd_model = ClusteringSDModel(cfg=cfg.model)
+    #sd_model.diarize()
+    sd_model.save_to("/data3/sdtest/model2.nemo")
 
 
 if __name__ == '__main__':

@@ -26,7 +26,7 @@ import torch
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
-
+import glob
 try:
     from torch.cuda.amp import autocast
 except ImportError:
@@ -45,7 +45,7 @@ def main():
     parser.add_argument(
         "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
     )
-    parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
+    parser.add_argument("--datapath", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument(
@@ -60,6 +60,18 @@ def main():
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
+
+    files = glob.glob(args.datapath + "/*.wav")
+    transcripts = asr_model.transcribe(paths2audio_files=files)
+    with open(args.hypfile, "w") as out_f:
+        for i,t in enumerate(transcripts):
+            dict = {"audio_filepath":files[i], "text":t}
+            json.dumps(out_f, dict)
+            out_f.write("\n")
+
+
+
+
     asr_model.setup_test_data(
         test_data_config={
             'sample_rate': 16000,

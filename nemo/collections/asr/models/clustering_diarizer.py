@@ -25,13 +25,15 @@ from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+from os import path
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
-
+from nemo.core.classes import Model
+from nemo.utils import config_utils, logging, model_utils
+from nemo.collections.asr.parts.mixins import DiarizationMixin
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
-from nemo.collections.asr.models.diarization_model import DiarizationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.speaker_utils import get_score
 from nemo.collections.asr.parts.vad_utils import gen_overlap_seq, gen_seg_table, get_status, write_manifest
@@ -48,27 +50,31 @@ except ImportError:
         yield
 
 
-__all__ = ['ClusteringSDModel']
+__all__ = ['ClusteringDiarizer']
 
 _MODEL_CONFIG_YAML = "model_config.yaml"
 _VAD_MODEL = "vad_model_.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
 
 
-class ClusteringSDModel(DiarizationModel):
+class ClusteringDiarizer(Model, DiarizationMixin):
     def __init__(self, cfg: DictConfig):
-        super().__init__(cfg=cfg)
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+
+        # Convert config to support Hydra 1.0+ instantiation
+        cfg = model_utils.maybe_update_config_version(cfg)
+        self._cfg = cfg
         # init vad model
         self.has_vad_model = False
         self._oracle_vad = ""
-        if cfg.vad.model_path.endswith('.json'):
+        if self._cfg.vad.model_path.endswith('.json'):
             self._oracle_vad = cfg.vad.model_path
-        elif cfg.vad.model_path.endswith('.nemo'):
+        elif self._cfg.vad.model_path.endswith('.nemo'):
             self._vad_model = EncDecClassificationModel.restore_from(cfg.vad.model_path)
             self.has_vad_model = True
         self._vad_time_length = self._cfg.vad.time_length
         self._vad_shift_length = self._cfg.vad.shift_length
-        self._vad_split_duration = self._cfg.vad.split_duration
+        #self._vad_split_duration = self._cfg.vad.split_duration
 
         # init speaker model
         self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(self._cfg.speaker_embeddings.model_path)
@@ -93,11 +99,6 @@ class ClusteringSDModel(DiarizationModel):
     def list_available_models(cls):
         pass
 
-    def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        pass
-
-    def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
-        pass
 
     def _setup_vad_test_data(self, config):
         vad_dl_config = {
@@ -332,6 +333,12 @@ class ClusteringSDModel(DiarizationModel):
             )
         )
 
+    @staticmethod
+    def __make_nemo_file_from_folder(filename, source_dir):
+        with tarfile.open(filename, "w:gz") as tar:
+            # tar.add(source_dir, arcname=path.basename(source_dir))
+            tar.add(source_dir, arcname="./")
+
     @rank_zero_only
     def save_to(self, save_path: str):
         """
@@ -359,7 +366,16 @@ class ClusteringSDModel(DiarizationModel):
             self.to_config_file(path2yaml_file=config_yaml)
             self._vad_model.save_to(vad_model)
             self._speaker_model.save_to(spkr_model)
-            self._ModelPT__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+
+    @staticmethod
+    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
+        if not path.exists(path2file):
+            raise FileNotFoundError(f"{path2file} does not exist")
+        tar = tarfile.open(path2file, "r:gz")
+        tar.extractall(path=out_folder)
+        tar.close()
+        return out_folder
 
     @classmethod
     def restore_from(
@@ -373,38 +389,24 @@ class ClusteringSDModel(DiarizationModel):
         # (original .nemo behavior)
         cwd = os.getcwd()
 
-        if map_location is None:
-            if torch.cuda.is_available():
-                map_location = torch.device('cuda')
-            else:
-                map_location = torch.device('cpu')
-
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                cls._set_model_restore_state(is_being_restored=True)
-                cls._ModelPT__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
                 else:
                     config_yaml = override_config_path
                 conf = OmegaConf.load(config_yaml)
-                if override_config_path is not None:
-                    # Resolve the override config
-                    conf = OmegaConf.to_container(conf, resolve=True)
-                    conf = OmegaConf.create(conf)
-                    # If override is top level config, extract just `model` from it
-                    if 'model' in conf:
-                        conf = conf.model
                 conf.vad.model_path = os.path.join(tmpdir, _VAD_MODEL)
                 conf.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
+                conf.restore_map_location = map_location
                 OmegaConf.set_struct(conf, True)
                 # instance = cls.from_config_dict(config=conf)
                 instance = cls(cfg=conf)
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
-                cls._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)
 
         return instance
