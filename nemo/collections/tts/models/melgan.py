@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import numpy as np
+from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
+from torch.nn.parallel.distributed import DistributedDataParallel
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
 from nemo.collections.tts.models.base import Vocoder
@@ -322,3 +325,13 @@ class MelGanModel(Vocoder):
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         # TODO
         pass
+
+    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
+        logging.info('overriding ddp to set find_unused_parameters to True')
+        model = LightningDistributedDataParallel(model, device_ids=device_ids, find_unused_parameters=True)
+        return model
+
+    def setup(self, stage):
+        if stage == "fit":
+            # Update PTL trainer to use our configure_ddp
+            self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
