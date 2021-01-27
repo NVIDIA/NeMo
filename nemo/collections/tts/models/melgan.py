@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import List
+
 import numpy as np
 import torch
 from hydra.utils import instantiate
