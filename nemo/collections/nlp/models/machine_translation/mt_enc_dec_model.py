@@ -389,11 +389,3 @@ class MTEncDecModel(EncDecNLPModel):
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
 
-    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
-        logging.info('overriding ddp to test find_unused_parameters flag')
-        model = LightningDistributedDataParallel(model, device_ids=device_ids, find_unused_parameters=True)
-        return model
-
-    def setup(self, stage):
-        # Update PTL trainer to use our configure_ddp
-        self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
