@@ -196,6 +196,9 @@ To run tutorials:
      - Exploring NeMo Model Construction
      - `NeMo models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0b3/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
+     - ASR with Subword Tokenization
+     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/asr/08_ASR_with_Subword_Tokenization.ipynb>`_
+   * - ASR
      - ASR with NeMo
      - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0b3/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
