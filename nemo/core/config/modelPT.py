@@ -99,15 +99,15 @@ class ModelConfigBuilder:
         Supported build methods:
         -   set_train_ds: All model configs can accept a subclass of `DatasetConfig` as their
                 training config. Subclasses can override this method to enable auto-complete
-                by replacing `Optional[DatasetConfif]` with `Optional[<subclass of DatasetConfig>]`.
+                by replacing `Optional[DatasetConfig]` with `Optional[<subclass of DatasetConfig>]`.
 
         -   set_validation_ds: All model configs can accept a subclass of `DatasetConfig` as their
                 validation config. Subclasses can override this method to enable auto-complete
-                by replacing `Optional[DatasetConfif]` with `Optional[<subclass of DatasetConfig>]`.
+                by replacing `Optional[DatasetConfig]` with `Optional[<subclass of DatasetConfig>]`.
 
         -   set_test_ds: All model configs can accept a subclass of `DatasetConfig` as their
                 test config. Subclasses can override this method to enable auto-complete
-                by replacing `Optional[DatasetConfif]` with `Optional[<subclass of DatasetConfig>]`.
+                by replacing `Optional[DatasetConfig]` with `Optional[<subclass of DatasetConfig>]`.
 
         -   set_optim: A build method that supports changes to the Optimizer (and optionally,
                 the Scheduler) used for training the model. The function accepts two inputs -
@@ -118,6 +118,15 @@ class ModelConfigBuilder:
                 `sched_cfg`: A subclass of `SchedulerParams` - any SchedulerParams subclass can be used,
                     in order to select an appropriate Scheduler. Examples: CosineAnnealingParams.
                     Note that this argument is optional.
+
+        -   build(): The method which should return a "finalized" ModelConfig dataclass.
+                Subclasses *should* always override this method, and update the signature
+                of this method with the return type of the Dataclass, so that it enables
+                autocomplete for the user.
+
+                Example:
+                    def build(self) -> EncDecCTCConfig:
+                        return super().build()
 
         Any additional build methods must be added by subclasses of ModelConfigBuilder.
 
