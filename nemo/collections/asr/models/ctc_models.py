@@ -86,7 +86,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         result.append(model)
         return result
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None, quantize: bool = False):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.global_rank = 0
         self.world_size = 1
@@ -97,8 +97,8 @@ class EncDecCTCModel(ASRModel, Exportable):
             self.local_rank = trainer.local_rank
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
-        self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
+        self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor, quantize = quantize)
+        self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder, quantize = quantize)
 
         with open_dict(self._cfg):
             if "feat_in" not in self._cfg.decoder or (
@@ -108,7 +108,7 @@ class EncDecCTCModel(ASRModel, Exportable):
             if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
-        self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
+        self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder, quantize = quantize)
 
         self.loss = CTCLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
@@ -117,7 +117,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         )
 
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
+            self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment, quantize = quantize)
         else:
             self.spec_augmentation = None
 

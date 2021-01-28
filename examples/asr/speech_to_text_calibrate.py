@@ -60,12 +60,12 @@ def main():
     parser.add_argument('--num_calib_batch', default=1, type=int, help="Number of batches for calibration.")
     parser.add_argument('--calibrator', type=str, choices=["max", "histogram"], default="max")
     parser.add_argument('--percentile', nargs='+', type=float, default=[99.9, 99.99, 99.999, 99.9999])
+    parser.add_argument("--amp", default=False, type=bool, help="Use AMP in calibration.")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
 
     # Initialize quantization
-    quant_modules.initialize()
     quant_desc_input = QuantDescriptor(calib_method=args.calibrator)
     quant_nn.QuantConv2d.set_default_quant_desc_input(quant_desc_input)
     quant_nn.QuantConvTranspose2d.set_default_quant_desc_input(quant_desc_input)
@@ -73,10 +73,10 @@ def main():
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model)
+        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model, quantize=True)
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
+        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, quantize=True)
     asr_model.setup_test_data(
         test_data_config={
             'sample_rate': 16000,
@@ -104,7 +104,10 @@ def main():
     for i, test_batch in enumerate(asr_model.test_dataloader()):
         if can_gpu:
             test_batch = [x.cuda() for x in test_batch]
-        with autocast():
+        if args.amp:
+            with autocast():
+                _ = asr_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+        else:
             _ = asr_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
         if i >= args.num_calib_batch:
             break

@@ -346,6 +346,7 @@ class ModelPT(LightningModule, Model):
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        quantize: bool = False,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -395,7 +396,7 @@ class ModelPT(LightningModule, Model):
                         conf = conf.model
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 OmegaConf.set_struct(conf, True)
-                instance = cls.from_config_dict(config=conf)
+                instance = cls.from_config_dict(config=conf, quantize=quantize)
                 instance = instance.to(map_location)
                 instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
@@ -444,6 +445,7 @@ class ModelPT(LightningModule, Model):
         override_config_path: Optional[str] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        quantize: bool = False,
     ):
         """
         Restores model instance (weights and configuration) from file.
@@ -481,10 +483,10 @@ class ModelPT(LightningModule, Model):
                 return cls._eff_restore_from(restore_path, override_config_path, map_location, strict)
             except (FileNotFoundError, TypeError):
                 # Default to the old .nemo tar archive restore method.
-                return cls._default_restore_from(restore_path, override_config_path, map_location, strict)
+                return cls._default_restore_from(restore_path, override_config_path, map_location, strict, quantize)
         else:
             # Load .nemo tar archive using the old restore method.
-            return cls._default_restore_from(restore_path, override_config_path, map_location, strict)
+            return cls._default_restore_from(restore_path, override_config_path, map_location, strict, quantize)
 
     @classmethod
     def extract_state_dict_from(cls, restore_path: str, save_dir: str, split_by_module: bool = False):

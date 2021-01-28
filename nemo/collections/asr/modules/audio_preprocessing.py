@@ -208,6 +208,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        quantize=False,
     ):
         super().__init__(n_window_size, n_window_stride)
 
