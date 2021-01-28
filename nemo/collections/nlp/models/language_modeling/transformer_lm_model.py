@@ -251,7 +251,7 @@ class TransformerLMModel(ModelPT):
             shuffle = False
         else:
             if "file_name" in cfg and cfg.file_name is None:
-                logging.warning(f"Could not load dataset as `file_name` was None. Provided config : {config}")
+                logging.warning(f"Could not load dataset as `file_name` was None. Provided config : {cfg}")
                 return None
 
             dataset = L2RLanguageModelingDataset(
