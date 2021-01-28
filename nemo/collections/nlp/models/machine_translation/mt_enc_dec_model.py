@@ -30,7 +30,7 @@ from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.nlp.data import TranslationDataset
+from nemo.collections.nlp.data import TranslationDataset, TarredTranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -50,10 +50,16 @@ class MTEncDecModel(EncDecNLPModel):
     def __init__(self, cfg: MTEncDecModelConfig, trainer: Trainer = None):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        self.global_rank = 0
+        self.world_size = 1
+        if trainer is not None:
+            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_gpus
+
         self.setup_enc_dec_tokenizers(cfg)
 
         super().__init__(cfg=cfg, trainer=trainer)
-
         # TODO: use get_encoder function with support for HF and Megatron
         self.encoder = TransformerEncoderNM(
             vocab_size=self.encoder_vocab_size,
@@ -173,7 +179,7 @@ class MTEncDecModel(EncDecNLPModel):
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
-        src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
+        src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         # training_perplexity = self.training_perplexity(logits=log_probs)
@@ -190,7 +196,7 @@ class MTEncDecModel(EncDecNLPModel):
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
-        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
+        src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels).cpu().numpy()
         # self.eval_perplexity(logits=log_probs)
@@ -280,6 +286,29 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError("src must be equal to target for cached dataset")
             dataset = pickle.load(open(cfg.src_file_name, 'rb'))
             dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
+        elif cfg.get("load_from_tarred_dataset", False):
+            logging.info('Loading from tarred dataset %s' % (cfg.src_file_name))
+            if cfg.src_file_name != cfg.tgt_file_name:
+                raise ValueError("src must be equal to target for tarred dataset")
+            if not cfg.get("metadata_path", ""):
+                raise FileNotFoundError("Could not find metadata path in config")
+            dataset = TarredTranslationDataset(
+                text_tar_filepaths=cfg.src_file_name,
+                metadata_path=cfg.metadata_path,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+                shuffle_n=cfg.get("shuffle_n", 100),
+                shard_strategy=cfg.get("shard_strategy", "scatter"),
+                global_rank=self.global_rank,
+                world_size=self.world_size
+            )
+            return torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=1,
+                num_workers=cfg.get("num_workers", 2),
+                pin_memory=cfg.get("pin_memory", False),
+                drop_last=cfg.get("drop_last", False),
+            )
         else:
             dataset = TranslationDataset(
                 dataset_src=str(Path(cfg.src_file_name).expanduser()),

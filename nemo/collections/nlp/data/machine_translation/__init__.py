@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset, TarredTranslationDataset
 from nemo.collections.nlp.data.machine_translation.one_side_dataset import TranslationOneSideDataset

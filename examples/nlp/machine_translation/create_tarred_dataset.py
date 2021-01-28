@@ -22,6 +22,7 @@ import tarfile
 import numpy as np
 import youtokentome as yttm
 import math
+import json
 
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -56,10 +57,10 @@ def create_pickled_dataset(args, src_fname, tgt_fname, num_tokens, encoder_token
         global_batch_ctr += 1
         pickle.dump(batch, open(os.path.join(
             args.out_dir,
-            'batch.%d.pkl' % (global_batch_ctr)
+            'batch-%d.pkl' % (global_batch_ctr)
         ), 'wb'))
-        f_tar.add(os.path.join(args.out_dir, 'batch.%d.pkl' % (global_batch_ctr)))
-        os.remove(os.path.join(args.out_dir, 'batch.%d.pkl' % (global_batch_ctr)))
+        f_tar.add(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
+        os.remove(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
         cur_batches += 1
         if (
             cur_batches == num_batches_per_tarfile and
@@ -168,7 +169,7 @@ if __name__ == '__main__':
 
     tmp_f_src.close()
     tmp_f_tgt.close()
-    _, _ = create_pickled_dataset(
+    _, global_batch_ctr = create_pickled_dataset(
         args,
         tmp_f_src.name,
         tmp_f_tgt.name,
@@ -177,4 +178,8 @@ if __name__ == '__main__':
         decoder_tokenizer,
         tar_file_ctr=tar_file_ctr,
         global_batch_ctr=global_batch_ctr
+    )
+    json.dump(
+        {'num_batches': global_batch_ctr},
+        open(os.path.join(args.out_dir, 'metadata.json'), 'w')
     )
