@@ -16,7 +16,7 @@ import math
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
@@ -49,10 +49,27 @@ class TransformerLMModel(ModelPT):
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
+
+        vocab_file = cfg.language_model.get("vocab_file", None)
+
+        if vocab_file is not None:
+            vocab_file = self.register_artifact("language_model.vocab_file", vocab_file)
+
+        tokenizer_model = cfg.language_model.get("tokenizer_model", None)
+
+        if tokenizer_model is not None:
+            tokenizer_model = self.register_artifact("language_model.tokenizer_model", tokenizer_model)
+
+        if cfg.language_model.special_tokens:
+            special_tokens = OmegaConf.to_container(cfg.language_model.special_tokens, resolve=True)
+        else:
+            special_tokens = None
+
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
-            vocab_file=cfg.language_model.vocab_file,
-            special_tokens=cfg.language_model.special_tokens,
+            vocab_file=vocab_file,
+            special_tokens=special_tokens,
+            tokenizer_model=tokenizer_model,
         )
 
         # make vocabulary size divisible by 8 for fast fp16 training
@@ -89,9 +106,16 @@ class TransformerLMModel(ModelPT):
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.embedding_layer.token_embedding.weight
 
-        self.training_loss = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id)
+        if hasattr(self.tokenizer, 'pad_token'):
+            pad_id = self.tokenizer.pad_id
+        else:
+            raise ValueError(
+                "The tokenizer must support a special `pad_token`. Provide it using" "the `special_tokens` dictionary."
+            )
+
+        self.training_loss = SmoothedCrossEntropyLoss(pad_id=pad_id)
         self.validation_loss = SmoothedCrossEntropyLoss(
-            pad_id=self.tokenizer.pad_id, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
+            pad_id=pad_id, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
         )
 
         self.training_perplexity = Perplexity(dist_sync_on_step=True)
@@ -238,6 +262,9 @@ class TransformerLMModel(ModelPT):
 
             shuffle = False
         else:
+            if "file_name" in cfg and cfg.file_name is None:
+                logging.warning(f"Could not load dataset as `file_name` was None. Provided config : {cfg}")
+                return None
 
             dataset = L2RLanguageModelingDataset(
                 tokenizer=self.tokenizer,
