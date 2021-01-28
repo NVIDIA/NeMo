@@ -63,7 +63,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         self.wavenet = torch.nn.ModuleList()
         self.convinv = torch.nn.ModuleList()
         self.mode = OperationMode.infer
-        
+
         n_half = n_group // 2
 
         # Set up layers with the right sizes based on how many dimensions
@@ -85,7 +85,7 @@ class WaveGlowModule(NeuralModule, Exportable):
             )
         self.n_remaining_channels = n_remaining_channels
         self.removed_weightnorm = False
-        
+
     def _prepare_for_export(self):
         """
         Override this method to prepare module for export. This is in-place operation.
@@ -119,13 +119,13 @@ class WaveGlowModule(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-            return {
-                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
-                "run_inverse": NeuralType(elements_type=IntType(), optional=True),
-                "sigma": NeuralType(optional=True),
-            }
+        return {
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
+            "run_inverse": NeuralType(elements_type=IntType(), optional=True),
+            "sigma": NeuralType(optional=True),
+        }
 
     @property
     def output_types(self):
