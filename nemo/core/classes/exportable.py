@@ -96,10 +96,13 @@ class Exportable(ABC):
                 _in_example = self.input_example()
 
             _out_example = output_example
-
-            if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
-                raise NotImplementedError('For export to work you must define input and output types')
-            input_names = list(self.input_types.keys())
+            
+            if isinstance(_in_example, Dict):
+                input_names = list(_in_example.keys())
+            else:
+                if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
+                    raise NotImplementedError('For export to work you must define input and output types')
+                input_names = list(self.input_types.keys())
             output_names = list(self.output_types.keys())
             # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
             dynamic_axes = defaultdict(list)
