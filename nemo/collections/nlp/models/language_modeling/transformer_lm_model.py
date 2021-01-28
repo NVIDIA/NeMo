@@ -53,6 +53,7 @@ class TransformerLMModel(ModelPT):
             tokenizer_name=cfg.language_model.tokenizer,
             vocab_file=cfg.language_model.vocab_file,
             special_tokens=cfg.language_model.special_tokens,
+            tokenizer_model=cfg.language_model.get("tokenizer_model", None)
         )
 
         # make vocabulary size divisible by 8 for fast fp16 training
