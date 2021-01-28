@@ -16,7 +16,7 @@ import math
 from typing import Dict, Optional
 
 import torch
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
