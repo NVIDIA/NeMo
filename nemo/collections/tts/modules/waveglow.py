@@ -63,7 +63,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         self.wavenet = torch.nn.ModuleList()
         self.convinv = torch.nn.ModuleList()
         self.mode = OperationMode.infer
-
+        
         n_half = n_group // 2
 
         # Set up layers with the right sizes based on how many dimensions
@@ -84,11 +84,8 @@ class WaveGlowModule(NeuralModule, Exportable):
                 )
             )
         self.n_remaining_channels = n_remaining_channels
-
-    @typecheck()
-    def symbolic(self, spec, z=None):
-        return self.norm_dist_to_audio(spec=spec, z=z)
-
+        self.removed_weightnorm = False
+        
     def _prepare_for_export(self):
         """
         Override this method to prepare module for export. This is in-place operation.
@@ -96,10 +93,9 @@ class WaveGlowModule(NeuralModule, Exportable):
         """
         super()._prepare_for_export()
         self.remove_weightnorm()
-        self.forward = self.symbolic
 
     @typecheck()
-    def forward(self, spec, audio=None, run_inverse=True, sigma=1.0):
+    def forward(self, spec, z=None, audio=None, run_inverse=True, sigma=1.0):
         """ TODO
         """
         if self.training and self.mode != OperationMode.training:
@@ -114,7 +110,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         if run_inverse:
             # norm_dist_to_audio is used to predict audio from spectrogram so only used in val or infer mode
             # Could also log train audio but currently not done
-            audio_pred = self.norm_dist_to_audio(spec=spec, sigma=sigma)
+            audio_pred = self.norm_dist_to_audio(spec=spec, sigma=sigma, z=z)
 
         # Return the necessary tensors
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
@@ -123,17 +119,12 @@ class WaveGlowModule(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        if self.mode == OperationMode.training or self.mode == OperationMode.validation:
-            return {
-                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
-                "run_inverse": NeuralType(elements_type=IntType(), optional=True),
-                "sigma": NeuralType(optional=True),
-            }
-        else:
             return {
                 "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
                 "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
+                "run_inverse": NeuralType(elements_type=IntType(), optional=True),
+                "sigma": NeuralType(optional=True),
             }
 
     @property
@@ -239,8 +230,11 @@ class WaveGlowModule(NeuralModule, Exportable):
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
 
     def remove_weightnorm(self):
+        if self.removed_weightnorm:
+            return
         for wavenet in self.wavenet:
             wavenet.start = torch.nn.utils.remove_weight_norm(wavenet.start)
             wavenet.in_layers = remove(wavenet.in_layers)
             wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
             wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
+        self.removed_weightnorm = True

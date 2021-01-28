@@ -67,7 +67,6 @@ class WaveGlowModel(GlowVocoder, Exportable):
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.waveglow = instantiate(self._cfg.waveglow)
         self.loss = WaveGlowLoss()
-        self.removed_weightnorm = False
 
     @GlowVocoder.mode.setter
     def mode(self, new_mode):
@@ -131,11 +130,8 @@ class WaveGlowModel(GlowVocoder, Exportable):
         self, spec: torch.Tensor, sigma: float = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
     ) -> torch.Tensor:
         with self.nemo_infer():
-            if not self.removed_weightnorm:
-                self.waveglow.remove_weightnorm()
-                self.removed_weightnorm = True
-
-            audio = self.waveglow(spec=spec, run_inverse=True, audio=None, sigma=sigma)
+            self.waveglow.remove_weightnorm()
+            audio = self.waveglow(spec=spec.to(self.waveglow.upsample.weight.dtype), run_inverse=True, audio=None, sigma=sigma)
             if denoise:
                 audio = self.denoise(audio, denoiser_strength)
 
@@ -230,9 +226,6 @@ class WaveGlowModel(GlowVocoder, Exportable):
         list_of_models.append(model)
         return list_of_models
 
-    def _prepare_for_export(self):
-        self.update_bias_spect()
-
     def export(
         self,
         output: str,
@@ -249,7 +242,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
         use_dynamic_axes: bool = True,
         check_tolerance=0.01,
     ):
-        # TODO: First, write out Json for bias, using self.bias_spect
+        self.update_bias_spect()
         self.waveglow.export(
             output,
             input_example=input_example,

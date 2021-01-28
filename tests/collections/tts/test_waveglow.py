@@ -38,7 +38,14 @@ mcfg = DictConfig(
     }
 )
 
-pcfg = DictConfig({"_target_": "nemo.collections.asr.parts.features.FilterbankFeatures", "dither": 0.0})
+pcfg = DictConfig(
+    {
+        "_target_": "nemo.collections.asr.parts.features.FilterbankFeatures",
+        "dither": 0.0,
+        "nfilt": 80,
+        "stft_conv" : True
+    }
+)
 
 wcfg = DictConfig({"waveglow": mcfg, "sigma": 1.0, "preprocessor": pcfg,})
 
@@ -48,15 +55,15 @@ class TestWaveGlow:
     @pytest.mark.unit
     def test_export_to_onnx(self):
         model = WaveGlowModel(wcfg).cuda().half()
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as tmpdir, model.nemo_infer():
             # Generate filename in the temporary directory.
             tmp_file_name = os.path.join("waveglow.onnx")
             # Test export.
             inp = model.waveglow.input_example()
             inp2 = inp
             inp3 = inp2
-            res1 = model.waveglow.symbolic(**inp)
-            res2 = model.waveglow.symbolic(**inp2)
+            res1 = model.waveglow(**inp)
+            res2 = model.waveglow(**inp2)
             assert torch.allclose(res1, res2, rtol=0.01, atol=0.1)
             model.export(
                 tmp_file_name,
