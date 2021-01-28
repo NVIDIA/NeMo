@@ -49,11 +49,16 @@ class TransformerLMModel(ModelPT):
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
+        tokenizer_model = cfg.language_model.get("tokenizer_model", None)
+
+        if tokenizer_model is not None:
+            tokenizer_model = self.register_artifact("language_model.tokenizer_model", tokenizer_model)
+
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
-            vocab_file=cfg.language_model.vocab_file,
+            vocab_file=self.register_artifact("language_model.vocab_file", cfg.language_model.vocab_file),
             special_tokens=cfg.language_model.special_tokens,
-            tokenizer_model=cfg.language_model.get("tokenizer_model", None)
+            tokenizer_model=tokenizer_model,
         )
 
         # make vocabulary size divisible by 8 for fast fp16 training
