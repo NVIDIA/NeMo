@@ -96,7 +96,7 @@ class Exportable(ABC):
                 _in_example = self.input_example()
 
             _out_example = output_example
-            
+
             if isinstance(_in_example, Dict):
                 input_names = list(_in_example.keys())
             else:
