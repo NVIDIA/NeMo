@@ -18,6 +18,7 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr import modules
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis
+from nemo.utils import config_utils
 
 
 class TestASRModulesBasicTests:
@@ -44,6 +45,19 @@ class TestASRModulesBasicTests:
             assert diff <= 1e-3
             diff = torch.max(torch.abs(res1 - res2))
             assert diff <= 1e-2
+
+    @pytest.mark.unit
+    def test_AudioToMelSpectrogramPreprocessor_config(self):
+        # Test that dataclass matches signature of module
+        result = config_utils.assert_dataclass_signature_match(
+            modules.AudioToMelSpectrogramPreprocessor,
+            modules.audio_preprocessing.AudioToMelSpectrogramPreprocessorConfig,
+        )
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
 
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor_batch(self):
@@ -112,6 +126,18 @@ class TestASRModulesBasicTests:
         assert res.shape == res0[0].shape
 
     @pytest.mark.unit
+    def test_SpectrogramAugmentationr_config(self):
+        # Test that dataclass matches signature of module
+        result = config_utils.assert_dataclass_signature_match(
+            modules.SpectrogramAugmentation, modules.audio_preprocessing.SpectrogramAugmentationConfig,
+        )
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
+
+    @pytest.mark.unit
     def test_CropOrPadSpectrogramAugmentation(self):
         # Make sure constructor works
         audio_length = 128
@@ -127,6 +153,19 @@ class TestASRModulesBasicTests:
 
         assert res.shape == torch.Size([4, 64, audio_length])
         assert all(new_length == torch.tensor([128] * 4))
+
+    @pytest.mark.unit
+    def test_CropOrPadSpectrogramAugmentation_config(self):
+        # Test that dataclass matches signature of module
+        result = config_utils.assert_dataclass_signature_match(
+            modules.CropOrPadSpectrogramAugmentation,
+            modules.audio_preprocessing.CropOrPadSpectrogramAugmentationConfig,
+        )
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
 
     @pytest.mark.unit
     def test_RNNTDecoder(self):
