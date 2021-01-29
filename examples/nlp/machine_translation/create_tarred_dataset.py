@@ -13,21 +13,29 @@
 # limitations under the License.
 
 import argparse
+import json
 import os
 import pickle
-import tempfile
 import tarfile
+import tempfile
+
 import youtokentome as yttm
-import json
 
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 
+
 def write_batches_to_tarfiles(
-    args, src_fname, tgt_fname, num_tokens,
-    encoder_tokenizer, decoder_tokenizer,
-    num_files_in_tar, tar_file_ptr,
-    tar_file_ctr, global_batch_ctr
+    args,
+    src_fname,
+    tgt_fname,
+    num_tokens,
+    encoder_tokenizer,
+    decoder_tokenizer,
+    num_files_in_tar,
+    tar_file_ptr,
+    tar_file_ctr,
+    global_batch_ctr,
 ):
     """
     Writes current fragment of the overall parallel corpus to tarfiles by:
@@ -53,24 +61,21 @@ def write_batches_to_tarfiles(
 
     for _, batch in dataset.batches.items():
         global_batch_ctr += 1
-        pickle.dump(batch, open(os.path.join(
-            args.out_dir,
-            'batch-%d.pkl' % (global_batch_ctr)
-        ), 'wb'))
+        pickle.dump(batch, open(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)), 'wb'))
 
         if num_files_in_tar == args.num_batches_per_tarfile:
             tar_file_ctr += 1
             tar_file_ptr.close()
-            tar_file_ptr = tarfile.open(os.path.join(
-                args.out_dir,
-                'batches.tokens.%d.%d.tar' % (num_tokens, tar_file_ctr)
-            ), 'w')
+            tar_file_ptr = tarfile.open(
+                os.path.join(args.out_dir, 'batches.tokens.%d.%d.tar' % (num_tokens, tar_file_ctr)), 'w'
+            )
             num_files_in_tar = 0
 
         tar_file_ptr.add(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
         num_files_in_tar += 1
         os.remove(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
     return tar_file_ptr, global_batch_ctr, num_files_in_tar, tar_file_ctr
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NMT dataset pre-processing')
@@ -84,8 +89,18 @@ if __name__ == '__main__':
     parser.add_argument('--max_seq_length', type=int, default=512, help='Max Sequence Length')
     parser.add_argument('--min_seq_length', type=int, default=1, help='Min Sequence Length')
     parser.add_argument('--tokens_in_batch', type=int, default=16000, help='# Tokens per batch per GPU')
-    parser.add_argument('--lines_per_dataset_fragment', type=int, default=1000000, help='Number of lines to consider for bucketing and padding')
-    parser.add_argument('--num_batches_per_tarfile', type=int, default=1000, help='Number of batches (pickle files) within each tarfile')
+    parser.add_argument(
+        '--lines_per_dataset_fragment',
+        type=int,
+        default=1000000,
+        help='Number of lines to consider for bucketing and padding',
+    )
+    parser.add_argument(
+        '--num_batches_per_tarfile',
+        type=int,
+        default=1000,
+        help='Number of batches (pickle files) within each tarfile',
+    )
 
     args = parser.parse_args()
     if not os.path.exists(args.out_dir):
@@ -131,10 +146,7 @@ if __name__ == '__main__':
     global_batch_ctr = 0
     tmp_f_src = tempfile.NamedTemporaryFile(delete=False, mode='w')
     tmp_f_tgt = tempfile.NamedTemporaryFile(delete=False, mode='w')
-    tar_file_ptr = tarfile.open(os.path.join(
-        args.out_dir,
-        'batches.tokens.%d.%d.tar' % (tokens_in_batch, 1)
-    ), 'w')
+    tar_file_ptr = tarfile.open(os.path.join(args.out_dir, 'batches.tokens.%d.%d.tar' % (tokens_in_batch, 1)), 'w')
     with open(args.src_fname, 'r') as f_src, open(args.tgt_fname) as f_tgt:
         for src_line, tgt_line in zip(f_src, f_tgt):
             tmp_f_src.write(src_line)
@@ -154,7 +166,7 @@ if __name__ == '__main__':
                     num_files_in_tar=num_files_in_tar,
                     tar_file_ptr=tar_file_ptr,
                     tar_file_ctr=tar_file_ctr,
-                    global_batch_ctr=global_batch_ctr
+                    global_batch_ctr=global_batch_ctr,
                 )
 
                 num_lines = 0
@@ -178,21 +190,15 @@ if __name__ == '__main__':
         num_files_in_tar=num_files_in_tar,
         tar_file_ptr=tar_file_ptr,
         tar_file_ctr=tar_file_ctr,
-        global_batch_ctr=global_batch_ctr
+        global_batch_ctr=global_batch_ctr,
     )
     tar_file_ptr.close()
     os.remove(tmp_f_src.name)
     os.remove(tmp_f_tgt.name)
 
     if num_files_in_tar != args.num_batches_per_tarfile:
-        os.remove(os.path.join(
-            args.out_dir,
-            'batches.tokens.%d.%d.tar' % (tokens_in_batch, tar_file_ctr)
-        ))
+        os.remove(os.path.join(args.out_dir, 'batches.tokens.%d.%d.tar' % (tokens_in_batch, tar_file_ctr)))
         global_batch_ctr -= num_files_in_tar
         print('Dropping %d batches because of overflow' % (num_files_in_tar))
 
-    json.dump(
-        {'num_batches': global_batch_ctr},
-        open(os.path.join(args.out_dir, 'metadata.json'), 'w')
-    )
+    json.dump({'num_batches': global_batch_ctr}, open(os.path.join(args.out_dir, 'metadata.json'), 'w'))

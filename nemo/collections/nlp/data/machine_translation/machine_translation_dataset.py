@@ -14,18 +14,18 @@
 
 """Pytorch Dataset for training Neural Machine Translation."""
 
+import io
+import json
+import logging
+import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
-from torch.utils.data import IterableDataset
 
-import numpy as np
-import json
 import braceexpand
-import logging
-import io
-import pickle
-from omegaconf.omegaconf import MISSING
+import numpy as np
 import webdataset as wd
+from omegaconf.omegaconf import MISSING
+from torch.utils.data import IterableDataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
@@ -53,6 +53,7 @@ class TranslationDataConfig:
     load_from_tarred_dataset: bool = False
     metadata_path: str = None
     tar_shuffle_n: int = 100
+
 
 class TranslationDataset(Dataset):
     def __init__(
@@ -328,7 +329,7 @@ class TarredTranslationDataset(IterableDataset):
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 0,
-        reverse_lang_direction: bool = False
+        reverse_lang_direction: bool = False,
     ):
         super(TarredTranslationDataset, self).__init__()
 
@@ -364,7 +365,7 @@ class TarredTranslationDataset(IterableDataset):
         if isinstance(text_tar_filepaths, str):
             # Brace expand
             text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
-        
+
         if shard_strategy == 'scatter':
             logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
             if len(text_tar_filepaths) % world_size != 0:
