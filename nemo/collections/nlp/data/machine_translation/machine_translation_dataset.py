@@ -20,6 +20,7 @@ import logging
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
+from typing import Optional
 
 import braceexpand
 import numpy as np
@@ -51,7 +52,7 @@ class TranslationDataConfig:
     load_from_cached_dataset: bool = False
     reverse_lang_direction: bool = False
     load_from_tarred_dataset: bool = False
-    metadata_path: str = None
+    metadata_path: Optional[str] = None
     tar_shuffle_n: int = 100
 
 
