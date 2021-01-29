@@ -126,16 +126,11 @@ class Exportable(ABC):
             if len(dynamic_axes) == 0:
                 dynamic_axes = None
 
-            if hasattr(self, 'symbolic'):
-                subj = self.symbolic
-            else:
-                subj = self.forward
-
             with torch.jit.optimized_execution(True):
                 jitted_model = None
                 if try_script:
                     try:
-                        jitted_model = torch.jit.script(subj)
+                        jitted_model = torch.jit.script(self)
                     except Exception as e:
                         print("jit.script() failed!", e)
                 if _in_example is None:
@@ -144,7 +139,7 @@ class Exportable(ABC):
                 if isinstance(_in_example, Dict):
                     _in_example = tuple(_in_example.values())
 
-                if format == ExportFormat.TORCHSCRIPT:
+                if format == ExportFormat.TORCHSCRIPT or try_script:
                     if jitted_model is None:
                         jitted_model = torch.jit.trace(
                             self,
@@ -154,10 +149,12 @@ class Exportable(ABC):
                             check_trace=check_trace,
                             check_tolerance=check_tolerance,
                         )
-                    jitted_model.save(output)
-                    assert os.path.exists(output)
 
-                elif format == ExportFormat.ONNX:
+                    if format == ExportFormat.TORCHSCRIPT:
+                        jitted_model.save(output)
+                        assert os.path.exists(output)
+
+                if format == ExportFormat.ONNX:
                     if jitted_model is None:
                         jitted_model = self
                     if _out_example is None:
@@ -251,9 +248,9 @@ class Exportable(ABC):
                     dynamic_axes[name].append(ind)
         return dynamic_axes
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, replace_1D_2D=False):
         """
         Override this method to prepare module for export. This is in-place operation.
         Base version does common necessary module replacements (Apex etc)
         """
-        replace_for_export(self)
+        replace_for_export(self, replace_1D_2D)

@@ -170,8 +170,7 @@ class Prenet(torch.nn.Module):
         return x
 
 
-def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
-    n_channels_int = n_channels[0]
+def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels_int):
     in_act = input_a + input_b
     t_act = torch.tanh(in_act[:, :n_channels_int, :])
     s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
@@ -200,9 +199,6 @@ class Invertible1x1Conv(torch.nn.Module):
         self.conv.weight.data = W
 
     def forward(self, z, reverse: bool = False):
-        # shape
-        batch_size, group_size, n_of_groups = z.size()
-
         W = self.conv.weight.squeeze()
 
         if reverse:
@@ -217,6 +213,8 @@ class Invertible1x1Conv(torch.nn.Module):
             return z
         else:
             # Forward computation
+            # shape
+            batch_size, group_size, n_of_groups = z.size()
             log_det_W = batch_size * n_of_groups * torch.logdet(W.float())
             z = self.conv(z)
             return (
@@ -275,7 +273,6 @@ class WaveNet(torch.nn.Module):
         audio, spect = forward_input[0], forward_input[1]
         audio = self.start(audio)
         output = torch.zeros_like(audio)
-        n_channels_tensor = torch.tensor([self.n_channels], dtype=torch.int32)
 
         spect = self.cond_layer(spect)
 
@@ -284,7 +281,7 @@ class WaveNet(torch.nn.Module):
             acts = fused_add_tanh_sigmoid_multiply(
                 self.in_layers[i](audio),
                 spect[:, spect_offset : spect_offset + 2 * self.n_channels, :],
-                n_channels_tensor,
+                self.n_channels,
             )
 
             res_skip_acts = self.res_skip_layers[i](acts)

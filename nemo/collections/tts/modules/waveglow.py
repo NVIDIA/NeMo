@@ -86,12 +86,22 @@ class WaveGlowModule(NeuralModule, Exportable):
         self.n_remaining_channels = n_remaining_channels
         self.removed_weightnorm = False
 
+        # Pre-calculating the sizes of noise to use so it's not dynamic
+        n_halves = []
+        n_half = self.n_remaining_channels // 2
+        for k in reversed(range(self.n_flows)):
+            n_halves.append(n_half)
+            if k % self.n_early_every == 0 and k > 0:
+                n_half = n_half + int(self.n_early_size / 2)
+        n_halves.reverse()
+        self.n_halves = n_halves
+
     def _prepare_for_export(self):
         """
         Override this method to prepare module for export. This is in-place operation.
         Base version does common necessary module replacements (Apex etc)
         """
-        super()._prepare_for_export()
+        super()._prepare_for_export(replace_1D_2D=False)
         self.remove_weightnorm()
 
     @typecheck()
@@ -148,9 +158,9 @@ class WaveGlowModule(NeuralModule, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.n_mel_channels, 96), device=par.device, dtype=par.dtype)
+        mel = torch.randn((1, self.n_mel_channels, 64), device=par.device, dtype=par.dtype)
         z = torch.randn(
-            (1, self.n_mel_channels, 96 * self.upsample.stride[0] // self.n_group), device=par.device, dtype=par.dtype
+            (1, self.n_mel_channels, 64 * self.upsample.stride[0] // self.n_group), device=par.device, dtype=par.dtype
         )
         return {"spec": mel, "z": z}
 
@@ -213,7 +223,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         z = z[:, self.n_remaining_channels :, :]
 
         for k in reversed(range(self.n_flows)):
-            n_half = audio.size(1) // 2
+            n_half = self.n_halves[k]
             audio_0 = audio[:, :n_half, :]
             audio_1 = audio[:, n_half:, :]
 
