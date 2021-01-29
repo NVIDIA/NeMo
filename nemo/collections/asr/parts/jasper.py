@@ -455,8 +455,13 @@ class JasperBlock(nn.Module):
                 res_list.append(res)
 
             self.res = res_list
-            if self.quantize:
+            if PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
                 self.residual_quantizer = quant_nn.TensorQuantizer(quant_nn.QuantConv2d.default_quant_desc_input)
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
         else:
             self.res = None
 
@@ -634,8 +639,13 @@ class JasperBlock(nn.Module):
                         res_out = res_layer(res_out)
 
                 if self.residual_mode == 'add' or self.residual_mode == 'stride_add':
-                    if self.quantize:
+                    if PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
                         out = out + self.residual_quantizer(res_out)
+                    elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                        raise ImportError(
+                            "pytorch-quantization is not installed. Install from "
+                            "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                        )
                     else:
                         out = out + res_out
                 else:
