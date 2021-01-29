@@ -15,14 +15,11 @@
 import argparse
 import os
 import pickle
-import time
-from pathlib import Path
 import tempfile
 import tarfile
-import numpy as np
 import youtokentome as yttm
-import math
 import json
+import logging
 
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -194,6 +191,7 @@ if __name__ == '__main__':
             'batches.tokens.%d.%d.tar' % (tokens_in_batch, tar_file_ctr)
         ))
         global_batch_ctr -= num_files_in_tar
+        logging.info('Dropping %d batches because of overflow' % (num_files_in_tar))
 
     json.dump(
         {'num_batches': global_batch_ctr},
