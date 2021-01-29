@@ -512,6 +512,7 @@ class ModelPT(LightningModule, Model):
     def extract_state_dict_from(cls, restore_path: str, save_dir: str, split_by_module: bool = False):
         """
         Extract the state dict(s) from a provided .nemo tarfile and save it to a directory.
+
         Args:
             restore_path: path to .nemo file from which state dict(s) should be extracted
             save_dir: directory in which the saved state dict(s) should be stored
@@ -520,31 +521,30 @@ class ModelPT(LightningModule, Model):
 
         Example:
             To convert the .nemo tarfile into a single Model level PyTorch checkpoint
-            ```
-            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts)
-            ```
+            ::
+            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts')
+
 
             To restore a model from a Model level checkpoint
-            ```
+            ::
             model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
             model.load_state_dict(torch.load("./asr_ckpts/model_weights.ckpt"))
-            ```
+
 
             To convert the .nemo tarfile into multiple Module level PyTorch checkpoints
-            ```
-            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts,
-                                                                                             split_by_module=True)
-            ```
+            ::
+            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts', split_by_module=True)
+
 
             To restore a module from a Module level checkpoint
-            ```
-            model = model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
+            ::
+            model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
 
             # load the individual components
             model.preprocessor.load_state_dict(torch.load("./asr_ckpts/preprocessor.ckpt"))
             model.encoder.load_state_dict(torch.load("./asr_ckpts/encoder.ckpt"))
             model.decoder.load_state_dict(torch.load("./asr_ckpts/decoder.ckpt"))
-            ```
+
 
         Returns:
             The state dict that was loaded from the original .nemo checkpoint
@@ -1139,10 +1139,11 @@ class ModelPT(LightningModule, Model):
         Helper method to check whether the model can safely be tested
         on a dataset after training (or loading a checkpoint).
 
-        # Usage:
-        trainer = Trainer()
-        if model.prepare_test(trainer):
-            trainer.test(model)
+        ::
+
+            trainer = Trainer()
+            if model.prepare_test(trainer):
+                trainer.test(model)
 
         Returns:
             bool which declares the model safe to test. Provides warnings if it has to
