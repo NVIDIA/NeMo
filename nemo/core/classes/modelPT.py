@@ -391,6 +391,8 @@ class ModelPT(LightningModule, Model):
                     config_yaml = override_config_path
                 if not isinstance(config_yaml, (OmegaConf, DictConfig)):
                     conf = OmegaConf.load(config_yaml)
+                else:
+                    conf = config_yaml
                 if override_config_path is not None:
                     # Resolve the override config
                     conf = OmegaConf.to_container(conf, resolve=True)
