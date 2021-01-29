@@ -1,7 +1,7 @@
 name: &name "MatchboxNet-3x1x64-vad"
 
 model:
-  sample_rate: &sample_rate 16000
+  sample_rate: 16000
   timesteps: &timesteps 64
   repeat: &repeat 1
   dropout: &dropout 0.0
@@ -11,7 +11,7 @@ model:
 
   train_ds:
     manifest_filepath: ???
-    sample_rate: *sample_rate
+    sample_rate:  ${model.sample_rate}
     labels: *labels
     batch_size: 128
     shuffle: True
@@ -27,7 +27,7 @@ model:
 
   validation_ds:
     manifest_filepath: ???
-    sample_rate: *sample_rate
+    sample_rate:  ${model.sample_rate}
     labels: *labels
     batch_size: 128
     shuffle: False
@@ -35,7 +35,7 @@ model:
 
   test_ds:
     manifest_filepath: null
-    sample_rate: *sample_rate
+    sample_rate:  ${model.sample_rate}
     labels: *labels
     batch_size: 128
     shuffle: False
