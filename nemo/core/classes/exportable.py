@@ -77,6 +77,7 @@ class Exportable(ABC):
         set_eval: bool = True,
         check_trace: bool = True,
         use_dynamic_axes: bool = True,
+        check_tolerance=0.01,
     ):
         try:
             # Disable typechecks
@@ -94,12 +95,14 @@ class Exportable(ABC):
             else:
                 _in_example = self.input_example()
 
-            if output_example is None:
-                _out_example = self.forward(*_in_example)
+            _out_example = output_example
 
-            if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
-                raise NotImplementedError('For export to work you must define input and output types')
-            input_names = list(self.input_types.keys())
+            if isinstance(_in_example, Dict):
+                input_names = list(_in_example.keys())
+            else:
+                if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
+                    raise NotImplementedError('For export to work you must define input and output types')
+                input_names = list(self.input_types.keys())
             output_names = list(self.output_types.keys())
             # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
             dynamic_axes = defaultdict(list)
@@ -123,11 +126,16 @@ class Exportable(ABC):
             if len(dynamic_axes) == 0:
                 dynamic_axes = None
 
+            if hasattr(self, 'symbolic'):
+                subj = self.symbolic
+            else:
+                subj = self.forward
+
             with torch.jit.optimized_execution(True):
                 jitted_model = None
                 if try_script:
                     try:
-                        jitted_model = torch.jit.script(self)
+                        jitted_model = torch.jit.script(subj)
                     except Exception as e:
                         print("jit.script() failed!", e)
                 if _in_example is None:
@@ -136,13 +144,22 @@ class Exportable(ABC):
                 if isinstance(_in_example, Dict):
                     _in_example = tuple(_in_example.values())
 
-                if jitted_model is None:
-                    jitted_model = torch.jit.trace(self, _in_example, check_trace=check_trace)
-
                 if format == ExportFormat.TORCHSCRIPT:
+                    if jitted_model is None:
+                        jitted_model = torch.jit.trace(
+                            self,
+                            _in_example,
+                            strict=False,
+                            optimize=True,
+                            check_trace=check_trace,
+                            check_tolerance=check_tolerance,
+                        )
                     jitted_model.save(output)
                     assert os.path.exists(output)
+
                 elif format == ExportFormat.ONNX:
+                    if jitted_model is None:
+                        jitted_model = self
                     if _out_example is None:
                         if isinstance(_in_example, tuple):
                             _out_example = self.forward(*_in_example)
@@ -187,6 +204,7 @@ class Exportable(ABC):
                             onnx.checker.check_model(onnx_model, full_check=True)
                             onnx.save(onnx_model, output)
 
+                    # TODO: check result with onnxruntime
                     return onnx_model
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
