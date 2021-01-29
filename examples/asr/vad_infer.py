@@ -72,7 +72,7 @@ def main():
         "--dont_auto_split",
         default=False,
         action='store_true',
-        help="Whether to automatically split manifest entry by split_duration to avoid potential issue.",
+        help="Whether to automatically split manifest entry by split_duration to avoid potential CUDA out of memory issue.",
     )
 
     args = parser.parse_args()

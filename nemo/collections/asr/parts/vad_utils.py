@@ -25,8 +25,8 @@ import pandas as pd
 
 def prepare_manifest(config):
     """
-    Perform VAD on long audio snippet might cause memory issue. 
-    Automatically split manifest entry by split_duration to avoid potential issue.
+    Perform VAD on long audio snippet might cause CUDA out of memory issue. 
+    Automatically split manifest entry by split_duration to avoid the potential memory issue.
     """
     manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
     input_audios = []

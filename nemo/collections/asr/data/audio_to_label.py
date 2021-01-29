@@ -54,7 +54,7 @@ def normalize(signal):
 
 
 def count_occurence(manifest_file_id):
-    """Cound number of wav files in Dict manifest_file_id. Use for _TarredAudioToLabelDataset.
+    """Count number of wav files in Dict manifest_file_id. Use for _TarredAudioToLabelDataset.
     Args: 
         manifest_file_id (Dict): Dict of files and their corresponding id. {'A-sub0' : 1, ..., 'S-sub10':100}
     Returns:
