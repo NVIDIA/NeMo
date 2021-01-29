@@ -353,7 +353,7 @@ class ModelPT(LightningModule, Model):
         Args:
             restore_path: path to .nemo file from which model should be instantiated
             override_config_path: path to a yaml config that will override the internal
-                config file
+                config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
@@ -471,7 +471,7 @@ class ModelPT(LightningModule, Model):
         Args:
             restore_path: path to .nemo file from which model should be instantiated
             override_config_path: path to a yaml config that will override the internal
-                config file
+                config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
