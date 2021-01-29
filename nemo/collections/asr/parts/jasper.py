@@ -26,11 +26,10 @@ try:
     from pytorch_quantization import nn as quant_nn
     from pytorch_quantization import quant_modules
     from pytorch_quantization.tensor_quant import QuantDescriptor
+
+    PYTORCH_QUANTIZATION_AVAILABLE = True
 except ImportError:
-    raise ImportError(
-        "pytorch-quantization is not installed. Install from "
-        "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
-    )
+    PYTORCH_QUANTIZATION_AVAILABLE = False
 
 
 jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
@@ -152,7 +151,7 @@ class MaskedConv1d(nn.Module):
             out_channels = heads
             groups = heads
 
-        if quantize:
+        if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
             self.conv = quant_nn.QuantConv1d(
                 in_channels,
                 out_channels,
@@ -162,6 +161,11 @@ class MaskedConv1d(nn.Module):
                 dilation=dilation,
                 groups=groups,
                 bias=bias,
+            )
+        elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+            raise ImportError(
+                "pytorch-quantization is not installed. Install from "
+                "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
             )
         else:
             self.conv = nn.Conv1d(
@@ -253,24 +257,39 @@ class SqueezeExcite(nn.Module):
         self.interpolation_mode = interpolation_mode
 
         if self.context_window <= 0:
-            if quantize:
+            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
                 self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
             else:
                 self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
         else:
-            if quantize:
+            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
                 self.pool = quant_nn.QuantAvgPool1d(self.context_window, stride=1)
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
             else:
                 self.pool = nn.AvgPool1d(self.context_window, stride=1)
 
         if activation is None:
             activation = nn.ReLU(inplace=True)
 
-        if quantize:
+        if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
             self.fc = nn.Sequential(
                 quant_nn.QuantLinear(channels, channels // reduction_ratio, bias=False),
                 activation,
                 quant_nn.QuantLinear(channels // reduction_ratio, channels, bias=False),
+            )
+        elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+            raise ImportError(
+                "pytorch-quantization is not installed. Install from "
+                "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
             )
         else:
             self.fc = nn.Sequential(
@@ -473,7 +492,7 @@ class JasperBlock(nn.Module):
                 quantize=quantize,
             )
         else:
-            if quantize:
+            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
                 return quant_nn.QuantConv1d(
                     in_channels,
                     out_channels,
@@ -483,6 +502,11 @@ class JasperBlock(nn.Module):
                     padding=padding,
                     bias=bias,
                     groups=groups,
+                )
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
                 )
             else:
                 return nn.Conv1d(

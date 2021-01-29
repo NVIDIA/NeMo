@@ -245,7 +245,7 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: DictConfig, quantize: bool=False):
+    def from_config_dict(cls, config: DictConfig):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if isinstance(config, DictConfig):
@@ -257,21 +257,13 @@ class Serialization(ABC):
 
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
-            if config.cls == 'nemo.collections.asr.modules.ConvASREncoder':
-                OmegaConf.set_struct(config, False)
-                config.quantize = quantize
-                OmegaConf.set_struct(config, True)
             instance = hydra.utils.instantiate(config=config)
         elif '_target_' in config:
             # regular hydra-based instantiation
-            if config._target_ == 'nemo.collections.asr.modules.ConvASREncoder':
-                OmegaConf.set_struct(config, False)
-                config.quantize = quantize
-                OmegaConf.set_struct(config, True)
             instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
-            instance = cls(cfg=config, quantize=quantize)
+            instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
             instance._cfg = config
@@ -390,7 +382,7 @@ class Model(Typing, Serialization, FileIO):
         override_config_path: Optional[str] = None,
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
-        quantize: bool = False,
+        return_config: bool = False,
     ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
@@ -404,9 +396,11 @@ class Model(Typing, Serialization, FileIO):
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to torch.load_state_dict
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
         Returns:
-            A model instance of a particular model class
+            A model instance of a particular model class or its underlying config (if return_config is set).
         """
         location_in_the_cloud = None
         description = None
@@ -437,7 +431,7 @@ class Model(Typing, Serialization, FileIO):
             override_config_path=override_config_path,
             map_location=map_location,
             strict=strict,
-            quantize=quantize,
+            return_config=return_config,
         )
         return instance
 

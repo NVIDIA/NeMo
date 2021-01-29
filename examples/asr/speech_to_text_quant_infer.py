@@ -21,6 +21,7 @@ from argparse import ArgumentParser
 from pprint import pprint
 
 import torch
+from omegaconf import open_dict
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
@@ -70,10 +71,17 @@ def main():
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model, quantize=True)
+        asr_model_cfg = EncDecCTCModel.restore_from(restore_path=args.asr_model, return_config=True)
+        with open_dict(asr_model_cfg):
+            asr_model_cfg.encoder.quantize = True
+        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model, override_config_path=asr_model_cfg)
+
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, quantize=True)
+        asr_model_cfg = EncDecCTCModel.from_pretrained(model_name=args.asr_model, return_config=True)
+        with open_dict(asr_model_cfg):
+            asr_model_cfg.encoder.quantize = True
+        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, override_config_path=asr_model_cfg)
     asr_model.setup_test_data(
         test_data_config={
             'sample_rate': 16000,
