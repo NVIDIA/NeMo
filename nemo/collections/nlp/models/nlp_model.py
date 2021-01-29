@@ -19,7 +19,7 @@ from typing import Any, Dict, List
 
 import torch
 from megatron import mpu
-from megatron.checkpointing import get_checkpoint_version
+from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
@@ -311,6 +311,17 @@ class NLPModel(ModelPT):
                         filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
                         self._trainer.resume_from_checkpoint = filepath
                         logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
+                        # need to set checkpoint version for megatron-lm
+                        checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
+                            'checkpoint_version', None
+                        )
+                        if checkpoint_version is not None:
+                            set_checkpoint_version(checkpoint_version)
+                        else:
+                            logging.warning(
+                                'Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.'
+                            )
+                            set_checkpoint_version(0)
                     else:
                         logging.info(
                             f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
