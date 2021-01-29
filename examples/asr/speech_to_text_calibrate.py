@@ -61,7 +61,8 @@ def main():
     parser.add_argument('--num_calib_batch', default=1, type=int, help="Number of batches for calibration.")
     parser.add_argument('--calibrator', type=str, choices=["max", "histogram"], default="max")
     parser.add_argument('--percentile', nargs='+', type=float, default=[99.9, 99.99, 99.999, 99.9999])
-    parser.add_argument("--amp", default=False, type=bool, help="Use AMP in calibration.")
+    parser.add_argument("--amp", action="store_true", help="Use AMP in calibration.")
+    parser.set_defaults(amp=False)
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
