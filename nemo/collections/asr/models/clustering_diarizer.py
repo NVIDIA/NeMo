@@ -102,10 +102,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def list_available_models(cls):
         pass
 
-
     def _setup_vad_test_data(self, config):
         vad_dl_config = {
-            'num_workers': self._cfg.vad.num_workers,
+            'num_workers': self._cfg.num_workers,
             'manifest_filepath': config['manifest'],
             'manifest_vad_input': self._vad_in_file,
             'split_duration': self._cfg.vad.split_duration,
@@ -132,7 +131,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             'embedding_dir': self._speaker_dir,
             'labels': None,
             'task': "diarization",
-            'num_workers': 10
+            'num_workers': self._cfg.num_workers
         }
         self._speaker_model.setup_test_data(spk_dl_config)
 
@@ -181,7 +180,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
     def generate_vad_timestamps(self):
         if self._cfg.vad.gen_overlap_seq:
-            p = Pool(processes=self._cfg.vad.num_workers)
+            p = Pool(processes=self._cfg.num_workers)
             logging.info("Generating predictions with overlapping input segments")
             frame_filepathlist = glob.glob(self._vad_dir + "/*.frame")
             overlap_out_dir = (
@@ -198,8 +197,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             per_args = {
                 "method": self._cfg.vad.overlap_method,
                 "overlap": self._cfg.vad.overlap,
-                "seg_len": self._cfg.vad.seg_len,
-                "shift_len": self._cfg.vad.shift_len,
+                "seg_len": self._cfg.vad.time_length,
+                "shift_len": self._cfg.vad.shift_length,
                 "out_dir": overlap_out_dir,
             }
 
@@ -208,7 +207,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             p.join()
 
         if self._cfg.vad.gen_seg_table:
-            p = Pool(processes=self._cfg.vad.num_workers)
+            p = Pool(processes=self._cfg.num_workers)
             logging.info(
                 "Converting frame level prediction to speech/no-speech segment in start and end times format."
             )
@@ -220,7 +219,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             else:
                 logging.info("Use basic frame level prediction")
                 frame_filepath = self._vad_dir
-                shift_len = self._cfg.vad.shift_len
+                shift_len = self._cfg.vad.shift_length
 
             frame_filepathlist = glob.glob(frame_filepath + "/*." + self._cfg.vad.overlap_method)
 
