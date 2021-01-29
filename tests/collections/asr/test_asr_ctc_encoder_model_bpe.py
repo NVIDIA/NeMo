@@ -21,7 +21,10 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.asr.data import audio_to_text
+from nemo.collections.asr.models import configs
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.utils.config_utils import assert_dataclass_signature_match
 
 
 @pytest.fixture()
@@ -211,3 +214,81 @@ class TestEncDecCTCModel:
 
             finally:
                 os.rename(old_tokenizer_dir + '.bkp', old_tokenizer_dir)
+
+    @pytest.mark.unit
+    def test_EncDecCTCDatasetConfig_for_AudioToBPEDataset(self):
+        # ignore some additional arguments as dataclass is generic
+        IGNORE_ARGS = [
+            'is_tarred',
+            'num_workers',
+            'batch_size',
+            'tarred_audio_filepaths',
+            'shuffle',
+            'pin_memory',
+            'drop_last',
+            'tarred_shard_strategy',
+            'shuffle_n',
+            'parser',
+            'normalize',
+            'unk_index',
+            'pad_id',
+            'bos_id',
+            'eos_id',
+            'blank_index',
+        ]
+
+        REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
+
+        result = assert_dataclass_signature_match(
+            audio_to_text.AudioToBPEDataset,
+            configs.EncDecCTCDatasetConfig,
+            ignore_args=IGNORE_ARGS,
+            remap_args=REMAP_ARGS,
+        )
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
+
+    @pytest.mark.unit
+    def test_EncDecCTCDatasetConfig_for_TarredAudioToBPEDataset(self):
+        # ignore some additional arguments as dataclass is generic
+        IGNORE_ARGS = [
+            'is_tarred',
+            'num_workers',
+            'batch_size',
+            'shuffle',
+            'pin_memory',
+            'drop_last',
+            'parser',
+            'normalize',
+            'unk_index',
+            'pad_id',
+            'bos_id',
+            'eos_id',
+            'blank_index',
+            'global_rank',
+            'world_size',
+            'load_audio',
+        ]
+
+        REMAP_ARGS = {
+            'trim_silence': 'trim',
+            'tarred_audio_filepaths': 'audio_tar_filepaths',
+            'tarred_shard_strategy': 'shard_strategy',
+            'shuffle_n': 'shuffle',
+            'labels': 'tokenizer',
+        }
+
+        result = assert_dataclass_signature_match(
+            audio_to_text.TarredAudioToBPEDataset,
+            configs.EncDecCTCDatasetConfig,
+            ignore_args=IGNORE_ARGS,
+            remap_args=REMAP_ARGS,
+        )
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
