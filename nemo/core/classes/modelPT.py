@@ -343,19 +343,22 @@ class ModelPT(LightningModule, Model):
     def _default_restore_from(
         cls,
         restore_path: str,
-        override_config_path: Optional[str] = None,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        return_config: bool = False,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
         Args:
             restore_path: path to .nemo file from which model should be instantiated
             override_config_path: path to a yaml config that will override the internal
-                config file
+                config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
             Example:
                 ```
@@ -364,7 +367,7 @@ class ModelPT(LightningModule, Model):
                 ```
 
         Returns:
-            An instance of type cls
+            An instance of type cls or its underlying config (if return_config is set).
         """
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
@@ -384,8 +387,12 @@ class ModelPT(LightningModule, Model):
                 if override_config_path is None:
                     config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
                 else:
+                    # can be str path or OmegaConf / DictConfig object
                     config_yaml = override_config_path
-                conf = OmegaConf.load(config_yaml)
+                if not isinstance(config_yaml, (OmegaConf, DictConfig)):
+                    conf = OmegaConf.load(config_yaml)
+                else:
+                    conf = config_yaml
                 if override_config_path is not None:
                     # Resolve the override config
                     conf = OmegaConf.to_container(conf, resolve=True)
@@ -393,13 +400,17 @@ class ModelPT(LightningModule, Model):
                     # If override is top level config, extract just `model` from it
                     if 'model' in conf:
                         conf = conf.model
-                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-                OmegaConf.set_struct(conf, True)
-                instance = cls.from_config_dict(config=conf)
-                instance = instance.to(map_location)
-                instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
-                logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
+                if return_config:
+                    instance = conf
+                else:
+                    model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                    OmegaConf.set_struct(conf, True)
+                    instance = cls.from_config_dict(config=conf)
+                    instance = instance.to(map_location)
+                    instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
+
+                    logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
                 cls._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)
@@ -410,9 +421,10 @@ class ModelPT(LightningModule, Model):
     def _eff_restore_from(
         cls,
         restore_path: str,
-        override_config_path: Optional[str] = None,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        return_config: bool = False,
     ):
         """
         Restores model instance (weights, configuration and artifacts) from EFF Archive using
@@ -425,10 +437,15 @@ class ModelPT(LightningModule, Model):
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
         Returns:
             An instance of type cls
         """
+        if return_config is True:
+            raise NotImplementedError("`return_config` is not implemented for EFF based restoration of models.")
+
         return NeMoCookbook().restore_from(
             restore_path=restore_path,
             obj_cls=cls,
@@ -441,9 +458,10 @@ class ModelPT(LightningModule, Model):
     def restore_from(
         cls,
         restore_path: str,
-        override_config_path: Optional[str] = None,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        return_config: bool = False,
     ):
         """
         Restores model instance (weights and configuration) from file.
@@ -455,10 +473,12 @@ class ModelPT(LightningModule, Model):
         Args:
             restore_path: path to .nemo file from which model should be instantiated
             override_config_path: path to a yaml config that will override the internal
-                config file
+                config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
             Example:
                 ```
@@ -467,7 +487,7 @@ class ModelPT(LightningModule, Model):
                 ```
 
         Returns:
-            An instance of type cls
+            An instance of type cls or its underlying config (if return_config is set).
         """
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
@@ -478,13 +498,15 @@ class ModelPT(LightningModule, Model):
         if _EFF_PRESENT_:
             # Try to load the EFF archive.
             try:
-                return cls._eff_restore_from(restore_path, override_config_path, map_location, strict)
+                return cls._eff_restore_from(restore_path, override_config_path, map_location, strict, return_config)
             except (FileNotFoundError, TypeError):
                 # Default to the old .nemo tar archive restore method.
-                return cls._default_restore_from(restore_path, override_config_path, map_location, strict)
+                return cls._default_restore_from(
+                    restore_path, override_config_path, map_location, strict, return_config
+                )
         else:
             # Load .nemo tar archive using the old restore method.
-            return cls._default_restore_from(restore_path, override_config_path, map_location, strict)
+            return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
     @classmethod
     def extract_state_dict_from(cls, restore_path: str, save_dir: str, split_by_module: bool = False):
