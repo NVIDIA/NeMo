@@ -6,8 +6,10 @@ Classes and Interfaces
 
 .. autoclass:: nemo.core.ModelPT
     :show-inheritance:
-    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
-
+    :members:
+    :undoc-members: cfg, num_weights
+    :exclude-members: set_eff_save, use_eff_save, teardown
+    :member-order: bysource
 
 Neural Types
 ------------
