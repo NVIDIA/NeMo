@@ -26,6 +26,7 @@ import io
 import pickle
 from omegaconf.omegaconf import MISSING
 import webdataset as wd
+from typing import Optional
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
@@ -51,7 +52,7 @@ class TranslationDataConfig:
     load_from_cached_dataset: bool = False
     reverse_lang_direction: bool = False
     load_from_tarred_dataset: bool = False
-    metadata_path: str = ""
+    metadata_path: str = None
     tar_shuffle_n: int = 100
 
 class TranslationDataset(Dataset):

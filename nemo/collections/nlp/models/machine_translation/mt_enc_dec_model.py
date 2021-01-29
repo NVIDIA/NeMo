@@ -290,14 +290,14 @@ class MTEncDecModel(EncDecNLPModel):
             logging.info('Loading from tarred dataset %s' % (cfg.src_file_name))
             if cfg.src_file_name != cfg.tgt_file_name:
                 raise ValueError("src must be equal to target for tarred dataset")
-            if not cfg.get("metadata_path", ""):
+            if not cfg.get("metadata_path", None) is None:
                 raise FileNotFoundError("Could not find metadata path in config")
             dataset = TarredTranslationDataset(
                 text_tar_filepaths=cfg.src_file_name,
                 metadata_path=cfg.metadata_path,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
-                shuffle_n=cfg.get("shuffle_n", 100),
+                shuffle_n=cfg.get("tar_shuffle_n", 100),
                 shard_strategy=cfg.get("shard_strategy", "scatter"),
                 global_rank=self.global_rank,
                 world_size=self.world_size
