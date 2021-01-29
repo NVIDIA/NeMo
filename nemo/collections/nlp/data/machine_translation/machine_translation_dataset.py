@@ -26,7 +26,6 @@ import io
 import pickle
 from omegaconf.omegaconf import MISSING
 import webdataset as wd
-from typing import Optional
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
