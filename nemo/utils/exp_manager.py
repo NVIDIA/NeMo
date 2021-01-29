@@ -306,9 +306,10 @@ def check_resume(
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
 
     checkpoint_dir = Path(Path(log_dir) / "checkpoints")
+
     checkpoint = None
-    end_checkpoints = list(checkpoint_dir.glob("*end.ckpt"))
-    last_checkpoints = list(checkpoint_dir.glob("*last.ckpt"))
+    end_checkpoints = list(checkpoint_dir.rglob("*end.ckpt"))
+    last_checkpoints = list(checkpoint_dir.rglob("*last.ckpt"))
     if not checkpoint_dir.exists():
         if resume_ignore_no_checkpoint:
             logging.warning(
@@ -320,8 +321,9 @@ def check_resume(
     elif len(end_checkpoints) > 0:
         if resume_past_end:
             if len(end_checkpoints) > 1:
-                raise ValueError(f"Multiple multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
-            logging.info(f"Resuming from {end_checkpoints[0]}")
+                logging.warning(
+                    f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt. This should only happen if using model parallelism."
+                )
             checkpoint = end_checkpoints[0]
         else:
             raise ValueError(
@@ -334,7 +336,10 @@ def check_resume(
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
-        raise ValueError(f"Multiple multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
+        logging.warning(
+            f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt. This should only happen if using model parallelism"
+        )
+        checkpoint = last_checkpoints[0]
     else:
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]

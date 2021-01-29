@@ -302,11 +302,22 @@ class NLPModel(ModelPT):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
 
-                    logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
-                    self.bert_model.restore_weights(self.bert_model._restore_path)
+                    if self._trainer.resume_from_checkpoint is not None:
+                        # update path based on model parallel rank
+                        filepath = self._trainer.resume_from_checkpoint
+                        dirname = os.path.dirname(os.path.dirname(filepath))
+                        basename = os.path.basename(filepath)
+                        filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+                        self._trainer.resume_from_checkpoint = filepath
+                        logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
+                    else:
+                        logging.info(
+                            f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
+                        )
+                        self.bert_model.restore_weights(self.bert_model._restore_path)
 
-                    logging.info("replacing sampler with model parallel sampler")
+                    logging.info("Replacing sampler with model parallel sampler")
                     mp_sampler = torch.utils.data.distributed.DistributedSampler(
                         self._train_dl.dataset,
                         num_replicas=app_state.data_parallel_size,
