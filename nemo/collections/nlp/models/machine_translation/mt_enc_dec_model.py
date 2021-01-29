@@ -290,7 +290,7 @@ class MTEncDecModel(EncDecNLPModel):
             logging.info('Loading from tarred dataset %s' % (cfg.src_file_name))
             if cfg.src_file_name != cfg.tgt_file_name:
                 raise ValueError("src must be equal to target for tarred dataset")
-            if not cfg.get("metadata_path", None) is None:
+            if cfg.get("metadata_path", None) is None:
                 raise FileNotFoundError("Could not find metadata path in config")
             dataset = TarredTranslationDataset(
                 text_tar_filepaths=cfg.src_file_name,
