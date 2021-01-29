@@ -866,7 +866,7 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
     ):
 
         logging.info("Time length considered for collate func is {}".format(time_length))
-        logging.info("Shift length considered for collate func is {}".format(time_length))
+        logging.info("Shift length considered for collate func is {}".format(shift_length))
         self.time_length = time_length
         self.shift_length = shift_length
         self.normalize_audio = normalize_audio

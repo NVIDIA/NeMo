@@ -40,9 +40,6 @@ model:
     labels: ${model.labels}
     batch_size: 128
     shuffle: False
-    is_tarred: False
-    tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
     val_loss_idx: 0
 
   test_ds:
