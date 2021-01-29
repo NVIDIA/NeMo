@@ -27,7 +27,19 @@ import json
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 
-def create_pickled_dataset(args, src_fname, tgt_fname, num_tokens, encoder_tokenizer, decoder_tokenizer, tar_file_ctr, global_batch_ctr):
+def write_batches_to_tarfiles(
+    args, src_fname, tgt_fname, num_tokens,
+    encoder_tokenizer, decoder_tokenizer,
+    num_files_in_tar, tar_file_ptr,
+    tar_file_ctr, global_batch_ctr
+):
+    """
+    Writes current fragment of the overall parallel corpus to tarfiles by:
+    (1) Creating a minibatches using a TranslationDataset object.
+    (2) Writing each minibatch to a pickle file.
+    (3) Adding pickle files to a tarfile until it reaches args.num_batches_per_tarfile.
+    """
+
     dataset = TranslationDataset(
         dataset_src=src_fname,
         dataset_tgt=tgt_fname,
@@ -41,42 +53,28 @@ def create_pickled_dataset(args, src_fname, tgt_fname, num_tokens, encoder_token
         cache_data_per_node=False,
         use_cache=False,
     )
-    print('Batchifying ...')
     dataset.batchify(encoder_tokenizer, decoder_tokenizer)
-    total_batches = len(dataset)
-    num_batches_per_tarfile = math.ceil(total_batches / args.num_tar_files_per_dataset_fragment)
-    cur_batches = 0
-    local_tar_file_ctr = 1
-    tar_file_ctr += 1
-    f_tar = tarfile.open(os.path.join(
-        args.out_dir,
-        'batches.tokens.%d.%d.tar' % (num_tokens, tar_file_ctr)
-    ), 'w')
 
-    for idx, (_, batch) in enumerate(dataset.batches.items()):
+    for _, batch in dataset.batches.items():
         global_batch_ctr += 1
         pickle.dump(batch, open(os.path.join(
             args.out_dir,
             'batch-%d.pkl' % (global_batch_ctr)
         ), 'wb'))
-        f_tar.add(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
-        os.remove(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
-        cur_batches += 1
-        if (
-            cur_batches == num_batches_per_tarfile and
-            idx != len(dataset.batches) - 1
-        ):
-            f_tar.close()
-            cur_batches = 0
+
+        if num_files_in_tar == args.num_batches_per_tarfile:
             tar_file_ctr += 1
-            local_tar_file_ctr += 1
-            print('Creating local tar file %d' % (local_tar_file_ctr))
-            f_tar = tarfile.open(os.path.join(
+            tar_file_ptr.close()
+            tar_file_ptr = tarfile.open(os.path.join(
                 args.out_dir,
                 'batches.tokens.%d.%d.tar' % (num_tokens, tar_file_ctr)
             ), 'w')
-    f_tar.close()
-    return tar_file_ctr, global_batch_ctr
+            num_files_in_tar = 0
+
+        tar_file_ptr.add(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
+        num_files_in_tar += 1
+        os.remove(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
+    return tar_file_ptr, global_batch_ctr, num_files_in_tar, tar_file_ctr
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NMT dataset pre-processing')
@@ -89,15 +87,9 @@ if __name__ == '__main__':
     parser.add_argument('--vocab_size', type=int, default=32000, help='Vocab size after BPE')
     parser.add_argument('--max_seq_length', type=int, default=512, help='Max Sequence Length')
     parser.add_argument('--min_seq_length', type=int, default=1, help='Min Sequence Length')
-    parser.add_argument(
-        '--tokens_in_batch', type=int, default=16000, help='# Tokens per batch per GPU'
-    )
-    parser.add_argument(
-        '--lines_per_dataset_fragment', type=int, default=1000000, help='# Tokens per dataset fragment'
-    )
-    parser.add_argument(
-        '--num_tar_files_per_dataset_fragment', type=int, default=4, help='Number of tarfiles'
-    )
+    parser.add_argument('--tokens_in_batch', type=int, default=16000, help='# Tokens per batch per GPU')
+    parser.add_argument('--lines_per_dataset_fragment', type=int, default=1000000, help='Number of lines to consider for bucketing and padding')
+    parser.add_argument('--num_batches_per_tarfile', type=int, default=1000, help='Number of batches (pickle files) within each tarfile')
 
     args = parser.parse_args()
     if not os.path.exists(args.out_dir):
@@ -111,6 +103,7 @@ if __name__ == '__main__':
         )
         encoder_tokenizer_model = os.path.join(args.out_dir, 'tokenizer.%d.BPE.model' % (args.vocab_size))
         decoder_tokenizer_model = os.path.join(args.out_dir, 'tokenizer.%d.BPE.model' % (args.vocab_size))
+        os.remove('/tmp/concat_dataset.txt')
     else:
         yttm.BPE.train(
             data=args.src_fname,
@@ -135,50 +128,73 @@ if __name__ == '__main__':
     )
 
     tokens_in_batch = args.tokens_in_batch
-    tar_file_ctr = 0
+    tar_file_ctr = 1
+    num_files_in_tar = 0
     num_lines = 0
     shard_num = 0
     global_batch_ctr = 0
     tmp_f_src = tempfile.NamedTemporaryFile(delete=False, mode='w')
     tmp_f_tgt = tempfile.NamedTemporaryFile(delete=False, mode='w')
+    tar_file_ptr = tarfile.open(os.path.join(
+        args.out_dir,
+        'batches.tokens.%d.%d.tar' % (tokens_in_batch, 1)
+    ), 'w')
     with open(args.src_fname, 'r') as f_src, open(args.tgt_fname) as f_tgt:
         for src_line, tgt_line in zip(f_src, f_tgt):
             tmp_f_src.write(src_line)
             tmp_f_tgt.write(tgt_line)
             num_lines += 1
+
             if num_lines == args.lines_per_dataset_fragment:
-                print('Creating dataset shard %d ...' % (shard_num))
                 tmp_f_src.close()
                 tmp_f_tgt.close()
-                tar_file_ctr, global_batch_ctr = create_pickled_dataset(
+                tar_file_ptr, global_batch_ctr, num_files_in_tar, tar_file_ctr = write_batches_to_tarfiles(
                     args,
                     tmp_f_src.name,
                     tmp_f_tgt.name,
                     tokens_in_batch,
                     encoder_tokenizer,
                     decoder_tokenizer,
+                    num_files_in_tar=num_files_in_tar,
+                    tar_file_ptr=tar_file_ptr,
                     tar_file_ctr=tar_file_ctr,
                     global_batch_ctr=global_batch_ctr
                 )
+
                 num_lines = 0
                 shard_num += 1
-                os.unlink(tmp_f_src.name)
-                os.unlink(tmp_f_tgt.name)
+
+                os.remove(tmp_f_src.name)
+                os.remove(tmp_f_tgt.name)
+
                 tmp_f_src = tempfile.NamedTemporaryFile(delete=False, mode='w')
                 tmp_f_tgt = tempfile.NamedTemporaryFile(delete=False, mode='w')
 
     tmp_f_src.close()
     tmp_f_tgt.close()
-    _, global_batch_ctr = create_pickled_dataset(
+    tar_file_ptr, global_batch_ctr, num_files_in_tar, tar_file_ctr = write_batches_to_tarfiles(
         args,
         tmp_f_src.name,
         tmp_f_tgt.name,
         tokens_in_batch,
         encoder_tokenizer,
         decoder_tokenizer,
+        num_files_in_tar=num_files_in_tar,
+        tar_file_ptr=tar_file_ptr,
         tar_file_ctr=tar_file_ctr,
         global_batch_ctr=global_batch_ctr
     )
+    tar_file_ptr.close()
+    os.remove(tmp_f_src.name)
+    os.remove(tmp_f_tgt.name)
+
+    if num_files_in_tar != args.num_batches_per_tarfile:
+        os.remove(os.path.join(
+            args.out_dir,
+            'batches.tokens.%d.%d.tar' % (tokens_in_batch, tar_file_ctr)
+        ))
+        global_batch_ctr -= num_files_in_tar
+
     json.dump(
         {'num_batches': global_batch_ctr},
         open(os.path.join(args.out_dir, 'metadata.json'), 'w')

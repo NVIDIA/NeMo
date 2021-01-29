@@ -52,6 +52,7 @@ class TranslationDataConfig:
     reverse_lang_direction: bool = False
     load_from_tarred_dataset: bool = False
     metadata_path: str = ""
+    tar_shuffle_n: int = 100
 
 class TranslationDataset(Dataset):
     def __init__(
@@ -124,7 +125,6 @@ class TranslationDataset(Dataset):
         tgt_ids = tgt[:, :-1]
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
-        sent_ids = np.array(self.batch_indices[idx])
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
 
     def pad_batches(self, src_ids, tgt_ids, batch_indices):
@@ -273,9 +273,8 @@ class TranslationDataset(Dataset):
 class TarredTranslationDataset(IterableDataset):
     """
     A similar Dataset to the TranslationDataset, but which loads tarred tokenized pickle files.
-    Accepts a single JSON metadata manifest file as well as the path(s) to the tarball(s) containing the wav files. 
-    The manifest should contain information such as the number of shards, the number of tokens in the corpus,
-    and the number of tokens contained within each shard of the tarfile(s).
+    Accepts a single JSON metadata file containing the total number of batches
+    as well as the path(s) to the tarball(s) containing the wav files. 
 
     Valid formats for the text_tar_filepaths argument include:
     (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar.gz', or
@@ -298,8 +297,8 @@ class TarredTranslationDataset(IterableDataset):
         text_tar_filepaths: Either a list of tokenized text tarball filepaths, or a
             string (can be brace-expandable).
         metadata_path (str): Path to the metadata manifest.
-        encoder_tokenizer: BPE tokenizer model, such as YTTM
-        decoder_tokenizer: BPE tokenizer model, such as YTTM
+        encoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
+        decoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.
@@ -316,6 +315,7 @@ class TarredTranslationDataset(IterableDataset):
                 sampled at least once during 1 epoch.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        reverse_lang_direction (bool): When True, swaps the source and target directions when returning minibatches.
     """
 
     def __init__(
@@ -373,10 +373,9 @@ class TarredTranslationDataset(IterableDataset):
                     f"by number of distributed workers ({world_size})."
                 )
             begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
-            print('Begin Index : %d' % (begin_idx))
-            print('World Size : %d' % (world_size))
             end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
-            print('End Index : %d' % (end_idx))
+            logging.info('Begin Index : %d' % (begin_idx))
+            logging.info('End Index : %d' % (end_idx))
             text_tar_filepaths = text_tar_filepaths[begin_idx:end_idx]
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
