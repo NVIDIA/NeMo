@@ -321,10 +321,11 @@ def check_resume(
     elif len(end_checkpoints) > 0:
         if resume_past_end:
             if len(end_checkpoints) > 1:
-                logging.warning(
-                    f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt. This should only happen if using model parallelism."
-                )
-            checkpoint = end_checkpoints[0]
+                if 'mp_rank' in str(end_checkpoints[0]):
+                    checkpoint = end_checkpoints[0]
+                else:
+                    raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
+            logging.info(f"Resuming from {end_checkpoints[0]}")
         else:
             raise ValueError(
                 f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
@@ -336,10 +337,10 @@ def check_resume(
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
-        logging.warning(
-            f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt. This should only happen if using model parallelism"
-        )
-        checkpoint = last_checkpoints[0]
+        if 'mp_rank' in str(last_checkpoints[0]):
+            checkpoint = last_checkpoints[0]
+        else:
+            raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
