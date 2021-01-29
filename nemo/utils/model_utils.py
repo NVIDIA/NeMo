@@ -343,12 +343,12 @@ def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
     return output_dict
 
 
-def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'ModelPTConfig']) -> DictConfig:
+def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'NemoConfig']) -> DictConfig:
     """
     Converts its input into a standard DictConfig.
     Possible input values are:
     -   DictConfig
-    -   A dataclass which is a subclass of ModelPTConfig
+    -   A dataclass which is a subclass of NemoConfig
 
     Args:
         cfg: A dict-like object.
