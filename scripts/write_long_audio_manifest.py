@@ -19,6 +19,7 @@ from argparse import ArgumentParser
 from itertools import repeat
 
 import librosa
+import numpy as np
 
 
 """
@@ -112,6 +113,9 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--inp_dir", type=str, required=True, help="(full path) folder of files to be processed")
     parser.add_argument(
+        "--inp_list", type=str, help="(full path) a file contains NAME of files inside inp_dir to be processed"
+    )
+    parser.add_argument(
         "--out_dir", type=str, default=".", help="[Optional](full path) location to store generated json file"
     )
     parser.add_argument("--manifest_name", type=str, required=True, help="name of generated json file")
@@ -122,15 +126,17 @@ def main():
     parser.add_argument("--num_workers", type=int, default=4, help="[Optional] number of workers for multiprocessing")
     args = parser.parse_args()
 
-    inp_dir = args.inp_dir
-    input_audios = []
-    for root, dirs, files in os.walk(inp_dir):
-        for basename in files:
-            if basename.endswith('.wav'):
-                filename = os.path.join(root, basename)
-                input_audios.append(filename)
-
-    print(f"Number of wav files in this folder: {len(input_audios)}")
+    if not args.inp_list:
+        input_audios = []
+        for root, dirs, files in os.walk(args.inp_dir):
+            for basename in files:
+                if basename.endswith('.wav'):
+                    filename = os.path.join(root, basename)
+                    input_audios.append(filename)
+    else:
+        name_list = np.loadtxt(args.inp_list, dtype='str')
+        input_audios = [os.path.join(args.inp_dir, name + ".wav") for name in name_list]
+    print(f"Number of wav files to be processed: {len(input_audios)}")
 
     output_path = os.path.join(args.out_dir, args.manifest_name + '.json')
     print(f"Save generate manifest to {output_path}!")
@@ -141,7 +147,6 @@ def main():
         print(f"Manifest {output_path} exists! Overwriting")
         os.remove(output_path)
 
-    print("Start processing...")
     p = multiprocessing.Pool(processes=args.num_workers)
 
     args_func = {

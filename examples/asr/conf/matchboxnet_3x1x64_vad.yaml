@@ -1,20 +1,23 @@
 name: &name "MatchboxNet-3x1x64-vad"
 
 model:
-  sample_rate: &sample_rate 16000
-  timesteps: &timesteps 64
-  repeat: &repeat 1
-  dropout: &dropout 0.0
-  kernel_size_factor: &kfactor 1.0
+  sample_rate: 16000
+  timesteps: 64
+  repeat: 1
+  dropout: 0.0
+  kernel_size_factor: 1.0
 
-  labels: &labels ['background', 'speech']
+  labels: ['background', 'speech']
 
   train_ds:
     manifest_filepath: ???
-    sample_rate: *sample_rate
-    labels: *labels
+    sample_rate: ${model.sample_rate}
+    labels: ${model.labels}
     batch_size: 128
     shuffle: True
+    is_tarred: False
+    tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
     augmentor:
       shift:
         prob: 1.0
@@ -27,16 +30,15 @@ model:
 
   validation_ds:
     manifest_filepath: ???
-    sample_rate: *sample_rate
-    labels: *labels
+    sample_rate: ${model.sample_rate}
+    labels: ${model.labels}
     batch_size: 128
     shuffle: False
-    val_loss_idx: 0
 
   test_ds:
     manifest_filepath: null
-    sample_rate: *sample_rate
-    labels: *labels
+    sample_rate: ${model.sample_rate}
+    labels: ${model.labels}
     batch_size: 128
     shuffle: False
     test_loss_idx: 0
@@ -72,57 +74,57 @@ model:
         kernel: [11]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.dropout}
         residual: false
         separable: true
-        kernel_size_factor: *kfactor
+        kernel_size_factor: ${model.kernel_size_factor}
 
       - filters: 64
-        repeat: *repeat
+        repeat: ${model.repeat}
         kernel: [13]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.dropout}
         residual: true
         separable: true
-        kernel_size_factor: *kfactor
+        kernel_size_factor: ${model.kernel_size_factor}
 
       - filters: 64
-        repeat: *repeat
+        repeat: ${model.repeat}
         kernel: [15]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.dropout}
         residual: true
         separable: true
-        kernel_size_factor: *kfactor
+        kernel_size_factor: ${model.kernel_size_factor}
 
       - filters: 64
-        repeat: *repeat
+        repeat: ${model.repeat}
         kernel: [17]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.dropout}
         residual: true
         separable: true
-        kernel_size_factor: *kfactor
+        kernel_size_factor: ${model.kernel_size_factor}
 
       - filters: 128
         repeat: 1
         kernel: [29]
         stride: [1]
         dilation: [2]
-        dropout: *dropout
+        dropout: ${model.dropout}
         residual: false
         separable: true
-        kernel_size_factor: *kfactor
+        kernel_size_factor: ${model.kernel_size_factor}
 
       - filters: &enc_final_filters 128
         repeat: 1
         kernel: [1]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.dropout}
         residual: false
 
   decoder:
