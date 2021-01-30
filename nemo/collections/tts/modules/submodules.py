@@ -197,6 +197,8 @@ class Invertible1x1Conv(torch.nn.Module):
             W[:, 0] = -1 * W[:, 0]
         W = W.view(c, c, 1)
         self.conv.weight.data = W
+        W_inverse = W.squeeze().float().inverse()
+        self.W_inverse = Variable(W_inverse[..., None])
         self.inv_conv = None
 
     def forward(self, z, reverse: bool = False):
@@ -206,10 +208,8 @@ class Invertible1x1Conv(torch.nn.Module):
                 # compatibility with weights from existing checkpoints.
                 # Should be moved to init() with next incompatible change.
                 self.inv_conv = torch.nn.Conv1d(self.conv.in_channels, self.conv.out_channels, kernel_size=1)
-                W_inverse = self.conv.weight.squeeze().inverse()
-                W_inverse = Variable(W_inverse[..., None])
-                self.inv_conv.weight.data = W_inverse
-
+                self.inv_conv.weight.data = self.W_inverse
+                self.inv_conv.to(device=self.conv.weight.device, dtype=self.conv.weight.dtype)
             return self.inv_conv(z)
         else:
             # Forward computation
