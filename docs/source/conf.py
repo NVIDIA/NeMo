@@ -31,6 +31,7 @@ from package_info import __version__
 
 
 autodoc_mock_imports = [
+    'sklearn',
     'torch',
     'torch.nn',
     'torch.utils',
