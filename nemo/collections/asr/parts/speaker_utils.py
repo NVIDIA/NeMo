@@ -22,7 +22,6 @@ from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
 from spectralcluster import SpectralClusterer
 
-
 from nemo.utils import logging
 
 
@@ -148,7 +147,7 @@ def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_
         if NUM_SPEAKERS >= 2:
             emb = embeddings[uniq_key]
             emb = np.asarray(emb)
-            
+
             cluster_method = SpectralClusterer(min_clusters=NUM_SPEAKERS, max_clusters=NUM_SPEAKERS)
             cluster_labels = cluster_method.predict(emb)
 

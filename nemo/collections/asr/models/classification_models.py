@@ -28,7 +28,7 @@ from nemo.collections.asr.data import audio_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.collections.asr.parts.vad_utils import write_manifest_data
+from nemo.collections.asr.parts.vad_utils import write_vad_infer_manifest
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -147,56 +147,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
             self.preprocessor.featurizer.pad_to = pad_to_value
             logging.set_verbosity(logging_level)
         return labels
-
-    def prepare_manifest(self, config):
-        manifest_vad_input = config['manifest_vad_input']
-        input_audios = []
-        with open(config['manifest_filepath'], 'r') as manifest:
-            for line in manifest.readlines():
-                input_audios.append(json.loads(line.strip()))
-
-        p = Pool(processes=config['num_workers'])
-        args_func = {
-            'label': 'infer',
-            'split_duration': config['split_duration'],
-            'time_length': config['time_length'],
-        }
-        results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
-        p.close()
-
-        with open(manifest_vad_input, 'a') as fout:
-            for res in results:
-                for r in res:
-                    json.dump(r, fout)
-                    fout.write('\n')
-                    fout.flush()
-
-        return manifest_vad_input
-
-    def prepare_manifest(self, config):
-        manifest_vad_input = config['manifest_vad_input']
-        input_audios = []
-        with open(config['manifest_filepath'], 'r') as manifest:
-            for line in manifest.readlines():
-                input_audios.append(json.loads(line.strip()))
-
-        p = Pool(processes=config['num_workers'])
-        args_func = {
-            'label': 'infer',
-            'split_duration': config['split_duration'],
-            'time_length': config['time_length'],
-        }
-        results = p.starmap(write_manifest_data, zip(input_audios, repeat(args_func)))
-        p.close()
-
-        with open(manifest_vad_input, 'a') as fout:
-            for res in results:
-                for r in res:
-                    json.dump(r, fout)
-                    fout.write('\n')
-                    fout.flush()
-
-        return manifest_vad_input
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 

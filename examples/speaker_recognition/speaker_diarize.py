@@ -35,7 +35,7 @@ def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
     # sd_model=ClusteringDiarizer.restore_from("/data3/sdtest/model.nemo")
-    sd_model = ClusteringDiarizer(cfg=cfg.model)
+    sd_model = ClusteringDiarizer(cfg=cfg)
     sd_model.diarize()
     # sd_model.save_to("/data3/sdtest/model2.nemo")
 

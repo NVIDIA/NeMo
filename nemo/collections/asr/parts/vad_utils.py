@@ -125,7 +125,6 @@ def write_vad_infer_manifest(file, args_func):
         err_file = "error.log"
         with open(err_file, 'w') as fout:
             fout.write(file + ":" + str(e))
-
     return res
 
 
@@ -154,7 +153,36 @@ def get_vad_stream_status(data):
                 status[i] = 'single'
     return status
 
-def generate_overlap_vad_seq(frame_filepath, per_args):
+
+def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len, shift_len, num_workers):
+    # [TODO] docstring kwargs.
+
+    p = Pool(processes=num_workers)
+    frame_filepathlist = glob.glob(frame_pred_dir + "/*.frame")
+
+    overlap_out_dir = frame_pred_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
+
+    if not os.path.exists(overlap_out_dir):
+        os.mkdir(overlap_out_dir)
+
+    # TODO find an elegant way for multiprocessing with multiple arguments
+    # TODO change seg_len ,etc. in helper function if necessary
+
+    per_args = {
+        "out_dir": overlap_out_dir,
+        "method": smoothing_method,
+        "overlap": overlap,
+        "seg_len": seg_len,
+        "shift_len": shift_len,
+    }
+    p.starmap(generate_overlap_vad_seq_per_file, zip(frame_filepathlist, repeat(per_args)))
+    p.close()
+    p.join()
+
+    return overlap_out_dir
+
+
+def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
     """
     Given a frame level prediction, generate predictions with overlapping input segments by using it
     Args:
@@ -233,20 +261,43 @@ def generate_overlap_vad_seq(frame_filepath, per_args):
 
         round_final = np.round(preds, 4)
         np.savetxt(overlap_filepath, round_final, delimiter='\n')
-        logging.info(f"Finished! {overlap_filepath}!")
 
     except Exception as e:
         raise (e)
 
 
-def generate_vad_segment_table(frame_filepath, per_args):
+def generate_vad_segment_table(
+    vad_pred_dir, threshold, shift_len, num_workers,
+):
+    p = Pool(processes=num_workers)
+    suffixes = ("frame", "mean", "median")
+    vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
+
+    table_out_dir = os.path.join(vad_pred_dir, "table_output_" + str(threshold))
+    if not os.path.exists(table_out_dir):
+        os.mkdir(table_out_dir)
+
+    per_args = {
+        "threshold": threshold,
+        "shift_len": shift_len,
+        "out_dir": table_out_dir,
+    }
+
+    p.starmap(generate_vad_segment_table_per_file, zip(vad_pred_filepath_list, repeat(per_args)))
+    p.close()
+    p.join()
+
+    return table_out_dir
+
+
+def generate_vad_segment_table_per_file(pred_filepath, per_args):
     """
     Convert frame level prediction to speech/no-speech segment in start and end times format.
     And save to csv file  in rttm-like format
             0, 10, speech
             10,12, no-speech
     Args:
-        frame_filepath : frame prediction file to be processed.
+        pred_filepath : prediction file to be processed.
         per_args :
             threshold : threshold for prediction score (from 0 to 1).
             shift_len : Amount of shift of window for generating the frame.
@@ -256,10 +307,9 @@ def generate_vad_segment_table(frame_filepath, per_args):
     shift_len = per_args['shift_len']
     out_dir = per_args['out_dir']
 
-    logging.info(f"process {frame_filepath}")
-    name = frame_filepath.split("/")[-1].rsplit(".", 1)[0]
+    name = pred_filepath.split("/")[-1].rsplit(".", 1)[0]
 
-    sequence = np.loadtxt(frame_filepath)
+    sequence = np.loadtxt(pred_filepath)
     start = 0
     end = 0
     start_list = [0]
@@ -303,5 +353,5 @@ def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
                     meta = {"audio_filepath": audio_path, "offset": start, "duration": dur, "label": 'UNK'}
                     json.dump(meta, outfile)
                     outfile.write("\n")
-                    
+
             f.close()
