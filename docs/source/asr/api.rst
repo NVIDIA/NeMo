@@ -10,6 +10,21 @@ Model Classes
     :members: transcribe, change_vocabulary, setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
 
 
+.. autoclass:: nemo.collections.asr.models.EncDecCTCModelBPE
+    :show-inheritance:
+    :members: transcribe, change_vocabulary, setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
+
+
+.. autoclass:: nemo.collections.asr.models.EncDecRNNTModel
+    :show-inheritance:
+    :members: transcribe, change_vocabulary, setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
+
+
+.. autoclass:: nemo.collections.asr.models.EncDecRNNTBPEModel
+    :show-inheritance:
+    :members: transcribe, change_vocabulary, setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
+
+
 .. autoclass:: nemo.collections.asr.models.EncDecClassificationModel
     :show-inheritance:
     :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
