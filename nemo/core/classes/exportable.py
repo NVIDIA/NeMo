@@ -139,7 +139,7 @@ class Exportable(ABC):
                 if isinstance(_in_example, Dict):
                     _in_example = tuple(_in_example.values())
 
-                if format == ExportFormat.TORCHSCRIPT or try_script:
+                if format == ExportFormat.TORCHSCRIPT:
                     if jitted_model is None:
                         jitted_model = torch.jit.trace(
                             self,
@@ -154,7 +154,7 @@ class Exportable(ABC):
                         jitted_model.save(output)
                         assert os.path.exists(output)
 
-                if format == ExportFormat.ONNX:
+                elif format == ExportFormat.ONNX:
                     if jitted_model is None:
                         jitted_model = self
                     if _out_example is None:
