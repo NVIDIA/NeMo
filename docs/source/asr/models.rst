@@ -14,6 +14,7 @@ Jasper family of models are denoted as Jasper_[BxR] where B is the number of blo
     .. image:: jasper_vertical.png
         :align: center
         :alt: japer model
+        :scale: 50%
 
 
 QuartzNet
@@ -26,6 +27,7 @@ Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] w
     .. image:: quartz_vertical.png
         :align: center
         :alt: quartznet model
+        :scale: 40%
 
 
 Jasper and QuartzNet models can be instantiated using :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>` class.
@@ -41,6 +43,7 @@ obtain highly accurate audio transcripts while utilizing a non-autoregressive CT
     .. image:: citrinet_vertical.png
         :align: center
         :alt: citrinet model
+        :scale: 50%
 
 Citrinet models can be instantiated using :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class.
 
