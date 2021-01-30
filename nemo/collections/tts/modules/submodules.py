@@ -187,7 +187,8 @@ class Invertible1x1Conv(torch.nn.Module):
 
     def __init__(self, c):
         super().__init__()
-        self.conv = torch.nn.Conv1d(c, c, kernel_size=1, stride=1, padding=0, bias=False)
+        self.inv_conv = torch.nn.Conv1d(c, c, kernel_size=1)
+        self.conv = torch.nn.Conv1d(c, c, kernel_size=1)
 
         # Sample a random orthonormal matrix to initialize weights
         W = torch.qr(torch.FloatTensor(c, c).normal_())[0]
@@ -198,22 +199,18 @@ class Invertible1x1Conv(torch.nn.Module):
         W = W.view(c, c, 1)
         self.conv.weight.data = W
 
-    def forward(self, z, reverse: bool = False):
-        W = self.conv.weight.squeeze()
+        # Reverse computation
+        W_inverse = W.squeeze().float().inverse()
+        W_inverse = Variable(W_inverse[..., None])
+        self.inv_conv.weight.data = W_inverse
 
+    def forward(self, z, reverse: bool = False):
         if reverse:
-            if not hasattr(self, 'W_inverse'):
-                # Reverse computation
-                W_inverse = W.float().inverse()
-                W_inverse = Variable(W_inverse[..., None])
-                if z.dtype == torch.half:
-                    W_inverse = W_inverse.half()
-                self.W_inverse = W_inverse
-            z = F.conv1d(z, self.W_inverse, bias=None, stride=1, padding=0)
-            return z
+            return self.inv_conv(z)
         else:
             # Forward computation
             # shape
+            W = self.conv.weight.squeeze()
             batch_size, group_size, n_of_groups = z.size()
             log_det_W = batch_size * n_of_groups * torch.logdet(W.float())
             z = self.conv(z)
