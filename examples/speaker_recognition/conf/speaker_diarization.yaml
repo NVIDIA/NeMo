@@ -1,29 +1,26 @@
 name: &name "ClusterDiarizer"
 
-model:
-  manifest_filepath: ???
-  num_workers: 4
-  sample_rate: &sample_rate 16000
+manifest_filepath: ???
+num_workers: 4
+sample_rate: &sample_rate 16000
+
+diarizer:
+  cluster_method: "SpectralClustering"
+  num_speakers: 2 # for each recording
+  out_dir: "outputs/diarization/"
+  groundtruth_RTTM_dir: ???
+  shuffle: False
 
   vad:
     model_path: ???
-    time_length: 0.63
-    shift_length: 0.01
-    split_duration: 50
-    gen_overlap_seq: False
-    gen_seg_table: True
-    overlap_method: "frame"
-    overlap: 0.875
+    window_length_in_sec: 0.63
+    shift_length_in_sec: 0.01
     threshold: 0.5
-
+    vad_decision_smoothing: False
+      overlap_method: "median" #change logic inside 
+      overlap: 0.875
+  
   speaker_embeddings:
     model_path: ???
-    time_length: 1.5
-    shift_length: 0.75
-
-  diarizer:
-    cluster_method: "SpectralClustering"
-    reco2num: 2
-    out_dir: "outputs/diarization/"
-    groundtruth_RTTM_dir: ???
-    shuffle: False
+    window_length_in_sec: 1.5
+    shift_length_in_sec: 0.75
