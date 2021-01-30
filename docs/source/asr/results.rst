@@ -10,7 +10,7 @@ Automatic Speech Recognition Models
 -----------------------------------
 
 .. csv-table::
-   :file: asr_results.csv
+   :file: data/asr_results.csv
    :align: left
    :widths: 30, 30, 40
    :width: 100%
@@ -20,8 +20,21 @@ Speech Classification Models
 ----------------------------
 
 .. csv-table::
-   :file: classification_results.csv
+   :file: data/classification_results.csv
    :align: left
    :widths: 30, 30, 40
    :width: 100%
    :header-rows: 1
+
+Speech Recognition Benchmarks
+=============================
+
+English
+-------
+.. csv-table::
+   :file: data/benchmark_en.csv
+   :align: left
+   :widths: 25, 25, 25, 25
+   :width: 100%
+   :header-rows: 1
+
