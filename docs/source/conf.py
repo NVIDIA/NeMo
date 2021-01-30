@@ -31,7 +31,6 @@ from package_info import __version__
 
 
 autodoc_mock_imports = [
-    'sklearn',
     'torch',
     'torch.nn',
     'torch.utils',
@@ -46,6 +45,8 @@ autodoc_mock_imports = [
     'dateutil',  # part of core python
     'transformers.tokenization_bert',  # has ., troublesome for this regex
     'megatron',  # megatron-lm in requirements, megatron in import
+    'sacremoses',
+    'sklearn',
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt']
