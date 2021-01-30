@@ -275,7 +275,7 @@ class WaveNet(torch.nn.Module):
         audio, spect = forward_input[0], forward_input[1]
         audio = self.start(audio)
         output = torch.zeros_like(audio)
-        n_channels_tensor = torch.IntTensor([self.n_channels])
+        n_channels_tensor = torch.tensor([self.n_channels], dtype=torch.int32)
 
         spect = self.cond_layer(spect)
 

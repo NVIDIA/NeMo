@@ -73,16 +73,13 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
-# install quantization support
+#install TRT tools: PT quantization support and ONNX graph optimizer
+WORKDIR /tmp/trt_build
 RUN git clone https://github.com/NVIDIA/TensorRT.git && \
-    cd TensorRT/tools/pytorch-quantization && \
+    cd TensorRT/tools/onnx-graphsurgeon && python setup.py install && \
+    cd ../pytorch-quantization && \
     python setup.py install && \
-    cd - && \
-    rm -rf TensorRT
-
-# build CTC beam search decoder
-COPY scripts/install_ctc_decoders.sh .
-RUN ./install_ctc_decoders.sh
+    rm -fr  /tmp/trt_build
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src

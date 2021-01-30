@@ -15,14 +15,51 @@ import glob
 import json
 import logging
 import os
+from itertools import repeat
+from multiprocessing import Pool
 
 import librosa
 import numpy as np
 import pandas as pd
 
 
-def write_manifest_data(file, args_func):
+def prepare_manifest(config):
     """
+    Perform VAD on long audio snippet might cause CUDA out of memory issue. 
+    Automatically split manifest entry by split_duration to avoid the potential memory issue.
+    """
+    manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
+    input_audios = []
+    with open(config['manifest_filepath'], 'r') as manifest:
+        for line in manifest.readlines():
+            input_audios.append(json.loads(line.strip()))
+
+    p = Pool(processes=config['num_workers'])
+    args_func = {
+        'label': 'infer',
+        'split_duration': config['split_duration'],
+        'time_length': config['time_length'],
+    }
+    results = p.starmap(write_vad_infer_manifest, zip(input_audios, repeat(args_func)))
+    p.close()
+
+    if os.path.exists(manifest_vad_input):
+        logging.info("The prepared manifest file exists. Overwriting!")
+        os.remove(manifest_vad_input)
+
+    with open(manifest_vad_input, 'a') as fout:
+        for res in results:
+            for r in res:
+                json.dump(r, fout)
+                fout.write('\n')
+                fout.flush()
+
+    return manifest_vad_input
+
+
+def write_vad_infer_manifest(file, args_func):
+    """
+    Used by prepare_manifest.
     Given a list of files, write them to manifest for dataloader with restrictions.
     Args:
         files : file to be processed
@@ -92,7 +129,7 @@ def write_manifest_data(file, args_func):
     return res
 
 
-def get_status(data):
+def get_vad_stream_status(data):
     """
     Generate a list of status for each snippet in manifest. A snippet should be in single, start, next or end status. 
     Used for concatenate to full audio file.
@@ -117,8 +154,7 @@ def get_status(data):
                 status[i] = 'single'
     return status
 
-
-def gen_overlap_seq(frame_filepath, per_args):
+def generate_overlap_vad_seq(frame_filepath, per_args):
     """
     Given a frame level prediction, generate predictions with overlapping input segments by using it
     Args:
@@ -203,8 +239,7 @@ def gen_overlap_seq(frame_filepath, per_args):
         raise (e)
 
 
-def gen_seg_table(frame_filepath, per_args):
-
+def generate_vad_segment_table(frame_filepath, per_args):
     """
     Convert frame level prediction to speech/no-speech segment in start and end times format.
     And save to csv file  in rttm-like format
@@ -252,7 +287,7 @@ def gen_seg_table(frame_filepath, per_args):
     seg_table.to_csv(save_path, sep='\t', index=False, header=False)
 
 
-def write_manifest(vad_directory, audio_directory, manifest_file):
+def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
     vad_files = glob.glob(vad_directory + "/*.txt")
     with open(manifest_file, 'w') as outfile:
         for vad_file in vad_files:
@@ -268,5 +303,5 @@ def write_manifest(vad_directory, audio_directory, manifest_file):
                     meta = {"audio_filepath": audio_path, "offset": start, "duration": dur, "label": 'UNK'}
                     json.dump(meta, outfile)
                     outfile.write("\n")
-
+                    
             f.close()

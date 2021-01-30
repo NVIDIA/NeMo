@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import wget
-from transformers import TRANSFORMERS_CACHE, cached_path
+from torch.hub import _get_torch_home
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
 from nemo.utils import AppState, logging
@@ -33,7 +33,7 @@ __all__ = [
 ]
 
 
-MEGATRON_CACHE = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "megatron")
+MEGATRON_CACHE = os.path.join(_get_torch_home(), "megatron")
 
 CONFIGS = {"345m": {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 
@@ -134,10 +134,12 @@ def get_megatron_lm_model(
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
 
-    # if checkpoint path is a directory, then we automatically compute model parallel size
+    # if checkpoint path is a directory, then we automatically compute model parallel size,
+    # and model parallel rank
     if os.path.isdir(checkpoint_file):
+        app_state = AppState()
         model_parallel_size = len(os.listdir(checkpoint_file))
-        AppState.model_parallel_size = model_parallel_size
+        app_state.model_parallel_size = model_parallel_size
         logging.info(
             (
                 f'restore_path: {checkpoint_file} is a directory. '
@@ -145,14 +147,36 @@ def get_megatron_lm_model(
                 f'model_parallel_size: {model_parallel_size}'
             )
         )
+        # try to get local rank from global
+        local_rank = None
+        try:
+            local_rank = int(os.environ['LOCAL_RANK'])
+        except:
+            logging.info('Global variable LOCAL_RANK not yet specified')
+        if local_rank is not None:
+            app_state.local_rank = local_rank
+        else:
+            # if local is None then we are on the main process
+            local_rank = 0
+        model_parallel_rank = compute_model_parallel_rank(local_rank, model_parallel_size)
+        app_state.model_parallel_rank = model_parallel_rank
     else:
         model_parallel_size = None
+        model_parallel_rank = None
 
     model = MegatronBertEncoder(
-        model_name=pretrained_model_name, config=config, vocab_file=vocab, model_parallel_size=model_parallel_size
+        model_name=pretrained_model_name,
+        config=config,
+        vocab_file=vocab,
+        model_parallel_size=model_parallel_size,
+        model_parallel_rank=model_parallel_rank,
     )
 
     return model, checkpoint_file
+
+
+def compute_model_parallel_rank(local_rank, model_parallel_size):
+    return local_rank % model_parallel_size
 
 
 def get_megatron_lm_models_list() -> List[str]:
@@ -194,12 +218,9 @@ def get_megatron_vocab_file(pretrained_model_name: str) -> str:
     """
     _check_megatron_name(pretrained_model_name)
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]["vocab"]
-    path = cached_path(url, cache_dir=MEGATRON_CACHE)
 
-    # try downloading it with wget
-    if path is None:
-        path = os.path.join(MEGATRON_CACHE, pretrained_model_name + "_vocab")
-        path = _download(path, url)
+    path = os.path.join(MEGATRON_CACHE, pretrained_model_name + "_vocab")
+    path = _download(path, url)
     return path
 
 

@@ -29,6 +29,12 @@ pipeline {
       }
     }
 
+    stage('PyTorch STFT Patch check') {
+      steps {
+        sh 'python /home/TestData/check_stft_patch.py --dir .'
+      }
+    }
+
     stage('Code formatting checks') {
       steps {
         sh 'python setup.py style'
@@ -37,7 +43,7 @@ pipeline {
 
     stage('Installation') {
       steps {
-        sh './reinstall.sh'
+        sh './reinstall.sh release'
       }
     }
 
@@ -291,6 +297,67 @@ pipeline {
       }
     }
 
+    stage('L2: Segmentation Tool') {
+         when {
+            anyOf {
+              branch 'main'
+              changeRequest target: 'main'
+            }
+         }
+       stages {
+        stage('Install ctc_segmentation requirements') {
+            steps {
+            sh 'cd tools/ctc_segmentation && \
+            pip install -r requirements.txt && \
+            apt-get install -y ffmpeg'
+            }
+        }
+
+        stage('Parallel ctc_segmentation test') {
+         failFast true
+         parallel {
+          stage('L2: Eng QN with .wav') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
+            --DATA_DIR=/home/TestData/ctc_segmentation/eng \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output \
+            --LANGUAGE=eng \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.wav && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
+            -g /home/TestData/ctc_segmentation/eng/output/verified_segments/nv_test_segments.txt && \
+            rm -rf eng/output'
+            }
+          }
+          stage('L2: Ru QN with .mp3') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
+            --DATA_DIR=/home/TestData/ctc_segmentation/ru \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
+            --LANGUAGE=ru \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.mp3 \
+            --ADDITIONAL_SPLIT_SYMBOLS=";" && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
+            -g /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
+            rm -rf ru/output'
+            }
+           }
+         }
+       }
+     }
+    }
+
     stage('L2: Multi-GPU Megatron finetuning') {
      when {
         anyOf{
@@ -311,6 +378,40 @@ pipeline {
         model.language_model.pretrained_model_name=megatron-bert-345m-cased \
         trainer.accelerator=ddp \
         exp_manager=null'
+        }
+      }
+     }
+   }
+
+    stage('L2: SGD-QA') {
+     when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+     }
+     failFast true
+     parallel {
+      stage('L2: SGD-QA') {
+       steps {
+        sh 'cd examples/nlp/dialogue_state_tracking && \
+        python sgd_qa.py \
+        model.dataset.data_dir=/home/TestData/nlp/sgd_small \
+        model.dataset.dialogues_example_dir=sgd_outputs \
+        model.dataset.task_name=debug_sample \
+        trainer.max_steps=1 \
+        trainer.max_epochs=1 \
+        model.train_ds.batch_size=2 \
+        model.validation_ds.batch_size=2 \
+        model.test_ds.batch_size=2 \
+        model.nemo_path=null \
+        trainer.val_check_interval=0.0 \
+        trainer.gpus=[0,1] \
+        model.dataset.use_cache=false \
+        model.language_model.pretrained_model_name=bert-base-cased \
+        trainer.accelerator=ddp \
+        exp_manager=null  && \
+        rm -rf sgd_outputs'
         }
       }
      }
@@ -480,7 +581,8 @@ pipeline {
             model.test_ds.prefix=dev \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
-            exp_manager=null'
+            exp_manager.exp_dir=checkpoints'
+            sh 'rm -rf checkpoints'
           }
         }
       }
@@ -702,6 +804,40 @@ pipeline {
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
             }
         }
+      }
+    }
+
+    stage('L2: NMT Attention is All You Need Base') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/machine_translation && \
+        python enc_dec_nmt.py \
+        --config-path=conf \
+        --config-name=aayn_base \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.train_ds.cache_ids=false \
+        model.train_ds.use_cache=false \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.cache_ids=false \
+        model.validation_ds.use_cache=false \
+        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.cache_ids=false \
+        model.test_ds.use_cache=false \
+        model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        trainer.gpus=[0] \
+        +trainer.fast_dev_run=true \
+        exp_manager=null \
+        '
       }
     }
 

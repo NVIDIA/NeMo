@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
-from omegaconf import OmegaConf
+from omegaconf import MISSING, OmegaConf
 
 __all__ = [
     'OptimizerParams',
@@ -38,6 +38,8 @@ class OptimizerParams:
     Base Optimizer params with no values. User can chose it to explicitly override via
     command line arguments
     """
+
+    lr: Optional[float] = MISSING
 
 
 @dataclass

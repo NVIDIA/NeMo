@@ -156,6 +156,8 @@ class ClassificationReport(Metric):
             + '\n'
         )
 
+        self.total_examples = total_examples
+
         if self.mode == 'macro':
             return macro_precision, macro_recall, macro_f1, report
         elif self.mode == 'weighted':

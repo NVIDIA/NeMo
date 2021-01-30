@@ -41,6 +41,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import IntType, LengthsType, SpectrogramType
@@ -129,7 +130,7 @@ class InverseSTFT(nn.Module):
         # when the model is in nn.DataParallel
         # of PyTorch 1.2.0 (py3.7_cuda10.0.130_cudnn7.6.2_01.2)
         eye_realimag = torch.stack((eye, torch.zeros(n_fft, n_fft)), dim=-1)
-        basis = torch.ifft(eye_realimag, signal_ndim=1)  # n_fft, n_fft, 2
+        basis = torch.fft.ifft(eye_realimag, signal_ndim=1)  # n_fft, n_fft, 2
         basis[..., 1] *= -1  # because (a+b*1j)*(c+d*1j) == a*c - b*d
         basis *= window
         self.basis = nn.Parameter(basis, requires_grad=False)  # n_fft, n_fft, 2
@@ -517,7 +518,7 @@ class DegliModule(NeuralModule, Exportable):
         self.mode = OperationMode.infer
 
     def stft(self, x):
-        return torch.stft(x, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window)
+        return stft_patch(x, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window, return_complex=False)
 
     @typecheck()
     def forward(self, x, mag, max_length=None, repeat=2):

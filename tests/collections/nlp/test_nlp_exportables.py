@@ -17,13 +17,13 @@ import tempfile
 import onnx
 import pytest
 import pytorch_lightning as pl
+import torch
 import wget
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo.collections import nlp as nemo_nlp
 from nemo.collections.nlp.models import IntentSlotClassificationModel
 from nemo.collections.nlp.modules.common import (
-    BertPretrainingTokenClassifier,
     SequenceClassifier,
     SequenceRegression,
     SequenceTokenClassifier,
@@ -73,7 +73,7 @@ class TestExportableClassifiers:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_IntentSlotClassificationModel(self, dummy_data):
+    def test_IntentSlotClassificationModel_export_to_onnx(self, dummy_data):
         with tempfile.TemporaryDirectory() as tmpdir:
             wget.download(
                 'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
@@ -93,15 +93,42 @@ class TestExportableClassifiers:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1167) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[30].name == 'Add_30'
-            assert onnx_model.graph.node[1165].name.startswith('ISC')
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[1].name == 'attention_mask'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'intent_logits'
             assert onnx_model.graph.output[1].name == 'slot_logits'
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_IntentSlotClassificationModel_export_to_torchscript(self, dummy_data):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            wget.download(
+                'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
+                'nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml',
+                tmpdir,
+            )
+            config_file = os.path.join(tmpdir, 'intent_slot_classification_config.yaml')
+            config = OmegaConf.load(config_file)
+            config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
+            config.model.data_dir = dummy_data
+            config.trainer.gpus = 1
+            config.trainer.precision = 32
+            config.trainer.accelerator = None
+            trainer = pl.Trainer(**config.trainer)
+            model = IntentSlotClassificationModel(config.model, trainer=trainer)
+            filename = os.path.join(tmpdir, 'isc.pt')
+            model.export(output=filename, check_trace=True)
+            torchscript_model = torch.jit.load(filename)
+            inputs = list(torchscript_model.graph.inputs())
+            assert inputs[1].debugName() == 'input_ids.1'
+            assert inputs[2].debugName() == 'input.1'
+            assert inputs[3].debugName() == 'attention_mask.1'
+            modules = list(torchscript_model.modules())
+            assert modules[2].original_name == 'BertEmbeddings'
+            assert modules[46].original_name == 'BertSelfAttention'
+            assert modules[217].original_name == 'SequenceTokenClassifier'
+            assert modules[219].original_name == 'MultiLayerPerceptron'
 
     def test_TokenClassificationModel_export_to_onnx(self):
         model = nemo_nlp.models.TokenClassificationModel.from_pretrained(model_name="NERModel")
@@ -110,10 +137,6 @@ class TestExportableClassifiers:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1163) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[1161].name.startswith('TKCL')
-            assert onnx_model.graph.node[30].name == 'Add_30'
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
@@ -128,19 +151,11 @@ class TestExportableClassifiers:
             model.export(output=filename)
             onnx_model = onnx.load(punct_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1160) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[1158].name.startswith('PTCL')
-            assert onnx_model.graph.node[30].name == 'Add_30'
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
             onnx_model = onnx.load(capit_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1160) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[1158].name.startswith('CPCL')
-            assert onnx_model.graph.node[30].name == 'Add_30'
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
@@ -152,10 +167,6 @@ class TestExportableClassifiers:
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert abs(len(onnx_model.graph.node) - 1159) <= 2
-            assert onnx_model.graph.node[0].name == 'Unsqueeze_0'
-            assert onnx_model.graph.node[1157].name.startswith('QA')
-            assert onnx_model.graph.node[30].name == 'Add_30'
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
