@@ -466,7 +466,7 @@ class _TarredAudioLabelDataset(IterableDataset):
     """
     A similar Dataset to the AudioLabelDataSet, but which loads tarred audio files.
 
-    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToSpeechLabelDataSet),
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToSpeechLabelDataset),
     as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
     contain the information for one audio file, including at least the label and name of the audio
     file within the tarball.
@@ -777,9 +777,9 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
 
 class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
     """
-    A similar Dataset to the AudioToSpeechLabelDataSet, but which loads tarred audio files.
+    A similar Dataset to the AudioToSpeechLabelDataset, but which loads tarred audio files.
 
-    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToSpeechLabelDataSet),
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToSpeechLabelDataset),
     as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
     contain the information for one audio file, including at least the transcript and name of the audio
     file within the tarball.
