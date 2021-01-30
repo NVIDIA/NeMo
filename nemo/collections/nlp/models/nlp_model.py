@@ -350,7 +350,7 @@ class NLPModel(ModelPT):
                     self.bert_model._lazy_init_fn()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        if isinstance(self.bert_model, MegatronBertEncoder):
+        if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
         return None
 
