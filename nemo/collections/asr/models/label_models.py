@@ -24,7 +24,7 @@ from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
+from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -100,7 +100,7 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
-        self.dataset = AudioToSpeechLabelDataSet(
+        self.dataset = AudioToSpeechLabelDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
             featurizer=featurizer,

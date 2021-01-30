@@ -171,7 +171,7 @@ class TestEncDecClassificationModel:
         assert results[0].shape == torch.Size([len(model.cfg.labels)])
 
     @pytest.mark.unit
-    def test_EncDecClassificationDatasetConfig_for_AudioToSpeechLabelDataSet(self):
+    def test_EncDecClassificationDatasetConfig_for_AudioToSpeechLabelDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
             'is_tarred',
@@ -196,7 +196,7 @@ class TestEncDecClassificationModel:
         REMAP_ARGS = {'trim_silence': 'trim'}
 
         result = assert_dataclass_signature_match(
-            audio_to_label.AudioToSpeechLabelDataSet,
+            audio_to_label.AudioToSpeechLabelDataset,
             configs.EncDecClassificationDatasetConfig,
             ignore_args=IGNORE_ARGS,
             remap_args=REMAP_ARGS,

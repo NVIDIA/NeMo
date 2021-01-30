@@ -126,6 +126,26 @@ class MegatronBertEncoder(BertModule):
         )
         return sequence_output
 
+    def _load_checkpoint(self, filename):
+        """Helper function for loading megatron checkpoints.
+
+        Args:
+            filename (str): Path to megatron checkpoint.
+        """
+        state_dict = torch.load(filename, map_location='cpu')
+        if 'checkpoint_version' in state_dict:
+            if state_dict['checkpoint_version'] is not None:
+                set_checkpoint_version(state_dict['checkpoint_version'])
+        else:
+            logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
+            set_checkpoint_version(0)
+        # to load from Megatron pretrained checkpoint
+        if 'model' in state_dict:
+            self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
+        else:
+            self.load_state_dict(state_dict)
+        logging.info(f"Checkpoint loaded from from {filename}")
+
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights.
            For model parallel checkpoints the directory structure
@@ -136,43 +156,14 @@ class MegatronBertEncoder(BertModule):
         """
         self._restore_path = restore_path
         if os.path.isfile(restore_path):
-            logging.info(f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism')
-            state_dict = torch.load(restore_path, map_location='cpu')
-            if 'checkpoint_version' in state_dict:
-                if state_dict['checkpoint_version'] is not None:
-                    set_checkpoint_version(state_dict['checkpoint_version'])
-            else:
-                logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                set_checkpoint_version(0)
-            # to load from Megatron pretrained checkpoint
-            if 'model' in state_dict:
-                self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
-            else:
-                self.load_state_dict(state_dict)
-            logging.info(f"weights restored from {restore_path}")
+            self._load_checkpoint(restore_path)
         elif os.path.isdir(restore_path):
-            # TODO: need to refactor this so we're not repeating code
-
             # need model parallel groups to restore model parallel checkpoints
             if model_parallel_is_initialized():
                 model_parallel_rank = torch.distributed.get_rank(group=get_model_parallel_group())
                 mp_restore_path = f'{restore_path}/mp_rank_{model_parallel_rank:02d}/model_optim_rng.pt'
-                logging.info(f'Restoring model parallel checkpoint from: {mp_restore_path}')
-                state_dict = torch.load(mp_restore_path, map_location='cpu')
-                if 'checkpoint_version' in state_dict:
-                    if state_dict['checkpoint_version'] is not None:
-                        set_checkpoint_version(state_dict['checkpoint_version'])
-                else:
-                    logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                    set_checkpoint_version(0)
-                # to load from Megatron pretrained checkpoint
-                if 'model' in state_dict:
-                    self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
-                else:
-                    self.load_state_dict(state_dict)
+                self._load_checkpoint(mp_restore_path)
             else:
                 logging.info(f'torch.distributed not initialized yet. Will not restore model parallel checkpoint')
         else:
             logging.error(f'restore_path: {restore_path} must be a file or directory.')
-
-    # TODO: we'll have to add the megatron-lm checkpoint_version to the state_dict for NeMo models
