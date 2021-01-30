@@ -31,6 +31,18 @@ Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] w
 Jasper and QuartzNet models can be instantiated using :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>` class.
 
 
+Citrinet
+--------
+
+Citrinet is a version of QuartzNet :cite:`asr-models-kriman2019quartznet` that extends ContextNet :cite:`asr-models-han2020contextnet`,
+utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to
+obtain highly accurate audio transcripts while utilizing a non-autoregressive CTC based decoding scheme for efficient inference.
+
+    .. image:: citrinet_vertical.png
+        :align: center
+        :alt: citrinet model
+
+Citrinet models can be instantiated using :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class.
 
 References
 ----------
