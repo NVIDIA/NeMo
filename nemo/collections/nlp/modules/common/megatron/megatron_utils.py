@@ -32,7 +32,12 @@ __all__ = [
     "get_megatron_tokenizer",
 ]
 
+
 torch_home = _get_torch_home()
+
+if not isinstance(torch_home, str):
+    logging.info("Torch home not found, caching megatron in cwd")
+    torch_home = os.getcwd()
 
 MEGATRON_CACHE = os.path.join(torch_home, "megatron")
 
