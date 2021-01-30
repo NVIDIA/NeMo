@@ -45,7 +45,6 @@ autodoc_mock_imports = [
     'dateutil',  # part of core python
     'transformers.tokenization_bert',  # has ., troublesome for this regex
     'megatron',  # megatron-lm in requirements, megatron in import
-    'sacremoses',
     'sklearn',
 ]
 
