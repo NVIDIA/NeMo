@@ -19,7 +19,6 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import wget
-from torch.hub import _get_torch_home
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
 from nemo.utils import AppState, logging
@@ -32,8 +31,15 @@ __all__ = [
     "get_megatron_tokenizer",
 ]
 
+MEGATRON_CACHE = None
 
-MEGATRON_CACHE = os.path.join(_get_torch_home(), "megatron")
+try:
+    from torch.hub import _get_torch_home
+
+    MEGATRON_CACHE = os.path.join(_get_torch_home(), "megatron")
+except:
+    raise ImportWarning("torch.hub is not available. MEGATRON_CACHE is None.")
+
 
 CONFIGS = {"345m": {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 
