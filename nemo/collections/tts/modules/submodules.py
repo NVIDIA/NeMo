@@ -187,7 +187,6 @@ class Invertible1x1Conv(torch.nn.Module):
 
     def __init__(self, c):
         super().__init__()
-        self.inv_conv = torch.nn.Conv1d(c, c, kernel_size=1)
         self.conv = torch.nn.Conv1d(c, c, kernel_size=1)
 
         # Sample a random orthonormal matrix to initialize weights
@@ -198,14 +197,19 @@ class Invertible1x1Conv(torch.nn.Module):
             W[:, 0] = -1 * W[:, 0]
         W = W.view(c, c, 1)
         self.conv.weight.data = W
-
-        # Reverse computation
-        W_inverse = W.squeeze().float().inverse()
-        W_inverse = Variable(W_inverse[..., None])
-        self.inv_conv.weight.data = W_inverse
+        self.inv_conv = None
 
     def forward(self, z, reverse: bool = False):
         if reverse:
+            if self.inv_conv is None:
+                # Inverse convolution - initialized here only for backwards
+                # compatibility with weights from existing checkpoints.
+                # Should be moved to init() with next incompatible change.
+                self.inv_conv = torch.nn.Conv1d(self.conv.in_channels, self.conv.out_channels, kernel_size=1)
+                W_inverse = self.conv.weight.squeeze().inverse()
+                W_inverse = Variable(W_inverse[..., None])
+                self.inv_conv.weight.data = W_inverse
+
             return self.inv_conv(z)
         else:
             # Forward computation
