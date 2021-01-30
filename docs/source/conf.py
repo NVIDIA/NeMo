@@ -62,15 +62,15 @@ for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
                 req = req.group(1)
                 req = req.replace("-", "_")
 
-            if req not in autodoc_mock_imports:
-                if req in _skipped_autodoc_mock_imports:
-                    print(f"Skipping req : `{req}` (lib {line})")
-                    continue
+                if req not in autodoc_mock_imports:
+                    if req in _skipped_autodoc_mock_imports:
+                        print(f"Skipping req : `{req}` (lib {line})")
+                        continue
 
-                autodoc_mock_imports.append(req)
-                print(f"Adding req : `{req}` to autodoc mock requirements (lib {line})")
-            else:
-                print(f"`{req}` already added to autodoc moc requirements (lib {line})")
+                    autodoc_mock_imports.append(req)
+                    print(f"Adding req : `{req}` to autodoc mock requirements (lib {line})")
+                else:
+                    print(f"`{req}` already added to autodoc moc requirements (lib {line})")
 
 #
 # -- General configuration ------------------------------------------------
