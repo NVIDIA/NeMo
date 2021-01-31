@@ -84,7 +84,7 @@ class WaveGlowModule(NeuralModule, Exportable):
                 )
             )
         self.n_remaining_channels = n_remaining_channels
-        self.time_cutoff = self.upsample.kernel_size[0] - self.upsample.stride[0]
+        self.time_cutoff = self.upsample.stride[0] - self.upsample.kernel_size[0]
 
         # Pre-calculating the sizes of noise to use so it's not dynamic
         n_halves = []
@@ -162,9 +162,9 @@ class WaveGlowModule(NeuralModule, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.n_mel_channels, 64), device=par.device, dtype=par.dtype)
+        mel = torch.randn((1, self.n_mel_channels, 96), device=par.device, dtype=par.dtype)
         z = torch.randn(
-            (1, self.n_mel_channels, 64 * self.upsample.stride[0] // self.n_group), device=par.device, dtype=par.dtype
+            (1, self.n_mel_channels, 96 * self.upsample.stride[0] // self.n_group), device=par.device, dtype=par.dtype
         )
         return {"spec": mel, "z": z}
 
@@ -213,25 +213,22 @@ class WaveGlowModule(NeuralModule, Exportable):
         spec = self.upsample(spec)
         spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
         # trim conv artifacts. maybe pad spec to kernel multiple
-        if self.time_cutoff > 0:
-            spec = spec[:, :, : -self.time_cutoff]
+        if self.time_cutoff != 0:
+            spec = spec[:, :, : self.time_cutoff]
 
         spec = spec.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
         spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
         spec = spec.permute(0, 2, 1)
 
-        spec_size = spec.size()
         z_size = torch.Size([spec.size(0), self.n_group, spec.size(2)])
         if z is None:
             z = sigma * torch.randn(z_size, device=spec.device).to(spec.dtype)
-        else:
-            assert z.size() == z_size, f"Size of z ({z.size()}) != expected ({z_size})"
 
         if self.converted_to_2D:
             z = torch.unsqueeze(z, 3)
             spec = torch.unsqueeze(spec, 3)
 
-        audio, z = torch.split(z, [self.n_remaining_channels, self.n_group - self.n_remaining_channels], 1)
+        audio, z = torch.split(z, [self.n_remaining_channels, z.size(1) - self.n_remaining_channels], 1)
 
         for k in reversed(range(self.n_flows)):
             n_half = self.n_halves[k]
