@@ -19,6 +19,7 @@ This script serves three goals:
     (3) Serves as CI test for pre-trained checkpoint
 """
 
+import glob
 from argparse import ArgumentParser
 
 import torch
@@ -26,7 +27,7 @@ import torch
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
-import glob
+
 try:
     from torch.cuda.amp import autocast
 except ImportError:
@@ -64,13 +65,10 @@ def main():
     files = glob.glob(args.datapath + "/*.wav")
     transcripts = asr_model.transcribe(paths2audio_files=files)
     with open(args.hypfile, "w") as out_f:
-        for i,t in enumerate(transcripts):
-            dict = {"audio_filepath":files[i], "text":t}
+        for i, t in enumerate(transcripts):
+            dict = {"audio_filepath": files[i], "text": t}
             json.dumps(out_f, dict)
             out_f.write("\n")
-
-
-
 
     asr_model.setup_test_data(
         test_data_config={

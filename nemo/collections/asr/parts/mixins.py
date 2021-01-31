@@ -14,12 +14,12 @@
 
 import os
 from abc import ABC, abstractmethod
+from typing import List
 
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common import tokenizers
 from nemo.utils import logging
-from typing import List
 
 
 class ASRBPEMixin(ABC):
@@ -101,6 +101,7 @@ class ASRBPEMixin(ABC):
                 self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
             )
         )
+
 
 class DiarizationMixin(ABC):
     @abstractmethod
