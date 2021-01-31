@@ -94,7 +94,7 @@ class TestWaveGlow:
                 try_script=False,
                 check_trace=False,
                 do_constant_folding=True,
-                use_dynamic_axes=True,
+                use_dynamic_axes=False,
             )
 
             try:
