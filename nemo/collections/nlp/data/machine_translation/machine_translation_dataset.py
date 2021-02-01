@@ -30,7 +30,7 @@ from torch.utils.data import IterableDataset
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
 
-__all__ = ['TranslationDataset']
+__all__ = ['TranslationDataset', 'TarredTranslationDataset']
 
 
 @dataclass
@@ -356,7 +356,6 @@ class TarredTranslationDataset(IterableDataset):
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "}")
 
-        print(text_tar_filepaths)
         if isinstance(text_tar_filepaths, str):
             # Brace expand
             text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
