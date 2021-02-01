@@ -26,6 +26,7 @@ import braceexpand
 import numpy as np
 import webdataset as wd
 from torch.utils.data import IterableDataset
+from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
@@ -35,8 +36,8 @@ __all__ = ['TranslationDataset', 'TarredTranslationDataset']
 
 @dataclass
 class TranslationDataConfig:
-    src_file_name: str = None  # MISSING
-    tgt_file_name: str = None  # MISSING
+    src_file_name: str = MISSING
+    tgt_file_name: str = MISSING
     tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
@@ -275,7 +276,7 @@ class TarredTranslationDataset(IterableDataset):
     """
     A similar Dataset to the TranslationDataset, but which loads tarred tokenized pickle files.
     Accepts a single JSON metadata file containing the total number of batches
-    as well as the path(s) to the tarball(s) containing the wav files. 
+    as well as the path(s) to the tarball(s) containing the pickled parallel dataset batch files.
     Valid formats for the text_tar_filepaths argument include:
     (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar.gz', or
     (2) a list of file paths that will not be brace-expanded, e.g. ['text_1.tar', 'text_2.tar', ...].
