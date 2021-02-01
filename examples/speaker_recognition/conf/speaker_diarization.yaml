@@ -7,12 +7,12 @@ sample_rate: &sample_rate 16000
 diarizer:
   cluster_method: "SpectralClustering"
   num_speakers: 2 # for each recording
-  out_dir: "/data3/sdtest/outputs/diarization/"
-  groundtruth_RTTM_dir: ???
+  out_dir: ???
+  groundtruth_rttm_dir: ""
   shuffle: False
 
   vad:
-    model_path: "/data3/sdtest/models/MatchboxNet_VAD_3x2.nemo"
+    model_path: ???
     window_length_in_sec: 0.63
     shift_length_in_sec: 0.01
     threshold: 0.5
@@ -22,6 +22,6 @@ diarizer:
       overlap: 0.875
 
   speaker_embeddings:
-    model_path: "/data3/sdtest/models/SpeakerNet-M.nemo"
+    model_path: ???
     window_length_in_sec: 1.5
     shift_length_in_sec: 0.75
