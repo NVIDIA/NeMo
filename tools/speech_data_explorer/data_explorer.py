@@ -22,7 +22,7 @@ import math
 import operator
 import os
 import pickle
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 import dash
 import dash_bootstrap_components as dbc
@@ -35,7 +35,7 @@ import librosa
 import numpy as np
 import soundfile as sf
 import tqdm
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output
 from dash.exceptions import PreventUpdate
 from plotly import express as px
 from plotly import graph_objects as go
@@ -668,7 +668,6 @@ def update_player(idx, data):
             sf.write(buf, signal, sr, format='WAV')
             buf.seek(0)
             encoded = base64.b64encode(buf.read())
-        encoded = base64.b64encode(open(filename, 'rb').read())
         return 'data:audio/wav;base64,{}'.format(encoded.decode())
     except Exception:
         return ''
