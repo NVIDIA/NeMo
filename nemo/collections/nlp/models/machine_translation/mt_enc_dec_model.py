@@ -286,6 +286,7 @@ class MTEncDecModel(EncDecNLPModel):
                 shard_strategy=cfg.get("shard_strategy", "scatter"),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
+                reverse_lang_direction=cfg.get("reverse_lang_direction", False),
             )
             return torch.utils.data.DataLoader(
                 dataset=dataset,
