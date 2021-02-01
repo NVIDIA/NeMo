@@ -43,7 +43,7 @@ def main(cfg):
         'shift_length_in_sec': 0.01,
         'threshold': 0.5,
         'vad_decision_smoothing': True,
-        'smoothing_params': {'method': "median", 'overlap': 0.875}
+        'smoothing_params': {'method': "median", 'overlap': 0.875},
     }
     sd_model.set_vad_model(vad_config)
     sd_model.diarize()

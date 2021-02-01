@@ -173,7 +173,7 @@ def perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_
     if len(all_reference) == 0:
         logging.warning("Please check if ground truth RTTMs were present in {}".format(gt_rttm_dir))
         logging.warning("Skipping calculation of Diariazation Error rate")
-        return (0, 0, 0, 0)
+        return (-1, -1, -1, -1)
 
     for reference, hypothesis in zip(all_reference, all_hypothesis):
         metric(reference, hypothesis, detailed=True)

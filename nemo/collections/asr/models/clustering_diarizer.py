@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import json
 import os
 import pickle as pkl
@@ -20,10 +19,8 @@ import shutil
 import tarfile
 import tempfile
 from collections import defaultdict
-from itertools import repeat
-from multiprocessing import Pool
 from os import path
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 
 import librosa
 import torch
@@ -40,11 +37,10 @@ from nemo.collections.asr.parts.vad_utils import (
     generate_vad_segment_table,
     get_vad_stream_status,
     prepare_manifest,
-    write_vad_infer_manifest,
     write_vad_pred_to_manifest,
 )
 from nemo.core.classes import Model
-from nemo.utils import config_utils, logging, model_utils
+from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import NotFoundError
 
 try:
@@ -62,7 +58,6 @@ __all__ = ['ClusteringDiarizer']
 _MODEL_CONFIG_YAML = "model_config.yaml"
 _VAD_MODEL = "vad_model.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
-
 
 
 class ClusteringDiarizer(Model, DiarizationMixin):
@@ -86,10 +81,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         #     self._vad_window_length_in_sec = 0
         #     self._vad_shift_length_in_sec = 0
 
-
-
         # to delete?
-
 
         # init speaker model
         self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
@@ -116,14 +108,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def list_available_models(cls):
         pass
 
-    def set_vad_model(self,vad_config):
+    def set_vad_model(self, vad_config):
         with open_dict(self._cfg):
             self._cfg.diarizer.vad = vad_config
         self._init_vad_model()
-            #     .model_path = vad_config['model_path']
-            # self._cfg.diarizer.vad.window_length_in_sec = vad_config['window_length_in_sec']
-            # self._cfg.diarizer.vad.shift_length_in_sec = vad_config['shift_length_in_sec']
-
+        #     .model_path = vad_config['model_path']
+        # self._cfg.diarizer.vad.window_length_in_sec = vad_config['window_length_in_sec']
+        # self._cfg.diarizer.vad.shift_length_in_sec = vad_config['shift_length_in_sec']
 
     def _init_vad_model(self):
         if self._cfg.diarizer.vad.model_path.endswith('.json'):
@@ -139,7 +130,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self.has_vad_model = True
         else:
             raise ValueError("vad.model_path should be a .json file or .nemo or a .ckpt model file")
-
 
     def _setup_vad_test_data(self, manifest_vad_input):
         vad_dl_config = {
@@ -275,8 +265,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
         """
         if 'vad' not in self._cfg.diarizer:
-            raise RuntimeError(f"Diarization requires a .json file with speech segments or a .nemo file for a "
-                               f"VAD model ")
+            raise RuntimeError(
+                f"Diarization requires a .json file with speech segments or a .nemo file for a " f"VAD model "
+            )
 
         if (paths2audio_files is None or len(paths2audio_files) == 0) and self._manifest_file is None:
             return {}
@@ -424,8 +415,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 if os.path.exists(os.path.join(tmpdir, _VAD_MODEL)):
                     conf.diarizer.vad.model_path = os.path.join(tmpdir, _VAD_MODEL)
                 else:
-                    logging.info(f'Model {cls.__name__} does not contain a VAD model. A VAD model or manifest file with'
-                                 f'speech segments need for diarization with this model')
+                    logging.info(
+                        f'Model {cls.__name__} does not contain a VAD model. A VAD model or manifest file with'
+                        f'speech segments need for diarization with this model'
+                    )
 
                 conf.diarizer.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
                 conf.restore_map_location = map_location
