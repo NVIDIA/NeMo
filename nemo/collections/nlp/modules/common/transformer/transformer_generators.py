@@ -24,7 +24,7 @@ __all__ = [
 ]
 
 
-class GreedySequenceGenerator(NeuralModule):
+class GreedySequenceGenerator:
     """
     Greedy sequence generator based on the decoder followed by log_softmax.
 
