@@ -21,6 +21,8 @@ from multiprocessing import Pool
 import librosa
 import numpy as np
 import pandas as pd
+from pyannote.core import Annotation, Segment, Timeline
+from pyannote.metrics import detection
 
 
 def prepare_manifest(config):
@@ -355,3 +357,55 @@ def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
                     outfile.write("\n")
 
             f.close()
+
+# TODO reuse/merge  Nithin's code in speaker_utils
+def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file):
+   
+    pred = pd.read_csv(vad_table_filepath, sep ="\t", header=None)  
+    label = pd.read_csv(groundtruth_RTTM_file, sep=" ", delimiter=None, header=None)
+    label = label.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+
+    # construct reference
+    reference = Annotation()
+    for index, row in label.iterrows():
+        reference[Segment(row['start'],row['start'] + row['dur'])] = row['speaker']   
+
+    # construct hypothsis
+    hypothesis = Annotation()
+    for index, row in pred.iterrows():
+        if row[2] == 'speech':    
+            hypothesis[Segment(row[0], row[1])] = 'Speech'
+    return reference, hypothesis
+
+
+def vad_tune_threshold_on_dev(thresholds, vad_table_out_dir, groundtruth_RTTM_dir):
+    threshold_perf = {}
+    
+    best_threhsold = thresholds[0]
+    for threshold in thresholds:
+        min_der = 1
+        metric = detection.DetectionErrorRate()
+        filenames = glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))
+        for filename in filenames:
+            vad_pred_file = os.path.join(vad_table_out_dir, filename +'.txt')
+            groundtruth_RTTM_file = os.path.join(groundtruth_RTTM_dir, filename +'.txt')
+            reference, hypothesis = vad_construct_pyannote_object_per_file(
+                vad_table_filepath, 
+                groundtruth_RTTM_file)
+            metric(reference, hypothesis) # accumulation
+        report = metric.report(display=False)
+        DetER = report.iloc[[-1]][('detection error rate', '%')].item()
+        FA = report.iloc[[-1]][('false alarm', '%')].item(),
+        MISS = report.iloc[[-1]][('miss', '%')].item() 
+        threshold_perf[threshold] = {'DetER': DetER, 'FA': FA, 'MISS'MISS: }
+        
+        del report
+        metric.reset() # reset internal accumulator 
+        if DetER < min_der:
+            min_der = DetER
+            best_threhsold = threshold
+     # return threshold with smallest der [TODO] return full result to user for flexible use
+    return best_threhsold
+       
+
+
