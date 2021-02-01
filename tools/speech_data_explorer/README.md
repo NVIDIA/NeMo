@@ -7,6 +7,7 @@ Features:
 - dataset's statistics (alphabet, vocabulary, duration-based histograms)
 - navigation across dataset (sorting, filtering)
 - inspection of individual utterances (waveform, spectrogram, audio player)
+- errors' analysis if a manifest contains 'pred_text' field (WER, CER, Word Match Rate, Mean Word Accuracy, diff)
 
 Please make sure that requirements are installed. Then run:
 ```
