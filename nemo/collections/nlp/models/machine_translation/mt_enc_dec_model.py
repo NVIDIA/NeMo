@@ -391,7 +391,9 @@ class MTEncDecModel(EncDecNLPModel):
 
     def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
         logging.info('overriding ddp to set find_unused_parameters to True')
-        model = LightningDistributedDataParallel(model, device_ids=device_ids, find_unused_parameters=True)
+        model = LightningDistributedDataParallel(
+            model, device_ids=device_ids, find_unused_parameters=self._cfg.find_unused_parameters
+        )
         return model
 
     def setup(self, stage):
