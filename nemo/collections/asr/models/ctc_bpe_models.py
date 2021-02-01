@@ -200,7 +200,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         # Set the new vocabulary
         decoder_config = copy.deepcopy(self.decoder.to_config_dict())
-        decoder_config.vocabulary = ListConfig(list(vocabulary.values()))
+        decoder_config.vocabulary = ListConfig(list(vocabulary.keys()))
 
         decoder_num_classes = decoder_config['num_classes']
 
