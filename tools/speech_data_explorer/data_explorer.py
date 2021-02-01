@@ -184,6 +184,8 @@ def load_data(data_filename, disable_caching):
             item['accuracy'] = round(word_accuracy, 1)
         mwa = acc_sum / len(vocabulary_data)
 
+    num_hours /= 3600.0
+
     if not disable_caching:
         with open(pickle_filename, 'wb') as f:
             pickle.dump(
@@ -313,9 +315,19 @@ if metrics_available:
     stats_layout += [
         dbc.Row(
             [
-                dbc.Col(html.Div('Overall WER, %', className='text-secondary'), width=3, className='border-right'),
-                dbc.Col(html.Div('Overall CER, %', className='text-secondary'), width=3, className='border-right'),
-                dbc.Col(html.Div('Overall WMR, %', className='text-secondary'), width=3, className='border-right'),
+                dbc.Col(
+                    html.Div('Word Error Rate (WER), %', className='text-secondary'), width=3, className='border-right'
+                ),
+                dbc.Col(
+                    html.Div('Character Error Rate (CER), %', className='text-secondary'),
+                    width=3,
+                    className='border-right',
+                ),
+                dbc.Col(
+                    html.Div('Word Matching Rate (WMR), %', className='text-secondary'),
+                    width=3,
+                    className='border-right',
+                ),
                 dbc.Col(html.Div('Mean Word Accuracy, %', className='text-secondary'), width=3),
             ],
             className='bg-light mt-2 rounded-top border-top border-left border-right',
