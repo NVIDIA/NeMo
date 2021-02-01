@@ -6,3 +6,5 @@ plotly
 dash_core_components
 dash_table
 numpy
+diff_match_patch
+editdistance
