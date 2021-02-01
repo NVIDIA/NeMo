@@ -25,7 +25,7 @@ from multiprocessing import Pool
 from os import path
 from typing import Dict, List, Optional, Union
 
-import numpy as np
+import librosa
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.utilities import rank_zero_only
@@ -64,6 +64,7 @@ _VAD_MODEL = "vad_model.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
 
 
+
 class ClusteringDiarizer(Model, DiarizationMixin):
     def __init__(self, cfg: DictConfig):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -73,20 +74,22 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # init vad model
         self.has_vad_model = False
+        self.has_vad_model_to_save = False
         self._oracle_vad = ""
-        self._vad_model_path = self._cfg.diarizer.vad.model_path
-        if self._vad_model_path.endswith('.json'):
-            self._oracle_vad = self._vad_model_path
-        elif self._vad_model_path.endswith('.nemo'):
-            self._vad_model = EncDecClassificationModel.restore_from(self._vad_model_path)
-            self.has_vad_model = True
-        elif self._vad_model_path.endswith('.ckpt'):
-            self._vad_model = EncDecClassificationModel.load_from_checkpoint(self._vad_model_path)
-            self.has_vad_model = True
+        if 'vad' in self._cfg.diarizer:
+            self._cfg.diarizer.vad.model_path = self._cfg.diarizer.vad.model_path
+            self._init_vad_model()
+
+        # else:
+        #     with open_dict(self._cfg):
+        #         self._cfg.diarizer.vad.model_path = None
+        #     self._vad_window_length_in_sec = 0
+        #     self._vad_shift_length_in_sec = 0
+
+
 
         # to delete?
-        self._vad_window_length_in_sec = self._cfg.diarizer.vad.window_length_in_sec
-        self._vad_shift_length_in_sec = self._cfg.diarizer.vad.shift_length_in_sec
+
 
         # init speaker model
         self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
@@ -112,6 +115,31 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     @classmethod
     def list_available_models(cls):
         pass
+
+    def set_vad_model(self,vad_config):
+        with open_dict(self._cfg):
+            self._cfg.diarizer.vad = vad_config
+        self._init_vad_model()
+            #     .model_path = vad_config['model_path']
+            # self._cfg.diarizer.vad.window_length_in_sec = vad_config['window_length_in_sec']
+            # self._cfg.diarizer.vad.shift_length_in_sec = vad_config['shift_length_in_sec']
+
+
+    def _init_vad_model(self):
+        if self._cfg.diarizer.vad.model_path.endswith('.json'):
+            self._oracle_vad = self._cfg.diarizer.vad.model_path
+        elif self._cfg.diarizer.vad.model_path.endswith('.nemo'):
+            self._vad_model = EncDecClassificationModel.restore_from(self._cfg.diarizer.vad.model_path)
+            self._vad_window_length_in_sec = self._cfg.diarizer.vad.window_length_in_sec
+            self._vad_shift_length_in_sec = self._cfg.diarizer.vad.shift_length_in_sec
+            self.has_vad_model_to_save = True
+            self.has_vad_model = True
+        elif self._cfg.diarizer.vad.model_path.endswith('.ckpt'):
+            self._vad_model = EncDecClassificationModel.load_from_checkpoint(self._cfg.diarizer.vad.model_path)
+            self.has_vad_model = True
+        else:
+            raise ValueError("vad.model_path should be a .json file or .nemo or a .ckpt model file")
+
 
     def _setup_vad_test_data(self, manifest_vad_input):
         vad_dl_config = {
@@ -243,9 +271,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         pkl.dump(out_embeddings, open(self._embeddings_file, 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
-    def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 1) -> List[str]:
+    def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 1):
         """
         """
+        if 'vad' not in self._cfg.diarizer:
+            raise RuntimeError(f"Diarization requires a .json file with speech segments or a .nemo file for a "
+                               f"VAD model ")
+
         if (paths2audio_files is None or len(paths2audio_files) == 0) and self._manifest_file is None:
             return {}
 
@@ -259,7 +291,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             mfst_file = os.path.join(self._out_dir, 'manifest.json')
             with open(mfst_file, 'w') as fp:
                 for audio_file in paths2audio_files:
-                    entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': 100000, 'text': '-'}
+                    y, sr = librosa.load(audio_file)
+                    dur = librosa.get_duration(y=y, sr=sr)
+                    del y, sr
+                    entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': dur, 'text': '-'}
                     fp.write(json.dumps(entry) + '\n')
                     # todo make sure same folder
         else:
@@ -270,6 +305,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         if self.has_vad_model:
             logging.info("Performing VAD")
             self._dont_auto_split = False
+            # [TODO] How can user control this? Should this go in the config?
             self._split_duration = 50
             # Prepare manifest for streaming VAD
 
@@ -277,7 +313,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.info("Split long audio file to avoid CUDA memory issue")
                 logging.debug("Try smaller split_duration if you still have CUDA memory issue")
                 config = {
-                    'manifest_filepath': self._manifest_file,
+                    'manifest_filepath': mfst_file,
                     'time_length': self._vad_window_length_in_sec,
                     'split_duration': self._split_duration,
                     'num_workers': self._cfg.num_workers,
@@ -297,19 +333,19 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
         self._extract_embeddings(self._vad_out_file)
-        RTTM_DIR = self._cfg.diarizer.groundtruth_RTTM_dir
-        OUT_RTTM_DIR = os.path.join(self._out_dir, 'pred_rttms')
-        os.makedirs(OUT_RTTM_DIR, exist_ok=True)
+        rttm_dir = self._cfg.diarizer.groundtruth_rttm_dir
+        out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
+        os.makedirs(out_rttm_dir, exist_ok=True)
 
         DER, CER, FA, MISS = get_score(
             embeddings_file=self._embeddings_file,
             reco2num=self._num_speakers,
             manifest_path=self._vad_out_file,
-            SAMPLE_RATE=self._cfg.sample_rate,
-            WINDOW=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
-            SHIFT=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
-            GT_RTTM_DIR=RTTM_DIR,
-            OUT_RTTM_DIR=OUT_RTTM_DIR,
+            sample_rate=self._cfg.sample_rate,
+            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
+            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
+            gt_rttm_dir=rttm_dir,
+            out_rttm_dir=out_rttm_dir,
         )
 
         logging.info(
@@ -339,18 +375,19 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             save_path: Path to .nemo file where model instance should be saved
         """
 
-        if not self.has_vad_model:
-            NotImplementedError(
-                "Saving a clustering based speaker diarization model without a VAD model is not" "supported"
-            )
+        # if not self.has_vad_model:
+        #     NotImplementedError(
+        #         "Saving a clustering based speaker diarization model without a VAD model is not" "supported"
+        #     )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
-            vad_model = os.path.join(tmpdir, _VAD_MODEL)
             spkr_model = os.path.join(tmpdir, _SPEAKER_MODEL)
 
             self.to_config_file(path2yaml_file=config_yaml)
-            self._vad_model.save_to(vad_model)
+            if self.has_vad_model:
+                vad_model = os.path.join(tmpdir, _VAD_MODEL)
+                self._vad_model.save_to(vad_model)
             self._speaker_model.save_to(spkr_model)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
@@ -384,8 +421,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 else:
                     config_yaml = override_config_path
                 conf = OmegaConf.load(config_yaml)
-                conf.vad.model_path = os.path.join(tmpdir, _VAD_MODEL)
-                conf.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
+                if os.path.exists(os.path.join(tmpdir, _VAD_MODEL)):
+                    conf.diarizer.vad.model_path = os.path.join(tmpdir, _VAD_MODEL)
+                else:
+                    logging.info(f'Model {cls.__name__} does not contain a VAD model. A VAD model or manifest file with'
+                                 f'speech segments need for diarization with this model')
+
+                conf.diarizer.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
                 conf.restore_map_location = map_location
                 OmegaConf.set_struct(conf, True)
                 # instance = cls.from_config_dict(config=conf)

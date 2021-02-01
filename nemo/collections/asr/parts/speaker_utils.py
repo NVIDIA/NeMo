@@ -69,8 +69,8 @@ def labels_to_pyannote_object(labels):
     return annotation
 
 
-def labels_to_rttmfile(labels, uniq_id, OUT_RTTM_DIR):
-    filename = os.path.join(OUT_RTTM_DIR, uniq_id + '.rttm')
+def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
+    filename = os.path.join(out_rttm_dir, uniq_id + '.rttm')
     with open(filename, 'w') as f:
         for line in labels:
             line = line.strip()
@@ -91,7 +91,7 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def get_time_stamps(embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDOW, SHIFT):
+def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, window, shift):
 
     embeddings = pkl.load(open(embeddings_file, 'rb'))
     all_uniq_files = list(embeddings.keys())
@@ -100,15 +100,15 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDO
     sample = all_uniq_files[0]
     logging.info("sample '{}' embeddings shape is {}\n".format(sample, embeddings[sample][0].shape))
 
-    SPEAKERS = {}
+    speakers = {}
     if type(reco2num) is int:
         for key in embeddings.keys():
-            SPEAKERS[key] = reco2num
+            speakers[key] = reco2num
     else:
         for key in open(reco2num).readlines():
             key = key.strip()
             wav_id, num = key.split()
-            SPEAKERS[wav_id] = int(num)
+            speakers[wav_id] = int(num)
 
     with open(manifest_path, 'r') as manifest:
         time_stamps = {}
@@ -121,20 +121,20 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDO
                 time_stamps[audio] = []
             start = offset
             slice_end = start + duration
-            base = math.ceil((duration - WINDOW) / SHIFT)
+            base = math.ceil((duration - window) / shift)
             slices = 1 if base < 0 else base + 1
             for slice_id in range(slices):
-                end = start + WINDOW
+                end = start + window
                 if end > slice_end:
                     end = slice_end
                 stamp = '{:.3f} {:.3f} '.format(start, end)
                 time_stamps[audio].append(stamp)
-                start = offset + (slice_id + 1) * SHIFT
+                start = offset + (slice_id + 1) * shift
 
-    return embeddings, time_stamps, SPEAKERS
+    return embeddings, time_stamps, speakers
 
 
-def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_DIR):
+def perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_dir):
 
     metric = DiarizationErrorRate(collar=0.25, skip_overlap=True)
     DER = 0
@@ -143,12 +143,12 @@ def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_
     all_reference = []
 
     for uniq_key in embeddings.keys():
-        NUM_SPEAKERS = SPEAKERS[uniq_key]
-        if NUM_SPEAKERS >= 2:
+        NUM_speakers = speakers[uniq_key]
+        if NUM_speakers >= 2:
             emb = embeddings[uniq_key]
             emb = np.asarray(emb)
 
-            cluster_method = SpectralClusterer(min_clusters=NUM_SPEAKERS, max_clusters=NUM_SPEAKERS)
+            cluster_method = SpectralClusterer(min_clusters=NUM_speakers, max_clusters=NUM_speakers)
             cluster_labels = cluster_method.predict(emb)
 
             lines = time_stamps[uniq_key]
@@ -159,19 +159,19 @@ def perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_
 
             a = get_contiguous_stamps(lines)
             labels = merge_stamps(a)
-            if OUT_RTTM_DIR:
-                labels_to_rttmfile(labels, uniq_key, OUT_RTTM_DIR)
+            if out_rttm_dir:
+                labels_to_rttmfile(labels, uniq_key, out_rttm_dir)
             hypothesis = labels_to_pyannote_object(labels)
             all_hypothesis.append(hypothesis)
 
-            if os.path.exists(GT_RTTM_DIR):
-                rttm_file = os.path.join(GT_RTTM_DIR, uniq_key + '.rttm')
+            if os.path.exists(gt_rttm_dir):
+                rttm_file = os.path.join(gt_rttm_dir, uniq_key + '.rttm')
                 ref_labels = rttm_to_labels(rttm_file)
                 reference = labels_to_pyannote_object(ref_labels)
                 all_reference.append(reference)
 
     if len(all_reference) == 0:
-        logging.warning("Please check if ground truth RTTMs were present in {}".format(GT_RTTM_DIR))
+        logging.warning("Please check if ground truth RTTMs were present in {}".format(gt_rttm_dir))
         logging.warning("Skipping calculation of Diariazation Error rate")
         return (0, 0, 0, 0)
 
@@ -192,16 +192,16 @@ def get_score(
     embeddings_file=None,
     reco2num=2,
     manifest_path=None,
-    SAMPLE_RATE=16000,
-    WINDOW=1.5,
-    SHIFT=0.75,
-    GT_RTTM_DIR=None,
-    OUT_RTTM_DIR=None,
+    sample_rate=16000,
+    window=1.5,
+    shift=0.75,
+    gt_rttm_dir=None,
+    out_rttm_dir=None,
 ):
 
-    embeddings, time_stamps, SPEAKERS = get_time_stamps(
-        embeddings_file, reco2num, manifest_path, SAMPLE_RATE, WINDOW, SHIFT
+    embeddings, time_stamps, speakers = get_time_stamps(
+        embeddings_file, reco2num, manifest_path, sample_rate, window, shift
     )
-    DER, CER, FA, MISS = perform_clustering(embeddings, time_stamps, SPEAKERS, GT_RTTM_DIR, OUT_RTTM_DIR)
+    DER, CER, FA, MISS = perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_dir)
 
     return DER, CER, FA, MISS

@@ -1,27 +1,27 @@
 name: &name "ClusterDiarizer"
 
-manifest_filepath: ???
+manifest_filepath: /data3/sdtest/test.json
 num_workers: 4
 sample_rate: &sample_rate 16000
 
 diarizer:
   cluster_method: "SpectralClustering"
   num_speakers: 2 # for each recording
-  out_dir: "outputs/diarization/"
+  out_dir: "/data3/sdtest/outputs/diarization/"
   groundtruth_RTTM_dir: ???
   shuffle: False
 
   vad:
-    model_path: ???
+    model_path: "/data3/sdtest/models/MatchboxNet_VAD_3x2.nemo"
     window_length_in_sec: 0.63
     shift_length_in_sec: 0.01
     threshold: 0.5
     vad_decision_smoothing: True
     smoothing_params:
-      method: "median" #change logic inside 
+      method: "median" #change logic inside
       overlap: 0.875
-  
+
   speaker_embeddings:
-    model_path: ???
+    model_path: "/data3/sdtest/models/SpeakerNet-M.nemo"
     window_length_in_sec: 1.5
     shift_length_in_sec: 0.75
