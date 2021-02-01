@@ -18,10 +18,15 @@ Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts in orde
 
 ```sh
 python <NEMO_ROOT>/scripts/process_asr_text_tokenizer.py \
-        --manifest=<path to train manifest files, seperated by commas> \
+        --manifest=<path to train manifest files, seperated by commas>
+        OR
+        --data_file=<path to text data, seperated by commas> \
         --data_root="<output directory>" \
         --vocab_size=<number of tokens in vocabulary> \
-        --tokenizer=<"bpe" or "wpe"> \
+        --tokenizer=<"spe" or "wpe"> \
+        --no_lower_case \
+        --spe_type=<"unigram", "bpe", "char" or "word"> \
+        --spe_character_coverage=1.0 \
         --log
 ```
 
@@ -33,7 +38,7 @@ python speech_to_text_bpe.py \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
     model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
     model.tokenizer.type=<either bpe or wpe> \
-    trainer.gpus=2 \
+    trainer.gpus=-1 \
     trainer.accelerator="ddp" \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
@@ -42,8 +47,8 @@ python speech_to_text_bpe.py \
     model.optim.weight_decay=0.0001 \
     model.optim.sched.warmup_ratio=0.05 \
     exp_manager.create_wandb_logger=True \
-    exp_manager.wandb_logger_kwargs.name="AN4-BPE-1024" \
-    exp_manager.wandb_logger_kwargs.project="AN4_BPE_1024"
+    exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
+    exp_manager.wandb_logger_kwargs.project="<Name of project>"
 ```
 """
 import pytorch_lightning as pl

@@ -145,7 +145,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         joint_config = self.joint.to_config_dict()
         new_joint_config = copy.deepcopy(joint_config)
-        new_joint_config['vocabulary'] = ListConfig(list(vocabulary.values()))
+        new_joint_config['vocabulary'] = ListConfig(list(vocabulary.keys()))
         new_joint_config['num_classes'] = len(vocabulary)
         del self.joint
         self.joint = EncDecRNNTBPEModel.from_config_dict(new_joint_config)
