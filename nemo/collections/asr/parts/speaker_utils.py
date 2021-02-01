@@ -136,9 +136,6 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
 
 def perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_dir):
 
-    metric = DiarizationErrorRate(collar=0.25, skip_overlap=True)
-    DER = 0
-
     all_hypothesis = []
     all_reference = []
 
@@ -170,10 +167,12 @@ def perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_
                 reference = labels_to_pyannote_object(ref_labels)
                 all_reference.append(reference)
 
-    if len(all_reference) == 0:
-        logging.warning("Please check if ground truth RTTMs were present in {}".format(gt_rttm_dir))
-        logging.warning("Skipping calculation of Diariazation Error rate")
-        return (-1, -1, -1, -1)
+    return all_reference, all_hypothesis
+
+
+def get_DER(all_reference, all_hypothesis):
+    metric = DiarizationErrorRate(collar=0.25, skip_overlap=True)
+    DER = 0
 
     for reference, hypothesis in zip(all_reference, all_hypothesis):
         metric(reference, hypothesis, detailed=True)
@@ -188,7 +187,7 @@ def perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_
     return DER, CER, FA, MISS
 
 
-def get_score(
+def perform_diarization(
     embeddings_file=None,
     reco2num=2,
     manifest_path=None,
@@ -202,6 +201,18 @@ def get_score(
     embeddings, time_stamps, speakers = get_time_stamps(
         embeddings_file, reco2num, manifest_path, sample_rate, window, shift
     )
-    DER, CER, FA, MISS = perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_dir)
 
-    return DER, CER, FA, MISS
+    all_reference, all_hypothesis = perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_dir)
+
+    if not os.path.exists(gt_rttm_dir):
+        logging.warning("Please check if ground truth RTTMs were present in {}".format(gt_rttm_dir))
+        logging.warning("Skipping calculation of Diariazation Error rate")
+
+    else:
+        DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
+        logging.info(
+            "Cumulative results of all the files:  FA: {:.3f}, MISS {:.3f} \n \
+                 Diarization ER: {:.3f}, Cofusion ER:{:.3f}".format(
+                FA, MISS, DER, CER
+            )
+        )

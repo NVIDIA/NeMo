@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
-import pytorch_lightning as pl
-from omegaconf.listconfig import ListConfig
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import ClusteringDiarizer

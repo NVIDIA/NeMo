@@ -19,10 +19,8 @@ import shutil
 import tarfile
 import tempfile
 from collections import defaultdict
-from os import path
 from typing import List, Optional
 
-import librosa
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.utilities import rank_zero_only
@@ -31,7 +29,7 @@ from tqdm import tqdm
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.mixins import DiarizationMixin
-from nemo.collections.asr.parts.speaker_utils import get_score
+from nemo.collections.asr.parts.speaker_utils import perform_diarization
 from nemo.collections.asr.parts.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_segment_table,
@@ -66,42 +64,26 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         # Convert config to support Hydra 1.0+ instantiation
         cfg = model_utils.maybe_update_config_version(cfg)
         self._cfg = cfg
+        self._out_dir = self._cfg.diarizer.out_dir
 
         # init vad model
         self.has_vad_model = False
         self.has_vad_model_to_save = False
-        self._oracle_vad = ""
-        if 'vad' in self._cfg.diarizer:
-            self._cfg.diarizer.vad.model_path = self._cfg.diarizer.vad.model_path
+
+        if self._cfg.diarizer.vad.model_path is not None:
             self._init_vad_model()
-
-        # else:
-        #     with open_dict(self._cfg):
-        #         self._cfg.diarizer.vad.model_path = None
-        #     self._vad_window_length_in_sec = 0
-        #     self._vad_shift_length_in_sec = 0
-
-        # to delete?
+            self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
+            self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
+            shutil.rmtree(self._vad_dir, ignore_errors=True)
+            os.makedirs(self._vad_dir)
 
         # init speaker model
         self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
             self._cfg.diarizer.speaker_embeddings.model_path
         )
-
-        # Clustering method
-        self._clustering_method = self._cfg.diarizer.cluster_method
         self._num_speakers = self._cfg.diarizer.num_speakers
-
-        self._out_dir = self._cfg.diarizer.out_dir
-        self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
         self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
-        # self._vad_in_file = os.path.join(self._vad_dir, "vad_in.json")
-        self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
-        # remove any existing files
-        shutil.rmtree(self._vad_dir, ignore_errors=True)
-        os.makedirs(self._vad_dir)
-
-        self._manifest_file = self._cfg.manifest_filepath
+        self._speaker_manifest_path = self._cfg.diarizer.speaker_embeddings.manifest_filepath
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     @classmethod
@@ -112,21 +94,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         with open_dict(self._cfg):
             self._cfg.diarizer.vad = vad_config
         self._init_vad_model()
-        #     .model_path = vad_config['model_path']
-        # self._cfg.diarizer.vad.window_length_in_sec = vad_config['window_length_in_sec']
-        # self._cfg.diarizer.vad.shift_length_in_sec = vad_config['shift_length_in_sec']
 
     def _init_vad_model(self):
-        if self._cfg.diarizer.vad.model_path.endswith('.json'):
-            self._oracle_vad = self._cfg.diarizer.vad.model_path
-        elif self._cfg.diarizer.vad.model_path.endswith('.nemo'):
+        if self._cfg.diarizer.vad.model_path.endswith('.nemo'):
             self._vad_model = EncDecClassificationModel.restore_from(self._cfg.diarizer.vad.model_path)
             self._vad_window_length_in_sec = self._cfg.diarizer.vad.window_length_in_sec
             self._vad_shift_length_in_sec = self._cfg.diarizer.vad.shift_length_in_sec
             self.has_vad_model_to_save = True
-            self.has_vad_model = True
-        elif self._cfg.diarizer.vad.model_path.endswith('.ckpt'):
-            self._vad_model = EncDecClassificationModel.load_from_checkpoint(self._cfg.diarizer.vad.model_path)
             self.has_vad_model = True
         else:
             raise ValueError("vad.model_path should be a .json file or .nemo or a .ckpt model file")
@@ -221,10 +195,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             num_workers=self._cfg.num_workers,
         )
 
-        # TODO confirm directory structure here! look above TODO
-        # [TODO] change here. Have a map to store audio filepath for speaker model
-        self._audio_dir = "/home/fjia/data/modified_callhome/callhome_16k"
+        self._audio_dir = self._cfg.diarizer.audio_directory
         write_vad_pred_to_manifest(table_out_dir, self._audio_dir, self._vad_out_file)
+        self._speaker_manifest_path = self._vad_out_file
 
     def _extract_embeddings(self, manifest_file):
         logging.info("Extracting embeddings for Diarization")
@@ -261,44 +234,40 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         pkl.dump(out_embeddings, open(self._embeddings_file, 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
+    def create_manifest(self, paths2audio_files: List[str]):
+
+        mfst_file = os.path.join(self._out_dir, 'manifest.json')
+        with open(mfst_file, 'w') as fp:
+            for audio_file in paths2audio_files:
+                audio_file = audio_file.strip()
+                entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': None, 'text': '-', 'label': 'infer'}
+                fp.write(json.dumps(entry) + '\n')
+
+        return mfst_file
+
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 1):
         """
         """
-        if 'vad' not in self._cfg.diarizer:
-            raise RuntimeError(
-                f"Diarization requires a .json file with speech segments or a .nemo file for a " f"VAD model "
-            )
-
-        if (paths2audio_files is None or len(paths2audio_files) == 0) and self._manifest_file is None:
-            return {}
 
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
 
-        # setup_test_data
-        # Work in tmp directory - will store manifest file there
-        # [TODO] do we need this?
-        if paths2audio_files is not None:
-            mfst_file = os.path.join(self._out_dir, 'manifest.json')
-            with open(mfst_file, 'w') as fp:
-                for audio_file in paths2audio_files:
-                    y, sr = librosa.load(audio_file)
-                    dur = librosa.get_duration(y=y, sr=sr)
-                    del y, sr
-                    entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': dur, 'text': '-'}
-                    fp.write(json.dumps(entry) + '\n')
-                    # todo make sure same folder
-        else:
-            mfst_file = self._manifest_file
-
-        config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'manifest': mfst_file}
-
         if self.has_vad_model:
             logging.info("Performing VAD")
+            if (paths2audio_files is None) and not os.path.isfile(self._cfg.diarizer.vad.paths2audio_files):
+
+                raise ValueError(" Please input valid files or provide path to audio files in config")
+            elif os.path.isfile(self._cfg.diarizer.vad.paths2audio_files):
+                paths2audio_files = []
+                with open(self._cfg.diarizer.vad.paths2audio_files, 'r') as path2file:
+                    for audiofile in path2file.readlines():
+                        audiofile = audiofile.strip()
+                        paths2audio_files.append(audiofile)
+
+            mfst_file = self.create_manifest(paths2audio_files)
             self._dont_auto_split = False
-            # [TODO] How can user control this? Should this go in the config?
             self._split_duration = 50
-            # Prepare manifest for streaming VAD
+            manifest_vad_input = mfst_file
 
             if not self._dont_auto_split:
                 logging.info("Split long audio file to avoid CUDA memory issue")
@@ -318,17 +287,15 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self._setup_vad_test_data(manifest_vad_input)
             self._run_vad(manifest_vad_input)
         else:
-            if os.path.exists(self._oracle_vad):
-                shutil.copy2(self._oracle_vad, self._vad_out_file)
-            else:
+            if not os.path.exists(self._speaker_manifest_path):
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
-        self._extract_embeddings(self._vad_out_file)
+        self._extract_embeddings(self._speaker_manifest_path)
         rttm_dir = self._cfg.diarizer.groundtruth_rttm_dir
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
-        DER, CER, FA, MISS = get_score(
+        perform_diarization(
             embeddings_file=self._embeddings_file,
             reco2num=self._num_speakers,
             manifest_path=self._vad_out_file,
@@ -337,13 +304,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
             gt_rttm_dir=rttm_dir,
             out_rttm_dir=out_rttm_dir,
-        )
-
-        logging.info(
-            "Cumulative results of all the files:  FA: {:.3f}, MISS {:.3f} \n \
-             Diarization ER: {:.3f}, Cofusion ER:{:.3f}".format(
-                FA, MISS, DER, CER
-            )
         )
 
     @staticmethod
@@ -384,7 +344,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
     @staticmethod
     def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
-        if not path.exists(path2file):
+        if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
         tar = tarfile.open(path2file, "r:gz")
         tar.extractall(path=out_folder)

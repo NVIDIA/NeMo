@@ -1,18 +1,17 @@
 name: &name "ClusterDiarizer"
 
-manifest_filepath: /data3/sdtest/test.json
 num_workers: 4
 sample_rate: &sample_rate 16000
 
 diarizer:
-  cluster_method: "SpectralClustering"
   num_speakers: 2 # for each recording
   out_dir: ???
   groundtruth_rttm_dir: ""
-  shuffle: False
+  audio_directory: ???
 
   vad:
-    model_path: ???
+    paths2audio_files: '' #file containing paths to audio files for inference
+    model_path: null
     window_length_in_sec: 0.63
     shift_length_in_sec: 0.01
     threshold: 0.5
@@ -22,6 +21,7 @@ diarizer:
       overlap: 0.875
 
   speaker_embeddings:
+    manifest_filepath: null
     model_path: ???
     window_length_in_sec: 1.5
     shift_length_in_sec: 0.75
