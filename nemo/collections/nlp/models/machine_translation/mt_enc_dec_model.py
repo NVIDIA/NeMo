@@ -122,18 +122,18 @@ class MTEncDecModel(EncDecNLPModel):
             use_transformer_init=cfg.head.use_transformer_init,
         )
 
-        self.beam_search = BeamSearchSequenceGenerator(
-            embedding=self.decoder.embedding,
-            decoder=self.decoder.decoder,
-            log_softmax=self.log_softmax,
-            max_sequence_length=self.decoder.max_sequence_length,
-            beam_size=cfg.beam_size,
-            bos=self.decoder_tokenizer.bos_id,
-            pad=self.decoder_tokenizer.pad_id,
-            eos=self.decoder_tokenizer.eos_id,
-            len_pen=cfg.len_pen,
-            max_delta_length=cfg.max_generation_delta,
-        )
+        # self.beam_search = BeamSearchSequenceGenerator(
+        #     embedding=self.decoder.embedding,
+        #     decoder=self.decoder.decoder,
+        #     log_softmax=self.log_softmax,
+        #     max_sequence_length=self.decoder.max_sequence_length,
+        #     beam_size=cfg.beam_size,
+        #     bos=self.decoder_tokenizer.bos_id,
+        #     pad=self.decoder_tokenizer.pad_id,
+        #     eos=self.decoder_tokenizer.eos_id,
+        #     len_pen=cfg.len_pen,
+        #     max_delta_length=cfg.max_generation_delta,
+        # )
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.decoder.embedding.token_embedding.weight
@@ -161,7 +161,19 @@ class MTEncDecModel(EncDecNLPModel):
             log_probs = None
         beam_results = None
         if not self.training:
-            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+            beam_search = BeamSearchSequenceGenerator(
+                embedding=self.decoder.embedding,
+                decoder=self.decoder.decoder,
+                log_softmax=self.log_softmax,
+                max_sequence_length=self.decoder.max_sequence_length,
+                beam_size=self._cfg.beam_size,
+                bos=self.decoder_tokenizer.bos_id,
+                pad=self.decoder_tokenizer.pad_id,
+                eos=self.decoder_tokenizer.eos_id,
+                len_pen=self._cfg.len_pen,
+                max_delta_length=self._cfg.max_generation_delta,
+            )
+            beam_results = beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
             beam_results = self.filter_predicted_ids(beam_results)
         return log_probs, beam_results
 
@@ -371,7 +383,19 @@ class MTEncDecModel(EncDecNLPModel):
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
                 src_mask = torch.ones_like(src)
                 src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-                beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+                beam_search = BeamSearchSequenceGenerator(
+                    embedding=self.decoder.embedding,
+                    decoder=self.decoder.decoder,
+                    log_softmax=self.log_softmax,
+                    max_sequence_length=self.decoder.max_sequence_length,
+                    beam_size=self._cfg.beam_size,
+                    bos=self.decoder_tokenizer.bos_id,
+                    pad=self.decoder_tokenizer.pad_id,
+                    eos=self.decoder_tokenizer.eos_id,
+                    len_pen=self._cfg.len_pen,
+                    max_delta_length=self._cfg.max_generation_delta,
+                )
+                beam_results = beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
@@ -390,7 +414,7 @@ class MTEncDecModel(EncDecNLPModel):
         pass
 
     def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
-        logging.info('overriding ddp to set find_unused_parameters to True')
+        logging.info(f'overriding ddp to set find_unused_parameters to {self._cfg.find_unused_parameters}')
         model = LightningDistributedDataParallel(
             model, device_ids=device_ids, find_unused_parameters=self._cfg.find_unused_parameters
         )

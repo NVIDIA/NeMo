@@ -65,7 +65,7 @@ class GreedySequenceGenerator:
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def _one_step_forward(
         self,
         decoder_input_ids=None,
@@ -164,9 +164,11 @@ class GreedySequenceGenerator:
         return tgt
 
     # TODO: add Neural Types
-    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
-        with self.as_frozen():
-            return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
+    # def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+    def __call__(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+        # with self.as_frozen():
+        #     return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
+        return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
 
 
 class TopKSequenceGenerator(GreedySequenceGenerator):
@@ -188,7 +190,7 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         self.beam_size = beam_size
         self.temp = temperature
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def _one_step_forward(
         self,
         decoder_input_ids=None,
@@ -241,7 +243,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
