@@ -118,6 +118,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         conv_mask: bool = True,
         frame_splicing: int = 1,
         init_mode: Optional[str] = 'xavier_uniform',
+        quantize: bool = False,
     ):
         super().__init__()
         if isinstance(jasper, ListConfig):
@@ -172,6 +173,7 @@ class ConvASREncoder(NeuralModule, Exportable):
                     se_interpolation_mode=se_interpolation_mode,
                     kernel_size_factor=kernel_size_factor,
                     stride_last=stride_last,
+                    quantize=quantize,
                 )
             )
             feat_in = lcfg['filters']

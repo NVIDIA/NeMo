@@ -217,6 +217,7 @@ class SpeechLabel(_Collection):
         max_duration: Optional[float] = None,
         max_number: Optional[int] = None,
         do_sort_by_duration: bool = False,
+        index_by_file_id: bool = False,
     ):
         """Instantiates audio-label manifest with filters and preprocessing.
 
@@ -229,8 +230,11 @@ class SpeechLabel(_Collection):
             max_duration: Maximum duration to keep entry with (default: None).
             max_number: Maximum number of samples to collect.
             do_sort_by_duration: True if sort samples list by duration.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
         """
 
+        if index_by_file_id:
+            self.mapping = {}
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
         for audio_file, duration, command, offset in zip(audio_files, durations, labels, offsets):
@@ -245,12 +249,19 @@ class SpeechLabel(_Collection):
 
             data.append(output_type(audio_file, duration, command, offset))
 
+            if index_by_file_id:
+                file_id, _ = os.path.splitext(os.path.basename(audio_file))
+                self.mapping[file_id] = len(data) - 1
+
             # Max number of entities filter.
             if len(data) == max_number:
                 break
 
         if do_sort_by_duration:
-            data.sort(key=lambda entity: entity.duration)
+            if index_by_file_id:
+                logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
+            else:
+                data.sort(key=lambda entity: entity.duration)
 
         logging.info(
             "Filtered duration for loading collection is %f.", duration_filtered,
