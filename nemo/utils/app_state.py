@@ -36,6 +36,15 @@ class AppState(metaclass=Singleton):
 
         self._random_seed = None
 
+        # Logging info
+        self._log_dir = None
+        self._exp_dir = None
+        self._name = None
+        self._checkpoint_name = None
+        self._version = None
+        self._create_checkpoint_callback = None
+        self._checkpoint_callback_params = None
+
     @property
     def device_id(self):
         """ Property returns the device_id
@@ -211,3 +220,108 @@ class AppState(metaclass=Singleton):
                 seed (int):  Random seed.
         """
         self._random_seed = seed
+
+    @property
+    def log_dir(self):
+        """Returns the log_dir set by exp_manager.
+        """
+        return self._log_dir
+
+    @log_dir.setter
+    def log_dir(self, dir):
+        """Sets the log_dir property.
+
+        Args:
+            dir (str): Log_dir set by exp_manager.
+        """
+        self._log_dir = dir
+
+    @property
+    def exp_dir(self):
+        """Returns the exp_dir set by exp_manager.
+        """
+        return self._exp_dir
+
+    @exp_dir.setter
+    def exp_dir(self, dir):
+        """Sets the log_dir property.
+
+        Args:
+            dir (str): Log_dir set by exp_manager.
+        """
+        self._exp_dir = dir
+
+    @property
+    def name(self):
+        """Returns the name set by exp_manager.
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        """Sets the name property.
+
+        Args:
+            dir (str): name set by exp_manager.
+        """
+        self._name = name
+
+    @property
+    def checkpoint_name(self):
+        """Returns the name set by exp_manager.
+        """
+        return self._checkpoint_name
+
+    @checkpoint_name.setter
+    def checkpoint_name(self, name):
+        """Sets the name property.
+
+        Args:
+            dir (str): name set by exp_manager.
+        """
+        self._checkpoint_name = name
+
+    @property
+    def version(self):
+        """Returns the version set by exp_manager.
+        """
+        return self._version
+
+    @version.setter
+    def version(self, version):
+        """Sets the version property.
+
+        Args:
+            dir (str): version set by exp_manager.
+        """
+        self._version = version
+
+    @property
+    def create_checkpoint_callback(self):
+        """Returns the create_checkpoint_callback set by exp_manager.
+        """
+        return self._create_checkpoint_callback
+
+    @create_checkpoint_callback.setter
+    def create_checkpoint_callback(self, create_checkpoint_callback):
+        """Sets the create_checkpoint_callback property.
+
+        Args:
+            dir (bool): create_checkpoint_callback set by exp_manager.
+        """
+        self._create_checkpoint_callback = create_checkpoint_callback
+
+    @property
+    def checkpoint_callback_params(self):
+        """Returns the version set by exp_manager.
+        """
+        return self._checkpoint_callback_params
+
+    @checkpoint_callback_params.setter
+    def checkpoint_callback_params(self, params):
+        """Sets the name property.
+
+        Args:
+            params (dict): checkpoint_callback_params set by exp_manager.
+        """
+        self._checkpoint_callback_params = params

@@ -37,6 +37,14 @@ python ./speaker_reco.py --config-path='conf' --config-name='SpeakerNet_recognit
     exp_manager.exp_dir='./speaker_exps'
 
 See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb for notebook tutorial
+
+Optional: Use tarred dataset to speech up data loading.
+   Prepare ONE manifest that contains all training data you would like to include. Validation should use non-tarred dataset.
+   Note that it's possible that tarred datasets impacts validation scores because it drop values in order to have same amount of files per tarfile; 
+   Scores might be off since some data is missing. 
+   
+   Use the `convert_to_tarred_audio_dataset.py` script under <NEMO_ROOT>/scripts in order to prepare tarred audio dataset.
+   For details, please see TarredAudioToClassificationLabelDataset in <NEMO_ROOT>/nemo/collections/asr/data/audio_to_label.py
 """
 
 seed_everything(42)
