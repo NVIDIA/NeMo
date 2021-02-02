@@ -159,7 +159,6 @@ def get_vad_stream_status(data):
 def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len, shift_len, num_workers):
     # [TODO] docstring kwargs.
 
-
     p = Pool(processes=num_workers)
     frame_filepathlist = glob.glob(frame_pred_dir + "/*.frame")
 
@@ -340,6 +339,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     seg_table.to_csv(save_path, sep='\t', index=False, header=False)
     return save_path
 
+
 def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
     vad_files = glob.glob(vad_directory + "/*.txt")
     with open(manifest_file, 'w') as outfile:
@@ -359,22 +359,23 @@ def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
 
             f.close()
 
+
 # TODO reuse/merge  Nithin's code in speaker_utils
 def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file):
-   
-    pred = pd.read_csv(vad_table_filepath, sep ="\t", header=None)  
+
+    pred = pd.read_csv(vad_table_filepath, sep="\t", header=None)
     label = pd.read_csv(groundtruth_RTTM_file, sep=" ", delimiter=None, header=None)
     label = label.rename(columns={3: "start", 4: "dur", 7: "speaker"})
 
     # construct reference
     reference = Annotation()
     for index, row in label.iterrows():
-        reference[Segment(row['start'],row['start'] + row['dur'])] = row['speaker']   
+        reference[Segment(row['start'], row['start'] + row['dur'])] = row['speaker']
 
     # construct hypothsis
     hypothesis = Annotation()
     for index, row in pred.iterrows():
-        if row[2] == 'speech':    
+        if row[2] == 'speech':
             hypothesis[Segment(row[0], row[1])] = 'Speech'
     return reference, hypothesis
 
@@ -385,39 +386,32 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_dir, groundtruth_RTTM_dir):
     for threshold in thresholds:
         min_der = 1
         metric = detection.DetectionErrorRate()
-        filenames = [os.path.basename(f).split(".")[0] for f in glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))]
+        filenames = [
+            os.path.basename(f).split(".")[0] for f in glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))
+        ]
         for filename in filenames:
-            vad_pred_filepath = os.path.join(vad_pred_dir, filename +'.median')
+            vad_pred_filepath = os.path.join(vad_pred_dir, filename + '.median')
             table_out_dir = os.path.join(vad_pred_dir, "table_output_" + str(threshold))
 
             if not os.path.exists(table_out_dir):
                 os.mkdir(table_out_dir)
-            per_args = {
-                "threshold": threshold,
-                "shift_len": 0.01,
-                "out_dir": table_out_dir 
-                }
+            per_args = {"threshold": threshold, "shift_len": 0.01, "out_dir": table_out_dir}
 
             vad_table_filepath = generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
-            groundtruth_RTTM_file = os.path.join(groundtruth_RTTM_dir, filename +'.rttm')
+            groundtruth_RTTM_file = os.path.join(groundtruth_RTTM_dir, filename + '.rttm')
 
-            reference, hypothesis = vad_construct_pyannote_object_per_file(
-                vad_table_filepath, 
-                groundtruth_RTTM_file)
-            metric(reference, hypothesis) # accumulation
+            reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
+            metric(reference, hypothesis)  # accumulation
         report = metric.report(display=False)
         DetER = report.iloc[[-1]][('detection error rate', '%')].item()
-        FA = report.iloc[[-1]][('false alarm', '%')].item(),
-        MISS = report.iloc[[-1]][('miss', '%')].item() 
+        FA = (report.iloc[[-1]][('false alarm', '%')].item(),)
+        MISS = report.iloc[[-1]][('miss', '%')].item()
         threshold_perf[threshold] = {'DetER': DetER, 'FA': FA, 'MISS': MISS}
         print(threshold, threshold_perf[threshold])
         del report
-        metric.reset() # reset internal accumulator 
+        metric.reset()  # reset internal accumulator
         if DetER < min_der:
             min_der = DetER
             best_threhsold = threshold
-     # return threshold with smallest der [TODO] return full result to user for flexible use
+    # return threshold with smallest der [TODO] return full result to user for flexible use
     return best_threhsold
-       
-
-

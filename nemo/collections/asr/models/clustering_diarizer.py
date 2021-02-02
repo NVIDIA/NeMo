@@ -16,6 +16,7 @@ import json
 import os
 import pickle as pkl
 import shutil
+import sys
 import tarfile
 import tempfile
 from collections import defaultdict
@@ -29,7 +30,7 @@ from tqdm import tqdm
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.mixins import DiarizationMixin
-from nemo.collections.asr.parts.speaker_utils import audio_rttm_map, perform_diarization
+from nemo.collections.asr.parts.speaker_utils import audio_rttm_map, perform_diarization, write_rttm2manifest
 from nemo.collections.asr.parts.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_segment_table,
@@ -186,8 +187,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             if status[i] == 'end' or status[i] == 'single':
                 all_len = 0
 
-        if self._cfg.diarizer.vad.vad_decision_smoothing:
-            #  [TODO] discribe overlap subsequences.
+        if not self._cfg.diarizer.vad.vad_decision_smoothing:
+            # Shift the window by 10ms to generate the frame and use the prediction of the window to represent the label for the frame;
+            self.vad_pred_dir = self._vad_dir
+
+        else:
+            # Generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
+            # smoothing_method would be either in majority vote (median) or average (mean)
             logging.info("Generating predictions with overlapping input segments")
             smoothing_pred_dir = generate_overlap_vad_seq(
                 frame_pred_dir=self._vad_dir,
@@ -198,11 +204,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 num_workers=self._cfg.num_workers,
             )
             self.vad_pred_dir = smoothing_pred_dir
-        else:
-            # [TODO] explain how we shift window to generate frame level prediction
-            self.vad_pred_dir = self._vad_dir
 
-            # [TODO] move preds in  vad_dir to be in a frame folder, so we could have frame and overlapped folder
         logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=self.vad_pred_dir,
@@ -211,8 +213,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             num_workers=self._cfg.num_workers,
         )
 
-        self._audio_dir = self._cfg.diarizer.audio_directory
-        write_vad_pred_to_manifest(table_out_dir, self._audio_dir, self._vad_out_file, self.AUDIO_RTTM_MAP)
+        vad_table_list = [os.path.join(table_out_dir, key + ".txt") for key in self.AUDIO_RTTM_MAP]
+        # self.paths2audio_files?  [TODO!] check oracle vad
+        paths2audio_files = [self.AUDIO_RTTM_MAP[key]['audio_path'] for key in self.AUDIO_RTTM_MAP]
+
+        print(type(paths2audio_files))
+        write_rttm2manifest(paths2audio_files, vad_table_list, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
     def _extract_embeddings(self, manifest_file):
@@ -250,8 +256,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         pkl.dump(out_embeddings, open(self._embeddings_file, 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
-    def create_manifest(self, paths2audio_files: List[str]):
-
+    def create_manifest(self, paths2audio_files):
         mfst_file = os.path.join(self._out_dir, 'manifest.json')
         with open(mfst_file, 'w') as fp:
             for audio_file in paths2audio_files:
@@ -307,6 +312,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
         self._extract_embeddings(self._speaker_manifest_path)
+        # TODO change here.
         rttm_dir = self._cfg.diarizer.groundtruth_rttm_dir
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)

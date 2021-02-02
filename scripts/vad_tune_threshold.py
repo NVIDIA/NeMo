@@ -11,14 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import argparse
+
+import numpy as np
+
 from nemo.collections.asr.parts.vad_utils import vad_tune_threshold_on_dev
-import numpy as np 
-
-thresholds = np.arange(0.7,1,0.1)
-vad_pred_dir = "/home/fjia/code/NeMo-fei/examples/speaker_recognition/outputs_150/diarization/vad_outputs/overlap_smoothing_output_median_0.875"
-groundtruth_RTTM_dir="/home/fjia/data/modified_callhome/RTTMS/CHI109/" 
-
+from nemo.utils import logging
 
 if __name__ == "__main__":
-    best_threhsold = vad_tune_threshold_on_dev(thresholds, vad_pred_dir, groundtruth_RTTM_dir)
-    print(best_threhsold)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--threhold_range", help="range of threshold in list [START, END, STEP] to be tuned on", required=True
+    )
+    parser.add_argument("--vad_pred_dir", help="Directory of prediction of vad.", required=True)
+    parser.add_argument("--groundtruth_RTTM_dir", help="Directory of grountruth rttm files", type=str, required=True)
+    args = parser.parse_args()
+
+    try:
+        start, stop, step = args.threhold_range
+        thresholds = np.arange(start, stop, step)
+    except:
+        raise ValueError("Theshold input is invalid! Please enter it as a [START, STOP, STEP] list")
+
+    best_threhsold = vad_tune_threshold_on_dev(thresholds, args.vad_pred_dir, args.groundtruth_RTTM_dir)
+    logging.info(f"Best threshold selected from {thresholds} is {best_threhsold}!")

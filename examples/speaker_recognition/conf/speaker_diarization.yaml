@@ -13,7 +13,7 @@ diarizer:
     model_path: null
     window_length_in_sec: 0.63
     shift_length_in_sec: 0.01
-    threshold: 0.5
+    threshold: 0.5 # tune threshold on dev set. Check scripts/vad_tune_threshold.py
     vad_decision_smoothing: True
     smoothing_params:
       method: "median" #change logic inside

@@ -28,15 +28,18 @@ from nemo.utils import logging
 
 def audio_rttm_map(audio_file_list, rttm_file_list=None):
     rttm_notfound = False
-    if type(audio_file_list) is List:
+    if type(audio_file_list) is list:
         audio_files = audio_file_list
     else:
         audio_pointer = open(audio_file_list, 'r')
-        audio_files = audio_pointer.readlines()
+        audio_files = audio_pointer.read().splitlines()
 
-    if not rttm_file_list:
-        rttm_pointer = open(rttm_file_list, 'r')
-        rttm_files = rttm_pointer.readlines()
+    if rttm_file_list:
+        if type(rttm_file_list) is list:
+            rttm_files = rttm_file_list
+        else:
+            rttm_pointer = open(rttm_file_list, 'r')
+            rttm_files = rttm_pointer.read().splitlines()
     else:
         rttm_notfound = True
         rttm_files = ['-'] * len(audio_files)
@@ -256,3 +259,39 @@ def perform_diarization(
                 FA, MISS, DER, CER
             )
         )
+
+
+def write_rttm2manifest(paths2audio_files, path2rttm_files, manifest_file):
+    AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, path2rttm_files)
+
+    with open(manifest_file, 'w') as outfile:
+        for key in AUDIO_RTTM_MAP:
+            f = open(AUDIO_RTTM_MAP[key]['rttm_path'], 'r')
+            audio_path = AUDIO_RTTM_MAP[key]['audio_path']
+            lines = f.readlines()
+            time_tup = (-1, -1)
+            for line in lines:
+                vad_out = line.strip().split()
+                if len(vad_out) > 3:
+                    start, dur, activity = float(vad_out[3]), float(vad_out[4]), vad_out[7]
+                else:
+                    start, dur, activity = float(vad_out[0]), float(vad_out[1]), vad_out[2]
+                start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
+
+                if time_tup[0] >= 0 and start > time_tup[1]:
+                    dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
+                    meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
+                    json.dump(meta, outfile)
+                    outfile.write("\n")
+                    time_tup = (start, start + dur)
+                else:
+                    if time_tup[0] == -1:
+                        time_tup = (start, start + dur)
+                    else:
+                        time_tup = (min(time_tup[0], start), max(time_tup[1], start + dur))
+            dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
+            meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
+            json.dump(meta, outfile)
+            outfile.write("\n")
+            f.close()
+    return manifest_file
