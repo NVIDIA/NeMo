@@ -135,10 +135,12 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
+        self.task = 'identification'
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
         val_data_layer_config['labels'] = self.dataset.labels
+        self.task = 'identification'
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
@@ -150,7 +152,7 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
             self.time_length = test_data_layer_params.get('time_length', 1.5)
             self.shift_length = test_data_layer_params.get('shift_length', 0.75)
         else:
-            self.task = 'verification'
+            self.task = 'identification'
 
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
