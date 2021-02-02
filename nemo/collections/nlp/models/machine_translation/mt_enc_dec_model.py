@@ -154,28 +154,31 @@ class MTEncDecModel(EncDecNLPModel):
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         src_hiddens = self.encoder(src, src_mask)
-        if tgt is not None:
-            tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
-            log_probs = self.log_softmax(hidden_states=tgt_hiddens)
-        else:
-            log_probs = None
-        beam_results = None
-        if not self.training:
-            beam_search = BeamSearchSequenceGenerator(
-                embedding=self.decoder.embedding,
-                decoder=self.decoder.decoder,
-                log_softmax=self.log_softmax,
-                max_sequence_length=self.decoder.max_sequence_length,
-                beam_size=self._cfg.beam_size,
-                bos=self.decoder_tokenizer.bos_id,
-                pad=self.decoder_tokenizer.pad_id,
-                eos=self.decoder_tokenizer.eos_id,
-                len_pen=self._cfg.len_pen,
-                max_delta_length=self._cfg.max_generation_delta,
-            )
-            beam_results = beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-            beam_results = self.filter_predicted_ids(beam_results)
-        return log_probs, beam_results
+        tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
+        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        # if tgt is not None:
+        #     tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
+        #     log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        # else:
+        #     log_probs = None
+        # beam_results = None
+        # if not self.training:
+        #     beam_search = BeamSearchSequenceGenerator(
+        #         embedding=self.decoder.embedding,
+        #         decoder=self.decoder.decoder,
+        #         log_softmax=self.log_softmax,
+        #         max_sequence_length=self.decoder.max_sequence_length,
+        #         beam_size=self._cfg.beam_size,
+        #         bos=self.decoder_tokenizer.bos_id,
+        #         pad=self.decoder_tokenizer.pad_id,
+        #         eos=self.decoder_tokenizer.eos_id,
+        #         len_pen=self._cfg.len_pen,
+        #         max_delta_length=self._cfg.max_generation_delta,
+        #     )
+        #     beam_results = beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+        #     beam_results = self.filter_predicted_ids(beam_results)
+        # return log_probs, beam_results
+        return log_probs
 
     def training_step(self, batch, batch_idx):
         """
@@ -188,14 +191,12 @@ class MTEncDecModel(EncDecNLPModel):
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
-        src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        src_ids, src_mask, tgt_ids, tgt_mask, labels, _ = batch
+        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        # training_perplexity = self.training_perplexity(logits=log_probs)
         tensorboard_logs = {
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
-            # "train_ppl": training_perplexity,
         }
         return {'loss': train_loss, 'log': tensorboard_logs}
 
@@ -205,8 +206,26 @@ class MTEncDecModel(EncDecNLPModel):
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
-        src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        src_ids, src_mask, tgt_ids, tgt_mask, labels, sent_ids = batch
+        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+
+        src_hiddens = self.encoder(src_ids, src_mask)
+
+        beam_search = BeamSearchSequenceGenerator(
+            embedding=self.decoder.embedding,
+            decoder=self.decoder.decoder,
+            log_softmax=self.log_softmax,
+            max_sequence_length=self.decoder.max_sequence_length,
+            beam_size=self._cfg.beam_size,
+            bos=self.decoder_tokenizer.bos_id,
+            pad=self.decoder_tokenizer.pad_id,
+            eos=self.decoder_tokenizer.eos_id,
+            len_pen=self._cfg.len_pen,
+            max_delta_length=self._cfg.max_generation_delta,
+        )
+        beam_results = beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+        beam_results = self.filter_predicted_ids(beam_results)
+
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
