@@ -19,15 +19,16 @@ from omegaconf import MISSING
 
 import nemo.core.classes.dataset
 from nemo.collections.asr.modules.audio_preprocessing import (
-    AudioToMelSpectrogramPreprocessorConfig,
+    AudioToMFCCPreprocessorConfig,
+    CropOrPadSpectrogramAugmentationConfig,
     SpectrogramAugmentationConfig,
 )
-from nemo.collections.asr.modules.conv_asr import ConvASRDecoderConfig, ConvASREncoderConfig
+from nemo.collections.asr.modules.conv_asr import ConvASRDecoderClassificationConfig, ConvASREncoderConfig
 from nemo.core.config import modelPT as model_cfg
 
 
 @dataclass
-class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
+class EncDecClassificationDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     manifest_filepath: Optional[str] = None
     sample_rate: int = MISSING
     labels: List[str] = MISSING
@@ -44,44 +45,51 @@ class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     augmentor: Optional[Dict[str, Any]] = None
     max_duration: Optional[float] = None
     min_duration: Optional[float] = None
-    max_utts: int = 0
-    blank_index: int = -1
-    unk_index: int = -1
-    normalize: bool = False
-    trim: bool = True
     load_audio: bool = True
-    parser: Optional[str] = 'en'
-    add_misc: bool = False
-    eos_id: Optional[int] = None
-    bos_id: Optional[int] = None
-    pad_id: int = 0
-    use_start_end_token: bool = False
+
+    # VAD Optional
+    vad_stream: Optional[bool] = None
+    time_length: float = 0.31
+    shift_length: float = 0.01
+    normalize_audio: bool = False
 
 
 @dataclass
-class EncDecCTCConfig(model_cfg.ModelConfig):
+class EncDecClassificationConfig(model_cfg.ModelConfig):
     # Model global arguments
     sample_rate: int = 16000
     repeat: int = 1
     dropout: float = 0.0
-    separable: bool = False
+    separable: bool = True
+    kernel_size_factor: float = 1.0
     labels: List[str] = MISSING
+    timesteps: int = MISSING
 
     # Dataset configs
-    train_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=True, trim_silence=True)
-    validation_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
-    test_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
+    train_ds: EncDecClassificationDatasetConfig = EncDecClassificationDatasetConfig(
+        manifest_filepath=None, shuffle=True, trim_silence=False
+    )
+    validation_ds: EncDecClassificationDatasetConfig = EncDecClassificationDatasetConfig(
+        manifest_filepath=None, shuffle=False
+    )
+    test_ds: EncDecClassificationDatasetConfig = EncDecClassificationDatasetConfig(
+        manifest_filepath=None, shuffle=False
+    )
 
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
 
     # Model component configs
-    preprocessor: AudioToMelSpectrogramPreprocessorConfig = AudioToMelSpectrogramPreprocessorConfig()
+    preprocessor: AudioToMFCCPreprocessorConfig = AudioToMFCCPreprocessorConfig()
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
+    crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = CropOrPadSpectrogramAugmentationConfig(
+        audio_length=timesteps
+    )
+
     encoder: ConvASREncoderConfig = ConvASREncoderConfig()
-    decoder: ConvASRDecoderConfig = ConvASRDecoderConfig()
+    decoder: ConvASRDecoderClassificationConfig = ConvASRDecoderClassificationConfig()
 
 
 @dataclass
-class EncDecCTCModelConfig(model_cfg.NemoConfig):
-    model: EncDecCTCConfig = EncDecCTCConfig()
+class EncDecClassificationModelConfig(model_cfg.NemoConfig):
+    model: EncDecClassificationConfig = EncDecClassificationConfig()
