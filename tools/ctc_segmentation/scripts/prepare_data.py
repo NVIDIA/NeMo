@@ -120,7 +120,7 @@ def split_text(
 ):
     """
     Breaks down the in_file roughly into sentences. Each sentence will be on a separate line.
-    Written form of numbers will be converted to its spoken equivalent, OOV punctuation will be removed.
+    Written form of the numbers will be converted to its spoken equivalent, OOV punctuation will be removed.
 
     Args:
         in_file: path to original transcript
@@ -128,15 +128,16 @@ def split_text(
         vocabulary: ASR model vocabulary
         language: text language
         remove_brackets: Set to True if square [] and curly {} brackets should be removed from text.
-            Text in square/curly brackets often contains unaudibale fragments like notes or translations
+            Text in square/curly brackets often contains inaudible fragments like notes or translations
         do_lower_case: flag that determines whether to apply lower case to the in_file text
-        min_length: Min number of chars of the text segment for alignment
+        min_length: Min number of chars of the text segment for alignment. Short segments will be combined to be
+            at least min_length (not recommended for multi speaker data).
         max_length: Max number of chars of the text segment for alignment
         additional_split_symbols: Additional symbols to use for sentence split if eos sentence split resulted in
-            sequence longer than --max_length
-        use_nemo_normalization: Set to True to use NeMo normalization tool to convert numbers from written to spoken format.
-            Normalization using num2words will be applied afterwards to make sure there are no numbers present in
-            the text, otherwise they will be replaced with a space and that could deteriorate segmentation results.
+            segments longer than --max_length
+        use_nemo_normalization: Set to True to use NeMo normalization tool to convert numbers from written to spoken
+            format. Normalization using num2words will be applied afterwards to make sure there are no numbers present
+            in the text, otherwise they will be replaced with a space and that could deteriorate segmentation results.
     """
 
     print(f'Splitting text in {in_file} into sentences.')
