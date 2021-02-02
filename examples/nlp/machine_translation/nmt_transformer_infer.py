@@ -38,6 +38,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=256, help="")
     parser.add_argument("--beam_size", type=int, default=4, help="")
     parser.add_argument("--len_pen", type=float, default=0.6, help="")
+    parser.add_argument("--max_delta_length", type=int, default=5, help="")
     parser.add_argument("--target_lang", type=str, default="en", help="")
     parser.add_argument("--source_lang", type=str, default="en", help="")
 
@@ -53,6 +54,7 @@ def main():
 
     model.beam_search.beam_size = args.beam_size
     model.beam_search.len_pen = args.len_pen
+    model.beam_search.max_delta_length = args.max_delta_length
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -64,7 +66,7 @@ def main():
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
-                res = model.translate(text=src_text)
+                res = model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
                 if len(res) != len(src_text):
                     print(len(res))
                     print(len(src_text))
