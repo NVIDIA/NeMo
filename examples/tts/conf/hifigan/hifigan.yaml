@@ -56,7 +56,7 @@ model:
     stft_exact_pad: true
     stft_conv: false
     window: hann
-    use_grads: true
+    use_grads: false
 
   optim:
     lr: 0.0002

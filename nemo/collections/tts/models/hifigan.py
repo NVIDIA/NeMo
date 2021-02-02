@@ -31,13 +31,15 @@ from nemo.utils import logging
 
 class HifiGanModel(Vocoder):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        """ TODO
-        """
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
+        # use a different melspec extractor because:
+        # 1. we need to pass grads
+        # 2. we need remove fmax limitation
+        self.trg_melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
         self.generator = instantiate(cfg.generator)
         self.mpd = MultiPeriodDiscriminator()
         self.msd = MultiScaleDiscriminator()
@@ -59,12 +61,10 @@ class HifiGanModel(Vocoder):
         self.scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
             self.optim_g,
             gamma=self._cfg.optim.lr_decay,
-            last_epoch=-1  # TODO: adjust last_epoch in case we load a checkpoint
         )
         self.scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
             self.optim_d,
             gamma=self._cfg.optim.lr_decay,
-            last_epoch=-1  # TODO: adjust last_epoch in case we load a checkpoint
         )
 
         return [self.optim_g, self.optim_d], [self.scheduler_g, self.scheduler_d]
@@ -98,7 +98,7 @@ class HifiGanModel(Vocoder):
         audio = audio.unsqueeze(1)
 
         audio_pred = self.generator(x=audio_mel)
-        audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
+        audio_pred_mel, _ = self.trg_melspec_fn(audio_pred.squeeze(1), audio_len)
 
         # train discriminator
         self.optim_d.zero_grad()
@@ -134,6 +134,7 @@ class HifiGanModel(Vocoder):
             "d_loss_msd": loss_disc_msd,
             "d_loss": loss_d,
             "global_step": self.global_step,
+            "lr": self.optim_g.param_groups[0]['lr'],
         }
         self.log_dict(metrics, on_step=False, on_epoch=True, sync_dist=True)
 
@@ -208,6 +209,7 @@ class HifiGanModel(Vocoder):
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         # TODO
         pass
+
 
 def feature_loss(fmap_r, fmap_g):
     loss = 0
