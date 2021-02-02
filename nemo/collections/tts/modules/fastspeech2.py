@@ -91,7 +91,7 @@ class VarianceAdaptor(NeuralModule):
     def __init__(
         self,
         d_model=256,
-        dropout=0.5,
+        dropout=0.2,
         dur_d_hidden=256,
         dur_kernel_size=3,
         max_duration=100,
@@ -114,7 +114,7 @@ class VarianceAdaptor(NeuralModule):
 
         Args:
             d_model: Input and hidden dimension. Defaults to 256 (default encoder output dim).
-            dropout: Variance adaptor dropout. Defaults to 0.5.
+            dropout: Variance adaptor dropout. Defaults to 0.2.
             dur_d_hidden: Hidden dim of the duration predictor. Defaults to 256.
             dur_kernel_size: Kernel size for the duration predictor. Defaults to 3.
             max_duration: ### Currently unused ###
