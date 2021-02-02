@@ -25,7 +25,21 @@ from spectralcluster import SpectralClusterer
 from nemo.utils import logging
 
 
+"""
+This file contains all the utility functions required for speaker embeddings part in diarization scripts
+"""
+
+
 def audio_rttm_map(audio_file_list, rttm_file_list=None):
+    """
+    Returns a AUDIO_TO_RTTM dictionary thats maps all the unique file names with 
+    audio file paths and corresponding ground truth rttm files
+
+    It takes 
+    audio_file_list: either list of audio file paths or file containing paths to audio files (required)
+    rttm_file_list: either list of rttm file paths or file containing paths to rttm files (optional) 
+    [Required if DER needs to be calculated]
+    """
     rttm_notfound = False
     if type(audio_file_list) is list:
         audio_files = audio_file_list
@@ -68,6 +82,9 @@ def audio_rttm_map(audio_file_list, rttm_file_list=None):
 
 
 def get_contiguous_stamps(stamps):
+    """
+    Return contiguous time stamps 
+    """
     lines = deepcopy(stamps)
     contiguous_stamps = []
     for i in range(len(lines) - 1):
@@ -85,6 +102,9 @@ def get_contiguous_stamps(stamps):
 
 
 def merge_stamps(lines):
+    """
+    merge time stamps of same speaker
+    """
     stamps = deepcopy(lines)
     overlap_stamps = []
     for i in range(len(stamps) - 1):
@@ -102,6 +122,9 @@ def merge_stamps(lines):
 
 
 def labels_to_pyannote_object(labels):
+    """
+    converts labels to pyannote object to calculate DER and for visualization
+    """
     annotation = Annotation()
     for label in labels:
         start, end, speaker = label.strip().split()
@@ -112,6 +135,9 @@ def labels_to_pyannote_object(labels):
 
 
 def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
+    """
+    write rttm file with uniq_id name in out_rttm_dir with time_stamps in labels
+    """
     filename = os.path.join(out_rttm_dir, uniq_id + '.rttm')
     with open(filename, 'w') as f:
         for line in labels:
@@ -124,6 +150,9 @@ def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
 
 
 def rttm_to_labels(rttm_filename):
+    """
+    prepares time stamps label list from rttm file
+    """
     labels = []
     with open(rttm_filename, 'r') as f:
         for line in f.readlines():
@@ -134,7 +163,10 @@ def rttm_to_labels(rttm_filename):
 
 
 def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, window, shift):
-
+    """
+    Loads embedding file and generates time stamps based on window and shift for speaker embeddings 
+    clustering.
+    """
     embeddings = pkl.load(open(embeddings_file, 'rb'))
     all_uniq_files = list(embeddings.keys())
     num_files = len(all_uniq_files)
@@ -177,7 +209,9 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
 
 
 def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir):
-
+    """
+    performs clustering on embeddings with time stamps generated from VAD output
+    """
     all_hypothesis = []
     all_reference = []
     no_references = False
@@ -217,6 +251,9 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
 
 
 def get_DER(all_reference, all_hypothesis):
+    """
+    calculates Diarization Error Rate (DER), Confusion Error Rate (CER), False Alarm (FA) and Miss Detection (MISS)
+    """
     metric = DiarizationErrorRate(collar=0.25, skip_overlap=True)
     DER = 0
 
@@ -243,7 +280,10 @@ def perform_diarization(
     audio_rttm_map=None,
     out_rttm_dir=None,
 ):
-
+    """
+    Performs diarization with embeddings generated based on VAD time stamps with recording 2 num of speakers (reco2num)
+    for spectral clustering 
+    """
     embeddings, time_stamps, speakers = get_time_stamps(
         embeddings_file, reco2num, manifest_path, sample_rate, window, shift
     )
@@ -264,6 +304,10 @@ def perform_diarization(
 
 
 def write_rttm2manifest(paths2audio_files, path2rttm_files, manifest_file):
+    """
+    writes manifest file based on rttm files (or vad table out files). This manifest file would be used by 
+    speaker diarizer to compute embeddings and cluster them. This function also takes care of overlap time stamps
+    """
     AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, path2rttm_files)
 
     with open(manifest_file, 'w') as outfile:

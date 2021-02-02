@@ -69,7 +69,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self.has_vad_model = False
         self.has_vad_model_to_save = False
 
-        self._speaker_manifest_path = self._cfg.diarizer.speaker_embeddings.manifest_filepath
+        self._speaker_manifest_path = self._cfg.diarizer.speaker_embeddings.oracle_vad_manifest
         self.AUDIO_RTTM_MAP = None
 
         if self._cfg.diarizer.vad.model_path is not None:
