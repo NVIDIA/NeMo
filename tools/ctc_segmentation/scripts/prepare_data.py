@@ -26,6 +26,12 @@ from num2words import num2words
 
 from nemo.collections import asr as nemo_asr
 
+NEMO_NORMALIZATION = True
+try:
+    from tools.text_normalization.normalize import normalize_numbers
+except ImportError:
+    NEMO_NORMALIZATION = False
+
 parser = argparse.ArgumentParser(description="Prepares text and audio files for segmentation")
 parser.add_argument("--in_text", type=str, default=None, help='Path to a text file or a directory with .txt files')
 parser.add_argument("--output_dir", type=str, required=True, help='Path to output directory')
@@ -54,6 +60,11 @@ parser.add_argument(
     help='Additional symbols to use for \
     sentence split if eos sentence split resulted in sequence longer than --max_length. '
     'Use "|" as a separator between symbols, for example: ";|:|" ',
+)
+parser.add_argument(
+    '--use_nemo_normalization',
+    action='store_true',
+    help='Set to True to use NeMo Normalization tool to convert numbers from written to spoken format.',
 )
 
 
@@ -102,13 +113,14 @@ def split_text(
     language='eng',
     remove_brackets=True,
     do_lower_case=True,
-    min_length=20,
+    min_length=0,
     max_length=100,
     additional_split_symbols=None,
+    use_nemo_normalization=False,
 ):
     """
-    Breaks down the in_file into sentences. Each sentence will be on a separate line.
-    Also replaces numbers with a simple spoken equivalent based on NUMBERS_TO_<lang> map and removes punctuation
+    Breaks down the in_file roughly into sentences. Each sentence will be on a separate line.
+    Written form of numbers will be converted to its spoken equivalent, OOV punctuation will be removed.
 
     Args:
         in_file: path to original transcript
@@ -120,7 +132,11 @@ def split_text(
         do_lower_case: flag that determines whether to apply lower case to the in_file text
         min_length: Min number of chars of the text segment for alignment
         max_length: Max number of chars of the text segment for alignment
-        additional_split_symbols: Additional symbols to use for sentence split if eos sentence split resulted in sequence longer than --max_length
+        additional_split_symbols: Additional symbols to use for sentence split if eos sentence split resulted in
+            sequence longer than --max_length
+        use_nemo_normalization: Set to True to use NeMo normalization tool to convert numbers from written to spoken format.
+            Normalization using num2words will be applied afterwards to make sure there are no numbers present in
+            the text, otherwise they will be replaced with a space and that could deteriorate segmentation results.
     """
 
     print(f'Splitting text in {in_file} into sentences.')
@@ -244,7 +260,10 @@ def split_text(
         for k, v in LATIN_TO_RU.items():
             sentences = sentences.replace(k, v)
 
-    # replace numbers
+    if language == 'eng' and NEMO_NORMALIZATION and use_nemo_normalization:
+        sentences = normalize_numbers(sentences, verbose=False)
+
+    # replace numbers with num2words
     try:
         p = re.compile("\d+")
         new_text = ''
@@ -315,6 +334,7 @@ if __name__ == '__main__':
                 min_length=args.min_length,
                 max_length=args.max_length,
                 additional_split_symbols=args.additional_split_symbols,
+                use_nemo_normalization=args.use_nemo_normalization,
             )
         print(f'Processed text saved at {args.output_dir}')
 
