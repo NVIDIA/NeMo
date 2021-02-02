@@ -38,3 +38,12 @@ English
    :width: 100%
    :header-rows: 1
 
+
+Mandarin
+-------
+.. csv-table::
+   :file: data/benchmark_zh.csv
+   :align: left
+   :widths: 25, 25, 25, 25
+   :width: 100%
+   :header-rows: 1

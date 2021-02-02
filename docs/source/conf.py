@@ -71,7 +71,7 @@ for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
                     autodoc_mock_imports.append(req)
                     print(f"Adding req : `{req}` to autodoc mock requirements (lib {line})")
                 else:
-                    print(f"`{req}` already added to autodoc moc requirements (lib {line})")
+                    print(f"`{req}` already added to autodoc mock requirements (lib {line})")
 
 #
 # -- General configuration ------------------------------------------------
