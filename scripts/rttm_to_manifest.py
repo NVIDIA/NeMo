@@ -40,7 +40,13 @@ def write_manifest(vad_directory, audio_directory, manifest_file):
             time_tup = (-1, -1)
             for line in lines:
                 vad_out = line.strip().split()
-                start, dur, activity = float(vad_out[3]), float(vad_out[4]), vad_out[7]
+                if len(vad_out) > 3:
+                    start, dur, activity = float(vad_out[3]), float(vad_out[4]), vad_out[7]
+                else:
+                    start, dur, activity = float(vad_out[0]), float(vad_out[1]), vad_out[2]
+
+                start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
+
                 if time_tup[0] >= 0 and start > time_tup[1]:
                     audio_path = os.path.join(audio_directory, audio_name + '.wav')
                     dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))

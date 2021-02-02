@@ -29,7 +29,7 @@ from tqdm import tqdm
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.mixins import DiarizationMixin
-from nemo.collections.asr.parts.speaker_utils import perform_diarization
+from nemo.collections.asr.parts.speaker_utils import audio_rttm_map, perform_diarization
 from nemo.collections.asr.parts.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_segment_table,
@@ -70,12 +70,28 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self.has_vad_model = False
         self.has_vad_model_to_save = False
 
+        self._speaker_manifest_path = self._cfg.diarizer.speaker_embeddings.manifest_filepath
+        self.AUDIO_RTTM_MAP = None
+
         if self._cfg.diarizer.vad.model_path is not None:
             self._init_vad_model()
             self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
             self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
             shutil.rmtree(self._vad_dir, ignore_errors=True)
             os.makedirs(self._vad_dir)
+            self.AUDIO_RTTM_MAP = audio_rttm_map(
+                self._cfg.diarizer.vad.paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files
+            )
+        else:
+            paths2audio_files = set()
+            with open(self._speaker_manifest_path, 'r') as manifest_file:
+                for line in manifest_file.readlines():
+                    line = line.strip()
+                    filepath = json.loads(line)['audio_filepath']
+                    paths2audio_files.add(filepath)
+
+            paths2audio_files = list(paths2audio_files)
+            self.AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files)
 
         # init speaker model
         self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
@@ -83,7 +99,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         )
         self._num_speakers = self._cfg.diarizer.num_speakers
         self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
-        self._speaker_manifest_path = self._cfg.diarizer.speaker_embeddings.manifest_filepath
+
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     @classmethod
@@ -196,7 +212,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         )
 
         self._audio_dir = self._cfg.diarizer.audio_directory
-        write_vad_pred_to_manifest(table_out_dir, self._audio_dir, self._vad_out_file)
+        write_vad_pred_to_manifest(table_out_dir, self._audio_dir, self._vad_out_file, self.AUDIO_RTTM_MAP)
         self._speaker_manifest_path = self._vad_out_file
 
     def _extract_embeddings(self, manifest_file):

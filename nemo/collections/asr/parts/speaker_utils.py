@@ -16,6 +16,7 @@ import math
 import os
 import pickle as pkl
 from copy import deepcopy
+from typing import List
 
 import numpy as np
 from pyannote.core import Annotation, Segment
@@ -23,6 +24,45 @@ from pyannote.metrics.diarization import DiarizationErrorRate
 from spectralcluster import SpectralClusterer
 
 from nemo.utils import logging
+
+
+def audio_rttm_map(audio_file_list, rttm_file_list=None):
+    rttm_notfound = False
+    if type(audio_file_list) is List:
+        audio_files = audio_file_list
+    else:
+        audio_pointer = open(audio_file_list, 'r')
+        audio_files = audio_pointer.readlines()
+
+    if not rttm_file_list:
+        rttm_pointer = open(rttm_file_list, 'r')
+        rttm_files = rttm_pointer.readlines()
+    else:
+        rttm_notfound = True
+        rttm_files = ['-'] * len(audio_files)
+
+    assert len(audio_files) == len(rttm_files)
+
+    AUDIO_RTTM_MAP = {}
+    rttm_dict = {}
+    audio_dict = {}
+    for audio_file, rttm_file in zip(audio_files, rttm_files):
+        uniq_audio_name = audio_file.split('/')[-1].split('.')[0]
+        uniq_rttm_name = rttm_file.split('/')[-1].split('.')[0]
+
+        if rttm_notfound:
+            uniq_rttm_name = uniq_audio_name
+
+        audio_dict[uniq_audio_name] = audio_file
+        rttm_dict[uniq_rttm_name] = rttm_file
+
+    for key, value in audio_dict.items():
+
+        AUDIO_RTTM_MAP[key] = {'audio_path': audio_dict[key], 'rttm_path': rttm_dict[key]}
+
+    assert len(rttm_dict.items()) == len(audio_dict.items())
+
+    return AUDIO_RTTM_MAP
 
 
 def get_contiguous_stamps(stamps):

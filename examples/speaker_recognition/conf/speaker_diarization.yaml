@@ -6,8 +6,7 @@ sample_rate: &sample_rate 16000
 diarizer:
   num_speakers: 2 # for each recording
   out_dir: ???
-  groundtruth_rttm_dir: ""
-  audio_directory: ???
+  path2groundtruth_rttm_files: null
 
   vad:
     paths2audio_files: '' #file containing paths to audio files for inference

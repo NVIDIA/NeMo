@@ -313,24 +313,24 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     start = 0
     end = 0
     start_list = [0]
-    end_list = []
+    dur_list = []
     state_list = []
-
+    current_state = "non-speech"
     for i in range(len(sequence) - 1):
-        current_sate = "non-speech" if sequence[i] <= threshold else "speech"
+        current_state = "non-speech" if sequence[i] <= threshold else "speech"
         next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
-        if next_state != current_sate:
-            end = i * shift_len + shift_len  # shift_len for handling joint
-            state_list.append(current_sate)
-            end_list.append(end)
+        if next_state != current_state:
+            dur = i * shift_len + shift_len - start  # shift_len for handling joint
+            state_list.append(current_state)
+            dur_list.append(dur)
 
             start = (i + 1) * shift_len
             start_list.append(start)
 
-    end_list.append((i + 1) * shift_len + shift_len)
-    state_list.append(current_sate)
+    dur_list.append((i + 1) * shift_len + shift_len - start)
+    state_list.append(current_state)
 
-    seg_table = pd.DataFrame({'start': start_list, 'end': end_list, 'vad': state_list})
+    seg_table = pd.DataFrame({'start': start_list, 'dur': dur_list, 'vad': state_list})
 
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
