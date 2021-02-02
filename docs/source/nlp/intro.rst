@@ -2,7 +2,7 @@ Natural Language Processing (NLP)
 =================================
 
 .. toctree::
-   :maxdepth: 8
+   :maxdepth: 3
 
    models
    api

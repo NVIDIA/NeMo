@@ -541,98 +541,6 @@ TLT conversational AI applications provide a separate tool called `fine-tune` to
 Note, all labels from the dataset that is used for fine-tuning, should be present in the dataset the model was originally trained.
 If it is not the case, use the :code:`tlt token_classification train` with your data.
 
-Example for spec for fine-tuning of the model:
-
-.. code::
-
-    trainer:
-      max_epochs: 5
-
-    data_dir: ???
-
-    # Fine-tuning settings: training dataset.
-    finetuning_ds:
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-
-    # Fine-tuning settings: validation dataset.
-    validation_ds:
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-
-    # Fine-tuning settings: different optimizer.
-    optim:
-      name: adam
-      lr: 1e-5
-
-
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| trainer.max_epochs                        | integer         | 5                                                                                | Maximum number of epochs to train the model                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.text_file                   | string          | text_train.txt                                                                   | Name of the text training file located at `data_dir`                                                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.labels_file                 | string          | labels_train.txt                                                                 | Name of the labels training file located at `data_dir`                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.shuffle                     | bool            | True                                                                             | Whether to shuffle the training data                                                                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.num_samples                 | integer         | -1                                                                               | Number of samples to use from the training dataset, -1 mean all                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.batch_size                  | integer         | 64                                                                               | Training data batch size                                                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.text_file                   | string          | text_dev.txt                                                                     | Name of the text file for evaluation, located at `data_dir`                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.labels_file                 | string          | labels_dev.txt                                                                   | Name of the labels dev file located at `data_dir`                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.shuffle                     | bool            | False                                                                            | Whether to shuffle the dev data                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.num_samples                 | integer         | -1                                                                               | Number of samples to use from the dev set, -1 mean all                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.batch_size                  | integer         | 64                                                                               | Dev set batch size                                                                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.name                                | string          | adam                                                                             | Optimizer to use for training                                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.lr                                  | float           | 1e-5                                                                             | Learning rate to use for training                                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-
-Use the following command for fine-tune the model:
-
-.. code::
-
-    tlt token_classification finetune [-h] \
-                                       -e /specs/nlp/token_classification/finetune.yaml \
-                                       -r /results/token_classification/finetune/ \
-                                       -m /path/to/trained-model.tlt \
-                                       -g 1 \
-                                       data_dir=PATH_TO_DATA \
-                                       trainer.max_epochs=5 \
-                                       -k $KEY
-
-Required Arguments for Funetuning
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-* :code:`-e`: The experiment specification file to set up fine-tuning.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`-m`: Path to the pre-trained model to use for fine-tuning.
-* :code:`data_dir`: Path to data directory with the pre-processed data to use for fine-tuning
-* :code:`-k`: Encryption key
-
-Optional Arguments
-^^^^^^^^^^^^^^^^^^
-
-* :code:`-g`: The number of GPUs to be used in evaluation in a multi-gpu scenario (default: 1).
-* Other arguments to override fields in the specification file.
-
-Output log for the :code:`tlt token_calssification finetune` command:
-
-.. code::
-
-    Model restored from '/path/to/trained-model.tlt'
-    # The rest of the log is similar to the output log snippet for :code:`token_classification train`.
-
-
 Evaluating a trained model
 --------------------------
 
@@ -655,13 +563,8 @@ Use the following command to evaluate the model:
 
 .. code::
 
-    tlt token_classification evaluate [-h] \
-                                       -e /specs/nlp/token_classification/evaluate.yaml \
-                                       -r /results/token_classification/evaluate/ \
-                                       -g 1 \
-                                       -m /path/to/trained-model.tlt \
-                                       -k $KEY \
-                                       data_dir=/path/to/data_dir
+    TBD
+
 
 Required Arguments for Evaluation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -671,29 +574,6 @@ Required Arguments for Evaluation
 * :code:`data_dir`: Path to data directory with the pre-processed data to use for evaluation
 * :code:`-m`: Path to the pre-trained model checkpoint for evaluation. Should be a :code:`.tlt` file.
 * :code:`-k`: Encryption key
-
-Optional Arguments for Evaluation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| restore_from                              | string          | trained-model.tlt                                                                | Path to the pre-trained model                                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.text_file                         | string          | text_dev.txt                                                                     | Name of the text file to run evaluation on located at `data_dir`                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.labels_file                       | string          | labels_dev.txt                                                                   | Name of the labels dev file located at `data_dir`                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.shuffle                           | bool            | False                                                                            | Whether to shuffle the dev data                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.num_samples                       | integer         | -1                                                                               | Number of samples to use from the dev set, -1 mean all                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.batch_size                        | integer         | 64                                                                               | Dev set batch size                                                                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 
 :code:`token_classification evaluate` generates a classification report that includes the following metrics:
 
@@ -752,12 +632,7 @@ To run inference:
 
 .. code::
 
-    tlt token_classification infer [-h] \
-                                    -e /specs/nlp/token_classification/infer.yaml \
-                                    -r /results/token_classification/infer/ \
-                                    -g 1 \
-                                    -m trained-model.tlt \
-                                    -k $KEY
+    TBD
 
 Required Arguments for Inference
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -784,74 +659,4 @@ Output log sample:
     Result: we bought four shirts from the nvidia[B-LOC] gear store in santa[B-LOC] clara[I-LOC].
     Nvidia is a company.
     Result: Nvidia[B-ORG] is a company.
-
-Model Export
-------------
-
-A pre-trained model could be exported to JARVIS format (this format contains model checkpoint along with model artifacts required for successful deployment of the trained .tlt models to Jarvis Services). For more details about Jarvis, see `this <https://docs.nvidia.com/deeplearning/jarvis/user-guide/docs/model-servicemaker.html>`__.
-
-An example of the spec file for model export:
-
-.. code::
-
-    # Name of the .tlt EFF archive to be loaded/model to be exported.
-    restore_from: trained-model.tlt
-
-    # Set export format: JARVIS
-    export_format: JARVIS
-
-    # Output EFF archive containing model checkpoint and artifacts required for Jarvis Services
-    export_to: exported-model.ejrvs
-
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| restore_from                              | string          | trained-model.tlt                                                                | Path to the pre-trained model                                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| export_format                             | string          | JARVIS                                                                           | Export format: JARVIS                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| export_to                                 | string          | exported-model.ejrvs                                                             | Path to the exported model                                                                                   |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-
-To export a pre-trained model for deployment, run:
-
-.. code::
-
-    ### For export to Jarvis format
-    tlt token_classification export [-h] \
-                                     -e /specs/nlp/token_classification/export.yaml \
-                                     -r /results/token_classification/export/ \
-                                     -m trained-model.tlt \
-                                     -k $KEY
-                                     export_format=JARVIS
-
-
-Required Arguments for Export
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-e`: The experiment specification file to set up inference.
-  This requires the :code:`input_batch` with the list of examples to run inference on.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`-m`: Path to the pre-trained model checkpoint from which to infer. Should be a :code:`.tlt` file.
-* :code:`-k`: Encryption key
-
-Optional Arguments for Export
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-* :code:`-h, --help`: Show this help message and exit
-
-Output log:
-
-.. code::
-
-    Spec file:
-    restore_from: path/to/trained-model.tlt
-    export_to: exported-model.ejrvs
-    export_format: JARVIS
-    exp_manager:
-      task_name: export
-      explicit_log_dir: /results/token_classification/export/
-    encryption_key: $KEY
-
-    Experiment logs saved to '/results/token_classification/export/'
-    Exported model to '/results/token_classification/export/exported-model.ejrvs'
 

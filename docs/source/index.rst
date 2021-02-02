@@ -13,6 +13,7 @@ NVIDIA NeMo Developer Guide
    tts/intro
    common/intro
    api-docs/nemo
+   tools/intro
 
 
 NeMo is a library for easy training, building and manipulating of AI models.

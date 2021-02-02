@@ -1,11 +1,7 @@
-Punctuation and Capitalization
-==============================
-
 .. _punctuation_and_capitalization:
 
-
-Introduction
-------------
+Punctuation and Capitalization Model Introduction
+=================================================
 
 Automatic Speech Recognition (ASR) systems typically generate text with no punctuation and capitalization of the words. \
 Besides being hard to read, the ASR output could be an input to named entity recognition, \
@@ -19,28 +15,24 @@ For each word in the input text, the model:
 
 .. note::
 
-    This documentation follows [TODO: add link to punctuation_capitalization.ipynb]
+    We recommend you try this model in a Jupyter notebook \
+    (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): \
+    `NeMo/tutorials/nlp/Punctuation_and_Capitalization.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`__.
+    Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
-Downloading Sample Spec files
------------------------------
+    An example script on how to run training and inference with the model could be found here: `NeMo/examples/nlp/token_classification/punctuation_capitalization.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization.py>`__.
 
-Before proceeding, let's download sample spec files that we would need for the rest of the subtasks.
+    Default configuration file for the model could be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
-.. code::
 
-    tlt punctuation_and_capitalization download_specs -r /results/punctuation_and_capitalization/get_default_specs/ \
-                                                      -o /specs/nlp/punctuation_and_capitalization
-
-Download Spet Required Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-o`: Path to where the spec files will be stored
-* :code:`-r`: Output directory
 
 .. _dataset_punctuation_and_capitalization:
 
 Data Input for Punctuation and Capitalization model
 ---------------------------------------------------
+
+Raw Data Format
+---------------
 
 This model can work with any text dataset, although it is recommended to balance the data, especially for the punctuation task.
 
@@ -48,7 +40,6 @@ Before pre-processing the data to the required format, the data should be split 
 The development set (or dev set) will be used to evaluate the performance of the model during model training. \
 The hyper-parameters search and model selection should be based on the dev set, while the final evaluation of the selected model \
 should be performed on the test set.
-
 
 Each line in the train.txt/dev.txt/test.txt should represent one or more full and/or truncated sentences.
 
@@ -73,10 +64,10 @@ The `source_data_dir` structure should look like this:
 
 
 
-Data Format
------------
+NeMo Data Format for training the model
+---------------------------------------
 
-Raw data files from the `source_data_dir` described above will be converted to the following format with `dataset_convert`:
+Raw data files from the `source_data_dir` described above should be converted to the following format with `TODO add script to NeMo from TLT`:
 The training and evaluation data is divided into 2 files: text.txt and labels.txt. \
 Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e. \
 [WORD] [SPACE] [WORD] [SPACE] [WORD], for example:
@@ -93,7 +84,8 @@ Each label in labels.txt file consists of 2 symbols:
 * the first symbol of the label indicates what punctuation mark should follow the word (where O means no punctuation needed);
 * the second symbol determines if a word needs to be capitalized or not (where U indicates that the word should be upper cased, and O - no capitalization needed.)
 
-Punctuation marks considered: commas, periods, and question marks; the rest punctuation marks were removed from the data.
+By default the following punctuation marks are considered: commas, periods, and question marks; the rest punctuation marks were removed from the data.
+This can be changed by introducing new labels in the labels.txt files
 
 Each line of the labels.txt should follow the format: [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt). \
 For example, labels for the above text.txt file should be:
@@ -106,31 +98,15 @@ For example, labels for the above text.txt file should be:
 
 The complete list of all possible labels for this task used in this tutorial is: OO, ,O, .O, ?O, OU, ,U, .U, ?U.
 
-Pre-processing the Dataset
---------------------------
-
-Spec file for dataset convertion:
-
-.. code::
-
-    # Path to the folder containing the dataset source files
-    source_data_dir: ???
-
-    target_data_dir: ???
-
-    # list of file names inside source_data_dir to convert
-    list_of_file_names: ['train.txt','dev.txt']
+Converting Raw data to NeMo format
+----------------------------------
 
 To pre-process the raw text data, stored under :code:`sourced_data_dir` (see the :ref:`Dataset<dataset_punctuation_and_capitalization>`
 section), run the following command:
 
 .. code::
 
-    tlt punctuation_and_capitalization dataset_convert [-h] \
-                                                        -e /specs/nlp/punctuation_and_capitalization/dataset_convert.yaml \
-                                                        -r /results/punctuation_and_capitalization/dataset_convert/ \
-                                                        source_data_dir=/path/to/source_data_dir \
-                                                        target_data_dir=/path/to/target_data_dir
+    TODO
 
 
 Convert Dataset Required Arguments
@@ -141,11 +117,7 @@ Convert Dataset Required Arguments
 * :code:`target_data_dir` - path to store the processed files
 * :code:`-r`: Path to the directory to store the results.
 
-Convert Dataset Optional Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`-h, --help`: Show this help message and exit
-* :code:`list_of_file_names`: List of files in :code:`source_data_dir` for conversion
 
 
 +--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
@@ -171,55 +143,6 @@ After the conversion, the :code:`target_data_dir` should contain the following f
      |-- text_test.txt
      |-- text_train.txt
 
-To download and convert a dataset from `Tatoeba collection of sentences <https://tatoeba.org/eng>`__, run:
-
-.. code::
-
-    tlt punctuation_and_capitalization download_and_convert_tatoeba [-h] \
-                                                                     -e /specs/nlp/punctuation_and_capitalization/download_and_convert_tatoeba.yaml \
-                                                                     -r /results/punctuation_and_capitalization/download_and_convert_tatoeba/ \
-                                                                     target_data_dir=/path/to/`target_data_dir`
-
-
-Output log from executing :code:`punctuation_and_capitalization download_and_convert_tatoeba`:
-
-.. code::
-
-    Downloading tatoeba dataset
-    Downloading https://downloads.tatoeba.org/exports/sentences.csv to /path/to/target_data_dir/sentences.csv
-    Saving to: ‘/path/to/target_data_dir/sentences.csv’
-
-    Processing English sentences...
-    Splitting the dataset into train and dev sets and creating labels and text files
-    Creating text and label files for training
-    Cleaning up /home/ebakhturina/data/tatoeba/sample/dowdload_and_convert
-    Processing of the tatoeba dataset is complete
-
-
-After running :code:`punctuation_and_capitalization download_and_convert_tatoeba`, \
-the `target_data_dir` should contain the following files:
-
-.. code::
-
-   .
-   |--target_data_dir
-     |-- labels_dev.txt                # labels for the dev set
-     |-- labels_train.txt              # labels for the train set
-     |-- sentences.csv                 # original Tatoeba data
-     |-- text_dev.txt                  # text dev data
-     |-- text_train.txt                # text train data
-
-Download and Convert Tatoeba Dataset Required Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-e`: The experiment specification file.
-* :code:`target_data_dir` - path to store the processed files
-
-Optional Arguments:
-^^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-
 Training a Punctuation and Capitalization model
 -----------------------------------------------
 
@@ -229,99 +152,20 @@ language model, such as `BERT: Pre-training of Deep Bidirectional Transformers f
 Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the
 pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
-Example spec for training:
+Example of model configuration file for training the model could be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
-.. code::
+The specification can be roughly grouped into the following categories:
 
-    trainer:
-      max_epochs: 5
-
-    # Path to the Data directory containing pre-processed dataset
-    data_dir: ???
-
-    # Specifies parameters for the Punctuation and Capitalization model
-    model:
-      # Lists supported punctuation marks
-      punct_label_ids:
-        O: 0
-        ',': 1
-        '.': 2
-        '?': 3
-
-      capit_label_ids:
-        O: 0
-        U: 1
-
-      tokenizer:
-          tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
-          vocab_file: null # path to vocab file
-          tokenizer_model: null # only used if tokenizer is sentencepiece
-          special_tokens: null
-
-      # Pre-trained language model such as BERT or Megatron-BERT
-      language_model:
-        pretrained_model_name: bert-base-uncased
-        lm_checkpoint: null
-        config_file: null # json file, precedence over config
-        config: null
-
-      # Specifies parameters of the punctuation and capitalization heads that follow a BERT-based language-model
-      punct_head:
-        punct_num_fc_layers: 1
-        fc_dropout: 0.1
-        activation: 'relu'
-        use_transformer_init: true
-
-      capit_head:
-        capit_num_fc_layers: 1
-        fc_dropout: 0.1
-        activation: 'relu'
-        use_transformer_init: true
-
-    # Specifies the parameters of the dataset to be used for training.
-    training_ds:
-      text_file: text_train.txt
-      labels_file: labels_train.txt
-      shuffle: true
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-      batch_size: 64
-
-    # Specifies the parameters of the dataset to be used for validation.
-    validation_ds:
-      text_file: text_dev.txt
-      labels_file: labels_dev.txt
-      shuffle: false
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-      batch_size: 64
-
-    # The parameters for the training optimizer, including learning rate, lr schedule, etc.
-    optim:
-      name: adam
-      lr: 1e-5
-      weight_decay: 0.00
-
-      sched:
-        name: WarmupAnnealing
-        # Scheduler params
-        warmup_steps: null
-        warmup_ratio: 0.1
-        last_epoch: -1
-
-        # pytorch lightning args
-        monitor: val_loss
-        reduce_on_plateau: false
-
-
-The specification can be roughly grouped into three categories:
-
-* Parameters that describe the training process
-* Parameters that describe the datasets, and
-* Parameters that describe the model.
+* Parameters that describe the training process: `trainer`
+* Parameters that describe the datasets: `model.dataset`, `model.train_ds`, `model.validation_ds`
+* Parameters that describe the model: `model`
 
 More details about parameters in the spec file could be found below:
 
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| pretrained_model                          | string          | --                                                                               | Path to the pre-trained model .nemo file or pre-trained model name                                           |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
@@ -517,102 +361,6 @@ there maybe scenarios where users are required to retrain this `trained-model.tl
 TLT conversational AI applications provide a separate tool called `fine-tune` to enable this.
 
 
-Example for spec for fine-tuning of the model:
-
-.. code::
-
-    trainer:
-      max_epochs: 1 # DEMO purposes # 100
-    data_dir: ???
-
-    # Fine-tuning settings: training dataset.
-    finetuning_ds:
-      text_file: text_train.txt
-      labels_file: labels_train.txt
-      shuffle: true
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-      batch_size: 64
-
-    # Fine-tuning settings: validation dataset.
-    validation_ds:
-      text_file: text_dev.txt
-      labels_file: labels_dev.txt
-      shuffle: false
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-      batch_size: 64
-
-    # Fine-tuning settings: different optimizer.
-    optim:
-      name: adam
-      lr: 2e-5
-
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| trainer.max_epochs                        | integer         | 5                                                                                | Maximum number of epochs to train the model                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.text_file                   | string          | text_train.txt                                                                   | Name of the text training file located at `data_dir`                                                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.labels_file                 | string          | labels_train.txt                                                                 | Name of the labels training file located at `data_dir`                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.shuffle                     | bool            | True                                                                             | Whether to shuffle the training data                                                                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.num_samples                 | integer         | -1                                                                               | Number of samples to use from the training dataset, -1 mean all                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| finetuning_ds.batch_size                  | integer         | 64                                                                               | Training data batch size                                                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.text_file                   | string          | text_dev.txt                                                                     | Name of the text file for evaluation, located at `data_dir`                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.labels_file                 | string          | labels_dev.txt                                                                   | Name of the labels dev file located at `data_dir`                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.shuffle                     | bool            | False                                                                            | Whether to shuffle the dev data                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.num_samples                 | integer         | -1                                                                               | Number of samples to use from the dev set, -1 mean all                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.batch_size                  | integer         | 64                                                                               | Dev set batch size                                                                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.name                                | string          | adam                                                                             | Optimizer to use for training                                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.lr                                  | float           | 2e-5                                                                             | Learning rate to use for training                                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-
-Use the following command for fine-tune the model:
-
-.. code::
-
-    tlt punctuation_and_capitalization finetune [-h] -e /specs/nlp/punctuation_and_capitalization/finetune.yaml \
-                                                      -r /results/punctuation_and_capitalization/finetune/ \
-                                                      -m /path/to/trained-model.tlt \
-                                                      -g 1 \
-                                                      data_dir=/path/to/`data_dir` \
-                                                      trainer.max_epochs=3 \
-                                                      -k $KEY
-
-Required Arguments for Funetuning
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-e`: The experiment specification file to set up fine-tuning
-* :code:`-r`: Path to the directory to store the results of the fine-tuning.
-* :code:`-m`: Path to the pre-trained model to use for fine-tuning.
-* :code:`data_dir`: Path to data directory with the pre-processed data to use for fine-tuning
-* :code:`-k`: Encryption key
-
-Optional Arguments
-^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-* :code:`-g`: The number of GPUs to be used in evaluation in a multi-gpu scenario (default: 1).
-* Other arguments to override fields in the specification file.
-
-Output log for the :code:`tlt punctuation_and_capitalization finetune` command:
-
-.. code::
-
-    Model restored from '/path/to/trained-model.tlt'
-    # The rest of the log is similar to the output log snippet for :code:`punctuation_and_capitalization train`.
-
 Evaluating a trained model
 --------------------------
 
@@ -636,12 +384,7 @@ Use the following command to evaluate the model:
 
 .. code::
 
-    tlt punctuation_and_capitalization evaluate [-h] \
-                                                 -e /specs/nlp/punctuation_and_capitalization/evaluate.yaml \
-                                                 -m /path/to/trained-model.tlt \
-                                                 -g 1 \
-                                                 data_dir=/path/to/data_dir \
-                                                 -k $KEY
+    TODO
 
 Required Arguments for Evaluation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -728,12 +471,7 @@ To run inference:
 
 .. code::
 
-    tlt punctuation_and_capitalization infer [-h]
-                                              -e /specs/nlp/punctuation_and_capitalization/infer.yaml \
-                                              -r /results/punctuation_and_capitalization/infer/ \
-                                              -g 1 \
-                                              -m finetuned-model.tlt \
-                                              -k $KEY
+    TODO
 
 Output log from executing the above command:
 
@@ -750,89 +488,5 @@ Output log from executing the above command:
 Required Arguments for Inference
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`-e`: The experiment specification file to set up inference.
-  This requires the :code:`input_batch` with the list of examples to run inference on.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`-m`: Path to the pre-trained model checkpoint from which to infer. Should be a :code:`.tlt` file.
-* :code:`-k`: Encryption key
 
 
-Optional Arguments
-^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-* :code:`-g`: The number of GPUs to be used for fine-tuning in a multi-gpu scenario (default: 1).
-* Other arguments to override fields in the specification file.
-
-
-Model Export
-------------
-
-A pre-trained model could be exported to JARVIS format (this format contains model checkpoint and model artifacts required for successful deployment of the trained .tlt models to Jarvis Services). For more details about Jarvis, see `this <https://docs.nvidia.com/deeplearning/jarvis/user-guide/docs/model-servicemaker.html>`__.
-
-An example of the spec file for model export:
-
-.. code::
-
-    # Name of the .tlt EFF archive to be loaded/model to be exported.
-    restore_from: trained-model.tlt
-
-    # Set export format: JARVIS
-    export_format: JARVIS
-
-    # Output EFF archive containing model checkpoint and artifacts required for Jarvis Services
-    export_to: exported-model.ejrvs
-
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| restore_from                              | string          | trained-model.tlt                                                                | Path to the pre-trained model                                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| export_format                             | string          | -                                                                                | Export format: JARVIS                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| export_to                                 | string          | exported-model.ejrvs                                                             | Path to the exported model                                                                                   |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-
-To export a pre-trained model for deployment, run:
-
-.. code::
-
-    ### For export to Jarvis format
-    tlt punctuation_and_capitalization export  [-h]\
-                                                -e /specs/nlp/punctuation_and_capitalization/export.yaml \
-                                                -r /results/punctuation_and_capitalization/export/ \
-                                                -m trained-model.tlt \
-                                                -k $KEY \
-                                                export_format=JARVIS
-
-
-Required Arguments for Export
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-e`: The experiment specification file to set up inference.
-  This requires the :code:`input_batch` with the list of examples to run inference on.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`-m`: Path to the pre-trained model checkpoint from which to infer. Should be a :code:`.tlt` file.
-* :code:`-k`: Encryption key
-
-Optional Arguments:
-^^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-
-
-Output log:
-
-.. code::
-
-    Spec file:
-    restore_from: path/to/trained-model.tlt
-    export_to: exported-model.ejrvs
-    export_format: JARVIS
-    exp_manager:
-      task_name: export
-      explicit_log_dir: /results/punctuation_and_capitalization/export/
-    encryption_key: $KEY
-
-    Experiment logs saved to '/results/punctuation_and_capitalization/export/'
-    Exported model to '/results/punctuation_and_capitalization/export/exported-model.ejrvs'
