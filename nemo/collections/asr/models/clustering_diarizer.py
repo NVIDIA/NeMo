@@ -79,7 +79,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             shutil.rmtree(self._vad_dir, ignore_errors=True)
             os.makedirs(self._vad_dir)
             self.AUDIO_RTTM_MAP = audio_rttm_map(
-                self._cfg.diarizer.vad.paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files
+                self._cfg.diarizer.paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files
             )
         else:
             paths2audio_files = set()
@@ -89,8 +89,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                     filepath = json.loads(line)['audio_filepath']
                     paths2audio_files.add(filepath)
 
-            paths2audio_files = list(paths2audio_files)
-            self.AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files)
+            self.paths2audio_files = list(paths2audio_files)
+            self.AUDIO_RTTM_MAP = audio_rttm_map(
+                self.paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files
+            )
 
         # init speaker model
         self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
@@ -212,11 +214,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         )
 
         vad_table_list = [os.path.join(table_out_dir, key + ".txt") for key in self.AUDIO_RTTM_MAP]
-        # self.paths2audio_files?  [TODO!] check oracle vad
-        paths2audio_files = [self.AUDIO_RTTM_MAP[key]['audio_path'] for key in self.AUDIO_RTTM_MAP]
-
-        print(type(paths2audio_files))
-        write_rttm2manifest(paths2audio_files, vad_table_list, self._vad_out_file)
+        write_rttm2manifest(self.paths2audio_files, vad_table_list, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
     def _extract_embeddings(self, manifest_file):
@@ -254,7 +252,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         pkl.dump(out_embeddings, open(self._embeddings_file, 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
-    def create_manifest(self, paths2audio_files):
+    def path2audio_files_to_manifest(self, paths2audio_files):
         mfst_file = os.path.join(self._out_dir, 'manifest.json')
         with open(mfst_file, 'w') as fp:
             for audio_file in paths2audio_files:
@@ -273,17 +271,17 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         if self.has_vad_model:
             logging.info("Performing VAD")
-            if (paths2audio_files is None) and not os.path.isfile(self._cfg.diarizer.vad.paths2audio_files):
+            if (paths2audio_files is None) and not os.path.isfile(self._cfg.diarizer.paths2audio_files):
 
                 raise ValueError(" Please input valid files or provide path to audio files in config")
-            elif os.path.isfile(self._cfg.diarizer.vad.paths2audio_files):
+            elif os.path.isfile(self._cfg.diarizer.paths2audio_files):
                 paths2audio_files = []
-                with open(self._cfg.diarizer.vad.paths2audio_files, 'r') as path2file:
+                with open(self._cfg.diarizer.paths2audio_files, 'r') as path2file:
                     for audiofile in path2file.readlines():
                         audiofile = audiofile.strip()
                         paths2audio_files.append(audiofile)
 
-            mfst_file = self.create_manifest(paths2audio_files)
+            mfst_file = self.path2audio_files_to_manifest(paths2audio_files)
             self._dont_auto_split = False
             self._split_duration = 50
             manifest_vad_input = mfst_file

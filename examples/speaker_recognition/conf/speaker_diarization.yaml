@@ -6,10 +6,10 @@ sample_rate: &sample_rate 16000
 diarizer:
   num_speakers: 2 # for each recording
   out_dir: ???
+  paths2audio_files: ??? #file containing paths to audio files for inference
   path2groundtruth_rttm_files: null
 
   vad:
-    paths2audio_files: '' #file containing paths to audio files for inference
     model_path: null
     window_length_in_sec: 0.63
     shift_length_in_sec: 0.01
@@ -20,7 +20,7 @@ diarizer:
       overlap: 0.875
 
   speaker_embeddings:
-    manifest_filepath: null
+    oracle_vad_manifest: null
     model_path: ???
     window_length_in_sec: 1.5
     shift_length_in_sec: 0.75

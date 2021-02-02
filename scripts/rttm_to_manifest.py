@@ -37,4 +37,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     write_rttm2manifest(args.paths2audio_files, args.path2rttm_files, args.manifest_file)
-    logging.info("wrote {} file from vad output files present in {}".format(manifest_file, path2rttm_files))
+    logging.info("wrote {} file from vad output files present in {}".format(args.manifest_file, args.path2rttm_files))
