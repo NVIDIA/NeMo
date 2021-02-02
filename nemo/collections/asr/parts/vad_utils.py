@@ -21,7 +21,7 @@ from multiprocessing import Pool
 import librosa
 import numpy as np
 import pandas as pd
-from pyannote.core import Annotation, Segment, Timeline
+from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
 
 
@@ -313,7 +313,6 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
 
     sequence = np.loadtxt(pred_filepath)
     start = 0
-    end = 0
     start_list = [0]
     dur_list = []
     state_list = []
