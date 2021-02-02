@@ -16,7 +16,6 @@ import math
 import os
 import pickle as pkl
 from copy import deepcopy
-from typing import List
 
 import numpy as np
 from pyannote.core import Annotation, Segment
@@ -177,10 +176,11 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
     return embeddings, time_stamps, speakers
 
 
-def perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_dir):
+def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir):
 
     all_hypothesis = []
     all_reference = []
+    no_references = False
 
     for uniq_key in embeddings.keys():
         NUM_speakers = speakers[uniq_key]
@@ -204,11 +204,14 @@ def perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_
             hypothesis = labels_to_pyannote_object(labels)
             all_hypothesis.append(hypothesis)
 
-            if os.path.exists(gt_rttm_dir):
-                rttm_file = os.path.join(gt_rttm_dir, uniq_key + '.rttm')
+            rttm_file = audio_rttm_map[uniq_key]['rttm_path']
+            if os.path.exists(rttm_file) and not no_references:
                 ref_labels = rttm_to_labels(rttm_file)
                 reference = labels_to_pyannote_object(ref_labels)
                 all_reference.append(reference)
+            else:
+                no_references = True
+                all_reference = []
 
     return all_reference, all_hypothesis
 
@@ -237,7 +240,7 @@ def perform_diarization(
     sample_rate=16000,
     window=1.5,
     shift=0.75,
-    gt_rttm_dir=None,
+    audio_rttm_map=None,
     out_rttm_dir=None,
 ):
 
@@ -245,13 +248,9 @@ def perform_diarization(
         embeddings_file, reco2num, manifest_path, sample_rate, window, shift
     )
 
-    all_reference, all_hypothesis = perform_clustering(embeddings, time_stamps, speakers, gt_rttm_dir, out_rttm_dir)
+    all_reference, all_hypothesis = perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir)
 
-    if not os.path.exists(gt_rttm_dir):
-        logging.warning("Please check if ground truth RTTMs were present in {}".format(gt_rttm_dir))
-        logging.warning("Skipping calculation of Diariazation Error rate")
-
-    else:
+    if len(all_reference) and len(all_hypothesis):
         DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
         logging.info(
             "Cumulative results of all the files:  FA: {:.3f}, MISS {:.3f} \n \
@@ -259,6 +258,9 @@ def perform_diarization(
                 FA, MISS, DER, CER
             )
         )
+    else:
+        logging.warning("Please check if each ground truth RTTMs were present in provided path2groundtruth_rttm_files")
+        logging.warning("Skipping calculation of Diariazation Error rate")
 
 
 def write_rttm2manifest(paths2audio_files, path2rttm_files, manifest_file):

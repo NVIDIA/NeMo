@@ -16,7 +16,6 @@ import json
 import os
 import pickle as pkl
 import shutil
-import sys
 import tarfile
 import tempfile
 from collections import defaultdict
@@ -36,7 +35,6 @@ from nemo.collections.asr.parts.vad_utils import (
     generate_vad_segment_table,
     get_vad_stream_status,
     prepare_manifest,
-    write_vad_pred_to_manifest,
 )
 from nemo.core.classes import Model
 from nemo.utils import logging, model_utils
@@ -312,19 +310,17 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
         self._extract_embeddings(self._speaker_manifest_path)
-        # TODO change here.
-        rttm_dir = self._cfg.diarizer.groundtruth_rttm_dir
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         perform_diarization(
             embeddings_file=self._embeddings_file,
             reco2num=self._num_speakers,
-            manifest_path=self._vad_out_file,
+            manifest_path=self._speaker_manifest_path,
             sample_rate=self._cfg.sample_rate,
             window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
             shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
-            gt_rttm_dir=rttm_dir,
+            audio_rttm_map=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
         )
 
