@@ -1,0 +1,857 @@
+Token Classification (Named Entity Recognition)
+===============================================
+
+.. _token_classification:
+
+
+Introduction
+------------
+
+TokenClassification Model supports Named entity recognition (NER) and other token level classification tasks, \
+as long as the data follows the format specified below. This model card will focus on the NER task.
+
+Named entity recognition (NER), also referred to as entity chunking, identification or extraction, is the task of \
+detecting and classifying key information (entities) in text. In other words, a NER model takes a piece of text as \
+input and for each word in the text, the model identifies a category the word belongs to.
+For example, in a sentence: `Mary lives in Santa Clara and works at NVIDIA`, the model should detect that `Mary` \
+is a person, `Santa Clara` is a location and `NVIDIA` is a company.
+
+.. note::
+
+    This documentation follows [TODO: add link to token-classification.ipynb]
+
+Downloading Sample Spec files
+-----------------------------
+
+Before proceeding, let's download sample spec files that we would need for the rest of the subtasks.
+
+.. code::
+
+    tlt token_classification download_specs -r /results/token_classification/get_default_specs/ \
+                                            -o /specs/nlp/token_classification
+
+Download Spet Required Arguments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-o`: Path to where the spec files will be stored
+* :code:`-r`: Output directory
+
+.. _dataset_token_classification:
+
+Data Input for Token Classification model
+-----------------------------------------
+
+For pre-training or fine-tuning of the model, the data should be split into 2 files:
+
+- text.txt and
+- labels.txt.
+
+Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e.: [WORD] [SPACE] [WORD] [SPACE] [WORD].
+The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces, i.e.: [LABEL] [SPACE] [LABEL] [SPACE] [LABEL].
+Example of a text.txt file:
+
+    Jennifer is from New York City .
+    She likes ...
+    ...
+
+Corresponding labels.txt file:
+
+    B-PER O O B-LOC I-LOC I-LOC O
+    O O ...
+    ...
+
+Dataset Conversion
+------------------
+
+To convert an IOB format (short for inside, outside, beginning) data to the format required for training.
+
+.. code::
+
+    # For conversion from IOB format, for example, for CoNLL-2003 dataset:
+    tlt token_classification dataset_convert [-h] \
+                                              -e /specs/nlp/token_classification/dataset_convert.yaml \
+                                              source_data_dir=/path/to/source_data_dir \
+                                              target_data_dir=/path/to/target_data_dir
+
+The `source_data_dir` structure should look like this (test.txt is optional):
+
+.. code::
+
+   .
+   |--sourced_data_dir
+     |-- dev.txt
+     |-- test.txt
+     |-- train.txt
+
+Note, the development set (or dev set) will be used to evaluate the performance of the model during model training. \
+The hyper-parameters search and model selection should be based on the dev set, while the final evaluation of \
+the selected model should be performed on the test set.
+
+An example of a spec file for dataset conversion:
+
+.. code::
+
+    # Path to the folder containing the dataset source files
+    source_data_dir: ???
+
+    # Path to the output folder.
+    target_data_dir: ???
+
+    # list of file names inside source_data_dir in IOB format
+    list_of_file_names:  ['train.txt','dev.txt']
+
+    # name of the file with training data inside sourse_data_dir
+    # train_file is used to generate label to label_id mapping
+    train_file_name: 'train.txt'
+
+    # Max sequence length use -1 to leave the examples's length as is,
+    # otherwise long examples will be split into multiple examples'
+    max_length: -1
+
+Output log after running :code:`token_classification dataset_convert`:
+
+.. code::
+
+    [NeMo I 2021-01-21 09:07:11 dataset_convert:133] Spec file:
+    source_data_dir: original/
+    list_of_file_names:
+    - train.txt
+    - dev.txt
+    train_file_name: train.txt
+    target_data_dir: original/output/
+    max_length: -1
+
+    [NeMo I token_classification_utils:54] Processing original/output/labels_train.txt
+    [NeMo I token_classification_utils:92] Labels mapping {'O': 0, 'B-LOC': 1, 'B-MISC': 2, 'B-ORG': 3, 'B-PER': 4, 'I-LOC': 5, 'I-MISC': 6, 'I-ORG': 7, 'I-PER': 8} saved to : original/output/label_ids.csv
+    [NeMo I token_classification_utils:101] Three most popular labels in original/output/labels_train.txt:
+    [NeMo I data_preprocessing:131] label: 0, 169578 out of 203621 (83.28%).
+    [NeMo I data_preprocessing:131] label: 1, 7140 out of 203621 (3.51%).
+    [NeMo I data_preprocessing:131] label: 4, 6600 out of 203621 (3.24%).
+    [NeMo I token_classification_utils:103] Total labels: 203621. Label frequencies - {0: 169578, 1: 7140, 4: 6600, 3: 6321, 8: 4528, 7: 3704, 2: 3438, 5: 1157, 6: 1155}
+    [NeMo I dataset_convert:173] Text and labels for train.txt saved to original/output/.
+    [NeMo I dataset_convert:174] Processing of train.txt is complete.
+    [NeMo I token_classification_utils:54] Processing original/output/labels_dev.txt
+    [NeMo I token_classification_utils:75] Using provided labels mapping {'O': 0, 'B-LOC': 1, 'B-MISC': 2, 'B-ORG': 3, 'B-PER': 4, 'I-LOC': 5, 'I-MISC': 6, 'I-ORG': 7, 'I-PER': 8}
+    [NeMo I token_classification_utils:98] original/output/labels_dev_label_stats.tsv found, skipping stats calculation.
+    [NeMo I dataset_convert:173] Text and labels for dev.txt saved to original/output/.
+    [NeMo I dataset_convert:174] Processing of dev.txt is complete.
+
+
+Convert Dataset Required Arguments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-e`: The experiment specification file.
+* :code:`source_data_dir` - path to the raw data
+* :code:`target_data_dir` - path to store the processed files
+
+Convert Dataset Optional Arguments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-h, --help`: Show this help message and exit
+* :code:`list_of_file_names`: List of files in :code:`source_data_dir` for conversion
+
++--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
+| **Parameter**      | **Datatype**   | **Default**                     | **Description**                                | **Supported Values**          |
++====================+================+=================================+================================================+===============================+
+| source_data_dir    | string         | -                               | Path to the dataset source data directory      | -                             |
++--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
+| target_data_dir    | string         | -                               | Path to the dataset target data directory      | -                             |
++--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
+| list_of_file_names | List of strings| ['train.txt','dev.txt']         | List of files for conversion                   | -                             |
++--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
+| train_file_name    | string         | 'train.txt'                     | name of the file with training data inside sourse_data_dir                     |
+|                    |                |                                 | train_file is used to generate string label to integer label_id mapping        |
++--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
+
+
+After the conversion, the `target_data_dir` should contain the following files:
+
+.. code::
+
+   .
+   |--target_data_dir
+     |-- label_ids.csv
+     |-- labels_dev.txt
+     |-- labels_test.txt
+     |-- labels_train.txt
+     |-- text_dev.txt
+     |-- text_test.txt
+     |-- text_train.txt
+
+
+Training a Token Classification model
+-------------------------------------
+
+In the Token Classification Model, we are jointly training a classifier on top of a pre-trained \
+language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__.
+
+Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the
+pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
+
+
+Example spec for training:
+
+.. code::
+
+    trainer:
+      max_epochs: 5
+
+    # Specifies parameters for the Token Classification model
+    model:
+      tokenizer:
+          tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
+          vocab_file: null # path to vocab file
+          tokenizer_model: null # only used if tokenizer is sentencepiece
+          special_tokens: null
+
+      # Pre-trained language model such as BERT or Megatron-BERT
+      language_model:
+        pretrained_model_name: bert-base-uncased
+        lm_checkpoint: null
+        config_file: null # json file, precedence over config
+        config: null
+
+      # Specifies parameters of the token classification head that follows a BERT-based language-model
+      head:
+        num_fc_layers: 2
+        fc_dropout: 0.5
+        activation: 'relu'
+        use_transformer_init: True
+
+      # Path to file with label_ids, generated with dataset_convert.py.
+      # Those labels are used by the model as labels (names of target classes, their number).
+      label_ids: ???
+
+    # Path to directory containing both finetuning and validation data.
+    data_dir: ???
+
+    # Specifies the parameters of the dataset to be used for training.
+    training_ds:
+      text_file: text_train.txt
+      labels_file: labels_train.txt
+      batch_size: 64
+      num_samples: -1 # number of samples to be considered, -1 means all the dataset
+
+    # Specifies the parameters of the dataset to be used for validation.
+    validation_ds:
+      text_file: text_dev.txt
+      labels_file: labels_dev.txt
+      batch_size: 64
+      num_samples: -1 # number of samples to be considered, -1 means all the dataset
+
+    # The parameters for the training optimizer, including learning rate, lr schedule, etc.
+    optim:
+      name: adam
+      lr: 5e-5
+      weight_decay: 0.00
+
+      # scheduler setup
+      sched:
+        name: WarmupAnnealing
+        # Scheduler params
+        warmup_steps: null
+        warmup_ratio: 0.1
+        last_epoch: -1
+        # pytorch lightning args
+        monitor: val_loss
+        reduce_on_plateau: false
+
+The specification can be roughly grouped into three categories:
+
+* Parameters that describe the training process
+* Parameters that describe the datasets, and
+* Parameters that describe the model.
+
+More details about parameters in the spec file could be found below:
+
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| trainer.max_epochs                        | integer         | 5                                                                                | Maximum number of epochs to train the model                                                                  |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.label_ids                           | string          | --                                                                               | Path to the string labels to integet mapping (is generated during the dataset conversion step)               |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.tokenizer.tokenizer_name            | string          | Will be filled automatically based on model.language_model.pretrained_model_name | Tokenizer name                                                                                               |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.tokenizer.vocab_file                | string          | null                                                                             | Path to tokenizer vocabulary                                                                                 |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.tokenizer.tokenizer_model           | string          | null                                                                             | Path to tokenizer model (only for sentencepiece tokenizer)                                                   |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.language_model.pretrained_model_name| string          | bert-base-uncased                                                                | Pre-trained language model name, for example: `bert-base-cased` or `bert-base-uncased`                       |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.language_model.lm_checkpoint        | string          | null                                                                             | Path to the pre-trained language model checkpoint                                                            |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.language_model.config_file          | string          | null                                                                             | Path to the pre-trained language model config file                                                           |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.language_model.config               | dictionary      | null                                                                             | Config of the pre-trained language model                                                                     |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.head.num_fc_layers                  | integer         | 2                                                                                | Number of fully connected layers                                                                             |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.head.fc_dropout                     | float           | 0.5                                                                              | Activation to use between fully connected layers                                                             |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.head.activation                     | string          | 'relu'                                                                           | Dropout to apply to the input hidden states                                                                  |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.punct_head.use_transrormer_init     | bool            | True                                                                             | Whether to initialize the weights of the classifier head with the same approach used in Transformer          |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.text_file                     | string          | text_train.txt                                                                   | Name of the text training file located at `data_dir`                                                         |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.labels_file                   | string          | labels_train.txt                                                                 | Name of the labels training file located at `data_dir`                                                       |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.shuffle                       | bool            | True                                                                             | Whether to shuffle the training data                                                                         |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.num_samples                   | integer         | -1                                                                               | Number of samples to use from the training dataset, -1 mean all                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.batch_size                    | integer         | 64                                                                               | Training data batch size                                                                                     |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.text_file                   | string          | text_dev.txt                                                                     | Name of the text file for evaluation, located at `data_dir`                                                  |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.labels_file                 | string          | labels_dev.txt                                                                   | Name of the labels dev file located at `data_dir`                                                            |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.shuffle                     | bool            | False                                                                            | Whether to shuffle the dev data                                                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.num_samples                 | integer         | -1                                                                               | Number of samples to use from the dev set, -1 mean all                                                       |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.batch_size                  | integer         | 64                                                                               | Dev set batch size                                                                                           |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| optim.name                                | string          | adam                                                                             | Optimizer to use for training                                                                                |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| optim.lr                                  | float           | 5e-5                                                                             | Learning rate to use for training                                                                            |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| optim.weight_decay                        | float           | 0                                                                                | Weight decay to use for training                                                                             |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| optim.sched.name                          | string          | WarmupAnnealing                                                                  | Warm up schedule                                                                                             |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| optim.sched.warmup_ratio                  | float           | 0.1                                                                              | Warm up ratio                                                                                                |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+
+Example of the command for training the model:
+
+.. code::
+
+    tlt token_classification train [-h] \
+                                    -e /specs/nlp/token_classification/train.yaml \
+                                    -r /results/token_classification/train/ \
+                                    -g 1 \
+                                    -k $KEY
+                                    data_dir=/path/to/data_dir \
+                                    model.label_ids=/path/to/label_ids.csv \
+                                    trainer.max_epochs=5 \
+                                    training_ds.num_samples=-1 \
+                                    validation_ds.num_samples=-1
+
+
+Required Arguments for Training
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-e`: The experiment specification file to set up training.
+* :code:`-r`: Path to the directory to store the results.
+* :code:`-k`: Encryption key
+* :code:`data_dir`: Path to the `data_dir` with the processed data files.
+* :code:`model.label_ids`: Path to the `label_ids.csv` file, usually stored at `data_dir`
+
+Optional Arguments
+^^^^^^^^^^^^^^^^^^
+
+* :code:`-h, --help`: Show this help message and exit
+* :code:`-g`: The number of GPUs to be used in evaluation in a multi-gpu scenario (default: 1).
+* Other arguments to override fields in the specification file.
+
+.. note::
+
+    While the arguments are defined in the spec file, if you wish to override these parameter definitions in the spec file \
+    and experiment with them, you may do so over command line by simple defining the param. \
+    For example, the sample spec file mentioned above has :code:`validation_ds.batch_size` set to 64. \
+    However, if you see that the GPU utilization can be optimized further by using larger a batch size, \
+    you may override to the desired value, by adding the field :code:`validation_ds.batch_size=128` over command line.
+    You may repeat this with any of the parameters defined in the sample spec file.
+
+Snippets of the output log from executing the :code:`token_classification train` command:
+
+.. code::
+
+    # complete model's spec file will be shown
+    [NeMo I train:93] Spec file:
+        restore_from: ???
+        exp_manager:
+          explicit_log_dir: /results/token_classification/train/
+          exp_dir: null
+          name: trained-model
+          version: null
+          use_datetime_version: true
+          resume_if_exists: true
+          resume_past_end: false
+          resume_ignore_no_checkpoint: true
+          create_tensorboard_logger: false
+          summary_writer_kwargs: null
+          create_wandb_logger: false
+          wandb_logger_kwargs: null
+          create_checkpoint_callback: true
+          checkpoint_callback_params:
+            filepath: null
+            monitor: val_loss
+            verbose: true
+            save_last: true
+            save_top_k: 3
+            save_weights_only: false
+            mode: auto
+            period: 1
+            prefix: null
+            postfix: .tlt
+            save_best_model: false
+          files_to_copy: null
+        model:
+          tokenizer:
+            tokenizer_name: ...
+        ...
+
+    [NeMo I exp_manager:186] Experiments will be logged at /results/token_classification/train/
+
+    # The dataset will be processed and tokenized
+    [NeMo I token_classification_model:61] Reusing label_ids file found at data_dir/label_ids.csv.
+    Using bos_token, but it is not set yet.
+    Using eos_token, but it is not set yet.
+    [NeMo I token_classification_model:105] Setting model.dataset.data_dir to data_dir.
+
+    [NeMo I 2021-01-21 17:57:14 token_classification_utils:54] Processing data_dir/labels_train.txt
+    [NeMo I 2021-01-21 17:57:14 token_classification_utils:75] Using provided labels mapping {'O': 0, 'B-GPE': 1, 'B-LOC': 2, 'B-MISC': 3, 'B-ORG': 4, 'B-PER': 5, 'B-TIME': 6, 'I-GPE': 7, 'I-LOC': 8, 'I-MISC': 9, 'I-ORG': 10, 'I-PER': 11, 'I-TIME': 12}
+    [NeMo I 2021-01-21 17:57:15 token_classification_utils:101] Three most popular labels in data_dir/labels_train.txt:
+    [NeMo I 2021-01-21 17:57:15 data_preprocessing:131] label: 0, 18417 out of 21717 (84.80%).
+    [NeMo I 2021-01-21 17:57:15 data_preprocessing:131] label: 2, 829 out of 21717 (3.82%).
+    [NeMo I 2021-01-21 17:57:15 data_preprocessing:131] label: 6, 433 out of 21717 (1.99%).
+    [NeMo I 2021-01-21 17:57:15 token_classification_utils:103] Total labels: 21717. Label frequencies - {0: 18417, 2: 829, 6: 433, 4: 357, 11: 352, 5: 349, 1: 338, 10: 281, 8: 181, 12: 142, 3: 21, 9: 12, 7: 5}
+    [NeMo I 2021-01-21 17:57:15 token_classification_utils:112] Class Weights: {0: 0.09070632901875775, 2: 2.015124802820822, 6: 3.858056493160419, 4: 4.679379444085327, 11: 4.7458479020979025, 5: 4.786643156270664, 1: 4.942421483841602, 10: 5.9449767314535995, 8: 9.229494262643433, 12: 11.764355362946912, 3: 79.54945054945055, 9: 139.21153846153845, 7: 334.10769230769233}
+    [NeMo I 2021-01-21 17:57:15 token_classification_utils:116] Class weights saved to data_dir/labels_train_weights.p
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:116] Setting Max Seq length to: 64
+    [NeMo I 2021-01-21 17:57:19 data_preprocessing:295] Some stats of the lengths of the sequences:
+    [NeMo I 2021-01-21 17:57:19 data_preprocessing:301] Min: 6 |                  Max: 64 |                  Mean: 26.357 |                  Median: 26.0
+    [NeMo I 2021-01-21 17:57:19 data_preprocessing:303] 75 percentile: 32.00
+    [NeMo I 2021-01-21 17:57:19 data_preprocessing:304] 99 percentile: 51.00
+    [NeMo W 2021-01-21 17:57:19 token_classification_dataset:145] 0 are longer than 64
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:148] *** Example ***
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:149] i: 0
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:150] subtokens: [CLS] new zealand ' s cricket team has scored a morale - boost ##ing win over bangladesh in the first of three one - day internationals in new zealand . [SEP]
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:151] loss_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:152] input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:153] subtokens_mask: 0 1 1 1 0 1 1 1 1 1 1 0 0 0 1 1 1 1 1 1 1 1 1 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:155] labels: 0 2 8 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 6 12 12 12 12 12 0 0 2 8 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:264] features saved to data_dir/cached_text_train.txt_BertTokenizer_128_30522_-1
+    [NeMo I 2021-01-21 17:57:19 token_classification_utils:54] Processing data_dir/labels_dev.txt
+    [NeMo I 2021-01-21 17:57:19 token_classification_utils:75] Using provided labels mapping {'O': 0, 'B-GPE': 1, 'B-LOC': 2, 'B-MISC': 3, 'B-ORG': 4, 'B-PER': 5, 'B-TIME': 6, 'I-GPE': 7, 'I-LOC': 8, 'I-MISC': 9, 'I-ORG': 10, 'I-PER': 11, 'I-TIME': 12}
+    [NeMo I 2021-01-21 17:57:20 token_classification_utils:101] Three most popular labels in data_dir/labels_dev.txt:
+    [NeMo I 2021-01-21 17:57:20 data_preprocessing:131] label: 0, 18266 out of 21775 (83.89%).
+    [NeMo I 2021-01-21 17:57:20 data_preprocessing:131] label: 2, 809 out of 21775 (3.72%).
+    [NeMo I 2021-01-21 17:57:20 data_preprocessing:131] label: 6, 435 out of 21775 (2.00%).
+    [NeMo I 2021-01-21 17:57:20 token_classification_utils:103] Total labels: 21775. Label frequencies - {0: 18266, 2: 809, 6: 435, 4: 418, 11: 414, 5: 392, 1: 351, 10: 351, 8: 174, 12: 146, 7: 8, 3: 8, 9: 3}
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:116] Setting Max Seq length to: 70
+    [NeMo I 2021-01-21 17:57:24 data_preprocessing:295] Some stats of the lengths of the sequences:
+    [NeMo I 2021-01-21 17:57:24 data_preprocessing:301] Min: 7 |                  Max: 70 |                  Mean: 26.437 |                  Median: 26.0
+    [NeMo I 2021-01-21 17:57:24 data_preprocessing:303] 75 percentile: 33.00
+    [NeMo I 2021-01-21 17:57:24 data_preprocessing:304] 99 percentile: 50.00
+    [NeMo W 2021-01-21 17:57:24 token_classification_dataset:145] 0 are longer than 70
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:148] *** Example ***
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:149] i: 0
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:150] subtokens: [CLS] hamas refuses to recognize israel , and has vowed to undermine palestinian leader mahmoud abbas ' s efforts to make peace with the jewish state . [SEP]
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:151] loss_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:152] input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:153] subtokens_mask: 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:155] labels: 0 4 0 0 0 2 0 0 0 0 0 0 1 0 5 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:264] features saved to data_dir/cached_text_dev.txt_BertTokenizer_128_30522_-1
+
+    [NeMo I 2021-01-21 17:00:09 modelPT:830] Optimizer config = Adam (
+        Parameter Group 0
+            amsgrad: False
+            betas: (0.9, 0.999)
+            eps: 1e-08
+            lr: 5e-05
+            weight_decay: 0.0
+        )
+    [NeMo I 2021-01-21 17:00:09 lr_scheduler:621] Scheduler "<nemo.core.optim.lr_scheduler.WarmupAnnealing object at 0x7f3b6d05f400>"
+        will be used during training (effective maximum steps = 16) -
+        Parameters :
+        (warmup_steps: null
+        warmup_ratio: 0.1
+        last_epoch: -1
+        max_steps: 16
+        )
+    initializing ddp: GLOBAL_RANK: 0, MEMBER: 1/1
+    [NeMo I 2021-01-21 17:00:11 modelPT:704] No optimizer config provided, therefore no optimizer was created
+
+    110 M     Trainable params
+    0         Non-trainable params
+    110 M     Total params
+    Validation sanity check:  50%|████████████████████████████▌                            | 1/2 [00:00<00:00,  1.47it/s][NeMo I 2021-01-21 17:00:13 token_classification_model:178]
+        label                                                precision    recall       f1           support
+        O (label_id: 0)                                         82.08     100.00      90.16       2300
+        B-GPE (label_id: 1)                                      0.00       0.00       0.00         41
+        B-LOC (label_id: 2)                                      0.00       0.00       0.00        119
+        B-MISC (label_id: 3)                                     0.00       0.00       0.00          2
+        B-ORG (label_id: 4)                                      0.00       0.00       0.00         71
+        B-PER (label_id: 5)                                      0.00       0.00       0.00         62
+        B-TIME (label_id: 6)                                     0.00       0.00       0.00         56
+        I-GPE (label_id: 7)                                      0.00       0.00       0.00          4
+        I-LOC (label_id: 8)                                      0.00       0.00       0.00         18
+        I-MISC (label_id: 9)                                     0.00       0.00       0.00          0
+        I-ORG (label_id: 10)                                     0.00       0.00       0.00         52
+        I-PER (label_id: 11)                                     0.00       0.00       0.00         61
+        I-TIME (label_id: 12)                                    0.00       0.00       0.00         16
+        -------------------
+        micro avg                                               82.08      82.08      82.08       2802
+        macro avg                                                6.84       8.33       7.51       2802
+        weighted avg                                            67.38      82.08      74.01       2802
+
+    Training: 0it [00:00, ?it/s]
+    [NeMo I 2021-01-21 17:00:38 train:124] Experiment logs saved to 'output'
+    [NeMo I 2021-01-21 17:00:38 train:127] Trained model saved to 'output/checkpoints/trained-model.tlt'
+    INFO: Internal process exited
+
+
+Important parameters
+^^^^^^^^^^^^^^^^^^^^
+
+Below is the list of parameters could help improve the model:
+
+- language model (`model.language_model.pretrained_model_name`)
+    - pre-trained language model name, such as:
+    - `megatron-bert-345m-uncased`, `megatron-bert-345m-cased`, `biomegatron-bert-345m-uncased`, `biomegatron-bert-345m-cased`, `bert-base-uncased`, `bert-large-uncased`, `bert-base-cased`, `bert-large-cased`
+    - `distilbert-base-uncased`, `distilbert-base-cased`,
+    - `roberta-base`, `roberta-large`, `distilroberta-base`
+    - `albert-base-v1`, `albert-large-v1`, `albert-xlarge-v1`, `albert-xxlarge-v1`, `albert-base-v2`, `albert-large-v2`, `albert-xlarge-v2`, `albert-xxlarge-v2`
+
+- classification head parameters:
+    - the number of layers in the classification head (`model.head.num_fc_layers`)
+    - dropout value between layers (`model.head.fc_dropout`)
+
+- optimizer (`model.optim.name`, for example, `adam`)
+- learning rate (`model.optim.lr`, for example, `5e-5`)
+
+
+
+Fine-tuning a model on a different dataset
+------------------------------------------
+
+In the previous section <ref>:Training a token classification model, \
+the Token Classification (NER) model was initialized with a pre-trained language model, \
+but the classifiers were trained from scratch.
+Now, that a user has trained the Token Classification model successfully (let's call it `trained-model.tlt`), \
+there maybe scenarios where users are required to retrain this `trained-model.tlt` on a new smaller dataset. \
+TLT conversational AI applications provide a separate tool called `fine-tune` to enable this.
+
+Note, all labels from the dataset that is used for fine-tuning, should be present in the dataset the model was originally trained.
+If it is not the case, use the :code:`tlt token_classification train` with your data.
+
+Example for spec for fine-tuning of the model:
+
+.. code::
+
+    trainer:
+      max_epochs: 5
+
+    data_dir: ???
+
+    # Fine-tuning settings: training dataset.
+    finetuning_ds:
+      num_samples: -1 # number of samples to be considered, -1 means all the dataset
+
+    # Fine-tuning settings: validation dataset.
+    validation_ds:
+      num_samples: -1 # number of samples to be considered, -1 means all the dataset
+
+    # Fine-tuning settings: different optimizer.
+    optim:
+      name: adam
+      lr: 1e-5
+
+
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| trainer.max_epochs                        | integer         | 5                                                                                | Maximum number of epochs to train the model                                                                  |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| finetuning_ds.text_file                   | string          | text_train.txt                                                                   | Name of the text training file located at `data_dir`                                                         |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| finetuning_ds.labels_file                 | string          | labels_train.txt                                                                 | Name of the labels training file located at `data_dir`                                                       |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| finetuning_ds.shuffle                     | bool            | True                                                                             | Whether to shuffle the training data                                                                         |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| finetuning_ds.num_samples                 | integer         | -1                                                                               | Number of samples to use from the training dataset, -1 mean all                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| finetuning_ds.batch_size                  | integer         | 64                                                                               | Training data batch size                                                                                     |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.text_file                   | string          | text_dev.txt                                                                     | Name of the text file for evaluation, located at `data_dir`                                                  |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.labels_file                 | string          | labels_dev.txt                                                                   | Name of the labels dev file located at `data_dir`                                                            |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.shuffle                     | bool            | False                                                                            | Whether to shuffle the dev data                                                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.num_samples                 | integer         | -1                                                                               | Number of samples to use from the dev set, -1 mean all                                                       |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.batch_size                  | integer         | 64                                                                               | Dev set batch size                                                                                           |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| optim.name                                | string          | adam                                                                             | Optimizer to use for training                                                                                |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| optim.lr                                  | float           | 1e-5                                                                             | Learning rate to use for training                                                                            |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+
+Use the following command for fine-tune the model:
+
+.. code::
+
+    tlt token_classification finetune [-h] \
+                                       -e /specs/nlp/token_classification/finetune.yaml \
+                                       -r /results/token_classification/finetune/ \
+                                       -m /path/to/trained-model.tlt \
+                                       -g 1 \
+                                       data_dir=PATH_TO_DATA \
+                                       trainer.max_epochs=5 \
+                                       -k $KEY
+
+Required Arguments for Funetuning
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-h, --help`: Show this help message and exit
+* :code:`-e`: The experiment specification file to set up fine-tuning.
+* :code:`-r`: Path to the directory to store the results.
+* :code:`-m`: Path to the pre-trained model to use for fine-tuning.
+* :code:`data_dir`: Path to data directory with the pre-processed data to use for fine-tuning
+* :code:`-k`: Encryption key
+
+Optional Arguments
+^^^^^^^^^^^^^^^^^^
+
+* :code:`-g`: The number of GPUs to be used in evaluation in a multi-gpu scenario (default: 1).
+* Other arguments to override fields in the specification file.
+
+Output log for the :code:`tlt token_calssification finetune` command:
+
+.. code::
+
+    Model restored from '/path/to/trained-model.tlt'
+    # The rest of the log is similar to the output log snippet for :code:`token_classification train`.
+
+
+Evaluating a trained model
+--------------------------
+
+Spec example to evaluate the pre-trained model:
+
+.. code::
+
+    restore_from: trained-model.tlt
+    data_dir: ???
+
+    # Test settings: dataset.
+    test_ds:
+      text_file: text_dev.txt
+      labels_file: labels_dev.txt
+      batch_size: 1
+      shuffle: false
+      num_samples: -1 # number of samples to be considered, -1 means the whole the dataset
+
+Use the following command to evaluate the model:
+
+.. code::
+
+    tlt token_classification evaluate [-h] \
+                                       -e /specs/nlp/token_classification/evaluate.yaml \
+                                       -r /results/token_classification/evaluate/ \
+                                       -g 1 \
+                                       -m /path/to/trained-model.tlt \
+                                       -k $KEY \
+                                       data_dir=/path/to/data_dir
+
+Required Arguments for Evaluation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-e`: The experiment specification file to set up evaluation.
+* :code:`-r`: Path to the directory to store the results.
+* :code:`data_dir`: Path to data directory with the pre-processed data to use for evaluation
+* :code:`-m`: Path to the pre-trained model checkpoint for evaluation. Should be a :code:`.tlt` file.
+* :code:`-k`: Encryption key
+
+Optional Arguments for Evaluation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-h, --help`: Show this help message and exit
+
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| restore_from                              | string          | trained-model.tlt                                                                | Path to the pre-trained model                                                                                |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| test_ds.text_file                         | string          | text_dev.txt                                                                     | Name of the text file to run evaluation on located at `data_dir`                                             |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| test_ds.labels_file                       | string          | labels_dev.txt                                                                   | Name of the labels dev file located at `data_dir`                                                            |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| test_ds.shuffle                           | bool            | False                                                                            | Whether to shuffle the dev data                                                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| test_ds.num_samples                       | integer         | -1                                                                               | Number of samples to use from the dev set, -1 mean all                                                       |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| test_ds.batch_size                        | integer         | 64                                                                               | Dev set batch size                                                                                           |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+
+:code:`token_classification evaluate` generates a classification report that includes the following metrics:
+
+* :code:`Precision`
+* :code:`Recall`
+* :code:`F1`
+
+More details about these metrics could be found `here <https://en.wikipedia.org/wiki/Precision_and_recall>`__.
+
+Output log for :code:`token_classification evaluate` (note, the values below are for demonstration purposes only):
+
+.. code::
+
+    label                                                precision    recall       f1           support
+    O (label_id: 0)                                         83.89     100.00      91.24      18266
+    B-GPE (label_id: 1)                                      0.00       0.00       0.00        351
+    B-LOC (label_id: 2)                                      0.00       0.00       0.00        809
+    B-MISC (label_id: 3)                                     0.00       0.00       0.00          8
+    B-ORG (label_id: 4)                                      0.00       0.00       0.00        418
+    B-PER (label_id: 5)                                      0.00       0.00       0.00        392
+    B-TIME (label_id: 6)                                     0.00       0.00       0.00        435
+    I-GPE (label_id: 7)                                      0.00       0.00       0.00          8
+    I-LOC (label_id: 8)                                      0.00       0.00       0.00        174
+    I-MISC (label_id: 9)                                     0.00       0.00       0.00          3
+    I-ORG (label_id: 10)                                     0.00       0.00       0.00        351
+    I-PER (label_id: 11)                                     0.00       0.00       0.00        414
+    I-TIME (label_id: 12)                                    0.00       0.00       0.00        146
+    -------------------
+    micro avg                                               83.89      83.89      83.89      21775
+    macro avg                                                6.45       7.69       7.02      21775
+    weighted avg                                            70.37      83.89      76.53      21775
+
+    Testing: 100%|██████████████████████████████████████████████████████████████████████████████████████████| 1000/1000 [00:39<00:00, 25.59it/s]
+    --------------------------------------------------------------------------------
+    DATALOADER:0 TEST RESULTS
+        {'f1': tensor(7.0182, device='cuda:0'),
+         'precision': tensor(6.4527, device='cuda:0'),
+         'recall': tensor(7.6923, device='cuda:0'),
+         'test_loss': tensor(1.0170, device='cuda:0')}
+
+Running inference using a trained model
+---------------------------------------
+
+During inference, a batch of input sentences, listed in the spec files, are passed through the trained model \
+to add token classification label.
+
+To run inference on the model, specify the list of examples in the spec, for example:
+
+.. code::
+
+    input_batch:
+      - 'We bought four shirts from the Nvidia gear store in Santa Clara.'
+      - 'Nvidia is a company.'
+
+To run inference:
+
+.. code::
+
+    tlt token_classification infer [-h] \
+                                    -e /specs/nlp/token_classification/infer.yaml \
+                                    -r /results/token_classification/infer/ \
+                                    -g 1 \
+                                    -m trained-model.tlt \
+                                    -k $KEY
+
+Required Arguments for Inference
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-e`: The experiment specification file to set up inference.
+  This requires the :code:`input_batch` with the list of examples to run inference on.
+* :code:`-r`: Path to the directory to store the results.
+* :code:`-m`: Path to the pre-trained model checkpoint from which to infer. Should be a :code:`.tlt` file.
+* :code:`-k`: Encryption key
+
+
+Optional Arguments
+^^^^^^^^^^^^^^^^^^
+
+* :code:`-h, --help`: Show this help message and exit
+* :code:`-g`: The number of GPUs to be used for fine-tuning in a multi-gpu scenario (default: 1).
+* Other arguments to override fields in the specification file.
+
+Output log sample:
+
+.. code::
+
+    Query : we bought four shirts from the nvidia gear store in santa clara.
+    Result: we bought four shirts from the nvidia[B-LOC] gear store in santa[B-LOC] clara[I-LOC].
+    Nvidia is a company.
+    Result: Nvidia[B-ORG] is a company.
+
+Model Export
+------------
+
+A pre-trained model could be exported to JARVIS format (this format contains model checkpoint along with model artifacts required for successful deployment of the trained .tlt models to Jarvis Services). For more details about Jarvis, see `this <https://docs.nvidia.com/deeplearning/jarvis/user-guide/docs/model-servicemaker.html>`__.
+
+An example of the spec file for model export:
+
+.. code::
+
+    # Name of the .tlt EFF archive to be loaded/model to be exported.
+    restore_from: trained-model.tlt
+
+    # Set export format: JARVIS
+    export_format: JARVIS
+
+    # Output EFF archive containing model checkpoint and artifacts required for Jarvis Services
+    export_to: exported-model.ejrvs
+
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| restore_from                              | string          | trained-model.tlt                                                                | Path to the pre-trained model                                                                                |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| export_format                             | string          | JARVIS                                                                           | Export format: JARVIS                                                                  |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| export_to                                 | string          | exported-model.ejrvs                                                             | Path to the exported model                                                                                   |
++-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+
+To export a pre-trained model for deployment, run:
+
+.. code::
+
+    ### For export to Jarvis format
+    tlt token_classification export [-h] \
+                                     -e /specs/nlp/token_classification/export.yaml \
+                                     -r /results/token_classification/export/ \
+                                     -m trained-model.tlt \
+                                     -k $KEY
+                                     export_format=JARVIS
+
+
+Required Arguments for Export
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`-e`: The experiment specification file to set up inference.
+  This requires the :code:`input_batch` with the list of examples to run inference on.
+* :code:`-r`: Path to the directory to store the results.
+* :code:`-m`: Path to the pre-trained model checkpoint from which to infer. Should be a :code:`.tlt` file.
+* :code:`-k`: Encryption key
+
+Optional Arguments for Export
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+* :code:`-h, --help`: Show this help message and exit
+
+Output log:
+
+.. code::
+
+    Spec file:
+    restore_from: path/to/trained-model.tlt
+    export_to: exported-model.ejrvs
+    export_format: JARVIS
+    exp_manager:
+      task_name: export
+      explicit_log_dir: /results/token_classification/export/
+    encryption_key: $KEY
+
+    Experiment logs saved to '/results/token_classification/export/'
+    Exported model to '/results/token_classification/export/exported-model.ejrvs'
+
