@@ -261,6 +261,7 @@ def split_text(
             sentences = sentences.replace(k, v)
 
     if language == 'eng' and NEMO_NORMALIZATION and use_nemo_normalization:
+        print('----> NEMO')
         sentences = normalize_numbers(sentences, verbose=False)
 
     # replace numbers with num2words
