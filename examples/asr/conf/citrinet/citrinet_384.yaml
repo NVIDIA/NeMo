@@ -1,4 +1,4 @@
-name: &name "CitriNet-192-8x-Stride"
+name: &name "CitriNet-384-8x-Stride"
 
 model:
   sample_rate: &sample_rate 16000
@@ -12,7 +12,6 @@ model:
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
 
   validation_ds:
     manifest_filepath: ???
@@ -65,7 +64,7 @@ model:
     conv_mask: true
 
     jasper:
-      - filters: 192
+      - filters: 384
         repeat: 1
         kernel: [5]
         stride: [1]
@@ -76,7 +75,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [11]
         stride: [2]
@@ -89,7 +88,7 @@ model:
         stride_last: true
         residual_mode: "stride_add"
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
         stride: [1]
@@ -100,7 +99,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [15]
         stride: [1]
@@ -111,7 +110,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
         stride: [1]
@@ -122,7 +121,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [19]
         stride: [1]
@@ -133,7 +132,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [21]
         stride: [1]
@@ -144,7 +143,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
         stride: [2]  # *stride
@@ -157,7 +156,7 @@ model:
         stride_last: true
         residual_mode: "stride_add"
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [15]
         stride: [1]
@@ -168,7 +167,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
         stride: [1]
@@ -179,7 +178,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 192
+      - filters: 384
         repeat: ${model.model_defaults.repeat}
         kernel: [19]
         stride: [1]
@@ -313,7 +312,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: &enc_final 480
+      - filters: &enc_final 640
         repeat: 1
         kernel: [41]
         stride: [1]
@@ -346,7 +345,7 @@ model:
       # scheduler config override
       warmup_steps: 1000
       warmup_ratio: null
-      min_lr: 1e-9
+      min_lr: 1e-5
       last_epoch: -1
 
 trainer:
@@ -360,7 +359,6 @@ trainer:
   logger: false  # Provided by exp_manager
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  check_val_every_n_epoch: 1 # Number of epochs between validation checks
 
 exp_manager:
   exp_dir: null
