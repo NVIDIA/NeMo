@@ -11,7 +11,7 @@ Jasper
 Jasper ("Just Another SPeech Recognizer") :cite:`asr-models-li2019jasper`  is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:
 
-    .. image:: jasper_vertical.png
+    .. image:: images/jasper_vertical.png
         :align: center
         :alt: japer model
         :scale: 50%
@@ -24,7 +24,7 @@ QuartzNet :cite:`asr-models-kriman2019quartznet` is a version of Jasper :cite:`a
 similar to Jasper but with an order of magnitude less parameters.
 Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
-    .. image:: quartz_vertical.png
+    .. image:: images/quartz_vertical.png
         :align: center
         :alt: quartznet model
         :scale: 40%
@@ -40,7 +40,7 @@ Citrinet is a version of QuartzNet :cite:`asr-models-kriman2019quartznet` that e
 utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to
 obtain highly accurate audio transcripts while utilizing a non-autoregressive CTC based decoding scheme for efficient inference.
 
-    .. image:: citrinet_vertical.png
+    .. image:: images/citrinet_vertical.png
         :align: center
         :alt: citrinet model
         :scale: 50%

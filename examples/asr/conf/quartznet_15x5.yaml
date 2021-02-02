@@ -27,6 +27,13 @@ model:
     batch_size: 32
     shuffle: False
 
+  test_ds:
+    manifest_filepath: null
+    sample_rate: 16000
+    labels: *labels
+    batch_size: 32
+    shuffle: False
+
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     normalize: "per_feature"

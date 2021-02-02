@@ -27,7 +27,7 @@ Speech Classification Models
    :header-rows: 1
 
 Speech Recognition Benchmarks
-=============================
+-----------------------------
 
 English
 -------
