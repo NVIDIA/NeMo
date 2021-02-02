@@ -331,7 +331,7 @@ pipeline {
             python /home/TestData/ctc_segmentation/verify_alignment.py \
             -r /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
             -g /home/TestData/ctc_segmentation/eng/output/verified_segments/nv_test_segments.txt && \
-            rm -rf eng/output'
+            rm -rf /home/TestData/ctc_segmentation/eng/output'
             }
           }
           stage('L2: Ru QN with .mp3') {
@@ -350,7 +350,7 @@ pipeline {
             python /home/TestData/ctc_segmentation/verify_alignment.py \
             -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
             -g /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
-            rm -rf ru/output'
+            rm -rf /home/TestData/ctc_segmentation/ru/output'
             }
            }
          }
