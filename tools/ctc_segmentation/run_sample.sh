@@ -10,6 +10,7 @@ MIN_SEGMENT_LEN=20
 MAX_SEGMENT_LEN=100
 ADDITIONAL_SPLIT_SYMBOLS=''
 AUDIO_FORMAT='.mp3'
+USE_NEMO_NORMALIZATION='False'
 
 for ARG in "$@"
 do
@@ -34,6 +35,7 @@ echo "MIN_SEGMENT_LEN = $MIN_SEGMENT_LEN"
 echo "MAX_SEGMENT_LEN = $MAX_SEGMENT_LEN"
 echo "ADDITIONAL_SPLIT_SYMBOLS = $ADDITIONAL_SPLIT_SYMBOLS"
 echo "AUDIO_FORMAT = $AUDIO_FORMAT"
+echo "USE_NEMO_NORMALIZATION = $USE_NEMO_NORMALIZATION"
 
 if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; then
   echo "Usage: $(basename "$0")
@@ -49,9 +51,16 @@ if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; t
   --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for
     sentence split if eos sentence split resulted in sequence longer than --max_length.
     Use '|' as a separator between symbols, for example: ';|:|' (Optional)]
-  --AUDIO_FORMAT=[choose from ['.mp3', '.wav'], input audio files format"
+  --AUDIO_FORMAT=[choose from ['.mp3', '.wav'], input audio files format
+  --USE_NEMO_NORMALIZATION Set to 'True' to use NeMo Normalization tool to convert
+    numbers from written to spoken format. By default num2words package will be used. (Optional)"
   exit 1
 fi
+
+NEMO_NORMALIZATION=""
+    if [[ ${USE_NEMO_NORMALIZATION,,} == "true" ]]; then
+      NEMO_NORMALIZATION="--use_nemo_normalization "
+    fi
 
 # STEP #1
 # Prepare text and audio data for segmentation
@@ -65,7 +74,7 @@ python $SCRIPTS_DIR/prepare_data.py \
 --model=$MODEL_NAME_OR_PATH \
 --min_length=$MIN_SEGMENT_LEN \
 --max_length=$MAX_SEGMENT_LEN \
---additional_split_symbols=$ADDITIONAL_SPLIT_SYMBOLS || exit
+--additional_split_symbols=$ADDITIONAL_SPLIT_SYMBOLS $NEMO_NORMALIZATION || exit
 
 # STEP #2
 # Run CTC-segmenatation
