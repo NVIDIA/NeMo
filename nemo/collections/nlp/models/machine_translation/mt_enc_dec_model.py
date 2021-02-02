@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import itertools
+import os
 import pickle
 import random
 from pathlib import Path
+import tarfile
+import tempfile
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -29,6 +32,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 from torch.nn.parallel.distributed import DistributedDataParallel
+import youtokentome as yttm
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -40,8 +44,10 @@ from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MT
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
+
 
 __all__ = ['MTEncDecModel']
 
@@ -67,6 +73,7 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.src_language: str = cfg.get("src_language", None)
         self.tgt_language: str = cfg.get("tgt_language", None)
+        self.preprocess_data()
 
         # TODO: use get_encoder function with support for HF and Megatron
         self.encoder = TransformerEncoderNM(
