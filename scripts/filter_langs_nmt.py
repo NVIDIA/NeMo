@@ -45,14 +45,13 @@ logging.basicConfig(level=logging.INFO)
 def get_args():
     parser = argparse.ArgumentParser(
         description="It is a script for verifying language in machine translation data sets. If the script is used on "
-                    "a parallel corpus, it verifies both a source and a target language. If number of jobs "
-                    "`--num-jobs` is bigger than 1 than lines in an input file (or files if parallel corpus is checked)"
-                    " split equally between workers. If `num_jobs > 1` is used, the best performance is achieved if "
-                    "dataset is shuffled and lines with different lengths are distributed evenly in the input file. "
-                    "Filtered data is stored into `output_src`[, `--output-tgt`] and removed lines are put into "
-                    "`removed_src`[, `--removed-tgt`] files. If language cannot be detected (e.g. date), the line is "
-                    "removed. Working time on en-de wikimatrix (6.23M pairs: 700 MB German and "
-                    "625 MB English) from wmt20 on machine with 20 CPU cores: less than 1 minute."
+        "a parallel corpus, it verifies both a source and a target language. If number of jobs `--num-jobs` is bigger "
+        "than 1 than lines in an input file (or files if parallel corpus is checked) split equally between workers. "
+        "If `num_jobs > 1` is used, the best performance is achieved if dataset is shuffled and lines with different "
+        "lengths are distributed evenly in the input file. Filtered data is stored into `output_src`[, `--output-tgt`]"
+        " and removed lines are put into `removed_src`[, `--removed-tgt`] files. If language cannot be detected "
+        "(e.g. date), the line is removed. Working time on en-de wikimatrix (6.23M pairs: 700 MB German and 625 MB "
+        "English) from wmt20 on machine with 20 CPU cores: less than 1 minute."
     )
     parser.add_argument(
         "--input-src",
@@ -65,7 +64,7 @@ def get_args():
         "--input-tgt",
         "-t",
         help="Path to the input file which has to contain text in language `target_lang`. If not provided, data is "
-             "processed as monolingual.",
+        "processed as monolingual.",
         type=Path,
     )
     parser.add_argument(
@@ -76,60 +75,55 @@ def get_args():
         type=Path,
     )
     parser.add_argument(
-        "--output-tgt",
-        "-T",
-        required=True,
-        help="Path to the output target file",
-        type=Path,
+        "--output-tgt", "-T", required=True, help="Path to the output target file", type=Path,
     )
     parser.add_argument(
         "--source-lang",
         "-l",
         required=True,
-        help="Input language. For options see https://fasttext.cc/docs/en/language-identification.html."
+        help="Input language. For options see https://fasttext.cc/docs/en/language-identification.html.",
     )
     parser.add_argument(
         "--target-lang",
         "-L",
-        help="Output language. For options see https://fasttext.cc/docs/en/language-identification.html."
+        help="Output language. For options see https://fasttext.cc/docs/en/language-identification.html.",
     )
     parser.add_argument(
-        "--removed-src",
-        "-r",
-        required=True,
-        help="Path to file where removed source lines will be saved",
-        type=Path,
+        "--removed-src", "-r", required=True, help="Path to file where removed source lines will be saved", type=Path,
     )
     parser.add_argument(
-        "--removed-tgt",
-        "-R",
-        required=True,
-        help="Path to file where removed target lines will be saved",
-        type=Path,
+        "--removed-tgt", "-R", required=True, help="Path to file where removed target lines will be saved", type=Path,
     )
     parser.add_argument(
         "--num-jobs",
         "-j",
         type=int,
-        help="Number of jobs. By default, the number of jobs is equal to the number of CPU cores."
+        help="Number of jobs. By default, the number of jobs is equal to the number of CPU cores.",
     )
     parser.add_argument(
         "--fasttext-model",
         "-m",
         help="Path to fasttext model. The description and download links are here "
-             "https://fasttext.cc/docs/en/language-identification.html",
+        "https://fasttext.cc/docs/en/language-identification.html",
         type=Path,
     )
     args = parser.parse_args()
-    if not (args.output_tgt is None and args.input_tgt is None and args.target_lang is None
-                and args.removed_tgt is None
-            or args.output_tgt is not None and args.input_tgt is not None and args.target_lang is not None
-                and args.removed_tgt is not None):
+    if not (
+        args.output_tgt is None
+        and args.input_tgt is None
+        and args.target_lang is None
+        and args.removed_tgt is None
+        or args.output_tgt is not None
+        and args.input_tgt is not None
+        and args.target_lang is not None
+        and args.removed_tgt is not None
+    ):
         raise ValueError(
             f"Arguments `input_tgt`, `output_tgt`, `target_lang`, `removed_tgt` have to be either `None` "
             f"simultaneously or not `None` simultaneously. Given "
             f"input_tgt={args.input_tgt}, output_tgt={args.output_tgt}, target_lang={args.target_lang}, "
-            f"removed_tgt={args.removed_tgt}")
+            f"removed_tgt={args.removed_tgt}"
+        )
     args.input_src = args.input_src.expanduser()
     if args.input_tgt is not None:
         args.input_tgt = args.input_tgt.expanduser()
@@ -158,19 +152,21 @@ def get_edges_in_1_file(fn, num_parts):
             i += len(l.encode('utf-8'))
             edges.append(i)
             num_lines += 1
-    return [edges[int(i*num_lines/num_parts)] for i in range(num_parts)] + [edges[-1]], num_lines
+    return [edges[int(i * num_lines / num_parts)] for i in range(num_parts)] + [edges[-1]], num_lines
 
 
 def get_edges_and_num_lines(src_fn, tgt_fn, num_parts):
     src_edges, src_num_lines = get_edges_in_1_file(src_fn, num_parts)
     assert num_parts + 1 == len(src_edges)
-    src_edges = [(src_edges[i], src_edges[i+1]) for i in range(len(src_edges)-1)]
+    src_edges = [(src_edges[i], src_edges[i + 1]) for i in range(len(src_edges) - 1)]
     if tgt_fn is not None:
         tgt_edges, tgt_num_lines = get_edges_in_1_file(tgt_fn, num_parts)
         tgt_edges = [(tgt_edges[i], tgt_edges[i + 1]) for i in range(len(tgt_edges) - 1)]
         if tgt_num_lines != src_num_lines:
-            raise ValueError(f"Source {repr(src_fn)} and target {repr(tgt_fn)} files have different number of lines "
-                             f"{src_num_lines} and {tgt_num_lines} correspondingly.")
+            raise ValueError(
+                f"Source {repr(src_fn)} and target {repr(tgt_fn)} files have different number of lines "
+                f"{src_num_lines} and {tgt_num_lines} correspondingly."
+            )
 
     else:
         tgt_edges = [None] * num_parts
@@ -179,18 +175,18 @@ def get_edges_and_num_lines(src_fn, tgt_fn, num_parts):
 
 
 def filter_pairs(
-        src_edges,
-        tgt_edges,
-        input_src,
-        input_tgt,
-        filtered_dir_src,
-        filtered_dir_tgt,
-        removed_dir_src,
-        removed_dir_tgt,
-        source_lang,
-        target_lang,
-        fasttext_model,
-        rank,
+    src_edges,
+    tgt_edges,
+    input_src,
+    input_tgt,
+    filtered_dir_src,
+    filtered_dir_tgt,
+    removed_dir_src,
+    removed_dir_tgt,
+    source_lang,
+    target_lang,
+    fasttext_model,
+    rank,
 ):
     global counter
     fasttext_model = fasttext.load_model(str(fasttext_model))
@@ -198,9 +194,9 @@ def filter_pairs(
     output_src_removed = removed_dir_src / Path(f"rank{rank}")
     output_tgt = filtered_dir_tgt / Path(f"rank{rank}")
     output_tgt_removed = removed_dir_tgt / Path(f"rank{rank}")
-    with open(input_src) as in_src, open(input_tgt) as in_tgt, open(output_src, 'w') as out_src, \
-            open(output_tgt, 'w') as out_tgt, open(output_src_removed, 'w') as out_r_src, \
-            open(output_tgt_removed, 'w') as out_r_tgt:
+    with open(input_src) as in_src, open(input_tgt) as in_tgt, open(output_src, 'w') as out_src, open(
+        output_tgt, 'w'
+    ) as out_tgt, open(output_src_removed, 'w') as out_r_src, open(output_tgt_removed, 'w') as out_r_tgt:
         in_src.seek(src_edges[0])
         in_tgt.seek(tgt_edges[0])
         src_l, tgt_l, i = in_src.readline(), in_tgt.readline(), 0
@@ -238,13 +234,7 @@ def filter_pairs(
 
 
 def filter_singles(
-        src_edges,
-        input_src,
-        filtered_dir_src,
-        removed_dir_src,
-        source_lang,
-        fasttext_model,
-        rank,
+    src_edges, input_src, filtered_dir_src, removed_dir_src, source_lang, fasttext_model, rank,
 ):
     global counter
     fasttext_model = fasttext.load_model(str(fasttext_model))
@@ -289,13 +279,7 @@ def filter_by_lang(args):
         if tgt_edges is not None:
             warnings.warn("If input target is not provided `tgt_edges` argument is expected to be `None`")
             filter_singles(
-                src_edges,
-                input_src,
-                filtered_dir_src,
-                removed_dir_src,
-                source_lang,
-                fasttext_model,
-                rank,
+                src_edges, input_src, filtered_dir_src, removed_dir_src, source_lang, fasttext_model, rank,
             )
     else:
         filter_pairs(
@@ -391,7 +375,7 @@ def main():
                     rank,
                 )
                 for rank, (se, te) in enumerate(zip(src_edges, tgt_edges))
-            ]
+            ],
         )
         while not async_result.ready():
             t.update(counter.value)
@@ -402,7 +386,7 @@ def main():
 
     cat_results(
         [args.output_src, args.output_tgt, args.removed_src, args.removed_tgt],
-        [tmp_filtered_src, tmp_filtered_tgt, tmp_removed_src, tmp_removed_tgt]
+        [tmp_filtered_src, tmp_filtered_tgt, tmp_removed_src, tmp_removed_tgt],
     )
     shutil.rmtree(tmp_dir)
 
