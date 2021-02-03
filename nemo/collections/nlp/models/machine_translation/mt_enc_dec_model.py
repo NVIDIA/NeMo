@@ -85,7 +85,6 @@ class MTEncDecModel(EncDecNLPModel):
                 tokenizer_name=cfg.data_preproc.tokenizer_name,
                 bpe_dropout=cfg.data_preproc.bpe_dropout,
             )
-
         else:
             encoder_tokenizer_model = cfg.encoder_tokenizer.tokenizer_model
             decoder_tokenizer_model = cfg.decoder_tokenizer.tokenizer_model
