@@ -153,7 +153,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
             self.pre_encode = nn.Linear(feat_in, d_model)
 
-        if not untie_biases and (self_attention_model == "rel_pos" or self_attention_model == "rel_pos2"):
+        if not untie_biases and self_attention_model == "rel_pos":
             d_head = d_model // n_heads
             pos_bias_u = nn.Parameter(torch.Tensor(n_heads, d_head))
             pos_bias_v = nn.Parameter(torch.Tensor(n_heads, d_head))
