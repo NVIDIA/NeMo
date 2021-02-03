@@ -6,8 +6,6 @@ model:
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
 
-
-
   train_ds:
     src_file_name: ???
     tgt_file_name: ???
@@ -75,7 +73,6 @@ model:
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
-    out_dir: null
 
   decoder_tokenizer:
     tokenizer_name: yttm
@@ -84,7 +81,6 @@ model:
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
-    out_dir: null
 
   encoder:
     max_sequence_length: 512

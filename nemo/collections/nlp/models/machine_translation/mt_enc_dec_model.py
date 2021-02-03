@@ -81,8 +81,8 @@ class MTEncDecModel(EncDecNLPModel):
                 src_fname=cfg.train_ds.src_file_name,
                 tgt_fname=cfg.train_ds.tgt_file_name,
                 shared_tokenizer=cfg.shared_tokenizer,
-                encoder_vocab_size=cfg.encoder_tokenizer.vocab_size,
-                decoder_vocab_size=cfg.decoder_tokenizer.vocab_size,
+                encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.vocab_size,
+                decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.vocab_size,
                 encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
                 decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
             )
