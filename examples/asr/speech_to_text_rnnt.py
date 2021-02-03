@@ -13,11 +13,8 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-import torch
-
 from nemo.collections.asr.models import EncDecRNNTModel
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 

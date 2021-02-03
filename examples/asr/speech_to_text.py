@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel

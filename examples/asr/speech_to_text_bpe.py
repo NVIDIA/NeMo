@@ -52,7 +52,6 @@ python speech_to_text_bpe.py \
 ```
 """
 import pytorch_lightning as pl
-import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
