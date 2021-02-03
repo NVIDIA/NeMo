@@ -14,7 +14,6 @@
 import glob
 import json
 import os
-from nemo.utils import logging
 from itertools import repeat
 from multiprocessing import Pool
 
@@ -24,10 +23,13 @@ import pandas as pd
 from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
 
+from nemo.utils import logging
+
 
 """
 This file contains all the utility functions required for speaker embeddings part in diarization scripts
 """
+
 
 def prepare_manifest(config):
     """
@@ -342,7 +344,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     state_list.append(current_state)
 
     seg_table = pd.DataFrame({'start': start_list, 'dur': dur_list, 'vad': state_list})
-    seg_speech_table = seg_table[seg_table['vad']=='speech']
+    seg_speech_table = seg_table[seg_table['vad'] == 'speech']
 
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
@@ -373,7 +375,7 @@ def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_
     # construct hypothsis
     hypothesis = Annotation()
     for index, row in pred.iterrows():
-        hypothesis[Segment(row[0], row[0]+row[1])] = 'Speech'
+        hypothesis[Segment(row[0], row[0] + row[1])] = 'Speech'
     return reference, hypothesis
 
 
@@ -394,7 +396,7 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
         thresholds[0] >= 0 and thresholds[-1] <= 1
     except:
         raise ValueError("Invalid threshold! Should be in [0, 1]")
-    
+
     for threshold in thresholds:
         min_der = 1
         metric = detection.DetectionErrorRate()
