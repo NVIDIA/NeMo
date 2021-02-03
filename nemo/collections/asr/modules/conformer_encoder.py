@@ -118,7 +118,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         pos_emb_max_len=5000,
         n_heads=4,
         xscaling=True,
-        untie_biases=False,
+        untie_biases=True,
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
