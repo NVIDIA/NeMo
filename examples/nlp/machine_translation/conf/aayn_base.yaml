@@ -4,6 +4,7 @@ model:
   max_generation_delta: 5
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
+  preproc_out_dir: null # path to store data preprocessing outputs
 
 
 
@@ -14,7 +15,6 @@ model:
     # config for preprocessing training data and creating a tarred datset automatically
     tar_file_name: null # if data has already been preprocessed (rest of config ignored)
     metadata_file_name: null # metadata for tarred dataset
-    out_dir: null # path to output preprocessed data
     lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
     num_batches_per_tarfile: 1000 # Number of batches (pickle files) within each tarfile
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
@@ -75,6 +75,7 @@ model:
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    out_dir: null
 
   decoder_tokenizer:
     tokenizer_name: yttm
@@ -83,6 +84,7 @@ model:
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    out_dir: null
 
   encoder:
     max_sequence_length: 512

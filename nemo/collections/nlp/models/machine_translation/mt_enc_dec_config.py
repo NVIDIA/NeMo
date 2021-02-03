@@ -38,6 +38,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     tgt_language: str = 'en'
     find_unused_parameters: Optional[bool] = True
     shared_tokenizer: Optional[bool] = True
+    preproc_out_dir: Optional[str] = None
 
 
 @dataclass

@@ -76,14 +76,15 @@ class MTEncDecModel(EncDecNLPModel):
             or cfg.decoder_tokenizer.get('tokenizer_model') is None
         ):
             # train tokenizer model on training data
-            encoder_tokenizer_model, decoder_tokenizer_model = self.prepare_tokenizers(
-                out_dir=cfg.data_preproc.out_dir,
+            encoder_tokenizer_model, decoder_tokenizer_model = self.train_tokenizers(
+                out_dir=cfg.preproc_out_dir,
                 src_fname=cfg.train_ds.src_file_name,
                 tgt_fname=cfg.train_ds.tgt_file_name,
-                vocab_size=cfg.data_preproc.vocab_size,
-                shared_tokenizer=cfg.data_preproc.shared_tokenizer,
-                tokenizer_name=cfg.data_preproc.tokenizer_name,
-                bpe_dropout=cfg.data_preproc.bpe_dropout,
+                shared_tokenizer=cfg.shared_tokenizer,
+                encoder_vocab_size=cfg.encoder_tokenizer.vocab_size,
+                decoder_vocab_size=cfg.decoder_tokenizer.vocab_size,
+                encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
+                decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
             )
         else:
             encoder_tokenizer_model = cfg.encoder_tokenizer.tokenizer_model

@@ -41,7 +41,6 @@ class TranslationDataConfig:
     use_tarred_dataset: bool = False
     tar_file_name: Optional[str] = None
     metadata_file_name: Optional[str] = None
-    out_dir: Optional[str] = None
     lines_per_dataset_fragment: Optional[int] = 1000000
     num_batches_per_tarfile: Optional[int] = 1000
     shard_strategy: Optional[str] = 'scatter'
