@@ -379,26 +379,29 @@ def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_
     return reference, hypothesis
 
 
-def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundtruth_RTTM_dir):
+def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundtruth_RTTM_dir, focus_metric="DetER"):
     """
     Tune threshold on dev set. Return best threshold which gives the lowest detection error rate (DetER) in thresholds.
     Args:
         thresholds (list): list of thresholds.
         vad_pred_method (str): suffix of prediction file. Use to locate file. Should be either in "frame", "mean" or "median".
-        vad_pred_dir(str): directory of vad predictions.
-        groundtruth_RTTM_dir(str): directory of groundtruch rttm files.
+        vad_pred_dir (str): directory of vad predictions.
+        groundtruth_RTTM_dir (str): directory of groundtruch rttm files.
+        focus_metric (str): metrics we care most when tuning threshold. Should be either in "DetER", "FA", "MISS"
     Returns:
         best_threhsold (float): threshold that gives lowest DetER.
     """
     threshold_perf = {}
     best_threhsold = thresholds[0]
+    min_score = 100
+
     try:
         thresholds[0] >= 0 and thresholds[-1] <= 1
     except:
         raise ValueError("Invalid threshold! Should be in [0, 1]")
 
     for threshold in thresholds:
-        min_DetER = 100
+
         metric = detection.DetectionErrorRate()
         filenames = [
             os.path.basename(f).split(".")[0] for f in glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))
@@ -424,11 +427,20 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
         FA = report.iloc[[-1]][('false alarm', '%')].item()
         MISS = report.iloc[[-1]][('miss', '%')].item()
 
+        if focus_metric == "DetER":
+            score = DetER
+        elif focus_metric == "FA":
+            score = FA
+        elif focus_metric == "MISS":
+            score = MISS
+        else:
+            raise ("Metric we care most should be only in 'DetER', 'FA'or 'MISS'!")
+
         threshold_perf[threshold] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
         logging.info(f"threshold {threshold}, {threshold_perf[threshold]}")
         del report
         metric.reset()  # reset internal accumulator
-        if DetER < min_DetER:
-            min_DetER = DetER
+        if score < min_score:
+            min_score = score
             best_threhsold = threshold
     return best_threhsold
