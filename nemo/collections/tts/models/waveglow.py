@@ -239,11 +239,13 @@ class WaveGlowModel(GlowVocoder, Exportable):
         keep_initializers_as_inputs=False,
         onnx_opset_version: int = 12,
         try_script: bool = False,
-        set_eval: bool = True,
         check_trace: bool = True,
         use_dynamic_axes: bool = True,
-        check_tolerance=0.01,
+        dynamic_axes=None,
+        forward_method=None,
     ):
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        # This call makes sure the values set in self.bias_spect (to be dumped out)
         self.update_bias_spect()
         self.waveglow.export(
             output,
@@ -255,8 +257,10 @@ class WaveGlowModel(GlowVocoder, Exportable):
             keep_initializers_as_inputs=keep_initializers_as_inputs,
             onnx_opset_version=onnx_opset_version,
             try_script=try_script,
-            set_eval=try_script,
             check_trace=check_trace,
             use_dynamic_axes=use_dynamic_axes,
-            check_tolerance=check_tolerance,
+            dynamic_axes=dynamic_axes,
+            forward_method=forward_method,
         )
+        output_descr = qual_name + ' exported to ONNX'
+        return ([output], [output_descr])
