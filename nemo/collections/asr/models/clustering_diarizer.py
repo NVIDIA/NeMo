@@ -214,7 +214,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         )
 
         vad_table_list = [os.path.join(table_out_dir, key + ".txt") for key in self.AUDIO_RTTM_MAP]
-        write_rttm2manifest(self.paths2audio_files, vad_table_list, self._vad_out_file)
+        write_rttm2manifest(self._cfg.diarizer.paths2audio_files, vad_table_list, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
     def _extract_embeddings(self, manifest_file):

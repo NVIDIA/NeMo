@@ -167,9 +167,6 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
     if not os.path.exists(overlap_out_dir):
         os.mkdir(overlap_out_dir)
 
-    # TODO find an elegant way for multiprocessing with multiple arguments
-    # TODO change seg_len ,etc. in helper function if necessary
-
     per_args = {
         "out_dir": overlap_out_dir,
         "method": smoothing_method,
@@ -294,10 +291,10 @@ def generate_vad_segment_table(
 
 def generate_vad_segment_table_per_file(pred_filepath, per_args):
     """
-    Convert frame level prediction to speech/no-speech segment in start and end times format.
+    Convert frame level prediction to speech segment in start and end times format.
     And save to csv file  in rttm-like format
             0, 10, speech
-            10,12, no-speech
+            17,18, speech
     Args:
         pred_filepath : prediction file to be processed.
         per_args :
@@ -332,34 +329,13 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     state_list.append(current_state)
 
     seg_table = pd.DataFrame({'start': start_list, 'dur': dur_list, 'vad': state_list})
+    seg_speech_table = seg_table[seg_table['vad']=='speech']
 
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
-    seg_table.to_csv(save_path, sep='\t', index=False, header=False)
+    seg_speech_table.to_csv(save_path, sep='\t', index=False, header=False)
     return save_path
 
-
-def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
-    vad_files = glob.glob(vad_directory + "/*.txt")
-    with open(manifest_file, 'w') as outfile:
-        for vad_file in vad_files:
-            f = open(vad_file, 'r')
-            lines = f.readlines()
-            audio_name = os.path.basename(vad_file).split('.')[0]
-            for line in lines:
-                vad_out = line.strip().split()
-                start, dur, activity = float(vad_out[0]), float(vad_out[1]) - float(vad_out[0]), vad_out[2]
-                start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
-                if activity.lower() == 'speech':
-                    audio_path = os.path.join(audio_directory, audio_name + '.wav')
-                    meta = {"audio_filepath": audio_path, "offset": start, "duration": dur, "label": 'UNK'}
-                    json.dump(meta, outfile)
-                    outfile.write("\n")
-
-            f.close()
-
-
-# TODO reuse/merge  Nithin's code in speaker_utils
 def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file):
 
     pred = pd.read_csv(vad_table_filepath, sep="\t", header=None)
@@ -412,5 +388,4 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_dir, groundtruth_RTTM_dir):
         if DetER < min_der:
             min_der = DetER
             best_threhsold = threshold
-    # return threshold with smallest der [TODO] return full result to user for flexible use
     return best_threhsold
