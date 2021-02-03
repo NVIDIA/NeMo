@@ -434,7 +434,7 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
         elif focus_metric == "MISS":
             score = MISS
         else:
-            raise ("Metric we care most should be only in 'DetER', 'FA'or 'MISS'!")
+            raise ValueError("Metric we care most should be only in 'DetER', 'FA'or 'MISS'!")
 
         threshold_perf[threshold] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
         logging.info(f"threshold {threshold}, {threshold_perf[threshold]}")

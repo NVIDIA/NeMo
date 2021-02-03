@@ -33,12 +33,16 @@ This file contains all the utility functions required for speaker embeddings par
 def audio_rttm_map(audio_file_list, rttm_file_list=None):
     """
     Returns a AUDIO_TO_RTTM dictionary thats maps all the unique file names with 
-    audio file paths and corresponding ground truth rttm files
+    audio file paths and corresponding ground truth rttm files calculated from audio
+    file list and rttm file list
 
-    It takes 
-    audio_file_list: either list of audio file paths or file containing paths to audio files (required)
-    rttm_file_list: either list of rttm file paths or file containing paths to rttm files (optional) 
+    Args: 
+    audio_file_list(list,str): either list of audio file paths or file containing paths to audio files (required)
+    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional) 
     [Required if DER needs to be calculated]
+    Returns:
+    AUDIO_RTTM_MAP (dict): dictionary thats maps all the unique file names with 
+    audio file paths and corresponding ground truth rttm files 
     """
     rttm_notfound = False
     if type(audio_file_list) is list:
@@ -166,6 +170,20 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
     """
     Loads embedding file and generates time stamps based on window and shift for speaker embeddings 
     clustering.
+
+    Args:
+    embeddings_file (str): Path to embeddings pickle file
+    reco2num (int,str): common integer number of speakers for every recording or path to 
+                        file that states unique_file id with number of speakers
+    manifest_path (str): path to manifest for time stamps matching
+    sample_rate (int): sample rate
+    window (float): window length in sec for speaker embeddings extraction
+    shift (float): shift length in sec for speaker embeddings extraction window shift
+
+    Returns:
+    embeddings (dict): Embeddings with key as unique_id
+    time_stamps (dict): time stamps list for each audio recording
+    speakers (dict): number of speaker for each audio recording
     """
     embeddings = pkl.load(open(embeddings_file, 'rb'))
     all_uniq_files = list(embeddings.keys())
@@ -210,7 +228,19 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
 
 def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir):
     """
-    performs clustering on embeddings with time stamps generated from VAD output
+    performs spectral clustering on embeddings with time stamps generated from VAD output
+    Args:
+    
+    embeddings (dict): Embeddings with key as unique_id
+    time_stamps (dict): time stamps list for each audio recording
+    speakers (dict): number of speaker for each audio recording 
+    audio_rttm_map (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
+    out_rttm_dir (str): Path to write predicted rttms
+    
+    Returns:
+    all_reference (list[Annotation]): reference annotations for score calculation
+    all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
+
     """
     all_hypothesis = []
     all_reference = []
@@ -252,7 +282,18 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
 
 def get_DER(all_reference, all_hypothesis):
     """
-    calculates Diarization Error Rate (DER), Confusion Error Rate (CER), False Alarm (FA) and Miss Detection (MISS)
+    calculates DER, CER, FA and MISS
+
+    Args:
+    all_reference (list[Annotation]): reference annotations for score calculation
+    all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
+
+    Returns:
+    DER (float): Diarization Error Rate
+    CER (float): Confusion Error Rate
+    FA (float): False Alarm
+    Miss (float): Miss Detection 
+
     """
     metric = DiarizationErrorRate(collar=0.25, skip_overlap=True)
     DER = 0
@@ -293,8 +334,8 @@ def perform_diarization(
     if len(all_reference) and len(all_hypothesis):
         DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
         logging.info(
-            "Cumulative results of all the files:  FA: {:.3f}, MISS {:.3f} \n \
-                 Diarization ER: {:.3f}, Confusion ER:{:.3f}".format(
+            "Cumulative results of all the files:  \n FA: {:.3f}\n, MISS {:.3f}\n \
+                 Diarization ER: {:.3f}\n, Confusion ER:{:.3f}".format(
                 FA, MISS, DER, CER
             )
         )
@@ -307,6 +348,14 @@ def write_rttm2manifest(paths2audio_files, path2rttm_files, manifest_file):
     """
     writes manifest file based on rttm files (or vad table out files). This manifest file would be used by 
     speaker diarizer to compute embeddings and cluster them. This function also takes care of overlap time stamps
+
+    Args:
+    audio_file_list(list,str): either list of audio file paths or file containing paths to audio files (required)
+    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional) 
+    manifest (str): path to write manifest file
+
+    Returns:
+    manifest (str): path to write manifest file 
     """
     AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, path2rttm_files)
 
