@@ -371,9 +371,6 @@ class EncDecCTCModel(ASRModel, Exportable):
     def forward(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
     ):
-
-        # start = time.time()
-
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) == False:
@@ -390,18 +387,9 @@ class EncDecCTCModel(ASRModel, Exportable):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal)
 
-        # # REMOVE DEBUGGING
-        # import torch
-        # torch.manual_seed(0)
-        # processed_signal = torch.rand(processed_signal.shape).cuda()
-        # self.encoder(audio_signal=processed_signal[0:1,:,:400], length=processed_signal_length[0:1])[0][0:1,:,0:78]
-        # self.encoder(audio_signal=processed_signal[0:1,:,:500], length=processed_signal_length[0:1])[0][0:1,:,0:78]
-        # self.encoder(audio_signal=processed_signal[0:1,:,:], length=processed_signal_length[0:1])[0][0:1,:,0:78]
-
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-        # print("forward time:" + str(time.time() - start))
 
         return log_probs, encoded_len, greedy_predictions
 
@@ -409,7 +397,7 @@ class EncDecCTCModel(ASRModel, Exportable):
     def training_step(self, batch, batch_nb):
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            log_probs, predictions_len, predictions = self.forward(
+            log_probs, encoded_len, predictions = self.forward(
                 processed_signal=signal, processed_signal_length=signal_len
             )
         else:
