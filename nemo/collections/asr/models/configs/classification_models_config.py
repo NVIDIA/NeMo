@@ -52,6 +52,7 @@ class EncDecClassificationDatasetConfig(nemo.core.classes.dataset.DatasetConfig)
     time_length: float = 0.31
     shift_length: float = 0.01
     normalize_audio: bool = False
+    regression: bool = False
 
 
 @dataclass
