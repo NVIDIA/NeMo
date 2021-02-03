@@ -114,7 +114,9 @@ class WER(Metric):
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
-    def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor, predictions_len: torch.Tensor=None) -> List[str]:
+    def ctc_decoder_predictions_tensor(
+        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None
+    ) -> List[str]:
         """
         Decodes a sequence of labels to words
         """
