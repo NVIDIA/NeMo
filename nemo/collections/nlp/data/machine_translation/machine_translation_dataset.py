@@ -39,7 +39,7 @@ class TranslationDataConfig:
     src_file_name: str = MISSING
     tgt_file_name: str = MISSING
     use_tarred_dataset: bool = False
-    tar_file_name: Optional[str] = None
+    tar_file_names: Optional[str] = None
     metadata_file_name: Optional[str] = None
     lines_per_dataset_fragment: Optional[int] = 1000000
     num_batches_per_tarfile: Optional[int] = 1000
