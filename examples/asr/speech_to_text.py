@@ -78,7 +78,9 @@ def main(cfg):
     checkpoint_path = cfg.model.get("load_weights_from_checkpoint", None)
     if checkpoint_path:
         logging.info(f'Initializing the model with the checkpoint at "{checkpoint_path}"')
-        asr_model.load_state_dict(torch.load(checkpoint_path, map_location=asr_model.device)["state_dict"])
+        checkpoint = torch.load(checkpoint_path, map_location=asr_model.device)["state_dict"]
+        asr_model.load_state_dict(checkpoint)
+        del checkpoint
 
     trainer.fit(asr_model)
 
