@@ -215,7 +215,8 @@ class PositionalEncoding(torch.nn.Module):
         d_model (int): embedding dim
         dropout_rate (float): dropout rate
         max_len (int): maximum input length
-        reverse (int): whether to reverse the input position
+        xscale (bool): whether to scale the input by sqrt(d_model)
+        dropout_rate_emb (float): dropout rate for the positional embeddings
     """
 
     def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
@@ -274,6 +275,8 @@ class RelPositionalEncoding(PositionalEncoding):
         d_model (int): embedding dim
         dropout_rate (float): dropout rate
         max_len (int): maximum input length
+        xscale (bool): whether to scale the input by sqrt(d_model)
+        dropout_rate_emb (float): dropout rate for the positional embeddings
     """
 
     def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
