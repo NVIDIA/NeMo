@@ -82,6 +82,7 @@ class Exportable(ABC):
         check_tolerance=0.01,
         forward_method=None,
     ):
+        exported = None
         try:
             # Disable typechecks
             typecheck_on = typecheck.set_typecheck_enabled(enabled=False)
@@ -124,7 +125,9 @@ class Exportable(ABC):
                             check_tolerance=check_tolerance,
                         )
                     jitted_model.save(output)
+                    exported = jitted_model
                     assert os.path.exists(output)
+
                 elif format == ExportFormat.ONNX:
                     if jitted_model is None:
                         jitted_model = self
@@ -215,13 +218,14 @@ class Exportable(ABC):
                             onnx_model = gs.export_onnx(graph.fold_constants().cleanup())
                             onnx.checker.check_model(onnx_model, full_check=True)
                             onnx.save(onnx_model, output)
+                    exported = onnx_model
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:
             typecheck.set_typecheck_enabled(enabled=typecheck_on)
             if forward_method:
                 type(self).forward = old_forward_method
-        return [output]  # Subclasses may create more than one file.
+        return exported
 
     @property
     def disabled_deployment_input_names(self):
