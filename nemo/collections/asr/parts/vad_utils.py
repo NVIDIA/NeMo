@@ -18,6 +18,7 @@ from itertools import repeat
 from multiprocessing import Pool
 
 import librosa
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from pyannote.core import Annotation, Segment
@@ -144,6 +145,9 @@ def get_vad_stream_status(data):
     Returns:
         status (list): list of status of each snippet.
     """
+    if len(data) == 1:
+        return ['single']
+
     status = [None] * len(data)
     for i in range(len(data)):
         if i == 0:
@@ -444,3 +448,46 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
             min_score = score
             best_threhsold = threshold
     return best_threhsold
+
+
+def extract_labels(path2ground_truth_label, time):
+    data = pd.read_csv(path2ground_truth_label, sep=" ", delimiter=None, header=None)
+    data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+    labels = []
+    for pos in time:
+        line = data[(data["start"] <= pos) & (data["start"] + data["dur"] > pos)]
+        if len(line) >= 1:
+            labels.append(1)
+        else:
+            labels.append(0)
+    return labels
+
+
+def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshold=0.85):
+    plt.figure(figsize=[20, 2])
+    FRAME_LEN = 0.01
+    audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True)
+    dur = librosa.get_duration(audio, sr=sample_rate)
+    time = np.arange(0, dur, FRAME_LEN)
+    frame = np.loadtxt(path2_vad_pred)
+    len_pred = len(frame)
+    ax1 = plt.subplot()
+    ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
+    ax1.set_xlim([0, int(dur) + 1])
+    ax1.tick_params(axis='y', labelcolor='b')
+    ax1.set_ylabel('Signal')
+    ax1.set_ylim([-1, 1])
+    ax2 = ax1.twinx()
+    prob = frame
+    pred = np.where(prob >= threshold, 1, 0)
+    if path2ground_truth_label:
+        label = extract_labels(path2ground_truth_label, time)
+        ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label')
+    ax2.plot(np.arange(len_pred) * FRAME_LEN, pred, 'b', label='pred')
+    ax2.plot(np.arange(len_pred) * FRAME_LEN, prob, 'g--', label='speech prob')
+    ax2.tick_params(axis='y', labelcolor='r')
+    legend = ax2.legend(loc='lower right', shadow=True)
+    ax2.set_ylabel('Preds and Probas')
+    ax2.set_ylim([-0.1, 1.1])
+
+    return None

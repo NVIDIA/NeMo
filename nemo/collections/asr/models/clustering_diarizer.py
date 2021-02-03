@@ -23,6 +23,7 @@ from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf.listconfig import ListConfig
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
@@ -64,6 +65,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         cfg = model_utils.maybe_update_config_version(cfg)
         self._cfg = cfg
         self._out_dir = self._cfg.diarizer.out_dir
+        if not os.path.exists(self._out_dir):
+            os.mkdir(self._out_dir)
 
         # init vad model
         self.has_vad_model = False
@@ -71,6 +74,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         self._speaker_manifest_path = self._cfg.diarizer.speaker_embeddings.oracle_vad_manifest
         self.AUDIO_RTTM_MAP = None
+        self.paths2audio_files = self._cfg.diarizer.paths2audio_files
 
         if self._cfg.diarizer.vad.model_path is not None:
             self._init_vad_model()
@@ -78,21 +82,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
             shutil.rmtree(self._vad_dir, ignore_errors=True)
             os.makedirs(self._vad_dir)
-            self.AUDIO_RTTM_MAP = audio_rttm_map(
-                self._cfg.diarizer.paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files
-            )
-        else:
-            paths2audio_files = set()
-            with open(self._speaker_manifest_path, 'r') as manifest_file:
-                for line in manifest_file.readlines():
-                    line = line.strip()
-                    filepath = json.loads(line)['audio_filepath']
-                    paths2audio_files.add(filepath)
-
-            self.paths2audio_files = list(paths2audio_files)
-            self.AUDIO_RTTM_MAP = audio_rttm_map(
-                self.paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files
-            )
 
         # init speaker model
         self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
@@ -266,21 +255,28 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
         """
 
-        if not os.path.exists(self._out_dir):
-            os.mkdir(self._out_dir)
+        if self.paths2audio_files is None:
+            if paths2audio_files is None:
+                raise ValueError("Pass path2audio files either through config or to diarize method")
+            else:
+                self.paths2audio_files = paths2audio_files
+
+        if type(self.paths2audio_files) is str and os.path.isfile(self.paths2audio_files):
+            with open(self.paths2audio_files, 'r') as path2file:
+                for audiofile in path2file.readlines():
+                    audiofile = audiofile.strip()
+                    paths2audio_files.append(audiofile)
+
+        elif type(self.paths2audio_files) in [list, ListConfig]:
+            paths2audio_files = list(self.paths2audio_files)
+
+        else:
+            raise ValueError("paths2audio_files must be of type list or path to file containing audio files")
+
+        self.AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files)
 
         if self.has_vad_model:
             logging.info("Performing VAD")
-            if (paths2audio_files is None) and not os.path.isfile(self._cfg.diarizer.paths2audio_files):
-
-                raise ValueError(" Please input valid files or provide path to audio files in config")
-            elif os.path.isfile(self._cfg.diarizer.paths2audio_files):
-                paths2audio_files = []
-                with open(self._cfg.diarizer.paths2audio_files, 'r') as path2file:
-                    for audiofile in path2file.readlines():
-                        audiofile = audiofile.strip()
-                        paths2audio_files.append(audiofile)
-
             mfst_file = self.path2audio_files_to_manifest(paths2audio_files)
             self._dont_auto_split = False
             self._split_duration = 50

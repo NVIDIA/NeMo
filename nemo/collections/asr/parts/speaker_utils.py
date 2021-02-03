@@ -18,6 +18,7 @@ import pickle as pkl
 from copy import deepcopy
 
 import numpy as np
+from omegaconf import ListConfig
 from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
 from spectralcluster import SpectralClusterer
@@ -45,14 +46,14 @@ def audio_rttm_map(audio_file_list, rttm_file_list=None):
     audio file paths and corresponding ground truth rttm files 
     """
     rttm_notfound = False
-    if type(audio_file_list) is list:
+    if type(audio_file_list) in [list, ListConfig]:
         audio_files = audio_file_list
     else:
         audio_pointer = open(audio_file_list, 'r')
         audio_files = audio_pointer.read().splitlines()
 
     if rttm_file_list:
-        if type(rttm_file_list) is list:
+        if type(rttm_file_list) in [list, ListConfig]:
             rttm_files = rttm_file_list
         else:
             rttm_pointer = open(rttm_file_list, 'r')
@@ -334,8 +335,8 @@ def perform_diarization(
     if len(all_reference) and len(all_hypothesis):
         DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
         logging.info(
-            "Cumulative results of all the files:  \n FA: {:.3f}\n, MISS {:.3f}\n \
-                 Diarization ER: {:.3f}\n, Confusion ER:{:.3f}".format(
+            "Cumulative results of all the files:  \n FA: {:.3f}\t MISS {:.3f}\t \
+                Diarization ER: {:.3f}\t, Confusion ER:{:.3f}".format(
                 FA, MISS, DER, CER
             )
         )
@@ -344,7 +345,7 @@ def perform_diarization(
         logging.warning("Skipping calculation of Diariazation Error Rate")
 
 
-def write_rttm2manifest(paths2audio_files, path2rttm_files, manifest_file):
+def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
     """
     writes manifest file based on rttm files (or vad table out files). This manifest file would be used by 
     speaker diarizer to compute embeddings and cluster them. This function also takes care of overlap time stamps
@@ -357,7 +358,7 @@ def write_rttm2manifest(paths2audio_files, path2rttm_files, manifest_file):
     Returns:
     manifest (str): path to write manifest file 
     """
-    AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, path2rttm_files)
+    AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, paths2rttm_files)
 
     with open(manifest_file, 'w') as outfile:
         for key in AUDIO_RTTM_MAP:

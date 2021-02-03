@@ -26,7 +26,7 @@ every vad line consists of start_time, end_time , speech/non-speech
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--path2rttm_files", help="path to vad output rttm-like files. Could be a list or a text file", required=True
+        "--paths2rttm_files", help="path to vad output rttm-like files. Could be a list or a text file", required=True
     )
     parser.add_argument(
         "--paths2audio_files",
@@ -36,5 +36,5 @@ if __name__ == "__main__":
     parser.add_argument("--manifest_file", help="output manifest file name", type=str, required=True)
     args = parser.parse_args()
 
-    write_rttm2manifest(args.paths2audio_files, args.path2rttm_files, args.manifest_file)
-    logging.info("wrote {} file from vad output files present in {}".format(args.manifest_file, args.path2rttm_files))
+    write_rttm2manifest(args.paths2audio_files, args.paths2rttm_files, args.manifest_file)
+    logging.info("wrote {} file from vad output files present in {}".format(args.manifest_file, args.paths2rttm_files))
