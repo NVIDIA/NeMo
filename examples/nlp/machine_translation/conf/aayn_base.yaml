@@ -13,7 +13,7 @@ model:
     use_tarred_dataset: True # if true tar_file_name and meta_file_name will be used (or created automatically) 
     # config for preprocessing training data and creating a tarred datset automatically
     tar_file_name: null # if data has already been preprocessed (rest of config ignored)
-    metadata_file_Name: null # metadata for tarred dataset
+    metadata_file_name: null # metadata for tarred dataset
     out_dir: null # path to output preprocessed data
     lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
     num_batches_per_tarfile: 1000 # Number of batches (pickle files) within each tarfile
