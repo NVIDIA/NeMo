@@ -243,14 +243,11 @@ class PositionalEncoding(torch.nn.Module):
 
     def extend_pe(self, x):
         """Reset and extend the positional encodings if needed."""
-        needed_size = x.size(1)
-        if self.pe is not None and self.pe.size(1) >= needed_size:
-            if self.pe.dtype != x.dtype or self.pe.device != x.device:
-                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
-            return
-        positions = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
-        pe = self.create_pe(pos_length=needed_size, positions=positions)
-        self.pe = pe.to(device=x.device, dtype=x.dtype)
+        if self.pe is None or self.pe.size(1) < x.size(1):
+            positions = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
+            self.pe = self.create_pe(pos_length=x.size(1), positions=positions)
+        if self.pe.dtype != x.dtype or self.pe.device != x.device:
+            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
 
     def forward(self, x: torch.Tensor):
         """Adds positional encoding.
@@ -291,13 +288,11 @@ class RelPositionalEncoding(PositionalEncoding):
     def extend_pe(self, x):
         """Reset and extend the positional encodings if needed."""
         needed_size = 2 * x.size(1) - 1
-        if self.pe is not None and self.pe.size(1) >= needed_size:
-            if self.pe.dtype != x.dtype or self.pe.device != x.device:
-                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
-            return
-        positions = torch.arange(-(x.size(1) - 1), x.size(1), 1.0, dtype=torch.float32).unsqueeze(1)
-        pe = self.create_pe(pos_length=needed_size, positions=positions)
-        self.pe = pe.to(device=x.device, dtype=x.dtype)
+        if self.pe is None or self.pe.size(1) < needed_size:
+            positions = torch.arange(-(x.size(1) - 1), x.size(1), 1.0, dtype=torch.float32).unsqueeze(1)
+            self.pe = self.create_pe(pos_length=needed_size, positions=positions)
+        if self.pe.dtype != x.dtype or self.pe.device != x.device:
+            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
 
     def forward(self, x):
         """Compute positional encoding.
