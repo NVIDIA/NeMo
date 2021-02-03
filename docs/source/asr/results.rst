@@ -43,7 +43,7 @@ English
 -----------------------------
 
 Mandarin
--------
+--------
 .. csv-table::
    :file: data/benchmark_zh.csv
    :align: left
@@ -54,7 +54,7 @@ Mandarin
 -----------------------------
 
 German
--------
+------
 .. csv-table::
    :file: data/benchmark_de.csv
    :align: left
@@ -65,7 +65,7 @@ German
 -----------------------------
 
 Polish
--------
+------
 .. csv-table::
    :file: data/benchmark_pl.csv
    :align: left
@@ -94,6 +94,18 @@ Russian
    :widths: 40, 40, 10, 10
    :width: 100%
    :header-rows: 1
+
+-----------------------------
+
+Spanish
+-------
+.. csv-table::
+   :file: data/benchmark_es.csv
+   :align: left
+   :widths: 40, 40, 10, 10
+   :width: 100%
+   :header-rows: 1
+
 
 -----------------------------
 
