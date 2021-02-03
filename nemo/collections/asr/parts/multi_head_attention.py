@@ -219,39 +219,38 @@ class PositionalEncoding(torch.nn.Module):
         reverse (int): whether to reverse the input position
     """
 
-    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None):
+    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
         """Construct an PositionalEncoding object."""
         super(PositionalEncoding, self).__init__()
         self.d_model = d_model
         self.xscale = xscale
         self.dropout = torch.nn.Dropout(p=dropout_rate)
         self.pe = None
-        self.pos_type = "Transformer"
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
+        if dropout_rate_emb > 0:
+            self.dropout_emb = nn.Dropout(dropout_rate_emb)
+        else:
+            self.dropout_emb = None
 
-    def extend_pe(self, x):
-        """Reset the positional encodings."""
-        if self.pos_type == "Transformer":
-            needed_size = x.size(1)
-        elif self.pos_type == "TransformerXL":
-            needed_size = 2 * x.size(1) - 1
-        if self.pe is not None:
-            if self.pe.size(1) >= needed_size:
-                if self.pe.dtype != x.dtype or self.pe.device != x.device:
-                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
-                return
-        pe = torch.zeros(needed_size, self.d_model)
-        if self.pos_type == "Transformer":
-            position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
-        elif self.pos_type == "TransformerXL":
-            position = torch.arange(-(x.size(1) - 1), x.size(1), 1.0, dtype=torch.float32).unsqueeze(1)
-
+    def create_pe(self, pos_length, positions):
+        pe = torch.zeros(pos_length, self.d_model)
         div_term = torch.exp(
             torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
         )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
+        pe[:, 0::2] = torch.sin(positions * div_term)
+        pe[:, 1::2] = torch.cos(positions * div_term)
         pe = pe.unsqueeze(0)
+        return pe
+
+    def extend_pe(self, x):
+        """Reset and extend the positional encodings if needed."""
+        needed_size = x.size(1)
+        if self.pe is not None and self.pe.size(1) >= needed_size:
+            if self.pe.dtype != x.dtype or self.pe.device != x.device:
+                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
+            return
+        positions = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
+        pe = self.create_pe(pos_length=needed_size, positions=positions)
         self.pe = pe.to(device=x.device, dtype=x.dtype)
 
     def forward(self, x: torch.Tensor):
@@ -264,8 +263,11 @@ class PositionalEncoding(torch.nn.Module):
         self.extend_pe(x)
         if self.xscale:
             x = x * self.xscale
+        pos_emb = self.pe[:, : x.size(1)]
+        if self.dropout_emb:
+            pos_emb = self.dropout_emb(pos_emb)
         x = x + self.pe[:, : x.size(1)]
-        return self.dropout(x), None
+        return self.dropout(x), pos_emb
 
 
 class RelPositionalEncoding(PositionalEncoding):
@@ -286,7 +288,17 @@ class RelPositionalEncoding(PositionalEncoding):
             self.dropout_emb = None
 
         self.max_len = max_len
-        self.pos_type = "TransformerXL"
+
+    def extend_pe(self, x):
+        """Reset and extend the positional encodings if needed."""
+        needed_size = 2 * x.size(1) - 1
+        if self.pe is not None and self.pe.size(1) >= needed_size:
+            if self.pe.dtype != x.dtype or self.pe.device != x.device:
+                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
+            return
+        positions = torch.arange(-(x.size(1) - 1), x.size(1), 1.0, dtype=torch.float32).unsqueeze(1)
+        pe = self.create_pe(pos_length=needed_size, positions=positions)
+        self.pe = pe.to(device=x.device, dtype=x.dtype)
 
     def forward(self, x):
         """Compute positional encoding.

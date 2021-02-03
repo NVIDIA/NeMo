@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
+import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
@@ -71,6 +72,13 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
+
+    # initialize the model with the weights of the checkpoint specified by 'load_weights_from_checkpoint' in the configs
+    # You may use this option to start the training from a pre-trained checkpoint
+    checkpoint_path = cfg.model.get("load_weights_from_checkpoint", None)
+    if checkpoint_path:
+        logging.info(f'Initializing the model with the checkpoint at "{checkpoint_path}"')
+        asr_model.load_state_dict(torch.load(checkpoint_path, map_location=asr_model.device)["state_dict"])
 
     trainer.fit(asr_model)
 

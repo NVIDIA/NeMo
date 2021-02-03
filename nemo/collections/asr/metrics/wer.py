@@ -138,7 +138,11 @@ class WER(Metric):
         return hypotheses
 
     def update(
-        self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor, predictions_lengths=None
+        self,
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+        predictions_lengths: torch.Tensor = None,
     ) -> torch.Tensor:
         words = 0.0
         scores = 0.0
