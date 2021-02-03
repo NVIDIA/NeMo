@@ -7,7 +7,6 @@ name: "Conformer-CTC-BPE"
 model:
   sample_rate: 16000
   log_prediction: true # enables logging sample predictions in the output during training
-  load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
 
   train_ds:

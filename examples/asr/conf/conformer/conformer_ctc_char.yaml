@@ -9,7 +9,6 @@ model:
   labels:  [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
             "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
   log_prediction: true # enables logging sample predictions in the output during training
-  load_weights_from_checkpoint: null
   ctc_reduction: 'mean_batch'
 
   train_ds:
