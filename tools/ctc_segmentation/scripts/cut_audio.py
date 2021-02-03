@@ -23,7 +23,7 @@ import torch
 from scipy.io import wavfile
 
 from nemo.collections import asr as nemo_asr
-from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics.wer import WER, word_error_rate
 
 parser = argparse.ArgumentParser(description="Cut audio on the segments based on segments")
 parser.add_argument("--output_dir", default='output', type=str, help='Path to output directory')
@@ -61,7 +61,9 @@ def add_transcript_to_manifest(
         with open(manifest_updated, 'w', encoding='utf8') as f_updated:
             for i, line in enumerate(f):
                 info = json.loads(line)
-                info['transcript'] = transcripts[i]
+                info['transcript'] = transcripts[i].strip()
+                info['WER'] = round(word_error_rate([info['transcript']], [info['text']]) * 100, 2)
+                info['CER'] = round(word_error_rate([info['transcript']], [info['text']], use_cer=True) * 100, 2)
                 json.dump(info, f_updated, ensure_ascii=False)
                 f_updated.write('\n')
 
@@ -175,8 +177,8 @@ def process_alignment(alignment_file: str, args):
                 segment = signal[round(st * sampling_rate) : round(end * sampling_rate)]
                 duration = len(segment) / sampling_rate
                 if duration > 0:
-                    text_processed = ref_text_processed[i]
-                    text_no_preprocessing = ref_text_no_preprocessing[i]
+                    text_processed = ref_text_processed[i].strip()
+                    text_no_preprocessing = ref_text_no_preprocessing[i].strip()
                     if score > args.threshold:
                         high_score_dur += duration
                         audio_filepath = os.path.join(fragments_dir, f'{base_name}_{i:04}.wav')
