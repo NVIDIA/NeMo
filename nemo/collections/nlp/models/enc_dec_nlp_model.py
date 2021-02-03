@@ -67,25 +67,26 @@ class EncDecNLPModel(NLPModel):
     def decoder(self, decoder):
         self._decoder = decoder
 
-    def setup_enc_dec_tokenizers(self, cfg: EncDecNLPModelConfig):
-        if cfg.encoder_tokenizer.vocab_file is not None or cfg.decoder_tokenizer.vocab_file is not None:
-            raise NotImplemented(
-                f'Vocab files are currently not supported. Please use tokenizer name and model instead'
-            )
+    def setup_enc_dec_tokenizers(
+        self,
+        encoder_tokenizer_name=None,
+        encoder_tokenizer_model=None,
+        encoder_bpe_dropout=0.0,
+        decoder_tokenizer_name=None,
+        decoder_tokenizer_model=None,
+        decoder_bpe_dropout=0.0,
+    ):
 
-        if cfg.encoder_tokenizer.tokenizer_name != 'yttm' or cfg.decoder_tokenizer.tokenizer_name != 'yttm':
+        if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
             raise NotImplemented(f"Currently we only support yttm tokenizer.")
+
         self.encoder_tokenizer = get_tokenizer(
-            tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
-            tokenizer_model=self.register_artifact(
-                "cfg.encoder_tokenizer.tokenizer_model", cfg.encoder_tokenizer.tokenizer_model
-            ),
-            bpe_dropout=cfg.encoder_tokenizer.bpe_dropout if hasattr(cfg.encoder_tokenizer, 'bpe_dropout') else 0.0,
+            tokenizer_name=encoder_tokenizer_name,
+            tokenizer_model=self.register_artifact("cfg.encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
+            bpe_dropout=encoder_bpe_dropout,
         )
         self.decoder_tokenizer = get_tokenizer(
-            tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
-            tokenizer_model=self.register_artifact(
-                "cfg.decoder_tokenizer.tokenizer_model", cfg.decoder_tokenizer.tokenizer_model
-            ),
-            bpe_dropout=cfg.decoder_tokenizer.bpe_dropout if hasattr(cfg.decoder_tokenizer, 'bpe_dropout') else 0.0,
+            tokenizer_name=decoder_tokenizer_name,
+            tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
+            bpe_dropout=decoder_bpe_dropout,
         )

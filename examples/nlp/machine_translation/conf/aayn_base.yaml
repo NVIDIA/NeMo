@@ -3,10 +3,22 @@ model:
   len_pen: 0.6
   max_generation_delta: 5
   label_smoothing: 0.1
+  shared_tokenizer: True # train tokenizer model across src and tgt train data
+
+
 
   train_ds:
     src_file_name: ???
     tgt_file_name: ???
+    use_tarred_dataset: True # if true tar_file_name and meta_file_name will be used (or created automatically) 
+    # config for preprocessing training data and creating a tarred datset automatically
+    tar_file_name: null # if data has already been preprocessed (rest of config ignored)
+    metadata_file_Name: null # metadata for tarred dataset
+    out_dir: null # path to output preprocessed data
+    lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
+    num_batches_per_tarfile: 1000 # Number of batches (pickle files) within each tarfile
+    tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
+    shard_strategy: scatter # tarred dataset shard distribution strategy
     tokens_in_batch: 512
     clean: true
     max_seq_length: 512
@@ -25,9 +37,6 @@ model:
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
-    cache_ids: true
-    cache_data_per_node: false
-    use_cache: true
     shuffle: false
     num_samples: -1
     drop_last: false
@@ -40,9 +49,6 @@ model:
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
-    cache_ids: true
-    cache_data_per_node: false
-    use_cache: true
     shuffle: false
     num_samples: -1
     drop_last: false
@@ -64,13 +70,17 @@ model:
 
   encoder_tokenizer:
     tokenizer_name: yttm
-    tokenizer_model: ???
+    tokenizer_model: null
+    vocab_size: null # vocab size for training bpe
+    bpe_dropout: null
     vocab_file: null
     special_tokens: null
 
   decoder_tokenizer:
     tokenizer_name: yttm
-    tokenizer_model: ???
+    tokenizer_model: null
+    vocab_size: null # vocab size for training bpe
+    bpe_dropout: null
     vocab_file: null
     special_tokens: null
 

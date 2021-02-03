@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import os
 import pickle
 import random
@@ -20,6 +21,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 from typing import Dict, List, Optional
+from importlib_metadata import metadata
 
 import numpy as np
 import torch
@@ -67,13 +69,39 @@ class MTEncDecModel(EncDecNLPModel):
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         cfg = model_utils.maybe_update_config_version(cfg)
-        self.setup_enc_dec_tokenizers(cfg)
 
-        super().__init__(cfg=cfg, trainer=trainer)
+        # Train tokenizers if they don't exist
+        if (
+            cfg.encoder_tokenizer.get('tokenizer_model') is None
+            or cfg.decoder_tokenizer.get('tokenizer_model') is None
+        ):
+            # train tokenizer model on training data
+            encoder_tokenizer_model, decoder_tokenizer_model = self.prepare_tokenizers(
+                out_dir=cfg.data_preproc.out_dir,
+                src_fname=cfg.train_ds.src_file_name,
+                tgt_fname=cfg.train_ds.tgt_file_name,
+                vocab_size=cfg.data_preproc.vocab_size,
+                shared_tokenizer=cfg.data_preproc.shared_tokenizer,
+                tokenizer_name=cfg.data_preproc.tokenizer_name,
+                bpe_dropout=cfg.data_preproc.bpe_dropout,
+            )
+
+        else:
+            encoder_tokenizer_model = cfg.encoder_tokenizer.tokenizer_model
+            decoder_tokenizer_model = cfg.decoder_tokenizer.tokenizer_model
+
+        # Instaniate tokenizers and register to be saved with NeMo Model archive
+        self.setup_enc_dec_tokenizers(
+            encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
+            encoder_tokenizer_model=encoder_tokenizer_model,
+            encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+            decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
+            decoder_tokenizer_model=decoder_tokenizer_model,
+            decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+        )
 
         self.src_language: str = cfg.get("src_language", None)
         self.tgt_language: str = cfg.get("tgt_language", None)
-        self.preprocess_data()
 
         # TODO: use get_encoder function with support for HF and Megatron
         self.encoder = TransformerEncoderNM(
@@ -284,21 +312,12 @@ class MTEncDecModel(EncDecNLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        if cfg.get("load_from_cached_dataset", False):
-            logging.info('Loading from cached dataset %s' % (cfg.src_file_name))
-            if cfg.src_file_name != cfg.tgt_file_name:
-                raise ValueError("src must be equal to target for cached dataset")
-            dataset = pickle.load(open(cfg.src_file_name, 'rb'))
-            dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
-        elif cfg.get("load_from_tarred_dataset", False):
-            logging.info('Loading from tarred dataset %s' % (cfg.src_file_name))
-            if cfg.src_file_name != cfg.tgt_file_name:
-                raise ValueError("src must be equal to target for tarred dataset")
-            if cfg.get("metadata_path", None) is None:
-                raise FileNotFoundError("Could not find metadata path in config")
+        if cfg.get("load_from_tarred_dataset", False):
+            # tarred dataset only used for training data
+            logging.info('Loading from tarred dataset %s' % (self.train_tar_file))
             dataset = TarredTranslationDataset(
-                text_tar_filepaths=cfg.src_file_name,
-                metadata_path=cfg.metadata_path,
+                text_tar_filepaths=self.train_tar_file,
+                metadata_path=self.train_metadata_path,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
                 shuffle_n=cfg.get("tar_shuffle_n", 100),
