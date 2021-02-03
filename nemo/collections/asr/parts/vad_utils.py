@@ -398,7 +398,7 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
         raise ValueError("Invalid threshold! Should be in [0, 1]")
 
     for threshold in thresholds:
-        min_der = 1
+        min_DetER = 100
         metric = detection.DetectionErrorRate()
         filenames = [
             os.path.basename(f).split(".")[0] for f in glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))
@@ -424,11 +424,11 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
         FA = report.iloc[[-1]][('false alarm', '%')].item()
         MISS = report.iloc[[-1]][('miss', '%')].item()
 
-        threshold_perf[threshold] = {'DetER': DetER, 'FA': FA, 'MISS': MISS}
+        threshold_perf[threshold] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
         logging.info(f"threshold {threshold}, {threshold_perf[threshold]}")
         del report
         metric.reset()  # reset internal accumulator
-        if DetER < min_der:
-            min_der = DetER
+        if DetER < min_DetER:
+            min_DetER = DetER
             best_threhsold = threshold
     return best_threhsold

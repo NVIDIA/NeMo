@@ -294,13 +294,13 @@ def perform_diarization(
         DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
         logging.info(
             "Cumulative results of all the files:  FA: {:.3f}, MISS {:.3f} \n \
-                 Diarization ER: {:.3f}, Cofusion ER:{:.3f}".format(
+                 Diarization ER: {:.3f}, Confusion ER:{:.3f}".format(
                 FA, MISS, DER, CER
             )
         )
     else:
-        logging.warning("Please check if each ground truth RTTMs were present in provided path2groundtruth_rttm_files")
-        logging.warning("Skipping calculation of Diariazation Error rate")
+        logging.warning("Please check if each ground truth RTTMs was present in provided path2groundtruth_rttm_files")
+        logging.warning("Skipping calculation of Diariazation Error Rate")
 
 
 def write_rttm2manifest(paths2audio_files, path2rttm_files, manifest_file):
