@@ -20,7 +20,6 @@ from nemo.collections.asr.parts.activations import Swish
 from nemo.collections.asr.parts.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
-    RelPositionMultiHeadAttention2,
 )
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
@@ -70,15 +69,8 @@ class ConformerLayer(torch.nn.Module):
             self.self_attn = RelPositionMultiHeadAttention(
                 n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v
             )
-            # self.self_attn2 = RelPositionMultiHeadAttention2(
-            #     n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v
-            # )
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
-        elif self_attention_model == 'rel_pos2':
-            self.self_attn = RelPositionMultiHeadAttention2(
-                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v
-            )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
