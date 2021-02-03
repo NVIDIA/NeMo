@@ -222,7 +222,7 @@ class Exportable(ABC):
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:
-            typecheck.set_typecheck_enabled(enabled=typecheck_on)
+            typecheck.set_typecheck_enabled(enabled=True)
             if forward_method:
                 type(self).forward = old_forward_method
         return exported
