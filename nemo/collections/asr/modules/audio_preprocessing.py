@@ -462,7 +462,12 @@ class SpectrogramAugmentation(NeuralModule):
 
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
-                freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng, mask_value=mask_value
+                freq_masks=freq_masks,
+                time_masks=time_masks,
+                freq_width=freq_width,
+                time_width=time_width,
+                rng=rng,
+                mask_value=mask_value,
             )
         else:
             self.spec_augment = lambda x: x
