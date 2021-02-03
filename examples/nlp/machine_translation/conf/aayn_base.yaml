@@ -14,7 +14,7 @@ model:
     tar_file_name: null # if data has already been preprocessed (rest of config ignored)
     metadata_file_name: null # metadata for tarred dataset
     lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
-    num_batches_per_tarfile: 1000 # Number of batches (pickle files) within each tarfile
+    num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
     shard_strategy: scatter # tarred dataset shard distribution strategy
     tokens_in_batch: 512
