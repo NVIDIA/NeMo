@@ -21,6 +21,8 @@ from multiprocessing import Pool
 import librosa
 import numpy as np
 import pandas as pd
+from pyannote.core import Annotation, Segment
+from pyannote.metrics import detection
 
 
 def prepare_manifest(config):
@@ -125,7 +127,6 @@ def write_vad_infer_manifest(file, args_func):
         err_file = "error.log"
         with open(err_file, 'w') as fout:
             fout.write(file + ":" + str(e))
-
     return res
 
 
@@ -155,7 +156,35 @@ def get_vad_stream_status(data):
     return status
 
 
-def generate_overlap_vad_seq(frame_filepath, per_args):
+def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len, shift_len, num_workers):
+    # [TODO] docstring kwargs.
+
+    p = Pool(processes=num_workers)
+    frame_filepathlist = glob.glob(frame_pred_dir + "/*.frame")
+
+    overlap_out_dir = frame_pred_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
+
+    if not os.path.exists(overlap_out_dir):
+        os.mkdir(overlap_out_dir)
+
+    # TODO find an elegant way for multiprocessing with multiple arguments
+    # TODO change seg_len ,etc. in helper function if necessary
+
+    per_args = {
+        "out_dir": overlap_out_dir,
+        "method": smoothing_method,
+        "overlap": overlap,
+        "seg_len": seg_len,
+        "shift_len": shift_len,
+    }
+    p.starmap(generate_overlap_vad_seq_per_file, zip(frame_filepathlist, repeat(per_args)))
+    p.close()
+    p.join()
+
+    return overlap_out_dir
+
+
+def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
     """
     Given a frame level prediction, generate predictions with overlapping input segments by using it
     Args:
@@ -234,21 +263,43 @@ def generate_overlap_vad_seq(frame_filepath, per_args):
 
         round_final = np.round(preds, 4)
         np.savetxt(overlap_filepath, round_final, delimiter='\n')
-        logging.info(f"Finished! {overlap_filepath}!")
 
     except Exception as e:
         raise (e)
 
 
-def generate_vad_segment_table(frame_filepath, per_args):
+def generate_vad_segment_table(
+    vad_pred_dir, threshold, shift_len, num_workers,
+):
+    p = Pool(processes=num_workers)
+    suffixes = ("frame", "mean", "median")
+    vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
+    table_out_dir = os.path.join(vad_pred_dir, "table_output_" + str(threshold))
+    if not os.path.exists(table_out_dir):
+        os.mkdir(table_out_dir)
+
+    per_args = {
+        "threshold": threshold,
+        "shift_len": shift_len,
+        "out_dir": table_out_dir,
+    }
+
+    p.starmap(generate_vad_segment_table_per_file, zip(vad_pred_filepath_list, repeat(per_args)))
+    p.close()
+    p.join()
+
+    return table_out_dir
+
+
+def generate_vad_segment_table_per_file(pred_filepath, per_args):
     """
     Convert frame level prediction to speech/no-speech segment in start and end times format.
     And save to csv file  in rttm-like format
             0, 10, speech
             10,12, no-speech
     Args:
-        frame_filepath : frame prediction file to be processed.
+        pred_filepath : prediction file to be processed.
         per_args :
             threshold : threshold for prediction score (from 0 to 1).
             shift_len : Amount of shift of window for generating the frame.
@@ -258,35 +309,34 @@ def generate_vad_segment_table(frame_filepath, per_args):
     shift_len = per_args['shift_len']
     out_dir = per_args['out_dir']
 
-    logging.info(f"process {frame_filepath}")
-    name = frame_filepath.split("/")[-1].rsplit(".", 1)[0]
+    name = pred_filepath.split("/")[-1].rsplit(".", 1)[0]
 
-    sequence = np.loadtxt(frame_filepath)
+    sequence = np.loadtxt(pred_filepath)
     start = 0
-    end = 0
     start_list = [0]
-    end_list = []
+    dur_list = []
     state_list = []
-
+    current_state = "non-speech"
     for i in range(len(sequence) - 1):
-        current_sate = "non-speech" if sequence[i] <= threshold else "speech"
+        current_state = "non-speech" if sequence[i] <= threshold else "speech"
         next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
-        if next_state != current_sate:
-            end = i * shift_len + shift_len  # shift_len for handling joint
-            state_list.append(current_sate)
-            end_list.append(end)
+        if next_state != current_state:
+            dur = i * shift_len + shift_len - start  # shift_len for handling joint
+            state_list.append(current_state)
+            dur_list.append(dur)
 
             start = (i + 1) * shift_len
             start_list.append(start)
 
-    end_list.append((i + 1) * shift_len + shift_len)
-    state_list.append(current_sate)
+    dur_list.append((i + 1) * shift_len + shift_len - start)
+    state_list.append(current_state)
 
-    seg_table = pd.DataFrame({'start': start_list, 'end': end_list, 'vad': state_list})
+    seg_table = pd.DataFrame({'start': start_list, 'dur': dur_list, 'vad': state_list})
 
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
     seg_table.to_csv(save_path, sep='\t', index=False, header=False)
+    return save_path
 
 
 def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
@@ -305,4 +355,62 @@ def write_vad_pred_to_manifest(vad_directory, audio_directory, manifest_file):
                     meta = {"audio_filepath": audio_path, "offset": start, "duration": dur, "label": 'UNK'}
                     json.dump(meta, outfile)
                     outfile.write("\n")
+
             f.close()
+
+
+# TODO reuse/merge  Nithin's code in speaker_utils
+def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file):
+
+    pred = pd.read_csv(vad_table_filepath, sep="\t", header=None)
+    label = pd.read_csv(groundtruth_RTTM_file, sep=" ", delimiter=None, header=None)
+    label = label.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+
+    # construct reference
+    reference = Annotation()
+    for index, row in label.iterrows():
+        reference[Segment(row['start'], row['start'] + row['dur'])] = row['speaker']
+
+    # construct hypothsis
+    hypothesis = Annotation()
+    for index, row in pred.iterrows():
+        if row[2] == 'speech':
+            hypothesis[Segment(row[0], row[1])] = 'Speech'
+    return reference, hypothesis
+
+
+def vad_tune_threshold_on_dev(thresholds, vad_pred_dir, groundtruth_RTTM_dir):
+    threshold_perf = {}
+    best_threhsold = thresholds[0]
+    for threshold in thresholds:
+        min_der = 1
+        metric = detection.DetectionErrorRate()
+        filenames = [
+            os.path.basename(f).split(".")[0] for f in glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))
+        ]
+        for filename in filenames:
+            vad_pred_filepath = os.path.join(vad_pred_dir, filename + '.median')
+            table_out_dir = os.path.join(vad_pred_dir, "table_output_" + str(threshold))
+
+            if not os.path.exists(table_out_dir):
+                os.mkdir(table_out_dir)
+            per_args = {"threshold": threshold, "shift_len": 0.01, "out_dir": table_out_dir}
+
+            vad_table_filepath = generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
+            groundtruth_RTTM_file = os.path.join(groundtruth_RTTM_dir, filename + '.rttm')
+
+            reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
+            metric(reference, hypothesis)  # accumulation
+        report = metric.report(display=False)
+        DetER = report.iloc[[-1]][('detection error rate', '%')].item()
+        FA = (report.iloc[[-1]][('false alarm', '%')].item(),)
+        MISS = report.iloc[[-1]][('miss', '%')].item()
+        threshold_perf[threshold] = {'DetER': DetER, 'FA': FA, 'MISS': MISS}
+        print(threshold, threshold_perf[threshold])
+        del report
+        metric.reset()  # reset internal accumulator
+        if DetER < min_der:
+            min_der = DetER
+            best_threhsold = threshold
+    # return threshold with smallest der [TODO] return full result to user for flexible use
+    return best_threhsold

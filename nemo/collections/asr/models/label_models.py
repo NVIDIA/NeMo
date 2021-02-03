@@ -54,7 +54,6 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-
         Returns:
             List of available pre-trained models.
         """
@@ -88,8 +87,8 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
         else:
             logging.info("Training with Softmax-CrossEntropy loss")
             self.loss = CELoss()
-
-        self._accuracy = TopKClassificationAccuracy(top_k=[1], dist_sync_on_step=True)
+        self.task = None
+        self._accuracy = TopKClassificationAccuracy(top_k=[1])
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -106,40 +105,62 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
             featurizer=featurizer,
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
-            trim=config.get('trim_silence', True),
+            trim=False,
             load_audio=config.get('load_audio', True),
             time_length=config.get('time_length', 8),
+            shift_length=config.get('shift_length', 0.75),
         )
+
+        if self.task == 'diarization':
+            logging.info("Setting up diarization parameters")
+            _collate_func = self.dataset.sliced_seq_collate_fn
+            batch_size = 1
+            shuffle = False
+        else:
+            logging.info("Setting up identification parameters")
+            _collate_func = self.dataset.fixed_seq_collate_fn
+            batch_size = config['batch_size']
+            shuffle = config.get('shuffle', False)
 
         return torch.utils.data.DataLoader(
             dataset=self.dataset,
-            batch_size=config['batch_size'],
-            collate_fn=self.dataset.fixed_seq_collate_fn,
+            batch_size=batch_size,
+            collate_fn=_collate_func,
             drop_last=config.get('drop_last', False),
-            shuffle=config['shuffle'],
-            num_workers=config.get('num_workers', 2),
+            shuffle=shuffle,
+            num_workers=config.get('num_workers', 0),
             pin_memory=config.get('pin_memory', False),
         )
 
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
+        self.task = 'identification'
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in val_data_layer_config:
-            val_data_layer_config['shuffle'] = False
         val_data_layer_config['labels'] = self.dataset.labels
+        self.task = 'identification'
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in test_data_layer_params:
-            test_data_layer_params['shuffle'] = False
         if hasattr(self, 'dataset'):
             test_data_layer_params['labels'] = self.dataset.labels
+
+        if 'task' in test_data_layer_params and test_data_layer_params['task']:
+            self.task = test_data_layer_params['task'].lower()
+            self.time_length = test_data_layer_params.get('time_length', 1.5)
+            self.shift_length = test_data_layer_params.get('shift_length', 0.75)
+        else:
+            self.task = 'identification'
+
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
-        self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
+        self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
+
+    def test_dataloader(self):
+        if self._test_dl is not None:
+            return self._test_dl
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -256,14 +277,11 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
         setup_finetune_model method sets up training data, validation data and test data with new
         provided config, this checks for the previous labels set up during training from scratch, if None,
         it sets up labels for provided finetune data from manifest files
-
         Args:
         model_config: cfg which has train_ds, optional validation_ds, optional test_ds and
         mandatory encoder and decoder model params
         make sure you set num_classes correctly for finetune data
-
         Returns: None
-
         """
         if hasattr(self, 'dataset'):
             scratch_labels = self.dataset.labels
@@ -334,11 +352,8 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
                 " inputs and outputs."
             )
 
-        qual_name = self.__module__ + '.' + self.__class__.__qualname__
-        output1 = os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output))
-        output1_descr = qual_name + ' Encoder exported to ONNX'
         encoder_onnx = self.encoder.export(
-            output1,
+            os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output)),
             None,  # computed by input_example()
             None,
             verbose,
@@ -352,10 +367,8 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
             use_dynamic_axes,
         )
 
-        output2 = os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output))
-        output2_descr = qual_name + ' Decoder exported to ONNX'
         decoder_onnx = self.decoder.export(
-            output2,
+            os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output)),
             None,  # computed by input_example()
             None,
             verbose,
@@ -370,9 +383,7 @@ class EncDecSpeakerLabelModel(ModelPT, Exportable):
         )
 
         output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "SL")
-        output_descr = qual_name + ' Encoder+Decoder exported to ONNX'
         onnx.save(output_model, output)
-        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])
 
 
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
