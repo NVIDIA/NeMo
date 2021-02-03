@@ -40,7 +40,7 @@ __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
 class EncDecClassificationModel(ASRModel, Exportable):
-    """Encoder decoder CTC-based models."""
+    """Encoder decoder speech classification models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
