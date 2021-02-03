@@ -22,7 +22,7 @@ import webdataset as wd
 
 from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -282,17 +282,31 @@ target_label_n, "offset": offset_in_sec_n}
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
         """
-        return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'label': NeuralType(tuple('B'), LabelsType()),
-            'label_length': NeuralType(tuple('B'), LengthsType()),
-        }
+
+        if self.regression:
+            return {
+                'audio_signal': NeuralType(
+                    ('B', 'T'),
+                    AudioSignal(freq=self._sample_rate)
+                    if self is not None and hasattr(self, '_sample_rate')
+                    else AudioSignal(),
+                ),
+                'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+                'targets': NeuralType(tuple('B'), RegressionValuesType()),
+                'targets_length': NeuralType(tuple('B'), LengthsType()),
+            }
+        else:
+            return {
+                'audio_signal': NeuralType(
+                    ('B', 'T'),
+                    AudioSignal(freq=self._sample_rate)
+                    if self is not None and hasattr(self, '_sample_rate')
+                    else AudioSignal(),
+                ),
+                'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+                'label': NeuralType(tuple('B'), LabelsType()),
+                'label_length': NeuralType(tuple('B'), LengthsType()),
+            }
 
     def __init__(
         self,
@@ -304,26 +318,36 @@ target_label_n, "offset": offset_in_sec_n}
         max_duration: Optional[float] = None,
         trim: bool = False,
         load_audio: bool = True,
+        regression: bool = False,
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
+            manifests_files=manifest_filepath.split(','),
+            min_duration=min_duration,
+            max_duration=max_duration,
+            regression=regression,
         )
 
         self.featurizer = featurizer
         self.trim = trim
         self.load_audio = load_audio
+        self.regression = regression
 
-        self.labels = labels if labels else self.collection.uniq_labels
-        self.num_classes = len(self.labels)
+        if self.regression:
+            self.labels = []
+            self.num_classes = 1
+        else:
+            self.labels = labels if labels else self.collection.uniq_labels
 
-        self.label2id, self.id2label = {}, {}
-        for label_id, label in enumerate(self.labels):
-            self.label2id[label] = label_id
-            self.id2label[label_id] = label
+            self.num_classes = len(self.labels)
 
-        for idx in range(len(self.labels[:5])):
-            logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+            self.label2id, self.id2label = {}, {}
+            for label_id, label in enumerate(self.labels):
+                self.label2id[label] = label_id
+                self.id2label[label_id] = label
+
+            for idx in range(len(self.labels[:5])):
+                logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
 
     def __len__(self):
         return len(self.collection)
@@ -343,10 +367,15 @@ target_label_n, "offset": offset_in_sec_n}
         else:
             f, fl = None, None
 
-        t = self.label2id[sample.label]
-        tl = 1  # For compatibility with collate_fn used later
+        if self.regression:
+            t = sample.label
+            tl = 1  # For compatibility with collate_fn used later
+            return f, fl, torch.tensor(t).float(), torch.tensor(tl).long()
+        else:
+            t = self.label2id[sample.label]
+            tl = 1  # For compatibility with collate_fn used later
 
-        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+            return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
@@ -433,8 +462,8 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         time_length: Optional[float] = 8,
         shift_length: Optional[float] = 1,
         normalize_audio: bool = False,
+        regression: bool = False,
     ):
-
         logging.info("Time length considered for collate func is {}".format(time_length))
         logging.info("Shift length considered for collate func is {}".format(shift_length))
         self.time_length = time_length
@@ -449,6 +478,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             max_duration=max_duration,
             trim=trim,
             load_audio=load_audio,
+            regression=regression,
         )
 
     def fixed_seq_collate_fn(self, batch):
@@ -864,7 +894,6 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         global_rank: int = 0,
         world_size: int = 0,
     ):
-
         logging.info("Time length considered for collate func is {}".format(time_length))
         logging.info("Shift length considered for collate func is {}".format(shift_length))
         self.time_length = time_length
