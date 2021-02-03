@@ -265,7 +265,7 @@ class PositionalEncoding(torch.nn.Module):
         pos_emb = self.pe[:, : x.size(1)]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
-        x = x + self.pe[:, : x.size(1)]
+        x = x + pos_emb
         return self.dropout(x), pos_emb
 
 
