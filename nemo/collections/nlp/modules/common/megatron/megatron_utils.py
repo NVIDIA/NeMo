@@ -33,7 +33,14 @@ __all__ = [
 ]
 
 
-MEGATRON_CACHE = os.path.join(_get_torch_home(), "megatron")
+torch_home = _get_torch_home()
+
+if not isinstance(torch_home, str):
+    logging.info("Torch home not found, caching megatron in cwd")
+    torch_home = os.getcwd()
+
+MEGATRON_CACHE = os.path.join(torch_home, "megatron")
+
 
 CONFIGS = {"345m": {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 

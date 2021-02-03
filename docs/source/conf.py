@@ -16,7 +16,9 @@
 # limitations under the License.
 
 import os
+import re
 import sys
+import glob
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -38,43 +40,40 @@ autodoc_mock_imports = [
     'torchvision',
     'torchvision.models',
     'torchtext',
-    'torch_stft',
-    'pytorch_lightning',
-    'h5py',
-    'kaldi_io',
-    'transformers',
-    'transformers.tokenization_bert',
-    'apex',
-    'ruamel',
-    'frozendict',
-    'inflect',
-    'unidecode',
-    'librosa',
-    'soundfile',
-    'sentencepiece',
-    'youtokentome',
-    'megatron-lm',
-    'numpy',
-    'dateutil',
-    'wget',
-    'scipy',
-    'pandas',
-    'matplotlib',
+    'ruamel.yaml',  # ruamel.yaml has ., which is troublesome for this regex
+    'hydra',  # hydra-core in requirements, hydra during import
+    'dateutil',  # part of core python
+    'transformers.tokenization_bert',  # has ., troublesome for this regex
+    'megatron',  # megatron-lm in requirements, megatron in import
     'sklearn',
-    'braceexpand',
-    'webdataset',
-    'tqdm',
-    'numba',
-    'hydra',
-    'omegaconf',
-    'onnx',
-    'editdistance',
-    'megatron',
-    'g2p_en',
-    'pesq',
-    'pystoi',
 ]
 
+_skipped_autodoc_mock_imports = ['wrapt']
+
+for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
+    if "docs.txt" in req_path:
+        continue
+
+    req_file = os.path.abspath(os.path.expanduser(req_path))
+    with open(req_file, 'r') as f:
+        for line in f:
+            line = line.replace("\n", "")
+            req = re.search(r"([a-zA-Z0-9-_]*)", line)
+            if req:
+                req = req.group(1)
+                req = req.replace("-", "_")
+
+                if req not in autodoc_mock_imports:
+                    if req in _skipped_autodoc_mock_imports:
+                        print(f"Skipping req : `{req}` (lib {line})")
+                        continue
+
+                    autodoc_mock_imports.append(req)
+                    print(f"Adding req : `{req}` to autodoc mock requirements (lib {line})")
+                else:
+                    print(f"`{req}` already added to autodoc mock requirements (lib {line})")
+
+#
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.

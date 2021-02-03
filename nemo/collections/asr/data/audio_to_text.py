@@ -441,6 +441,42 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
 
 
 class AudioToBPEDataset(_AudioTextDataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, and durations (in seconds). Each new line is a
+    different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+    "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    In practice, the dataset and manifest used for character encoding and byte pair encoding
+    are exactly the same. The only difference lies in how the dataset tokenizes the text in
+    the manifest.
+
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        tokenizer: A subclass of the Tokenizer wrapper found in the common collection,
+            nemo.collections.common.tokenizers.TokenizerSpec. ASR Models support a subset of
+            all available tokenizers.
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
+            object used to augment loaded audio
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        max_utts: Limit number of utterances
+        trim: Whether to trim silence segments
+        load_audio: Boolean flag indicate whether do or not load audio
+        add_misc: True if add additional info dict.
+        use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
+            tokens to beginning and ending of speech respectively.
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.

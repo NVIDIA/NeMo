@@ -1,0 +1,3 @@
+Model,Dataset,WER (greedy),WER (LM)
+QuartzNet 15x5-de (MCV 6.1),"MCV DE Dev Set (6.1)",12.39,
+

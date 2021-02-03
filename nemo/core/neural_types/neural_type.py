@@ -29,6 +29,7 @@ __all__ = [
 class NeuralType(object):
     """This is the main class which would represent neural type concept.
     It is used to represent *the types* of inputs and outputs.
+
     Args:
         axes (Optional[Tuple]): a tuple of AxisTypes objects representing the semantics of what varying each axis means
             You can use a short, string-based form here. For example: ('B', 'C', 'H', 'W') would correspond to an NCHW

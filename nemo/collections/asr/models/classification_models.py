@@ -36,8 +36,8 @@ from nemo.utils import logging
 __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
-class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
-    """Encoder decoder Classification models."""
+class EncDecClassificationModel(ASRModel, Exportable):
+    """Encoder decoder speech classification models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
