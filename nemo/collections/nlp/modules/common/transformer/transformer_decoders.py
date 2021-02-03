@@ -13,17 +13,20 @@
 # limitations under the License.
 
 import copy
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
+from omegaconf.omegaconf import MISSING
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
+from nemo.core.classes import NeuralModule
 
 __all__ = ["TransformerDecoder"]
 
 
-class TransformerDecoderBlock(nn.Module):
+class TransformerDecoderBlock(NeuralModule):
     """
     Building block of Transformer decoder.
 
@@ -41,14 +44,14 @@ class TransformerDecoderBlock(nn.Module):
 
     def __init__(
         self,
-        hidden_size,
-        inner_size,
-        num_attention_heads=1,
-        attn_score_dropout=0,
-        attn_layer_dropout=0,
-        ffn_dropout=0,
-        hidden_act="relu",
-        pre_ln=False,
+        hidden_size: int,
+        inner_size: int,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
     ):
         super().__init__()
         self.pre_ln = pre_ln
@@ -63,6 +66,7 @@ class TransformerDecoderBlock(nn.Module):
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
+    # TODO: add Neural Types
     def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
 
         # Pre-LN: LN -> Self-Attn -> Drop -> Residual -> LN -> Cross-Attn -> Drop -> Residual -> LN -> FFN
@@ -93,10 +97,30 @@ class TransformerDecoderBlock(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self, num_layers, hidden_size, **kwargs):
+    def __init__(
+        self,
+        num_layers: int,
+        hidden_size: int,
+        inner_size: int,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
+    ):
         super().__init__()
 
-        layer = TransformerDecoderBlock(hidden_size, **kwargs)
+        layer = TransformerDecoderBlock(
+            hidden_size,
+            inner_size,
+            num_attention_heads,
+            attn_score_dropout,
+            attn_layer_dropout,
+            ffn_dropout,
+            hidden_act,
+            pre_ln,
+        )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):

@@ -23,6 +23,7 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import GlowVocoder
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -45,7 +46,7 @@ class WaveglowConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-class WaveGlowModel(GlowVocoder):
+class WaveGlowModel(GlowVocoder, Exportable):
     """Waveglow model used to convert betweeen spectrograms and audio"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -66,7 +67,6 @@ class WaveGlowModel(GlowVocoder):
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.waveglow = instantiate(self._cfg.waveglow)
         self.loss = WaveGlowLoss()
-        self.removed_weightnorm = False
 
     @GlowVocoder.mode.setter
     def mode(self, new_mode):
@@ -130,11 +130,10 @@ class WaveGlowModel(GlowVocoder):
         self, spec: torch.Tensor, sigma: float = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
     ) -> torch.Tensor:
         with self.nemo_infer():
-            if not self.removed_weightnorm:
-                self.waveglow.remove_weightnorm()
-                self.removed_weightnorm = True
-
-            audio = self.waveglow(spec=spec, run_inverse=True, audio=None, sigma=sigma)
+            self.waveglow.remove_weightnorm()
+            audio = self.waveglow(
+                spec=spec.to(self.waveglow.upsample.weight.dtype), run_inverse=True, audio=None, sigma=sigma
+            )
             if denoise:
                 audio = self.denoise(audio, denoiser_strength)
 
@@ -228,3 +227,36 @@ class WaveGlowModel(GlowVocoder):
         )
         list_of_models.append(model)
         return list_of_models
+
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+        check_tolerance=0.01,
+    ):
+        self.update_bias_spect()
+        self.waveglow.export(
+            output,
+            input_example=input_example,
+            output_example=output_example,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            onnx_opset_version=onnx_opset_version,
+            try_script=try_script,
+            set_eval=try_script,
+            check_trace=check_trace,
+            use_dynamic_axes=use_dynamic_axes,
+            check_tolerance=check_tolerance,
+        )

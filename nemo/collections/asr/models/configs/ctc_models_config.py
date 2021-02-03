@@ -36,6 +36,7 @@ class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     # Tarred dataset support
     is_tarred: bool = False
     tarred_audio_filepaths: Optional[str] = None
+    tarred_shard_strategy: str = "scatter"
     shuffle_n: int = 0
 
     # Optional
@@ -51,6 +52,10 @@ class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     load_audio: bool = True
     parser: Optional[str] = 'en'
     add_misc: bool = False
+    eos_id: Optional[int] = None
+    bos_id: Optional[int] = None
+    pad_id: int = 0
+    use_start_end_token: bool = False
 
 
 @dataclass
@@ -73,10 +78,10 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     # Model component configs
     preprocessor: AudioToMelSpectrogramPreprocessorConfig = AudioToMelSpectrogramPreprocessorConfig()
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
-    encoder: Any = ConvASREncoderConfig()
-    decoder: Any = ConvASRDecoderConfig()
+    encoder: ConvASREncoderConfig = ConvASREncoderConfig()
+    decoder: ConvASRDecoderConfig = ConvASRDecoderConfig()
 
 
 @dataclass
-class EncDecCTCModelConfig(model_cfg.ModelPTConfig):
+class EncDecCTCModelConfig(model_cfg.NemoConfig):
     model: EncDecCTCConfig = EncDecCTCConfig()

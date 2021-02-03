@@ -21,6 +21,17 @@ from torch import Tensor
 
 from nemo.collections.asr.parts.activations import Swish
 
+try:
+    from pytorch_quantization import calib
+    from pytorch_quantization import nn as quant_nn
+    from pytorch_quantization import quant_modules
+    from pytorch_quantization.tensor_quant import QuantDescriptor
+
+    PYTORCH_QUANTIZATION_AVAILABLE = True
+except ImportError:
+    PYTORCH_QUANTIZATION_AVAILABLE = False
+
+
 jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
 
 
@@ -127,6 +138,7 @@ class MaskedConv1d(nn.Module):
         heads=-1,
         bias=False,
         use_mask=True,
+        quantize=False,
     ):
         super(MaskedConv1d, self).__init__()
 
@@ -139,16 +151,33 @@ class MaskedConv1d(nn.Module):
             out_channels = heads
             groups = heads
 
-        self.conv = nn.Conv1d(
-            in_channels,
-            out_channels,
-            kernel_size,
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            groups=groups,
-            bias=bias,
-        )
+        if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+            self.conv = quant_nn.QuantConv1d(
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                bias=bias,
+            )
+        elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+            raise ImportError(
+                "pytorch-quantization is not installed. Install from "
+                "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+            )
+        else:
+            self.conv = nn.Conv1d(
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                bias=bias,
+            )
         self.use_mask = use_mask
         self.heads = heads
 
@@ -205,6 +234,7 @@ class SqueezeExcite(nn.Module):
         context_window: int = -1,
         interpolation_mode: str = 'nearest',
         activation: Optional[Callable] = None,
+        quantize: bool = False,
     ):
         """
         Squeeze-and-Excitation sub-module.
@@ -227,18 +257,46 @@ class SqueezeExcite(nn.Module):
         self.interpolation_mode = interpolation_mode
 
         if self.context_window <= 0:
-            self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
+            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
+            else:
+                self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
         else:
-            self.pool = nn.AvgPool1d(self.context_window, stride=1)
+            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                self.pool = quant_nn.QuantAvgPool1d(self.context_window, stride=1)
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
+            else:
+                self.pool = nn.AvgPool1d(self.context_window, stride=1)
 
         if activation is None:
             activation = nn.ReLU(inplace=True)
 
-        self.fc = nn.Sequential(
-            nn.Linear(channels, channels // reduction_ratio, bias=False),
-            activation,
-            nn.Linear(channels // reduction_ratio, channels, bias=False),
-        )
+        if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+            self.fc = nn.Sequential(
+                quant_nn.QuantLinear(channels, channels // reduction_ratio, bias=False),
+                activation,
+                quant_nn.QuantLinear(channels // reduction_ratio, channels, bias=False),
+            )
+        elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+            raise ImportError(
+                "pytorch-quantization is not installed. Install from "
+                "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+            )
+        else:
+            self.fc = nn.Sequential(
+                nn.Linear(channels, channels // reduction_ratio, bias=False),
+                activation,
+                nn.Linear(channels // reduction_ratio, channels, bias=False),
+            )
 
     def forward(self, x):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
@@ -285,6 +343,7 @@ class JasperBlock(nn.Module):
         se_context_window=None,
         se_interpolation_mode='nearest',
         stride_last=False,
+        quantize=False,
     ):
         super(JasperBlock, self).__init__()
 
@@ -302,6 +361,7 @@ class JasperBlock(nn.Module):
         self.separable = separable
         self.residual_mode = residual_mode
         self.se = se
+        self.quantize = quantize
 
         inplanes_loop = inplanes
         conv = nn.ModuleList()
@@ -326,6 +386,7 @@ class JasperBlock(nn.Module):
                     separable=separable,
                     normalization=normalization,
                     norm_groups=norm_groups,
+                    quantize=quantize,
                 )
             )
 
@@ -346,6 +407,7 @@ class JasperBlock(nn.Module):
                 separable=separable,
                 normalization=normalization,
                 norm_groups=norm_groups,
+                quantize=quantize,
             )
         )
 
@@ -357,6 +419,7 @@ class JasperBlock(nn.Module):
                     context_window=se_context_window,
                     interpolation_mode=se_interpolation_mode,
                     activation=activation,
+                    quantize=quantize,
                 )
             )
 
@@ -385,12 +448,20 @@ class JasperBlock(nn.Module):
                         normalization=normalization,
                         norm_groups=norm_groups,
                         stride=stride_val,
+                        quantize=quantize,
                     )
                 )
 
                 res_list.append(res)
 
             self.res = res_list
+            if PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
+                self.residual_quantizer = quant_nn.TensorQuantizer(quant_nn.QuantConv2d.default_quant_desc_input)
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
         else:
             self.res = None
 
@@ -408,6 +479,7 @@ class JasperBlock(nn.Module):
         groups=1,
         heads=-1,
         separable=False,
+        quantize=False,
     ):
         use_mask = self.conv_mask
         if use_mask:
@@ -422,18 +494,36 @@ class JasperBlock(nn.Module):
                 groups=groups,
                 heads=heads,
                 use_mask=use_mask,
+                quantize=quantize,
             )
         else:
-            return nn.Conv1d(
-                in_channels,
-                out_channels,
-                kernel_size,
-                stride=stride,
-                dilation=dilation,
-                padding=padding,
-                bias=bias,
-                groups=groups,
-            )
+            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                return quant_nn.QuantConv1d(
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    stride=stride,
+                    dilation=dilation,
+                    padding=padding,
+                    bias=bias,
+                    groups=groups,
+                )
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
+            else:
+                return nn.Conv1d(
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    stride=stride,
+                    dilation=dilation,
+                    padding=padding,
+                    bias=bias,
+                    groups=groups,
+                )
 
     def _get_conv_bn_layer(
         self,
@@ -449,6 +539,7 @@ class JasperBlock(nn.Module):
         separable=False,
         normalization="batch",
         norm_groups=1,
+        quantize=False,
     ):
         if norm_groups == -1:
             norm_groups = out_channels
@@ -465,6 +556,7 @@ class JasperBlock(nn.Module):
                     bias=bias,
                     groups=in_channels,
                     heads=heads,
+                    quantize=quantize,
                 ),
                 self._get_conv(
                     in_channels,
@@ -475,6 +567,7 @@ class JasperBlock(nn.Module):
                     padding=0,
                     bias=bias,
                     groups=groups,
+                    quantize=quantize,
                 ),
             ]
         else:
@@ -488,6 +581,7 @@ class JasperBlock(nn.Module):
                     padding=padding,
                     bias=bias,
                     groups=groups,
+                    quantize=quantize,
                 )
             ]
 
@@ -545,7 +639,15 @@ class JasperBlock(nn.Module):
                         res_out = res_layer(res_out)
 
                 if self.residual_mode == 'add' or self.residual_mode == 'stride_add':
-                    out = out + res_out
+                    if PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
+                        out = out + self.residual_quantizer(res_out)
+                    elif not PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
+                        raise ImportError(
+                            "pytorch-quantization is not installed. Install from "
+                            "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                        )
+                    else:
+                        out = out + res_out
                 else:
                     out = torch.max(out, res_out)
 

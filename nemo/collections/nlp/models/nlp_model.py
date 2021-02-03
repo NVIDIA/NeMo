@@ -15,17 +15,19 @@
 import hashlib
 import json
 import os
-from typing import List
+from typing import Any, Dict, List
 
-import pytorch_lightning
 import torch
 from megatron import mpu
+from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
+from pytorch_lightning.utilities.cloud_io import atomic_save
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
@@ -33,7 +35,9 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
+from nemo.utils.exp_manager import configure_checkpointing
+from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['NLPModel']
 
@@ -261,7 +265,8 @@ class NLPModel(ModelPT):
         # TODO: implement model parallel for test stage
         if stage == 'fit':
             # adds self.bert_model config to .nemo file
-            self.register_bert_model()
+            if hasattr(self, 'bert_model') and self.bert_model is not None:
+                self.register_bert_model()
 
             app_state = AppState()
 
@@ -280,16 +285,50 @@ class NLPModel(ModelPT):
                 self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
                 # Update PTL trainer to use our _clip_gradients
                 self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
+                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
+
+                # Configure checkpointing for model parallel
+                if app_state.create_checkpoint_callback:
+                    # global rank 0 is configured by exp_manager
+                    if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
+                        configure_checkpointing(
+                            self._trainer,
+                            app_state.log_dir,
+                            app_state.checkpoint_name,
+                            app_state.checkpoint_callback_params,
+                        )
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
 
-                    logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
-                    self.bert_model.restore_weights(self.bert_model._restore_path)
+                    if self._trainer.resume_from_checkpoint is not None:
+                        # update path based on model parallel rank
+                        filepath = self._trainer.resume_from_checkpoint
+                        dirname = os.path.dirname(os.path.dirname(filepath))
+                        basename = os.path.basename(filepath)
+                        filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+                        self._trainer.resume_from_checkpoint = filepath
+                        logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
+                        # need to set checkpoint version for megatron-lm
+                        checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
+                            'checkpoint_version', None
+                        )
+                        if checkpoint_version is not None:
+                            set_checkpoint_version(checkpoint_version)
+                        else:
+                            logging.warning(
+                                'Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.'
+                            )
+                            set_checkpoint_version(0)
+                    else:
+                        logging.info(
+                            f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
+                        )
+                        self.bert_model.restore_weights(self.bert_model._restore_path)
 
-                    logging.info("replacing sampler with model parallel sampler")
+                    logging.info("Replacing sampler with model parallel sampler")
                     mp_sampler = torch.utils.data.distributed.DistributedSampler(
                         self._train_dl.dataset,
                         num_replicas=app_state.data_parallel_size,
@@ -302,6 +341,59 @@ class NLPModel(ModelPT):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             else:
-                if isinstance(self.bert_model, MegatronBertEncoder):
+                if (
+                    hasattr(self, 'bert_model')
+                    and self.bert_model is not None
+                    and isinstance(self.bert_model, MegatronBertEncoder)
+                ):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
+
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
+            checkpoint['checkpoint_version'] = get_checkpoint_version()
+        return None
+
+
+class NLPCheckpointConnector(CheckpointConnector):
+    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM. 
+    """
+
+    def __init__(self, trainer):
+        super().__init__(trainer)
+
+    def save_checkpoint(self, filepath, weights_only: bool):
+        """Slightly modified version of PyTorch Lightning's save_checkpoint.
+
+        Args:
+            filepath ([str]): [description]
+            weights_only (bool): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            # filepath needs to be updated to include mp_rank
+            dirname = os.path.dirname(filepath)
+            basename = os.path.basename(filepath)
+            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+
+            # dump states as a checkpoint dictionary object
+            checkpoint = self.dump_checkpoint(weights_only)
+
+            # each model parallel rank needs to save a copy of its model
+            if app_state.data_parallel_rank == 0:
+                # write the checkpoint dictionary on the file
+                if self.trainer.accelerator_backend:
+                    checkpoint = self.trainer.accelerator_backend.on_save(checkpoint)
+                try:
+                    atomic_save(checkpoint, filepath)
+                except AttributeError as err:
+                    if LightningModule.CHECKPOINT_HYPER_PARAMS_KEY in checkpoint:
+                        del checkpoint[LightningModule.CHECKPOINT_HYPER_PARAMS_KEY]
+                    rank_zero_warn(
+                        'Warning, `hyper_parameters` dropped from checkpoint.' f' An attribute is not picklable {err}'
+                    )
+                    atomic_save(checkpoint, filepath)
+        return None
