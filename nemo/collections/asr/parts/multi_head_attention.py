@@ -252,9 +252,10 @@ class PositionalEncoding(torch.nn.Module):
     def forward(self, x: torch.Tensor):
         """Adds positional encoding.
         Args:
-            x (torch.Tensor): Input. Its shape is (batch, time, ...)
+            x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
         Returns:
-            Encoded Output (torch.Tensor): Its shape is (batch, time, ...)
+            x+pos_emb (torch.Tensor): Its shape is (batch, time, feature_size)
+            pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
         """
         self.extend_pe(x)
         if self.xscale:
@@ -297,10 +298,10 @@ class RelPositionalEncoding(PositionalEncoding):
     def forward(self, x):
         """Compute positional encoding.
         Args:
-            x (torch.Tensor): Input. Its shape is (batch, time, ...)
+            x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
         Returns:
-            x (torch.Tensor): Its shape is (batch, time, ...)
-            pos_emb (torch.Tensor): Its shape is (1, time, ...)
+            x (torch.Tensor): Its shape is (batch, time, feature_size)
+            pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
         """
         self.extend_pe(x)
         if self.xscale:
