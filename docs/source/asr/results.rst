@@ -26,6 +26,8 @@ Speech Classification Models
    :width: 100%
    :header-rows: 1
 
+-----------------------------
+
 Speech Recognition Benchmarks
 -----------------------------
 
@@ -34,16 +36,75 @@ English
 .. csv-table::
    :file: data/benchmark_en.csv
    :align: left
-   :widths: 25, 25, 25, 25
+   :widths: 40, 40, 10, 10
    :width: 100%
    :header-rows: 1
 
+-----------------------------
 
 Mandarin
 -------
 .. csv-table::
    :file: data/benchmark_zh.csv
    :align: left
-   :widths: 25, 25, 25, 25
+   :widths: 40, 40, 10, 10
    :width: 100%
    :header-rows: 1
+
+-----------------------------
+
+German
+-------
+.. csv-table::
+   :file: data/benchmark_de.csv
+   :align: left
+   :widths: 40, 40, 10, 10
+   :width: 100%
+   :header-rows: 1
+
+-----------------------------
+
+Polish
+-------
+.. csv-table::
+   :file: data/benchmark_pl.csv
+   :align: left
+   :widths: 40, 40, 10, 10
+   :width: 100%
+   :header-rows: 1
+
+-----------------------------
+
+Italian
+-------
+.. csv-table::
+   :file: data/benchmark_it.csv
+   :align: left
+   :widths: 40, 40, 10, 10
+   :width: 100%
+   :header-rows: 1
+
+-----------------------------
+
+Russian
+-------
+.. csv-table::
+   :file: data/benchmark_ru.csv
+   :align: left
+   :widths: 40, 40, 10, 10
+   :width: 100%
+   :header-rows: 1
+
+-----------------------------
+
+Catalan
+-------
+.. csv-table::
+   :file: data/benchmark_ca.csv
+   :align: left
+   :widths: 40, 40, 10, 10
+   :width: 100%
+   :header-rows: 1
+
+-----------------------------
+
