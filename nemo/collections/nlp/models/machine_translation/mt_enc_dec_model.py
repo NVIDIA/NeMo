@@ -315,9 +315,9 @@ class MTEncDecModel(EncDecNLPModel):
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         if cfg.get("use_tarred_dataset", False):
             # tarred dataset only used for training data
-            logging.info('Loading from tarred dataset %s' % (self.train_tar_file))
+            logging.info('Loading from tarred dataset %s' % (self.train_tar_files))
             dataset = TarredTranslationDataset(
-                text_tar_filepaths=self.train_tar_file,
+                text_tar_filepaths=self.train_tar_files,
                 metadata_path=self.train_metadata_file,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
