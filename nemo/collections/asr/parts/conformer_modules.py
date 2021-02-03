@@ -108,7 +108,6 @@ class ConformerLayer(torch.nn.Module):
         x = self.norm_self_att(x)
         if self.self_attention_model == 'rel_pos' or self.self_attention_model == 'rel_pos2':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
-            # x = self.self_attn2(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
@@ -163,19 +162,14 @@ class ConformerConvolution(nn.Module):
     def forward(self, x, pad_mask=None):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
-
         x = nn.functional.glu(x, dim=1)
 
         if pad_mask is not None:
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
+
         x = self.depthwise_conv(x)
-
-        # x = x.transpose(1, 2)
         x = self.batch_norm(x)
-        # x = x.transpose(1, 2)
-
         x = self.activation(x)
-
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)
         return x

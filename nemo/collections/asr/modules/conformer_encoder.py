@@ -22,7 +22,6 @@ from nemo.collections.asr.parts.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.multi_head_attention import (
     PositionalEncoding,
     RelPositionalEncoding,
-    RelPositionalEncoding2,
 )
 from nemo.collections.asr.parts.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
@@ -50,7 +49,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
         subsampling_conv_channels (int): the size of the convolutions in the subsampling module
-            Defaults to 64.
+            Defaults to -1 which would set it to d_model.
         ff_expansion_factor (int): the expansion factor in feed forward layers
             Defaults to 4.
         self_attention_model (str): type of the attention layer and positional encoding
@@ -111,9 +110,9 @@ class ConformerEncoder(NeuralModule, Exportable):
         n_layers,
         d_model,
         feat_out=-1,
-        subsampling='vggnet',
+        subsampling='striding',
         subsampling_factor=4,
-        subsampling_conv_channels=64,
+        subsampling_conv_channels=-1,
         ff_expansion_factor=4,
         self_attention_model='rel_pos',
         pos_emb_max_len=5000,
@@ -158,10 +157,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_v = nn.Parameter(torch.Tensor(n_heads, d_head))
             nn.init.zeros_(pos_bias_u)
             nn.init.zeros_(pos_bias_v)
-            # nn.init.normal_(pos_bias_u, 0.0, 0.02)
-            # nn.init.normal_(pos_bias_v, 0.0, 0.02)
-            # torch.nn.init.xavier_uniform_(self.pos_bias_u)
-            # torch.nn.init.xavier_uniform_(self.pos_bias_v)
         else:
             pos_bias_u = None
             pos_bias_v = None
@@ -173,21 +168,6 @@ class ConformerEncoder(NeuralModule, Exportable):
                 max_len=pos_emb_max_len,
                 xscale=self.xscale,
                 dropout_rate_emb=dropout_emb,
-            )
-            # self.pos_enc2 = RelPositionalEncoding2(
-            #     d_model=d_model,
-            #     dropout_rate=dropout,
-            #     max_len=pos_emb_max_len,
-            #     xscale=self.xscale,
-            #     dropout_emb_rate=dropout_emb,
-            # )
-        elif self_attention_model == "rel_pos2":
-            self.pos_enc = RelPositionalEncoding2(
-                d_model=d_model,
-                dropout_rate=dropout,
-                max_len=pos_emb_max_len,
-                xscale=self.xscale,
-                dropout_emb_rate=dropout_emb,
             )
         elif self_attention_model == "abs_pos":
             pos_bias_u = None
@@ -230,7 +210,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal = self.embed(audio_signal)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
-        # audio_signal, pos_emb = self.pos_enc2(audio_signal)
         bs, xmax, idim = audio_signal.size()
 
         # Create the self-attention and padding masks
