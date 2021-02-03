@@ -31,7 +31,7 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.exportable import Exportable, ExportFormat
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
 from nemo.utils.export_utils import attach_onnx_to_onnx
@@ -496,63 +496,77 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         punct_classifier_<output> - Punctuation Classifier neural net
         capt_classifier_<output> - Capitalization Classifier neural net
         """
-        if input_example is not None or output_example is not None:
-            logging.warning(
-                "Passed input and output examples will be ignored and recomputed since"
-                " PunctuationCapitalizationModel consists of three separate models with different"
-                " inputs and outputs."
+
+        if input_example is None:
+            input_example = self.bert_model.input_example()
+
+        if Exportable.get_format(output) is ExportFormat.TORCHSCRIPT:
+            return super().export(
+                output,
+                input_example=input_example,
+                output_example=None,
+                verbose=verbose,
+                export_params=export_params,
+                do_constant_folding=do_constant_folding,
+                keep_initializers_as_inputs=keep_initializers_as_inputs,
+                onnx_opset_version=onnx_opset_version,
+                try_script=try_script,
+                set_eval=set_eval,
+                check_trace=check_trace,
+                use_dynamic_axes=use_dynamic_axes,
             )
 
         qual_name = self.__module__ + '.' + self.__class__.__qualname__
         output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
         output1_descr = qual_name + ' BERT exported to ONNX'
+        bert_out = self.bert_model.forward(input_example)
         bert_model_onnx = self.bert_model.export(
             output1,
-            None,  # computed by input_example()
-            None,
-            verbose,
-            export_params,
-            do_constant_folding,
-            keep_initializers_as_inputs,
-            onnx_opset_version,
-            try_script,
-            set_eval,
-            check_trace,
-            use_dynamic_axes,
+            input_example=input_example,
+            output_example=bert_out,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            onnx_opset_version=onnx_opset_version,
+            try_script=try_script,
+            set_eval=set_eval,
+            check_trace=check_trace,
+            use_dynamic_axes=use_dynamic_axes,
         )
 
         output2 = os.path.join(os.path.dirname(output), 'punct_classifier_' + os.path.basename(output))
         output2_descr = qual_name + ' Punctuation Classifier exported to ONNX'
         punct_classifier_onnx = self.punct_classifier.export(
             output2,
-            None,  # computed by input_example()
-            None,
-            verbose,
-            export_params,
-            do_constant_folding,
-            keep_initializers_as_inputs,
-            onnx_opset_version,
-            try_script,
-            set_eval,
-            check_trace,
-            use_dynamic_axes,
+            input_example=bert_out,  # computed by input_example()
+            output_example=output_example,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            onnx_opset_version=onnx_opset_version,
+            try_script=try_script,
+            set_eval=set_eval,
+            check_trace=check_trace,
+            use_dynamic_axes=use_dynamic_axes,
         )
 
         output3 = os.path.join(os.path.dirname(output), 'capit_classifier_' + os.path.basename(output))
         output3_descr = qual_name + ' Capitalization Classifier exported to ONNX'
         capit_classifier_onnx = self.capit_classifier.export(
             output3,
-            None,  # computed by input_example()
-            None,
-            verbose,
-            export_params,
-            do_constant_folding,
-            keep_initializers_as_inputs,
-            onnx_opset_version,
-            try_script,
-            set_eval,
-            check_trace,
-            use_dynamic_axes,
+            input_example=bert_out,  # computed by input_example()
+            output_example=output_example,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            onnx_opset_version=onnx_opset_version,
+            try_script=try_script,
+            set_eval=set_eval,
+            check_trace=check_trace,
+            use_dynamic_axes=use_dynamic_axes,
         )
 
         punct_output_model = attach_onnx_to_onnx(bert_model_onnx, punct_classifier_onnx, "PTCL")

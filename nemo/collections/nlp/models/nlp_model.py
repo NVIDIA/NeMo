@@ -15,19 +15,18 @@
 import hashlib
 import json
 import os
-from typing import Any, Dict, List
+from typing import List
 
+import onnx
+import pytorch_lightning
 import torch
 from megatron import mpu
-from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
-from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
-from pytorch_lightning.utilities.cloud_io import atomic_save
+from pytorch_lightning.utilities import rank_zero_only
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
@@ -35,9 +34,9 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
-from nemo.utils import AppState, logging
-from nemo.utils.exp_manager import configure_checkpointing
-from nemo.utils.get_rank import is_global_rank_zero
+from nemo.core.classes.exportable import Exportable, ExportFormat
+from nemo.utils import AppState, app_state, logging
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['NLPModel']
 
@@ -46,7 +45,7 @@ NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_
 os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 
 
-class NLPModel(ModelPT):
+class NLPModel(ModelPT, Exportable):
     """Base class for NLP Models.
     """
 
@@ -265,8 +264,7 @@ class NLPModel(ModelPT):
         # TODO: implement model parallel for test stage
         if stage == 'fit':
             # adds self.bert_model config to .nemo file
-            if hasattr(self, 'bert_model') and self.bert_model is not None:
-                self.register_bert_model()
+            self.register_bert_model()
 
             app_state = AppState()
 
@@ -285,50 +283,16 @@ class NLPModel(ModelPT):
                 self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
                 # Update PTL trainer to use our _clip_gradients
                 self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
-                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
-
-                # Configure checkpointing for model parallel
-                if app_state.create_checkpoint_callback:
-                    # global rank 0 is configured by exp_manager
-                    if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
-                        configure_checkpointing(
-                            self._trainer,
-                            app_state.log_dir,
-                            app_state.checkpoint_name,
-                            app_state.checkpoint_callback_params,
-                        )
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
 
+                    logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
-                    if self._trainer.resume_from_checkpoint is not None:
-                        # update path based on model parallel rank
-                        filepath = self._trainer.resume_from_checkpoint
-                        dirname = os.path.dirname(os.path.dirname(filepath))
-                        basename = os.path.basename(filepath)
-                        filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-                        self._trainer.resume_from_checkpoint = filepath
-                        logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
-                        # need to set checkpoint version for megatron-lm
-                        checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
-                            'checkpoint_version', None
-                        )
-                        if checkpoint_version is not None:
-                            set_checkpoint_version(checkpoint_version)
-                        else:
-                            logging.warning(
-                                'Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.'
-                            )
-                            set_checkpoint_version(0)
-                    else:
-                        logging.info(
-                            f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
-                        )
-                        self.bert_model.restore_weights(self.bert_model._restore_path)
+                    self.bert_model.restore_weights(self.bert_model._restore_path)
 
-                    logging.info("Replacing sampler with model parallel sampler")
+                    logging.info("replacing sampler with model parallel sampler")
                     mp_sampler = torch.utils.data.distributed.DistributedSampler(
                         self._train_dl.dataset,
                         num_replicas=app_state.data_parallel_size,
@@ -341,59 +305,84 @@ class NLPModel(ModelPT):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             else:
-                if (
-                    hasattr(self, 'bert_model')
-                    and self.bert_model is not None
-                    and isinstance(self.bert_model, MegatronBertEncoder)
-                ):
+                if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
 
-    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            checkpoint['checkpoint_version'] = get_checkpoint_version()
+    def _prepare_for_export(self):
         return None
 
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+    ):
+        if input_example is None:
+            input_example = self.bert_model.input_example()
 
-class NLPCheckpointConnector(CheckpointConnector):
-    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM. 
-    """
+        if Exportable.get_format(output) is ExportFormat.TORCHSCRIPT:
+            return super().export(
+                output,
+                input_example=input_example,
+                output_example=None,
+                verbose=verbose,
+                export_params=export_params,
+                do_constant_folding=do_constant_folding,
+                keep_initializers_as_inputs=keep_initializers_as_inputs,
+                onnx_opset_version=onnx_opset_version,
+                try_script=try_script,
+                set_eval=set_eval,
+                check_trace=check_trace,
+                use_dynamic_axes=use_dynamic_axes,
+            )
 
-    def __init__(self, trainer):
-        super().__init__(trainer)
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
+        output1_descr = qual_name + ' BERT exported to ONNX'
 
-    def save_checkpoint(self, filepath, weights_only: bool):
-        """Slightly modified version of PyTorch Lightning's save_checkpoint.
+        bert_model_onnx = self.bert_model.export(
+            output1,
+            input_example=input_example,
+            output_example=None,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            onnx_opset_version=onnx_opset_version,
+            try_script=try_script,
+            set_eval=set_eval,
+            check_trace=check_trace,
+            use_dynamic_axes=use_dynamic_axes,
+        )
 
-        Args:
-            filepath ([str]): [description]
-            weights_only (bool): [description]
+        output2 = os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output))
+        output2_descr = qual_name + ' Classifier exported to ONNX'
+        classifier_onnx = self.classifier.export(
+            output2,
+            input_example=None,  # computed by input_example()
+            output_example=output_example,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            onnx_opset_version=onnx_opset_version,
+            try_script=try_script,
+            set_eval=set_eval,
+            check_trace=check_trace,
+            use_dynamic_axes=use_dynamic_axes,
+        )
 
-        Returns:
-            [type]: [description]
-        """
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            # filepath needs to be updated to include mp_rank
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-
-            # dump states as a checkpoint dictionary object
-            checkpoint = self.dump_checkpoint(weights_only)
-
-            # each model parallel rank needs to save a copy of its model
-            if app_state.data_parallel_rank == 0:
-                # write the checkpoint dictionary on the file
-                if self.trainer.accelerator_backend:
-                    checkpoint = self.trainer.accelerator_backend.on_save(checkpoint)
-                try:
-                    atomic_save(checkpoint, filepath)
-                except AttributeError as err:
-                    if LightningModule.CHECKPOINT_HYPER_PARAMS_KEY in checkpoint:
-                        del checkpoint[LightningModule.CHECKPOINT_HYPER_PARAMS_KEY]
-                    rank_zero_warn(
-                        'Warning, `hyper_parameters` dropped from checkpoint.' f' An attribute is not picklable {err}'
-                    )
-                    atomic_save(checkpoint, filepath)
-        return None
+        output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "NLMP")
+        output_descr = qual_name + ' BERT+Classifier exported to ONNX'
+        onnx.save(output_model, output)
+        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])
