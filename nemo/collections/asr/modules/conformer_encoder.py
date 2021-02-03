@@ -46,6 +46,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         feat_out (int): the size of the output features
             Defaults to -1 (means feat_out is d_model)
         subsampling (str): the method of subsampling, choices=['vggnet', 'striding']
+            Defaults to striding.
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
         subsampling_conv_channels (int): the size of the convolutions in the subsampling module
@@ -53,12 +54,16 @@ class ConformerEncoder(NeuralModule, Exportable):
         ff_expansion_factor (int): the expansion factor in feed forward layers
             Defaults to 4.
         self_attention_model (str): type of the attention layer and positional encoding
-            choices=['rel_pos', 'abs_pos'].
+            'rel_pos': relative positional embedding and Transformer-XL
+            'abs_pos': absolute positional embedding and Transformer
+            default is rel_pos.
         pos_emb_max_len (int): the maximum length of positional embeddings
             Defaulst to 5000
         n_heads (int): number of heads in multi-headed attention layers
             Defaults to 4.
         xscaling (bool): enables scaling the inputs to the multi-headed attention layers by sqrt(d_model)
+            Defaults to True.
+        untie_biases (bool): whether to not share (untie) the bias weights between layers of Transformer-XL
             Defaults to True.
         conv_kernel_size (int): the size of the convolutions in the convolutional modules
             Defaults to 31.
