@@ -46,6 +46,7 @@ __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 class ConvASREncoder(NeuralModule, Exportable):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
+
     Based on these papers:
         https://arxiv.org/pdf/1904.03288.pdf
         https://arxiv.org/pdf/1910.10261.pdf
