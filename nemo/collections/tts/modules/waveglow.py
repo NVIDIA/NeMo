@@ -104,10 +104,9 @@ class WaveGlowModule(NeuralModule, Exportable):
         Override this method to prepare module for export. This is in-place operation.
         Base version does common necessary module replacements (Apex etc)
         """
+        super()._prepare_for_export(replace_1D_2D=True)
+        self.converted_to_2D = True
         self.remove_weightnorm()
-        if not self.converted_to_2D:
-            super()._prepare_for_export(replace_1D_2D=True)
-            self.converted_to_2D = True
 
     @typecheck()
     def forward(self, spec, z=None, audio=None, run_inverse=True, sigma=1.0):

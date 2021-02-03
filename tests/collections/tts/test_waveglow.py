@@ -65,7 +65,7 @@ def taco2wg(spec, z):
 # Wrapper method to convert Jasper's Taco2 output to WG input and call inference
 def forward_wrapper(self, spec, z=None):
     spec, z = taco2wg(spec, z)
-    audio = self.waveglow.norm_dist_to_audio(spec=spec, sigma=1.0, z=z)
+    audio = self.norm_dist_to_audio(spec=spec, sigma=1.0, z=z)
     return audio
 
 

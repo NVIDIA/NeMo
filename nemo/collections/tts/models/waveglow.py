@@ -228,17 +228,35 @@ class WaveGlowModel(GlowVocoder, Exportable):
         list_of_models.append(model)
         return list_of_models
 
-    @property
-    def input_module(self):
-        return self.waveglow
-
-    @property
-    def output_module(self):
-        return self.waveglow
-
-    def _prepare_for_export(self):
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        verbose=False,
+        export_params=True,
+        do_constant_folding=True,
+        keep_initializers_as_inputs=False,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        check_trace: bool = True,
+        use_dynamic_axes: bool = True,
+        dynamic_axes=None,
+        forward_method=None,
+    ):
         self.update_bias_spect()
-        self.waveglow._prepare_for_export()
-
-    def forward_for_export(self, spec, z=None):
-        return self.waveglow(spec, z)
+        self.waveglow.export(
+            output,
+            input_example=input_example,
+            output_example=output_example,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            onnx_opset_version=onnx_opset_version,
+            try_script=try_script,
+            check_trace=check_trace,
+            use_dynamic_axes=use_dynamic_axes,
+            dynamic_axes=dynamic_axes,
+            forward_method=forward_method,
+        )
