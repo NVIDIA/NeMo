@@ -90,6 +90,8 @@ def matchboxnet_3x1x64_vad():
                             se_interpolation_mode='nearest', kernel_size_factor=1.0, stride_last=False)
     ]
     return config
+
+
 # fmt: on
 
 
@@ -195,6 +197,9 @@ class EncDecClassificationModelConfigBuilder(model_cfg.ModelConfigBuilder):
     def set_timesteps(self, timesteps: int):
         self.model_cfg.timesteps = timesteps
 
+    def set_is_regression_task(self, is_regression_task: bool):
+        self.model_cfg.is_regression_task = is_regression_task
+
     # Note: Autocomplete for users wont work without these overrides
     # But practically it is not needed since python will infer at runtime
 
@@ -216,6 +221,9 @@ class EncDecClassificationModelConfigBuilder(model_cfg.ModelConfigBuilder):
 
         # propagate num classes
         self.model_cfg.decoder.num_classes = len(self.model_cfg.labels)
+
+        # propagate task type (regression or classification)
+        self.model_cfg.is_regression_task = self.model_cfg.is_regression_task
 
         # propagate sample rate
         self.model_cfg.sample_rate = self.model_cfg.sample_rate

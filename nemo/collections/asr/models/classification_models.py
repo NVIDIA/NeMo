@@ -43,7 +43,7 @@ __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel', 'MatchboxNet']
 class _EncDecBaseModel(ASRModel, Exportable):
     """Abstract class to represent an ASR encoder-decoder model."""
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None, regression=False):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.global_rank = 0
         self.world_size = 1
@@ -53,9 +53,9 @@ class _EncDecBaseModel(ASRModel, Exportable):
             self.world_size = trainer.num_nodes * trainer.num_gpus
             self.local_rank = trainer.local_rank
 
-        self.regression = regression
         super().__init__(cfg=cfg, trainer=trainer)
 
+        self.is_regression_task = self._cfg.get('is_regression_task', False)
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = ASRModel.from_config_dict(self._cfg.spec_augment)
         else:
@@ -65,26 +65,43 @@ class _EncDecBaseModel(ASRModel, Exportable):
         else:
             self.crop_or_pad = None
 
-        self.preprocessor = self._load_preprocessor()
-        self.encoder = self._load_encoder()
-        self.decoder = self._load_decoder()
-
-        self._update_decoder_config(self._cfg.decoder)
+        self.preprocessor = self._setup_preprocessor()
+        self.encoder = self._setup_encoder()
+        self.decoder = self._setup_decoder()
+        self.loss = self._setup_loss()
 
     @abstractmethod
-    def _load_preprocessor(self):
+    def _setup_preprocessor(self):
+        """
+        Setup preprocessor for audio data
+        Returns: Preprocessor
+
+        """
         pass
 
     @abstractmethod
-    def _load_encoder(self):
+    def _setup_encoder(self):
+        """
+        Setup encoder for the Encoder-Decoder network
+        Returns: Encoder
+        """
         pass
 
     @abstractmethod
-    def _load_decoder(self):
+    def _setup_decoder(self):
+        """
+        Setup decoder for the Encoder-Decoder network
+        Returns: Decoder
+        """
         pass
 
     @abstractmethod
-    def _update_decoder_config(self, cfg):
+    def _setup_loss(self):
+        """
+        Setup loss function for training
+        Returns: Loss function
+
+        """
         pass
 
     @property
@@ -191,7 +208,6 @@ class _EncDecBaseModel(ASRModel, Exportable):
                 shuffle_n=shuffle_n,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                regression=self.regression,
             )
             shuffle = False
             batch_size = config['batch_size']
@@ -208,9 +224,7 @@ class _EncDecBaseModel(ASRModel, Exportable):
                 batch_size = 1
                 collate_func = dataset.vad_frame_seq_collate_fn
             else:
-                dataset = audio_to_label_dataset.get_classification_label_dataset(
-                    featurizer=featurizer, config=config, regression=self.regression
-                )
+                dataset = audio_to_label_dataset.get_classification_label_dataset(featurizer=featurizer, config=config)
                 batch_size = config['batch_size']
                 collate_func = dataset.collate_fn
 
@@ -261,7 +275,7 @@ class _EncDecBaseModel(ASRModel, Exportable):
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
                     for audio_file in paths2audio_files:
-                        label = 0.0 if self.regression else self.cfg.labels[0]
+                        label = 0.0 if self.is_regression_task else self.cfg.labels[0]
                         entry = {'audio_filepath': audio_file, 'duration': 100000.0, 'label': label}
                         fp.write(json.dumps(entry) + '\n')
 
@@ -314,7 +328,7 @@ class _EncDecBaseModel(ASRModel, Exportable):
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
-            'labels': [] if self.regression else self.cfg.labels,
+            'labels': self.cfg.labels,
             'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
             'trim_silence': False,
             'shuffle': False,
@@ -393,19 +407,23 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.loss = CrossEntropyLoss()
+        # Change labels if needed
+        self._update_decoder_config(self._cfg.decoder)
 
         # Setup metric objects
         self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
 
-    def _load_preprocessor(self):
+    def _setup_preprocessor(self):
         return EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
 
-    def _load_encoder(self):
+    def _setup_encoder(self):
         return EncDecClassificationModel.from_config_dict(self._cfg.encoder)
 
-    def _load_decoder(self):
+    def _setup_decoder(self):
         return EncDecClassificationModel.from_config_dict(self._cfg.decoder)
+
+    def _setup_loss(self):
+        return CrossEntropyLoss()
 
     @classmethod
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
@@ -621,17 +639,14 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
 
 class EncDecRegressionModel(_EncDecBaseModel):
-    """Encoder decoder class for speaker regression models.
+    """Encoder decoder class for speech regression models.
     Model class creates training, validation methods for setting up data
     performing model forward pass.
     Expects config dict for
     * preprocessor
     * Jasper/Quartznet Encoder
-    * Speaker Decoder
+    * Speech Decoder
     """
-
-    def _update_decoder_config(self, cfg):
-        pass
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
@@ -645,21 +660,27 @@ class EncDecRegressionModel(_EncDecBaseModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        super().__init__(cfg=cfg, trainer=trainer, regression=True)
+        OmegaConf.set_struct(cfg, False)
+        cfg.is_regression_task = True
+        OmegaConf.set_struct(cfg, True)
+
+        OmegaConf.set_struct(cfg, True)
+        super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecRegressionModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecRegressionModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecRegressionModel.from_config_dict(cfg.decoder)
 
-        self.loss = MSELoss()
-
-    def _load_preprocessor(self):
+    def _setup_preprocessor(self):
         return EncDecRegressionModel.from_config_dict(self._cfg.preprocessor)
 
-    def _load_encoder(self):
+    def _setup_encoder(self):
         return EncDecRegressionModel.from_config_dict(self._cfg.encoder)
 
-    def _load_decoder(self):
+    def _setup_decoder(self):
         return EncDecRegressionModel.from_config_dict(self._cfg.decoder)
+
+    def _setup_loss(self):
+        return MSELoss()
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -676,10 +697,7 @@ class EncDecRegressionModel(_EncDecBaseModel):
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss = self.loss(preds=logits, labels=targets)
 
-        self.log('loss', loss)
-        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
-
-        return {'loss': loss}
+        return {'loss': loss, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, targets, targets_len = batch
@@ -693,29 +711,19 @@ class EncDecRegressionModel(_EncDecBaseModel):
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-        logging.info("val_loss: {:.3f}".format(val_loss_mean))
-        self.log('val_loss', val_loss_mean)
-
         tensorboard_logs = {
             'val_loss': val_loss_mean,
         }
 
-        return {'log': tensorboard_logs}
+        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
-        audio_signal, audio_signal_len, targets, targets_len = batch
-        logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(preds=logits, labels=targets)
+        logs = self.validation_step(batch, batch_idx, dataloader_idx)
 
-        return {
-            'test_loss': loss_value,
-        }
+        return {'test_loss': logs['val_loss']}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-
-        logging.info("test_loss: {:.3f}".format(test_loss_mean))
-        self.log('test_loss', test_loss_mean)
 
         tensorboard_logs = {'test_loss': test_loss_mean}
 

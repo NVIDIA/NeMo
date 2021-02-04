@@ -283,7 +283,7 @@ target_label_n, "offset": offset_in_sec_n}
         """Returns definitions of module output ports.
         """
 
-        if self.regression:
+        if self.is_regression_task:
             return {
                 'audio_signal': NeuralType(
                     ('B', 'T'),
@@ -318,25 +318,23 @@ target_label_n, "offset": offset_in_sec_n}
         max_duration: Optional[float] = None,
         trim: bool = False,
         load_audio: bool = True,
-        regression: bool = False,
+        is_regression_task: bool = False,
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath.split(','),
             min_duration=min_duration,
             max_duration=max_duration,
-            regression=regression,
+            is_regression_task=is_regression_task,
         )
 
         self.featurizer = featurizer
         self.trim = trim
         self.load_audio = load_audio
-        self.regression = regression
+        self.is_regression_task = is_regression_task
 
-        if self.regression:
-            self.labels = []
-            self.num_classes = 1
-        else:
+        if not self.is_regression_task:
+
             self.labels = labels if labels else self.collection.uniq_labels
 
             self.num_classes = len(self.labels)
@@ -348,6 +346,9 @@ target_label_n, "offset": offset_in_sec_n}
 
             for idx in range(len(self.labels[:5])):
                 logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+
+        else:
+            self.num_classes = len(self.labels) if self.labels is not None else 1
 
     def __len__(self):
         return len(self.collection)
@@ -367,15 +368,14 @@ target_label_n, "offset": offset_in_sec_n}
         else:
             f, fl = None, None
 
-        if self.regression:
-            t = sample.label
-            tl = 1  # For compatibility with collate_fn used later
-            return f, fl, torch.tensor(t).float(), torch.tensor(tl).long()
+        if not self.is_regression_task:
+            t = torch.tensor(self.label2id[sample.label]).long()
         else:
-            t = self.label2id[sample.label]
-            tl = 1  # For compatibility with collate_fn used later
+            t = torch.tensor(sample.label).float()
 
-            return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+        tl = torch.tensor(1).long()  # For compatibility with collate_fn used later
+
+        return f, fl, t, tl
 
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
@@ -447,6 +447,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             Use this for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal. 
             Defaults to False.
+        is_regression_task (bool): Whether the dataset is for a regression task instead of classification
     """
 
     def __init__(
@@ -462,7 +463,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         time_length: Optional[float] = 8,
         shift_length: Optional[float] = 1,
         normalize_audio: bool = False,
-        regression: bool = False,
+        is_regression_task: bool = False,
     ):
         logging.info("Time length considered for collate func is {}".format(time_length))
         logging.info("Shift length considered for collate func is {}".format(shift_length))
@@ -478,7 +479,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             max_duration=max_duration,
             trim=trim,
             load_audio=load_audio,
-            regression=regression,
+            is_regression_task=is_regression_task,
         )
 
     def fixed_seq_collate_fn(self, batch):

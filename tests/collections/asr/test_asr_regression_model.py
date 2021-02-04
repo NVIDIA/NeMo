@@ -48,11 +48,16 @@ def speech_regression_model():
 
     decoder = {
         'cls': 'nemo.collections.asr.modules.conv_asr.ConvASRDecoderClassification',
-        'params': {'feat_in': 32, 'return_logits': True},
+        'params': {'feat_in': 32, 'return_logits': True, 'num_classes': 1},
     }
 
     modelConfig = DictConfig(
-        {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
+        {
+            'preprocessor': DictConfig(preprocessor),
+            'encoder': DictConfig(encoder),
+            'decoder': DictConfig(decoder),
+            'labels': None,
+        }
     )
     model = EncDecRegressionModel(cfg=modelConfig)
     return model
