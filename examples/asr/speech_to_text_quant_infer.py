@@ -21,6 +21,7 @@ from argparse import ArgumentParser
 from pprint import pprint
 
 import torch
+from omegaconf import open_dict
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
@@ -70,10 +71,17 @@ def main():
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model)
+        asr_model_cfg = EncDecCTCModel.restore_from(restore_path=args.asr_model, return_config=True)
+        with open_dict(asr_model_cfg):
+            asr_model_cfg.encoder.quantize = True
+        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model, override_config_path=asr_model_cfg)
+
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
+        asr_model_cfg = EncDecCTCModel.from_pretrained(model_name=args.asr_model, return_config=True)
+        with open_dict(asr_model_cfg):
+            asr_model_cfg.encoder.quantize = True
+        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, override_config_path=asr_model_cfg)
     asr_model.setup_test_data(
         test_data_config={
             'sample_rate': 16000,
@@ -144,15 +152,20 @@ def main():
                     F"WER tolerance {args.wer_tolerance} is met by skipping {len(skipped_layers)} sensitive layers."
                 )
                 print(skipped_layers)
+                export_onnx(args, asr_model)
                 return
         raise ValueError(f"WER tolerance {args.wer_tolerance} can not be met with any layer quantized!")
 
+    export_onnx(args, asr_model)
+
+
+def export_onnx(args, asr_model):
     if args.onnx:
         if args.asr_model.endswith("nemo"):
             onnx_name = args.asr_model.replace(".nemo", ".onnx")
         else:
             onnx_name = args.asr_model
-        logging.info("Export to ", onnx_name)
+        logging.info(F"Export to {onnx_name}")
         quant_nn.TensorQuantizer.use_fb_fake_quant = True
         asr_model.export(onnx_name, onnx_opset_version=13)
         quant_nn.TensorQuantizer.use_fb_fake_quant = False

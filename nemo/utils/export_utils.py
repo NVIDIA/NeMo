@@ -186,7 +186,7 @@ def replace_for_export(model: nn.Module, replace_1D_2D: bool = False) -> nn.Modu
     replace_modules(model, default_Apex_replacements)
     if replace_1D_2D:
         # TODO: add squeeze/unsqueeze
-        replace_modules(model, default_Apex_replacements)
+        replace_modules(model, default_1D_2D_replacements)
 
 
 def attach_onnx_to_onnx(model1: onnx.ModelProto, model2: onnx.ModelProto, prefix2: str):

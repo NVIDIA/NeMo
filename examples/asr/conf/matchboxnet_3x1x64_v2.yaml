@@ -21,6 +21,9 @@ model:
     labels: ${model.labels}
     batch_size: 128
     shuffle: True
+    is_tarred: False
+    tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
     augmentor:
       shift:
         prob: 1.0

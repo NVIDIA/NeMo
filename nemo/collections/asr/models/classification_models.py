@@ -16,6 +16,7 @@ import copy
 import json
 import os
 import tempfile
+from math import ceil
 from typing import Dict, List, Optional, Union
 
 import onnx
@@ -23,8 +24,7 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
-from nemo.collections.asr.data.audio_to_text import AudioLabelDataset
+from nemo.collections.asr.data import audio_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -40,9 +40,18 @@ __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
 class EncDecClassificationModel(ASRModel, Exportable):
-    """Encoder decoder CTC-based models."""
+    """Encoder decoder Classification models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        self.global_rank = 0
+        self.world_size = 1
+        self.local_rank = 0
+        if trainer is not None:
+            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.local_rank = trainer.local_rank
+
         super().__init__(cfg=cfg, trainer=trainer)
         self._update_decoder_config(self._cfg.decoder)
 
@@ -139,8 +148,6 @@ class EncDecClassificationModel(ASRModel, Exportable):
         return labels
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        if config.get('manifest_filepath') is None:
-            return
 
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
@@ -150,41 +157,56 @@ class EncDecClassificationModel(ASRModel, Exportable):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
+        shuffle = config['shuffle']
 
-        if 'vad_stream' in config and config['vad_stream']:
-            print("Perform streaming frame-level VAD")
-            dataset = AudioToSpeechLabelDataSet(
-                manifest_filepath=config['manifest_filepath'],
-                labels=config['labels'],
+        # Instantiate tarred dataset loader or normal dataset loader
+        if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `manifest_filepath` is None or "
+                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
+                )
+                return None
+
+            if 'vad_stream' in config and config['vad_stream']:
+                logging.warning("VAD inference does not support tarred dataset now")
+                return None
+
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            dataset = audio_to_label_dataset.get_tarred_classification_label_dataset(
                 featurizer=featurizer,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                trim=config.get('trim_silence', True),
-                load_audio=config.get('load_audio', True),
-                time_length=config.get('time_length', 0.31),
-                shift_length=config.get('shift_length', 0.01),
+                config=config,
+                shuffle_n=shuffle_n,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
             )
-            batch_size = 1
-            collate_func = dataset.vad_frame_seq_collate_fn
-        else:
-            dataset = AudioLabelDataset(
-                manifest_filepath=config['manifest_filepath'],
-                labels=config['labels'],
-                featurizer=featurizer,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                trim=config.get('trim_silence', True),
-                load_audio=config.get('load_audio', True),
-            )
+            shuffle = False
             batch_size = config['batch_size']
             collate_func = dataset.collate_fn
+
+        else:
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+                logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+                return None
+
+            if 'vad_stream' in config and config['vad_stream']:
+                logging.info("Perform streaming frame-level VAD")
+                dataset = audio_to_label_dataset.get_speech_label_dataset(featurizer=featurizer, config=config)
+                batch_size = 1
+                collate_func = dataset.vad_frame_seq_collate_fn
+            else:
+                dataset = audio_to_label_dataset.get_classification_label_dataset(featurizer=featurizer, config=config)
+                batch_size = config['batch_size']
+                collate_func = dataset.collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=batch_size,
             collate_fn=collate_func,
             drop_last=config.get('drop_last', False),
-            shuffle=config['shuffle'],
+            shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
             pin_memory=config.get('pin_memory', False),
         )
@@ -192,16 +214,40 @@ class EncDecClassificationModel(ASRModel, Exportable):
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
+        # preserve config
+        self._update_dataset_config(dataset_name='train', config=train_data_config)
+
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches
+                    * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='test', config=test_data_config)
+
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
 
     def test_dataloader(self):
