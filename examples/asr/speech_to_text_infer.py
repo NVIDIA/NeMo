@@ -51,8 +51,13 @@ def main():
     parser.add_argument(
         "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
     )
+    parser.add_argument(
+        "--use_cer", default=False, type=bool, help="Use Character Error Rate as the evaluation metric"
+    )
     args = parser.parse_args()
     torch.set_grad_enabled(False)
+    print("norm is")
+    print(args.normalize_text)
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
@@ -86,12 +91,16 @@ def main():
         hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
         for batch_ind in range(greedy_predictions.shape[0]):
             reference = ''.join([labels_map[c] for c in test_batch[2][batch_ind].cpu().detach().numpy()])
-            references.append(reference)
+            references.append(reference.strip())
         del test_batch
-    wer_value = word_error_rate(hypotheses=hypotheses, references=references)
-    if wer_value > args.wer_tolerance:
-        raise ValueError(f"Got WER of {wer_value}. It was higher than {args.wer_tolerance}")
-    logging.info(f'Got WER of {wer_value}. Tolerance was {args.wer_tolerance}')
+        
+    wer_value = word_error_rate(hypotheses=hypotheses, references=references, use_cer=args.use_cer)
+    if not args.use_cer:
+        if wer_value > args.wer_tolerance:
+            raise ValueError(f"Got WER of {wer_value}. It was higher than {args.wer_tolerance}")
+        logging.info(f'Got WER of {wer_value}. Tolerance was {args.wer_tolerance}')
+    else:
+        logging.info(f'Got CER of {wer_value}')
 
 
 if __name__ == '__main__':
