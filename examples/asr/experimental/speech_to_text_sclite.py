@@ -85,12 +85,11 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument(
-        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
+        "--dont_normalize_text", default=False, action='store_true', help="Turn off trasnscript normalization. Recommended for non-English."
     )
     parser.add_argument("--out_dir", type=str, required=True, help="Destination dir for output files")
     parser.add_argument("--sctk_dir", type=str, required=False, default="", help="Path to sctk root dir")
     parser.add_argument("--glm", type=str, required=False, default="", help="Path to glm file")
-    parser.add_argument("--ref_stm", type=str, required=False, default="", help="Path to glm file")
     args = parser.parse_args()
     torch.set_grad_enabled(False)
 
@@ -111,7 +110,7 @@ def main():
             'manifest_filepath': args.dataset,
             'labels': asr_model.decoder.vocabulary,
             'batch_size': args.batch_size,
-            'normalize_transcripts': args.normalize_text,
+            'normalize_transcripts': not args.dont_normalize_text,
         }
     )
     if can_gpu:
