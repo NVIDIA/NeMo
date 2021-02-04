@@ -2,7 +2,7 @@
 # Default learning parameters in this config are set for effective batch size of 1k on 32 GPUs.
 # To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
-name: &name "Citrinet-384-8x-Stride"
+name: &name "Citrinet-512-8x-Stride"
 
 model:
   sample_rate: &sample_rate 16000
@@ -31,7 +31,7 @@ model:
 
   model_defaults:
     repeat: 5
-    dropout: 0.0
+    dropout: 0.1
     separable: true
     se: true
     se_context_size: -1
@@ -57,7 +57,7 @@ model:
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     freq_masks: 2
-    time_masks: 2
+    time_masks: 10
     freq_width: 27
     time_width: 0.05
 
@@ -68,7 +68,7 @@ model:
     conv_mask: true
 
     jasper:
-      - filters: 384
+      - filters: 512
         repeat: 1
         kernel: [5]
         stride: [1]
@@ -79,7 +79,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [11]
         stride: [2]
@@ -92,7 +92,7 @@ model:
         stride_last: true
         residual_mode: "stride_add"
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
         stride: [1]
@@ -103,7 +103,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [15]
         stride: [1]
@@ -114,7 +114,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
         stride: [1]
@@ -125,7 +125,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [19]
         stride: [1]
@@ -136,7 +136,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [21]
         stride: [1]
@@ -147,7 +147,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
         stride: [2]  # *stride
@@ -160,7 +160,7 @@ model:
         stride_last: true
         residual_mode: "stride_add"
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [15]
         stride: [1]
@@ -171,7 +171,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
         stride: [1]
@@ -182,7 +182,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [19]
         stride: [1]
@@ -193,7 +193,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [21]
         stride: [1]
@@ -204,7 +204,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [23]
         stride: [1]
@@ -215,7 +215,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [25]
         stride: [1]
@@ -226,7 +226,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [25]
         stride: [2]  # stride
@@ -239,7 +239,7 @@ model:
         stride_last: true
         residual_mode: "stride_add"
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [27]
         stride: [1]
@@ -250,7 +250,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [29]
         stride: [1]
@@ -261,7 +261,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [31]
         stride: [1]
@@ -272,7 +272,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [33]
         stride: [1]
@@ -283,7 +283,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [35]
         stride: [1]
@@ -294,7 +294,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [37]
         stride: [1]
@@ -305,7 +305,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 384
+      - filters: 512
         repeat: ${model.model_defaults.repeat}
         kernel: [39]
         stride: [1]
