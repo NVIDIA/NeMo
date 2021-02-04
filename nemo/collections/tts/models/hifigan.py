@@ -22,6 +22,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
+from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes.common import typecheck
@@ -44,6 +45,9 @@ class HifiGanModel(Vocoder):
         self.generator = instantiate(cfg.generator)
         self.mpd = MultiPeriodDiscriminator()
         self.msd = MultiScaleDiscriminator()
+        self.feature_loss = FeatureMatchingLoss()
+        self.discriminator_loss = DiscriminatorLoss()
+        self.generator_loss = GeneratorLoss()
 
         self.sample_rate = self._cfg.preprocessor.sample_rate
 
@@ -96,9 +100,13 @@ class HifiGanModel(Vocoder):
         # train discriminator
         self.optim_d.zero_grad()
         mpd_score_real, mpd_score_gen, _, _ = self.mpd(y=audio, y_hat=audio_pred.detach())
-        loss_disc_mpd, _, _ = discriminator_loss(mpd_score_real, mpd_score_gen)
+        loss_disc_mpd, _, _ = self.discriminator_loss(
+            disc_real_outputs=mpd_score_real, disc_generated_outputs=mpd_score_gen
+        )
         msd_score_real, msd_score_gen, _, _ = self.msd(y=audio, y_hat=audio_pred.detach())
-        loss_disc_msd, _, _ = discriminator_loss(msd_score_real, msd_score_gen)
+        loss_disc_msd, _, _ = self.discriminator_loss(
+            disc_real_outputs=msd_score_real, disc_generated_outputs=msd_score_gen
+        )
         loss_d = loss_disc_msd + loss_disc_mpd
         self.manual_backward(loss_d, self.optim_d)
         self.optim_d.step()
@@ -108,10 +116,10 @@ class HifiGanModel(Vocoder):
         loss_mel = F.l1_loss(audio_pred_mel, audio_mel) * 45
         _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.mpd(y=audio, y_hat=audio_pred)
         _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.msd(y=audio, y_hat=audio_pred)
-        loss_fm_mpd = feature_loss(fmap_mpd_real, fmap_mpd_gen)
-        loss_fm_msd = feature_loss(fmap_msd_real, fmap_msd_gen)
-        loss_gen_mpd, _ = generator_loss(mpd_score_gen)
-        loss_gen_msd, _ = generator_loss(msd_score_gen)
+        loss_fm_mpd = self.feature_loss(fmap_r=fmap_mpd_real, fmap_g=fmap_mpd_gen)
+        loss_fm_msd = self.feature_loss(fmap_r=fmap_msd_real, fmap_g=fmap_msd_gen)
+        loss_gen_mpd, _ = self.generator_loss(disc_outputs=mpd_score_gen)
+        loss_gen_msd, _ = self.generator_loss(disc_outputs=msd_score_gen)
         loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel
         self.manual_backward(loss_g, self.optim_g)
         self.optim_g.step()
@@ -202,37 +210,3 @@ class HifiGanModel(Vocoder):
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         # TODO
         pass
-
-
-def feature_loss(fmap_r, fmap_g):
-    loss = 0
-    for dr, dg in zip(fmap_r, fmap_g):
-        for rl, gl in zip(dr, dg):
-            loss += torch.mean(torch.abs(rl - gl))
-
-    return loss * 2
-
-
-def discriminator_loss(disc_real_outputs, disc_generated_outputs):
-    loss = 0
-    r_losses = []
-    g_losses = []
-    for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
-        r_loss = torch.mean((1 - dr) ** 2)
-        g_loss = torch.mean(dg ** 2)
-        loss += r_loss + g_loss
-        r_losses.append(r_loss.item())
-        g_losses.append(g_loss.item())
-
-    return loss, r_losses, g_losses
-
-
-def generator_loss(disc_outputs):
-    loss = 0
-    gen_losses = []
-    for dg in disc_outputs:
-        l = torch.mean((1 - dg) ** 2)
-        gen_losses.append(l)
-        loss += l
-
-    return loss, gen_losses

@@ -77,18 +77,7 @@ trainer:
   automatic_optimization: false
 
 exp_manager:
-  exp_dir: /results
+  exp_dir: null
   name: ${name}
-  create_tensorboard_logger: false
+  create_tensorboard_logger: True
   create_checkpoint_callback: True
-
-  version: ???
-  use_datetime_version: false
-  resume_if_exists: true
-  resume_ignore_no_checkpoint: true
-  resume_past_end: true
-  
-  create_wandb_logger: true
-  wandb_logger_kwargs:
-    project: hifi
-    name: ${exp_manager.version}
