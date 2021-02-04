@@ -36,7 +36,6 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 
 class IntentSlotClassificationModel(NLPModel):

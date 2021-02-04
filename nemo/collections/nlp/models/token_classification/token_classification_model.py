@@ -36,7 +36,6 @@ from nemo.collections.nlp.parts.utils_funcs import get_classification_report, pl
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['TokenClassificationModel']
 

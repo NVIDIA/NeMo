@@ -11,13 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
+import onnx
 import torch
 
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
+from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['ASRModel']
 
@@ -69,11 +72,11 @@ class ASRModel(ModelPT, ABC):
         output1_descr = qual_name + ' Encoder exported to ONNX'
         if input_example is None:
             input_example = self.encoder.input_example()
-        en_out_example = self.encoder.forward(input_example)
+
         encoder_onnx = self.encoder.export(
             output1,
             input_example=input_example,
-            output_example=en_out_example,
+            output_example=None,
             verbose=verbose,
             export_params=export_params,
             do_constant_folding=do_constant_folding,
@@ -89,7 +92,7 @@ class ASRModel(ModelPT, ABC):
         output2_descr = qual_name + ' Decoder exported to ONNX'
         decoder_onnx = self.decoder.export(
             output2,
-            input_example=en_out_example,
+            input_example=None,
             output_example=output_example,
             verbose=verbose,
             export_params=export_params,

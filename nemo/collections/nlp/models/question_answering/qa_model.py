@@ -13,10 +13,8 @@
 # limitations under the License.
 
 import json
-import os
 from typing import Dict, Optional
 
-import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -37,7 +35,6 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['QAModel']
 

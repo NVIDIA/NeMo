@@ -519,11 +519,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         qual_name = self.__module__ + '.' + self.__class__.__qualname__
         output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
         output1_descr = qual_name + ' BERT exported to ONNX'
-        bert_out = self.bert_model.forward(input_example)
+
         bert_model_onnx = self.bert_model.export(
             output1,
             input_example=input_example,
-            output_example=bert_out,
+            output_example=None,
             verbose=verbose,
             export_params=export_params,
             do_constant_folding=do_constant_folding,
@@ -539,7 +539,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         output2_descr = qual_name + ' Punctuation Classifier exported to ONNX'
         punct_classifier_onnx = self.punct_classifier.export(
             output2,
-            input_example=bert_out,  # computed by input_example()
+            input_example=None,  # computed by input_example()
             output_example=output_example,
             verbose=verbose,
             export_params=export_params,
@@ -556,7 +556,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         output3_descr = qual_name + ' Capitalization Classifier exported to ONNX'
         capit_classifier_onnx = self.capit_classifier.export(
             output3,
-            input_example=bert_out,  # computed by input_example()
+            input_example=None,  # computed by input_example()
             output_example=output_example,
             verbose=verbose,
             export_params=export_params,
