@@ -669,8 +669,6 @@ class EncDecRegressionModel(_EncDecBaseModel):
         OmegaConf.set_struct(cfg, False)
         cfg.is_regression_task = True
         OmegaConf.set_struct(cfg, True)
-
-        OmegaConf.set_struct(cfg, True)
         super().__init__(cfg=cfg, trainer=trainer)
 
     def _setup_preprocessor(self):
