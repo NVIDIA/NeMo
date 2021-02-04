@@ -262,6 +262,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 self.paths2audio_files = paths2audio_files
 
         if type(self.paths2audio_files) is str and os.path.isfile(self.paths2audio_files):
+            paths2audio_files = []
             with open(self.paths2audio_files, 'r') as path2file:
                 for audiofile in path2file.readlines():
                     audiofile = audiofile.strip()
