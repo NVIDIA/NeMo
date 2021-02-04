@@ -1,4 +1,3 @@
-
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
+
 import torch
 import torch.nn.functional as F
-from pytorch_lightning.loggers.wandb import WandbLogger
+import wandb
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
-import itertools
-import wandb
+from pytorch_lightning.loggers.wandb import WandbLogger
 
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.models.base import Vocoder
+from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.modules.hifigan_modules import MultiScaleDiscriminator, MultiPeriodDiscriminator, Generator 
 from nemo.utils import logging
+
 
 class HifiGanModel(Vocoder):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -48,24 +49,16 @@ class HifiGanModel(Vocoder):
 
     def configure_optimizers(self):
         self.optim_g = torch.optim.AdamW(
-            self.generator.parameters(),
-            self._cfg.optim.lr,
-            betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2]
+            self.generator.parameters(), self._cfg.optim.lr, betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2]
         )
         self.optim_d = torch.optim.AdamW(
             itertools.chain(self.msd.parameters(), self.mpd.parameters()),
             self._cfg.optim.lr,
-            betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2]
+            betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2],
         )
 
-        self.scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
-            self.optim_g,
-            gamma=self._cfg.optim.lr_decay,
-        )
-        self.scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
-            self.optim_d,
-            gamma=self._cfg.optim.lr_decay,
-        )
+        self.scheduler_g = torch.optim.lr_scheduler.ExponentialLR(self.optim_g, gamma=self._cfg.optim.lr_decay,)
+        self.scheduler_d = torch.optim.lr_scheduler.ExponentialLR(self.optim_d, gamma=self._cfg.optim.lr_decay,)
 
         return [self.optim_g, self.optim_d], [self.scheduler_g, self.scheduler_d]
 
@@ -154,26 +147,26 @@ class HifiGanModel(Vocoder):
             specs = []
             for i in range(min(5, audio.shape[0])):
                 clips += [
-                        wandb.Audio(
-                            audio[i, :audio_len[i]].data.cpu().numpy(),
-                            caption=f"real audio {i}",
-                            sample_rate=self.sample_rate
-                        ),
-                        wandb.Audio(
-                            audio_pred[i, 0, :audio_len[i]].data.cpu().numpy().astype('float32'),
-                            caption=f"generated audio {i}",
-                            sample_rate=self.sample_rate
-                        )
+                    wandb.Audio(
+                        audio[i, : audio_len[i]].data.cpu().numpy(),
+                        caption=f"real audio {i}",
+                        sample_rate=self.sample_rate,
+                    ),
+                    wandb.Audio(
+                        audio_pred[i, 0, : audio_len[i]].data.cpu().numpy().astype('float32'),
+                        caption=f"generated audio {i}",
+                        sample_rate=self.sample_rate,
+                    ),
                 ]
                 specs += [
-                        wandb.Image(
-                            plot_spectrogram_to_numpy(audio_mel[i, :, :audio_mel_len[i]].data.cpu().numpy()),
-                            caption=f"real audio {i}"
-                        ),
-                        wandb.Image(
-                            plot_spectrogram_to_numpy(audio_pred_mel[i, :, :audio_mel_len[i]].data.cpu().numpy()),
-                            caption=f"generated audio {i}"
-                        )
+                    wandb.Image(
+                        plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                        caption=f"real audio {i}",
+                    ),
+                    wandb.Image(
+                        plot_spectrogram_to_numpy(audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                        caption=f"generated audio {i}",
+                    ),
                 ]
 
             self.logger.experiment.log({"audio": clips, "specs": specs}, commit=False)
@@ -217,7 +210,7 @@ def feature_loss(fmap_r, fmap_g):
         for rl, gl in zip(dr, dg):
             loss += torch.mean(torch.abs(rl - gl))
 
-    return loss*2
+    return loss * 2
 
 
 def discriminator_loss(disc_real_outputs, disc_generated_outputs):
@@ -225,9 +218,9 @@ def discriminator_loss(disc_real_outputs, disc_generated_outputs):
     r_losses = []
     g_losses = []
     for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
-        r_loss = torch.mean((1-dr)**2)
-        g_loss = torch.mean(dg**2)
-        loss += (r_loss + g_loss)
+        r_loss = torch.mean((1 - dr) ** 2)
+        g_loss = torch.mean(dg ** 2)
+        loss += r_loss + g_loss
         r_losses.append(r_loss.item())
         g_losses.append(g_loss.item())
 
@@ -238,7 +231,7 @@ def generator_loss(disc_outputs):
     loss = 0
     gen_losses = []
     for dg in disc_outputs:
-        l = torch.mean((1-dg)**2)
+        l = torch.mean((1 - dg) ** 2)
         gen_losses.append(l)
         loss += l
 
