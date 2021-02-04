@@ -69,6 +69,7 @@ class _EncDecBaseModel(ASRModel, Exportable):
         self.encoder = self._setup_encoder()
         self.decoder = self._setup_decoder()
         self.loss = self._setup_loss()
+        self._setup_metrics()
 
     @abstractmethod
     def _setup_preprocessor(self):
@@ -100,6 +101,15 @@ class _EncDecBaseModel(ASRModel, Exportable):
         """
         Setup loss function for training
         Returns: Loss function
+
+        """
+        pass
+
+    @abstractmethod
+    def _setup_metrics(self):
+        """
+        Setup metrics to be tracked in addition to loss
+        Returns: void
 
         """
         pass
@@ -410,9 +420,6 @@ class EncDecClassificationModel(_EncDecBaseModel):
         # Change labels if needed
         self._update_decoder_config(self._cfg.decoder)
 
-        # Setup metric objects
-        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
-
     def _setup_preprocessor(self):
         return EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
 
@@ -424,6 +431,9 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
     def _setup_loss(self):
         return CrossEntropyLoss()
+
+    def _setup_metrics(self):
+        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
 
     @classmethod
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
@@ -642,10 +652,6 @@ class EncDecRegressionModel(_EncDecBaseModel):
     """Encoder decoder class for speech regression models.
     Model class creates training, validation methods for setting up data
     performing model forward pass.
-    Expects config dict for
-    * preprocessor
-    * Jasper/Quartznet Encoder
-    * Speech Decoder
     """
 
     @classmethod
@@ -666,9 +672,6 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
         OmegaConf.set_struct(cfg, True)
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = EncDecRegressionModel.from_config_dict(cfg.preprocessor)
-        self.encoder = EncDecRegressionModel.from_config_dict(cfg.encoder)
-        self.decoder = EncDecRegressionModel.from_config_dict(cfg.decoder)
 
     def _setup_preprocessor(self):
         return EncDecRegressionModel.from_config_dict(self._cfg.preprocessor)
@@ -681,6 +684,9 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
     def _setup_loss(self):
         return MSELoss()
+
+    def _setup_metrics(self):
+        pass
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
