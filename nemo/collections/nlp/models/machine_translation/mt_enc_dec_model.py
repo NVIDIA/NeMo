@@ -27,6 +27,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+from nemo.collections.common.tokenizers.ja_tokenizer import JADetokenizer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -41,7 +42,6 @@ from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
 __all__ = ['MTEncDecModel']
-
 
 class MTEncDecModel(EncDecNLPModel):
     """
@@ -61,6 +61,9 @@ class MTEncDecModel(EncDecNLPModel):
         self.setup_enc_dec_tokenizers(cfg)
 
         super().__init__(cfg=cfg, trainer=trainer)
+
+        self.src_language: str = cfg.src_language
+        self.tgt_language: str = cfg.tgt_language
 
         # TODO: use get_encoder function with support for HF and Megatron
         self.encoder = TransformerEncoderNM(
@@ -226,7 +229,10 @@ class MTEncDecModel(EncDecNLPModel):
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
         # TODO: add target language so detokenizer can be lang specific.
-        detokenizer = MosesDetokenizer()
+        if self.tgt_language in ['ja']:
+            detokenizer = JADetokenizer()
+        else:
+            detokenizer = MosesDetokenizer()
         translations = [detokenizer.detokenize(sent.split()) for sent in translations]
         ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
         assert len(translations) == len(ground_truths)
@@ -325,7 +331,7 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
     @torch.no_grad()
-    def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
+    def translate(self, text: List[str]) -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization
@@ -337,16 +343,19 @@ class MTEncDecModel(EncDecNLPModel):
             list of translated strings
         """
         mode = self.training
-        if source_lang != "None":
+        if self.src_language != "None":
             tokenizer = MosesTokenizer(lang=source_lang)
             normalizer = MosesPunctNormalizer(lang=source_lang)
-        if target_lang != "None":
-            detokenizer = MosesDetokenizer(lang=target_lang)
+        if self.tgt_language != "None":
+            if self.tgt_language == "ja":
+                detokenizer = JADetokenizer()
+            else:
+                detokenizer = MosesDetokenizer(lang=target_lang)
         try:
             self.eval()
             res = []
             for txt in text:
-                if source_lang != "None":
+                if self.src_language != "None":
                     txt = normalizer.normalize(txt)
                     txt = tokenizer.tokenize(txt, escape=False, return_str=True)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
@@ -358,7 +367,7 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                if target_lang != "None":
+                if self.tgt_language != "None":
                     translation = detokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
