@@ -67,7 +67,17 @@ model:
 
   validation_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
-    # evaluationis needed, specify ds_item, otherwise by default data_dir is used
+    # evaluation is needed, specify ds_item, otherwise by default data_dir is used
+    ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
+    text_file: text_dev.txt
+    labels_file: labels_dev.txt
+    shuffle: false
+    num_samples: -1
+    batch_size: 64
+
+  test_ds:
+    # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
+    # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     text_file: text_dev.txt
     labels_file: labels_dev.txt
@@ -97,7 +107,6 @@ model:
     capit_num_fc_layers: 1
     fc_dropout: 0.1
     activation: 'relu'
-    log_softmax: true
     use_transformer_init: true
 
   optim:

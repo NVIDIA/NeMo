@@ -414,6 +414,18 @@ pipeline {
         rm -rf sgd_outputs'
         }
       }
+      stage('GLUE STS-b with AlBERT') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+            model.dataset.use_cache=false \
+            model.task_name=sts-b \
+            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            model.language_model.pretrained_model_name=albert-base-v1 \
+            exp_manager=null'
+          }
+        }
      }
    }
 
@@ -633,7 +645,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification && \
             python token_classification.py \
-            pretrained_model=NERModel \
+            pretrained_model=/home/TestData/nlp/ner/pretrained_models/NERModel.nemo \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.train_ds.batch_size=2 \
             model.dataset.use_cache=false \
@@ -666,16 +678,11 @@ pipeline {
             exp_manager.exp_dir=null'
           }
         }
-        stage('GLUE STS-b with AlBERT') {
+        stage('Evaluation script for Token Classification') {
           steps {
-            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-            model.dataset.use_cache=false \
-            model.task_name=sts-b \
-            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            model.language_model.pretrained_model_name=albert-base-v1 \
-            exp_manager=null'
+            sh 'python examples/nlp/token_classification/scripts/token_classification.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            pretrained_model=/home/TestData/nlp/ner/pretrained_models/NERModel.nemo'
           }
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
