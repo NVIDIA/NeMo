@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ python examples/nlp/token_classification/data/import_from_iob_format.py --data_f
 
 To train TokenClassification model from scratch with the default config file, run:
 
-    python token_classification.py \
+    python token_classification_train.py \
            model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
            trainer.max_epochs=<NUM_EPOCHS> \
            trainer.gpus=[<CHANGE_TO_GPU(s)_YOU_WANT_TO_USE>]
@@ -64,11 +64,11 @@ To use one of the pretrained versions of the model specify a `pretrained_model` 
 TokenClassification model from list_available_models() or path to a .nemo file, for example: 
 NERModel or model.nemo, run:
 
-    python token_classification.py pretrained_model=NERModel
+    python token_classification_train.py pretrained_model=NERModel
 
 To use one of the pretrained versions of the model and fine-tune it, run:
 
-    python token_classification.py \
+    python token_classification_train.py \
            model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
            pretrained_model=NERModel
 

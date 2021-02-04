@@ -497,8 +497,8 @@ pipeline {
       }
       failFast true
       steps {
-        sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
+        sh 'cd examples/nlp/token_classification/scripts && \
+        python token_classification_train.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
         model.train_ds.batch_size=10 \
@@ -643,8 +643,8 @@ pipeline {
       parallel {
         stage ('NER finetuning from pretrained Test') {
           steps {
-            sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
+            sh 'cd examples/nlp/token_classification/scripts && \
+            python token_classification_train.py \
             pretrained_model=/home/TestData/nlp/ner/pretrained_models/NERModel.nemo \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.train_ds.batch_size=2 \
@@ -663,13 +663,14 @@ pipeline {
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
             model.dataset.use_cache=false \
+            model.dataset.class_balancing="weighted_loss" \
             exp_manager.exp_dir=null'
           }
         }
         stage ('NER with TurkuNLP/bert-base-finnish-cased-v1') {
           steps {
-            sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
+            sh 'cd examples/nlp/token_classification/scripts && \
+            python token_classification_train.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
@@ -680,9 +681,10 @@ pipeline {
         }
         stage('Evaluation script for Token Classification') {
           steps {
-            sh 'python examples/nlp/token_classification/scripts/token_classification.py \
+            sh 'python examples/nlp/token_classification/scripts/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-            pretrained_model=/home/TestData/nlp/ner/pretrained_models/NERModel.nemo'
+            pretrained_model=/home/TestData/nlp/ner/pretrained_models/NERModel.nemo && \
+            rm -rf nemo_experiments'
           }
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
