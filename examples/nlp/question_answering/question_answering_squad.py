@@ -101,8 +101,7 @@ def main(cfg: DictConfig) -> None:
         model = QAModel(cfg.model, trainer=trainer)
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
-        # TODO: Remove strict, when lightning has persistent parameter support for add_state()
-        model = QAModel.from_pretrained(cfg.pretrained_model, strict=False)
+        model = QAModel.from_pretrained(cfg.pretrained_model)
         if do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
             model.setup_validation_data(val_data_config=cfg.model.validation_ds)
@@ -132,9 +131,8 @@ def main(cfg: DictConfig) -> None:
         output_prediction_file=output_prediction_file,
     )
 
-    for question_id, answer in all_preds.items():
-        if answer != "empty":
-            print(f"Question ID: {question_id}, answer: {answer}")
+    for _, item in all_preds.items():
+        print(f"question: {item[0]} answer: {item[1]}")
 
 
 if __name__ == '__main__':
