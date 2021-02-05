@@ -349,60 +349,8 @@ class NLPModel(ModelPT, Exportable):
                 ):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
-
-    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            checkpoint['checkpoint_version'] = get_checkpoint_version()
-        return None
-
-    @property
-    def input_module(self):
-        return self.bert_model
-
-    @property
-    def output_module(self):
-        return self.classifier
-
-
-class NLPCheckpointConnector(CheckpointConnector):
-    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM. 
-    """
-
-    def __init__(self, trainer):
-        super().__init__(trainer)
-
-    def save_checkpoint(self, filepath, weights_only: bool):
-        """Slightly modified version of PyTorch Lightning's save_checkpoint.
-
-        Args:
-            filepath ([str]): [description]
-            weights_only (bool): [description]
-
-        Returns:
-            [type]: [description]
-        """
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            # filepath needs to be updated to include mp_rank
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-
-            # dump states as a checkpoint dictionary object
-            checkpoint = self.dump_checkpoint(weights_only)
-
-            # each model parallel rank needs to save a copy of its model
-            if app_state.data_parallel_rank == 0:
-                # write the checkpoint dictionary on the file
-                if self.trainer.accelerator_backend:
-                    checkpoint = self.trainer.accelerator_backend.on_save(checkpoint)
-                try:
-                    atomic_save(checkpoint, filepath)
-                except AttributeError as err:
-                    if LightningModule.CHECKPOINT_HYPER_PARAMS_KEY in checkpoint:
-                        del checkpoint[LightningModule.CHECKPOINT_HYPER_PARAMS_KEY]
-                    rank_zero_warn(
-                        'Warning, `hyper_parameters` dropped from checkpoint.' f' An attribute is not picklable {err}'
-                    )
-                    atomic_save(checkpoint, filepath)
-        return None
+        else:
+            # testing stage
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                # finish megatron-lm initialization
+                self.bert_model._lazy_init_fn()
