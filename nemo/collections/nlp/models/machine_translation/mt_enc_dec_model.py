@@ -233,7 +233,7 @@ class MTEncDecModel(EncDecNLPModel):
         if self.tgt_language in ['ja']:
             detokenizer = JADetokenizer()
         else:
-            detokenizer = MosesDetokenizer()
+            detokenizer = MosesDetokenizer(lang=self.tgt_language)
         translations = [detokenizer.detokenize(sent.split()) for sent in translations]
         ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
         assert len(translations) == len(ground_truths)
