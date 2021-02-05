@@ -16,7 +16,7 @@ diarizer:
     threshold: 0.5 # tune threshold on dev set. Check scripts/vad_tune_threshold.py
     vad_decision_smoothing: True
     smoothing_params:
-      method: "median" #change logic inside
+      method: "median" 
       overlap: 0.875
 
   speaker_embeddings:

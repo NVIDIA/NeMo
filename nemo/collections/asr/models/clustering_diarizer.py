@@ -255,11 +255,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
         """
 
-        if self.paths2audio_files is None:
-            if paths2audio_files is None:
+        if paths2audio_files:
+            self.paths2audio_files = paths2audio_files
+        else:
+            if self._cfg.diarizer.paths2audio_files is None:
                 raise ValueError("Pass path2audio files either through config or to diarize method")
             else:
-                self.paths2audio_files = paths2audio_files
+                self.paths2audio_files = self._cfg.diarizer.paths2audio_files
 
         if type(self.paths2audio_files) is str and os.path.isfile(self.paths2audio_files):
             paths2audio_files = []
