@@ -20,6 +20,7 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.collections.nlp.models import TokenClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 
 """
@@ -86,18 +87,20 @@ For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipy
 @hydra_runner(config_path="../conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
 
     if not cfg.pretrained_model:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         model = TokenClassificationModel(cfg.model, trainer=trainer)
-    elif os.path.exists(cfg.pretrained_model):
-        model = TokenClassificationModel.restore_from(cfg.pretrained_model)
-    elif cfg.pretrained_model in TokenClassificationModel.get_available_model_names():
-        model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
     else:
-        raise ValueError(
-            f'Provide path to the pre-trained checkpoint or choose from {TokenClassificationModel.list_available_models()}'
-        )
+        if os.path.exists(cfg.pretrained_model):
+            model = TokenClassificationModel.restore_from(cfg.pretrained_model)
+        elif cfg.pretrained_model in TokenClassificationModel.get_available_model_names():
+            model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
+        else:
+            raise ValueError(
+                f'Provide path to the pre-trained .nemo file or choose from {TokenClassificationModel.list_available_models()}'
+            )
 
         data_dir = cfg.model.dataset.get('data_dir', None)
         if data_dir:

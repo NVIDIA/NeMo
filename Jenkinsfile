@@ -651,19 +651,19 @@ pipeline {
             model.dataset.use_cache=false \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
+            model.dataset.class_balancing="weighted_loss" \
             exp_manager.exp_dir=null'
           }
         }
         stage ('Punctuation and capitalization finetuning from pretrained test') {
           steps {
-            sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization.py \
+            sh 'cd examples/nlp/token_classification/scripts && \
+            python punctuation_capitalization_train.py \
             pretrained_model=Punctuation_Capitalization_with_BERT \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
             model.dataset.use_cache=false \
-            model.dataset.class_balancing="weighted_loss" \
             exp_manager.exp_dir=null'
           }
         }
