@@ -19,7 +19,9 @@ import pytest
 import torch
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.models import EncDecClassificationModel
+from nemo.collections.asr.data import audio_to_label
+from nemo.collections.asr.models import EncDecClassificationModel, configs
+from nemo.utils.config_utils import assert_dataclass_signature_match
 
 
 @pytest.fixture()
@@ -167,3 +169,40 @@ class TestEncDecClassificationModel:
         results = model.transcribe(audio_paths, batch_size=2, logprobs=True)
         assert len(results) == 2
         assert results[0].shape == torch.Size([len(model.cfg.labels)])
+
+    @pytest.mark.unit
+    def test_EncDecClassificationDatasetConfig_for_AudioToSpeechLabelDataset(self):
+        # ignore some additional arguments as dataclass is generic
+        IGNORE_ARGS = [
+            'is_tarred',
+            'num_workers',
+            'batch_size',
+            'tarred_audio_filepaths',
+            'shuffle',
+            'pin_memory',
+            'drop_last',
+            'tarred_shard_strategy',
+            'shuffle_n',
+            # `featurizer` is supplied at runtime
+            'featurizer',
+            # additional ignored arguments
+            'vad_stream',
+            'int_values',
+            'sample_rate',
+            'normalize_audio',
+            'augmentor',
+        ]
+
+        REMAP_ARGS = {'trim_silence': 'trim'}
+
+        result = assert_dataclass_signature_match(
+            audio_to_label.AudioToSpeechLabelDataset,
+            configs.EncDecClassificationDatasetConfig,
+            ignore_args=IGNORE_ARGS,
+            remap_args=REMAP_ARGS,
+        )
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None

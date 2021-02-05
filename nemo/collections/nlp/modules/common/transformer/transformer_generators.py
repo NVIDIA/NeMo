@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import torch
-import torch.nn as nn
 
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
+from nemo.core.classes import NeuralModule
 
 __all__ = [
     "GreedySequenceGenerator",
@@ -24,7 +24,7 @@ __all__ = [
 ]
 
 
-class GreedySequenceGenerator(nn.Module):
+class GreedySequenceGenerator(NeuralModule):
     """
     Greedy sequence generator based on the decoder followed by log_softmax.
 
@@ -64,10 +64,9 @@ class GreedySequenceGenerator(nn.Module):
         self.max_seq_length = max_sequence_length
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
-        self.device = next(self.decoder.parameters()).device
 
     @torch.no_grad()
-    def _forward(
+    def _one_step_forward(
         self,
         decoder_input_ids=None,
         encoder_hidden_states=None,
@@ -106,7 +105,7 @@ class GreedySequenceGenerator(nn.Module):
             decoder_mems_list = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
-        log_probs = self.log_softmax.forward(decoder_mems_list[-1])
+        log_probs = self.log_softmax.forward(hidden_states=decoder_mems_list[-1][:, -1:])
         return log_probs, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
@@ -115,6 +114,7 @@ class GreedySequenceGenerator(nn.Module):
         with and maximum allowed number of tokens to be generated.
         """
 
+        decoder_parameter = next(self.decoder.parameters())
         batch_size = self.batch_size
 
         # for encoder-decoder generation, maximum length of generated sequence
@@ -130,24 +130,25 @@ class GreedySequenceGenerator(nn.Module):
             tgt = decoder_input_ids
             batch_size, tgt_len = decoder_input_ids.size()
         else:
-            tgt = torch.zeros(batch_size, 1).long().fill_(self.bos).to(self.device)
+            tgt = torch.zeros(batch_size, 1).long().fill_(self.bos).to(decoder_parameter.device)
             tgt_len = 1
         max_generation_length = max_seq_length - tgt_len
 
         return tgt, batch_size, max_generation_length
 
-    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
         # pad profile tracks sequences ending with <eos> token to replace
         # everything after <eos> with <pad> token
-        pad_profile = torch.zeros(batch_size, 1).long().to(self.device)
+        decoder_parameter = next(self.decoder.parameters())
+        pad_profile = torch.zeros(batch_size, 1).long().to(decoder_parameter.device)
 
         decoder_mems_list = None
         for i in range(max_generation_length):
 
-            log_probs, decoder_mems_list = self._forward(
+            log_probs, decoder_mems_list = self._one_step_forward(
                 tgt[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
 
@@ -161,6 +162,11 @@ class GreedySequenceGenerator(nn.Module):
                 break
 
         return tgt
+
+    # TODO: add Neural Types
+    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+        with self.as_frozen():
+            return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
 
 
 class TopKSequenceGenerator(GreedySequenceGenerator):
@@ -183,7 +189,7 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         self.temp = temperature
 
     @torch.no_grad()
-    def _forward(
+    def _one_step_forward(
         self,
         decoder_input_ids=None,
         encoder_hidden_states=None,
@@ -191,7 +197,7 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         decoder_mems_list=None,
         pos=0,
     ):
-        log_probs, decoder_mems_list = super()._forward(
+        log_probs, decoder_mems_list = super()._one_step_forward(
             decoder_input_ids, encoder_hidden_states, encoder_input_mask, decoder_mems_list, pos
         )
 
@@ -230,12 +236,17 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         self.beam_size = beam_size
         self.len_pen = len_pen
 
-    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+    @staticmethod
+    def compute_len_penalty(lengths, alpha):
+        """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
+        return ((5 + lengths) / 6).pow(alpha)
 
+    @torch.no_grad()
+    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
         # generate initial buffer of beam_size prefixes-hypotheses
-        log_probs, decoder_mems_list = self._forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
+        log_probs, decoder_mems_list = self._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
@@ -268,7 +279,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             pad_mask = pad_profile.repeat(1, self.beam_size)
 
             # generate and score candidates for prefixes continuation
-            log_probs, decoder_mems_list = self._forward(
+            log_probs, decoder_mems_list = self._one_step_forward(
                 prefixes[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i + 1
             )
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)
@@ -284,9 +295,10 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             scores = scores + scores_i * (1 - pad_mask).to(scores.dtype)
 
             # choose top-k hypotheses with length penalty applied
-            scores = scores / prefixes_len.pow(self.len_pen)
+            len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
+            scores = scores / len_penalties
             scores, indices_i = torch.topk(scores.view(-1, self.beam_size ** 2), self.beam_size, dim=1)
-            scores = scores.view(-1, 1) * prefixes_len.pow(self.len_pen)
+            scores = scores.view(-1, 1) * len_penalties
 
             # select prefixes which correspond to the chosen hypotheses
             prefixes = prefixes.unsqueeze(1).repeat(1, self.beam_size, 1)
@@ -317,7 +329,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
                 break
 
         # select best performing hypotheses in each element of the batch
-        scores = scores / prefixes_len.pow(self.len_pen)
+        len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
+        scores = scores / len_penalties
         best_guesses = (
             torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
         )

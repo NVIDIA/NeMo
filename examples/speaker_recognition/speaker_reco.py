@@ -37,6 +37,14 @@ python ./speaker_reco.py --config-path='conf' --config-name='SpeakerNet_recognit
     exp_manager.exp_dir='./speaker_exps'
 
 See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb for notebook tutorial
+
+Optional: Use tarred dataset to speech up data loading.
+   Prepare ONE manifest that contains all training data you would like to include. Validation should use non-tarred dataset.
+   Note that it's possible that tarred datasets impacts validation scores because it drop values in order to have same amount of files per tarfile; 
+   Scores might be off since some data is missing. 
+   
+   Use the `convert_to_tarred_audio_dataset.py` script under <NEMO_ROOT>/scripts in order to prepare tarred audio dataset.
+   For details, please see TarredAudioToClassificationLabelDataset in <NEMO_ROOT>/nemo/collections/asr/data/audio_to_label.py
 """
 
 seed_everything(42)
@@ -50,8 +58,9 @@ def main(cfg):
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)
-    model_path = os.path.join(log_dir, '..', 'spkr.nemo')
-    speaker_model.save_to(model_path)
+    if not trainer.fast_dev_run:
+        model_path = os.path.join(log_dir, '..', 'spkr.nemo')
+        speaker_model.save_to(model_path)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0

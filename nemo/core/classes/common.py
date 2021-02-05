@@ -382,6 +382,7 @@ class Model(Typing, Serialization, FileIO):
         override_config_path: Optional[str] = None,
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
+        return_config: bool = False,
     ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
@@ -395,9 +396,11 @@ class Model(Typing, Serialization, FileIO):
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to torch.load_state_dict
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
         Returns:
-            A model instance of a particular model class
+            A model instance of a particular model class or its underlying config (if return_config is set).
         """
         location_in_the_cloud = None
         description = None
@@ -428,6 +431,7 @@ class Model(Typing, Serialization, FileIO):
             override_config_path=override_config_path,
             map_location=map_location,
             strict=strict,
+            return_config=return_config,
         )
         return instance
 

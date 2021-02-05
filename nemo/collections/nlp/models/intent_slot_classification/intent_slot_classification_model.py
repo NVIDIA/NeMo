@@ -164,8 +164,8 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         # define losses
         if self.cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.cfg.intent_weights)
-            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.cfg.slot_weights)
+            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.cfg.data_desc.intent_weights)
+            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.cfg.data_desc.slot_weights)
         else:
             self.intent_loss = CrossEntropyLoss(logits_ndim=2)
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
