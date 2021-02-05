@@ -56,6 +56,20 @@ examples/nlp/token_classification/data/import_from_iob_format.py on your train a
 
 python examples/nlp/token_classification/data/import_from_iob_format.py --data_file PATH_TO_IOB_FORMAT_DATAFILE
 
+*** Setting the configs ***
+
+The model and the PT trainer are defined in a config file which declares multiple important sections.
+The most important ones are:
+    model: All arguments that are related to the Model - language model, tokenizer, token classifier, optimizer,
+            schedulers, and datasets/data loaders.
+    trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
+            precision level, etc.
+This script uses the `/examples/nlp/token_classification/conf/token_classification_config.yaml` config file
+by default. You may update the config file from the file directly. 
+The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
+
+For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
+
 *** Model Training ***
 
 To train TokenClassification model from scratch with the default config file, run:
@@ -85,7 +99,7 @@ For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipy
 """
 
 
-@hydra_runner(config_path="../conf", config_name="token_classification_config")
+@hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

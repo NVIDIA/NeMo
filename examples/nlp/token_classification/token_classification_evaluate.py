@@ -17,7 +17,7 @@ import os
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.collections.nlp.models import TokenClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -26,36 +26,39 @@ from nemo.utils.exp_manager import exp_manager
 """
 This script shows how to perform evaluation and runs inference of a few examples.
 
-More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
+More details on Token Classification model could be found in tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
 
 *** Setting the configs ***
-The model and the PT trainer are defined in a config file which declares multiple important sections.
-The most important ones are:
-    model: All arguments that are related to the Model - language model, tokenizer, token classifier, optimizer,
-            schedulers, and datasets/data loaders.
-    trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
-            precision level, etc.
+
 This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml` config file
 by default. You may update the config file from the file directly. 
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
 For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
 
-
 *** Model Evaluation ***
 
-    python punctuation_capitalization_evaluate.py \
+The script runs two types of evaluation: 
+    * model.test() - this eval will use the config setting for evaluation such as model.dataset.max_seq_length
+    * model.evaluate_from_file():
+        * disregards model.dataset.max_seq_length and evaluate all the tokens
+        * creates confusion matrix
+        * saves predictions and labels (if provided)
+
+To run the script:
+
+    python token_classification_evaluate.py \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-    pretrained_model=Punctuation_Capitalization_with_BERT_base_uncased 
+    pretrained_model=NER_Model_with_BERT_base_uncased 
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
-pretrained_model   - pretrained PunctuationCapitalizationModel model from list_available_models() or 
-                     path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+pretrained_model   - pretrained TokenClassification model from list_available_models() or 
+                     path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or your_model.nemo
 
 """
 
 
-@hydra_runner(config_path="../conf", config_name="punctuation_capitalization_config")
+@hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
     logging.info(
         'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
@@ -79,16 +82,16 @@ def main(cfg: DictConfig) -> None:
     if not cfg.pretrained_model:
         raise ValueError(
             'To run evaluation and inference script a pre-trained model or .nemo file must be provided.'
-            f'Choose from {PunctuationCapitalizationModel.list_available_models()} or "pretrained_model"="your_model.nemo"'
+            f'Choose from {TokenClassificationModel.list_available_models()} or "pretrained_model"="your_model.nemo"'
         )
 
     if os.path.exists(cfg.pretrained_model):
-        model = PunctuationCapitalizationModel.restore_from(cfg.pretrained_model)
-    elif cfg.pretrained_model in PunctuationCapitalizationModel.get_available_model_names():
-        model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
+        model = TokenClassificationModel.restore_from(cfg.pretrained_model)
+    elif cfg.pretrained_model in TokenClassificationModel.get_available_model_names():
+        model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
     else:
         raise ValueError(
-            f'Provide path to the pre-trained .nemo file or choose from {PunctuationCapitalizationModel.list_available_models()}'
+            f'Provide path to the pre-trained .nemo checkpoint or choose from {TokenClassificationModel.list_available_models()}'
         )
 
     data_dir = cfg.model.dataset.get('data_dir', None)
@@ -113,15 +116,19 @@ def main(cfg: DictConfig) -> None:
         else:
             raise ValueError('Terminating evaluation')
 
-    # run an inference on a few examples
-    queries = [
-        'we bought four shirts one pen and a mug from the nvidia gear store in santa clara',
-        'what can i do for you today',
-        'how are you',
-    ]
-    inference_results = model.add_punctuation_capitalization(queries)
+    model.evaluate_from_file(
+        text_file=os.path.join(data_dir, cfg.model.test_ds.text_file),
+        labels_file=os.path.join(data_dir, cfg.model.test_ds.labels_file),
+        output_dir=exp_dir,
+        add_confusion_matrix=True,
+        normalize_confusion_matrix=True,
+    )
 
-    for query, result in zip(queries, inference_results):
+    # run an inference on a few examples
+    queries = ['we bought four shirts from the nvidia gear store in santa clara.', 'Nvidia is a company.']
+    results = model.add_predictions(queries, output_file='predictions.txt')
+
+    for query, result in zip(queries, results):
         logging.info(f'Query : {query}')
         logging.info(f'Result: {result.strip()}\n')
 

@@ -28,6 +28,7 @@ This script show how to train a Punctuation and Capitalization Model.
 More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
 
 *** Setting the configs ***
+
 The model and the PT trainer are defined in a config file which declares multiple important sections.
 The most important ones are:
     model: All arguments that are related to the Model - language model, tokenizer, token classifier, optimizer,
@@ -58,7 +59,7 @@ To use one of the pretrained versions of the model and finetune it, run:
 """
 
 
-@hydra_runner(config_path="../conf", config_name="punctuation_capitalization_config")
+@hydra_runner(config_path="conf", config_name="punctuation_capitalization_config")
 def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

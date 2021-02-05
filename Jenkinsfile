@@ -497,7 +497,7 @@ pipeline {
       }
       failFast true
       steps {
-        sh 'cd examples/nlp/token_classification/scripts && \
+        sh 'cd examples/nlp/token_classification && \
         python token_classification_train.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
@@ -643,7 +643,7 @@ pipeline {
       parallel {
         stage ('NER finetuning from pretrained Test') {
           steps {
-            sh 'cd examples/nlp/token_classification/scripts && \
+            sh 'cd examples/nlp/token_classification && \
             python token_classification_train.py \
             pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
@@ -657,7 +657,7 @@ pipeline {
         }
         stage ('Punctuation and capitalization finetuning from pretrained test') {
           steps {
-            sh 'cd examples/nlp/token_classification/scripts && \
+            sh 'cd examples/nlp/token_classification && \
             python punctuation_capitalization_train.py \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_BERT_base_uncased.nemo \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
@@ -669,7 +669,7 @@ pipeline {
         }
         stage ('NER with TurkuNLP/bert-base-finnish-cased-v1') {
           steps {
-            sh 'cd examples/nlp/token_classification/scripts && \
+            sh 'cd examples/nlp/token_classification && \
             python token_classification_train.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[0] \
@@ -681,7 +681,7 @@ pipeline {
         }
         stage('Evaluation script for Token Classification') {
           steps {
-            sh 'python examples/nlp/token_classification/scripts/token_classification_evaluate.py \
+            sh 'python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo && \
             rm -rf nemo_experiments'
@@ -689,7 +689,7 @@ pipeline {
         }
         stage('Evaluation script for Punctuation') {
           steps {
-            sh 'python examples/nlp/token_classification/scripts/punctuation_capitalization_evaluate.py \
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo && \
             rm -rf nemo_experiments'
@@ -697,7 +697,7 @@ pipeline {
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
           steps {
-            sh 'cd examples/nlp/token_classification/scripts && \
+            sh 'cd examples/nlp/token_classification && \
             python punctuation_capitalization_train.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             model.language_model.pretrained_model_name=distilbert-base-uncased \
