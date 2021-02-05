@@ -101,7 +101,7 @@ def main(cfg: DictConfig) -> None:
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
         model = QAModel.from_pretrained(cfg.pretrained_model)
-        if do_training:
+        if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
             model.setup_validation_data(val_data_config=cfg.model.validation_ds)
 
