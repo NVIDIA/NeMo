@@ -76,6 +76,17 @@ class MTEncDecModel(EncDecNLPModel):
             hidden_size=cfg.encoder.hidden_size,
             num_layers=cfg.encoder.num_layers,
             inner_size=cfg.encoder.inner_size,
+            max_sequence_length=cfg.encoder.max_sequence_length
+            if hasattr(cfg.encoder, 'max_sequence_length')
+            else 512,
+            embedding_dropout=cfg.encoder.embedding_dropout if hasattr(cfg.encoder, 'embedding_dropout') else 0.0,
+            learn_positional_encodings=cfg.encoder.learn_positional_encodings
+            if hasattr(cfg.encoder, 'learn_positional_encodings')
+            else False,
+            num_attention_heads=cfg.encoder.num_attention_heads,
+            ffn_dropout=cfg.encoder.ffn_dropout,
+            attn_score_dropout=cfg.encoder.attn_score_dropout,
+            attn_layer_dropout=cfg.encoder.attn_layer_dropout,
             hidden_act=cfg.encoder.hidden_act,
             mask_future=cfg.encoder.mask_future,
             pre_ln=cfg.encoder.pre_ln,
