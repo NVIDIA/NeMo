@@ -37,6 +37,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     src_language: str = 'en'
     tgt_language: str = 'en'
 
+
 @dataclass
 class AAYNBaseSchedConfig(SchedConfig):
     name: str = 'InverseSquareRootAnnealing'
