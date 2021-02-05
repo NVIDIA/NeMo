@@ -682,7 +682,7 @@ pipeline {
         stage('Evaluation script for Token Classification') {
           steps {
             sh 'python examples/nlp/token_classification/scripts/token_classification_evaluate.py \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            model.dataset.data_dir=/home/TestData/nlp/ner/ \
             pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo && \
             rm -rf nemo_experiments'
           }
