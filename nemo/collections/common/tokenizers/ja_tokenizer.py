@@ -1,6 +1,8 @@
-from sacremoses import MosesDetokenizer
 import re
 from typing import List
+
+from sacremoses import MosesDetokenizer
+
 
 class JADetokenizer:
     def __init__(self):
