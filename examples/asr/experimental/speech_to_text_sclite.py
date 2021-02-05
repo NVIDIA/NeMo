@@ -1,7 +1,7 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-t  # you may not use this file except in compliance with the License.
+# you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
@@ -41,12 +41,10 @@ except ImportError:
         yield
 
 
-def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm="", fmt="trn"):
+def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm=""):
     sclite_path = os.path.join(sctk_dir, "bin", "sclite")
     if not os.path.exists(sclite_path):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), sclite_path)
-    if fmt != trn:
-        raise ValueError("Only trn format is supported for scoring with sctk")
     # apply glm
     if os.path.exists(glm):
         rfilter_path = os.path.join(sctk_dir, "bin", "rfilter1")
@@ -87,15 +85,14 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument(
-        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
-    )
-    parser.add_argument(
-        "--sclite_fmt", default="trn", type=str, help="sclite output format. Only trn and ctm are supported"
+        "--dont_normalize_text",
+        default=False,
+        action='store_true',
+        help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument("--out_dir", type=str, required=True, help="Destination dir for output files")
     parser.add_argument("--sctk_dir", type=str, required=False, default="", help="Path to sctk root dir")
     parser.add_argument("--glm", type=str, required=False, default="", help="Path to glm file")
-    parser.add_argument("--ref_stm", type=str, required=False, default="", help="Path to glm file")
     args = parser.parse_args()
     torch.set_grad_enabled(False)
 
@@ -116,7 +113,7 @@ def main():
             'manifest_filepath': args.dataset,
             'labels': asr_model.decoder.vocabulary,
             'batch_size': args.batch_size,
-            'normalize_transcripts': args.normalize_text,
+            'normalize_transcripts': not args.dont_normalize_text,
         }
     )
     if can_gpu:
@@ -154,7 +151,7 @@ def main():
             ref_f.write(" " + references[i] + " (" + utt_id + ")" + "\n")
 
     if use_sctk:
-        score_with_sctk(args.sctk_dir, reffile, hypfile, args.out_dir, glm=args.glm, fmt="trn")
+        score_with_sctk(args.sctk_dir, reffile, hypfile, args.out_dir, glm=args.glm)
 
 
 if __name__ == '__main__':
