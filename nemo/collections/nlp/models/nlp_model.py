@@ -14,11 +14,10 @@
 
 import hashlib
 import json
-import onnx
 import os
-
 from typing import Any, Dict, List
 
+import onnx
 import torch
 from megatron import mpu
 from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
