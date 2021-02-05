@@ -39,8 +39,8 @@ def main():
     parser.add_argument("--beam_size", type=int, default=4, help="")
     parser.add_argument("--len_pen", type=float, default=0.6, help="")
     parser.add_argument("--max_delta_length", type=int, default=5, help="")
-    parser.add_argument("--target_lang", type=str, default="en", help="")
-    parser.add_argument("--source_lang", type=str, default="en", help="")
+    parser.add_argument("--target_lang", type=str, default=None, help="")
+    parser.add_argument("--source_lang", type=str, default=None, help="")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
