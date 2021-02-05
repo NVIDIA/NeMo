@@ -95,7 +95,7 @@ def main():
     wer_value = word_error_rate(hypotheses=hypotheses, references=references, use_cer=args.use_cer)
     if not args.use_cer:
         if wer_value > args.wer_tolerance:
-            raise valueerror(f"got wer of {wer_value}. it was higher than {args.wer_tolerance}")
+            raise ValueError(f"got wer of {wer_value}. it was higher than {args.wer_tolerance}")
         logging.info(f'Got WER of {wer_value}. Tolerance was {args.wer_tolerance}')
     else:
         logging.info(f'Got CER of {wer_value}')
