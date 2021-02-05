@@ -9,5 +9,5 @@ class JADetokenizer:
         self.moses_detokenizer = MosesDetokenizer(lang="ja")
 
     def detokenize(self, translation: List[str]):
-        translation = self.moses_detokenizer.detokenize(translation)
-        return re.sub('▁', ' ', re.sub(' ', '', translation))
+        translation re.sub('▁', ' ', re.sub(' ', '', "".join(translation)))
+        return self.moses_detokenizer.detokenize(translation.split(" "))

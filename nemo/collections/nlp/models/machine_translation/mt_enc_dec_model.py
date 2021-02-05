@@ -336,7 +336,7 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
     @torch.no_grad()
-    def translate(self, text: List[str]) -> List[str]:
+    def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization
@@ -347,12 +347,17 @@ class MTEncDecModel(EncDecNLPModel):
         Returns:
             list of translated strings
         """
+        if source_lang is None:
+            source_lang = self.src_language
+        if target_lang is None:
+            target_lang = self.tgt_language
+
         mode = self.training
-        if self.src_language != "None":
+        if source_lang != "None":
             tokenizer = MosesTokenizer(lang=source_lang)
             normalizer = MosesPunctNormalizer(lang=source_lang)
-        if self.tgt_language != "None":
-            if self.tgt_language == "ja":
+        if target_lang != "None":
+            if target_lang == "ja":
                 detokenizer = JADetokenizer()
             else:
                 detokenizer = MosesDetokenizer(lang=target_lang)
@@ -360,7 +365,7 @@ class MTEncDecModel(EncDecNLPModel):
             self.eval()
             res = []
             for txt in text:
-                if self.src_language != "None":
+                if source_lang != "None":
                     txt = normalizer.normalize(txt)
                     txt = tokenizer.tokenize(txt, escape=False, return_str=True)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
@@ -372,7 +377,7 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                if self.tgt_language != "None":
+                if target_lang != "None":
                     translation = detokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
