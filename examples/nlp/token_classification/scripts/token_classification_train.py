@@ -63,19 +63,19 @@ To train TokenClassification model from scratch with the default config file, ru
 
 To use one of the pretrained versions of the model specify a `pretrained_model` arg with either 
 TokenClassification model from list_available_models() or path to a .nemo file, for example: 
-NERModel or model.nemo, run:
+NNER_Model_with_BERT_base_uncased or model.nemo, run:
 
-    python token_classification_train.py pretrained_model=NERModel
+    python token_classification_train.py pretrained_model=NER_Model_with_BERT_base_uncased
 
 To use one of the pretrained versions of the model and fine-tune it, run:
 
     python token_classification_train.py \
            model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-           pretrained_model=NERModel
+           pretrained_model=NER_Model_with_BERT_base_uncased
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained TokenClassification model from list_available_models() or 
-                     path to a .nemo file, for example: NERModel or model.nemo
+                     path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or model.nemo
                      
 More details on how to use this script could be found in
 tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
@@ -127,6 +127,7 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.model.nemo_path:
         model.save_to(cfg.model.nemo_path)
+        logging.info(f'The model was saved to {cfg.model.nemo_path}')
 
 
 if __name__ == '__main__':

@@ -24,20 +24,21 @@ from nemo.utils.exp_manager import exp_manager
 
 
 """
-To run this script and train the model from scratch, use:
-    python punctuation_and_capitalization.py \
-    model.dataset.data_dir=PATH_TO_DATA_DIR
+More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
 
-To use one of the pretrained versions of the model, run:
-    python punctuation_and_capitalization.py \
-    pretrained_model=Punctuation_Capitalization_with_BERT
+To run this script and train the model from scratch, use:
+    python punctuation_and_capitalization_train.py \
+           model.dataset.data_dir=<PATH_TO_DATA_DIR>
 
 To use one of the pretrained versions of the model and finetune it, run:
     python punctuation_and_capitalization.py \
-    pretrained_model=Punctuation_Capitalization_with_BERT \
-    model.dataset.data_dir=PATH_TO_DATA_DIR
+    pretrained_model=Punctuation_Capitalization_with_BERT_base_uncased \
+    model.dataset.data_dir=<PATH_TO_DATA_DIR>
+    
+    <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
+    pretrained_model   - pretrained PunctuationCapitalization model from list_available_models() or 
+                     path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or model.nemo
 
-More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
 """
 
 
@@ -80,6 +81,7 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.model.nemo_path:
         model.save_to(cfg.model.nemo_path)
+        logging.info(f'The model was saved to {cfg.model.nemo_path}')
 
 
 if __name__ == '__main__':

@@ -36,11 +36,11 @@ To run the script:
 
     python token_classification_evaluate.py \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-    pretrained_model=NERModel 
+    pretrained_model=NER_Model_with_BERT_base_uncased 
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained TokenClassification model from list_available_models() or 
-                     path to a .nemo file, for example: NERModel or model.nemo
+                     path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or your_model.nemo
 
 More details on Token Classification model could be found in
 tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
@@ -73,7 +73,7 @@ def main(cfg: DictConfig) -> None:
     if not cfg.pretrained_model:
         raise ValueError(
             'To run evaluation and inference script a pre-trained model or .nemo file must be provided.'
-            'For example: "pretrained_model"="NERModel" or "pretrained_model"="my_ner_model.nemo"'
+            f'Choose from {TokenClassificationModel.list_available_models()} or "pretrained_model"="your_model.nemo"'
         )
 
     if os.path.exists(cfg.pretrained_model):
@@ -82,7 +82,7 @@ def main(cfg: DictConfig) -> None:
         model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
     else:
         raise ValueError(
-            f'Provide path to the pre-trained checkpoint or choose from {TokenClassificationModel.list_available_models()}'
+            f'Provide path to the pre-trained .nemo checkpoint or choose from {TokenClassificationModel.list_available_models()}'
         )
 
     data_dir = cfg.model.dataset.get('data_dir', None)
