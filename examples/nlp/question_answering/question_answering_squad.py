@@ -132,9 +132,9 @@ def main(cfg: DictConfig) -> None:
         output_prediction_file=output_prediction_file,
     )
 
-    for question_id, answer in all_preds.items():
+    for _, pred in all_preds.items():
         if answer != "empty":
-            print(f"Question ID: {question_id}, answer: {answer}")
+            print(f"Question: {pred[0]}, answer: {pred[1]}")
 
 
 if __name__ == '__main__':
