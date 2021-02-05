@@ -133,7 +133,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     for _, pred in all_preds.items():
-        if answer != "empty":
+        if pred != "empty":
             print(f"Question: {pred[0]}, answer: {pred[1]}")
 
 
