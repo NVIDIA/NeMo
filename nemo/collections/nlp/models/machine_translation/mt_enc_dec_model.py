@@ -237,7 +237,7 @@ class MTEncDecModel(EncDecNLPModel):
             sp_detokenizer = SentencePieceDetokenizer()
             translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
             ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
-        
+
         assert len(translations) == len(ground_truths)
         sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
         dataset_name = "Validation" if mode == 'val' else "Test"
@@ -354,7 +354,7 @@ class MTEncDecModel(EncDecNLPModel):
         tokenizer = MosesTokenizer(lang=source_lang)
         normalizer = MosesPunctNormalizer(lang=source_lang)
         detokenizer = MosesDetokenizer(lang=target_lang)
-        
+
         try:
             self.eval()
             res = []
