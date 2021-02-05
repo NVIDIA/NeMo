@@ -24,7 +24,23 @@ from nemo.utils.exp_manager import exp_manager
 
 
 """
+This script show how to train a Punctuation and Capitalization Model.
 More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
+
+*** Setting the configs ***
+The model and the PT trainer are defined in a config file which declares multiple important sections.
+The most important ones are:
+    model: All arguments that are related to the Model - language model, tokenizer, token classifier, optimizer,
+            schedulers, and datasets/data loaders.
+    trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
+            precision level, etc.
+This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml` config file
+by default. You may update the config file from the file directly. 
+The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
+
+For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
+
+*** Model training ***
 
 To run this script and train the model from scratch, use:
     python punctuation_and_capitalization_train.py \

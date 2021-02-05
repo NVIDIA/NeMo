@@ -25,6 +25,24 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 This script shows how to perform evaluation and runs inference of a few examples.
+
+More details on Token Classification model could be found in tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
+
+*** Setting the configs ***
+The model and the PT trainer are defined in a config file which declares multiple important sections.
+The most important ones are:
+    model: All arguments that are related to the Model - language model, tokenizer, token classifier, optimizer,
+            schedulers, and datasets/data loaders.
+    trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
+            precision level, etc.
+This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml` config file
+by default. You may update the config file from the file directly. 
+The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
+
+For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
+
+*** Model Evaluation ***
+
 The script runs two types of evaluation: 
     * model.test() - this eval will use the config setting for evaluation such as model.dataset.max_seq_length
     * model.evaluate_from_file():
@@ -42,10 +60,6 @@ To run the script:
 pretrained_model   - pretrained TokenClassification model from list_available_models() or 
                      path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or your_model.nemo
 
-More details on Token Classification model could be found in
-tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
-
-For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipynb
 """
 
 

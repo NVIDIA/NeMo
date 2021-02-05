@@ -24,11 +24,15 @@ from nemo.utils.exp_manager import exp_manager
 
 
 """
-## Tasks
+This scripts shows how to train a Token Classification model.
 
-Token Classification script supports Named Entity Recognition task and other token level classification tasks,
+The Token Classification model supports Named Entity Recognition task and other token level classification tasks,
 as long as the data follows the format specified below.
 
+More details on how to use this script could be found in 
+tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
+
+*** Data Format *** 
 Token Classification Model requires the data to be split into 2 files: text.txt and labels.txt.
 Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e.:
 [WORD] [SPACE] [WORD] [SPACE] [WORD].
@@ -45,14 +49,14 @@ B-PER O O B-LOC I-LOC I-LOC O
 O O ...
 ...
 
-## Preparing the dataset
+*** Preparing the dataset ***
 
 To convert an IOB format data to the format required for training, run
 examples/nlp/token_classification/data/import_from_iob_format.py on your train and dev files, as follows:
 
 python examples/nlp/token_classification/data/import_from_iob_format.py --data_file PATH_TO_IOB_FORMAT_DATAFILE
 
-## Model Training
+*** Model Training ***
 
 To train TokenClassification model from scratch with the default config file, run:
 
@@ -77,9 +81,6 @@ To use one of the pretrained versions of the model and fine-tune it, run:
 pretrained_model   - pretrained TokenClassification model from list_available_models() or 
                      path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or model.nemo
                      
-More details on how to use this script could be found in
-tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
-
 For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipynb
 """
 

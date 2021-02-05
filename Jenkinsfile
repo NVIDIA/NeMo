@@ -659,7 +659,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification/scripts && \
             python punctuation_capitalization_train.py \
-            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_BERT_bert_uncased.nemo \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_BERT_base_uncased.nemo \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
