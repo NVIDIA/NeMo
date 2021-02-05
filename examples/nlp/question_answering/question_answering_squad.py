@@ -101,7 +101,7 @@ def main(cfg: DictConfig) -> None:
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
         model = QAModel.from_pretrained(cfg.pretrained_model)
-        if cfg.do_training:
+        if do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
             model.setup_validation_data(val_data_config=cfg.model.validation_ds)
 
@@ -131,7 +131,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     for _, item in all_preds.items():
-        print(f"question: {item[0]} answer: {item[1]}")
+        print(f"question : {item[0]}, answer: {item[1]}")
 
 
 if __name__ == '__main__':
