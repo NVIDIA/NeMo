@@ -486,7 +486,7 @@ def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshol
     ax2.plot(np.arange(len_pred) * FRAME_LEN, pred, 'b', label='pred')
     ax2.plot(np.arange(len_pred) * FRAME_LEN, prob, 'g--', label='speech prob')
     ax2.tick_params(axis='y', labelcolor='r')
-    legend = ax2.legend(loc='lower right', shadow=True)
+    ax2.legend(loc='lower right', shadow=True)
     ax2.set_ylabel('Preds and Probas')
     ax2.set_ylim([-0.1, 1.1])
 

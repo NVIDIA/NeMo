@@ -39,6 +39,7 @@ from nemo.collections.asr.parts.vad_utils import (
 )
 from nemo.core.classes import Model
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators.experimental import experimental
 from nemo.utils.exp_manager import NotFoundError
 
 try:
@@ -58,6 +59,7 @@ _VAD_MODEL = "vad_model.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
 
 
+@experimental
 class ClusteringDiarizer(Model, DiarizationMixin):
     def __init__(self, cfg: DictConfig):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
