@@ -27,11 +27,11 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
-from nemo.collections.common.tokenizers.ja_tokenizer import JADetokenizer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
+from nemo.collections.common.tokenizers.ja_tokenizer import JADetokenizer
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -42,6 +42,7 @@ from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
 __all__ = ['MTEncDecModel']
+
 
 class MTEncDecModel(EncDecNLPModel):
     """
