@@ -49,7 +49,10 @@ def main():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument(
-        "--dont_normalize_text", default=False, action='store_true', help="Turn off trasnscript normalization. Recommended for non-English."
+        "--dont_normalize_text",
+        default=False,
+        action='store_true',
+        help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument(
         "--use_cer", default=False, action='store_true', help="Use Character Error Rate as the evaluation metric"

@@ -85,7 +85,10 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument(
-        "--dont_normalize_text", default=False, action='store_true', help="Turn off trasnscript normalization. Recommended for non-English."
+        "--dont_normalize_text",
+        default=False,
+        action='store_true',
+        help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument("--out_dir", type=str, required=True, help="Destination dir for output files")
     parser.add_argument("--sctk_dir", type=str, required=False, default="", help="Path to sctk root dir")
