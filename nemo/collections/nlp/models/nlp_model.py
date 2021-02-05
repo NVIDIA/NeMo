@@ -305,3 +305,8 @@ class NLPModel(ModelPT):
                 if isinstance(self.bert_model, MegatronBertEncoder):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
+        else:
+            # testing stage
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                # finish megatron-lm initialization
+                self.bert_model._lazy_init_fn()
