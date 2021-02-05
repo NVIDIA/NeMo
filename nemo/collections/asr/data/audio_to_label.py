@@ -283,30 +283,30 @@ target_label_n, "offset": offset_in_sec_n}
         """Returns definitions of module output ports.
         """
 
+        output_types = {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
         if self.is_regression_task:
-            return {
-                'audio_signal': NeuralType(
-                    ('B', 'T'),
-                    AudioSignal(freq=self._sample_rate)
-                    if self is not None and hasattr(self, '_sample_rate')
-                    else AudioSignal(),
-                ),
-                'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-                'targets': NeuralType(tuple('B'), RegressionValuesType()),
-                'targets_length': NeuralType(tuple('B'), LengthsType()),
-            }
+            output_types.update(
+                {
+                    'targets': NeuralType(tuple('B'), RegressionValuesType()),
+                    'targets_length': NeuralType(tuple('B'), LengthsType()),
+                }
+            )
         else:
-            return {
-                'audio_signal': NeuralType(
-                    ('B', 'T'),
-                    AudioSignal(freq=self._sample_rate)
-                    if self is not None and hasattr(self, '_sample_rate')
-                    else AudioSignal(),
-                ),
-                'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-                'label': NeuralType(tuple('B'), LabelsType()),
-                'label_length': NeuralType(tuple('B'), LengthsType()),
-            }
+
+            output_types.update(
+                {'label': NeuralType(tuple('B'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
+            )
+
+        return output_types
 
     def __init__(
         self,
@@ -333,12 +333,9 @@ target_label_n, "offset": offset_in_sec_n}
         self.load_audio = load_audio
         self.is_regression_task = is_regression_task
 
-        if not self.is_regression_task:
-
+        if not is_regression_task:
             self.labels = labels if labels else self.collection.uniq_labels
-
-            self.num_classes = len(self.labels)
-
+            self.num_classes = len(self.labels) if self.labels is not None else 1
             self.label2id, self.id2label = {}, {}
             for label_id, label in enumerate(self.labels):
                 self.label2id[label] = label_id
@@ -348,7 +345,8 @@ target_label_n, "offset": offset_in_sec_n}
                 logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
 
         else:
-            self.num_classes = len(self.labels) if self.labels is not None else 1
+            self.labels = []
+            self.num_classes = 1
 
     def __len__(self):
         return len(self.collection)

@@ -24,6 +24,7 @@ import onnx
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.metrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -34,7 +35,7 @@ from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import *
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel', 'MatchboxNet']
@@ -53,6 +54,15 @@ class _EncDecBaseModel(ASRModel, Exportable):
             self.world_size = trainer.num_nodes * trainer.num_gpus
             self.local_rank = trainer.local_rank
 
+        # Convert config to a DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+
+        # Convert config to support Hydra 1.0+ instantiation
+        cfg = model_utils.maybe_update_config_version(cfg)
+
+        self.is_regression_task = cfg.get('is_regression_task', False)
+        # Change labels if needed
+        self._update_decoder_config(cfg.labels, cfg.decoder)
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.is_regression_task = self._cfg.get('is_regression_task', False)
@@ -125,6 +135,11 @@ class _EncDecBaseModel(ASRModel, Exportable):
             "input_signal_length": NeuralType(tuple('B'), LengthsType()),
         }
 
+    @property
+    @abstractmethod
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        pass
+
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
@@ -185,6 +200,10 @@ class _EncDecBaseModel(ASRModel, Exportable):
             return self._test_dl
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
+
+        OmegaConf.set_struct(config, False)
+        config.is_regression_task = self.is_regression_task
+        OmegaConf.set_struct(config, True)
 
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
@@ -347,6 +366,10 @@ class _EncDecBaseModel(ASRModel, Exportable):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
+    @abstractmethod
+    def _update_decoder_config(self, labels, cfg):
+        pass
+
     def export(
         self,
         output: str,
@@ -365,7 +388,7 @@ class _EncDecBaseModel(ASRModel, Exportable):
         if input_example is not None or output_example is not None:
             logging.warning(
                 "Passed input and output examples will be ignored and recomputed since"
-                " EncDecRegressionModel consists of two separate models (encoder and decoder) with different"
+                " EncDecModel consists of two separate models (encoder and decoder) with different"
                 " inputs and outputs."
             )
 
@@ -415,10 +438,10 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
-        super().__init__(cfg=cfg, trainer=trainer)
+        if cfg.is_regression_task:
+            raise ValueError(f"EndDecClassificationModel requires the flag is_regression_task to be set as false")
 
-        # Change labels if needed
-        self._update_decoder_config(self._cfg.decoder)
+        super().__init__(cfg=cfg, trainer=trainer)
 
     def _setup_preprocessor(self):
         return EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
@@ -610,7 +633,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
-            self._update_decoder_config(new_decoder_config)
+            self._update_decoder_config(new_labels, new_decoder_config)
             del self.decoder
             self.decoder = EncDecClassificationModel.from_config_dict(new_decoder_config)
 
@@ -629,16 +652,15 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
             logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
 
-    def _update_decoder_config(self, cfg):
+    def _update_decoder_config(self, labels, cfg):
         """
         Update the number of classes in the decoder based on labels provided.
 
         Args:
+            labels: The current labels of the model
             cfg: The config of the decoder which will be updated.
         """
         OmegaConf.set_struct(cfg, False)
-
-        labels = self.cfg.labels
 
         if 'params' in cfg:
             cfg.params.num_classes = len(labels)
@@ -666,9 +688,8 @@ class EncDecRegressionModel(_EncDecBaseModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        OmegaConf.set_struct(cfg, False)
-        cfg.is_regression_task = True
-        OmegaConf.set_struct(cfg, True)
+        if not cfg.is_regression_task:
+            raise ValueError(f"EndDecRegressionModel requires the flag is_regression_task to be set as true")
         super().__init__(cfg=cfg, trainer=trainer)
 
     def _setup_preprocessor(self):
@@ -684,7 +705,8 @@ class EncDecRegressionModel(_EncDecBaseModel):
         return MSELoss()
 
     def _setup_metrics(self):
-        pass
+        self._mse = MeanSquaredError()
+        self._mae = MeanAbsoluteError()
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -697,41 +719,53 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
+        self.training_step_end()
         audio_signal, audio_signal_len, targets, targets_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss = self.loss(preds=logits, labels=targets)
+        train_mse = self._mse(preds=logits, target=targets)
+        train_mae = self._mae(preds=logits, target=targets)
 
-        return {'loss': loss, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+        tensorboard_logs = {
+            'train_loss': loss,
+            'train_mse': train_mse,
+            'train_mae': train_mae,
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+        }
+
+        return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, targets, targets_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(preds=logits, labels=targets)
+        val_mse = self._mse(preds=logits, target=targets)
+        val_mae = self._mae(preds=logits, target=targets)
 
-        return {
-            'val_loss': loss_value,
-        }
-
-    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-
-        tensorboard_logs = {
-            'val_loss': val_loss_mean,
-        }
-
-        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+        return {'val_loss': loss_value, 'val_mse': val_mse, 'val_mae': val_mae}
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx)
 
-        return {'test_loss': logs['val_loss']}
+        return {'test_loss': logs['val_loss'], 'test_mse': logs['test_mse'], 'test_mae': logs['val_mae']}
+
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        val_mse = self._mse.compute()
+        val_mae = self._mae.compute()
+
+        tensorboard_logs = {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae}
+
+        return {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae, 'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        test_mse = self._mse.compute()
+        test_mae = self._mae.compute()
 
-        tensorboard_logs = {'test_loss': test_loss_mean}
+        tensorboard_logs = {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae}
 
-        return {'log': tensorboard_logs}
+        return {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae, 'log': tensorboard_logs}
 
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[float]:
@@ -750,6 +784,17 @@ class EncDecRegressionModel(_EncDecBaseModel):
         """
         predictions = super().transcribe(paths2audio_files, batch_size, logprobs=True)
         return [float(pred) for pred in predictions]
+
+    def _update_decoder_config(self, labels, cfg):
+
+        OmegaConf.set_struct(cfg, False)
+
+        if 'params' in cfg:
+            cfg.params.num_classes = 1
+        else:
+            cfg.num_classes = 1
+
+        OmegaConf.set_struct(cfg, True)
 
 
 class MatchboxNet(EncDecClassificationModel):

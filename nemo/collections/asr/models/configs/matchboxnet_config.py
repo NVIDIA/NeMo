@@ -222,9 +222,6 @@ class EncDecClassificationModelConfigBuilder(model_cfg.ModelConfigBuilder):
         # propagate num classes
         self.model_cfg.decoder.num_classes = len(self.model_cfg.labels)
 
-        # propagate task type (regression or classification)
-        self.model_cfg.is_regression_task = self.model_cfg.is_regression_task
-
         # propagate sample rate
         self.model_cfg.sample_rate = self.model_cfg.sample_rate
         self.model_cfg.preprocessor.sample_rate = self.model_cfg.sample_rate

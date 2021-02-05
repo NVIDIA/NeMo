@@ -292,6 +292,9 @@ class ASRSpeechLabel(SpeechLabel):
             durations.append(item['duration'])
             if not is_regression_task:
                 labels.append(item['label'])
+            else:
+                labels.append(float(item['label']))
+
             offsets.append(item['offset'])
 
         super().__init__(audio_files, durations, labels, offsets, *args, **kwargs)

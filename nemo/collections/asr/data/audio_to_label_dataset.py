@@ -21,7 +21,6 @@ def get_classification_label_dataset(featurizer, config: dict) -> audio_to_label
 
     Args:
         config: Config of the AudioToClassificationLabelDataset.
-        regression: True if the target is a numeric value for regression
 
     Returns:
         An instance of AudioToClassificationLabelDataset.
