@@ -414,6 +414,18 @@ pipeline {
         rm -rf sgd_outputs'
         }
       }
+      stage('GLUE STS-b with AlBERT') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+            model.dataset.use_cache=false \
+            model.task_name=sts-b \
+            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            model.language_model.pretrained_model_name=albert-base-v1 \
+            exp_manager=null'
+          }
+        }
      }
    }
 
@@ -486,7 +498,7 @@ pipeline {
       failFast true
       steps {
         sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
+        python token_classification_train.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
         model.train_ds.batch_size=10 \
@@ -632,21 +644,22 @@ pipeline {
         stage ('NER finetuning from pretrained Test') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
-            pretrained_model=NERModel \
+            python token_classification_train.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.train_ds.batch_size=2 \
             model.dataset.use_cache=false \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
+            model.dataset.class_balancing="weighted_loss" \
             exp_manager.exp_dir=null'
           }
         }
         stage ('Punctuation and capitalization finetuning from pretrained test') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization.py \
-            pretrained_model=Punctuation_Capitalization_with_BERT \
+            python punctuation_capitalization_train.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_BERT_base_uncased.nemo \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
@@ -657,7 +670,7 @@ pipeline {
         stage ('NER with TurkuNLP/bert-base-finnish-cased-v1') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
+            python token_classification_train.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
@@ -666,22 +679,26 @@ pipeline {
             exp_manager.exp_dir=null'
           }
         }
-        stage('GLUE STS-b with AlBERT') {
+        stage('Evaluation script for Token Classification') {
           steps {
-            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-            model.dataset.use_cache=false \
-            model.task_name=sts-b \
-            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            model.language_model.pretrained_model_name=albert-base-v1 \
-            exp_manager=null'
+            sh 'python examples/nlp/token_classification/token_classification_evaluate.py \
+            model.dataset.data_dir=/home/TestData/nlp/ner/ \
+            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo && \
+            rm -rf nemo_experiments'
+          }
+        }
+        stage('Evaluation script for Punctuation') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo && \
+            rm -rf nemo_experiments'
           }
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization.py \
+            python punctuation_capitalization_train.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             model.language_model.pretrained_model_name=distilbert-base-uncased \
             model.dataset.use_cache=false \
