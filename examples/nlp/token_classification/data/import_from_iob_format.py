@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,7 +97,9 @@ def __convert_data(in_file: str, out_text_f: str, out_labels_f: str, max_length:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Convert data from IOB format to the format compatible with nlp/examples/token_classification.py'
+        description='Convert data from IOB format to the format compatible with \
+        nlp/examples/token_classification/scripts/token_classification_train.py and \
+        token_classification_evaluate.py'
     )
     parser.add_argument("--data_file", required=True, type=str, help='path to a file in IOB format')
     parser.add_argument(

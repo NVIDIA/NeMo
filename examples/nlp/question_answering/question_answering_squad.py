@@ -95,18 +95,17 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
-    do_training = True
     if not cfg.pretrained_model:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         model = QAModel(cfg.model, trainer=trainer)
     else:
         logging.info(f'Loading pretrained model {cfg.pretrained_model}')
         model = QAModel.from_pretrained(cfg.pretrained_model)
-        if do_training:
+        if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
             model.setup_validation_data(val_data_config=cfg.model.validation_ds)
 
-    if do_training:
+    if cfg.do_training:
         trainer.fit(model)
         if cfg.model.nemo_path:
             model.save_to(cfg.model.nemo_path)
