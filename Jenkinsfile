@@ -215,6 +215,18 @@ pipeline {
           }
         }
 
+        stage('Speaker Diarization Inference') {
+          steps {
+            sh 'python examples/speaker_recognition/speaker_diarize.py \
+            diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
+            diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.out_dir=examples/speaker_recognition/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_recognition/speaker_diarization_results'
+          }
+        }
+
         stage('L2: Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
