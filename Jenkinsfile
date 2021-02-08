@@ -870,6 +870,26 @@ pipeline {
       }
     }
 
+    stage('L2: NMT Attention is All You Need Inference') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/machine_translation && \
+        python nmt_transformer_infer.py \
+        --model=/home/TestData/nlp/nmt/toy_data/TransformerLargeDe-En.nemo \
+        --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
+        --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+        --target_lang en \
+        --source_lang de \
+        '
+      }
+    }
+
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf{
