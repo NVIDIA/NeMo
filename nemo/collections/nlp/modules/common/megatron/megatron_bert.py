@@ -33,7 +33,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['MegatronBertEncoder']
 
 
-@experimental
 class MegatronBertEncoder(BertModule):
     """
     MegatronBERT wraps around the Megatron Language model

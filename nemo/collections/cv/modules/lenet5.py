@@ -23,7 +23,6 @@ from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType,
 from nemo.utils.decorators import experimental
 
 
-@experimental
 class LeNet5(NeuralModule):
     """
     Classical LeNet-5 model for MNIST image classification.
