@@ -19,10 +19,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
-import pytorch_lightning
 import torch
 import torch.utils.data as pt_data
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.core.lightning import LightningModule

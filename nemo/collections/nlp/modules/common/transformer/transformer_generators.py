@@ -15,7 +15,6 @@
 import torch
 
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
-from nemo.core.classes import NeuralModule
 
 __all__ = [
     "GreedySequenceGenerator",
