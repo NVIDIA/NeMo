@@ -194,6 +194,11 @@ class TestEncDecRNNTBPEModel:
             joint_joint = 3 * (asr_model.joint.joint_hidden + 1)
             assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint))
 
+    @pytest.mark.skipif(
+        not WARP_RNNT_AVAILABLE,
+        reason='RNNTLoss has not been compiled. Please compile and install '
+        'RNNT Loss first before running this test',
+    )
     @pytest.mark.unit
     def test_decoding_change(self, asr_model):
         assert isinstance(asr_model.decoding.decoding, greedy_decode.GreedyBatchedRNNTInfer)
