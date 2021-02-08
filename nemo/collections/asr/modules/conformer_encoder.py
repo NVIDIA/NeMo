@@ -18,7 +18,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-from nemo.collections.asr.parts.conformer_modules import ConformerEncoderBlock
+from nemo.collections.asr.parts.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.multi_head_attention import PositionalEncoding, RelPositionalEncoding
 from nemo.collections.asr.parts.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
@@ -43,19 +43,24 @@ class ConformerEncoder(NeuralModule, Exportable):
         feat_out (int): the size of the output features
             Defaults to -1 (means feat_out is d_model)
         subsampling (str): the method of subsampling, choices=['vggnet', 'striding']
+            Defaults to striding.
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
         subsampling_conv_channels (int): the size of the convolutions in the subsampling module
-            Defaults to 64.
+            Defaults to -1 which would set it to d_model.
         ff_expansion_factor (int): the expansion factor in feed forward layers
             Defaults to 4.
         self_attention_model (str): type of the attention layer and positional encoding
-            choices=['rel_pos', 'abs_pos'].
+            'rel_pos': relative positional embedding and Transformer-XL
+            'abs_pos': absolute positional embedding and Transformer
+            default is rel_pos.
         pos_emb_max_len (int): the maximum length of positional embeddings
             Defaulst to 5000
         n_heads (int): number of heads in multi-headed attention layers
             Defaults to 4.
         xscaling (bool): enables scaling the inputs to the multi-headed attention layers by sqrt(d_model)
+            Defaults to True.
+        untie_biases (bool): whether to not share (untie) the bias weights between layers of Transformer-XL
             Defaults to True.
         conv_kernel_size (int): the size of the convolutions in the convolutional modules
             Defaults to 31.
@@ -107,15 +112,15 @@ class ConformerEncoder(NeuralModule, Exportable):
         n_layers,
         d_model,
         feat_out=-1,
-        subsampling='vggnet',
+        subsampling='striding',
         subsampling_factor=4,
-        subsampling_conv_channels=64,
+        subsampling_conv_channels=-1,
         ff_expansion_factor=4,
         self_attention_model='rel_pos',
         pos_emb_max_len=5000,
         n_heads=4,
         xscaling=True,
-        untie_biases=False,
+        untie_biases=True,
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
@@ -132,6 +137,8 @@ class ConformerEncoder(NeuralModule, Exportable):
         else:
             self.xscale = None
 
+        if subsampling_conv_channels == -1:
+            subsampling_conv_channels = d_model
         if subsampling:
             self.pre_encode = ConvSubsampling(
                 subsampling=subsampling,
@@ -162,20 +169,20 @@ class ConformerEncoder(NeuralModule, Exportable):
                 dropout_rate=dropout,
                 max_len=pos_emb_max_len,
                 xscale=self.xscale,
-                dropout_emb_rate=dropout_emb,
+                dropout_rate_emb=dropout_emb,
             )
         elif self_attention_model == "abs_pos":
             pos_bias_u = None
             pos_bias_v = None
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, reverse=False, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale
             )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
         self.layers = nn.ModuleList()
         for i in range(n_layers):
-            layer = ConformerEncoderBlock(
+            layer = ConformerLayer(
                 d_model=d_model,
                 d_ff=d_ff,
                 conv_kernel_size=conv_kernel_size,
@@ -205,7 +212,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal = self.embed(audio_signal)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
-        # audio_signal, pos_emb = self.pos_enc2(audio_signal)
         bs, xmax, idim = audio_signal.size()
 
         # Create the self-attention and padding masks
