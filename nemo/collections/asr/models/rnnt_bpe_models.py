@@ -196,7 +196,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
-    def change_decoding(self, decoding_cfg: DictConfig):
+    def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
         Changes decoding strategy used during RNNT decoding process.
 
