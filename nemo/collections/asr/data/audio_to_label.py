@@ -24,7 +24,6 @@ from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
 def repeat_signal(signal, sig_len, required_length):
