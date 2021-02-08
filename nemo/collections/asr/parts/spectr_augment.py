@@ -37,7 +37,7 @@ class SpecAugment(nn.Module):
     """
 
     def __init__(
-        self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None,
+        self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None, mask_value=0.0,
     ):
         super(SpecAugment, self).__init__()
 
@@ -48,6 +48,8 @@ class SpecAugment(nn.Module):
 
         self.freq_width = freq_width
         self.time_width = time_width
+
+        self.mask_value = mask_value
 
         if isinstance(time_width, int):
             self.adaptive_temporal_width = False
@@ -72,14 +74,14 @@ class SpecAugment(nn.Module):
 
                 w = self._rng.randint(0, self.freq_width)
 
-                x[idx, x_left : x_left + w, :] = 0.0
+                x[idx, x_left : x_left + w, :] = self.mask_value
 
             for i in range(self.time_masks):
                 y_left = self._rng.randint(0, sh[2] - time_width)
 
                 w = self._rng.randint(0, time_width)
 
-                x[idx, :, y_left : y_left + w] = 0.0
+                x[idx, :, y_left : y_left + w] = self.mask_value
 
         return x
 

@@ -185,7 +185,9 @@ class EncDecCTCModel(ASRModel, Exportable):
                         for idx in range(logits.shape[0]):
                             hypotheses.append(logits[idx][: logits_len[idx]])
                     else:
-                        hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
+                        hypotheses += self._wer.ctc_decoder_predictions_tensor(
+                            greedy_predictions, predictions_len=logits_len
+                        )
                     del test_batch
         finally:
             # set mode back to its original value
@@ -387,6 +389,7 @@ class EncDecCTCModel(ASRModel, Exportable):
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+
         return log_probs, encoded_len, greedy_predictions
 
     # PTL-specific methods
@@ -412,7 +415,10 @@ class EncDecCTCModel(ASRModel, Exportable):
 
         if (batch_nb + 1) % log_every_n_steps == 0:
             self._wer.update(
-                predictions=predictions, targets=transcript, target_lengths=transcript_len,
+                predictions=predictions,
+                targets=transcript,
+                target_lengths=transcript_len,
+                predictions_lengths=encoded_len,
             )
             wer, _, _ = self._wer.compute()
             tensorboard_logs.update({'training_batch_wer': wer})
@@ -431,7 +437,9 @@ class EncDecCTCModel(ASRModel, Exportable):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        self._wer.update(predictions=predictions, targets=transcript, target_lengths=transcript_len)
+        self._wer.update(
+            predictions=predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
+        )
         wer, wer_num, wer_denom = self._wer.compute()
         return {
             'val_loss': loss_value,
