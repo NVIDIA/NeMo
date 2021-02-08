@@ -450,6 +450,7 @@ class SpectrogramAugmentation(NeuralModule):
         rect_time=5,
         rect_freq=20,
         rng=None,
+        mask_value=0.0,
     ):
         super().__init__()
 
@@ -461,7 +462,12 @@ class SpectrogramAugmentation(NeuralModule):
 
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
-                freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng,
+                freq_masks=freq_masks,
+                time_masks=time_masks,
+                freq_width=freq_width,
+                time_width=time_width,
+                rng=rng,
+                mask_value=mask_value,
             )
         else:
             self.spec_augment = lambda x: x
@@ -602,6 +608,7 @@ class SpectrogramAugmentationConfig:
     rect_masks: int = 0
     rect_time: int = 0
     rect_freq: int = 0
+    mask_value: float = 0
     rng: Optional[Any] = None  # random.Random() type
 
 
