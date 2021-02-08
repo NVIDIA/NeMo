@@ -136,14 +136,14 @@ class RNNTLoss(Loss):
             targets = targets.narrow(dim=1, start=0, length=max_targets_len)
 
         # Loss reduction can be dynamic, so set it prior to call
-        if self.reduction is not 'mean_batch':
+        if self.reduction != 'mean_batch':
             self._loss.reduction = self.reduction
 
         # Compute RNNT loss
         loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
 
         # Loss reduction can be dynamic, so reset it after call
-        if self.reduction is not 'mean_batch':
+        if self.reduction != 'mean_batch':
             self._loss.reduction = 'none'
 
         # Loss reduction only for mean_batch mode
