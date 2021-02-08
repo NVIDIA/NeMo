@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Token Classification tasks (for example, Named Entity Recognition) with pretrained BERT models
+# Token Classification tasks (for example, Named Entity Recognition) with pretrained BERT-like models
 
-pretrained_model: null # pretrained TokenClassification model from list_available_models(), for example: NERModel
+pretrained_model: null # pretrained TokenClassification model from list_available_models() or path to a .nemo file,
+# for example: NER_Model_with_BERT_base_uncased or your_model.nemo
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU
   num_nodes: 1
@@ -63,6 +64,13 @@ model:
     batch_size: 64
 
   validation_ds:
+    text_file: text_dev.txt
+    labels_file: labels_dev.txt
+    shuffle: false
+    num_samples: -1
+    batch_size: 64
+
+  test_ds:
     text_file: text_dev.txt
     labels_file: labels_dev.txt
     shuffle: false
