@@ -168,7 +168,9 @@ class GreedySequenceGenerator:
     def __call__(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
         # with self.as_frozen():
         #     return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
-        return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
+        with self.embedding.as_frozen():
+            with self.decoder.as_frozen():
+                return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
 
 
 class TopKSequenceGenerator(GreedySequenceGenerator):
