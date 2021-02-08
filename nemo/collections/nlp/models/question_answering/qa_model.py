@@ -253,6 +253,17 @@ class QAModel(NLPModel, Exportable):
                 do_lower_case=self._cfg.dataset.do_lower_case,
             )
 
+            with open(file, 'r') as test_file_fp:
+                test_data = json.load(test_file_fp)["data"]
+                id_to_question_mapping = {}
+                for title in test_data:
+                    for par in title["paragraphs"]:
+                        for question in par["qas"]:
+                            id_to_question_mapping[question["id"]] = question["question"]
+
+            for question_id in all_predictions:
+                all_predictions[question_id] = (id_to_question_mapping[question_id], all_predictions[question_id])
+
             if output_nbest_file is not None:
                 with open(output_nbest_file, "w") as writer:
                     writer.write(json.dumps(all_nbest, indent=4) + "\n")
