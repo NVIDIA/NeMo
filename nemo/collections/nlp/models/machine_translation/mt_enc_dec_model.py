@@ -63,8 +63,8 @@ class MTEncDecModel(EncDecNLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.src_language: str = cfg.src_language
-        self.tgt_language: str = cfg.tgt_language
+        self.src_language: str = cfg.get("src_language", None)
+        self.tgt_language: str = cfg.get("tgt_language", None)
 
         # TODO: use get_encoder function with support for HF and Megatron
         self.encoder = TransformerEncoderNM(
