@@ -26,7 +26,6 @@ from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = [
     'AudioToCharDataset',
