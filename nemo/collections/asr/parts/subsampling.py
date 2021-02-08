@@ -71,7 +71,7 @@ class ConvSubsampling(torch.nn.Module):
                 )
                 in_channels = conv_channels
         elif subsampling == 'striding':
-            self._padding = 0
+            self._padding = 1
             self._stride = 2
             self._kernel_size = 3
             self._ceil_mode = False
