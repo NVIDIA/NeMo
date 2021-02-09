@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from typing import Optional
 
 from pytorch_lightning import Trainer
@@ -96,20 +97,29 @@ class MTEncDecConfig(NemoConfig):
 
 @hydra_runner(config_path="conf", config_name="aayn_base")
 def main(cfg: MTEncDecConfig) -> None:
-    # # merge default config with user specified config
+    # merge default config with user specified config
     default_cfg = MTEncDecConfig()
     cfg = update_model_config(default_cfg, cfg)
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'Config: {cfg.pretty()}')
 
+    # training is managed by PyTorch Lightning
     trainer = Trainer(**cfg.trainer)
+
+    # tokenizers and tarred training data will be automatically created if necessary
+    data_preproc = MTDataPreproc(cfg=cfg.model, trainer=trainer)
+
+    # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
     exp_manager(trainer, cfg.exp_manager)
+
+    # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
     mt_model = MTEncDecModel(cfg.model, trainer=trainer)
 
     logging.info("\n\n************** Model parameters and their sizes ***********")
     for name, param in mt_model.named_parameters():
         print(name, param.size())
     logging.info("***********************************************************\n\n")
+
     trainer.fit(mt_model)
 
 
