@@ -1,4 +1,8 @@
-name: &name "CitriNet-384-8x-Stride"
+# This config contains the default values for training a Citrinet model with CTC loss and BPE-based vocabulary.
+# Default learning parameters in this config are set for effective batch size of 1k on 32 GPUs.
+# To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+
+name: &name "Citrinet-384-8x-Stride"
 
 model:
   sample_rate: &sample_rate 16000
@@ -368,10 +372,12 @@ exp_manager:
   checkpoint_callback_params:
     monitor: "val_wer"
     mode: "min"
+    save_top_k: 3
   create_wandb_logger: false
   wandb_logger_kwargs:
     name: null
     project: null
+    entity: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
 

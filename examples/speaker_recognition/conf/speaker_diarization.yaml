@@ -1,0 +1,26 @@
+name: &name "ClusterDiarizer"
+
+num_workers: 4
+sample_rate: &sample_rate 16000
+
+diarizer:
+  num_speakers: 2 # for each recording
+  out_dir: ???
+  paths2audio_files: null #file containing paths to audio files for inference
+  path2groundtruth_rttm_files: null #file containing paths to ground truth rttm files for score computation
+
+  vad:
+    model_path: null
+    window_length_in_sec: 0.15
+    shift_length_in_sec: 0.01
+    threshold: 0.5 # tune threshold on dev set. Check scripts/vad_tune_threshold.py
+    vad_decision_smoothing: True
+    smoothing_params:
+      method: "median" 
+      overlap: 0.875
+
+  speaker_embeddings:
+    oracle_vad_manifest: null
+    model_path: ???
+    window_length_in_sec: 1.5
+    shift_length_in_sec: 0.75

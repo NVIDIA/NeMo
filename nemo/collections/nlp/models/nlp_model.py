@@ -35,6 +35,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
+from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import configure_checkpointing
 from nemo.utils.get_rank import is_global_rank_zero
@@ -46,7 +47,7 @@ NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_
 os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 
 
-class NLPModel(ModelPT):
+class NLPModel(ModelPT, Exportable):
     """Base class for NLP Models.
     """
 
@@ -353,6 +354,14 @@ class NLPModel(ModelPT):
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
         return None
+
+    @property
+    def input_module(self):
+        return self.bert_model
+
+    @property
+    def output_module(self):
+        return self.classifier
 
 
 class NLPCheckpointConnector(CheckpointConnector):
