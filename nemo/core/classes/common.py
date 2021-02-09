@@ -55,6 +55,7 @@ class TypecheckMetadata:
 
     container_depth: Dict[str, int] = field(init=False)
     has_container_types: bool = field(init=False)
+    is_singular_container_type: bool = field(init=False)
 
     def __post_init__(self):
         type_contains_container = False
@@ -64,6 +65,11 @@ class TypecheckMetadata:
                 break
 
         self.has_container_types = type_contains_container
+
+        if self.has_container_types and len(self.original_types) == 1:
+            self.is_singular_container_type = True
+        else:
+            self.is_singular_container_type = False
 
         if self.has_container_types:
             self.base_types = {}
@@ -101,7 +107,7 @@ class Typing(ABC):
         """Define these to enable output neural type checks"""
         return None
 
-    def _validate_input_types(self, input_types=None, ignore_collections=True, **kwargs):
+    def _validate_input_types(self, input_types=None, ignore_collections=False, **kwargs):
         """
         This function does a few things.
         1) It ensures that len(self.input_types <non-optional>) <= len(kwargs) <= len(self.input_types).
@@ -175,7 +181,7 @@ class Typing(ABC):
                     for ind, val in enumerate(value):
                         self.__check_neural_type(val, metadata, depth=1, name=key)
 
-    def _attach_and_validate_output_types(self, out_objects, output_types=None):
+    def _attach_and_validate_output_types(self, out_objects, ignore_collections=False, output_types=None):
         """
         This function does a few things.
         1) It ensures that len(out_object) == len(self.output_types).
@@ -194,6 +200,7 @@ class Typing(ABC):
         """
         # TODO: Properly implement this
         if output_types is not None:
+            metadata = TypecheckMetadata(original_types=output_types, ignore_collections=ignore_collections)
             out_types_list = list(output_types.items())
 
             # First convert all outputs to list/tuple format to check correct number of outputs
@@ -202,7 +209,10 @@ class Typing(ABC):
             else:
                 out_container = [out_objects]
 
-            if len(output_types) != len(out_container):
+            if metadata.is_singular_container_type:
+                pass
+
+            elif len(out_types_list) != len(out_container):
                 raise TypeError(
                     "Number of output arguments provided ({}) is not as expected ({})".format(
                         len(out_container), len(output_types)

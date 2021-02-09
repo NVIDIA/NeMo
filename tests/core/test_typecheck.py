@@ -102,6 +102,25 @@ class TestNeuralTypeCheckSystem:
         assert hasattr(result, 'neural_type') is False
 
     @pytest.mark.unit
+    def test_multiple_input_types_only(self):
+        class InputTypes(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('B',), ElementType()),
+                        "y": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x, y):
+                x += y
+                return x
+
+        obj = InputTypes()
+        result = obj(x=torch.zeros(10), y=torch.ones(10))
+
+        assert result.sum() == torch.tensor(10.0)
+        assert hasattr(result, 'neural_type') is False
+
+    @pytest.mark.unit
     def test_output_types_only(self):
         class OutputTypes(Typing):
             @property
@@ -123,6 +142,29 @@ class TestNeuralTypeCheckSystem:
         # Positional args allowed if input types is not set !
         result = obj(torch.zeros(10))
         assert result.sum() == torch.tensor(10.0)
+
+    @pytest.mark.unit
+    def test_multiple_output_types_only(self):
+        class OutputTypes(Typing):
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('B',), ElementType()),
+                        "z": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x):
+                y = x + 1
+                z = x + 2
+                return y, z
+
+        obj = OutputTypes()
+        result_y, result_z = obj(x=torch.zeros(10))
+
+        assert result_y.sum() == torch.tensor(10.0)
+        assert result_y.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+        assert result_z.sum() == torch.tensor(20.0)
+        assert result_z.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit
     def test_incorrect_inheritance(self):
