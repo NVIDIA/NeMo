@@ -61,8 +61,12 @@ class HifiGanModel(Vocoder):
             betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2],
         )
 
-        self.scheduler_g = torch.optim.lr_scheduler.ExponentialLR(self.optim_g, gamma=self._cfg.optim.lr_decay,)
-        self.scheduler_d = torch.optim.lr_scheduler.ExponentialLR(self.optim_d, gamma=self._cfg.optim.lr_decay,)
+        self.scheduler_g = torch.optim.lr_scheduler.StepLR(
+            self.optim_g, step_size=self._cfg.optim.lr_step, gamma=self._cfg.optim.lr_decay,
+        )
+        self.scheduler_d = torch.optim.lr_scheduler.StepLR(
+            self.optim_d, step_size=self._cfg.optim.lr_step, gamma=self._cfg.optim.lr_decay,
+        )
 
         return [self.optim_g, self.optim_d], [self.scheduler_g, self.scheduler_d]
 
@@ -91,7 +95,10 @@ class HifiGanModel(Vocoder):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         audio, audio_len = batch
-        audio_mel, dummy = self.audio_to_melspec_precessor(audio, audio_len)
+        # mel as input for generator
+        audio_mel, _ = self.audio_to_melspec_precessor(audio, audio_len)
+        # mel as input for L1 mel loss
+        audio_trg_mel, _ = self.trg_melspec_fn(audio, audio_len)
         audio = audio.unsqueeze(1)
 
         audio_pred = self.generator(x=audio_mel)
@@ -113,7 +120,7 @@ class HifiGanModel(Vocoder):
 
         # train generator
         self.optim_g.zero_grad()
-        loss_mel = F.l1_loss(audio_pred_mel, audio_mel) * 45
+        loss_mel = F.l1_loss(audio_pred_mel, audio_trg_mel) * 45
         _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.mpd(y=audio, y_hat=audio_pred)
         _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.msd(y=audio, y_hat=audio_pred)
         loss_fm_mpd = self.feature_loss(fmap_r=fmap_mpd_real, fmap_g=fmap_mpd_gen)

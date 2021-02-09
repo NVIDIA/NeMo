@@ -63,6 +63,7 @@ model:
     adam_b1: 0.8
     adam_b2: 0.99
     lr_decay: 0.999
+    lr_step: 15
 
 trainer:
   gpus: -1 # number of gpus
