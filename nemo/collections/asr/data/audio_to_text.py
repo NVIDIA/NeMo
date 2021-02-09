@@ -26,7 +26,6 @@ from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = [
     'AudioToCharDataset',
@@ -196,7 +195,6 @@ class _AudioTextDataset(Dataset):
         return _speech_collate_fn(batch, pad_id=self.pad_id)
 
 
-@experimental
 class AudioToCharDataset(_AudioTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -442,7 +440,6 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
         )
 
 
-@experimental
 class AudioToBPEDataset(_AudioTextDataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -516,7 +513,6 @@ class AudioToBPEDataset(_AudioTextDataset):
         )
 
 
-@experimental
 class _TarredAudioToTextDataset(IterableDataset):
     """
     A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.
@@ -770,7 +766,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         return len(self.collection)
 
 
-@experimental
 class TarredAudioToCharDataset(_TarredAudioToTextDataset):
     """
     A similar Dataset to the AudioToCharDataset, but which loads tarred audio files.
@@ -907,7 +902,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         )
 
 
-@experimental
 class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
     """
     A similar Dataset to the AudioToBPEDataset, but which loads tarred audio files.
