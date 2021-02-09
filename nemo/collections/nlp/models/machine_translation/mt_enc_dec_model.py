@@ -71,38 +71,20 @@ class MTEncDecModel(EncDecNLPModel):
 
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        # Train tokenizers if they don't exist
-        if (
-            cfg.encoder_tokenizer.get('tokenizer_model') is None
-            or cfg.decoder_tokenizer.get('tokenizer_model') is None
-        ):
-            # train tokenizer model on training data
-            encoder_tokenizer_model, decoder_tokenizer_model = self.train_tokenizers(
-                out_dir=cfg.preproc_out_dir,
-                src_fname=cfg.train_ds.src_file_name,
-                tgt_fname=cfg.train_ds.tgt_file_name,
-                shared_tokenizer=cfg.shared_tokenizer,
-                encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.vocab_size,
-                decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.vocab_size,
-                encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
-                decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
-            )
-        else:
-            encoder_tokenizer_model = cfg.encoder_tokenizer.tokenizer_model
-            decoder_tokenizer_model = cfg.decoder_tokenizer.tokenizer_model
-
         # Instaniate tokenizers and register to be saved with NeMo Model archive
         self.setup_enc_dec_tokenizers(
             encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
-            encoder_tokenizer_model=encoder_tokenizer_model,
+            encoder_tokenizer_model=cfg.encoder_tokenizer.tokenizer_model,
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
             decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
-            decoder_tokenizer_model=decoder_tokenizer_model,
+            decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
         )
 
         self.src_language: str = cfg.get("src_language", None)
         self.tgt_language: str = cfg.get("tgt_language", None)
+
+        super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: use get_encoder function with support for HF and Megatron
         self.encoder = TransformerEncoderNM(
@@ -298,12 +280,10 @@ class MTEncDecModel(EncDecNLPModel):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        pass
-        # self.log_dict(self.eval_epoch_end(outputs, 'val'))
+        self.log_dict(self.eval_epoch_end(outputs, 'val'))
 
     def test_epoch_end(self, outputs):
-        pass
-        # return self.eval_epoch_end(outputs, 'test')
+        return self.eval_epoch_end(outputs, 'test')
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
@@ -315,12 +295,21 @@ class MTEncDecModel(EncDecNLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        if cfg.get("use_tarred_dataset", False):
-            # tarred dataset only used for training data
-            logging.info('Loading from tarred dataset %s' % (self.train_tar_files))
+        if cfg.get("load_from_cached_dataset", False):
+            logging.info('Loading from cached dataset %s' % (cfg.src_file_name))
+            if cfg.src_file_name != cfg.tgt_file_name:
+                raise ValueError("src must be equal to target for cached dataset")
+            dataset = pickle.load(open(cfg.src_file_name, 'rb'))
+            dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
+        elif cfg.get("load_from_tarred_dataset", False):
+            logging.info('Loading from tarred dataset %s' % (cfg.src_file_name))
+            if cfg.src_file_name != cfg.tgt_file_name:
+                raise ValueError("src must be equal to target for tarred dataset")
+            if cfg.get("metadata_path", None) is None:
+                raise FileNotFoundError("Could not find metadata path in config")
             dataset = TarredTranslationDataset(
-                text_tar_filepaths=self.train_tar_files,
-                metadata_path=self.train_metadata_file,
+                text_tar_filepaths=cfg.src_file_name,
+                metadata_path=cfg.metadata_path,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
                 shuffle_n=cfg.get("tar_shuffle_n", 100),
