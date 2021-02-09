@@ -238,7 +238,11 @@ class MTEncDecModel(EncDecNLPModel):
             ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
 
         assert len(translations) == len(ground_truths)
-        sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+        if self.tgt_language in ['ja']:
+            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
+        else:
+            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+
         dataset_name = "Validation" if mode == 'val' else "Test"
         logging.info(f"\n\n\n\n{dataset_name} set size: {len(translations)}")
         logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
