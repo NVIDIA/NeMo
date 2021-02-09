@@ -32,14 +32,13 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 __all__ = ['QAModel']
 
 
-class QAModel(NLPModel, Exportable):
+class QAModel(NLPModel):
     """
     BERT encoder with QA head training.
     """

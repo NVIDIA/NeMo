@@ -18,7 +18,6 @@ import os
 import pickle as pkl
 from typing import Dict, List, Optional, Union
 
-import onnx
 import torch
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
@@ -26,21 +25,20 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
+from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 
 
-class EncDecSpeakerLabelModel(ModelPT, Exportable):
+class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     """Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
     performing model forward pass.

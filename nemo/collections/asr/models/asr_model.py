@@ -15,12 +15,10 @@ import os
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
-import onnx
 import torch
 
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['ASRModel']
 
@@ -52,60 +50,25 @@ class ASRModel(ModelPT, ABC):
         tensorboard_logs = {'test_loss': val_loss_mean, 'test_wer': wer_num / wer_denom}
         return {'test_loss': val_loss_mean, 'log': tensorboard_logs}
 
-    def export(
-        self,
-        output: str,
-        input_example=None,
-        output_example=None,
-        verbose=False,
-        export_params=True,
-        do_constant_folding=True,
-        keep_initializers_as_inputs=False,
-        onnx_opset_version: int = 12,
-        try_script: bool = False,
-        set_eval: bool = True,
-        check_trace: bool = True,
-        use_dynamic_axes: bool = True,
-    ):
-        qual_name = self.__module__ + '.' + self.__class__.__qualname__
-        output1 = os.path.join(os.path.dirname(output), 'encoder_' + os.path.basename(output))
-        output1_descr = qual_name + ' Encoder exported to ONNX'
-        if input_example is None:
-            input_example = self.encoder.input_example()
 
-        encoder_onnx = self.encoder.export(
-            output1,
-            input_example=input_example,
-            output_example=None,
-            verbose=verbose,
-            export_params=export_params,
-            do_constant_folding=do_constant_folding,
-            keep_initializers_as_inputs=keep_initializers_as_inputs,
-            onnx_opset_version=onnx_opset_version,
-            try_script=try_script,
-            set_eval=set_eval,
-            check_trace=check_trace,
-            use_dynamic_axes=use_dynamic_axes,
-        )
+class ExportableEncDecModel(Exportable):
+    """
+    Simple utiliy mix-in to export models that consist of encoder/decoder pair 
+    plus pre/post processor, but have to be exported as encoder/decoder pair only
+    (covers most ASR classes)
+    """
 
-        output2 = os.path.join(os.path.dirname(output), 'decoder_' + os.path.basename(output))
-        output2_descr = qual_name + ' Decoder exported to ONNX'
-        decoder_onnx = self.decoder.export(
-            output2,
-            input_example=None,
-            output_example=output_example,
-            verbose=verbose,
-            export_params=export_params,
-            do_constant_folding=do_constant_folding,
-            keep_initializers_as_inputs=keep_initializers_as_inputs,
-            onnx_opset_version=onnx_opset_version,
-            try_script=try_script,
-            set_eval=set_eval,
-            check_trace=check_trace,
-            use_dynamic_axes=use_dynamic_axes,
-        )
+    @property
+    def input_module(self):
+        return self.encoder
 
-        output_model = attach_onnx_to_onnx(encoder_onnx, decoder_onnx, "DC")
-        output_descr = qual_name + ' Encoder+Decoder exported to ONNX'
-        onnx.save(output_model, output)
-        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])
+    @property
+    def output_module(self):
+        return self.decoder
+
+    def forward_for_export(self, input):
+        return self.output_module(self.input_module(input))
+
+    def _prepare_for_export(self):
+        self.input_module._prepare_for_export()
+        self.output_module._prepare_for_export()

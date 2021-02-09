@@ -15,7 +15,6 @@ import os
 from abc import ABC
 from collections import defaultdict
 from enum import Enum
-from types import MethodType
 from typing import Dict
 
 import onnx
@@ -24,7 +23,7 @@ import torch
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import replace_for_export
+from nemo.utils.export_utils import attach_onnx_to_onnx, replace_for_export
 
 try:
     import onnx_graphsurgeon as gs
@@ -64,6 +63,60 @@ class Exportable(ABC):
         except KeyError:
             raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
 
+    @property
+    def input_module(self):
+        return self
+
+    @property
+    def output_module(self):
+        return self
+
+    def get_input_names(self, input_example):
+        if isinstance(input_example, Dict):
+            input_names = list(input_example.keys())
+        else:
+            if not (hasattr(self, 'input_types')):
+                raise NotImplementedError(
+                    'For export to work you must define input_types or pass names in input_example'
+                )
+            input_names = list(self.input_types.keys())
+        # remove unnecessary inputs for input_ports
+        for name in self.disabled_deployment_input_names:
+            input_names.remove(name)
+        return input_names
+
+    def get_output_names(self, output_example):
+        if isinstance(output_example, Dict):
+            output_names = list(output_example.keys())
+        else:
+            if not (hasattr(self, 'output_types')):
+                raise NotImplementedError(
+                    'For export to work you must define output_types or pass names in output_example'
+                )
+            output_names = list(self.output_types.keys())
+            # remove unnecessary inputs for input_ports
+        for name in self.disabled_deployment_output_names:
+            output_names.remove(name)
+        return output_names
+
+    def get_input_dynamic_axes(self, input_names):
+        dynamic_axes = defaultdict(list)
+        for name in input_names:
+            dynamic_axes = {
+                **dynamic_axes,
+                **self._extract_dynamic_axes(name, self.input_types[name]),
+            }
+        return dynamic_axes
+
+    def get_output_dynamic_axes(self, output_names):
+        dynamic_axes = defaultdict(list)
+        for name in output_names:
+            dynamic_axes = {
+                **dynamic_axes,
+                **self._extract_dynamic_axes(name, self.output_types[name]),
+            }
+        return dynamic_axes
+
     def export(
         self,
         output: str,
@@ -82,12 +135,19 @@ class Exportable(ABC):
         check_tolerance=0.01,
         forward_method=None,
     ):
-        exported = None
+
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output_descr = qual_name + ' exported to ONNX'
+        exported = ([output], [output_descr])
+
         try:
             # Disable typechecks
-            typecheck_on = typecheck.set_typecheck_enabled(enabled=False)
+            typecheck.set_typecheck_enabled(enabled=False)
 
             # Allow user to completely override forward method to export
+            if forward_method is None and hasattr(type(self), "forward_for_export"):
+                forward_method = type(self).forward_for_export
+
             if forward_method:
                 old_forward_method = type(self).forward
                 type(self).forward = forward_method
@@ -108,7 +168,7 @@ class Exportable(ABC):
                         print("jit.script() failed!", e)
 
             if input_example is None:
-                input_example = self.input_example()
+                input_example = self.input_module.input_example()
 
             with torch.jit.optimized_execution(True):
                 if format == ExportFormat.TORCHSCRIPT:
@@ -125,7 +185,6 @@ class Exportable(ABC):
                             check_tolerance=check_tolerance,
                         )
                     jitted_model.save(output)
-                    exported = jitted_model
                     assert os.path.exists(output)
 
                 elif format == ExportFormat.ONNX:
@@ -137,46 +196,13 @@ class Exportable(ABC):
                         else:
                             output_example = self.forward(input_example)
 
-                    if isinstance(input_example, Dict):
-                        input_names = list(input_example.keys())
-                    else:
-                        if not (hasattr(self, 'input_types')):
-                            raise NotImplementedError(
-                                'For export to work you must define input_types or pass names in input_example'
-                            )
-                        input_names = list(self.input_types.keys())
-                    # remove unnecessary inputs for input_ports
-                    for name in self.disabled_deployment_input_names:
-                        input_names.remove(name)
-
-                    if isinstance(output_example, Dict):
-                        output_names = list(output_example.keys())
-                    else:
-                        if not (hasattr(self, 'output_types')):
-                            raise NotImplementedError(
-                                'For export to work you must define output_types or pass names in output_example'
-                            )
-                        output_names = list(self.output_types.keys())
-                    # remove unnecessary inputs for input_ports
-                    for name in self.disabled_deployment_output_names:
-                        output_names.remove(name)
+                    input_names = self.input_module.get_input_names(input_example)
+                    output_names = self.output_module.get_output_names(output_example)
 
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
-                    if dynamic_axes is None:
-                        dynamic_axes = defaultdict(list)
-                        if use_dynamic_axes:
-                            for name in input_names:
-                                dynamic_axes = {
-                                    **dynamic_axes,
-                                    **self._extract_dynamic_axes(name, self.input_types[name]),
-                                }
-                            for name in output_names:
-                                dynamic_axes = {
-                                    **dynamic_axes,
-                                    **self._extract_dynamic_axes(name, self.output_types[name]),
-                                }
-                    if len(dynamic_axes) == 0:
-                        dynamic_axes = None
+                    if dynamic_axes is None and use_dynamic_axes:
+                        dynamic_axes = self.input_module.get_input_dynamic_axes(input_names)
+                        dynamic_axes = {**dynamic_axes, **self.output_module.get_output_dynamic_axes(output_names)}
 
                     if isinstance(input_example, Dict):
                         input_example = tuple(input_example.values())
@@ -218,7 +244,6 @@ class Exportable(ABC):
                             onnx_model = gs.export_onnx(graph.fold_constants().cleanup())
                             onnx.checker.check_model(onnx_model, full_check=True)
                             onnx.save(onnx_model, output)
-                    exported = onnx_model
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:

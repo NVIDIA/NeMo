@@ -18,7 +18,6 @@ import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
 
-import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -27,17 +26,16 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 
-class EncDecCTCModel(ASRModel):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel):
     """Base class for encoder decoder CTC-based models."""
 
     @classmethod
