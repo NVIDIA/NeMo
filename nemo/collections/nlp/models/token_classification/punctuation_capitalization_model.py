@@ -15,7 +15,6 @@
 import os
 from typing import Dict, List, Optional
 
-import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -31,10 +30,9 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.exportable import Exportable, ExportFormat
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['PunctuationCapitalizationModel']
 

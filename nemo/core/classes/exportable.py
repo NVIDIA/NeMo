@@ -23,7 +23,7 @@ import torch
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx, replace_for_export
+from nemo.utils.export_utils import replace_for_export
 
 try:
     import onnx_graphsurgeon as gs
@@ -167,15 +167,15 @@ class Exportable(ABC):
                     except Exception as e:
                         print("jit.script() failed!", e)
 
-            if input_example is None:
-                input_example = self.input_module.input_example()
+                if input_example is None:
+                    input_example = self.input_module.input_example()
 
-            with torch.jit.optimized_execution(True):
-                if format == ExportFormat.TORCHSCRIPT:
+                if jitted_model is None:
                     if isinstance(input_example, Dict):
-                        input_example = tuple(input_example.values())
-
-                    if jitted_model is None:
+                        in_example = tuple(input_example.values())
+                    else:
+                        in_example = input_example
+                    try:
                         jitted_model = torch.jit.trace(
                             self,
                             input_example,
@@ -184,6 +184,11 @@ class Exportable(ABC):
                             check_trace=check_trace,
                             check_tolerance=check_tolerance,
                         )
+                    except Exception as e:
+                        print("jit.trace() failed!", e)
+
+                if format == ExportFormat.TORCHSCRIPT:
+                    assert jitted_model
                     jitted_model.save(output)
                     assert os.path.exists(output)
 

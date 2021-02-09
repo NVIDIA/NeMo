@@ -59,6 +59,7 @@ class MegatronBertEncoder(BertModule):
         config["vocab_file"] = vocab_file
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
         config['lazy_mpu_init'] = True
+        config['use_cpu_initialization'] = True
         config['onnx_safe'] = True
 
         # if 'model_parallel_size' in config:
@@ -115,7 +116,9 @@ class MegatronBertEncoder(BertModule):
     def forward(self, input_ids, attention_mask, token_type_ids):
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
-
+        if self._lazy_init_fn:
+            self._lazy_init_fn()
+            self._lazy_init_fn = 0
         sequence_output = self.language_model(
             input_ids=input_ids,
             position_ids=position_ids,

@@ -16,7 +16,6 @@
 import os
 from typing import Dict, List, Optional
 
-import onnx
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -36,7 +35,7 @@ from nemo.utils import logging
 __all__ = ['TextClassificationModel']
 
 
-class TextClassificationModel(NLPModel, Exportable):
+class TextClassificationModel(NLPModel):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
