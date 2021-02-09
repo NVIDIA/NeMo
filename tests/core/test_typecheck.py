@@ -702,3 +702,48 @@ class TestNeuralTypeCheckSystem:
         data = [[[bb(), bb(), bb()]], [[bb()], [bb(), bb()]]]
         # TODO> THIS FINAL CHECK SHOULD FAIL !
         result = obj(x=data)
+
+    @pytest.mark.unit
+    def test_input_container_neural_types(self):
+        class NodeA(Typing):
+            @property
+            def input_types(self):
+                return {"x": [NeuralType(('B',), ElementType())]}
+
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('B', 'D'), LogitsType())}
+
+            @typecheck(ignore_collections=False)
+            def __call__(self, x: list()):
+                x1, x2, x3 = x  # unpack x
+                y = torch.randn(x1.shape[0], 4)
+                return y
+
+        nodeA = NodeA()
+        outA = nodeA(x=[torch.zeros(10), torch.zeros(10), torch.zeros(10)])
+
+        assert outA.neural_type.compare(NeuralType(('B', 'D'), LogitsType()))
+
+    @pytest.mark.unit
+    def test_input_container_neural_types_incorrect(self):
+        class NodeA(Typing):
+            @property
+            def input_types(self):
+                # Nest depth level of 2
+                return {"x": [[NeuralType(('B',), ElementType())]]}
+
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('B', 'D'), LogitsType())}
+
+            @typecheck(ignore_collections=False)
+            def __call__(self, x: list()):
+                x1, x2, x3 = x  # unpack x
+                y = torch.randn(x1.shape[0], 4)
+                return y
+
+        nodeA = NodeA()
+        # Input nest level of 1
+        with pytest.raises(ValueError):
+            outA = nodeA(x=[torch.zeros(10), torch.zeros(10), torch.zeros(10)])
