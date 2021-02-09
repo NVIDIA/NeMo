@@ -243,7 +243,7 @@ class Typing(ABC):
         type_val = metadata.base_types[name]
 
         if not metadata.ignore_collections and depth != metadata.container_depth[name]:
-            raise ValueError(
+            raise TypeError(
                 "Nested depth of value does not match container specification:\n"
                 f"Current nested depth of Neural Type [{type_val}]: {depth}\n"
                 f"Expected nested depth : {metadata.container_depth[name]}"
@@ -502,7 +502,7 @@ class typecheck:
         self,
         input_types: Union[TypeState, Dict[str, NeuralType]] = TypeState.UNINITIALIZED,
         output_types: Union[TypeState, Dict[str, NeuralType]] = TypeState.UNINITIALIZED,
-        ignore_collections: bool = True,
+        ignore_collections: bool = False,
     ):
         """
         A decorator which performs input-output neural type checks, and attaches

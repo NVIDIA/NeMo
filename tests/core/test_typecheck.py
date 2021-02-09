@@ -345,7 +345,7 @@ class TestNeuralTypeCheckSystem:
                     "y1": NeuralType(('B', 'D'), LogitsType()),
                 }
 
-            @typecheck()
+            @typecheck(ignore_collections=True)
             def __call__(self, x):
                 # input x = [[x1, x2], [x3]]
                 x0 = x[0][0]
@@ -365,7 +365,7 @@ class TestNeuralTypeCheckSystem:
                     "u1": NeuralType(('B',), LabelsType()),
                 }
 
-            @typecheck()
+            @typecheck(ignore_collections=True)
             def __call__(self, w):
                 # input x = [[x1, x2], [x3]]
                 _, u00 = w[0][0].max(-1)
@@ -663,7 +663,7 @@ class TestNeuralTypeCheckSystem:
         class NestedShapeMismatch(Typing):
             @property
             def input_types(self):
-                return {"x": NeuralType(('D',), ElementType())}  # Each element of nest will have 4 values
+                return {"x": [[NeuralType(('D',), ElementType())]]}  # Each element of nest will have 4 values
 
             @property
             def output_types(self):
@@ -679,14 +679,14 @@ class TestNeuralTypeCheckSystem:
 
         obj = NestedShapeMismatch()
 
-        # Arbitrary nest 1
+        # Arbitrary nest 1 (should pass)
         data = [[bb(), bb(), bb()], [bb()], [bb(), bb()]]
         result = obj(x=data)
 
         recursive_assert_shape(result, torch.Size([4]))
         recursive_assert_homogeneous_type(result, NeuralType(('D',), ElementType()))
 
-        # Arbitrary nest 2
+        # Arbitrary nest 2 (should pass)
         def bb(dim=4):
             return torch.zeros(dim, dim)
 
@@ -700,8 +700,9 @@ class TestNeuralTypeCheckSystem:
             return torch.zeros(dim)
 
         data = [[[bb(), bb(), bb()]], [[bb()], [bb(), bb()]]]
-        # TODO> THIS FINAL CHECK SHOULD FAIL !
-        result = obj(x=data)
+        # Check should fail since nest level is 3!
+        with pytest.raises(TypeError):
+            result = obj(x=data)
 
     @pytest.mark.unit
     def test_input_container_neural_types(self):
@@ -745,5 +746,5 @@ class TestNeuralTypeCheckSystem:
 
         nodeA = NodeA()
         # Input nest level of 1
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             outA = nodeA(x=[torch.zeros(10), torch.zeros(10), torch.zeros(10)])
