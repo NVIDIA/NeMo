@@ -32,7 +32,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.utils import config_utils, logging, model_utils
+from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -55,7 +55,7 @@ Internal global flags that determine core functionality of ModelPT.
 
 _MODEL_IS_RESTORED:
     This flag determines the context of the model - whether the model is currently being
-    restored or not. 
+    restored or not.
     -   When set, it can be assumed that the model's will disable all automatic methods -
         setup_training_data(), setup_validation/test_data() and their multi equivalents.
     -   If a model is being restored from a archive file (tarfile), it can be assumed that
@@ -1245,7 +1245,7 @@ class ModelPT(LightningModule, Model):
     def __make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
             # tar.add(source_dir, arcname=path.basename(source_dir))
-            tar.add(source_dir, arcname="./")
+            tar.add(source_dir, arcname=".")
 
     @staticmethod
     def __unpack_nemo_file(path2file: str, out_folder: str) -> str:

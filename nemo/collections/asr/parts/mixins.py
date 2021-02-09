@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import os
-from abc import ABC
+from abc import ABC, abstractmethod
+from typing import List
 
 from omegaconf import DictConfig, OmegaConf
 
@@ -100,3 +101,17 @@ class ASRBPEMixin(ABC):
                 self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
             )
         )
+
+
+class DiarizationMixin(ABC):
+    @abstractmethod
+    def diarize(self, paths2audio_files: List[str], batch_size: int = 1) -> List[str]:
+        """
+        Takes paths to audio files and returns speaker labels
+        Args:
+            paths2audio_files: paths to audio fragment to be transcribed
+
+        Returns:
+            Speaker labels
+        """
+        pass

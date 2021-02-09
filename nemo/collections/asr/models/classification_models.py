@@ -20,30 +20,26 @@ from abc import abstractmethod
 from math import ceil
 from typing import Dict, List, Optional, Union
 
-import onnx
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.metrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset
-from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import *
 from nemo.utils import logging, model_utils
 from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel', 'MatchboxNet']
 
-
-class _EncDecBaseModel(ASRModel, Exportable):
-    """Abstract class to represent an ASR encoder-decoder model."""
-
+class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
+    """Encoder decoder Classification models."""
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.global_rank = 0
@@ -784,7 +780,7 @@ class EncDecRegressionModel(_EncDecBaseModel):
         """
         predictions = super().transcribe(paths2audio_files, batch_size, logprobs=True)
         return [float(pred) for pred in predictions]
-
+      
     def _update_decoder_config(self, labels, cfg):
 
         OmegaConf.set_struct(cfg, False)
