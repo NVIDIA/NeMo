@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+
+from omegaconf import OmegaConf
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from typing import Optional
 
@@ -108,6 +110,9 @@ def main(cfg: MTEncDecConfig) -> None:
 
     # tokenizers and tarred training data will be automatically created if necessary
     data_preproc = MTDataPreproc(cfg=cfg.model, trainer=trainer)
+
+    # update model config after data preprocessing
+    cfg = OmegaConf.merge(cfg, data_preproc.cfg)
 
     # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
     exp_manager(trainer, cfg.exp_manager)
