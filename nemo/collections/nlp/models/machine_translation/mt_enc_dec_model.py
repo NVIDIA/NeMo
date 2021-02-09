@@ -301,15 +301,15 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError("src must be equal to target for cached dataset")
             dataset = pickle.load(open(cfg.src_file_name, 'rb'))
             dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
-        elif cfg.get("load_from_tarred_dataset", False):
-            logging.info('Loading from tarred dataset %s' % (cfg.src_file_name))
-            if cfg.src_file_name != cfg.tgt_file_name:
-                raise ValueError("src must be equal to target for tarred dataset")
-            if cfg.get("metadata_path", None) is None:
+        elif cfg.get("use_tarred_dataset", False):
+            if cfg.get('tar_files') is None:
+                raise FileNotFoundError("Could not find tarred dataset.")
+            logging.info(f'Loading from tarred dataset {cfg.get("tar_files")}')
+            if cfg.get("metadata_file", None) is None:
                 raise FileNotFoundError("Could not find metadata path in config")
             dataset = TarredTranslationDataset(
-                text_tar_filepaths=cfg.src_file_name,
-                metadata_path=cfg.metadata_path,
+                text_tar_filepaths=cfg.tar_files,
+                metadata_path=cfg.metadata_file,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
                 shuffle_n=cfg.get("tar_shuffle_n", 100),

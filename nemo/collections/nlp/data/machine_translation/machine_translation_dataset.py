@@ -39,8 +39,8 @@ class TranslationDataConfig:
     src_file_name: str = MISSING
     tgt_file_name: str = MISSING
     use_tarred_dataset: bool = False
-    tar_file_names: Optional[str] = None
-    metadata_file_name: Optional[str] = None
+    tar_files: Optional[str] = None
+    metadata_file: Optional[str] = None
     lines_per_dataset_fragment: Optional[int] = 1000000
     num_batches_per_tarfile: Optional[int] = 1000
     shard_strategy: Optional[str] = 'scatter'
@@ -284,7 +284,7 @@ class TarredTranslationDataset(IterableDataset):
     Accepts a single JSON metadata file containing the total number of batches
     as well as the path(s) to the tarball(s) containing the pickled parallel dataset batch files.
     Valid formats for the text_tar_filepaths argument include:
-    (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar.gz', or
+    (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar', or
     (2) a list of file paths that will not be brace-expanded, e.g. ['text_1.tar', 'text_2.tar', ...].
     Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
     This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
