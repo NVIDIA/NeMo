@@ -28,12 +28,10 @@ from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.decorators import experimental
 
 __all__ = ['MegatronBertEncoder']
 
 
-@experimental
 class MegatronBertEncoder(BertModule):
     """
     MegatronBERT wraps around the Megatron Language model
