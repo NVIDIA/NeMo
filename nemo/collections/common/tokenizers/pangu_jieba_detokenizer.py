@@ -1,12 +1,8 @@
 ## reference to the ja implementation- https://github.com/Zenodia/NeMo/blob/zh_glue/nemo/collections/common/tokenizers/sentencepiece_detokenizer.py
-import os
 import re
-import sys
 from typing import List
-
 import jieba
 from pangu import spacing
-from sacremoses import MosesDetokenizer
 
 
 class PanguJiebaDetokenizer:
