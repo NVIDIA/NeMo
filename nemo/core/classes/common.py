@@ -53,19 +53,17 @@ class TypecheckMetadata:
     mandatory_types: Dict[str, NeuralType] = field(init=False)
     base_types: Dict[str, NeuralType] = field(init=False)
 
-    type_is_container: List[bool] = field(init=False)
     container_depth: Dict[str, int] = field(init=False)
     has_container_types: bool = field(init=False)
 
     def __post_init__(self):
-        self.type_is_container = []
+        type_contains_container = False
         for type_val in self.original_types.values():
             if isinstance(type_val, (list, tuple)):
-                self.type_is_container.append(True)
-            else:
-                self.type_is_container.append(False)
+                type_contains_container = True
+                break
 
-        self.has_container_types = any(self.type_is_container)
+        self.has_container_types = type_contains_container
 
         if self.has_container_types:
             self.base_types = {}
@@ -81,7 +79,7 @@ class TypecheckMetadata:
                 self.container_depth[type_key] = depth
         else:
             self.base_types = self.original_types
-            self.container_depth = {k: 0 for k in self.base_types.keys()}
+            self.container_depth = {type_key: 0 for type_key in self.base_types.keys()}
 
         self.mandatory_types = {
             type_key: type_val for type_key, type_val in self.base_types.items() if not type_val.optional
