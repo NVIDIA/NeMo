@@ -34,6 +34,7 @@ from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
+from nemo.collections.common.tokenizers.pangu_jieba_detokenize import PanguJiebaDetokenizer
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -230,13 +231,17 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: add target language so detokenizer can be lang specific.
         detokenizer = MosesDetokenizer(lang=self.tgt_language)
-        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
-        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
-        if self.tgt_language in ['ja']:
-            sp_detokenizer = SentencePieceDetokenizer()
-            translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
-            ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
-
+        if not self.tgt_language in ['zh']:
+            translations = [detokenizer.detokenize(sent.split()) for sent in translations]
+            ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
+            if self.tgt_language in ['ja']:
+                sp_detokenizer = SentencePieceDetokenizer()
+                translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
+                ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
+        else:
+            zh_detokenizer = PanguJiebaDetokenizer()
+            translations = [zh_detokenizer.detokenize(sent) for sent in translations]
+            ground_truths = [zh_detokenizer.detokenize(sent) for sent in ground_truths]
         assert len(translations) == len(ground_truths)
         if self.tgt_language in ['ja']:
             sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
@@ -372,13 +377,16 @@ class MTEncDecModel(EncDecNLPModel):
                 src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
-                translation_ids = beam_results.cpu()[0].numpy()
+                translation_ids = beam_results.cpu()[0].numpy()                
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                translation = detokenizer.detokenize(translation.split())
-                if target_lang in ["ja"]:
-                    sp_detokenizer = SentencePieceDetokenizer()
-                    translation = sp_detokenizer.detokenize(translation.split())
-
+                if not target_lang in ["zh"]:  
+                    translation = detokenizer.detokenize(translation.split())
+                    if target_lang in ["ja"]:
+                        sp_detokenizer = SentencePieceDetokenizer()
+                        translation = sp_detokenizer.detokenize(translation.split()) 
+                else:
+                    zh_detokenizer = PanguJiebaDetokenizer()
+                    translation = zh_detokenizer.detokenize(translation)
                 res.append(translation)
         finally:
             self.train(mode=mode)
