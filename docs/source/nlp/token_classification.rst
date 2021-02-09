@@ -1,7 +1,7 @@
+.. _token_classification:
+
 Token Classification (Named Entity Recognition)
 ===============================================
-
-.. _token_classification:
 
 
 Introduction
@@ -20,21 +20,7 @@ is a person, `Santa Clara` is a location and `NVIDIA` is a company.
 
     This documentation follows [TODO: add link to token-classification.ipynb]
 
-Downloading Sample Spec files
------------------------------
 
-Before proceeding, let's download sample spec files that we would need for the rest of the subtasks.
-
-.. code::
-
-    tlt token_classification download_specs -r /results/token_classification/get_default_specs/ \
-                                            -o /specs/nlp/token_classification
-
-Download Spet Required Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-o`: Path to where the spec files will be stored
-* :code:`-r`: Output directory
 
 .. _dataset_token_classification:
 
@@ -68,10 +54,7 @@ To convert an IOB format (short for inside, outside, beginning) data to the form
 .. code::
 
     # For conversion from IOB format, for example, for CoNLL-2003 dataset:
-    tlt token_classification dataset_convert [-h] \
-                                              -e /specs/nlp/token_classification/dataset_convert.yaml \
-                                              source_data_dir=/path/to/source_data_dir \
-                                              target_data_dir=/path/to/target_data_dir
+    TODO
 
 The `source_data_dir` structure should look like this (test.txt is optional):
 
@@ -86,83 +69,6 @@ The `source_data_dir` structure should look like this (test.txt is optional):
 Note, the development set (or dev set) will be used to evaluate the performance of the model during model training. \
 The hyper-parameters search and model selection should be based on the dev set, while the final evaluation of \
 the selected model should be performed on the test set.
-
-An example of a spec file for dataset conversion:
-
-.. code::
-
-    # Path to the folder containing the dataset source files
-    source_data_dir: ???
-
-    # Path to the output folder.
-    target_data_dir: ???
-
-    # list of file names inside source_data_dir in IOB format
-    list_of_file_names:  ['train.txt','dev.txt']
-
-    # name of the file with training data inside sourse_data_dir
-    # train_file is used to generate label to label_id mapping
-    train_file_name: 'train.txt'
-
-    # Max sequence length use -1 to leave the examples's length as is,
-    # otherwise long examples will be split into multiple examples'
-    max_length: -1
-
-Output log after running :code:`token_classification dataset_convert`:
-
-.. code::
-
-    [NeMo I 2021-01-21 09:07:11 dataset_convert:133] Spec file:
-    source_data_dir: original/
-    list_of_file_names:
-    - train.txt
-    - dev.txt
-    train_file_name: train.txt
-    target_data_dir: original/output/
-    max_length: -1
-
-    [NeMo I token_classification_utils:54] Processing original/output/labels_train.txt
-    [NeMo I token_classification_utils:92] Labels mapping {'O': 0, 'B-LOC': 1, 'B-MISC': 2, 'B-ORG': 3, 'B-PER': 4, 'I-LOC': 5, 'I-MISC': 6, 'I-ORG': 7, 'I-PER': 8} saved to : original/output/label_ids.csv
-    [NeMo I token_classification_utils:101] Three most popular labels in original/output/labels_train.txt:
-    [NeMo I data_preprocessing:131] label: 0, 169578 out of 203621 (83.28%).
-    [NeMo I data_preprocessing:131] label: 1, 7140 out of 203621 (3.51%).
-    [NeMo I data_preprocessing:131] label: 4, 6600 out of 203621 (3.24%).
-    [NeMo I token_classification_utils:103] Total labels: 203621. Label frequencies - {0: 169578, 1: 7140, 4: 6600, 3: 6321, 8: 4528, 7: 3704, 2: 3438, 5: 1157, 6: 1155}
-    [NeMo I dataset_convert:173] Text and labels for train.txt saved to original/output/.
-    [NeMo I dataset_convert:174] Processing of train.txt is complete.
-    [NeMo I token_classification_utils:54] Processing original/output/labels_dev.txt
-    [NeMo I token_classification_utils:75] Using provided labels mapping {'O': 0, 'B-LOC': 1, 'B-MISC': 2, 'B-ORG': 3, 'B-PER': 4, 'I-LOC': 5, 'I-MISC': 6, 'I-ORG': 7, 'I-PER': 8}
-    [NeMo I token_classification_utils:98] original/output/labels_dev_label_stats.tsv found, skipping stats calculation.
-    [NeMo I dataset_convert:173] Text and labels for dev.txt saved to original/output/.
-    [NeMo I dataset_convert:174] Processing of dev.txt is complete.
-
-
-Convert Dataset Required Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-e`: The experiment specification file.
-* :code:`source_data_dir` - path to the raw data
-* :code:`target_data_dir` - path to store the processed files
-
-Convert Dataset Optional Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-* :code:`list_of_file_names`: List of files in :code:`source_data_dir` for conversion
-
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-| **Parameter**      | **Datatype**   | **Default**                     | **Description**                                | **Supported Values**          |
-+====================+================+=================================+================================================+===============================+
-| source_data_dir    | string         | -                               | Path to the dataset source data directory      | -                             |
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-| target_data_dir    | string         | -                               | Path to the dataset target data directory      | -                             |
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-| list_of_file_names | List of strings| ['train.txt','dev.txt']         | List of files for conversion                   | -                             |
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-| train_file_name    | string         | 'train.txt'                     | name of the file with training data inside sourse_data_dir                     |
-|                    |                |                                 | train_file is used to generate string label to integer label_id mapping        |
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-
 
 After the conversion, the `target_data_dir` should contain the following files:
 
@@ -189,72 +95,6 @@ Unless the user provides a pre-trained checkpoint for the language model, the la
 pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
 
-Example spec for training:
-
-.. code::
-
-    trainer:
-      max_epochs: 5
-
-    # Specifies parameters for the Token Classification model
-    model:
-      tokenizer:
-          tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
-          vocab_file: null # path to vocab file
-          tokenizer_model: null # only used if tokenizer is sentencepiece
-          special_tokens: null
-
-      # Pre-trained language model such as BERT or Megatron-BERT
-      language_model:
-        pretrained_model_name: bert-base-uncased
-        lm_checkpoint: null
-        config_file: null # json file, precedence over config
-        config: null
-
-      # Specifies parameters of the token classification head that follows a BERT-based language-model
-      head:
-        num_fc_layers: 2
-        fc_dropout: 0.5
-        activation: 'relu'
-        use_transformer_init: True
-
-      # Path to file with label_ids, generated with dataset_convert.py.
-      # Those labels are used by the model as labels (names of target classes, their number).
-      label_ids: ???
-
-    # Path to directory containing both finetuning and validation data.
-    data_dir: ???
-
-    # Specifies the parameters of the dataset to be used for training.
-    training_ds:
-      text_file: text_train.txt
-      labels_file: labels_train.txt
-      batch_size: 64
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-
-    # Specifies the parameters of the dataset to be used for validation.
-    validation_ds:
-      text_file: text_dev.txt
-      labels_file: labels_dev.txt
-      batch_size: 64
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-
-    # The parameters for the training optimizer, including learning rate, lr schedule, etc.
-    optim:
-      name: adam
-      lr: 5e-5
-      weight_decay: 0.00
-
-      # scheduler setup
-      sched:
-        name: WarmupAnnealing
-        # Scheduler params
-        warmup_steps: null
-        warmup_ratio: 0.1
-        last_epoch: -1
-        # pytorch lightning args
-        monitor: val_loss
-        reduce_on_plateau: false
 
 The specification can be roughly grouped into three categories:
 
@@ -330,7 +170,7 @@ Example of the command for training the model:
 
 .. code::
 
-    tlt token_classification train [-h] \
+      token_classification train [-h] \
                                     -e /specs/nlp/token_classification/train.yaml \
                                     -r /results/token_classification/train/ \
                                     -g 1 \
@@ -398,7 +238,7 @@ Snippets of the output log from executing the :code:`token_classification train`
             mode: auto
             period: 1
             prefix: null
-            postfix: .tlt
+            postfix: . 
             save_best_model: false
           files_to_copy: null
         model:
@@ -503,7 +343,7 @@ Snippets of the output log from executing the :code:`token_classification train`
 
     Training: 0it [00:00, ?it/s]
     [NeMo I 2021-01-21 17:00:38 train:124] Experiment logs saved to 'output'
-    [NeMo I 2021-01-21 17:00:38 train:127] Trained model saved to 'output/checkpoints/trained-model.tlt'
+    [NeMo I 2021-01-21 17:00:38 train:127] Trained model saved to 'output/checkpoints/trained-model. '
     INFO: Internal process exited
 
 
@@ -534,12 +374,12 @@ Fine-tuning a model on a different dataset
 In the previous section <ref>:Training a token classification model, \
 the Token Classification (NER) model was initialized with a pre-trained language model, \
 but the classifiers were trained from scratch.
-Now, that a user has trained the Token Classification model successfully (let's call it `trained-model.tlt`), \
-there maybe scenarios where users are required to retrain this `trained-model.tlt` on a new smaller dataset. \
-TLT conversational AI applications provide a separate tool called `fine-tune` to enable this.
+Now, that a user has trained the Token Classification model successfully (let's call it `trained-model. `), \
+there maybe scenarios where users are required to retrain this `trained-model. ` on a new smaller dataset. \
+  conversational AI applications provide a separate tool called `fine-tune` to enable this.
 
 Note, all labels from the dataset that is used for fine-tuning, should be present in the dataset the model was originally trained.
-If it is not the case, use the :code:`tlt token_classification train` with your data.
+If it is not the case, use the :code:`  token_classification train` with your data.
 
 Evaluating a trained model
 --------------------------
@@ -548,7 +388,7 @@ Spec example to evaluate the pre-trained model:
 
 .. code::
 
-    restore_from: trained-model.tlt
+    restore_from: trained-model. 
     data_dir: ???
 
     # Test settings: dataset.
@@ -572,7 +412,7 @@ Required Arguments for Evaluation
 * :code:`-e`: The experiment specification file to set up evaluation.
 * :code:`-r`: Path to the directory to store the results.
 * :code:`data_dir`: Path to data directory with the pre-processed data to use for evaluation
-* :code:`-m`: Path to the pre-trained model checkpoint for evaluation. Should be a :code:`.tlt` file.
+* :code:`-m`: Path to the pre-trained model checkpoint for evaluation. Should be a :code:`. ` file.
 * :code:`-k`: Encryption key
 
 :code:`token_classification evaluate` generates a classification report that includes the following metrics:
@@ -640,7 +480,7 @@ Required Arguments for Inference
 * :code:`-e`: The experiment specification file to set up inference.
   This requires the :code:`input_batch` with the list of examples to run inference on.
 * :code:`-r`: Path to the directory to store the results.
-* :code:`-m`: Path to the pre-trained model checkpoint from which to infer. Should be a :code:`.tlt` file.
+* :code:`-m`: Path to the pre-trained model checkpoint from which to infer. Should be a :code:`. ` file.
 * :code:`-k`: Encryption key
 
 

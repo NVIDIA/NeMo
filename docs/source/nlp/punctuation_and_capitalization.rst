@@ -1,7 +1,7 @@
 .. _punctuation_and_capitalization:
 
-Punctuation and Capitalization Model Introduction
-=================================================
+Punctuation and Capitalization Model
+====================================
 
 Automatic Speech Recognition (ASR) systems typically generate text with no punctuation and capitalization of the words. \
 Besides being hard to read, the ASR output could be an input to named entity recognition, \
@@ -67,7 +67,7 @@ The `source_data_dir` structure should look like this:
 NeMo Data Format for training the model
 ---------------------------------------
 
-Raw data files from the `source_data_dir` described above should be converted to the following format with `TODO add script to NeMo from TLT`:
+Raw data files from the `source_data_dir` described above should be converted to the following format with `TODO add script to NeMo from  `:
 The training and evaluation data is divided into 2 files: text.txt and labels.txt. \
 Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e. \
 [WORD] [SPACE] [WORD] [SPACE] [WORD], for example:
@@ -240,7 +240,7 @@ Example of the command for training the model:
 
 .. code::
 
-    tlt punctuation_and_capitalization train [-h] \
+      punctuation_and_capitalization train [-h] \
                                               -e /specs/nlp/punctuation_and_capitalization/train.yaml \
                                               -r /results/punctuation_and_capitalization/train/ \
                                               -g 4 \
@@ -274,62 +274,6 @@ Optional Arguments
     you may override to the desired value, by adding the field :code:`validation_ds.batch_size=128` over command line.
     You may repeat this with any of the parameters defined in the sample spec file.
 
-Snippets of the output log from executing the :code:`punctuation_and_capitalization train` command:
-
-.. code::
-
-    # complete model's spec file will be shown
-    [NeMo I] Spec file:
-    restore_from: ???
-    exp_manager:
-      explicit_log_dir: null
-      exp_dir: null
-      name: trained-model
-      version: null
-      use_datetime_version: true
-      resume_if_exists: true
-      resume_past_end: false
-      resume_ignore_no_checkpoint: true
-      create_tensorboard_logger: false
-      summary_writer_kwargs: null
-      create_wandb_logger: false
-      wandb_logger_kwargs: null
-      create_checkpoint_callback: true
-      checkpoint_callback_params:
-        filepath: null
-        monitor: val_loss
-        verbose: true
-        save_last: true
-        save_top_k: 3
-        save_weights_only: false
-        mode: auto
-        period: 1
-        prefix: null
-        postfix: .tlt
-        save_best_model: false
-      files_to_copy: null
-    model:
-      tokenizer: ...
-
-    ...
-
-    # The dataset will be processed and tokenized
-    [NeMo I punctuation_capitalization_model:251] Setting model.dataset.data_dir to sample/.
-    [NeMo I punctuation_capitalization_dataset:289] Processing text_train.txt
-    [NeMo I punctuation_capitalization_dataset:333] Using the provided label_ids dictionary.
-    [NeMo I punctuation_capitalization_dataset:408] Labels: {'O': 0, ',': 1, '.': 2, '?': 3}
-    [NeMo I punctuation_capitalization_dataset:409] Labels mapping saved to : sample/punct_label_ids.csv
-    [NeMo I punctuation_capitalization_dataset:408] Labels: {'O': 0, 'U': 1}
-    [NeMo I punctuation_capitalization_dataset:409] Labels mapping saved to : sample/capit_label_ids.csv
-    [NeMo I punctuation_capitalization_dataset:134] Max length: 35
-    [NeMo I data_preprocessing:295] Some stats of the lengths of the sequences:
-
-    # During training, you're going to see a progress bar for both training and evaluation of the model that is done during model training.
-
-    # Once the training is complete, the results are going to be saved to the specified locations
-    [NeMo I train:126] Experiment logs saved to 'nemo_experiments/trained-model'
-    [NeMo I train:129] Trained model saved to 'nemo_experiments/trained-model/2021/checkpoints/trained-model.tlt'
-
 Important parameters
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -356,9 +300,9 @@ Fine-tuning a model on a different dataset
 In the previous section <ref>:Training a punctuation and capitalization model, \
 the Punctuation and Capitalization model was initialized with a pre-trained language model, \
 but the classifiers were trained from scratch.
-Now, that a user has trained the Punctuation and Capitalization model successfully (let's call it `trained-model.tlt`), \
-there maybe scenarios where users are required to retrain this `trained-model.tlt` on a new smaller dataset. \
-TLT conversational AI applications provide a separate tool called `fine-tune` to enable this.
+Now, that a user has trained the Punctuation and Capitalization model successfully (let's call it `trained-model. `), \
+there maybe scenarios where users are required to retrain this `trained-model. ` on a new smaller dataset. \
+  conversational AI applications provide a separate tool called `fine-tune` to enable this.
 
 
 Evaluating a trained model
@@ -368,8 +312,8 @@ Spec example to evaluate the pre-trained model:
 
 .. code::
 
-    # Name of the .tlt from which the model will be loaded.
-    restore_from: trained-model.tlt
+    # Name of the .  from which the model will be loaded.
+    restore_from: trained-model. 
 
     # Test settings: dataset.
     data_dir: ???
@@ -392,7 +336,7 @@ Required Arguments for Evaluation
 * :code:`-e`: The experiment specification file to set up evaluation.
 * :code:`-r`: Path to the directory to store the results.
 * :code:`data_dir`: Path to data directory with the pre-processed data to use for evaluation
-* :code:`-m`: Path to the pre-trained model checkpoint for evaluation. Should be a :code:`.tlt` file.
+* :code:`-m`: Path to the pre-trained model checkpoint for evaluation. Should be a :code:`. ` file.
 * :code:`-k`: Encryption key
 
 Optional Arguments:
