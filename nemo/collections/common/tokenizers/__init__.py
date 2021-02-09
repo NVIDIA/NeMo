@@ -17,3 +17,4 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
+from nemo.collections.common.tokenizers.pangu_jieba_detokenizer import PanguJiebaDetokenizer

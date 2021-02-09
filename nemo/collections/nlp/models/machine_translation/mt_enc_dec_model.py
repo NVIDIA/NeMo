@@ -34,7 +34,7 @@ from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
-from nemo.collections.common.tokenizers.pangu_jieba_detokenize import PanguJiebaDetokenizer
+from nemo.collections.common.tokenizers.pangu_jieba_detokenizer import PanguJiebaDetokenizer
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
