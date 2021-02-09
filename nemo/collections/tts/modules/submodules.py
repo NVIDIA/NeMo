@@ -170,8 +170,7 @@ class Prenet(torch.nn.Module):
         return x
 
 
-def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
-    n_channels_int = n_channels[0]
+def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels_int):
     in_act = input_a + input_b
     t_act = torch.tanh(in_act[:, :n_channels_int, :])
     s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
@@ -198,25 +197,27 @@ class Invertible1x1Conv(torch.nn.Module):
             W[:, 0] = -1 * W[:, 0]
         W = W.view(c, c, 1)
         self.conv.weight.data = W
+        self.inv_conv = None
 
     def forward(self, z, reverse: bool = False):
-        # shape
-        batch_size, group_size, n_of_groups = z.size()
-
-        W = self.conv.weight.squeeze()
-
         if reverse:
-            if not hasattr(self, 'W_inverse'):
-                # Reverse computation
-                W_inverse = W.float().inverse()
+            if self.inv_conv is None:
+                # Inverse convolution - initialized here only for backwards
+                # compatibility with weights from existing checkpoints.
+                # Should be moved to init() with next incompatible change.
+                self.inv_conv = torch.nn.Conv1d(
+                    self.conv.in_channels, self.conv.out_channels, kernel_size=1, stride=1, padding=0, bias=False
+                )
+                W_inverse = self.conv.weight.squeeze().data.float().inverse()
                 W_inverse = Variable(W_inverse[..., None])
-                if z.dtype == torch.half:
-                    W_inverse = W_inverse.half()
-                self.W_inverse = W_inverse
-            z = F.conv1d(z, self.W_inverse, bias=None, stride=1, padding=0)
-            return z
+                self.inv_conv.weight.data = W_inverse
+                self.inv_conv.to(device=self.conv.weight.device, dtype=self.conv.weight.dtype)
+            return self.inv_conv(z)
         else:
             # Forward computation
+            # shape
+            W = self.conv.weight.squeeze()
+            batch_size, group_size, n_of_groups = z.size()
             log_det_W = batch_size * n_of_groups * torch.logdet(W.float())
             z = self.conv(z)
             return (
@@ -275,7 +276,6 @@ class WaveNet(torch.nn.Module):
         audio, spect = forward_input[0], forward_input[1]
         audio = self.start(audio)
         output = torch.zeros_like(audio)
-        n_channels_tensor = torch.tensor([self.n_channels], dtype=torch.int32)
 
         spect = self.cond_layer(spect)
 
@@ -284,7 +284,7 @@ class WaveNet(torch.nn.Module):
             acts = fused_add_tanh_sigmoid_multiply(
                 self.in_layers[i](audio),
                 spect[:, spect_offset : spect_offset + 2 * self.n_channels, :],
-                n_channels_tensor,
+                self.n_channels,
             )
 
             res_skip_acts = self.res_skip_layers[i](acts)
