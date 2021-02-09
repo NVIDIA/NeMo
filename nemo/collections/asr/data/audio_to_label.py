@@ -24,7 +24,6 @@ from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
 def repeat_signal(signal, sig_len, required_length):
@@ -350,7 +349,6 @@ target_label_n, "offset": offset_in_sec_n}
 
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
-@experimental
 class AudioToClassificationLabelDataset(_AudioLabelDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -461,7 +459,6 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         return _vad_frame_seq_collate_fn(self, batch)
 
 
-@experimental
 class _TarredAudioLabelDataset(IterableDataset):
     """
     A similar Dataset to the AudioLabelDataSet, but which loads tarred audio files.
@@ -700,7 +697,6 @@ class _TarredAudioLabelDataset(IterableDataset):
         return len(self.collection)
 
 
-@experimental
 class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
     """
     A similar Dataset to the AudioToClassificationLabelDataset, but which loads tarred audio files.
