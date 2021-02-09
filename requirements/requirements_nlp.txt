@@ -1,4 +1,4 @@
-boto3
+oto3
 h5py
 matplotlib>=3.3.2
 sentencepiece
@@ -13,3 +13,6 @@ megatron-lm==1.1.5
 inflect
 sacrebleu[ja]
 sacremoses
+pangu
+jieba
+
