@@ -85,7 +85,7 @@ class WER(Metric):
     Args:
         vocabulary: List of strings that describes the vocabulary of the dataset.
         batch_dim_index: Index of the batch dimension.
-        use_cer: Whether to use Character Error Rate isntead of Word Error Rate.
+        use_cer: Whether to use Character Error Rate instead of Word Error Rate.
         ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
         log_prediction: Whether to log a single decoded sample per call.
 
