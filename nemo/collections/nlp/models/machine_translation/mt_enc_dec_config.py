@@ -36,6 +36,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     label_smoothing: Optional[float] = 0.0
     src_language: str = 'en'
     tgt_language: str = 'en'
+    find_unused_parameters: Optional[bool] = True
 
 
 @dataclass

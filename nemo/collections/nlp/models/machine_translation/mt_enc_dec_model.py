@@ -21,12 +21,14 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 import torch.utils.data as pt_data
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+from torch.nn.parallel.distributed import DistributedDataParallel
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -150,16 +152,9 @@ class MTEncDecModel(EncDecNLPModel):
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         src_hiddens = self.encoder(src, src_mask)
-        if tgt is not None:
-            tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
-            log_probs = self.log_softmax(hidden_states=tgt_hiddens)
-        else:
-            log_probs = None
-        beam_results = None
-        if not self.training:
-            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-            beam_results = self.filter_predicted_ids(beam_results)
-        return log_probs, beam_results
+        tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
+        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        return log_probs
 
     def training_step(self, batch, batch_idx):
         """
@@ -173,13 +168,11 @@ class MTEncDecModel(EncDecNLPModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        # training_perplexity = self.training_perplexity(logits=log_probs)
         tensorboard_logs = {
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
-            # "train_ppl": training_perplexity,
         }
         return {'loss': train_loss, 'log': tensorboard_logs}
 
@@ -190,7 +183,13 @@ class MTEncDecModel(EncDecNLPModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+
+        src_hiddens = self.encoder(src_ids, src_mask)
+
+        beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+        beam_results = self.filter_predicted_ids(beam_results)
+
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
@@ -384,3 +383,15 @@ class MTEncDecModel(EncDecNLPModel):
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
+
+    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
+        logging.info(f'overriding ddp to set find_unused_parameters to {self._cfg.find_unused_parameters}')
+        model = LightningDistributedDataParallel(
+            model, device_ids=device_ids, find_unused_parameters=self._cfg.find_unused_parameters
+        )
+        return model
+
+    def setup(self, stage):
+        if stage == "fit":
+            # Update PTL trainer to use our configure_ddp
+            self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
 import torch
 
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
-from nemo.core.classes import NeuralModule
 
 __all__ = [
     "GreedySequenceGenerator",
@@ -24,7 +24,7 @@ __all__ = [
 ]
 
 
-class GreedySequenceGenerator(NeuralModule):
+class GreedySequenceGenerator:
     """
     Greedy sequence generator based on the decoder followed by log_softmax.
 
@@ -65,7 +65,6 @@ class GreedySequenceGenerator(NeuralModule):
         self.max_delta_len = max_delta_length
         self.batch_size = batch_size
 
-    @torch.no_grad()
     def _one_step_forward(
         self,
         decoder_input_ids=None,
@@ -163,10 +162,48 @@ class GreedySequenceGenerator(NeuralModule):
 
         return tgt
 
-    # TODO: add Neural Types
-    def forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+    def __call__(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
         with self.as_frozen():
             return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
+
+    def freeze(self) -> None:
+        """Freeze weights of embedding, decoder, and classification layers to prevent memory leak.
+        """
+        for param in self.embedding.parameters():
+            param.requires_grad = False
+        self.embedding.eval()
+        for param in self.decoder.parameters():
+            param.requires_grad = False
+        self.decoder.eval()
+        for param in self.log_softmax.parameters():
+            param.require_grad = False
+        self.log_softmax.eval()
+
+    def unfreeze(self) -> None:
+        """Unfreeze weights of embedding, decoder, and classification layers.
+        """
+        for param in self.embedding.parameters():
+            param.requires_grad = True
+        self.embedding.train()
+        for param in self.decoder.parameters():
+            param.requires_grad = True
+        self.decoder.train()
+        for param in self.log_softmax.parameters():
+            param.require_grad = True
+        self.log_softmax.train()
+
+    @contextmanager
+    def as_frozen(self):
+        """
+        Context manager which temporarily freezes embedding, decoder, and log_softmax modules,
+        yields control and finally unfreezes the modules.
+        """
+        self.freeze()
+
+        try:
+            yield
+        finally:
+            self.unfreeze()
 
 
 class TopKSequenceGenerator(GreedySequenceGenerator):
@@ -188,7 +225,7 @@ class TopKSequenceGenerator(GreedySequenceGenerator):
         self.beam_size = beam_size
         self.temp = temperature
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def _one_step_forward(
         self,
         decoder_input_ids=None,
@@ -241,7 +278,6 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
 
-    @torch.no_grad()
     def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
