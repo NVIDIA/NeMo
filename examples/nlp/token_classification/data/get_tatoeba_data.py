@@ -153,10 +153,12 @@ def create_text_and_labels(output_dir: str, file_path: str, punct_marks: str = '
     os.makedirs(output_dir, exist_ok=True)
 
     base_name = os.path.basename(file_path)
+    labels_file = os.path.join(output_dir, 'labels_' + base_name)
+    text_file = os.path.join(output_dir, 'text_' + base_name)
 
     with open(file_path, 'r') as f:
-        with open(os.path.join(output_dir, 'text_' + base_name), 'w') as text_f:
-            with open(os.path.join(output_dir, 'labels_' + base_name), 'w') as labels_f:
+        with open(text_file, 'w') as text_f:
+            with open(labels_file, 'w') as labels_f:
                 for line in f:
                     line = line.split()
                     text = ''
@@ -176,6 +178,8 @@ def create_text_and_labels(output_dir: str, file_path: str, punct_marks: str = '
 
                     text_f.write(text.strip() + '\n')
                     labels_f.write(labels.strip() + '\n')
+
+    print(f'{text_file} and {labels_file} created from {file_path}.')
 
 
 def __delete_file(file_to_del: str):

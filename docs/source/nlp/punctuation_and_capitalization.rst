@@ -18,18 +18,17 @@ For each word in the input text, the model:
     We recommend you try this model in a Jupyter notebook \
     (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): \
     `NeMo/tutorials/nlp/Punctuation_and_Capitalization.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`__.
+
     Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
-    An example script on how to run training and inference with the model could be found here: `NeMo/examples/nlp/token_classification/punctuation_capitalization.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization.py>`__.
+    An example script on how to train the model could be found here: `NeMo/examples/nlp/token_classification/punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_train.py>`__.
+    An example script on how to run evaluation and inference could be found here: `NeMo/examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`__.
 
-    Default configuration file for the model could be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
+    The default configuration file for the model could be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
 
 
-.. _dataset_punctuation_and_capitalization:
-
-Data Input for Punctuation and Capitalization model
----------------------------------------------------
+.. _raw_data_format_punct:
 
 Raw Data Format
 ---------------
@@ -67,9 +66,11 @@ The `source_data_dir` structure should look like this:
 NeMo Data Format for training the model
 ---------------------------------------
 
-Raw data files from the `source_data_dir` described above should be converted to the following format with `TODO add script to NeMo from  `:
+The punctuation and capitalization model expect the data in the following format:
+
 The training and evaluation data is divided into 2 files: text.txt and labels.txt. \
-Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e. \
+Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e.
+
 [WORD] [SPACE] [WORD] [SPACE] [WORD], for example:
 
     ::
@@ -101,53 +102,39 @@ The complete list of all possible labels for this task used in this tutorial is:
 Converting Raw data to NeMo format
 ----------------------------------
 
-To pre-process the raw text data, stored under :code:`sourced_data_dir` (see the :ref:`Dataset<dataset_punctuation_and_capitalization>`
+To pre-process the raw text data, stored under :code:`sourced_data_dir` (see the :ref:`raw_data_format_punct`
 section), run the following command:
 
 .. code::
 
-    TODO
+    python examples/nlp/token_classification/data/prepare_data_for_punctuation_capitalization.py \
+           -s <PATH_TO_THE_SOURCE_FILE>
+           -o <PAHT_TO_THE_OUTPUT_DIRECTORY>
 
 
 Convert Dataset Required Arguments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`-e`: The experiment specification file.
-* :code:`source_data_dir` - path to the raw data
-* :code:`target_data_dir` - path to store the processed files
-* :code:`-r`: Path to the directory to store the results.
+* :code:`-s` or :code:`source_file`: path to the raw file
+* :code:`o` or :code:`output_dir` - path to the directory to store the converted files
 
-
-
-
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-| **Parameter**      | **Datatype**   | **Default**                     | **Description**                                | **Supported Values**          |
-+====================+================+=================================+================================================+===============================+
-| source_data_dir    | string         | -                               | Path to the dataset source data directory      | -                             |
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-| target_data_dir    | string         | -                               | Path to the dataset target data directory      | -                             |
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-| list_of_file_names | List of strings| ['train.txt','dev.txt']         | List of files for conversion                   | -                             |
-+--------------------+----------------+---------------------------------+------------------------------------------------+-------------------------------+
-
-After the conversion, the :code:`target_data_dir` should contain the following files:
+After the conversion, the :code:`output_dir` should contain :code:`labels_*.txt` and :code:`text_*.txt` files.
+The default names for the training and evaluation in the :code:`conf/punctuation_capitalization_config.yaml` are the following:
 
 .. code::
 
    .
-   |--target_data_dir
+   |--output_dir
      |-- labels_dev.txt
-     |-- labels_test.txt
      |-- labels_train.txt
      |-- text_dev.txt
-     |-- text_test.txt
      |-- text_train.txt
 
-Training a Punctuation and Capitalization model
+Training a Punctuation and Capitalization Model
 -----------------------------------------------
 
 In the Punctuation and Capitalization Model, we are jointly training two token-level classifiers on top of a pre-trained \
-language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__.
+language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-devlin2018bert`.
 
 Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the
 pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
@@ -160,20 +147,16 @@ The specification can be roughly grouped into the following categories:
 * Parameters that describe the datasets: `model.dataset`, `model.train_ds`, `model.validation_ds`
 * Parameters that describe the model: `model`
 
-More details about parameters in the spec file could be found below:
+More details about parameters in the config file could be found below and in the config file itself:
 
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | pretrained_model                          | string          | --                                                                               | Path to the pre-trained model .nemo file or pre-trained model name                                           |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
+| model.dataset.data_dir                    | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-|trainer.max_epochs                         | integer         | 5                                                                                | Maximum number of epochs to train the model                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.punct_label_ids                     | dictionary      | O: 0, ',': 1, '.': 2, '?': 3                                                     | Labels string name to integer mapping for punctuation task, do NOT change                                    |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.capit_label_ids                     | dictionary      | O: 0, U: 1                                                                       | Labels string name to integer mapping for capitalization task, do NOT change                                 |
+| trainer.max_epochs                        | integer         | 5                                                                                | Maximum number of epochs to train the model                                                                  |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.tokenizer.tokenizer_name            | string          | Will be filled automatically based on model.language_model.pretrained_model_name | Tokenizer name                                                                                               |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
@@ -236,43 +219,46 @@ More details about parameters in the spec file could be found below:
 | optim.sched.warmup_ratio                  | float           | 0.1                                                                              | Warm up ratio                                                                                                |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 
-Example of the command for training the model:
+To train the model from scratch, use:
 
 .. code::
 
-      punctuation_and_capitalization train [-h] \
-                                              -e /specs/nlp/punctuation_and_capitalization/train.yaml \
-                                              -r /results/punctuation_and_capitalization/train/ \
-                                              -g 4 \
-                                              data_dir=/path/to/data_dir \
-                                              trainer.max_epochs=2 \
-                                              training_ds.num_samples=-1  \
-                                              validation_ds.num_samples=-1 \
-                                              -k $KEY
+      python examples/nlp/token_classification/punctuation_and_capitalization_train \
+             model.dataset.data_dir=<PATH/TO/DATA_DIR> \
+             trainer.gpus=[0,1] \
+             optim.name=adam \
+             optim.lr=0.0001 \
+             model.nemo_path=<PATH/TO/SAVE/.nemo>
+
+To train from the pre-trained model, use:
+
+.. code::
+
+      python examples/nlp/token_classification/punctuation_and_capitalization_train \
+             model.dataset.data_dir=<PATH/TO/DATA_DIR> \
+             pretrained_model=<PATH/TO/SAVE/.nemo>
+
 
 Required Arguments for Training
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`-e`: The experiment specification file to set up training.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`-k`: Encryption key
-* :code:`data_dir`: Path to the `data_dir` with the processed data files.
+* :code:`model.dataset.data_dir`: Path to the `data_dir` with the processed data files.
 
 Optional Arguments
 ^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-* :code:`-g`: The number of GPUs to be used in evaluation in a multi-gpu scenario (default: 1).
-* Other arguments to override fields in the specification file.
+* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+* :code:`--config-name`: Path to the config file to use. The default config file for the model is `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml`. You may update the config file from the file directly. The other option is to set another config file via command line arguments by :code:`--config-name=<CONFIG/FILE/PATH>`. For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
+* Other arguments to override fields in the specification file, please see the note below.
 
 .. note::
 
-    While the arguments are defined in the spec file, if you wish to override these parameter definitions in the spec file \
-    and experiment with them, you may do so over command line by simple defining the param. \
-    For example, the sample spec file mentioned above has :code:`validation_ds.batch_size` set to 64. \
-    However, if you see that the GPU utilization can be optimized further by using larger a batch size, \
-    you may override to the desired value, by adding the field :code:`validation_ds.batch_size=128` over command line.
-    You may repeat this with any of the parameters defined in the sample spec file.
+    All parameters defined in the configuration file could be changed with command arguments. \
+    For example, the sample config file mentioned above has :code:`validation_ds.batch_size` set to 64. \
+    However, if you see that the GPU utilization can be optimized further by using a larger batch size, \
+    you may override to the desired value, by adding the field :code:`validation_ds.batch_size=128` over the command line.
+    You may repeat this with any of the parameters defined in the sample configuration file.
+
+
 
 Important parameters
 ^^^^^^^^^^^^^^^^^^^^
@@ -294,143 +280,69 @@ Below is the list of parameters could help improve the model:
 - learning rate (`model.optim.lr`, for example, `5e-5`)
 
 
-Fine-tuning a model on a different dataset
-------------------------------------------
+Inference
+---------
 
-In the previous section <ref>:Training a punctuation and capitalization model, \
-the Punctuation and Capitalization model was initialized with a pre-trained language model, \
-but the classifiers were trained from scratch.
-Now, that a user has trained the Punctuation and Capitalization model successfully (let's call it `trained-model. `), \
-there maybe scenarios where users are required to retrain this `trained-model. ` on a new smaller dataset. \
-  conversational AI applications provide a separate tool called `fine-tune` to enable this.
+An example script on how to run inference on a few examples, could be found
+at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
 
-
-Evaluating a trained model
---------------------------
-
-Spec example to evaluate the pre-trained model:
+To run inference with the pre-trained model on a few examples, run:
 
 .. code::
 
-    # Name of the .  from which the model will be loaded.
-    restore_from: trained-model. 
+    python punctuation_capitalization_evaluate.py \
+           pretrained_model=<PRETRAINED_MODEL>
 
-    # Test settings: dataset.
-    data_dir: ???
-    test_ds:
-      text_file: text_dev.txt
-      labels_file: labels_dev.txt
-      batch_size: 64
-      shuffle: false
-      num_samples: -1 # number of samples to be considered, -1 means all the dataset
-
-Use the following command to evaluate the model:
-
-.. code::
-
-    TODO
-
-Required Arguments for Evaluation
+Required Arguments for inference:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`-e`: The experiment specification file to set up evaluation.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`data_dir`: Path to data directory with the pre-processed data to use for evaluation
-* :code:`-m`: Path to the pre-trained model checkpoint for evaluation. Should be a :code:`. ` file.
-* :code:`-k`: Encryption key
+* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+
+
+Model Evaluation
+----------------
+
+An example script on how to evaluate the pre-trained model, could be found
+at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
+
+To run evaluation of the pre-trained model, run:
+
+.. code::
+
+    python punctuation_capitalization_evaluate.py \
+           model.dataset.data_dir=<PATH/TO/DATA/DIR>  \
+           pretrained_model=Punctuation_Capitalization_with_BERT_base_uncased \
+           model.test_ds.text_file=<text_*.txt> \
+           model.test_ds.labels_file=<labels_*.txt> \
+           model.dataset.max_seq_length=512
+
+
+Required Arguments:
+^^^^^^^^^^^^^^^^^^^
+* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+* :code:`model.dataset.data_dir`: Path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`.
+
 
 Optional Arguments:
 ^^^^^^^^^^^^^^^^^^^
-* :code:`-h, --help`: Show this help message and exit
+* :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`: text_*.txt and labels_*.txt file names is the default text_dev.txt and labels_dev.txt from the config files should be overwritten.
+* Other :code:`model.dataset` or :code:`model.test_ds` arguments to override fields in the config file of the pre-trained model.
 
-:code:`punctuation_and_capitalization evaluate` generates two classification reports: one for capitalization task and \
+
+During evaluation of the :code:`test_ds`, the script generates two classification reports: one for capitalization task and \
 another one for punctuaion task. This classification reports include the following metrics:
+
 * :code:`Precision`
 * :code:`Recall`
 * :code:`F1`
 
 More details about these metrics could be found `here <https://en.wikipedia.org/wiki/Precision_and_recall>`__.
 
-Output log from executing the above command (note, the values below are for demonstration purposes only):
+References
+----------
 
-.. code::
-
-    Punctuation report:
-
-    label                                                precision    recall       f1        support
-    O (label_id: 0)                                        100.00      97.00      98.48        100
-    , (label_id: 1)                                        100.00     100.00     100.00          4
-    . (label_id: 2)                                         76.92     100.00      86.96         10
-    ? (label_id: 3)                                          0.00       0.00       0.00          0
-    -------------------
-    micro avg                                               97.37      97.37      97.37        114
-    macro avg                                               92.31      99.00      95.14        114
-    weighted avg                                            97.98      97.37      97.52        114
-
-
-
-    Capitalization report:
-
-    label                                                precision    recall       f1         support
-    O (label_id: 0)                                         93.62      90.72      92.15         97
-    U (label_id: 1)                                         55.00      64.71      59.46         17
-    -------------------
-    micro avg                                               86.84      86.84      86.84        114
-    macro avg                                               74.31      77.71      75.80        114
-    weighted avg                                            87.86      86.84      87.27        114
-
-
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.text_file                         | string          | text_dev.txt                                                                     | Name of the text file to run evaluation on located at `data_dir`                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.labels_file                       | string          | labels_dev.txt                                                                   | Name of the labels dev file located at `data_dir`                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.shuffle                           | bool            | False                                                                            | Whether to shuffle the dev data                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.num_samples                       | integer         | -1                                                                               | Number of samples to use from the dev set, -1 mean all                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| test_ds.batch_size                        | integer         | 64                                                                               | Dev set batch size                                                                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-
-
-Running inference using a trained model
----------------------------------------
-
-During inference, a batch of input sentences, listed in the spec files, are passed through the trained model \
-to add punctuation and capitalize words.
-
-Before doing inference on the model, specify the list of examples in the spec, for example:
-
-.. code::
-
-    input_batch:
-      - 'what can i do for you today'
-      - 'how are you'
-
-To run inference:
-
-.. code::
-
-    TODO
-
-Output log from executing the above command:
-
-.. code::
-
-    The prediction results of some sample queries with the trained model:
-    Query : what can i do for you today
-    Result: What can I do for you today?
-    Query : how are you
-    Result: How are you?
-
-
-
-Required Arguments for Inference
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-
+.. bibliography:: nlp_references.bib
+    :style: plain
+    :labelprefix: nlp-
+    :keyprefix: nlp-
 

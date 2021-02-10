@@ -1,11 +1,7 @@
 .. _token_classification:
 
-Token Classification (Named Entity Recognition)
-===============================================
-
-
-Introduction
-------------
+Token Classification (Named Entity Recognition) Model
+=====================================================
 
 TokenClassification Model supports Named entity recognition (NER) and other token level classification tasks, \
 as long as the data follows the format specified below. This model card will focus on the NER task.
@@ -16,9 +12,20 @@ input and for each word in the text, the model identifies a category the word be
 For example, in a sentence: `Mary lives in Santa Clara and works at NVIDIA`, the model should detect that `Mary` \
 is a person, `Santa Clara` is a location and `NVIDIA` is a company.
 
+
 .. note::
 
-    This documentation follows [TODO: add link to token-classification.ipynb]
+    We recommend you try this model in a Jupyter notebook \
+    (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): \
+    `NeMo/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`__.
+
+    Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
+
+    An example script on how to train the model could be found here: `NeMo/examples/nlp/token_classification/token_classification_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_train.py>`__.
+    An example script on how to run evaluation and inference could be found here: `NeMo/examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`__.
+
+    The default configuration file for the model could be found at: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
+
 
 
 
@@ -49,43 +56,37 @@ Corresponding labels.txt file:
 Dataset Conversion
 ------------------
 
-To convert an IOB format (short for inside, outside, beginning) data to the format required for training.
+To convert an IOB format (short for inside, outside, beginning) data to the format required for training use
+`examples/nlp/token_classification/data/import_from_iob_format.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/import_from_iob_format.py)>`_.
 
 .. code::
 
     # For conversion from IOB format, for example, for CoNLL-2003 dataset:
-    TODO
+    python import_from_iob_format.py --data_file=<PATH/TO/THE/FILE/IN/IOB/FORMAT>
 
-The `source_data_dir` structure should look like this (test.txt is optional):
+Convert Dataset Required Arguments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :code:`--data_file`: path to the file to convert from IOB to NeMo format
+
+After running the above command, the data directory, where the :code:`--data_file` is stored, should contain :code:`text_*.txt` and :code:`labels_*.txt` files.
+The default names for the training and evaluation in the :code:`conf/token_classification_config.yaml` are the following:
 
 .. code::
 
    .
-   |--sourced_data_dir
-     |-- dev.txt
-     |-- test.txt
-     |-- train.txt
+   |--data_dir
+     |-- labels_dev.txt
+     |-- labels_train.txt
+     |-- text_dev.txt
+     |-- text_train.txt
+
 
 Note, the development set (or dev set) will be used to evaluate the performance of the model during model training. \
 The hyper-parameters search and model selection should be based on the dev set, while the final evaluation of \
 the selected model should be performed on the test set.
 
-After the conversion, the `target_data_dir` should contain the following files:
-
-.. code::
-
-   .
-   |--target_data_dir
-     |-- label_ids.csv
-     |-- labels_dev.txt
-     |-- labels_test.txt
-     |-- labels_train.txt
-     |-- text_dev.txt
-     |-- text_test.txt
-     |-- text_train.txt
-
-
-Training a Token Classification model
+Training a Token Classification Model
 -------------------------------------
 
 In the Token Classification Model, we are jointly training a classifier on top of a pre-trained \
