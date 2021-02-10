@@ -349,6 +349,11 @@ class NLPModel(ModelPT, Exportable):
                 ):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
+        else:
+            # testing stage
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                # finish megatron-lm initialization
+                self.bert_model._lazy_init_fn()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
@@ -365,7 +370,7 @@ class NLPModel(ModelPT, Exportable):
 
 
 class NLPCheckpointConnector(CheckpointConnector):
-    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM. 
+    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM.
     """
 
     def __init__(self, trainer):
