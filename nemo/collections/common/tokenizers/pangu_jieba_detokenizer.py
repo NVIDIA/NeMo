@@ -1,7 +1,6 @@
 ## reference to the ja implementation- https://github.com/Zenodia/NeMo/blob/zh_glue/nemo/collections/common/tokenizers/sentencepiece_detokenizer.py
 import re
 from typing import List
-import jieba
 from pangu import spacing
 
 
