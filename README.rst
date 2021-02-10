@@ -1,4 +1,4 @@
- 
+
 |status| |license| |lgtm_grade| |lgtm_alerts| |black|
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
@@ -58,14 +58,14 @@ Requirements
 
 NeMo's works with:
 
-1) Python 3.6 or 3.7
-2) Pytorch 1.6 or above
+1) Python 3.6 or above
+2) Pytorch 1.7.1 or above
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 The easiest way to start training with NeMo is by using `NeMo's container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_.
 
-It has all requirements and NeMo 1.0.0b2 already installed.
+It has all requirements and NeMo 1.0.0b3 already installed.
 
 .. code-block:: bash
 
@@ -74,13 +74,13 @@ It has all requirements and NeMo 1.0.0b2 already installed.
     stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0b3
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 20.09-py3.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 20.11-py3.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.09-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3
 
 
 Installation
@@ -92,7 +92,7 @@ If you are not inside the NVIDIA docker container, please install Cython first. 
 
 Once requirements are satisfied, simply install using pip:
 
-* ``pip install nemo_toolkit[all]==1.0.0b2`` (latest version)
+* ``pip install nemo_toolkit[all]==1.0.0b3`` (latest version)
 
 Or if you want the latest (or particular) version from GitHub:
 
@@ -131,41 +131,18 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/
 
-.. |latest| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=main
+.. |v1.0.0b1| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.0b1
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/
 
-.. |stable| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable
-  :alt: Documentation Status
-  :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/
-
-.. |v0111| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.11.1
-  :alt: Documentation Status
-  :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.11.1/
-
-.. |v0110| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.11.0
-  :alt: Documentation Status
-  :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.11.0/
-
-
-
-+---------+----------+---------------------------------------------------------+
-| Version | Status   | Description                                             |
-+=========+==========+=========================================================+
-| Latest  | |latest| | Documentation of the latest (i.e. `main`) branch        |
-+---------+----------+---------------------------------------------------------+
-| Stable  | |stable| | Documentation of the stable (i.e. `0.11.1`) branch      |
-+---------+----------+---------------------------------------------------------+
-| Main    | |main|   | Documentation of the `main` branch                      |
-+---------+----------+---------------------------------------------------------+
-| v0.11.1 | |v0111|  | Documentation of the v0.11.1 release                    |
-+---------+----------+---------------------------------------------------------+
-| v0.11.0 | |v0110|  | Documentation of the v0.11.0 release                    |
-+---------+----------+---------------------------------------------------------+
++---------+------------+---------------------------------------------------------+
+| Version | Status     | Description                                             |
++=========+============+=========================================================+
+| Latest  | |main|     | Documentation of the latest (i.e. `main`) branch        |
++---------+------------+---------------------------------------------------------+
+| Stable  | |v1.0.0b1| | Documentation of the stable (i.e. `v1.0.0b1`) branch    |
++---------+------------+---------------------------------------------------------+
 
 
 Tutorials
@@ -243,11 +220,12 @@ To run tutorials:
    * - NLP
      - Relation Extraction - BioMegatron
      - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0b3/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
-
    * - TTS
      - Speech Synthesis
-     - `TTS inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0b3/tutorials/tts/1_TTS_inference.ipynb>`_
-
+     - `TTS inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b4/tutorials/tts/1_TTS_inference.ipynb>`_
+   * - TTS
+     - Speech Synthesis
+     - `Tacotron2 training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b4/tutorials/tts/2_TTS_Tacotron2_Training.ipynb>`_
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_

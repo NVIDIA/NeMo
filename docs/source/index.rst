@@ -26,8 +26,8 @@ Requirements
 
 NeMo's main requirements are:
 
-1) Python 3.6 or 3.7
-2) Pytorch 1.6 or above
+1) Python 3.6 or above
+2) Pytorch 1.7.1 or above
 
 Installation
 ~~~~~~~~~~~~
@@ -39,6 +39,6 @@ We recommend using NVIDIA's PyTorch container
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 nvcr.io/nvidia/pytorch:20.09-py3
+    stack=67108864 nvcr.io/nvidia/pytorch:20.11-py3
 
 
