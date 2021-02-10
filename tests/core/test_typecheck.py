@@ -106,8 +106,7 @@ class TestNeuralTypeCheckSystem:
         class InputTypes(Typing):
             @property
             def input_types(self):
-                return {"x": NeuralType(('B',), ElementType()),
-                        "y": NeuralType(('B',), ElementType())}
+                return {"x": NeuralType(('B',), ElementType()), "y": NeuralType(('B',), ElementType())}
 
             @typecheck()
             def __call__(self, x, y):
@@ -148,8 +147,7 @@ class TestNeuralTypeCheckSystem:
         class MultipleOutputTypes(Typing):
             @property
             def output_types(self):
-                return {"y": NeuralType(('B',), ElementType()),
-                        "z": NeuralType(('B',), ElementType())}
+                return {"y": NeuralType(('B',), ElementType()), "z": NeuralType(('B',), ElementType())}
 
             @typecheck()
             def __call__(self, x):
@@ -171,8 +169,7 @@ class TestNeuralTypeCheckSystem:
         class MultipleMixedOutputTypes(Typing):
             @property
             def output_types(self):
-                return {"y": NeuralType(('B',), ElementType()),
-                        "z": [NeuralType(('B',), ElementType())]}
+                return {"y": NeuralType(('B',), ElementType()), "z": [NeuralType(('B',), ElementType())]}
 
             @typecheck()
             def __call__(self, x):
@@ -197,8 +194,7 @@ class TestNeuralTypeCheckSystem:
         class MultipleMixedOutputTypes(Typing):
             @property
             def output_types(self):
-                return {"y": NeuralType(('B',), ElementType()),
-                        "z": [NeuralType(('B',), ElementType())]}
+                return {"y": NeuralType(('B',), ElementType()), "z": [NeuralType(('B',), ElementType())]}
 
             @typecheck()
             def __call__(self, x):
@@ -543,8 +539,7 @@ class TestNeuralTypeCheckSystem:
         class NestedMixedNodeA(Typing):
             @property
             def input_types(self):
-                return {"x1": NeuralType(('B',), ElementType()),
-                        "x2": [[NeuralType(('B',), ElementType())]]}
+                return {"x1": NeuralType(('B',), ElementType()), "x2": [[NeuralType(('B',), ElementType())]]}
 
             @property
             def output_types(self):
@@ -913,6 +908,53 @@ class TestNeuralTypeCheckSystem:
             result = obj(x=data)
 
     @pytest.mark.unit
+    def test_nested_mixed_shape_mismatch(self):
+        class NestedMixedShapeMismatch(Typing):
+            @property
+            def input_types(self):
+                return {"x": [[NeuralType(('D',), ElementType())]]}  # Each element of nest will have 4 values
+
+            @property
+            def output_types(self):
+                return {"y": [NeuralType(('D',), ElementType())]}  # Each element of nest will have 4 values
+
+            @typecheck()
+            def __call__(self, x):
+                # v-- this is to satisfy 1 output constraint, python will otherwise interpret x as a 3 output value
+                x = x[0]
+                return x
+
+        def bb(dim=4):
+            return torch.zeros(dim)
+
+        obj = NestedMixedShapeMismatch()
+
+        # Arbitrary nest 1 (should pass)
+        data = [[bb(), bb(), bb()], [bb()], [bb(), bb()]]
+        result = obj(x=data)
+
+        recursive_assert_shape(result, torch.Size([4]))
+        recursive_assert_homogeneous_type(result, NeuralType(('D',), ElementType()))
+
+        # Arbitrary nest 2 (should pass)
+        def bb(dim=4):
+            return torch.zeros(dim, dim)
+
+        data = [[bb(), bb(), bb()], [bb()], [bb(), bb()]]
+        # Fails since input shape is incorrect
+        with pytest.raises(TypeError):
+            _ = obj(x=data)
+
+        # Arbitrary nest 3
+        def bb(dim=4):
+            return torch.zeros(dim)
+
+        data = [[[bb(), bb(), bb()]], [[bb()], [bb(), bb()]]]
+        # Check should fail since nest level is 3!
+        with pytest.raises(TypeError):
+            result = obj(x=data)
+
+    @pytest.mark.unit
     def test_input_container_neural_types(self):
         class NodeA(Typing):
             @property
@@ -956,3 +998,78 @@ class TestNeuralTypeCheckSystem:
         # Input nest level of 1
         with pytest.raises(TypeError):
             outA = nodeA(x=[torch.zeros(10), torch.zeros(10), torch.zeros(10)])
+
+    @pytest.mark.unit
+    def test_output_container_neural_types_incorrect(self):
+        class NodeA(Typing):
+            @property
+            def input_types(self):
+                # Nest depth level of 2
+                return {"x": NeuralType(('B',), ElementType())}
+
+            @property
+            def output_types(self):
+                return {"y": [[NeuralType(('B', 'D'), LogitsType())]]}
+
+            @typecheck()
+            def __call__(self, x):
+                y = torch.randn(x.shape[0], 4)
+                return y, y, y
+
+        nodeA = NodeA()
+        # Input nest level of 1
+        with pytest.raises(TypeError):
+            outA = nodeA(x=torch.zeros(10))
+
+    @pytest.mark.unit
+    def test_output_container_neural_types_no_tuple_wrap(self):
+        class NodeA(Typing):
+            @property
+            def input_types(self):
+                # Nest depth level of 2
+                return {"x": NeuralType(('B',), ElementType())}
+
+            @property
+            def output_types(self):
+                return {"y": [NeuralType(('B', 'D'), LogitsType())]}
+
+            @typecheck()
+            def __call__(self, x):
+                y = torch.randn(x.shape[0], 4)
+                y = [y, y, y]
+                return y
+
+        nodeA = NodeA()
+        # Input nest level of 1
+        outA = nodeA(x=torch.zeros(10))
+
+        assert len(outA) == 3
+        for i in range(len(outA)):
+            assert outA[i].neural_type.compare(NeuralType(('B', 'D'), LogitsType()))
+
+    @pytest.mark.unit
+    def test_output_container_neural_types_explicit_tuple_wrap(self):
+        class NodeA(Typing):
+            @property
+            def input_types(self):
+                # Nest depth level of 2
+                return {"x": NeuralType(('B',), ElementType())}
+
+            @property
+            def output_types(self):
+                return {"y": [NeuralType(('B', 'D'), LogitsType())]}
+
+            @typecheck()
+            def __call__(self, x):
+                y = torch.randn(x.shape[0], 4)
+                y = [y, y, y]
+                return (y,)
+
+        nodeA = NodeA()
+        # Input nest level of 1
+        outA = nodeA(x=torch.zeros(10))
+
+        assert len(outA) == 1
+        assert len(outA[0]) == 3
+        for i in range(len(outA)):
+            assert outA[0][i].neural_type.compare(NeuralType(('B', 'D'), LogitsType()))
