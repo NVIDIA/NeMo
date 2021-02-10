@@ -1,4 +1,4 @@
-oto3
+boto3
 h5py
 matplotlib>=3.3.2
 sentencepiece
@@ -15,4 +15,3 @@ sacrebleu[ja]
 sacremoses
 pangu
 jieba
-
