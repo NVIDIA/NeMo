@@ -186,8 +186,8 @@ class STFTExactPad(STFTPatch):
             # scale by hop ratio
             inverse_transform *= self.filter_length / self.hop_length
 
-        inverse_transform = inverse_transform[:, :, self.pad_amount :]
-        inverse_transform = inverse_transform[:, :, : -self.pad_amount :]
+        inverse_transform = inverse_transform[..., self.pad_amount :]
+        inverse_transform = inverse_transform[..., : -self.pad_amount :]
 
         return inverse_transform
 
