@@ -48,8 +48,31 @@ def is_typecheck_enabled():
 @dataclass
 class TypecheckMetadata:
     """
-    Metadata class for input/output neural types in
+    Metadata class for input/output neural types.
+
+    # Primary attributes
+    original_types: Preserve the dictionary of type information provided.
+    ignore_collections: For backward compatibility, container support can be disabled explicitly
+        using this flag. When set to True, all nesting is ignored and nest-depth checks are skipped.
+
+    # Derived attributed
+    mandatory_types: Sub-dictionary of `original_types` which contains only those types which
+        are mandatory to include when calling the function.
+
+    base_types: Dictionary of flattened `str: NeuralType` definitions, disregarding the nest level
+        details into appropriate arguments.
+
+    container_depth: Dictionary mapping `str: int` - such that the valid depth of the nest of this
+        neural type is recorded.
+
+    has_container_types: Bool flag declaring if any of the neural types declares a container nest
+        in its signature.
+
+    is_singular_container_type: Bool flag declaring if this is a single Neural Type with a container
+        nest in its signature. Required for supporting python list expansion in return statement.
+
     """
+
     original_types: Dict[str, NeuralType]
     ignore_collections: bool
 
@@ -61,19 +84,22 @@ class TypecheckMetadata:
     is_singular_container_type: bool = field(init=False)
 
     def __post_init__(self):
-        type_contains_container = False
+        # If even one NeuralType declares a container nest, set to True
+        has_container_types = False
         for type_val in self.original_types.values():
             if isinstance(type_val, (list, tuple)):
-                type_contains_container = True
+                has_container_types = True
                 break
+        self.has_container_types = has_container_types
 
-        self.has_container_types = type_contains_container
-
+        # If only one NeuralType is declared, and it declares a container nest, set to True
         if self.has_container_types and len(self.original_types) == 1:
             self.is_singular_container_type = True
         else:
             self.is_singular_container_type = False
 
+        # If container nests are declared, flatten the nest into `base_types`
+        # Also compute the nest depth for each of the NeuralTypes
         if self.has_container_types:
             self.base_types = {}
             self.container_depth = {}
@@ -81,6 +107,14 @@ class TypecheckMetadata:
             for type_key, type_val in self.original_types.items():
                 depth = 0
                 while isinstance(type_val, (list, tuple)):
+                    if len(type_val) > 1:
+                        raise TypeError(
+                            f"Neural Type `{type_key}`: {type_val} definition contains more than one element when"
+                            "declaring the nested container structure.\n"
+                            "Please ensure that you have only 1 NeuralType inside of the entire nested structure "
+                            "definition."
+                        )
+
                     type_val = type_val[0]
                     depth += 1
 
