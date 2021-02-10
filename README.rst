@@ -141,7 +141,7 @@ Documentation
 +---------+----------+---------------------------------------------------------+
 | Version | Status   | Description                                             |
 +=========+==========+=========================================================+
-| Latest  | |latest| | Documentation of the latest (i.e. `main`) branch        |
+| Latest  | |main| | Documentation of the latest (i.e. `main`) branch        |
 +---------+----------+---------------------------------------------------------+
 | Stable  | |v1.0.0b1| | Documentation of the stable (i.e. `v1.0.0b1`) branch  |
 +---------+----------+---------------------------------------------------------+
