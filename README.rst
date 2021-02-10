@@ -156,7 +156,7 @@ Documentation
 +---------+----------+---------------------------------------------------------+
 | Version | Status   | Description                                             |
 +=========+==========+=========================================================+
-| Latest  | |latest| | Documentation of the latest (i.e. `main`) branch        |
+| Latest  | |main| | Documentation of the latest (i.e. `main`) branch        |
 +---------+----------+---------------------------------------------------------+
 | Stable  | |stable| | Documentation of the stable (i.e. `0.11.1`) branch      |
 +---------+----------+---------------------------------------------------------+
