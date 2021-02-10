@@ -145,7 +145,7 @@ class TestNeuralTypeCheckSystem:
 
     @pytest.mark.unit
     def test_multiple_output_types_only(self):
-        class OutputTypes(Typing):
+        class MultipleOutputTypes(Typing):
             @property
             def output_types(self):
                 return {"y": NeuralType(('B',), ElementType()),
@@ -157,7 +157,7 @@ class TestNeuralTypeCheckSystem:
                 z = x + 2
                 return y, z
 
-        obj = OutputTypes()
+        obj = MultipleOutputTypes()
         result_y, result_z = obj(x=torch.zeros(10))
 
         assert result_y.sum() == torch.tensor(10.0)
@@ -165,6 +165,51 @@ class TestNeuralTypeCheckSystem:
 
         assert result_z.sum() == torch.tensor(20.0)
         assert result_z.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+    @pytest.mark.unit
+    def test_multiple_mixed_output_types_only(self):
+        class MultipleMixedOutputTypes(Typing):
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('B',), ElementType()),
+                        "z": [NeuralType(('B',), ElementType())]}
+
+            @typecheck()
+            def __call__(self, x):
+                y = x + 1
+                z = x + 2
+                return y, [z, z]
+
+        obj = MultipleMixedOutputTypes()
+        result_y, result_z = obj(x=torch.zeros(10))
+
+        assert result_y.sum() == torch.tensor(10.0)
+        assert result_y.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+        assert result_z[0].sum() == torch.tensor(20.0)
+        assert result_z[0].neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+        assert result_z[1].sum() == torch.tensor(20.0)
+        assert result_z[1].neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+    @pytest.mark.unit
+    def test_multiple_mixed_output_types_only_mismatched(self):
+        class MultipleMixedOutputTypes(Typing):
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('B',), ElementType()),
+                        "z": [NeuralType(('B',), ElementType())]}
+
+            @typecheck()
+            def __call__(self, x):
+                # Use list of y, single z, contrary to signature
+                y = x + 1
+                z = x + 2
+                return [y, y], z
+
+        obj = MultipleMixedOutputTypes()
+        with pytest.raises(TypeError):
+            result_y, result_z = obj(x=torch.zeros(10))
 
     @pytest.mark.unit
     def test_incorrect_inheritance(self):
@@ -378,6 +423,69 @@ class TestNeuralTypeCheckSystem:
         class NestedNodeA(Typing):
             @property
             def input_types(self):
+                return {"x": [[NeuralType(('B',), ElementType())]]}
+
+            @property
+            def output_types(self):
+                return {
+                    "y0": [NeuralType(('B', 'D'), LogitsType())],
+                    "y1": [NeuralType(('B', 'D'), LogitsType())],
+                }
+
+            @typecheck(ignore_collections=False)
+            def __call__(self, x):
+                # input x = [[x1, x2], [x3]]
+                x0 = x[0][0]
+                y = torch.randn(x0.shape[0], 4)
+                # Output is same as
+                # 1) return ([y, y], [y])
+                # 2) return [y, y], [y]
+                return [[y, y], [y]]
+
+        # Non-homogeneous output types
+        class NestedNodeB(Typing):
+            @property
+            def input_types(self):
+                return {"w": [[NeuralType(('B', 'D'), LogitsType())]]}
+
+            @property
+            def output_types(self):
+                return {
+                    "u0": [NeuralType(('B',), LogprobsType())],  # check non homogeneous type
+                    "u1": [NeuralType(('B',), LabelsType())],
+                }
+
+            @typecheck(ignore_collections=False)
+            def __call__(self, w):
+                # input x = [[x1, x2], [x3]]
+                _, u00 = w[0][0].max(-1)
+                _, u01 = w[0][1].max(-1)
+                _, u10 = w[1][0].max(-1)
+                # Output is same as
+                # 1) return ([u00, u01], [u10])
+                # 2) return [u00, u01], [u10]
+                return [[u00, u01], [u10]]
+
+        nodeA = NestedNodeA()
+        nodeB = NestedNodeB()
+
+        input_nest = [[torch.zeros(10), torch.zeros(10)], [torch.zeros(10)]]
+        outA = nodeA(x=input_nest)
+        outB = nodeB(w=outA)
+
+        # Perform recursive shape assert
+        recursive_assert_shape(outB, torch.Size([10]))
+
+        # Assert non-homogeneous type assertions
+        assert outB[0][0].neural_type.compare(NeuralType(('B',), LogprobsType())) == NeuralTypeComparisonResult.SAME
+        assert outB[0][1].neural_type.compare(NeuralType(('B',), LogprobsType())) == NeuralTypeComparisonResult.SAME
+        assert outB[1][0].neural_type.compare(NeuralType(('B',), LabelsType())) == NeuralTypeComparisonResult.SAME
+
+    @pytest.mark.unit
+    def test_nested_input_output_neural_types_ignore_collections(self):
+        class NestedNodeA(Typing):
+            @property
+            def input_types(self):
                 return {"x": NeuralType(('B',), ElementType())}
 
             @property
@@ -429,6 +537,65 @@ class TestNeuralTypeCheckSystem:
         assert outB[0][0].neural_type.compare(NeuralType(('B',), LogprobsType())) == NeuralTypeComparisonResult.SAME
         assert outB[0][1].neural_type.compare(NeuralType(('B',), LogprobsType())) == NeuralTypeComparisonResult.SAME
         assert outB[1][0].neural_type.compare(NeuralType(('B',), LabelsType())) == NeuralTypeComparisonResult.SAME
+
+    @pytest.mark.unit
+    def test_nested_mixed_input_output_neural_types(self):
+        class NestedMixedNodeA(Typing):
+            @property
+            def input_types(self):
+                return {"x1": NeuralType(('B',), ElementType()),
+                        "x2": [[NeuralType(('B',), ElementType())]]}
+
+            @property
+            def output_types(self):
+                return {
+                    "y0": NeuralType(('B', 'D'), LogprobsType()),
+                    "y1": [[NeuralType(('B', 'D'), LogitsType())]],
+                }
+
+            @typecheck(ignore_collections=False)
+            def __call__(self, x1, x2):
+                # input x = [[x1, x2], [x3]]
+                x0 = x2[0][0]
+                y = torch.randn(x0.shape[0], 4)
+                return y, [[y, y], [y]]
+
+        # Non-homogeneous output types
+        class NestedMixedNodeB(Typing):
+            @property
+            def input_types(self):
+                return {"w": [[NeuralType(('B', 'D'), LogitsType())]]}
+
+            @property
+            def output_types(self):
+                return {
+                    "u0": [NeuralType(('B',), LogprobsType())],  # check non homogeneous type
+                    "u1": NeuralType(('B',), LabelsType()),
+                }
+
+            @typecheck(ignore_collections=False)
+            def __call__(self, w):
+                # input x = [[x1, x2], [x3]]
+                _, u00 = w[0][0].max(-1)
+                _, u01 = w[0][1].max(-1)
+                _, u10 = w[1][0].max(-1)
+                return [u00, u01], u10
+
+        nodeA = NestedMixedNodeA()
+        nodeB = NestedMixedNodeB()
+
+        input_nest = [[torch.zeros(10), torch.zeros(10)], [torch.zeros(10)]]
+        out_y, outA = nodeA(x1=torch.zeros(10), x2=input_nest)
+        outB, out_u = nodeB(w=outA)
+
+        # Perform recursive shape assert
+        assert out_y.neural_type.compare(NeuralType(('B', 'D'), LogprobsType()))
+        recursive_assert_shape(outB, torch.Size([10]))
+
+        # Assert non-homogeneous type assertions
+        assert outB[0].neural_type.compare(NeuralType(('B',), LogprobsType())) == NeuralTypeComparisonResult.SAME
+        assert outB[1].neural_type.compare(NeuralType(('B',), LogprobsType())) == NeuralTypeComparisonResult.SAME
+        assert out_u.neural_type.compare(NeuralType(('B',), LabelsType())) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit
     def test_multi_forward_type(self):
@@ -699,7 +866,6 @@ class TestNeuralTypeCheckSystem:
             # Test passing wrong key for input
             _ = obj(a=torch.zeros(10), x=torch.zeros(5))
 
-    @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_nested_shape_mismatch(self):
         class NestedShapeMismatch(Typing):
@@ -709,12 +875,12 @@ class TestNeuralTypeCheckSystem:
 
             @property
             def output_types(self):
-                return {"y": NeuralType(('D',), ElementType())}  # Each element of nest will have 4 values
+                return {"y": [[NeuralType(('D',), ElementType())]]}  # Each element of nest will have 4 values
 
             @typecheck()
             def __call__(self, x):
                 # v-- this is to satisfy 1 output constraint, python will otherwise interpret x as a 3 output value
-                return (x,)
+                return x
 
         def bb(dim=4):
             return torch.zeros(dim)
@@ -757,7 +923,7 @@ class TestNeuralTypeCheckSystem:
             def output_types(self):
                 return {"y": NeuralType(('B', 'D'), LogitsType())}
 
-            @typecheck(ignore_collections=False)
+            @typecheck()
             def __call__(self, x: list()):
                 x1, x2, x3 = x  # unpack x
                 y = torch.randn(x1.shape[0], 4)
@@ -780,7 +946,7 @@ class TestNeuralTypeCheckSystem:
             def output_types(self):
                 return {"y": NeuralType(('B', 'D'), LogitsType())}
 
-            @typecheck(ignore_collections=False)
+            @typecheck()
             def __call__(self, x: list()):
                 x1, x2, x3 = x  # unpack x
                 y = torch.randn(x1.shape[0], 4)

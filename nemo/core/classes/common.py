@@ -47,6 +47,9 @@ def is_typecheck_enabled():
 
 @dataclass
 class TypecheckMetadata:
+    """
+    Metadata class for input/output neural types in
+    """
     original_types: Dict[str, NeuralType]
     ignore_collections: bool
 
@@ -201,7 +204,7 @@ class Typing(ABC):
         # TODO: Properly implement this
         if output_types is not None:
             metadata = TypecheckMetadata(original_types=output_types, ignore_collections=ignore_collections)
-            out_types_list = list(output_types.items())
+            out_types_list = list(metadata.base_types.items())
 
             # First convert all outputs to list/tuple format to check correct number of outputs
             if type(out_objects) in (list, tuple):
@@ -214,8 +217,11 @@ class Typing(ABC):
 
             elif len(out_types_list) != len(out_container):
                 raise TypeError(
-                    "Number of output arguments provided ({}) is not as expected ({})".format(
-                        len(out_container), len(output_types)
+                    "Number of output arguments provided ({}) is not as expected ({}).\n"
+                    "This can be either because insufficient number of output NeuralTypes were provided,"
+                    "or the provided NeuralTypes {} should enable container support "
+                    "(add '[]' to the NeuralType definition)".format(
+                        len(out_container), len(output_types), output_types
                     )
                 )
 
@@ -238,9 +244,15 @@ class Typing(ABC):
                             f"Output shape expected = {type_shape} | \n"
                             f"Output shape found : {value_shape}"
                         )
+
+            elif metadata.is_singular_container_type:
+                for ind, res in enumerate(out_objects):
+                    depth = metadata.container_depth[out_types_list[0][0]]
+                    depth = min(depth, 1)
+                    self.__attach_neural_type(res, metadata, depth=depth, name=out_types_list[0][0])
             else:
                 for ind, res in enumerate(out_objects):
-                    self.__attach_neural_type(res, out_types_list[ind][1], name=out_types_list[ind][0])
+                    self.__attach_neural_type(res, metadata, depth=0, name=out_types_list[ind][0])
 
     def __check_neural_type(self, obj, metadata, depth, name=None):
         if isinstance(obj, tuple) or isinstance(obj, list):
@@ -253,7 +265,7 @@ class Typing(ABC):
         if not metadata.ignore_collections and depth != metadata.container_depth[name]:
             raise TypeError(
                 "Nested depth of value does not match container specification:\n"
-                f"Current nested depth of Neural Type [{type_val}]: {depth}\n"
+                f"Current nested depth of NeuralType '{name}' ({type_val}): {depth}\n"
                 f"Expected nested depth : {metadata.container_depth[name]}"
             )
 
@@ -279,11 +291,20 @@ class Typing(ABC):
                     f"Input shape found : {value_shape}"
                 )
 
-    def __attach_neural_type(self, obj, type_val, name=None):
+    def __attach_neural_type(self, obj, metadata, depth, name=None):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
-                self.__attach_neural_type(elem, type_val, name=name)
+                self.__attach_neural_type(elem, metadata, depth=depth + 1, name=name)
             return  # after processing nest, return to avoid argument insertion into nest itself
+
+        type_val = metadata.base_types[name]
+
+        if not metadata.ignore_collections and depth != metadata.container_depth[name]:
+            raise TypeError(
+                "Nested depth of value does not match container specification:\n"
+                f"Current nested depth of NeuralType '{name}' ({type_val}): {depth}\n"
+                f"Expected nested depth : {metadata.container_depth[name]}"
+            )
 
         try:
             obj.neural_type = type_val
@@ -601,7 +622,9 @@ class typecheck:
         # Call the method - this can be forward, or any other callable method
         outputs = wrapped(*args, **kwargs)
 
-        instance._attach_and_validate_output_types(output_types=output_types, out_objects=outputs)
+        instance._attach_and_validate_output_types(
+            output_types=output_types, ignore_collections=self.ignore_collections, out_objects=outputs
+        )
 
         return outputs
 

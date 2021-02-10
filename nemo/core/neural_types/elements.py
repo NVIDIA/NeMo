@@ -65,7 +65,7 @@ class ElementType(ABC):
     We are relying on Python for inheritance checking"""
 
     def __str__(self):
-        self.__doc__
+        return self.__doc__
 
     def __repr__(self):
         return self.__class__.__name__
