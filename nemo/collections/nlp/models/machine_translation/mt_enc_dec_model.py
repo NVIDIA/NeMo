@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import itertools
-import json
-import os
 import pickle
 import random
 from pathlib import Path
-import tarfile
-import tempfile
 from typing import Dict, List, Optional
 from importlib_metadata import metadata
 

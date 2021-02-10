@@ -16,7 +16,6 @@
 
 import io
 import json
-import logging
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -30,6 +29,7 @@ from torch.utils.data import IterableDataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
+from nemo.utils import logging
 
 __all__ = ['TranslationDataset', 'TarredTranslationDataset']
 
