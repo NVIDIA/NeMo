@@ -178,7 +178,7 @@ class Exportable(ABC):
                     try:
                         jitted_model = torch.jit.trace(
                             self,
-                            input_example,
+                            in_example,
                             strict=False,
                             optimize=True,
                             check_trace=check_trace,
@@ -186,7 +186,8 @@ class Exportable(ABC):
                         )
                     except Exception as e:
                         print("jit.trace() failed!", e)
-
+                if jitted_model and verbose:
+                    print(jitted_model.code)
                 if format == ExportFormat.TORCHSCRIPT:
                     assert jitted_model
                     jitted_model.save(output)
@@ -197,9 +198,9 @@ class Exportable(ABC):
                         jitted_model = self
                     if output_example is None:
                         if isinstance(input_example, tuple):
-                            output_example = self.forward(*input_example)
+                            output_example = jitted_model.forward(*input_example)
                         else:
-                            output_example = self.forward(input_example)
+                            output_example = jitted_model.forward(input_example)
 
                     input_names = self.input_module.get_input_names(input_example)
                     output_names = self.output_module.get_output_names(output_example)
