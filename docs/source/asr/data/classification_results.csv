@@ -1,0 +1,10 @@
+Model Name,Model Base Class,Description
+MatchboxNet-3x1x64-v1,EncDecClassificationModel,"MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) which obtains 97.32% accuracy on test set."
+MatchboxNet-3x2x64-v1,EncDecClassificationModel,"MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) which obtains 97.68% accuracy on test set."
+MatchboxNet-3x1x64-v2,EncDecClassificationModel,"MatchboxNet model trained on Google Speech Commands dataset (v2, 35 classes) which obtains 97.12% accuracy on test set."
+MatchboxNet-3x1x64-v2,EncDecClassificationModel,"MatchboxNet model trained on Google Speech Commands dataset (v2, 30 classes) which obtains 97.29% accuracy on test set."
+MatchboxNet-3x1x64-v2-subset-task,EncDecClassificationModel,"MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) which obtains 98.2% accuracy on test set."
+MatchboxNet-3x2x64-v2-subset-task,EncDecClassificationModel,"MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) which obtains 98.4% accuracy on test set."
+MatchboxNet-VAD-3x2,EncDecClassificationModel,"Voice Activity Detection MatchboxNet model trained on google speech command (v2) and freesound background data, which obtains 0.992 accuracy on testset from same source and 0.852 TPR for FPR=0.315 on testset (ALL) of AVA movie data."
+SpeakerNet_recognition,EncDecClassificationModel,"SpeakerNet_recognition model trained end-to-end for speaker recognition purposes with cross_entropy loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Recognition model achieves 2.65% EER on voxceleb-O cleaned trial file."
+SpeakerNet_verification,EncDecClassificationModel,"SpeakerNet_verification model trained end-to-end for speaker verification purposes with arcface angular softmax loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Verification model achieves 2.12% EER on voxceleb-O cleaned trial file."
