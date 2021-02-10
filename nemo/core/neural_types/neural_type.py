@@ -198,7 +198,7 @@ class NeuralType(object):
                 return 1
             else:
                 return 3
-            data
+
     def __repr__(self):
         if self.axes is not None:
             axes = str(self.axes)
