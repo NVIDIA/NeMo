@@ -335,7 +335,7 @@ pipeline {
             /bin/bash run_sample.sh \
             --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
             --DATA_DIR=/home/TestData/ctc_segmentation/eng \
-            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/outputS{TIME} \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
             --LANGUAGE=eng \
             --OFFSET=0 \
             --CUT_PREFIX=0 \
