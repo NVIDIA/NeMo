@@ -17,11 +17,12 @@ import pickle
 import random
 from pathlib import Path
 from typing import Dict, List, Optional
-from importlib_metadata import metadata
 
 import numpy as np
 import torch
 import torch.utils.data as pt_data
+import youtokentome as yttm
+from importlib_metadata import metadata
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.core.lightning import LightningModule
@@ -30,7 +31,6 @@ from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 from torch.nn.parallel.distributed import DistributedDataParallel
-import youtokentome as yttm
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -40,12 +40,11 @@ from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDatas
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
-
 
 __all__ = ['MTEncDecModel']
 

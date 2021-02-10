@@ -15,17 +15,18 @@
 
 import glob
 import json
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.utils import logging
-
-from pytorch_lightning import Trainer
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
-import pickle
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
 import os
+import pickle
 import tarfile
 import tempfile
+
 import youtokentome as yttm
+from pytorch_lightning import Trainer
+
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.utils import logging
 
 
 class MTDataPreproc:

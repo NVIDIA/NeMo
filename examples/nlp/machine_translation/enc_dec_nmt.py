@@ -13,13 +13,12 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-
-from omegaconf import OmegaConf
-from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from typing import Optional
 
+from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import AAYNBaseConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.core.config import hydra_runner
