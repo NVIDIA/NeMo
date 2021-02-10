@@ -67,6 +67,8 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
     python3 setup.py install && \
     rm -rf ../tests test ../tensorflow_binding
 
+# uninstall stuff from base container
+RUN pip uninstall -y sacrebleu
 
 # install nemo dependencies
 WORKDIR /tmp/nemo

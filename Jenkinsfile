@@ -331,10 +331,11 @@ pipeline {
           stage('L2: Eng QN with .wav') {
            steps {
             sh 'cd tools/ctc_segmentation && \
+            TIME=`date +"%Y-%m-%d-%T"` && \
             /bin/bash run_sample.sh \
             --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
             --DATA_DIR=/home/TestData/ctc_segmentation/eng \
-            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
             --LANGUAGE=eng \
             --OFFSET=0 \
             --CUT_PREFIX=0 \
@@ -342,17 +343,18 @@ pipeline {
             --AUDIO_FORMAT=.wav && \
             python /home/TestData/ctc_segmentation/verify_alignment.py \
             -r /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
-            -g /home/TestData/ctc_segmentation/eng/output/verified_segments/nv_test_segments.txt && \
-            rm -rf /home/TestData/ctc_segmentation/eng/output'
+            -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt && \
+            rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}'
             }
           }
           stage('L2: Ru QN with .mp3') {
            steps {
             sh 'cd tools/ctc_segmentation && \
+            TIME=`date +"%Y-%m-%d-%T"` && \
             /bin/bash run_sample.sh \
             --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
             --DATA_DIR=/home/TestData/ctc_segmentation/ru \
-            --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output${TIME} \
             --LANGUAGE=ru \
             --OFFSET=0 \
             --CUT_PREFIX=0 \
@@ -361,8 +363,8 @@ pipeline {
             --ADDITIONAL_SPLIT_SYMBOLS=";" && \
             python /home/TestData/ctc_segmentation/verify_alignment.py \
             -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
-            -g /home/TestData/ctc_segmentation/ru/output/verified_segments/ru_segments.txt && \
-            rm -rf /home/TestData/ctc_segmentation/ru/output'
+            -g /home/TestData/ctc_segmentation/ru/output${TIME}/verified_segments/ru_segments.txt && \
+            rm -rf /home/TestData/ctc_segmentation/ru/output${TIME}'
             }
            }
          }
