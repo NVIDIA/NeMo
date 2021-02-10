@@ -245,6 +245,8 @@ class MTEncDecModel(EncDecNLPModel):
         assert len(translations) == len(ground_truths)
         if self.tgt_language in ['ja']:
             sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
+        if self.tgt_language in ['zh']:
+            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="zh")
         else:
             sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
 
