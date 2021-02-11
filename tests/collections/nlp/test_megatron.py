@@ -55,6 +55,7 @@ class TestMegatron(TestCase):
             # Test export.
             model.export(tmp_file_name)
 
+
 if __name__ == "__main__":
     t = TestMegatron()
     t.test_get_pretrained_bert_345m_uncased_model()

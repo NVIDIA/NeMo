@@ -33,6 +33,13 @@ from nemo.utils.decorators import experimental
 __all__ = ['MegatronBertEncoder']
 
 
+def complete_lazy_init(self):
+    # finish megatron-lm initialization
+    if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
+        self._lazy_init_fn()
+        self._lazy_init_fn = 0
+
+
 @experimental
 class MegatronBertEncoder(BertModule):
     """
@@ -115,6 +122,8 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
+        complete_lazy_init(self)
+
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
 
@@ -136,10 +145,7 @@ class MegatronBertEncoder(BertModule):
         """
         self._restore_path = restore_path
 
-        # finish megatron-lm initialization
-        if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
-            self._lazy_init_fn()
-            self._lazy_init_fn = 0
+        complete_lazy_init(self)
 
         if os.path.isfile(restore_path):
             logging.info(f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism')
