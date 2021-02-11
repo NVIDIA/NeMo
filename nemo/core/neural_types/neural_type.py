@@ -199,6 +199,25 @@ class NeuralType(object):
             else:
                 return 3
 
+    def __repr__(self):
+        if self.axes is not None:
+            axes = str(self.axes)
+        else:
+            axes = "None"
+
+        if self.elements_type is not None:
+            element_type = repr(self.elements_type)
+        else:
+            element_type = "None"
+
+        data = f"axis={axes}, element_type={element_type}"
+
+        if self.optional:
+            data = f"{data}, optional={self.optional}"
+
+        final = f"{self.__class__.__name__}({data})"
+        return final
+
 
 class NeuralTypeError(Exception):
     """Base class for neural type related exceptions."""
