@@ -322,14 +322,15 @@ class MTDataPreproc:
                     logging.info(
                         f'Shared tokenizer model {encoder_tokenizer_model} not found. Training tokenizer model.'
                     )
-                    os.system('cat %s %s > %s' % (src_fname, tgt_fname, '/tmp/concat_dataset.txt'))
-                    yttm.BPE.train(
-                        data='/tmp/concat_dataset.txt',
-                        vocab_size=encoder_tokenizer_vocab_size,
-                        model=os.path.join(out_dir, encoder_tokenizer_model),
-                        n_threads=-1,
-                    )
-                    os.remove('/tmp/concat_dataset.txt')
+                    with tempfile.TemporaryDirectory() as tmp:
+                        concat_data_path = os.path.join(tmp, 'concat_dataset.txt')
+                        os.system('cat %s %s > %s' % (src_fname, tgt_fname, concat_data_path))
+                        yttm.BPE.train(
+                            data=concat_data_path,
+                            vocab_size=encoder_tokenizer_vocab_size,
+                            model=os.path.join(out_dir, encoder_tokenizer_model),
+                            n_threads=-1,
+                        )
         else:
             encoder_tokenizer_model = os.path.join(
                 out_dir, 'tokenizer.encoder.%d.BPE.model' % (encoder_tokenizer_vocab_size)
