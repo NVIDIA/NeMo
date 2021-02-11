@@ -104,7 +104,7 @@ def main(cfg: DictConfig) -> None:
         logging.error(f'{data_dir} is not found, skipping evaluation on the test set.')
     else:
         model.update_data_dir(data_dir=data_dir)
-        model._cfg.dataset = cfg.dataset
+        model._cfg.dataset = cfg.model.dataset
 
         if not hasattr(cfg.model, 'test_ds'):
             logging.error(f'model.test_ds was not found in the config, skipping evaluation')
