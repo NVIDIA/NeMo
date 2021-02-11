@@ -59,11 +59,9 @@ model:
     use_grads: false
 
   optim:
+    _target_: torch.optim.AdamW
     lr: 0.0002
-    adam_b1: 0.8
-    adam_b2: 0.99
-    lr_decay: 0.999
-    lr_step: 15
+    betas: [0.8, 0.99]
 
 trainer:
   gpus: -1 # number of gpus

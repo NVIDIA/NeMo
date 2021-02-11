@@ -14,6 +14,7 @@
 
 import itertools
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb
@@ -28,6 +29,7 @@ from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminato
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
 
 
@@ -52,23 +54,26 @@ class HifiGanModel(Vocoder):
         self.sample_rate = self._cfg.preprocessor.sample_rate
 
     def configure_optimizers(self):
-        self.optim_g = torch.optim.AdamW(
-            self.generator.parameters(), self._cfg.optim.lr, betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2]
-        )
-        self.optim_d = torch.optim.AdamW(
-            itertools.chain(self.msd.parameters(), self.mpd.parameters()),
-            self._cfg.optim.lr,
-            betas=[self._cfg.optim.adam_b1, self._cfg.optim.adam_b2],
+        self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
+        self.optim_d = instantiate(
+            self._cfg.optim, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
         )
 
-        self.scheduler_g = torch.optim.lr_scheduler.StepLR(
-            self.optim_g, step_size=self._cfg.optim.lr_step, gamma=self._cfg.optim.lr_decay,
-        )
-        self.scheduler_d = torch.optim.lr_scheduler.StepLR(
-            self.optim_d, step_size=self._cfg.optim.lr_step, gamma=self._cfg.optim.lr_decay,
-        )
+        max_steps = 2500000  # 2.5M in the original paper
+        self.scheduler_g = CosineAnnealing(
+            self.optim_g, max_steps=max_steps, min_lr=1e-5, warmup_steps=np.ceil(0.2 * max_steps)
+        )  # Use warmup to delay start
+        sch1_dict = {
+            'scheduler': self.scheduler_g,
+            'interval': 'step',
+        }
+        self.scheduler_d = CosineAnnealing(self.optim_d, max_steps=max_steps, min_lr=1e-5)
+        sch2_dict = {
+            'scheduler': self.scheduler_d,
+            'interval': 'step',
+        }
 
-        return [self.optim_g, self.optim_d], [self.scheduler_g, self.scheduler_d]
+        return [self.optim_g, self.optim_d], [sch1_dict, sch2_dict]
 
     @property
     def input_types(self):

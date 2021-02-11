@@ -51,8 +51,8 @@ class FeatureMatchingLoss(Loss):
     @property
     def input_types(self):
         return {
-            "fmap_r": NeuralType(elements_type=VoidType()),
-            "fmap_g": NeuralType(elements_type=VoidType()),
+            "fmap_r": [[NeuralType(elements_type=VoidType())]],
+            "fmap_g": [[NeuralType(elements_type=VoidType())]],
         }
 
     @property
@@ -77,16 +77,16 @@ class DiscriminatorLoss(Loss):
     @property
     def input_types(self):
         return {
-            "disc_real_outputs": NeuralType(('B', 'T'), VoidType()),
-            "disc_generated_outputs": NeuralType(('B', 'T'), VoidType()),
+            "disc_real_outputs": [NeuralType(('B', 'T'), VoidType())],
+            "disc_generated_outputs": [NeuralType(('B', 'T'), VoidType())],
         }
 
     @property
     def output_types(self):
         return {
             "loss": NeuralType(elements_type=LossType()),
-            "real_losses": NeuralType(elements_type=LossType()),
-            "fake_losses": NeuralType(elements_type=LossType()),
+            "real_losses": [NeuralType(elements_type=LossType())],
+            "fake_losses": [NeuralType(elements_type=LossType())],
         }
 
     @typecheck()
@@ -110,14 +110,14 @@ class GeneratorLoss(Loss):
     @property
     def input_types(self):
         return {
-            "disc_outputs": NeuralType(('B', 'T'), VoidType()),
+            "disc_outputs": [NeuralType(('B', 'T'), VoidType())],
         }
 
     @property
     def output_types(self):
         return {
             "loss": NeuralType(elements_type=LossType()),
-            "fake_losses": NeuralType(elements_type=LossType()),
+            "fake_losses": [NeuralType(elements_type=LossType())],
         }
 
     @typecheck()
