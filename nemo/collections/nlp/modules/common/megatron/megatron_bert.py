@@ -103,14 +103,14 @@ class MegatronBertEncoder(BertModule):
         # key used for checkpoints
         self._hidden_size = self.language_model.hidden_size
 
-        def complete_lazy_init():
-            """
-            call and clear lazy initialization hook on first call
-            """
-            if self._lazy_init_fn:
-                self._lazy_init_fn()
-                self._lazy_init_fn = 0
-
+    def complete_lazy_init():
+        """
+           Call and clear lazy initialization hook on first call
+        """
+        if self._lazy_init_fn:
+            self._lazy_init_fn()
+            self._lazy_init_fn = 0
+            
     @property
     def hidden_size(self):
         """
