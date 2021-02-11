@@ -37,7 +37,7 @@ def complete_lazy_init(self):
     # finish megatron-lm initialization
     if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
         self._lazy_init_fn()
-        self._lazy_init_fn = 0
+        self._lazy_init_fn = None
 
 
 @experimental
