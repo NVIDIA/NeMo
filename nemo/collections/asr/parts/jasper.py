@@ -657,3 +657,29 @@ class JasperBlock(nn.Module):
             return xs + [out], lens
 
         return [out], lens
+
+
+class ParallelBlock(nn.Module):
+    def __init__(self, blocks):
+        super().__init__()
+        self.blocks = nn.ModuleList(blocks)
+
+    def forward(self, x):
+        if len(self.blocks) == 1:
+            return self.blocks[0](x)
+
+        result = None
+        max_mask = None
+        for block in self.blocks:
+            output, mask = block(x)
+            if result is None:
+                result = output
+            else:
+                result += output
+
+            if max_mask is None:
+                max_mask = mask
+            else:
+                max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
+
+        return result, max_mask

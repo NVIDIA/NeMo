@@ -24,6 +24,7 @@ from nemo.collections.asr.modules.conv_asr import (
     ConvASRDecoder,
     ConvASRDecoderClassification,
     ConvASREncoder,
+    ParallelConvASREncoder,
     SpeakerDecoder,
 )
 from nemo.collections.asr.modules.lstm_decoder import LSTMDecoder
