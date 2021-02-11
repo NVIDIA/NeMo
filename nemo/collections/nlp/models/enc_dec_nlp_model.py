@@ -78,7 +78,7 @@ class EncDecNLPModel(NLPModel):
     ):
 
         if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
-            raise NotImplemented(f"Currently we only support yttm tokenizer.")
+            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
 
         self.encoder_tokenizer = get_tokenizer(
             tokenizer_name=encoder_tokenizer_name,

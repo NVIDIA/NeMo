@@ -45,7 +45,7 @@ class MTDataPreproc:
             cfg.encoder_tokenizer.get('tokenizer_name') != 'yttm'
             or cfg.decoder_tokenizer.get('tokenizer_name') != 'yttm'
         ):
-            raise NotImplemented(f"Currently we only support yttm tokenizer.")
+            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
 
         # Train tokenizer models if they don't exist
         if (
@@ -142,7 +142,7 @@ class MTDataPreproc:
     ):
 
         if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
-            raise NotImplemented(f"Currently we only support yttm tokenizer.")
+            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
 
         encoder_tokenizer = get_tokenizer(
             tokenizer_name=encoder_tokenizer_name,
@@ -278,7 +278,7 @@ class MTDataPreproc:
         os.makedirs(out_dir, exist_ok=True)
 
         if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
-            raise NotImplemented(f"Currently we only support yttm tokenizer.")
+            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
 
         if shared_tokenizer:
             encoder_tokenizer_model = os.path.join(
