@@ -305,13 +305,13 @@ class MTDataPreproc:
 
         tar_file_paths = glob.glob(f'{out_dir}/batches.tokens.{tokens_in_batch}.*.tar')
 
-        num_file_paths = len(tar_file_paths)
-        if num_file_paths < 8:
-            logging.warning(
+        num_tar_files = len(tar_file_paths)
+        if num_tar_files < self.world_size:
+            raise ValueError(
                 (
-                    f'Number of tar files found: {num_files_in_tar} is less than 8. '
+                    f'Number of tar files found: {num_tar_files} is less than world size: {self.world_size}. '
+                    f'There should be at least one tar file per GPU (ideally many tar files per GPU). '
                     f'This may be due to dataset size, it is advisable to use at least 5M sentence pairs for tarred datasets. '
-                    f'There should be at minimum (ideally more) than one tar file per GPU. '
                     f'Decrease num_batches_per_tarfile or num_tokens_per_batch to increase the number of tarfiles. '
                     f'Also using shard_strategy=replicate will use all available tarfiles for every GPU. '
                 )
