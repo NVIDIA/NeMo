@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from os.path import expanduser
+from os.path import expanduser, split, join
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 
@@ -77,7 +77,7 @@ def item_iter(
 
 def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)
-
+    manifest_path, _ = split(manifest_file)
     # Audio file
     if 'audio_filename' in item:
         item['audio_file'] = item.pop('audio_filename')
@@ -88,6 +88,8 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
             f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
         )
     item['audio_file'] = expanduser(item['audio_file'])
+    if item['audio_file'][0] != "/":
+        item['audio_file'] = join(manifest_path, item['audio_file'])
 
     # Duration.
     if 'duration' not in item:

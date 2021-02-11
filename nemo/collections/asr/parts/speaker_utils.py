@@ -19,9 +19,9 @@ from copy import deepcopy
 
 import numpy as np
 from omegaconf import ListConfig
-from pyannote.core import Annotation, Segment
-from pyannote.metrics.diarization import DiarizationErrorRate
-from spectralcluster import SpectralClusterer
+# from pyannote.core import Annotation, Segment
+# from pyannote.metrics.diarization import DiarizationErrorRate
+# from spectralcluster import SpectralClusterer
 
 from nemo.utils import logging
 
