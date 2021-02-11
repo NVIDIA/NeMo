@@ -28,6 +28,7 @@ import pytest
 import torch
 
 import nemo.collections.nlp as nemo_nlp
+from nemo.core.classes import typecheck
 
 
 class TestMegatron(TestCase):
@@ -47,13 +48,21 @@ class TestMegatron(TestCase):
 
         assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
 
-        #        if apex_available:
-        #            model = apex.amp.initialize(model, opt_level="O2")
+        typecheck.set_typecheck_enabled(enabled=False)
+        inp = model.input_example()
+        out = model.forward(*inp)
+        typecheck.set_typecheck_enabled(enabled=True)
+        self.model = model
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    @pytest.mark.skip('ONNX export is broken in PyTorch')
+    def test_onnx_export(self):
+        assert self.model
         with tempfile.TemporaryDirectory() as tmpdir:
             # Generate filename in the temporary directory.
-            tmp_file_name = os.path.join(model_name + ".onnx")
             # Test export.
-            model.export(tmp_file_name)
+            self.model.export(os.path.join(tmpdir, "megatron.onnx"))
 
 
 if __name__ == "__main__":
