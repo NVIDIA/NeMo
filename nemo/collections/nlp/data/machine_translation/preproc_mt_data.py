@@ -200,6 +200,21 @@ class MTDataPreproc:
         lines_per_dataset_fragment,
         num_batches_per_tarfile,
     ):
+        """Create tarred dataset from large paired translation data.
+
+        Args:
+            clean (str): Cleans source and target sentences to get rid of noisy data.
+            src_fname (str): path to source text data
+            tgt_fname (str): path to target text data
+            out_dir (str): path to write tarred dataset
+            encoder_tokenizer (Any): tokenizer for encoder 
+            decoder_tokenizer (Any): tokenizer for decoder
+            max_seq_length (int): maximum sequence length 
+            min_seq_length (int): minimum sequence length 
+            tokens_in_batch (int): tokens per batch per GPU, effectively batch size 
+            lines_per_dataset_fragment (int): number of lines to consider for bucketing and padding
+            num_batches_per_tarfile (int): number of batches (pickle files) within each tarfile
+        """
 
         os.makedirs(out_dir, exist_ok=True)
 
