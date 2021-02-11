@@ -102,10 +102,15 @@ class NLPModel(ModelPT, Exportable):
         Args:
             cfg (DictConfig): Tokenizer config
         """
-
-        if self._is_model_being_restored() and os.path.exists('tokenizer.vocab_file'):
-            # model is being restored from .nemo file so tokenizer.vocab_file has precedence
-            vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
+        if self._is_model_being_restored():
+            if os.path.exists('tokenizer.vocab_file'):
+                # model is being restored from .nemo file so tokenizer.vocab_file has precedence
+                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
+            elif cfg.vocab_file and not os.path.exists(cfg.vocab_file):
+                logging.warning(
+                    f'tokenizer.vocab_file not found at {cfg.vocab_file}. It is recommended to use restore_from() method with .nemo file.'
+                )
+                vocab_file = None
         elif cfg.vocab_file is not None:
             # use vocab file from config
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
