@@ -91,7 +91,7 @@ Usage:
 
 @dataclass
 class MTEncDecConfig(NemoConfig):
-    name: Optional[str] = 'AttentionIsAllYouNeed'
+    name: Optional[str] = 'MTEncDec'
     do_training: bool = True
     model: AAYNBaseConfig = AAYNBaseConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
