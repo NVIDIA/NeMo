@@ -31,7 +31,7 @@ from nemo.utils import logging
 
 class MTDataPreproc:
     """ Automatically trains tokenizers and preprocesses machine translation data based on the MTEncDecModelConfig.
-        For training NMT models with datasets larger than 10M sentence pairs, 
+        For training NMT models with datasets larger than 5M sentence pairs, 
         it can be inefficient to train them without first creating a tarred dataset. 
         If the user wants to change the tokenizer, vocab size, or batch size, for example, 
         they must reprocess the data with the correct configuration. 
@@ -289,6 +289,18 @@ class MTDataPreproc:
                 json.dump({'num_batches': global_batch_ctr}, open(metadata_path, 'w'))
 
         tar_file_paths = glob.glob(f'{out_dir}/batches.tokens.{tokens_in_batch}.*.tar')
+
+        num_file_paths = len(tar_file_paths)
+        if num_file_paths < 8:
+            logging.warning(
+                (
+                    f'Number of tar files found: {num_files_in_tar} is less than 8. '
+                    f'This may be due to dataset size, it is advisable to use at least 5M sentence pairs for tarred datasets. '
+                    f'There should be at minimum (ideally more) than one tar file per GPU. '
+                    f'Decrease num_batches_per_tarfile or num_tokens_per_batch to increase the number of tarfiles. '
+                    f'Also using shard_strategy=replicate will use all available tarfiles for every GPU. '
+                )
+            )
 
         return tar_file_paths, metadata_path
 
