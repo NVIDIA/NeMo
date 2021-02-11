@@ -11,5 +11,7 @@ rapidfuzz
 gdown
 megatron-lm==1.1.5
 inflect
-sacrebleu
+sacrebleu[ja]
 sacremoses
+pangu
+jieba
