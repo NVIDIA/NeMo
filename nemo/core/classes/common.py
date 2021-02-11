@@ -17,7 +17,7 @@
 import hashlib
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -45,6 +45,93 @@ def is_typecheck_enabled():
     return _TYPECHECK_ENABLED
 
 
+@dataclass
+class TypecheckMetadata:
+    """
+    Metadata class for input/output neural types.
+
+    # Primary attributes
+    original_types: Preserve the dictionary of type information provided.
+
+    ignore_collections: For backward compatibility, container support can be disabled explicitly
+        using this flag. When set to True, all nesting is ignored and nest-depth checks are skipped.
+
+    # Derived attributed
+    mandatory_types: Sub-dictionary of `original_types` which contains only those types which
+        are mandatory to include when calling the function.
+
+    base_types: Dictionary of flattened `str: NeuralType` definitions, disregarding the nest level
+        details into appropriate arguments.
+
+    container_depth: Dictionary mapping `str: int` - such that the valid depth of the nest of this
+        neural type is recorded.
+
+    has_container_types: Bool flag declaring if any of the neural types declares a container nest
+        in its signature.
+
+    is_singular_container_type: Bool flag declaring if this is a single Neural Type with a container
+        nest in its signature. Required for supporting python list expansion in return statement.
+
+    """
+
+    original_types: Dict[str, NeuralType]
+    ignore_collections: bool
+
+    mandatory_types: Dict[str, NeuralType] = field(init=False)
+    base_types: Dict[str, NeuralType] = field(init=False)
+
+    container_depth: Dict[str, int] = field(init=False)
+    has_container_types: bool = field(init=False)
+    is_singular_container_type: bool = field(init=False)
+
+    def __post_init__(self):
+        # If even one NeuralType declares a container nest, set to True
+        has_container_types = False
+        for type_val in self.original_types.values():
+            if isinstance(type_val, (list, tuple)):
+                has_container_types = True
+                break
+        self.has_container_types = has_container_types
+
+        # If only one NeuralType is declared, and it declares a container nest, set to True
+        if self.has_container_types and len(self.original_types) == 1:
+            self.is_singular_container_type = True
+        else:
+            self.is_singular_container_type = False
+
+        # If container nests are declared, flatten the nest into `base_types`
+        # Also compute the nest depth for each of the NeuralTypes
+        if self.has_container_types:
+            self.base_types = {}
+            self.container_depth = {}
+
+            for type_key, type_val in self.original_types.items():
+                depth = 0
+                while isinstance(type_val, (list, tuple)):
+                    if len(type_val) > 1:
+                        raise TypeError(
+                            f"Neural Type `{type_key}`: {type_val} definition contains more than one element when"
+                            "declaring the nested container structure.\n"
+                            "Please ensure that you have only 1 NeuralType inside of the entire nested structure "
+                            "definition."
+                        )
+
+                    type_val = type_val[0]
+                    depth += 1
+
+                self.base_types[type_key] = type_val
+                self.container_depth[type_key] = depth
+        else:
+            # Otherwise, simply preserve the original_types and set depth of nest to 0.
+            self.base_types = self.original_types
+            self.container_depth = {type_key: 0 for type_key in self.base_types.keys()}
+
+        # Compute subset of original_types which are mandatory in the call argspec
+        self.mandatory_types = {
+            type_key: type_val for type_key, type_val in self.base_types.items() if not type_val.optional
+        }
+
+
 class Typing(ABC):
     """
     An interface which endows module with neural types
@@ -60,7 +147,7 @@ class Typing(ABC):
         """Define these to enable output neural type checks"""
         return None
 
-    def _validate_input_types(self, input_types=None, **kwargs):
+    def _validate_input_types(self, input_types=None, ignore_collections=False, **kwargs):
         """
         This function does a few things.
         1) It ensures that len(self.input_types <non-optional>) <= len(kwargs) <= len(self.input_types).
@@ -76,16 +163,20 @@ class Typing(ABC):
         Args:
             input_types: Either the `input_types` defined at class level, or the local function
                 overridden type definition.
+            ignore_collections: For backward compatibility, container support can be disabled explicitly
+                using this flag. When set to True, all nesting is ignored and nest-depth checks are skipped.
             kwargs: Dictionary of argument_name:argument_value pairs passed to the wrapped
                 function upon call.
         """
         # TODO: Properly implement this
         if input_types is not None:
-            total_input_types = len(input_types)
-            mandatory_input_types = len(
-                [type_val for type_key, type_val in input_types.items() if not type_val.optional]
-            )
+            # Precompute metadata
+            metadata = TypecheckMetadata(original_types=input_types, ignore_collections=ignore_collections)
 
+            total_input_types = len(input_types)
+            mandatory_input_types = len(metadata.mandatory_types)
+
+            # Allow number of input arguments to be <= total input neural types.
             if len(kwargs) < mandatory_input_types or len(kwargs) > total_input_types:
                 raise TypeError(
                     f"Number of input arguments provided ({len(kwargs)}) is not as expected. Function has "
@@ -101,7 +192,7 @@ class Typing(ABC):
                     )
 
                 # Perform neural type check
-                if hasattr(value, 'neural_type') and not input_types[key].compare(value.neural_type) in (
+                if hasattr(value, 'neural_type') and not metadata.base_types[key].compare(value.neural_type) in (
                     NeuralTypeComparisonResult.SAME,
                     NeuralTypeComparisonResult.GREATER,
                 ):
@@ -110,7 +201,7 @@ class Typing(ABC):
                         f"Input type expected : {input_types[key]}",
                         f"Input type found : {value.neural_type}",
                     ]
-                    for i, dict_tuple in enumerate(input_types[key].elements_type.type_parameters.items()):
+                    for i, dict_tuple in enumerate(metadata.base_types[key].elements_type.type_parameters.items()):
                         error_msg.insert(i + 2, f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
                     for i, dict_tuple in enumerate(value.neural_type.elements_type.type_parameters.items()):
                         error_msg.append(f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
@@ -119,22 +210,26 @@ class Typing(ABC):
                 # Perform input ndim check
                 if hasattr(value, 'shape'):
                     value_shape = value.shape
-                    type_shape = input_types[key].axes
+                    type_shape = metadata.base_types[key].axes
                     name = key
 
                     if type_shape is not None and len(value_shape) != len(type_shape):
                         raise TypeError(
                             f"Input shape mismatch occured for {name} in module {self.__class__.__name__} : \n"
-                            f"Input shape expected = {input_types[key].axes} | \n"
+                            f"Input shape expected = {metadata.base_types[key].axes} | \n"
                             f"Input shape found : {value_shape}"
                         )
 
                 # Perform recursive neural type check for homogeneous elements
                 elif isinstance(value, list) or isinstance(value, tuple):
                     for ind, val in enumerate(value):
-                        self.__check_neural_type(val, input_types[key], name=key)
+                        """
+                        This initiates a DFS, tracking the depth count as it goes along the nested structure.
+                        Initial depth is 1 as we consider the current loop to be the 1st step inside the nest.
+                        """
+                        self.__check_neural_type(val, metadata, depth=1, name=key)
 
-    def _attach_and_validate_output_types(self, out_objects, output_types=None):
+    def _attach_and_validate_output_types(self, out_objects, ignore_collections=False, output_types=None):
         """
         This function does a few things.
         1) It ensures that len(out_object) == len(self.output_types).
@@ -149,27 +244,48 @@ class Typing(ABC):
         Args:
             output_types: Either the `output_types` defined at class level, or the local function
                 overridden type definition.
+            ignore_collections: For backward compatibility, container support can be disabled explicitly
+                using this flag. When set to True, all nesting is ignored and nest-depth checks are skipped.
             out_objects: The outputs of the wrapped function.
         """
         # TODO: Properly implement this
         if output_types is not None:
-            out_types_list = list(output_types.items())
+            # Precompute metadata
+            metadata = TypecheckMetadata(original_types=output_types, ignore_collections=ignore_collections)
+            out_types_list = list(metadata.base_types.items())
 
             # First convert all outputs to list/tuple format to check correct number of outputs
             if type(out_objects) in (list, tuple):
-                out_container = out_objects
+                out_container = out_objects  # can be any rank nested structure
             else:
                 out_container = [out_objects]
 
-            if len(output_types) != len(out_container):
+            # If this neural type has a *single output*, with *support for nested outputs*,
+            # then *do not* perform any check on the number of output items against the number
+            # of neural types (in this case, 1).
+            # This is done as python will *not* wrap a single returned list into a tuple of length 1,
+            # instead opting to keep the list intact. Therefore len(out_container) in such a case
+            # is the length of all the elements of that list - each of which has the same corresponding
+            # neural type (defined as the singular container type).
+            if metadata.is_singular_container_type:
+                pass
+
+            # In all other cases, python will wrap multiple outputs into an outer tuple.
+            # As such, now the number of elements in this outer tuple should exactly match
+            # the number of output types defined.
+            elif len(out_types_list) != len(out_container):
                 raise TypeError(
-                    "Number of output arguments provided ({}) is not as expected ({})".format(
-                        len(out_container), len(output_types)
+                    "Number of output arguments provided ({}) is not as expected ({}).\n"
+                    "This can be either because insufficient number of output NeuralTypes were provided,"
+                    "or the provided NeuralTypes {} should enable container support "
+                    "(add '[]' to the NeuralType definition)".format(
+                        len(out_container), len(output_types), output_types
                     )
                 )
 
             # Attach types recursively, if possible
             if not isinstance(out_objects, tuple) and not isinstance(out_objects, list):
+                # Here, out_objects is a single object which can potentially be attached with a NeuralType
                 try:
                     out_objects.neural_type = out_types_list[0][1]
                 except Exception:
@@ -187,15 +303,57 @@ class Typing(ABC):
                             f"Output shape expected = {type_shape} | \n"
                             f"Output shape found : {value_shape}"
                         )
-            else:
-                for ind, res in enumerate(out_objects):
-                    self.__attach_neural_type(res, out_types_list[ind][1], name=out_types_list[ind][0])
 
-    def __check_neural_type(self, obj, type_val, name=None):
+            elif metadata.is_singular_container_type:
+                # If only a single neural type is provided, and it defines a container nest,
+                # then all elements of the returned list/tuple are assumed to belong to that
+                # singular neural type.
+                # As such, the "current" depth inside the DFS loop is counted as 1,
+                # and subsequent nesting will increase this count.
+
+                # NOTE:
+                # As the flag `is_singular_container_type` will activate only for
+                # the case where there is 1 output type defined with container nesting,
+                # this is a safe assumption to make.
+                depth = 1
+
+                # NOTE:
+                # A user may chose to explicitly wrap the single output list within an explicit tuple
+                # In such a case we reduce the "current" depth to 0 - to acknowledge the fact that
+                # the actual nest exists within a wrapper tuple.
+                if len(out_objects) == 1 and type(out_objects) == tuple:
+                    depth = 0
+
+                for ind, res in enumerate(out_objects):
+                    self.__attach_neural_type(res, metadata, depth=depth, name=out_types_list[0][0])
+            else:
+                # If more then one item is returned in a return statement, python will wrap
+                # the output with an outer tuple. Therefore there must be a 1:1 correspondence
+                # of the output_neural type (with or without nested structure) to the actual output
+                # (whether it is a single object or a nested structure of objects).
+                # Therefore in such a case, we "start" the DFS at depth 0 - since the recursion is
+                # being applied on 1 neural type : 1 output struct (single or nested output).
+                # Since we are guarenteed that the outer tuple will be built by python,
+                # assuming initial depth of 0 is appropriate.
+                for ind, res in enumerate(out_objects):
+                    self.__attach_neural_type(res, metadata, depth=0, name=out_types_list[ind][0])
+
+    def __check_neural_type(self, obj, metadata, depth, name=None):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
-                self.__check_neural_type(elem, type_val, name=name)
+                self.__check_neural_type(elem, metadata, depth + 1, name=name)
             return  # after processing nest, return to avoid testing nest itself
+
+        type_val = metadata.base_types[name]
+
+        # If nest depth doesnt match neural type structure depth, raise an error
+        if not metadata.ignore_collections and depth != metadata.container_depth[name]:
+            raise TypeError(
+                "While checking input neural types,\n"
+                "Nested depth of value did not match container specification:\n"
+                f"Current nested depth of NeuralType '{name}' ({type_val}): {depth}\n"
+                f"Expected nested depth : {metadata.container_depth[name]}"
+            )
 
         if hasattr(obj, 'neural_type') and not type_val.compare(obj.neural_type) in (
             NeuralTypeComparisonResult.SAME,
@@ -219,11 +377,22 @@ class Typing(ABC):
                     f"Input shape found : {value_shape}"
                 )
 
-    def __attach_neural_type(self, obj, type_val, name=None):
+    def __attach_neural_type(self, obj, metadata, depth, name=None):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
-                self.__attach_neural_type(elem, type_val, name=name)
+                self.__attach_neural_type(elem, metadata, depth=depth + 1, name=name)
             return  # after processing nest, return to avoid argument insertion into nest itself
+
+        type_val = metadata.base_types[name]
+
+        # If nest depth doesnt match neural type structure depth, raise an error
+        if not metadata.ignore_collections and depth != metadata.container_depth[name]:
+            raise TypeError(
+                "While attaching output neural types,\n"
+                "Nested depth of value did not match container specification:\n"
+                f"Current nested depth of NeuralType '{name}' ({type_val}): {depth}\n"
+                f"Expected nested depth : {metadata.container_depth[name]}"
+            )
 
         try:
             obj.neural_type = type_val
@@ -450,6 +619,7 @@ class typecheck:
         self,
         input_types: Union[TypeState, Dict[str, NeuralType]] = TypeState.UNINITIALIZED,
         output_types: Union[TypeState, Dict[str, NeuralType]] = TypeState.UNINITIALIZED,
+        ignore_collections: bool = False,
     ):
         """
         A decorator which performs input-output neural type checks, and attaches
@@ -492,6 +662,8 @@ class typecheck:
         else:
             self.output_override = True
 
+        self.ignore_collections = ignore_collections
+
     @wrapt.decorator(enabled=is_typecheck_enabled)
     def __call__(self, wrapped, instance: Typing, args, kwargs):
         if instance is None:
@@ -533,12 +705,14 @@ class typecheck:
             raise TypeError("All arguments must be passed by kwargs only for typed methods")
 
         # Perform rudimentary input checks here
-        instance._validate_input_types(input_types=input_types, **kwargs)
+        instance._validate_input_types(input_types=input_types, ignore_collections=self.ignore_collections, **kwargs)
 
         # Call the method - this can be forward, or any other callable method
         outputs = wrapped(*args, **kwargs)
 
-        instance._attach_and_validate_output_types(output_types=output_types, out_objects=outputs)
+        instance._attach_and_validate_output_types(
+            output_types=output_types, ignore_collections=self.ignore_collections, out_objects=outputs
+        )
 
         return outputs
 

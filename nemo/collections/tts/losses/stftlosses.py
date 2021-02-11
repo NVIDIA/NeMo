@@ -223,8 +223,8 @@ class MultiResolutionSTFTLoss(Loss):
     @property
     def output_types(self):
         return {
-            "sc_loss": NeuralType(elements_type=LossType()),
-            "mag_loss": NeuralType(elements_type=LossType()),
+            "sc_loss": [NeuralType(elements_type=LossType())],
+            "mag_loss": [NeuralType(elements_type=LossType())],
         }
 
     @typecheck()
