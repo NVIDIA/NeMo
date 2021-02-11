@@ -370,7 +370,7 @@ class MTEncDecModel(EncDecNLPModel):
             raise NotImplementedError("Input tokenization for Japanese is not implemented yet")
         elif source_lang == 'zh':
             normalizer = opencc.OpenCC('t2s.json')
-        
+
         if target_lang not in ['zh', 'ja']:
             detokenizer = MosesDetokenizer(lang=target_lang)
         elif target_lang == 'ja':
