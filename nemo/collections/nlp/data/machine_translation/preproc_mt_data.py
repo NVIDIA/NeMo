@@ -83,6 +83,8 @@ class MTDataPreproc:
         if hasattr(cfg, 'train_ds'):
             if cfg.train_ds.get('use_tarred_dataset'):
                 if cfg.train_ds.get('tar_files') is None or cfg.train_ds.get('metadata_file') is None:
+                    if cfg.get('preproc_out_dir') is None:
+                        raise ValueError('Data preprocessing required but no output directory was given.')
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(

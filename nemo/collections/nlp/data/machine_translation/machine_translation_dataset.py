@@ -36,8 +36,8 @@ __all__ = ['TranslationDataset', 'TarredTranslationDataset']
 
 @dataclass
 class TranslationDataConfig:
-    src_file_name: str = MISSING
-    tgt_file_name: str = MISSING
+    src_file_name: Optional[str] = None
+    tgt_file_name: Optional[str] = None
     use_tarred_dataset: bool = False
     tar_files: Optional[str] = None
     metadata_file: Optional[str] = None
