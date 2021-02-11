@@ -299,7 +299,7 @@ class MTDataPreproc:
                 if num_files_in_tar != num_batches_per_tarfile:
                     os.remove(os.path.join(out_dir, 'batches.tokens.%d.%d.tar' % (tokens_in_batch, tar_file_ctr)))
                     global_batch_ctr -= num_files_in_tar
-                    print('Dropping %d batches because of overflow' % (num_files_in_tar))
+                    logging.info('Dropping %d batches because of overflow' % (num_files_in_tar))
 
                 json.dump({'num_batches': global_batch_ctr}, open(metadata_path, 'w'))
 
