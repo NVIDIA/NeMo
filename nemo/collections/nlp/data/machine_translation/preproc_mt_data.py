@@ -30,7 +30,25 @@ from nemo.utils import logging
 
 
 class MTDataPreproc:
-    """Automatically preprocess machine translation.
+    """ Automatically trains tokenizers and preprocesses machine translation data based on the MTEncDecModelConfig.
+        For training NMT models with datasets larger than 10M sentence pairs, 
+        it can be inefficient to train them without first creating a tarred dataset. 
+        If the user wants to change the tokenizer, vocab size, or batch size, for example, 
+        they must reprocess the data with the correct configuration. 
+        With MTDataPreproc users can sweep through data configurations and the tarred dataset will 
+        be automatically created according to the model configuration.
+        To train tokenizer model and create tarred dataset specify in YAML or from CLI:
+            model.preproc_out_dir=/path/to/preproc_out
+            model.encoder_tokenizer.vocab_size=32000
+            model.decoder_tokenizer.vocab_size=32000 
+            model.train_ds.use_tarred_dataset=true 
+            model.train_ds.src_file_name=/path/to/src.txt
+            model.train_ds.tgt_file_name=/path/to/tgt.txt
+            model.train_ds.tokens_in_batch=16000 
+        Once a dataset has been constructed based on this configuration, MTDataPreproc will not process it again.
+        If a previously trained tokenizer model or tarred dataset is found, MTDataPreproc will not preprocess the data.
+
+        Note: the only tokenizer currently supported is YouTokenToMe.
     """
 
     def __init__(self, cfg: MTEncDecModelConfig, trainer: Trainer = None) -> None:
