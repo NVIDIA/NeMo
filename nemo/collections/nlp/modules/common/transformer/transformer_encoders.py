@@ -71,14 +71,20 @@ class TransformerEncoderBlock(nn.Module):
             encoder_keys = self.layer_norm_1(encoder_keys)
 
         self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
-        self_attn_output += encoder_query
-
-        self_attn_output = self.layer_norm_2(self_attn_output) if self.pre_ln else self.layer_norm_1(self_attn_output)
-
-        output_states = self.second_sub_layer(self_attn_output)
+        self_attn_output = self_attn_output + encoder_query
 
         if not self.pre_ln:
-            output_states = self.layer_norm_2(output_states + self_attn_output)
+            self_attn_output = self.layer_norm_1(self_attn_output)
+
+        residual = self_attn_output
+
+        if self.pre_ln:
+            self_attn_output = self.layer_norm_2(self_attn_output)
+
+        output_states = self.second_sub_layer(self_attn_output)
+        output_states = output_states + residual
+        if not self.pre_ln:
+            output_states = self.layer_norm_2(output_states)
         return output_states
 
 
