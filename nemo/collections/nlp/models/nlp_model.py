@@ -305,7 +305,8 @@ class NLPModel(ModelPT):
         else:
             # testing stage
             complete_lazy_init(self.bert_model)
-            
+
+
 def complete_lazy_init(self):
     # finish megatron-lm initialization
     if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
