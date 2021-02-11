@@ -52,6 +52,8 @@ class MTDataPreproc:
             cfg.encoder_tokenizer.get('tokenizer_model') is None
             or cfg.decoder_tokenizer.get('tokenizer_model') is None
         ):
+            if cfg.get('preproc_out_dir') is None:
+                raise ValueError('Tokenizer model training required but cfg.preproc_out_dir is None.')
             # train tokenizer model on training data
             self.encoder_tokenizer_model, self.decoder_tokenizer_model = self.train_tokenizers(
                 out_dir=cfg.get('preproc_out_dir'),
@@ -84,7 +86,7 @@ class MTDataPreproc:
             if cfg.train_ds.get('use_tarred_dataset'):
                 if cfg.train_ds.get('tar_files') is None or cfg.train_ds.get('metadata_file') is None:
                     if cfg.get('preproc_out_dir') is None:
-                        raise ValueError('Data preprocessing required but no output directory was given.')
+                        raise ValueError('Data preprocessing required but cfg.preproc_out_dir is None.')
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(
