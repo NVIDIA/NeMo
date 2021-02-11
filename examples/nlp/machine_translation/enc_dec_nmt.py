@@ -91,6 +91,8 @@ Usage:
 
 @dataclass
 class MTEncDecConfig(NemoConfig):
+    name: Optional[str] = 'AttentionIsAllYouNeed'
+    do_training: bool = True
     model: AAYNBaseConfig = AAYNBaseConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
@@ -111,18 +113,19 @@ def main(cfg: MTEncDecConfig) -> None:
     # model config is then updated
     MTDataPreproc(cfg=cfg.model, trainer=trainer)
 
-    # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
-    exp_manager(trainer, cfg.exp_manager)
+    if cfg.do_training:
+        # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
+        exp_manager(trainer, cfg.exp_manager)
 
-    # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
-    mt_model = MTEncDecModel(cfg.model, trainer=trainer)
+        # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
+        mt_model = MTEncDecModel(cfg.model, trainer=trainer)
 
-    logging.info("\n\n************** Model parameters and their sizes ***********")
-    for name, param in mt_model.named_parameters():
-        print(name, param.size())
-    logging.info("***********************************************************\n\n")
+        logging.info("\n\n************** Model parameters and their sizes ***********")
+        for name, param in mt_model.named_parameters():
+            print(name, param.size())
+        logging.info("***********************************************************\n\n")
 
-    trainer.fit(mt_model)
+        trainer.fit(mt_model)
 
 
 if __name__ == '__main__':

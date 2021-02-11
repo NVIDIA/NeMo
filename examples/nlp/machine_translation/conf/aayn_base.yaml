@@ -1,3 +1,6 @@
+name: AttentionIsAllYouNeed
+do_training: True # set to False if only preprocessing data
+
 model:
   beam_size: 4
   len_pen: 0.6
