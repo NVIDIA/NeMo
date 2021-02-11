@@ -37,11 +37,11 @@ class MTDataPreproc:
         they must reprocess the data with the correct configuration. 
         With MTDataPreproc users can sweep through data configurations and the tarred dataset will 
         be automatically created according to the model configuration.
-        To train tokenizer model and create tarred dataset specify in YAML or from CLI:
+        To train tokenizer model and create tarred dataset specify in configuration:
             model.preproc_out_dir=/path/to/preproc_out
             model.encoder_tokenizer.vocab_size=32000
             model.decoder_tokenizer.vocab_size=32000 
-            model.train_ds.use_tarred_dataset=true 
+            model.train_ds.use_tarred_dataset=True 
             model.train_ds.src_file_name=/path/to/src.txt
             model.train_ds.tgt_file_name=/path/to/tgt.txt
             model.train_ds.tokens_in_batch=16000 
@@ -59,52 +59,60 @@ class MTDataPreproc:
             self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
-        if (
-            cfg.encoder_tokenizer.get('tokenizer_name') != 'yttm'
-            or cfg.decoder_tokenizer.get('tokenizer_name') != 'yttm'
-        ):
-            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
-
-        # Train tokenizer models if they don't exist
-        if (
-            cfg.encoder_tokenizer.get('tokenizer_model') is None
-            or cfg.decoder_tokenizer.get('tokenizer_model') is None
-        ):
-            if cfg.get('preproc_out_dir') is None:
-                raise ValueError('Tokenizer model training required but cfg.preproc_out_dir is None.')
-            # train tokenizer model on training data
-            self.encoder_tokenizer_model, self.decoder_tokenizer_model = self.train_tokenizers(
-                out_dir=cfg.get('preproc_out_dir'),
-                src_fname=cfg.train_ds.get('src_file_name'),
-                tgt_fname=cfg.train_ds.get('tgt_file_name'),
-                shared_tokenizer=cfg.get('shared_tokenizer'),
-                encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.get('vocab_size'),
-                decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.get('vocab_size'),
-                encoder_tokenizer_name=cfg.encoder_tokenizer.get('tokenizer_name'),
-                decoder_tokenizer_name=cfg.decoder_tokenizer.get('tokenizer_name'),
-            )
-            # update config
-            self._cfg.encoder_tokenizer.tokenizer_model = self.encoder_tokenizer_model
-            self._cfg.decoder_tokenizer.tokenizer_model = self.decoder_tokenizer_model
-        else:
-            self.encoder_tokenizer_model = cfg.encoder_tokenizer.get('tokenizer_model')
-            self.decoder_tokenizer_model = cfg.decoder_tokenizer.get('tokenizer_model')
-
-        self.encoder_tokenizer, self.decoder_tokenizer = self.get_enc_dec_tokenizers(
-            encoder_tokenizer_name=cfg.encoder_tokenizer.get('tokenizer_name'),
-            encoder_tokenizer_model=self.encoder_tokenizer_model,
-            encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
-            decoder_tokenizer_name=cfg.decoder_tokenizer.get('tokenizer_name'),
-            decoder_tokenizer_model=self.decoder_tokenizer_model,
-            decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
-        )
-
-        # If using tarred dataset for training, automatically create it if needed
         if hasattr(cfg, 'train_ds'):
+            if (
+                cfg.encoder_tokenizer.get('tokenizer_name') != 'yttm'
+                or cfg.decoder_tokenizer.get('tokenizer_name') != 'yttm'
+            ):
+                raise NotImplementedError(f"Currently we only support yttm tokenizer.")
+
+            # Train tokenizer models if they don't exist
+            if (
+                cfg.encoder_tokenizer.get('tokenizer_model') is None
+                or cfg.decoder_tokenizer.get('tokenizer_model') is None
+            ):
+                if cfg.get('preproc_out_dir') is None:
+                    raise ValueError('Tokenizer model training required but cfg.preproc_out_dir is None.')
+                if cfg.train_ds.get('src_file_name') is None or cfg.train_ds.get('tgt_file_name') is None:
+                    raise ValueError(
+                        'src_file_name and tgt_file_name needed to train tokenizers but could not be found.'
+                    )
+                # train tokenizer model on training data
+                self.encoder_tokenizer_model, self.decoder_tokenizer_model = self.train_tokenizers(
+                    out_dir=cfg.get('preproc_out_dir'),
+                    src_fname=cfg.train_ds.get('src_file_name'),
+                    tgt_fname=cfg.train_ds.get('tgt_file_name'),
+                    shared_tokenizer=cfg.get('shared_tokenizer'),
+                    encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.get('vocab_size'),
+                    decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.get('vocab_size'),
+                    encoder_tokenizer_name=cfg.encoder_tokenizer.get('tokenizer_name'),
+                    decoder_tokenizer_name=cfg.decoder_tokenizer.get('tokenizer_name'),
+                )
+                # update config
+                self._cfg.encoder_tokenizer.tokenizer_model = self.encoder_tokenizer_model
+                self._cfg.decoder_tokenizer.tokenizer_model = self.decoder_tokenizer_model
+            else:
+                self.encoder_tokenizer_model = cfg.encoder_tokenizer.get('tokenizer_model')
+                self.decoder_tokenizer_model = cfg.decoder_tokenizer.get('tokenizer_model')
+
+            self.encoder_tokenizer, self.decoder_tokenizer = self.get_enc_dec_tokenizers(
+                encoder_tokenizer_name=cfg.encoder_tokenizer.get('tokenizer_name'),
+                encoder_tokenizer_model=self.encoder_tokenizer_model,
+                encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+                decoder_tokenizer_name=cfg.decoder_tokenizer.get('tokenizer_name'),
+                decoder_tokenizer_model=self.decoder_tokenizer_model,
+                decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+            )
+
+            # If using tarred dataset for training, automatically create it if needed
             if cfg.train_ds.get('use_tarred_dataset'):
                 if cfg.train_ds.get('tar_files') is None or cfg.train_ds.get('metadata_file') is None:
                     if cfg.get('preproc_out_dir') is None:
                         raise ValueError('Data preprocessing required but cfg.preproc_out_dir is None.')
+                    if cfg.train_ds.get('src_file_name') is None or cfg.train_ds.get('tgt_file_name') is None:
+                        raise ValueError(
+                            'src_file_name and tgt_file_name needed to create tarred dataset but could not be found.'
+                        )
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(
@@ -117,10 +125,10 @@ class MTDataPreproc:
                         out_dir=cfg.get('preproc_out_dir'),
                         encoder_tokenizer=self.encoder_tokenizer,
                         decoder_tokenizer=self.decoder_tokenizer,
-                        max_seq_length=cfg.train_ds.max_seq_length,
-                        tokens_in_batch=cfg.train_ds.tokens_in_batch,
-                        lines_per_dataset_fragment=cfg.train_ds.get('lines_per_dataset_fragment'),
-                        num_batches_per_tarfile=cfg.train_ds.get('num_batches_per_tarfile'),
+                        max_seq_length=cfg.train_ds.get('max_seq_length', 512),
+                        tokens_in_batch=cfg.train_ds.get('tokens_in_batch', 8192),
+                        lines_per_dataset_fragment=cfg.train_ds.get('lines_per_dataset_fragment', 1000000),
+                        num_batches_per_tarfile=cfg.train_ds.get('num_batches_per_tarfile', 1000),
                         min_seq_length=1,
                     )
                     # update config
