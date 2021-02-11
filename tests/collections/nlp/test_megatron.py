@@ -47,18 +47,13 @@ class TestMegatron(TestCase):
 
         assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
 
-        if apex_available:
-            model = apex.amp.initialize(model, opt_level="O2")
+        #        if apex_available:
+        #            model = apex.amp.initialize(model, opt_level="O2")
         with tempfile.TemporaryDirectory() as tmpdir:
             # Generate filename in the temporary directory.
             tmp_file_name = os.path.join(model_name + ".onnx")
             # Test export.
             model.export(tmp_file_name)
-
-
-#            modelX = onnx.load(tmp_file_name)
-#            with open(tmp_file_name + '.txt', 'w') as o:
-#                o.write('Model :\n\n{}'.format(onnx.helper.printable_graph(modelX.graph)))
 
 if __name__ == "__main__":
     t = TestMegatron()

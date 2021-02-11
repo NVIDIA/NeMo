@@ -103,14 +103,6 @@ class MegatronBertEncoder(BertModule):
         # key used for checkpoints
         self._hidden_size = self.language_model.hidden_size
 
-    def complete_lazy_init():
-        """
-           Call and clear lazy initialization hook on first call
-        """
-        if self._lazy_init_fn:
-            self._lazy_init_fn()
-            self._lazy_init_fn = 0
-            
     @property
     def hidden_size(self):
         """
@@ -123,7 +115,6 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        self.complete_lazy_init()
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
 
@@ -146,7 +137,9 @@ class MegatronBertEncoder(BertModule):
         self._restore_path = restore_path
 
         # finish megatron-lm initialization
-        self.complete_lazy_init()
+        if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
+            self._lazy_init_fn()
+            self._lazy_init_fn = 0
 
         if os.path.isfile(restore_path):
             logging.info(f'restore_path: {restore_path} is a file. Assuming no megatron model parallelism')
