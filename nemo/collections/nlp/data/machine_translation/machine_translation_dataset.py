@@ -29,6 +29,7 @@ from torch.utils.data import IterableDataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
+from nemo.utils import logging
 
 __all__ = ['TranslationDataset', 'TarredTranslationDataset']
 
@@ -89,6 +90,12 @@ class TranslationDataset(Dataset):
         self.max_seq_length_diff = max_seq_length_diff
         self.max_seq_length_ratio = max_seq_length_ratio
         self.reverse_lang_direction = reverse_lang_direction
+
+        # deprecation warnings for cache_ids, use_cache, and cache_data_per_node
+        if self.cache_ids is True or self.use_cache is True or self.cache_data_per_node is True:
+            logging.warning(
+                'Deprecation warning. self.cache_ids, self.use_cache, and self.cache_data_per_node will be removed. Data caching to be done with tarred datasets moving forward.'
+            )
 
     def batchify(self, tokenizer_src, tokenizer_tgt):
         src_ids = dataset_to_ids(
