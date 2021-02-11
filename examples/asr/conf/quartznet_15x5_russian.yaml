@@ -1,7 +1,7 @@
 name: &name "QuartzNet15x5_nemo1"
 
 trainer:
-  gpus: [0,1,2,3,4,5,6,7,8,9,11,12,13,14,15] # number of gpus
+  gpus: [1,2,3,4,5,6,7,8] # number of gpus
   # max_epochs: 5
   max_steps: 10000 # computed at runtime if not set
   num_nodes: 1
@@ -13,8 +13,7 @@ trainer:
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   log_every_n_steps: 100  # Interval of logging.
-  val_check_interval: 0.5  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  # resume_from_checkpoint: "/raid/nkarpov/nemo_experiments/QuartzNet15x5_nemo1/2021-02-14_09-52-56/checkpoints/QuartzNet15x5_nemo1---val_wer=0.32-epoch=102.ckpt"
+  val_check_interval: 0.1  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
 
 model:
   sample_rate: &sample_rate 16000
@@ -28,18 +27,15 @@ model:
     manifest_filepath: /raid/datasets/asr/shared/train/manifest_ru.jsonl
     sample_rate: 16000
     labels: *labels
-    batch_size: 96
+    batch_size: 104
     trim_silence: False
     max_duration: 16.7
-    min_duration: 0.1
     shuffle: True
     is_tarred: False
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
     parser: "ru"
     num_workers: 20
-    # manifest_line_parser: "open_stt"
-
 
   validation_ds:
     manifest_filepath: 
@@ -47,11 +43,10 @@ model:
       - /raid/datasets/asr/eval/wavs/16khz/sberbox/september/manifest_ru.jsonl
     sample_rate: 16000
     labels: *labels
-    batch_size: 96
+    batch_size: 112
     shuffle: False
     parser: "ru"
     num_workers: 20
-    # manifest_line_parser: "open_stt"
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
