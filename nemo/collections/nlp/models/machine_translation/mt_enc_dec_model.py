@@ -18,7 +18,9 @@ import random
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import jieba
 import numpy as np
+import opencc
 import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig
@@ -361,17 +363,32 @@ class MTEncDecModel(EncDecNLPModel):
             target_lang = self.tgt_language
 
         mode = self.training
-        tokenizer = MosesTokenizer(lang=source_lang)
-        normalizer = MosesPunctNormalizer(lang=source_lang)
-        detokenizer = MosesDetokenizer(lang=target_lang)
+        if source_lang not in ['zh', 'ja']:
+            tokenizer = MosesTokenizer(lang=source_lang)
+            normalizer = MosesPunctNormalizer(lang=source_lang)
+        elif source_lang == 'ja':
+            raise NotImplementedError("Input tokenization for Japanese is not implemented yet")
+        elif source_lang == 'zh':
+            normalizer = opencc.OpenCC('t2s.json')
+
+        if target_lang not in ['zh', 'ja']:
+            detokenizer = MosesDetokenizer(lang=target_lang)
+        elif target_lang == 'ja':
+            detokenizer = SentencePieceDetokenizer()
+        elif target_lang == 'zh':
+            detokenizer = PanguJiebaDetokenizer()
 
         try:
             self.eval()
             res = []
             for txt in text:
                 if source_lang != "None":
-                    txt = normalizer.normalize(txt)
-                    txt = tokenizer.tokenize(txt, escape=False, return_str=True)
+                    if source_lang == "zh":
+                        txt = normalizer.convert(txt)
+                        txt = ' '.join(jieba.cut(txt))
+                    else:
+                        txt = normalizer.normalize(txt)
+                        txt = tokenizer.tokenize(txt, escape=False, return_str=True)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
@@ -381,14 +398,7 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                if not target_lang in ["zh"]:
-                    translation = detokenizer.detokenize(translation.split())
-                    if target_lang in ["ja"]:
-                        sp_detokenizer = SentencePieceDetokenizer()
-                        translation = sp_detokenizer.detokenize(translation.split())
-                else:
-                    zh_detokenizer = PanguJiebaDetokenizer()
-                    translation = zh_detokenizer.detokenize(translation)
+                translation = detokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
             self.train(mode=mode)
