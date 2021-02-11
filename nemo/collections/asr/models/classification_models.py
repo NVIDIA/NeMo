@@ -20,6 +20,7 @@ from abc import abstractmethod
 from math import ceil
 from typing import Dict, List, Optional, Union
 
+import onnx
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -38,8 +39,10 @@ from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel', 'MatchboxNet']
 
-class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
+
+class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
     """Encoder decoder Classification models."""
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.global_rank = 0
@@ -779,7 +782,7 @@ class EncDecRegressionModel(_EncDecBaseModel):
         """
         predictions = super().transcribe(paths2audio_files, batch_size, logprobs=True)
         return [float(pred) for pred in predictions]
-      
+
     def _update_decoder_config(self, labels, cfg):
 
         OmegaConf.set_struct(cfg, False)
