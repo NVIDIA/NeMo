@@ -60,8 +60,7 @@ def speech_classification_model():
             'preprocessor': DictConfig(preprocessor),
             'encoder': DictConfig(encoder),
             'decoder': DictConfig(decoder),
-            'labels': ListConfig(["dummy_cls_{}".format(i + 1) for i in range(30)]),
-            'is_regression_task': False,
+            'labels': ListConfig(["dummy_cls_{}".format(i + 1) for i in range(30)])
         }
     )
     model = EncDecClassificationModel(cfg=modelConfig)

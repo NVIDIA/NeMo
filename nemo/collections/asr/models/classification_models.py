@@ -61,7 +61,6 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
         self._update_decoder_config(cfg.labels, cfg.decoder)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.is_regression_task = self._cfg.get('is_regression_task', False)
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = ASRModel.from_config_dict(self._cfg.spec_augment)
         else:
@@ -434,7 +433,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
-        if cfg.is_regression_task:
+        if cfg.get("is_regression_task", False):
             raise ValueError(f"EndDecClassificationModel requires the flag is_regression_task to be set as false")
 
         super().__init__(cfg=cfg, trainer=trainer)
@@ -684,7 +683,7 @@ class EncDecRegressionModel(_EncDecBaseModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        if not cfg.is_regression_task:
+        if not cfg.get('is_regression_task', False):
             raise ValueError(f"EndDecRegressionModel requires the flag is_regression_task to be set as true")
         super().__init__(cfg=cfg, trainer=trainer)
 

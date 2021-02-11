@@ -296,7 +296,7 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
     def __init__(
         self,
         feat_in: int,
-        num_classes,
+        num_classes: int,
         init_mode: Optional[str] = "xavier_uniform",
         return_logits: bool = True,
         pooling_type='avg',
