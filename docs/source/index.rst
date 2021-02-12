@@ -21,6 +21,12 @@ NeMo's current focus is providing great experience for Conversational AI.
 NeMo models can be trained on multi-GPU and multi-node, with or without Mixed Precision
 Many models in NeMo come with high-quality pre-trained checkpoints.
 
+.. raw:: html
+
+    <div style="position: relative; padding-bottom: 3%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/wBgpMf_KQVw" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    </div>
+
 Requirements
 ------------
 
