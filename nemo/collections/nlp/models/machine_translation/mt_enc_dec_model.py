@@ -242,13 +242,15 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: add target language so detokenizer can be lang specific.
         detokenizer = MosesDetokenizer(lang=self.tgt_language)
+        
+        if self.tgt_language in ['ja']:
+            sp_detokenizer = SentencePieceDetokenizer()
+            translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
+            ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
+        
         if not self.tgt_language in ['zh']:
             translations = [detokenizer.detokenize(sent.split()) for sent in translations]
             ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
-            if self.tgt_language in ['ja']:
-                sp_detokenizer = SentencePieceDetokenizer()
-                translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
-                ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
         else:
             zh_detokenizer = PanguJiebaDetokenizer()
             translations = [zh_detokenizer.detokenize(sent) for sent in translations]
@@ -380,10 +382,8 @@ class MTEncDecModel(EncDecNLPModel):
         elif source_lang == 'zh':
             normalizer = opencc.OpenCC('t2s.json')
 
-        if target_lang not in ['zh', 'ja']:
+        if target_lang not in ['zh']:
             detokenizer = MosesDetokenizer(lang=target_lang)
-        elif target_lang == 'ja':
-            detokenizer = SentencePieceDetokenizer()
         elif target_lang == 'zh':
             detokenizer = PanguJiebaDetokenizer()
 
@@ -407,6 +407,9 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
+                if target_lang == 'ja':
+                    sp_detokenizer = SentencePieceDetokenizer()
+                    translation = sp_detokenizer.detokenize(translation.split())
                 translation = detokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
