@@ -1,10 +1,13 @@
 
-|status| |license| |lgtm_grade| |lgtm_alerts| |black|
+|status| |documentation| |license| |lgtm_grade| |lgtm_alerts| |black|
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
   :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
 
+.. |documentation| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=main
+  :alt: Documentation
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/
 
 .. |license| image:: https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg
   :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
