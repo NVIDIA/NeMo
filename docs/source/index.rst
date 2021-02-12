@@ -90,27 +90,6 @@ If you chose to work with main branch, we recommend using NVIDIA's PyTorch conta
     stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3
 
 
-Documentation
--------------
-
-.. |main| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=main
-  :alt: Documentation Status
-  :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/
-
-.. |v1.0.0b1| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.0b1
-  :alt: Documentation Status
-  :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/
-
-+---------+------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Version | Status     | Description                                                                                                                      |
-+=========+============+==================================================================================================================================+
-| Latest  | |main|     | `Documentation of the latest (i.e. main) branch <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_           |
-+---------+------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Stable  | |v1.0.0b1| | `Documentation of the stable (i.e. v1.0.0b1) branch <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/>`_   |
-+---------+------------+----------------------------------------------------------------------------------------------------------------------------------+
-
 Getting help with NeMo
 ----------------------
 Have a look at our `Discussions board <https://github.com/NVIDIA/NeMo/discussions>`_ and feel free to post a question or start a discussion.

@@ -106,6 +106,13 @@ If you chose to work with main branch, we recommend using NVIDIA's PyTorch conta
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
     stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3
 
+Examples
+--------
+
+`Simplest application with NeMo. <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0b3/tutorials/NeMo_voice_swap_app.ipynb>`_ (runs in Google Colab, no local installation necessary)
+
+Lots of other examples in `"Examples" folder. <https://github.com/NVIDIA/NeMo/tree/main/examples>`_
+
 
 Documentation
 -------------
@@ -145,7 +152,7 @@ Documentation
 
 Getting help with NeMo
 ----------------------
-Have a look at our `Discussions board <https://github.com/NVIDIA/NeMo/discussions>`_ and feel free to post a question or start a discussion.
+FAQ can be found on NeMo's `Discussions board <https://github.com/NVIDIA/NeMo/discussions>`_. You are welcome to ask questions or start discussions there.
 
 Tutorials
 ---------
