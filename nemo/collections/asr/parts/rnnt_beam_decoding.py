@@ -53,7 +53,7 @@ class BeamRNNTInfer(Typing):
     def output_types(self):
         """Returns definitions of module output ports.
         """
-        return {"predictions": NeuralType(elements_type=HypothesisType())}
+        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
         self,

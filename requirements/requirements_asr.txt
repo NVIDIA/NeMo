@@ -12,7 +12,11 @@ sox
 torch-stft
 unidecode
 kaldi-python-io
+kaldiio
 scipy
 pandas
 g2p_en
 pydub
+pyannote.core
+pyannote.metrics
+spectralcluster

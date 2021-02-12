@@ -19,6 +19,7 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
+from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -30,9 +31,8 @@ from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
-from nemo.core.config.modelPT import ModelPTConfig
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.utils import config_utils, logging, model_utils
+from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -55,7 +55,7 @@ Internal global flags that determine core functionality of ModelPT.
 
 _MODEL_IS_RESTORED:
     This flag determines the context of the model - whether the model is currently being
-    restored or not. 
+    restored or not.
     -   When set, it can be assumed that the model's will disable all automatic methods -
         setup_training_data(), setup_validation/test_data() and their multi equivalents.
     -   If a model is being restored from a archive file (tarfile), it can be assumed that
@@ -343,19 +343,22 @@ class ModelPT(LightningModule, Model):
     def _default_restore_from(
         cls,
         restore_path: str,
-        override_config_path: Optional[str] = None,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        return_config: bool = False,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
         Args:
             restore_path: path to .nemo file from which model should be instantiated
             override_config_path: path to a yaml config that will override the internal
-                config file
+                config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
             Example:
                 ```
@@ -364,7 +367,7 @@ class ModelPT(LightningModule, Model):
                 ```
 
         Returns:
-            An instance of type cls
+            An instance of type cls or its underlying config (if return_config is set).
         """
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
@@ -384,8 +387,12 @@ class ModelPT(LightningModule, Model):
                 if override_config_path is None:
                     config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
                 else:
+                    # can be str path or OmegaConf / DictConfig object
                     config_yaml = override_config_path
-                conf = OmegaConf.load(config_yaml)
+                if not isinstance(config_yaml, (OmegaConf, DictConfig)):
+                    conf = OmegaConf.load(config_yaml)
+                else:
+                    conf = config_yaml
                 if override_config_path is not None:
                     # Resolve the override config
                     conf = OmegaConf.to_container(conf, resolve=True)
@@ -393,13 +400,17 @@ class ModelPT(LightningModule, Model):
                     # If override is top level config, extract just `model` from it
                     if 'model' in conf:
                         conf = conf.model
-                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-                OmegaConf.set_struct(conf, True)
-                instance = cls.from_config_dict(config=conf)
-                instance = instance.to(map_location)
-                instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
-                logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
+                if return_config:
+                    instance = conf
+                else:
+                    model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                    OmegaConf.set_struct(conf, True)
+                    instance = cls.from_config_dict(config=conf)
+                    instance = instance.to(map_location)
+                    instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
+
+                    logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
                 cls._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)
@@ -410,9 +421,10 @@ class ModelPT(LightningModule, Model):
     def _eff_restore_from(
         cls,
         restore_path: str,
-        override_config_path: Optional[str] = None,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        return_config: bool = False,
     ):
         """
         Restores model instance (weights, configuration and artifacts) from EFF Archive using
@@ -425,10 +437,15 @@ class ModelPT(LightningModule, Model):
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
         Returns:
             An instance of type cls
         """
+        if return_config is True:
+            raise NotImplementedError("`return_config` is not implemented for EFF based restoration of models.")
+
         return NeMoCookbook().restore_from(
             restore_path=restore_path,
             obj_cls=cls,
@@ -441,9 +458,10 @@ class ModelPT(LightningModule, Model):
     def restore_from(
         cls,
         restore_path: str,
-        override_config_path: Optional[str] = None,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
         strict: bool = False,
+        return_config: bool = False,
     ):
         """
         Restores model instance (weights and configuration) from file.
@@ -455,10 +473,12 @@ class ModelPT(LightningModule, Model):
         Args:
             restore_path: path to .nemo file from which model should be instantiated
             override_config_path: path to a yaml config that will override the internal
-                config file
+                config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
             strict: Passed to load_state_dict.
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
             Example:
                 ```
@@ -467,7 +487,7 @@ class ModelPT(LightningModule, Model):
                 ```
 
         Returns:
-            An instance of type cls
+            An instance of type cls or its underlying config (if return_config is set).
         """
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
@@ -478,90 +498,15 @@ class ModelPT(LightningModule, Model):
         if _EFF_PRESENT_:
             # Try to load the EFF archive.
             try:
-                return cls._eff_restore_from(restore_path, override_config_path, map_location, strict)
+                return cls._eff_restore_from(restore_path, override_config_path, map_location, strict, return_config)
             except (FileNotFoundError, TypeError):
                 # Default to the old .nemo tar archive restore method.
-                return cls._default_restore_from(restore_path, override_config_path, map_location, strict)
+                return cls._default_restore_from(
+                    restore_path, override_config_path, map_location, strict, return_config
+                )
         else:
             # Load .nemo tar archive using the old restore method.
-            return cls._default_restore_from(restore_path, override_config_path, map_location, strict)
-
-    @classmethod
-    def extract_state_dict_from(cls, restore_path: str, save_dir: str, split_by_module: bool = False):
-        """
-        Extract the state dict(s) from a provided .nemo tarfile and save it to a directory.
-        Args:
-            restore_path: path to .nemo file from which state dict(s) should be extracted
-            save_dir: directory in which the saved state dict(s) should be stored
-            split_by_module: bool flag, which determins whether the output checkpoint should
-                be for the entire Model, or the individual module's that comprise the Model
-
-        Example:
-            To convert the .nemo tarfile into a single Model level PyTorch checkpoint
-            ```
-            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts)
-            ```
-
-            To restore a model from a Model level checkpoint
-            ```
-            model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
-            model.load_state_dict(torch.load("./asr_ckpts/model_weights.ckpt"))
-            ```
-
-            To convert the .nemo tarfile into multiple Module level PyTorch checkpoints
-            ```
-            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts,
-                                                                                             split_by_module=True)
-            ```
-
-            To restore a module from a Module level checkpoint
-            ```
-            model = model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
-
-            # load the individual components
-            model.preprocessor.load_state_dict(torch.load("./asr_ckpts/preprocessor.ckpt"))
-            model.encoder.load_state_dict(torch.load("./asr_ckpts/encoder.ckpt"))
-            model.decoder.load_state_dict(torch.load("./asr_ckpts/decoder.ckpt"))
-            ```
-
-        Returns:
-            The state dict that was loaded from the original .nemo checkpoint
-        """
-        if not path.exists(restore_path):
-            raise FileExistsError(f"Can't find {restore_path}")
-
-        cwd = os.getcwd()
-
-        save_dir = os.path.abspath(save_dir)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir, exist_ok=True)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-                os.chdir(tmpdir)
-                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-                state_dict = torch.load(model_weights)
-
-                if not split_by_module:
-                    filepath = os.path.join(save_dir, _MODEL_WEIGHTS)
-                    torch.save(state_dict, filepath)
-
-                else:
-                    key_set = set([key.split(".")[0] for key in state_dict.keys()])
-                    for primary_key in key_set:
-                        inner_keys = [key for key in state_dict.keys() if key.split(".")[0] == primary_key]
-                        state_dict_subset = {
-                            ".".join(inner_key.split(".")[1:]): state_dict[inner_key] for inner_key in inner_keys
-                        }
-                        filepath = os.path.join(save_dir, f"{primary_key}.ckpt")
-                        torch.save(state_dict_subset, filepath)
-
-                logging.info(f'Checkpoints from {restore_path} were successfully extracted into {save_dir}.')
-            finally:
-                os.chdir(cwd)
-
-        return state_dict
+            return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
     @classmethod
     def load_from_checkpoint(
@@ -1051,6 +996,19 @@ class ModelPT(LightningModule, Model):
     def multi_validation_epoch_end(
         self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        """
+        Adds support for multiple validation datasets. Should be overriden by subclass,
+        so as to obtain appropriate logs for each of the dataloaders.
+
+        Args:
+            outputs: Same as that provided by LightningModule.validation_epoch_end()
+                for a single dataloader.
+            dataloader_idx: int representing the index of the dataloader.
+
+        Returns:
+            A dictionary of values, optionally containing a sub-dict `log`,
+            such that the values in the log will be pre-pended by the dataloader prefix.
+        """
         logging.warning(
             "Multi data loader support has been enabled, but "
             "`multi_validation_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
@@ -1062,6 +1020,19 @@ class ModelPT(LightningModule, Model):
     def multi_test_epoch_end(
         self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        """
+        Adds support for multiple test datasets. Should be overriden by subclass,
+        so as to obtain appropriate logs for each of the dataloaders.
+
+        Args:
+            outputs: Same as that provided by LightningModule.validation_epoch_end()
+                for a single dataloader.
+            dataloader_idx: int representing the index of the dataloader.
+
+        Returns:
+            A dictionary of values, optionally containing a sub-dict `log`,
+            such that the values in the log will be pre-pended by the dataloader prefix.
+        """
         logging.warning(
             "Multi data loader support has been enabled, but "
             "`multi_test_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
@@ -1112,15 +1083,93 @@ class ModelPT(LightningModule, Model):
 
         super().teardown(stage)
 
+    @classmethod
+    def extract_state_dict_from(cls, restore_path: str, save_dir: str, split_by_module: bool = False):
+        """
+        Extract the state dict(s) from a provided .nemo tarfile and save it to a directory.
+
+        Args:
+            restore_path: path to .nemo file from which state dict(s) should be extracted
+            save_dir: directory in which the saved state dict(s) should be stored
+            split_by_module: bool flag, which determins whether the output checkpoint should
+                be for the entire Model, or the individual module's that comprise the Model
+
+        Example:
+            To convert the .nemo tarfile into a single Model level PyTorch checkpoint
+            ::
+            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts')
+
+
+            To restore a model from a Model level checkpoint
+            ::
+            model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
+            model.load_state_dict(torch.load("./asr_ckpts/model_weights.ckpt"))
+
+
+            To convert the .nemo tarfile into multiple Module level PyTorch checkpoints
+            ::
+            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts', split_by_module=True)
+
+
+            To restore a module from a Module level checkpoint
+            ::
+            model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
+
+            # load the individual components
+            model.preprocessor.load_state_dict(torch.load("./asr_ckpts/preprocessor.ckpt"))
+            model.encoder.load_state_dict(torch.load("./asr_ckpts/encoder.ckpt"))
+            model.decoder.load_state_dict(torch.load("./asr_ckpts/decoder.ckpt"))
+
+
+        Returns:
+            The state dict that was loaded from the original .nemo checkpoint
+        """
+        if not path.exists(restore_path):
+            raise FileExistsError(f"Can't find {restore_path}")
+
+        cwd = os.getcwd()
+
+        save_dir = os.path.abspath(save_dir)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                os.chdir(tmpdir)
+                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                state_dict = torch.load(model_weights)
+
+                if not split_by_module:
+                    filepath = os.path.join(save_dir, _MODEL_WEIGHTS)
+                    torch.save(state_dict, filepath)
+
+                else:
+                    key_set = set([key.split(".")[0] for key in state_dict.keys()])
+                    for primary_key in key_set:
+                        inner_keys = [key for key in state_dict.keys() if key.split(".")[0] == primary_key]
+                        state_dict_subset = {
+                            ".".join(inner_key.split(".")[1:]): state_dict[inner_key] for inner_key in inner_keys
+                        }
+                        filepath = os.path.join(save_dir, f"{primary_key}.ckpt")
+                        torch.save(state_dict_subset, filepath)
+
+                logging.info(f'Checkpoints from {restore_path} were successfully extracted into {save_dir}.')
+            finally:
+                os.chdir(cwd)
+
+        return state_dict
+
     def prepare_test(self, trainer: 'Trainer') -> bool:
         """
         Helper method to check whether the model can safely be tested
         on a dataset after training (or loading a checkpoint).
 
-        # Usage:
-        trainer = Trainer()
-        if model.prepare_test(trainer):
-            trainer.test(model)
+        ::
+
+            trainer = Trainer()
+            if model.prepare_test(trainer):
+                trainer.test(model)
 
         Returns:
             bool which declares the model safe to test. Provides warnings if it has to
@@ -1208,14 +1257,31 @@ class ModelPT(LightningModule, Model):
 
     @property
     def num_weights(self):
+        """
+        Utility property that returns the total number of parameters of the Model.
+        """
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
     @property
     def cfg(self):
+        """
+        Property that holds the finalized internal config of the model.
+
+        Note:
+            Changes to this config are not reflected in the state of the model.
+            Please create a new model using an updated config to properly update the model.
+        """
         return self._cfg
 
     @cfg.setter
     def cfg(self, cfg):
+        """
+        Property that holds the finalized internal config of the model.
+
+        Note:
+            Changes to this config are not reflected in the state of the model.
+            Please create a new model using an updated config to properly update the model.
+        """
         self._cfg = cfg
         self._set_hparams(cfg)
 
@@ -1223,7 +1289,7 @@ class ModelPT(LightningModule, Model):
     def __make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
             # tar.add(source_dir, arcname=path.basename(source_dir))
-            tar.add(source_dir, arcname="./")
+            tar.add(source_dir, arcname=".")
 
     @staticmethod
     def __unpack_nemo_file(path2file: str, out_folder: str) -> str:

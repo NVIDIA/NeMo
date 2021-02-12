@@ -12,86 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-from enum import Enum
 
 import regex as re
-from tools.text_normalization.verbalizer import (
-    _currency_dict,
-    _inflect,
-    _measurements_dict,
-    _whitelist_dict,
-    expand_cardinal,
-    expand_date,
-    expand_measurement,
-    expand_money,
-    expand_ordinal,
-    expand_roman,
-    expand_time,
-    expand_whitelist,
-)
-
-
-class TagType(Enum):
-    """
-    Class for Tagger types
-    """
-
-    PLAIN = 1
-    PUNCT = 2
-    DATE = 3
-    CARDINAL = 4  # counting
-    LETTERS = 5
-    VERBATIM = 6
-    MEASURE = 7
-    DECIMAL = 8
-    ORDINAL = 9
-    DIGIT = 10
-    MONEY = 11
-    TELEPHONE = 12
-    ELECTRONIC = 13
-    FRACTION = 14
-    TIME = 15
-    ADDRESS = 16
-    WHITELIST = 17
-
-
-class EnumEncoder(json.JSONEncoder):
-    def default(self, obj):
-        return str(obj)
-
-
-class Tag:
-    """
-    Class for tagger object that is created for each detected unnormalized token.
-    Args:
-        kind: TagType
-        start: start index of unnormalized substring
-        end: end index of unnormalized substring
-        normalize: verbalization function that takes data as input and returns normalized output
-        data: input data
-    """
-
-    def __init__(self, kind, start, end, normalize, data):
-        self.kind = kind
-        self.start = start
-        self.end = end
-        self.normalize = normalize
-        self.data = data
-
-    @staticmethod
-    def overlap(tag1, tag2) -> bool:
-        """
-        checks if given tags overlap in their text span
-        Args:
-            tag1: first tag object
-            tag2: second tag object
-        Returns true if both tags overlap in their respective span
-        """
-        return (tag1.start <= tag2.start < tag1.end) or (tag2.start <= tag1.start < tag2.end)
-
-    def __str__(self):
-        return json.dumps(self.__dict__, cls=EnumEncoder)
+from tools.text_normalization.tag import Tag, TagType
+from tools.text_normalization.verbalizer import _currency_dict, _measurements_dict, _whitelist_dict
 
 
 def make_re(re_inner: str, *args):
@@ -129,10 +53,9 @@ _whitelist_keys = map(re.escape, _whitelist_dict.keys())
 _re_whitelist = f"({'|'.join(_whitelist_keys)})"
 
 re_whitelist = make_re(rf'{_re_whitelist}')
-re_cardinal = make_re(rf'-?(\d+)(\,[0-9]+)*')
+re_cardinal = make_re(rf'(?P<number>-?(\d+)(\,[0-9]+)*)')
 re_ordinal = make_re(rf'(?P<number>[0-9]+)(st|nd|rd|th)')
-# re_ordinal_roman = make_re(rf'(?P<number>[0-9]+)(st|nd|rd|th)')
-re_roman = make_re(rf'{_re_roman}')
+re_roman = make_re(rf'(?P<number_roman>{_re_roman})')
 re_decimal = make_re(rf'-?(\d+(\,\d+)*)\.(\d+)')
 re_decimal2 = make_re(rf'-?\.\d+')
 
@@ -250,19 +173,18 @@ re_time3 = make_re(
 )
 
 
-def re_tag(text, kind: TagType, normalize, regex):
+def re_tag(text, kind: TagType, regex):
     """
     Detects and returns all tags in the text.
     Args:
         text: string
         kind: Tag type
-        normalize: verbalizer function
         regex: compiled regex for detection
     Returns: generates all semiotic class tags that appear in the text
     """
     for match in re.finditer(regex, text, overlapped=True):
         yield Tag(
-            kind=kind, start=match.start("value"), end=match.end("value"), normalize=normalize, data=match.groupdict()
+            kind=kind, start=match.start("value"), end=match.end("value"), data=match.groupdict(),
         )
 
 
@@ -273,7 +195,7 @@ def tag_whitelist(text: str):
         text: input string
     Returns: Generates whitelisted tags from text
     """
-    yield from re_tag(text, TagType.WHITELIST, expand_whitelist, re_whitelist)
+    yield from re_tag(text, TagType.WHITELIST, re_whitelist)
 
 
 def tag_cardinal(text: str):
@@ -284,8 +206,8 @@ def tag_cardinal(text: str):
         text: input string
     Returns: Generates all cardinal tags from text
     """
-    yield from re_tag(text, TagType.CARDINAL, expand_cardinal, re_cardinal)
-    yield from re_tag(text, TagType.CARDINAL, expand_roman, re_roman)
+    yield from re_tag(text, TagType.CARDINAL, re_cardinal)
+    yield from re_tag(text, TagType.CARDINAL, re_roman)
 
 
 def tag_decimal(text: str):
@@ -296,13 +218,8 @@ def tag_decimal(text: str):
         text: input string
     Returns: Generates all decimal tags from text
     """
-    normalize = (
-        lambda data: _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
-    )
-    yield from re_tag(text, TagType.DECIMAL, normalize, re_decimal)
-
-    normalize = lambda data: _inflect.number_to_words(data["value"])
-    yield from re_tag(text, TagType.DECIMAL, normalize, re_decimal2)
+    yield from re_tag(text, TagType.DECIMAL, re_decimal)
+    yield from re_tag(text, TagType.DECIMAL, re_decimal2)
 
 
 def tag_date(text: str):
@@ -314,17 +231,17 @@ def tag_date(text: str):
     Returns: Generates all date tags from text
     """
 
-    def helper(regex, verbalize):
-        yield from re_tag(text, TagType.DATE, lambda data: expand_date(data, verbalize), regex)
+    def helper(regex):
+        yield from re_tag(text, TagType.DATE, regex)
 
-    yield from helper(re_date_ymd, lambda year, month, day: 'the ' + day + ' of ' + month + " " + year)
-    yield from helper(re_date_mdy, lambda year, month, day: month + " " + day + " " + year)
-    yield from helper(re_date_dmy, lambda year, month, day: 'the ' + day + ' of ' + month + " " + year)
-    yield from helper(re_date_md, lambda month, day: month + " " + day)
-    yield from helper(re_date_my, lambda year, month: month + " " + year)
-    yield from helper(re_date_dm, lambda month, day: 'the ' + day + ' of ' + month)
-    yield from helper(re_date_ys, lambda year, suffix: year[:-1] + 'ies' if year[-1] == 'y' else year + 's')
-    yield from helper(re_date_y, lambda year: year)
+    yield from helper(re_date_ymd)
+    yield from helper(re_date_mdy)
+    yield from helper(re_date_dmy)
+    yield from helper(re_date_md)
+    yield from helper(re_date_my)
+    yield from helper(re_date_dm)
+    yield from helper(re_date_ys)
+    yield from helper(re_date_y)
 
 
 def tag_verbatim(text: str):
@@ -335,7 +252,7 @@ def tag_verbatim(text: str):
         text: input string
     Returns: Generates all verbatim tags from text
     """
-    yield from re_tag(text, TagType.VERBATIM, lambda data: "and", re_verbatim_and)
+    yield from re_tag(text, TagType.VERBATIM, re_verbatim_and)
 
 
 def tag_ordinal(text: str):
@@ -346,7 +263,7 @@ def tag_ordinal(text: str):
         text: input string
     Returns: Generates all ordinal tags from text
     """
-    yield from re_tag(text, TagType.ORDINAL, expand_ordinal, re_ordinal)
+    yield from re_tag(text, TagType.ORDINAL, re_ordinal)
 
 
 def tag_money(text: str):
@@ -357,8 +274,8 @@ def tag_money(text: str):
         text: input string
     Returns: Generates all money tags from text
     """
-    yield from re_tag(text.lower(), TagType.MONEY, expand_money, re_money_with_magnitude)
-    yield from re_tag(text.lower(), TagType.MONEY, expand_money, re_money)
+    yield from re_tag(text.lower(), TagType.MONEY, re_money_with_magnitude)
+    yield from re_tag(text.lower(), TagType.MONEY, re_money)
 
 
 def tag_measure(text: str):
@@ -369,9 +286,9 @@ def tag_measure(text: str):
         text: input string
     Returns: Generates all measure tags from text
     """
-    yield from re_tag(text.lower(), TagType.MEASURE, expand_measurement, re_measure3)
-    yield from re_tag(text.lower(), TagType.MEASURE, expand_measurement, re_measure2)
-    yield from re_tag(text.lower(), TagType.MEASURE, expand_measurement, re_measure)
+    yield from re_tag(text.lower(), TagType.MEASURE, re_measure3)
+    yield from re_tag(text.lower(), TagType.MEASURE, re_measure2)
+    yield from re_tag(text.lower(), TagType.MEASURE, re_measure)
 
 
 def tag_time(text: str):
@@ -382,6 +299,6 @@ def tag_time(text: str):
         text: input string
     Returns: Generates all time tags from text
     """
-    yield from re_tag(text.lower(), TagType.TIME, expand_time, re_time)
-    yield from re_tag(text.lower(), TagType.TIME, expand_time, re_time3)
-    yield from re_tag(text.lower(), TagType.TIME, expand_time, re_time2)
+    yield from re_tag(text.lower(), TagType.TIME, re_time)
+    yield from re_tag(text.lower(), TagType.TIME, re_time3)
+    yield from re_tag(text.lower(), TagType.TIME, re_time2)

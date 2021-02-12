@@ -450,6 +450,7 @@ class SpectrogramAugmentation(NeuralModule):
         rect_time=5,
         rect_freq=20,
         rng=None,
+        mask_value=0.0,
     ):
         super().__init__()
 
@@ -461,7 +462,12 @@ class SpectrogramAugmentation(NeuralModule):
 
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
-                freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng,
+                freq_masks=freq_masks,
+                time_masks=time_masks,
+                freq_width=freq_width,
+                time_width=time_width,
+                rng=rng,
+                mask_value=mask_value,
             )
         else:
             self.spec_augment = lambda x: x
@@ -574,6 +580,25 @@ class AudioToMelSpectrogramPreprocessorConfig:
 
 
 @dataclass
+class AudioToMFCCPreprocessorConfig:
+    _target_: str = 'nemo.collections.asr.modules.AudioToMFCCPreprocessor'
+    sample_rate: int = 16000
+    window_size: float = 0.02
+    window_stride: float = 0.01
+    n_window_size: Optional[int] = None
+    n_window_stride: Optional[int] = None
+    window: str = 'hann'
+    n_fft: Optional[int] = None
+    lowfreq: Optional[float] = 0.0
+    highfreq: Optional[float] = None
+    n_mels: int = 64
+    n_mfcc: int = 64
+    dct_type: int = 2
+    norm: str = 'ortho'
+    log: bool = True
+
+
+@dataclass
 class SpectrogramAugmentationConfig:
     _target_: str = "nemo.collections.asr.modules.SpectrogramAugmentation"
     freq_masks: int = 0
@@ -583,3 +608,11 @@ class SpectrogramAugmentationConfig:
     rect_masks: int = 0
     rect_time: int = 0
     rect_freq: int = 0
+    mask_value: float = 0
+    rng: Optional[Any] = None  # random.Random() type
+
+
+@dataclass
+class CropOrPadSpectrogramAugmentationConfig:
+    audio_length: int
+    _target_: str = "nemo.collections.asr.modules.CropOrPadSpectrogramAugmentation"

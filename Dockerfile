@@ -67,6 +67,8 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
     python3 setup.py install && \
     rm -rf ../tests test ../tensorflow_binding
 
+# uninstall stuff from base container
+RUN pip uninstall -y sacrebleu
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
@@ -76,7 +78,7 @@ RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-chec
 #install TRT tools: PT quantization support and ONNX graph optimizer
 WORKDIR /tmp/trt_build
 RUN git clone https://github.com/NVIDIA/TensorRT.git && \
-    cd TensorRT/tools/onnx-graphsurgeon && python setup.py install . && \
+    cd TensorRT/tools/onnx-graphsurgeon && python setup.py install && \
     cd ../pytorch-quantization && \
     python setup.py install && \
     rm -fr  /tmp/trt_build

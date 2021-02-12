@@ -19,12 +19,11 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import wget
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo.collections import nlp as nemo_nlp
 from nemo.collections.nlp.models import IntentSlotClassificationModel
 from nemo.collections.nlp.modules.common import (
-    BertPretrainingTokenClassifier,
     SequenceClassifier,
     SequenceRegression,
     SequenceTokenClassifier,
@@ -147,19 +146,13 @@ class TestExportableClassifiers:
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'puncap.onnx')
-            punct_filename = os.path.join(tmpdir, 'punct_puncap.onnx')
-            capit_filename = os.path.join(tmpdir, 'capit_puncap.onnx')
             model.export(output=filename)
-            onnx_model = onnx.load(punct_filename)
+            onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.input[2].name == 'token_type_ids'
-            assert onnx_model.graph.output[0].name == 'logits'
-            onnx_model = onnx.load(capit_filename)
-            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert onnx_model.graph.input[0].name == 'input_ids'
-            assert onnx_model.graph.input[2].name == 'token_type_ids'
-            assert onnx_model.graph.output[0].name == 'logits'
+            assert onnx_model.graph.output[0].name == 'punct_logits'
+            assert onnx_model.graph.output[1].name == 'capit_logits'
 
     def test_QAModel_export_to_onnx(self):
         model = nemo_nlp.models.QAModel.from_pretrained(model_name="BERTBaseUncasedSQuADv1.1")

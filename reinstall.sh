@@ -13,6 +13,7 @@ PIP=pip
 
 echo 'Uninstalling stuff'
 ${PIP} uninstall -y nemo_toolkit
+${PIP} uninstall -y sacrebleu
 
 # Kept for legacy purposes
 ${PIP} uninstall -y nemo_asr

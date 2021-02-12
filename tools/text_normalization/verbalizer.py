@@ -12,8 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Copyright (c) 2017 Keith Ito
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+""" partly adapted from https://github.com/keithito/tacotron """
+
 import csv
 import os
+from collections import OrderedDict
 
 import inflect
 import regex as re
@@ -45,6 +67,40 @@ read_tsv = csv.reader(_whitelist_tsv, delimiter="\t")
 _whitelist_dict = dict(read_tsv)
 
 
+def expand_telephone(data: dict) -> str:
+    raise NotImplementedError
+
+
+def expand_punct(data: dict) -> str:
+    raise NotImplementedError
+
+
+def expand_letter(data: dict) -> str:
+    raise NotImplementedError
+
+
+def expand_fraction(data: dict) -> str:
+    raise NotImplementedError
+
+
+def expand_electronic(data: dict) -> str:
+    raise NotImplementedError
+
+
+def expand_digit(data: dict) -> str:
+    raise NotImplementedError
+
+
+def expand_verbatim(data: dict) -> str:
+    """
+    Verbalizes verbatim tokens.
+    Args:
+        data: detected data
+    Returns string
+    """
+    return "and"
+
+
 def expand_whitelist(data: dict) -> str:
     """
     Verbalizes whitelisted tokens.
@@ -55,6 +111,16 @@ def expand_whitelist(data: dict) -> str:
     return _whitelist_dict[data["value"]]
 
 
+def expand_decimal(data: dict) -> str:
+    """
+    Verbalizes decimal tokens.
+    Args:
+        data: detected data
+    Returns string
+    """
+    return _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
+
+
 def expand_roman(data: dict) -> str:
     """
     Verbalizes roman numerals.
@@ -62,7 +128,9 @@ def expand_roman(data: dict) -> str:
         data: detected data
     Returns string
     """
-    num = data["value"]
+    num = data.get("number_roman")
+    if not num:
+        return None
     result = 0
     for i, c in enumerate(num):
         if (i + 1) == len(num) or _roman_numerals[c] >= _roman_numerals[num[i + 1]]:
@@ -79,7 +147,9 @@ def expand_cardinal(data: dict) -> str:
         data: detected data
     Returns string
     """
-    return _inflect.number_to_words(data["value"]).replace("-", " ").replace(" and ", " ").replace(",", "")
+    if not data.get("number"):
+        return None
+    return _inflect.number_to_words(data["number"]).replace("-", " ").replace(" and ", " ").replace(",", "")
 
 
 def expand_ordinal(data: dict) -> str:
@@ -89,9 +159,10 @@ def expand_ordinal(data: dict) -> str:
         data: detected data
     Returns string
     """
-    if data["value"] is None:
+    num = data.get("value")
+    if not num:
         return None
-    result = _inflect.number_to_words(data["value"] + "th")
+    result = _inflect.number_to_words(num + "th")
     return result.replace("-", " ").replace(" and ", " ").replace(",", "")
 
 
@@ -118,33 +189,54 @@ def expand_year(data: dict) -> str:
             number = re.sub(r'-', ' ', number)
             result = number
     else:
-        result = expand_cardinal({"value": data["value"]})
+        result = expand_cardinal({"number": data["value"]})
     return result
 
 
-def expand_date(data: dict, verbalize: object) -> str:
+def expand_date(data: dict) -> str:
     """
     Verbalizes date data.
     Args:
         data: detected data
-        verbalize: verbalization function
     Returns string
     """
+    res = {x: y for x, y in data.items()}
+    YEAR = "year"
+    MONTH = "month"
+    SUFFIX = "suffix"
+    DAY = "day"
     try:
-        data["month"] = _month_dict[data["month"]]
+        res[MONTH] = month_mapping[data[MONTH]]
     except Exception:
         pass
     try:
-        data["day"] = expand_ordinal({"value": data["day"]})
+        res[DAY] = expand_ordinal({"value": data[DAY]})
     except Exception:
         pass
     try:
-        data["year"] = expand_year({"value": data["year"]})
+        res[YEAR] = expand_year({"value": data[YEAR]})
     except Exception:
         pass
-    data = {k: data[k] for k in data if k in _date_components_whitelist}
-    result = verbalize(**data)
-    return result.replace("-", " ")
+    res = {k: res[k] for k in res if k in _date_components_whitelist}
+    meta_list = OrderedDict([x for x in data.items() if x[0] in _date_components_whitelist])
+    result = None
+    if [*meta_list] == [YEAR, MONTH, DAY]:
+        result = "the " + res[DAY] + " of " + res[MONTH] + " " + res[YEAR]
+    elif [*meta_list] == [MONTH, DAY, YEAR]:
+        result = res[MONTH] + " " + res[DAY] + " " + res[YEAR]
+    elif [*meta_list] == [DAY, MONTH, YEAR]:
+        result = "the " + res[DAY] + ' of ' + res[MONTH] + " " + res[YEAR]
+    elif [*meta_list] == [MONTH, DAY]:
+        result = res[MONTH] + " " + res[DAY]
+    elif [*meta_list] == [MONTH, YEAR]:
+        result = res[MONTH] + " " + res[YEAR]
+    elif [*meta_list] == [DAY, MONTH]:
+        result = 'the ' + res[DAY] + ' of ' + res[MONTH]
+    elif [*meta_list] == [YEAR, SUFFIX]:
+        result = res[YEAR][:-1] + 'ies' if res[YEAR][-1] == 'y' else res[YEAR] + 's'
+    elif [*meta_list] == [YEAR]:
+        result = res[YEAR]
+    return result.replace("-", " ") if result else None
 
 
 def _expand_hundreds(text):
@@ -155,7 +247,13 @@ def _expand_hundreds(text):
         return _inflect.number_to_words(text)
 
 
-def _expand_currency(data):
+def _expand_currency(data: dict) -> str:
+    """
+    Verbalizes currency tokens.
+    Args:
+        data: detected data
+    Returns string
+    """
     currency = _currency_dict[data['currency']]
     quantity = data['integral'] + ('.' + data['fractional'] if data.get('fractional') else '')
     magnitude = data.get('magnitude')

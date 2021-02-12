@@ -13,6 +13,9 @@ model:
     batch_size: 64
     shuffle: True
     time_length: 8
+    is_tarred: False
+    tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
 
   validation_ds:
     manifest_filepath: ???

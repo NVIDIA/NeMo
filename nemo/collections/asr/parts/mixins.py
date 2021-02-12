@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import os
-from abc import ABC
+from abc import ABC, abstractmethod
+from typing import List
 
 from omegaconf import DictConfig, OmegaConf
 
@@ -70,11 +71,11 @@ class ASRBPEMixin(ABC):
             vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
             self.vocab_path = vocab_path
 
-            vocabulary = {0: '<unk>'}
+            vocabulary = {'<unk>': 0}
             with open(vocab_path) as f:
                 for i, piece in enumerate(f):
                     piece = piece.replace('\n', '')
-                    vocabulary[i + 1] = piece
+                    vocabulary[piece] = i + 1
 
             # wrapper method to get vocabulary conveniently
             def get_vocab():
@@ -100,3 +101,17 @@ class ASRBPEMixin(ABC):
                 self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
             )
         )
+
+
+class DiarizationMixin(ABC):
+    @abstractmethod
+    def diarize(self, paths2audio_files: List[str], batch_size: int = 1) -> List[str]:
+        """
+        Takes paths to audio files and returns speaker labels
+        Args:
+            paths2audio_files: paths to audio fragment to be transcribed
+
+        Returns:
+            Speaker labels
+        """
+        pass

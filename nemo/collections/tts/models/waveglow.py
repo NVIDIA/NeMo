@@ -23,6 +23,7 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import GlowVocoder
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -45,7 +46,7 @@ class WaveglowConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-class WaveGlowModel(GlowVocoder):
+class WaveGlowModel(GlowVocoder, Exportable):
     """Waveglow model used to convert betweeen spectrograms and audio"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -66,7 +67,6 @@ class WaveGlowModel(GlowVocoder):
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.waveglow = instantiate(self._cfg.waveglow)
         self.loss = WaveGlowLoss()
-        self.removed_weightnorm = False
 
     @GlowVocoder.mode.setter
     def mode(self, new_mode):
@@ -90,8 +90,8 @@ class WaveGlowModel(GlowVocoder):
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             output_dict = {
                 "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
-                "log_s_list": NeuralType(('B', 'flowgroup', 'T'), VoidType()),  # TODO: Figure out a good typing
-                "log_det_W_list": NeuralType(elements_type=LogDeterminantType()),
+                "log_s_list": [NeuralType(('B', 'flowgroup', 'T'), VoidType())],  # TODO: Figure out a good typing
+                "log_det_W_list": [NeuralType(elements_type=LogDeterminantType())],
             }
             if self.mode == OperationMode.validation:
                 output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
@@ -130,11 +130,10 @@ class WaveGlowModel(GlowVocoder):
         self, spec: torch.Tensor, sigma: float = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
     ) -> torch.Tensor:
         with self.nemo_infer():
-            if not self.removed_weightnorm:
-                self.waveglow.remove_weightnorm()
-                self.removed_weightnorm = True
-
-            audio = self.waveglow(spec=spec, run_inverse=True, audio=None, sigma=sigma)
+            self.waveglow.remove_weightnorm()
+            audio = self.waveglow(
+                spec=spec.to(self.waveglow.upsample.weight.dtype), run_inverse=True, audio=None, sigma=sigma
+            )
             if denoise:
                 audio = self.denoise(audio, denoiser_strength)
 
@@ -228,3 +227,18 @@ class WaveGlowModel(GlowVocoder):
         )
         list_of_models.append(model)
         return list_of_models
+
+    @property
+    def input_module(self):
+        return self.waveglow
+
+    @property
+    def output_module(self):
+        return self.waveglow
+
+    def _prepare_for_export(self):
+        self.update_bias_spect()
+        self.waveglow._prepare_for_export()
+
+    def forward_for_export(self, spec, z=None):
+        return self.waveglow(spec, z)

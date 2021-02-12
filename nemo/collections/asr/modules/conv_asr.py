@@ -46,6 +46,7 @@ __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 class ConvASREncoder(NeuralModule, Exportable):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
+
     Based on these papers:
         https://arxiv.org/pdf/1904.03288.pdf
         https://arxiv.org/pdf/1910.10261.pdf
@@ -118,6 +119,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         conv_mask: bool = True,
         frame_splicing: int = 1,
         init_mode: Optional[str] = 'xavier_uniform',
+        quantize: bool = False,
     ):
         super().__init__()
         if isinstance(jasper, ListConfig):
@@ -172,6 +174,7 @@ class ConvASREncoder(NeuralModule, Exportable):
                     se_interpolation_mode=se_interpolation_mode,
                     kernel_size_factor=kernel_size_factor,
                     stride_last=stride_last,
+                    quantize=quantize,
                 )
             )
             feat_in = lcfg['filters']
@@ -471,7 +474,7 @@ class ConvASREncoderConfig:
     norm_groups: int = -1
     conv_mask: bool = True
     frame_splicing: int = 1
-    init_mode: str = "xavier_uniform"
+    init_mode: Optional[str] = "xavier_uniform"
 
 
 @dataclass
@@ -479,5 +482,15 @@ class ConvASRDecoderConfig:
     _target_: str = 'nemo.collections.asr.modules.ConvASRDecoder'
     feat_in: int = MISSING
     num_classes: int = MISSING
-    init_mode: str = "xavier_uniform"
+    init_mode: Optional[str] = "xavier_uniform"
     vocabulary: Optional[List[str]] = field(default_factory=list)
+
+
+@dataclass
+class ConvASRDecoderClassificationConfig:
+    _target_: str = 'nemo.collections.asr.modules.ConvASRDecoderClassification'
+    feat_in: int = MISSING
+    num_classes: int = MISSING
+    init_mode: Optional[str] = "xavier_uniform"
+    return_logits: bool = True
+    pooling_type: str = 'avg'

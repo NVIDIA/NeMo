@@ -39,6 +39,8 @@ import random
 import librosa
 import numpy as np
 import soundfile as sf
+from kaldiio.matio import read_kaldi
+from kaldiio.utils import open_like_kaldi
 from pydub import AudioSegment as Audio
 
 from nemo.utils import logging
@@ -145,6 +147,16 @@ class AudioSegment(object):
                 logging.error(
                     f"Loading audio via SoundFile raised RuntimeError: `{e}`. NeMo will fallback to loading via pydub."
                 )
+        elif isinstance(audio_file, str) and audio_file.strip()[-1] == "|":
+            f = open_like_kaldi(audio_file, "rb")
+            sample_rate, samples = read_kaldi(f)
+            if offset > 0:
+                samples = samples[int(offset * sample_rate) :]
+            if duration > 0:
+                samples = samples[: int(duration * sample_rate)]
+            if not int_values:
+                abs_max_value = np.abs(samples).max()
+                samples = np.array(samples, dtype=np.float) / abs_max_value
 
         if samples is None:
             samples = Audio.from_file(audio_file)

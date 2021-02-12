@@ -1,0 +1,7 @@
+Model,Dataset,WER (greedy),WER (LM)
+JASPER 10x5 (6 datasets),"Librispeech Dev-Other",10.34,
+JASPER 10x5 (6 datasets),"Librispeech Test-Other",10.50,
+QuartzNet 15x5 (6 datasets),"Librispeech Dev-Other",10.05,
+QuartzNet 15x5 (6 datasets),"Librispeech Test-Other",10.07,
+QuartzNet 15x5-NR (6 datasets),"Librispeech Dev-Other",10.14,
+QuartzNet 15x5-NR (6 datasets),"Librispeech Test-Other",10.11,

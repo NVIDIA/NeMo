@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from hydra.core.config_store import ConfigStore
 
@@ -82,6 +82,9 @@ class TrainerConfig:
     prepare_data_per_node: bool = True
     amp_backend: str = 'native'
     amp_level: str = 'O2'  # backward compatible, todo: remove in v1.0.0
+    enable_pl_optimizer: Optional[bool] = None
+    plugins: Optional[Any] = None  # Optional[Union[str, list]]
+    move_metrics_to_cpu: bool = False
 
 
 # Register the trainer config.
