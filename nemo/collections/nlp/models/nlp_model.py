@@ -310,4 +310,3 @@ class NLPModel(ModelPT):
     def complete_megatron_init(self):
         if isinstance(self.bert_model, MegatronBertEncoder):
             self.bert_model.complete_lazy_init()
-
