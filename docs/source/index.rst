@@ -174,7 +174,7 @@ To run tutorials:
      - `TTS inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b4/tutorials/tts/1_TTS_inference.ipynb>`_
    * - TTS
      - Speech Synthesis
-     - `Tacotron2 training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b4/tutorials/tts/2_TTS_Tacotron2_Training.ipynb>`_
+     - `Tacotron2 training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0b4/tutorials/tts/2_TTS_Tacotron2_Training.ipynb>`_
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
