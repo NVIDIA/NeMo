@@ -13,4 +13,3 @@ transformers>=4.0.1
 sentencepiece<1.0.0
 webdataset
 nvidia-eff>=0.2.6
-onnx-graphsurgeon>=0.2.7
