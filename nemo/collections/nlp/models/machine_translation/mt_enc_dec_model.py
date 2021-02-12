@@ -242,12 +242,12 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: add target language so detokenizer can be lang specific.
         detokenizer = MosesDetokenizer(lang=self.tgt_language)
-        
+
         if self.tgt_language in ['ja']:
             sp_detokenizer = SentencePieceDetokenizer()
             translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
             ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
-        
+
         if not self.tgt_language in ['zh']:
             translations = [detokenizer.detokenize(sent.split()) for sent in translations]
             ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
