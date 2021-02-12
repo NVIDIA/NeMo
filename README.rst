@@ -45,7 +45,6 @@ Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training t
 Requirements
 ------------
 
-NeMo's works with:
 
 1) Python 3.6 or 3.7
 2) Pytorch 1.6 or above
@@ -134,13 +133,13 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v0.11.0/
 
-+---------+------------+---------------------------------------------------------+
-| Version | Status     | Description                                             |
-+=========+============+=========================================================+
-| Latest  | |main|     | Documentation of the latest (i.e. `main`) branch        |
-+---------+------------+---------------------------------------------------------+
-| Stable  | |v1.0.0b1| | Documentation of the stable (i.e. `v1.0.0b1`) branch    |
-+---------+------------+---------------------------------------------------------+
++---------+------------+----------------------------------------------------------------------------------------------------------------------------------+
+| Version | Status     | Description                                                                                                                      |
++=========+============+==================================================================================================================================+
+| Latest  | |main|     | `Documentation of the latest (i.e. main) branch <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_           |
++---------+------------+----------------------------------------------------------------------------------------------------------------------------------+
+| Stable  | |v1.0.0b1| | `Documentation of the stable (i.e. v1.0.0b1) branch <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/>`_   |
++---------+------------+----------------------------------------------------------------------------------------------------------------------------------+
 
 Getting help with NeMo
 ----------------------
