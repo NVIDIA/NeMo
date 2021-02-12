@@ -282,8 +282,7 @@ class NLPModel(ModelPT):
                 self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
-                    # finish megatron-lm initialization
-                    self.bert_model._lazy_init_fn()
+                    self.bert_model.complete_lazy_init()
 
                     logging.info(f"restoring model parallel checkpoint: {self.bert_model._restore_path}")
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
@@ -302,11 +301,12 @@ class NLPModel(ModelPT):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             else:
-                if isinstance(self.bert_model, MegatronBertEncoder):
-                    # finish megatron-lm initialization
-                    self.bert_model._lazy_init_fn()
+                # Megatron without model parallelism
+                self.complete_megatron_init()
         else:
             # testing stage
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                # finish megatron-lm initialization
-                self.bert_model._lazy_init_fn()
+            self.complete_megatron_init()
+
+    def complete_megatron_init(self):
+        if isinstance(self.bert_model, MegatronBertEncoder):
+            self.bert_model.complete_lazy_init()
