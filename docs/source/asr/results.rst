@@ -13,7 +13,6 @@ Automatic Speech Recognition Models
    :file: data/asr_results.csv
    :align: left
    :widths: 30, 30, 40
-   :width: 100%
    :header-rows: 1
 
 Speech Classification Models
@@ -23,7 +22,6 @@ Speech Classification Models
    :file: data/classification_results.csv
    :align: left
    :widths: 30, 30, 40
-   :width: 100%
    :header-rows: 1
 
 -----------------------------
@@ -37,7 +35,6 @@ English
    :file: data/benchmark_en.csv
    :align: left
    :widths: 40, 40, 10, 10
-   :width: 100%
    :header-rows: 1
 
 -----------------------------
@@ -48,7 +45,6 @@ Mandarin
    :file: data/benchmark_zh.csv
    :align: left
    :widths: 40, 40, 10, 10
-   :width: 100%
    :header-rows: 1
 
 -----------------------------
@@ -59,7 +55,6 @@ German
    :file: data/benchmark_de.csv
    :align: left
    :widths: 40, 40, 10, 10
-   :width: 100%
    :header-rows: 1
 
 -----------------------------
@@ -70,7 +65,6 @@ Polish
    :file: data/benchmark_pl.csv
    :align: left
    :widths: 40, 40, 10, 10
-   :width: 100%
    :header-rows: 1
 
 -----------------------------
@@ -81,7 +75,6 @@ Italian
    :file: data/benchmark_it.csv
    :align: left
    :widths: 40, 40, 10, 10
-   :width: 100%
    :header-rows: 1
 
 -----------------------------
@@ -92,7 +85,6 @@ Russian
    :file: data/benchmark_ru.csv
    :align: left
    :widths: 40, 40, 10, 10
-   :width: 100%
    :header-rows: 1
 
 -----------------------------
@@ -103,7 +95,6 @@ Spanish
    :file: data/benchmark_es.csv
    :align: left
    :widths: 40, 40, 10, 10
-   :width: 100%
    :header-rows: 1
 
 
@@ -115,8 +106,6 @@ Catalan
    :file: data/benchmark_ca.csv
    :align: left
    :widths: 40, 40, 10, 10
-   :width: 100%
    :header-rows: 1
 
------------------------------
 
