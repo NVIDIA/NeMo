@@ -366,7 +366,7 @@ class MTEncDecModel(EncDecNLPModel):
             decoder=self.decoder.decoder,
             log_softmax=self.log_softmax,
             max_sequence_length=self.beam_search.max_seq_length,
-            beam_size=topk, # hyperparam from https://arxiv.org/pdf/1808.09381.pdf
+            beam_size=topk,  # hyperparam from https://arxiv.org/pdf/1808.09381.pdf
             bos=self.decoder_tokenizer.bos_id,
             pad=self.decoder_tokenizer.pad_id,
             eos=self.decoder_tokenizer.eos_id,

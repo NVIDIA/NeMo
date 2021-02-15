@@ -18,14 +18,12 @@ import json
 import logging
 import pickle
 from collections import OrderedDict
+from typing import Any, Optional
 
 import braceexpand
 import numpy as np
 import webdataset as wd
 from torch.utils.data import IterableDataset
-from typing import Any, Optional
-
-import numpy as np
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset

@@ -26,14 +26,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 
 
 def write_batches_to_tarfiles(
-    args,
-    fname,
-    num_tokens,
-    tokenizer,
-    num_files_in_tar,
-    tar_file_ptr,
-    tar_file_ctr,
-    global_batch_ctr,
+    args, fname, num_tokens, tokenizer, num_files_in_tar, tar_file_ptr, tar_file_ctr, global_batch_ctr,
 ):
     """
     Writes current fragment of the overall parallel corpus to tarfiles by:
@@ -99,10 +92,7 @@ if __name__ == '__main__':
     if not os.path.exists(args.tokenizer):
         assert FileNotFoundError("Could not find tokenizer model %s" % (args.tokenizer))
 
-    tokenizer = get_tokenizer(
-        tokenizer_name='yttm',
-        tokenizer_model=args.tokenizer, bpe_dropout=0
-    )
+    tokenizer = get_tokenizer(tokenizer_name='yttm', tokenizer_model=args.tokenizer, bpe_dropout=0)
 
     tokens_in_batch = args.tokens_in_batch
     tar_file_ctr = 1

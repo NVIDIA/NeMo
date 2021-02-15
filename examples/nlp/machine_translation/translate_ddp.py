@@ -31,7 +31,6 @@ from nemo.collections.nlp.data.machine_translation import (
     TranslationDataset,
     TranslationOneSideDataset,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.utils import logging
@@ -83,7 +82,7 @@ def translate(rank, world_size, args):
             shuffle_n=100,
             shard_strategy="scatter",
             world_size=world_size,
-            global_rank=rank
+            global_rank=rank,
         )
     loader = DataLoader(dataset, batch_size=1)
     result_dir = os.path.join(args.result_dir, f'rank{rank}')
