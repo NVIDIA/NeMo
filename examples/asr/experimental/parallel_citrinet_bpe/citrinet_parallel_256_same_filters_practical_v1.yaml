@@ -1,4 +1,4 @@
-name: &name "CitriNet-Parallel-384-8x-Stride"
+name: &name "CitriNet-Parallel-256-8x-Stride"
 
 model:
   sample_rate: &sample_rate 16000
