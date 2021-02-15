@@ -63,6 +63,8 @@ def item_iter(
 
     if parse_func is None:
         parse_func = __parse_item
+    elif parse_func is "open_stt":
+        parse_func = __parse_open_stt
 
     k = -1
     for manifest_file in manifests_files:
@@ -74,6 +76,29 @@ def item_iter(
 
                 yield item
 
+def __parse_open_stt(line: str, manifest_file: str) -> Dict[str, Any]:
+    manifest_path, _ = split(manifest_file)
+    line_list = line.split(",")
+    assert len(line_list)==3, f"Incorrect fields number: {len(line_list)}"
+    item = dict(
+        offset=None,
+        speaker=None,
+        orig_sr=None,
+    )
+
+    item['audio_file'] = line_list[0]
+    if item['audio_file'][0] != "/":
+        item['audio_file'] = join(manifest_path, item['audio_file'])
+
+    text_file = line_list[1]
+    if text_file[0] != "/":
+        text_file = join(manifest_path, text_file)
+    with open(text_file, 'r') as f:
+            item['text'] = f.read().replace('\n', '')
+
+    item['duration'] = float(line_list[2])
+
+    return item
 
 def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)

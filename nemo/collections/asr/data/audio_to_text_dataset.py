@@ -47,6 +47,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         load_audio=config.get('load_audio', True),
         parser=config.get('parser', 'en'),
         add_misc=config.get('add_misc', False),
+        manifest_line_parser=config.get('manifest_line_parser', None),
     )
     return dataset
 

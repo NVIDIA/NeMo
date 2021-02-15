@@ -15,7 +15,7 @@
 import collections
 import json
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Callable
 
 import pandas as pd
 
@@ -179,7 +179,7 @@ class AudioText(_Collection):
 class ASRAudioText(AudioText):
     """`AudioText` collector from asr structured json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
+    def __init__(self, manifests_files: Union[str, List[str]], manifest_line_parser: Callable[[str, Optional[str]], Dict[str, Any]] = None, *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
@@ -190,7 +190,7 @@ class ASRAudioText(AudioText):
         """
 
         ids, audio_files, durations, texts, offsets, speakers, orig_srs = [], [], [], [], [], [], []
-        for item in manifest.item_iter(manifests_files):
+        for item in manifest.item_iter(manifests_files, manifest_line_parser):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
