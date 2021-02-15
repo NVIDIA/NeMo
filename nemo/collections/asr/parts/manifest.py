@@ -63,7 +63,7 @@ def item_iter(
 
     if parse_func is None:
         parse_func = __parse_item
-    elif parse_func == "open_stt":
+    elif parse_func is "open_stt":
         parse_func = __parse_open_stt
 
     k = -1
