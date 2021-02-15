@@ -39,6 +39,10 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 -   greedy, greedy_batch (for greedy decoding).
                 -   beam, tsd, alsd (for beam search decoding).
 
+            compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
+                tokens as well as the decoded string. Default is False in order to avoid double decoding
+                unless required.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
@@ -95,6 +99,20 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         """
         hypothesis = self.tokenizer.ids_to_text(tokens)
         return hypothesis
+
+    def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented by subclass in order to decode a token id list into a token list.
+        A token list is the string representation of each token id.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded tokens.
+        """
+        token_list = self.tokenizer.ids_to_tokens(tokens)
+        return token_list
 
 
 class RNNTBPEWER(Metric):

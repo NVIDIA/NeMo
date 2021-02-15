@@ -1,9 +1,8 @@
-name: &name "MatchboxNet-3x1x64-vad"
+name: &name "MarbleNet-3x2x64"
 
 model:
   sample_rate: 16000
-  timesteps: 64
-  repeat: 1
+  repeat: 2
   dropout: 0.0
   kernel_size_factor: 1.0
 
@@ -34,6 +33,7 @@ model:
     labels: ${model.labels}
     batch_size: 128
     shuffle: False
+    val_loss_idx: 0
 
   test_ds:
     manifest_filepath: null
@@ -134,17 +134,15 @@ model:
     pooling_type: 'avg'
 
   optim:
-    name: novograd
-    # _target_: nemo.core.optim.optimizers.Novograd
-    lr: 0.05
+    name: sgd
+    lr: 0.01
     # optimizer arguments
-    betas: [0.95, 0.5]
     weight_decay: 0.001
+    momentum: 0.9
 
     # scheduler setup
     sched:
       name: PolynomialHoldDecayAnnealing
-
       # Scheduler params
       power: 2.0
       warmup_ratio: 0.05
@@ -154,7 +152,7 @@ model:
 
 trainer:
   gpus: 0 # number of gpus
-  max_epochs: 200
+  max_epochs: 150
   max_steps: null # computed at runtime if not set
   num_nodes: 1
   accelerator: ddp

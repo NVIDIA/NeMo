@@ -35,6 +35,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
+from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import configure_checkpointing
 from nemo.utils.get_rank import is_global_rank_zero
@@ -46,7 +47,7 @@ NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_
 os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 
 
-class NLPModel(ModelPT):
+class NLPModel(ModelPT, Exportable):
     """Base class for NLP Models.
     """
 
@@ -101,15 +102,24 @@ class NLPModel(ModelPT):
         Args:
             cfg (DictConfig): Tokenizer config
         """
+        vocab_file = None
+        if self._is_model_being_restored():
+            if os.path.exists('tokenizer.vocab_file'):
+                # model is being restored from .nemo file so tokenizer.vocab_file has precedence
+                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
 
-        if self._is_model_being_restored() and os.path.exists('tokenizer.vocab_file'):
-            # model is being restored from .nemo file so tokenizer.vocab_file has precedence
-            vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
-        elif cfg.vocab_file is not None:
+            # tokenizer.vocab_file is added to the config file and registered as artifact for .nemo file
+            # during training but this file is missing for load_from_checkpoint() method call
+            # it's safer to use restore_from .nemo file
+            elif cfg.vocab_file and not os.path.exists(cfg.vocab_file):
+                logging.warning(
+                    f'tokenizer.vocab_file not found at {cfg.vocab_file}. It is recommended to use restore_from() method with .nemo file.'
+                )
+            else:
+                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
+        elif cfg.vocab_file:
             # use vocab file from config
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-        else:
-            vocab_file = None
 
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
@@ -348,15 +358,28 @@ class NLPModel(ModelPT):
                 ):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
+        else:
+            # testing stage
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                # finish megatron-lm initialization
+                self.bert_model._lazy_init_fn()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
         return None
 
+    @property
+    def input_module(self):
+        return self.bert_model
+
+    @property
+    def output_module(self):
+        return self.classifier
+
 
 class NLPCheckpointConnector(CheckpointConnector):
-    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM. 
+    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM.
     """
 
     def __init__(self, trainer):

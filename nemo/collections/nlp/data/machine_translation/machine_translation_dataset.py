@@ -16,7 +16,6 @@
 
 import io
 import json
-import logging
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -25,19 +24,25 @@ from typing import Optional
 import braceexpand
 import numpy as np
 import webdataset as wd
-from omegaconf.omegaconf import MISSING
 from torch.utils.data import IterableDataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
+from nemo.utils import logging
 
 __all__ = ['TranslationDataset', 'TarredTranslationDataset']
 
 
 @dataclass
 class TranslationDataConfig:
-    src_file_name: str = MISSING
-    tgt_file_name: str = MISSING
+    src_file_name: Optional[str] = None
+    tgt_file_name: Optional[str] = None
+    use_tarred_dataset: bool = False
+    tar_files: Optional[str] = None
+    metadata_file: Optional[str] = None
+    lines_per_dataset_fragment: Optional[int] = 1000000
+    num_batches_per_tarfile: Optional[int] = 1000
+    shard_strategy: Optional[str] = 'scatter'
     tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
@@ -84,6 +89,12 @@ class TranslationDataset(Dataset):
         self.max_seq_length_diff = max_seq_length_diff
         self.max_seq_length_ratio = max_seq_length_ratio
         self.reverse_lang_direction = reverse_lang_direction
+
+        # deprecation warnings for cache_ids, use_cache, and cache_data_per_node
+        if self.cache_ids is True or self.use_cache is True or self.cache_data_per_node is True:
+            logging.warning(
+                'Deprecation warning. self.cache_ids, self.use_cache, and self.cache_data_per_node will be removed. Data caching to be done with tarred datasets moving forward.'
+            )
 
     def batchify(self, tokenizer_src, tokenizer_tgt):
         src_ids = dataset_to_ids(
@@ -278,7 +289,7 @@ class TarredTranslationDataset(IterableDataset):
     Accepts a single JSON metadata file containing the total number of batches
     as well as the path(s) to the tarball(s) containing the pickled parallel dataset batch files.
     Valid formats for the text_tar_filepaths argument include:
-    (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar.gz', or
+    (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar', or
     (2) a list of file paths that will not be brace-expanded, e.g. ['text_1.tar', 'text_2.tar', ...].
     Note: For brace expansion in (1), there may be cases where `{x..y}` syntax cannot be used due to shell interference.
     This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.

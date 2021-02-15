@@ -34,6 +34,11 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     len_pen: float = 0.0
     max_generation_delta: int = 3
     label_smoothing: Optional[float] = 0.0
+    src_language: str = 'en'
+    tgt_language: str = 'en'
+    find_unused_parameters: Optional[bool] = True
+    shared_tokenizer: Optional[bool] = True
+    preproc_out_dir: Optional[str] = None
 
 
 @dataclass
@@ -96,8 +101,8 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         tokens_in_batch=512,
         clean=True,
         shuffle=True,
-        cache_ids=True,
-        use_cache=True,
+        cache_ids=False,
+        use_cache=False,
     )
     validation_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
         src_file_name=MISSING,
@@ -105,8 +110,8 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         tokens_in_batch=512,
         clean=False,
         shuffle=False,
-        cache_ids=True,
-        use_cache=True,
+        cache_ids=False,
+        use_cache=False,
     )
     test_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
         src_file_name=MISSING,
@@ -114,7 +119,7 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         tokens_in_batch=512,
         clean=False,
         shuffle=False,
-        cache_ids=True,
-        use_cache=True,
+        cache_ids=False,
+        use_cache=False,
     )
     optim: Optional[OptimConfig] = AAYNBaseOptimConfig()

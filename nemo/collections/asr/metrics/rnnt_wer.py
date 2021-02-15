@@ -38,6 +38,10 @@ class AbstractRNNTDecoding(ABC):
                 -   greedy, greedy_batch (for greedy decoding).
                 -   beam, tsd, alsd (for beam search decoding).
 
+            compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
+                tokens as well as the decoded string. Default is False in order to avoid double decoding
+                unless required.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
@@ -74,10 +78,11 @@ class AbstractRNNTDecoding(ABC):
         blank_id: The id of the RNNT blank token.
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
+        self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
         if self.cfg.strategy not in possible_strategies:
@@ -214,19 +219,35 @@ class AbstractRNNTDecoding(ABC):
             # De-tokenize the integer tokens
             hypothesis = self.decode_tokens_to_str(prediction)
             hypotheses_list[ind].text = hypothesis
-            hypotheses_list[ind].tokens = self.tokenizer.ids_to_tokens(prediction)
+
+            if self.compute_hypothesis_token_set:
+                hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)
         return hypotheses_list
 
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
-        Implemented by subclass in order to decoder a token list into a string.
+        Implemented by subclass in order to decoder a token id list into a string.
 
         Args:
             tokens: List of int representing the token ids.
 
         Returns:
             A decoded string.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented by subclass in order to decode a token id list into a token list.
+        A token list is the string representation of each token id.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded tokens.
         """
         raise NotImplementedError()
 
@@ -241,6 +262,10 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 Possible values are :
                 -   greedy, greedy_batch (for greedy decoding).
                 -   beam, tsd, alsd (for beam search decoding).
+
+            compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
+                tokens as well as the decoded string. Default is False in order to avoid double decoding
+                unless required.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -298,6 +323,20 @@ class RNNTDecoding(AbstractRNNTDecoding):
         """
         hypothesis = ''.join([self.labels_map[c] for c in tokens if c != self.blank_id])
         return hypothesis
+
+    def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented by subclass in order to decode a token id list into a token list.
+        A token list is the string representation of each token id.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded tokens.
+        """
+        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
+        return token_list
 
 
 class RNNTWER(Metric):

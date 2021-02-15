@@ -69,14 +69,16 @@ def expand_Conv1D(conv1d: nn.Module) -> Optional[nn.Conv2d]:
         dilation=(conv1d.dilation[0], 1),
         groups=conv1d.groups,
         padding_mode=conv1d.padding_mode,
-    )
+    ).to(device=conv1d.weight.device, dtype=conv1d.weight.dtype)
     conv2d.bias = conv1d.bias
     conv2d.weight = nn.Parameter(conv1d.weight.unsqueeze(-1))
     # check that expansion is valid
     for _ in range(2):
-        sample_input = torch.rand(1, conv1d.in_channels, 256)
+        sample_input = torch.rand(1, conv1d.in_channels, 256).to(
+            device=conv1d.weight.device, dtype=conv1d.weight.dtype
+        )
         close = conv1d(sample_input).mean() - conv2d(sample_input.unsqueeze(-1)).squeeze().mean()
-        if close.abs() > 1e-6:
+        if close.abs() > 1.0:
             raise ValueError("Unable to expand Conv1D to Conv2D")
     return conv2d
 
@@ -97,10 +99,43 @@ def expand_BatchNorm1d(bn1d: nn.Module) -> Optional[nn.BatchNorm2d]:
         momentum=bn1d.momentum,
         affine=bn1d.affine,
         track_running_stats=bn1d.track_running_stats,
-    )
+    ).to(device=conv1d.weight.device, dtype=conv1d.weight.dtype)
     bn_state = bn1d.state_dict()
     mod.load_state_dict(bn_state)
     return mod
+
+
+def expand_ConvTranspose1D(conv1d: nn.Module) -> Optional[nn.ConvTranspose2d]:
+    """
+    Expands a Conv1D into a Conv2D. This is required for many (closed source) commercial tools with poor support for 1D Convolutions in Onnx.
+    Args:
+        conv1d: the Conv1D pytorch module to expand
+    Returns:
+        conv2d: Conv2D module with identical weights and params
+    """
+    if not isinstance(conv1d, nn.ConvTranspose1d):
+        return None
+    conv2d = nn.ConvTranspose2d(
+        conv1d.in_channels,
+        conv1d.out_channels,
+        kernel_size=(conv1d.kernel_size[0], 1),
+        stride=(conv1d.stride[0], 1),
+        padding=(conv1d.padding[0], 0),
+        dilation=(conv1d.dilation[0], 1),
+        groups=conv1d.groups,
+        padding_mode=conv1d.padding_mode,
+    ).to(device=conv1d.weight.device, dtype=conv1d.weight.dtype)
+    conv2d.bias = conv1d.bias
+    conv2d.weight = nn.Parameter(conv1d.weight.unsqueeze(-1))
+    # check that expansion is valid
+    for _ in range(2):
+        sample_input = torch.rand(1, conv1d.in_channels, 256).to(
+            device=conv1d.weight.device, dtype=conv1d.weight.dtype
+        )
+        close = conv1d(sample_input).mean() - conv2d(sample_input.unsqueeze(-1)).squeeze().mean()
+        if close.abs() > 1.0:
+            raise ValueError("Unable to expand Conv1D to Conv2D")
+    return conv2d
 
 
 def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
@@ -167,6 +202,7 @@ def replace_modules(
 
 default_1D_2D_replacements = {
     "Conv1d": expand_Conv1D,
+    "ConvTranspose1d": expand_ConvTranspose1D,
     "BatchNorm1d": expand_BatchNorm1d,
     "AdaptiveAvgPool1d": simple_replace(nn.AdaptiveAvgPool1d, nn.AdaptiveAvgPool2d),
     "AvgPool1d": simple_replace(nn.AvgPool1d, nn.AvgPool2d),

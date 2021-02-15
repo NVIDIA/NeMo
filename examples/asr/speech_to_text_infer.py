@@ -49,7 +49,13 @@ def main():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument(
-        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
+        "--dont_normalize_text",
+        default=False,
+        action='store_true',
+        help="Turn off trasnscript normalization. Recommended for non-English.",
+    )
+    parser.add_argument(
+        "--use_cer", default=False, action='store_true', help="Use Character Error Rate as the evaluation metric"
     )
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -66,7 +72,7 @@ def main():
             'manifest_filepath': args.dataset,
             'labels': asr_model.decoder.vocabulary,
             'batch_size': args.batch_size,
-            'normalize_transcripts': args.normalize_text,
+            'normalize_transcripts': not args.dont_normalize_text,
         }
     )
     if can_gpu:
@@ -90,10 +96,14 @@ def main():
             reference = ''.join([labels_map[c] for c in seq_ids[0:seq_len]])
             references.append(reference)
         del test_batch
-    wer_value = word_error_rate(hypotheses=hypotheses, references=references)
-    if wer_value > args.wer_tolerance:
-        raise ValueError(f"Got WER of {wer_value}. It was higher than {args.wer_tolerance}")
-    logging.info(f'Got WER of {wer_value}. Tolerance was {args.wer_tolerance}')
+
+    wer_value = word_error_rate(hypotheses=hypotheses, references=references, use_cer=args.use_cer)
+    if not args.use_cer:
+        if wer_value > args.wer_tolerance:
+            raise ValueError(f"got wer of {wer_value}. it was higher than {args.wer_tolerance}")
+        logging.info(f'Got WER of {wer_value}. Tolerance was {args.wer_tolerance}')
+    else:
+        logging.info(f'Got CER of {wer_value}')
 
 
 if __name__ == '__main__':
