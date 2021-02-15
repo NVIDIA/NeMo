@@ -107,7 +107,7 @@ def translate(rank, world_size, args):
                     f"rank {rank}"
                 )
             num_translated_sentences += len(src_ids)
-            _, translations = ddp_model(src_ids, src_mask, None, None)
+            translations = ddp_model(src_ids, src_mask, None, None)
             translations = translations.cpu().numpy()
             for t in translations:
                 tf.write(model.decoder_tokenizer.ids_to_text(t) + '\n')

@@ -164,6 +164,10 @@ class MTEncDecModel(EncDecNLPModel):
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         src_hiddens = self.encoder(src, src_mask)
+        if tgt is None:
+            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+            beam_results = self.filter_predicted_ids(beam_results)
+            return beam_results
         tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         return log_probs
