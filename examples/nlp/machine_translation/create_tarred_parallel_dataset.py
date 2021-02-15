@@ -89,6 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_seq_length', type=int, default=512, help='Max Sequence Length')
     parser.add_argument('--min_seq_length', type=int, default=1, help='Min Sequence Length')
     parser.add_argument('--tokens_in_batch', type=int, default=16000, help='# Tokens per batch per GPU')
+    parser.add_argument('--coverage', type=float, default=0.999, help='BPE character coverage [0-1]')
     parser.add_argument(
         '--lines_per_dataset_fragment',
         type=int,
@@ -111,6 +112,7 @@ if __name__ == '__main__':
             data='/tmp/concat_dataset.txt',
             vocab_size=args.vocab_size,
             model=os.path.join(args.out_dir, 'tokenizer.%d.BPE.model' % (args.vocab_size)),
+            coverage=args.coverage,
         )
         encoder_tokenizer_model = os.path.join(args.out_dir, 'tokenizer.%d.BPE.model' % (args.vocab_size))
         decoder_tokenizer_model = os.path.join(args.out_dir, 'tokenizer.%d.BPE.model' % (args.vocab_size))
@@ -120,12 +122,14 @@ if __name__ == '__main__':
             data=args.src_fname,
             vocab_size=args.vocab_size,
             model=os.path.join(args.out_dir, 'tokenizer.encoder.%d.BPE.model' % (args.vocab_size)),
+            coverage=args.coverage,
         )
 
         yttm.BPE.train(
             data=args.tgt_fname,
             vocab_size=args.vocab_size,
             model=os.path.join(args.out_dir, 'tokenizer.decoder.%d.BPE.model' % (args.vocab_size)),
+            coverage=args.coverage,
         )
         encoder_tokenizer_model = os.path.join(args.out_dir, 'tokenizer.encoder.%d.BPE.model' % (args.vocab_size))
         decoder_tokenizer_model = os.path.join(args.out_dir, 'tokenizer.decoder.%d.BPE.model' % (args.vocab_size))
