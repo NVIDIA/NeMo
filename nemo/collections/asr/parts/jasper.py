@@ -673,13 +673,12 @@ class ParallelBlock(nn.Module):
         for block in self.blocks:
             output, mask = block(x)
             if result is None:
-                result = output
+                result = output[-1]
             else:
-                result += output
+                result = result + output[-1]
 
             if max_mask is None:
                 max_mask = mask
             else:
                 max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
-
-        return result, max_mask
+        return [result], max_mask
