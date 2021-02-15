@@ -681,4 +681,5 @@ class ParallelBlock(nn.Module):
                 max_mask = mask
             else:
                 max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
+        result = result + x[0][-1]
         return [result], max_mask
