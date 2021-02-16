@@ -24,29 +24,32 @@ from sacremoses import MosesDetokenizer
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.machine_translation import (
-    TarredOneSideTranslationDataset,
-    TarredTranslationDataset,
-)
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.common.tokenizers.pangu_jieba_detokenizer import PanguJiebaDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
+from nemo.collections.nlp.data.machine_translation import TarredOneSideTranslationDataset, TarredTranslationDataset
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.utils import logging
 
 
 def get_args():
     parser = ArgumentParser(description='Batch translation of sentences from a pre-trained model on multiple GPUs')
     parser.add_argument("--model", type=str, required=True, help="Path to the .nemo translation model file")
-    parser.add_argument("--text2translate", type=str, required=True, help="Path to the pre-processed tarfiles for translation")
+    parser.add_argument(
+        "--text2translate", type=str, required=True, help="Path to the pre-processed tarfiles for translation"
+    )
     parser.add_argument("--result_dir", type=str, required=True, help="Folder to write translation results")
-    parser.add_argument("--twoside", action="store_true", help="Set flag when translating the source side of a parallel dataset")
-    parser.add_argument('--metadata_path', type=str, required=True, help="Path to the JSON file that contains dataset info")
+    parser.add_argument(
+        "--twoside", action="store_true", help="Set flag when translating the source side of a parallel dataset"
+    )
+    parser.add_argument(
+        '--metadata_path', type=str, required=True, help="Path to the JSON file that contains dataset info"
+    )
     parser.add_argument('--source_lang', type=str, required=True, help="Source lang ID for detokenization")
     parser.add_argument('--target_lang', type=str, required=True, help="Target lang ID for detokenization")
     parser.add_argument(
         '--reverse_lang_direction',
         action="store_true",
-        help="Reverse source and target language direction for parallel dataset"
+        help="Reverse source and target language direction for parallel dataset",
     )
     args = parser.parse_args()
     return args
@@ -86,7 +89,7 @@ def translate(rank, world_size, args):
             shard_strategy="scatter",
             world_size=world_size,
             global_rank=rank,
-            reverse_lang_direction=args.reverse_lang_direction
+            reverse_lang_direction=args.reverse_lang_direction,
         )
     else:
         dataset = TarredOneSideTranslationDataset(
