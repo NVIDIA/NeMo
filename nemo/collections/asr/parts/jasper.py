@@ -660,12 +660,14 @@ class JasperBlock(nn.Module):
 
 
 class ParallelBlock(nn.Module):
-    def __init__(self, blocks, aggregation_mode=None):
+    def __init__(self, blocks, aggregation_mode=None, out_filters=None):
         super().__init__()
         self.blocks = nn.ModuleList(blocks)
         self.aggregation_mode = aggregation_mode
         if aggregation_mode == "single":
-            self.weights = nn.Parameter(torch.randn(1, len(blocks), 1), requires_grad=True)
+            self.weights = nn.Parameter(torch.randn(1, len(blocks), 1,  1), requires_grad=True)
+        elif aggregation_mode == "per_channel":
+            self.weights = nn.Parameter(torch.randn(1, len(blocks), out_filters, 1), requires_grad=True)
 
 
     def forward(self, x):
@@ -679,7 +681,7 @@ class ParallelBlock(nn.Module):
 
             weighted_output = output[-1]
             if self.aggregation_mode:
-              weighted_output = self.weights[:, i, :] * output[-1]
+              weighted_output = self.weights[:, i, :, :] * output[-1]
 
             if result is None:
                 result = weighted_output 
