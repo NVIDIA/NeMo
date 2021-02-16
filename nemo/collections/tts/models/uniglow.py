@@ -118,7 +118,7 @@ class UniGlowModel(Vocoder):
     def forward(self, *, audio, audio_len):
         if self.mode != self.model.mode:
             raise ValueError(
-                f"WaveGlowModel's mode {self.mode} does not match WaveGlowModule's mode {self.model.mode}"
+                f"UniGlowModel's mode {self.mode} does not match UniGlowModule's mode {self.model.mode}"
             )
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         tensors = self.model(spec=spec, audio=audio, sigma=self.sigma)
@@ -135,7 +135,7 @@ class UniGlowModel(Vocoder):
     )
     def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
         if not self.removed_weightnorm:
-            self.waveglow.remove_weightnorm()
+            self.model.remove_weightnorm()
             self.removed_weightnorm = True
         self.mode = OperationMode.infer
 

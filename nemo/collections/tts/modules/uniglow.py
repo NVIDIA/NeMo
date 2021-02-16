@@ -171,8 +171,7 @@ class UniGlowModule(NeuralModule, Exportable):
         return audio
 
     def remove_weightnorm(self):
-        for wavenet in self.wavenet:
-            wavenet.start = torch.nn.utils.remove_weight_norm(wavenet.start)
-            wavenet.in_layers = remove(wavenet.in_layers)
-            wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
-            wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
+        self.wn.start = torch.nn.utils.remove_weight_norm(self.wn.start)
+        self.wn.in_layers = remove(self.wn.in_layers)
+        self.wn.cond_layer = torch.nn.utils.remove_weight_norm(self.wn.cond_layer)
+        self.wn.res_skip_layers = remove(self.wn.res_skip_layers)
