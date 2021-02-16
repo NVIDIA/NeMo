@@ -18,7 +18,7 @@ import json
 import logging
 import pickle
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any
 
 import braceexpand
 import numpy as np

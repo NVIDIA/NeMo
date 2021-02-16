@@ -19,8 +19,6 @@ import pickle
 import tarfile
 import tempfile
 
-import youtokentome as yttm
-
 from nemo.collections.nlp.data import TranslationOneSideDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 
