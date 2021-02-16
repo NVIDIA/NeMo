@@ -12,6 +12,7 @@ gdown
 megatron-lm==1.1.5
 inflect
 sacrebleu[ja]
-sacremoses
+sacremoses>=0.0.43
 pangu
 jieba
+opencc

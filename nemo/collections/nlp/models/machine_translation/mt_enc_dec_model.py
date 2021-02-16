@@ -18,7 +18,9 @@ import random
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import jieba
 import numpy as np
+import opencc
 import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig
@@ -62,12 +64,21 @@ class MTEncDecModel(EncDecNLPModel):
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         cfg = model_utils.maybe_update_config_version(cfg)
-        self.setup_enc_dec_tokenizers(cfg)
 
-        super().__init__(cfg=cfg, trainer=trainer)
+        # Instaniate tokenizers and register to be saved with NeMo Model archive
+        self.setup_enc_dec_tokenizers(
+            encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
+            encoder_tokenizer_model=cfg.encoder_tokenizer.tokenizer_model,
+            encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+            decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
+            decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
+            decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+        )
 
         self.src_language: str = cfg.get("src_language", None)
         self.tgt_language: str = cfg.get("tgt_language", None)
+
+        super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: use get_encoder function with support for HF and Megatron
         self.encoder = TransformerEncoderNM(
@@ -231,13 +242,15 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: add target language so detokenizer can be lang specific.
         detokenizer = MosesDetokenizer(lang=self.tgt_language)
+
+        if self.tgt_language in ['ja']:
+            sp_detokenizer = SentencePieceDetokenizer()
+            translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
+            ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
+
         if not self.tgt_language in ['zh']:
             translations = [detokenizer.detokenize(sent.split()) for sent in translations]
             ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
-            if self.tgt_language in ['ja']:
-                sp_detokenizer = SentencePieceDetokenizer()
-                translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
-                ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
         else:
             zh_detokenizer = PanguJiebaDetokenizer()
             translations = [zh_detokenizer.detokenize(sent) for sent in translations]
@@ -290,15 +303,15 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError("src must be equal to target for cached dataset")
             dataset = pickle.load(open(cfg.src_file_name, 'rb'))
             dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
-        elif cfg.get("load_from_tarred_dataset", False):
-            logging.info('Loading from tarred dataset %s' % (cfg.src_file_name))
-            if cfg.src_file_name != cfg.tgt_file_name:
-                raise ValueError("src must be equal to target for tarred dataset")
-            if cfg.get("metadata_path", None) is None:
+        elif cfg.get("use_tarred_dataset", False):
+            if cfg.get('tar_files') is None:
+                raise FileNotFoundError("Could not find tarred dataset.")
+            logging.info(f'Loading from tarred dataset {cfg.get("tar_files")}')
+            if cfg.get("metadata_file", None) is None:
                 raise FileNotFoundError("Could not find metadata path in config")
             dataset = TarredTranslationDataset(
-                text_tar_filepaths=cfg.src_file_name,
-                metadata_path=cfg.metadata_path,
+                text_tar_filepaths=cfg.tar_files,
+                metadata_path=cfg.metadata_file,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
                 shuffle_n=cfg.get("tar_shuffle_n", 100),
@@ -361,17 +374,30 @@ class MTEncDecModel(EncDecNLPModel):
             target_lang = self.tgt_language
 
         mode = self.training
-        tokenizer = MosesTokenizer(lang=source_lang)
-        normalizer = MosesPunctNormalizer(lang=source_lang)
-        detokenizer = MosesDetokenizer(lang=target_lang)
+        if source_lang not in ['zh', 'ja']:
+            tokenizer = MosesTokenizer(lang=source_lang)
+            normalizer = MosesPunctNormalizer(lang=source_lang)
+        elif source_lang == 'ja':
+            raise NotImplementedError("Input tokenization for Japanese is not implemented yet")
+        elif source_lang == 'zh':
+            normalizer = opencc.OpenCC('t2s.json')
+
+        if target_lang not in ['zh']:
+            detokenizer = MosesDetokenizer(lang=target_lang)
+        elif target_lang == 'zh':
+            detokenizer = PanguJiebaDetokenizer()
 
         try:
             self.eval()
             res = []
             for txt in text:
                 if source_lang != "None":
-                    txt = normalizer.normalize(txt)
-                    txt = tokenizer.tokenize(txt, escape=False, return_str=True)
+                    if source_lang == "zh":
+                        txt = normalizer.convert(txt)
+                        txt = ' '.join(jieba.cut(txt))
+                    else:
+                        txt = normalizer.normalize(txt)
+                        txt = tokenizer.tokenize(txt, escape=False, return_str=True)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
@@ -381,14 +407,10 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                if not target_lang in ["zh"]:
-                    translation = detokenizer.detokenize(translation.split())
-                    if target_lang in ["ja"]:
-                        sp_detokenizer = SentencePieceDetokenizer()
-                        translation = sp_detokenizer.detokenize(translation.split())
-                else:
-                    zh_detokenizer = PanguJiebaDetokenizer()
-                    translation = zh_detokenizer.detokenize(translation)
+                if target_lang == 'ja':
+                    sp_detokenizer = SentencePieceDetokenizer()
+                    translation = sp_detokenizer.detokenize(translation.split())
+                translation = detokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
             self.train(mode=mode)
