@@ -220,6 +220,7 @@ class FilterbankFeatures(nn.Module):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        use_grads=False,
     ):
         super().__init__()
         self.log_zero_guard_value = log_zero_guard_value
@@ -301,6 +302,11 @@ class FilterbankFeatures(nn.Module):
                 f"log_zero_guard_type parameter. It must be either 'add' or "
                 f"'clamp'."
             )
+
+        self.use_grads = use_grads
+        if not use_grads:
+            self.forward = torch.no_grad()(self.forward)
+
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
         self.log_zero_guard_type = log_zero_guard_type
@@ -311,6 +317,7 @@ class FilterbankFeatures(nn.Module):
         logging.debug(f"n_mels: {nfilt}")
         logging.debug(f"fmin: {lowfreq}")
         logging.debug(f"fmax: {highfreq}")
+        logging.debug(f"using grads: {use_grads}")
 
     def log_zero_guard_value_fn(self, x):
         if isinstance(self.log_zero_guard_value, str):
@@ -334,7 +341,6 @@ class FilterbankFeatures(nn.Module):
     def filter_banks(self):
         return self.fb
 
-    @torch.no_grad()
     def forward(self, x, seq_len):
         seq_len = self.get_seq_len(seq_len.float())
 
@@ -356,7 +362,9 @@ class FilterbankFeatures(nn.Module):
 
         # torch returns real, imag; so convert to magnitude
         if not self.stft_conv:
-            x = torch.sqrt(x.pow(2).sum(-1))
+            # guard is needed for sqrt if grads are passed through
+            guard = 0 if not self.use_grads else CONSTANT
+            x = torch.sqrt(x.pow(2).sum(-1) + guard)
 
         # get power spectrum
         if self.mag_power != 1.0:
