@@ -1,0 +1,84 @@
+name: "HifiGan"
+train_dataset: ???
+validation_datasets: ???
+
+defaults:
+  - model/generator: v1
+
+model:
+  train_ds:
+    dataset:
+      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+      manifest_filepath: ${train_dataset}
+      max_duration: null
+      min_duration: 0.75
+      n_segments: 8192
+      trim: false
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 16
+      num_workers: 4
+
+  validation_ds:
+    dataset:
+      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+      manifest_filepath: ${validation_datasets}
+      max_duration: null
+      min_duration: null
+      n_segments: -1
+      trim: false
+    dataloader_params:
+      drop_last: false
+      shuffle: false
+      batch_size: 3
+      num_workers: 4
+
+  preprocessor:
+    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    dither: 0.0
+    frame_splicing: 1
+    nfilt: 80
+    highfreq: 8000
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    lowfreq: 0
+    mag_power: 1.0
+    n_fft: 1024
+    n_window_size: 1024
+    n_window_stride: 256
+    normalize: null
+    pad_to: 0
+    pad_value: -11.52
+    preemph: null
+    sample_rate: 22050
+    stft_exact_pad: true
+    stft_conv: false
+    window: hann
+    use_grads: false
+
+  optim:
+    lr: 0.0002
+    adam_b1: 0.8
+    adam_b2: 0.99
+    lr_decay: 0.999
+    lr_step: 15
+
+trainer:
+  gpus: -1 # number of gpus
+  max_epochs: 1000000
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+  log_every_n_steps: 100
+  check_val_every_n_epoch: 10
+  automatic_optimization: false
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
