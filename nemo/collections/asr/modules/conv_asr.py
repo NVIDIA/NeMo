@@ -266,6 +266,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         conv_mask: bool = True,
         frame_splicing: int = 1,
         init_mode: Optional[str] = 'xavier_uniform',
+        aggregation_mode: Optional[str] = None,
         quantize: bool = False,
     ):
         super().__init__()
@@ -296,6 +297,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
             se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
             stride_last = lcfg.get('stride_last', False)
+            aggregation_mode = lcfg.get('aggregation_mode', None)
 
             parallel_blocks = []
             for kernel_size in lcfg['kernel']:
@@ -327,8 +329,10 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
                         quantize=quantize,
                     )
                 )
-
-            encoder_layers.append(ParallelBlock(parallel_blocks))
+            if len(parallel_blocks) == 1:
+              encoder_layers.append(parallel_blocks[0])
+            else:
+              encoder_layers.append(ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode))
             feat_in = lcfg['filters']
 
         self._feat_out = feat_in

@@ -660,9 +660,13 @@ class JasperBlock(nn.Module):
 
 
 class ParallelBlock(nn.Module):
-    def __init__(self, blocks):
+    def __init__(self, blocks, aggregation_mode=None):
         super().__init__()
         self.blocks = nn.ModuleList(blocks)
+        self.aggregation_mode = aggregation_mode
+        if aggregation_mode == "single":
+            self.weights = nn.Parameter(torch.randn(1, len(blocks), 1), requires_grad=True)
+
 
     def forward(self, x):
         if len(self.blocks) == 1:
@@ -670,12 +674,17 @@ class ParallelBlock(nn.Module):
 
         result = None
         max_mask = None
-        for block in self.blocks:
+        for i, block in enumerate(self.blocks):
             output, mask = block(x)
+
+            weighted_output = output[-1]
+            if self.aggregation_mode:
+              weighted_output = self.weights[:, i, :] * output[-1]
+
             if result is None:
-                result = output[-1]
+                result = weighted_output 
             else:
-                result = result + output[-1]
+                result = result + weighted_output 
 
             if max_mask is None:
                 max_mask = mask
