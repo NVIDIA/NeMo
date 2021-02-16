@@ -43,9 +43,7 @@ def get_args():
     parser.add_argument(
         '--metadata_path', type=str, required=True, help="Path to the JSON file that contains dataset info"
     )
-    parser.add_argument(
-        '--topk', type=int, default=500, help="Value of k for topk sampling"
-    )
+    parser.add_argument('--topk', type=int, default=500, help="Value of k for topk sampling")
     parser.add_argument('--source_lang', type=str, required=True, help="Source lang ID for detokenization")
     parser.add_argument('--target_lang', type=str, required=True, help="Target lang ID for detokenization")
     parser.add_argument(
