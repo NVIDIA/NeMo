@@ -665,9 +665,9 @@ class ParallelBlock(nn.Module):
         self.blocks = nn.ModuleList(blocks)
         self.aggregation_mode = aggregation_mode
         if aggregation_mode == "single":
-            self.weights = nn.Parameter(torch.randn(1, len(blocks), 1,  1), requires_grad=True)
+            self.weights = nn.Parameter(torch.ones(1, len(blocks), 1,  1), requires_grad=True)
         elif aggregation_mode == "per_channel":
-            self.weights = nn.Parameter(torch.randn(1, len(blocks), out_filters, 1), requires_grad=True)
+            self.weights = nn.Parameter(torch.ones(1, len(blocks), out_filters, 1), requires_grad=True)
 
 
     def forward(self, x):
