@@ -621,10 +621,15 @@ class _TarredAudioLabelDataset(IterableDataset):
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
         # Put together WebDataset
+        self._dataset = wd.WebDataset(audio_tar_filepaths)
+
+        if shuffle_n > 0:
+            self._dataset = self._dataset.shuffle(shuffle_n)
+        else:
+            logging.info("WebDataset will not shuffle files within the tar files.")
+
         self._dataset = (
-            wd.Dataset(audio_tar_filepaths)
-            .shuffle(shuffle_n)
-            .rename(audio='wav', key='__key__')
+            self._dataset.rename(audio='wav', key='__key__')
             .to_tuple('audio', 'key')
             .pipe(self._filter)
             .map(f=self._build_sample)
@@ -643,10 +648,33 @@ class _TarredAudioLabelDataset(IterableDataset):
                 self.iterator = iterator
                 self.collection = collection
                 self.file_occurence = file_occurence
+                self._iterable = None
 
             def __iter__(self):
-                for i, tup in enumerate(self.iterator):
+                self._iterable = self._internal_generator()
+                return self
+
+            def __next__(self):
+                try:
+                    values = next(self._iterable)
+                except StopIteration:
+                    # reset generator
+                    self._iterable = self._internal_generator()
+                    values = next(self._iterable)
+
+                return values
+
+            def _internal_generator(self):
+                """
+                WebDataset requires an Iterator, but we require an iterable that yields 1-or-more
+                values per value inside self.iterator.
+
+                Therefore wrap the iterator with a generator function that will yield 1-or-more
+                values per sample in the iterator.
+                """
+                for _, tup in enumerate(self.iterator):
                     audio_bytes, audio_filename = tup
+
                     file_id, _ = os.path.splitext(os.path.basename(audio_filename))
                     if audio_filename in self.file_occurence:
                         for j in range(0, self.file_occurence[file_id]):
@@ -655,14 +683,12 @@ class _TarredAudioLabelDataset(IterableDataset):
                             else:
                                 audio_filename = file_id + "-sub" + str(j)
                             yield audio_bytes, audio_filename
-                return self
 
         return TarredAudioFilter(self.collection, self.file_occurence)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
         """
-
         audio_bytes, audio_filename = tup
         # Grab manifest entry from self.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
