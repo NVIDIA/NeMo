@@ -314,6 +314,99 @@ class SqueezeExcite(nn.Module):
         return x * y
 
 
+
+class SqueezeExciteAttention(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        reduction_ratio: int,
+        context_window: int = -1,
+        interpolation_mode: str = 'nearest',
+        activation: Optional[Callable] = None,
+        quantize: bool = False,
+    ):
+        """
+        Module that computes weights for scaling features from the input, 
+        Squeeze-and-Excitation style.
+
+        Args:
+            in_channels: Input number of channels.
+            out_channels: Number of weights to produce as an output.
+            reduction_ratio: Reduction ratio for "squeeze" layer.
+            context_window: Integer number of timesteps that the context
+                should be computed over, using stride 1 average pooling.
+                If value < 1, then global context is computed.
+            interpolation_mode: Interpolation mode of timestep dimension.
+                Used only if context window is > 1.
+                The modes available for resizing are: `nearest`, `linear` (3D-only),
+                `bilinear`, `area`
+            activation: Intermediate activation function used. Must be a
+                callable activation function.
+        """
+        super(SqueezeExciteAttention, self).__init__()
+        self.context_window = int(context_window)
+        self.interpolation_mode = interpolation_mode
+
+        if self.context_window <= 0:
+            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
+            else:
+                self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
+        else:
+            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                self.pool = quant_nn.QuantAvgPool1d(self.context_window, stride=1)
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
+            else:
+                self.pool = nn.AvgPool1d(self.context_window, stride=1)
+
+        if activation is None:
+            activation = nn.ReLU(inplace=True)
+
+        if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+            self.fc = nn.Sequential(
+                quant_nn.QuantLinear(in_channels, in_channels // reduction_ratio, bias=False),
+                activation,
+                quant_nn.QuantLinear(in_channels // reduction_ratio, out_channels, bias=False),
+            )
+        elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
+            raise ImportError(
+                "pytorch-quantization is not installed. Install from "
+                "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+            )
+        else:
+            self.fc = nn.Sequential(
+                nn.Linear(in_channels, in_channels // reduction_ratio, bias=False),
+                activation,
+                nn.Linear(in_channels // reduction_ratio, out_channels, bias=False),
+            )
+
+    def forward(self, x):
+        # The use of negative indices on the transpose allow for expanded SqueezeExcite
+        batch, channels, timesteps = x.size()[:3]
+        y = self.pool(x)  # [B, C, T - context_window + 1]
+        y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
+        y = self.fc(y)  # [B, T - context_window + 1, C]
+        y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
+
+        if self.context_window > 0:
+            y = torch.nn.functional.interpolate(y, size=timesteps, mode=self.interpolation_mode)
+
+        y = torch.sigmoid(y)
+
+        return y
+
+
+
 class JasperBlock(nn.Module):
     __constants__ = ["conv_mask", "separable", "residual_mode", "res", "mconv"]
 
@@ -660,7 +753,7 @@ class JasperBlock(nn.Module):
 
 
 class ParallelBlock(nn.Module):
-    def __init__(self, blocks, aggregation_mode=None, out_filters=None):
+    def __init__(self, blocks, aggregation_mode=None, out_filters=None, reduction_ratio=8):
         super().__init__()
         self.blocks = nn.ModuleList(blocks)
         self.aggregation_mode = aggregation_mode
@@ -668,20 +761,33 @@ class ParallelBlock(nn.Module):
             self.weights = nn.Parameter(torch.ones(1, len(blocks), 1,  1), requires_grad=True)
         elif aggregation_mode == "per_channel":
             self.weights = nn.Parameter(torch.ones(1, len(blocks), out_filters, 1), requires_grad=True)
+        elif aggregation_mode == "se_attention":
+            self.attention = SqueezeExciteAttention(out_filters, len(blocks) * out_filters, reduction_ratio)
 
 
     def forward(self, x):
         if len(self.blocks) == 1:
             return self.blocks[0](x)
 
+        input_feat = x[0][-1]
+        batch, channels, time = input_feat.shape
+
         result = None
         max_mask = None
+
+        scaling_weights = None
+        if self.aggregation_mode in ["single", "per_channel"]:
+            scaling_weights = self.weights
+        elif self.aggregation_mode == "se_attention":
+            scaling_weights = self.attention(input_feat)
+            scaling_weights = scaling_weights.view(batch, len(self.blocks), channels, 1)
+
         for i, block in enumerate(self.blocks):
             output, mask = block(x)
 
             weighted_output = output[-1]
             if self.aggregation_mode:
-              weighted_output = self.weights[:, i, :, :] * output[-1]
+              weighted_output = scaling_weights[:, i, :, :] * output[-1]
 
             if result is None:
                 result = weighted_output 
@@ -692,5 +798,5 @@ class ParallelBlock(nn.Module):
                 max_mask = mask
             else:
                 max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
-        result = result + x[0][-1]
+        result = result + input_feat 
         return [result], max_mask
