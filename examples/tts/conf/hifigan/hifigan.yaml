@@ -6,14 +6,41 @@ defaults:
   - model/generator: v1
 
 model:
+  # train_ds:
+    # dataset:
+      # _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+      # manifest_filepath: ${train_dataset}
+      # max_duration: null
+      # min_duration: 0.75
+      # n_segments: 8192
+      # trim: false
+    # dataloader_params:
+      # drop_last: false
+      # shuffle: true
+      # batch_size: 16
+      # num_workers: 4
+
+  # validation_ds:
+    # dataset:
+      # _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+      # manifest_filepath: ${validation_datasets}
+      # max_duration: null
+      # min_duration: null
+      # n_segments: -1
+      # trim: false
+    # dataloader_params:
+      # drop_last: false
+      # shuffle: false
+      # batch_size: 3
+      # num_workers: 4
+
   train_ds:
     dataset:
-      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
-      manifest_filepath: ${train_dataset}
-      max_duration: null
+      _target_: "nemo.collections.tts.data.datalayers.MelAudioDataset"
+      manifest_filepath: "/home/tlv/data/LJSpeech-1.1/train_finetune.txt"
+      # manifest_filepath: "/home/tlv/data/LJSpeech-1.1/train_finetune_debug.txt"
       min_duration: 0.75
       n_segments: 8192
-      trim: false
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -22,12 +49,11 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
-      manifest_filepath: ${validation_datasets}
-      max_duration: null
-      min_duration: null
-      n_segments: -1
-      trim: false
+      _target_: "nemo.collections.tts.data.datalayers.MelAudioDataset"
+      manifest_filepath: "/home/tlv/data/LJSpeech-1.1/val_finetune.txt"
+      # manifest_filepath: "/home/tlv/data/LJSpeech-1.1/train_finetune_debug.txt"
+      min_duration: 3
+      n_segments: 66150
     dataloader_params:
       drop_last: false
       shuffle: false

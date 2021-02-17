@@ -26,6 +26,7 @@ from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.collections.tts.data.datalayers import MelAudioDataset, AudioDataset
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -53,6 +54,13 @@ class HifiGanModel(Vocoder):
 
         self.sample_rate = self._cfg.preprocessor.sample_rate
 
+        if isinstance(self._train_dl.dataset, MelAudioDataset):
+            self.finetune = True
+            logging.info("fine-tuning on pre-computed mels")
+        else:
+            self.finetune = False
+            logging.info("training on ground-truth mels")
+
     def configure_optimizers(self):
         self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
         self.optim_d = instantiate(
@@ -60,8 +68,9 @@ class HifiGanModel(Vocoder):
         )
 
         max_steps = 2500000  # 2.5M in the original paper
+        warmup_steps = 0 if self.finetune else np.ceil(0.2 * max_steps)
         self.scheduler_g = CosineAnnealing(
-            self.optim_g, max_steps=max_steps, min_lr=1e-5, warmup_steps=np.ceil(0.2 * max_steps)
+            self.optim_g, max_steps=max_steps, min_lr=1e-5, warmup_steps=warmup_steps
         )  # Use warmup to delay start
         sch1_dict = {
             'scheduler': self.scheduler_g,
@@ -99,9 +108,16 @@ class HifiGanModel(Vocoder):
         return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        audio, audio_len = batch
-        # mel as input for generator
-        audio_mel, _ = self.audio_to_melspec_precessor(audio, audio_len)
+        # if in finetune mode the mels are pre-computed using a 
+        # spectrogram generator
+        if self.finetune:
+            audio, audio_len, audio_mel = batch
+        # else, we compute the mel using the ground truth audio
+        else:
+            audio, audio_len = batch
+            # mel as input for generator
+            audio_mel, _ = self.audio_to_melspec_precessor(audio, audio_len)
+
         # mel as input for L1 mel loss
         audio_trg_mel, _ = self.trg_melspec_fn(audio, audio_len)
         audio = audio.unsqueeze(1)
@@ -152,10 +168,16 @@ class HifiGanModel(Vocoder):
         self.log_dict(metrics, on_step=False, on_epoch=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        audio, audio_len = batch
-        audio_mel, audio_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
+        if self.finetune:
+            audio, audio_len, audio_mel = batch
+            audio_mel_len = [audio_mel.shape[1]] * audio_mel.shape[0]
+        else:
+            audio, audio_len = batch
+            audio_mel, audio_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
         audio_pred = self(spec=audio_mel)
 
+        if self.finetune:
+            gt_mel, gt_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
         audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
         loss_mel = F.l1_loss(audio_mel, audio_pred_mel)
 
@@ -181,13 +203,20 @@ class HifiGanModel(Vocoder):
                 specs += [
                     wandb.Image(
                         plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                        caption=f"real audio {i}",
+                        caption=f"input mel {i}",
                     ),
                     wandb.Image(
                         plot_spectrogram_to_numpy(audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                        caption=f"generated audio {i}",
+                        caption=f"output mel {i}",
                     ),
                 ]
+                if self.finetune:
+                    specs += [
+                        wandb.Image(
+                            plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                            caption=f"gt mel {i}",
+                        ),
+                    ]
 
             self.logger.experiment.log({"audio": clips, "specs": specs}, commit=False)
 
