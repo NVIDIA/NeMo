@@ -39,14 +39,21 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType
 
 
 def pack_hypotheses(
-    hypotheses: List[List[int]], timesteps: List[List[int]], logitlen: torch.Tensor
+    hypotheses: List[List[int]],
+    timesteps: List[List[int]],
+    logitlen: torch.Tensor,
+    logprobs: Optional[List[List[torch.Tensor]]] = None,
 ) -> List[rnnt_utils.Hypothesis]:
     logitlen_cpu = logitlen.to("cpu")
     return [
         rnnt_utils.Hypothesis(
-            y_sequence=torch.tensor(sent, dtype=torch.long), score=-1.0, timestep=timestep, length=length
+            y_sequence=torch.tensor(sent, dtype=torch.long),
+            score=-1.0,
+            timestep=timestep,
+            length=length,
+            logprobs=logprobs[idx] if logprobs is not None else None,
         )
-        for sent, timestep, length in zip(hypotheses, timesteps, logitlen_cpu)
+        for idx, (sent, timestep, length) in enumerate(zip(hypotheses, timesteps, logitlen_cpu))
     ]
 
 
@@ -85,6 +92,7 @@ class _GreedyRNNTInfer(Typing):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
+        preserve_logprobs: bool = False,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -93,6 +101,7 @@ class _GreedyRNNTInfer(Typing):
         self._blank_index = blank_index
         self._SOS = blank_index  # Start of single index
         self.max_symbols = max_symbols_per_step
+        self.preserve_logprobs = preserve_logprobs
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -181,12 +190,14 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
+        preserve_logprobs: bool = False,
     ):
         super().__init__(
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
             max_symbols_per_step=max_symbols_per_step,
+            preserve_logprobs=preserve_logprobs,
         )
 
     @typecheck()
@@ -215,17 +226,19 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
             hypotheses = []
             timesteps = []
+            logprobs = []
             # Process each sequence independently
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 for batch_idx in range(encoder_output.size(0)):
                     inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
                     logitlen = encoded_lengths[batch_idx]
-                    sentence, timestep = self._greedy_decode(inseq, logitlen)
+                    sentence, timestep, logprob = self._greedy_decode(inseq, logitlen)
                     hypotheses.append(sentence)
                     timesteps.append(timestep)
+                    logprobs.append(logprob)
 
             # Pack results into Hypotheses
-            packed_result = pack_hypotheses(hypotheses, timesteps, encoded_lengths)
+            packed_result = pack_hypotheses(hypotheses, timesteps, encoded_lengths, logprobs=logprobs)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -241,6 +254,11 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         hidden = None
         label = []
         timesteps = []
+
+        if self.preserve_logprobs:
+            logprobs = [[]]
+        else:
+            logprobs = None
 
         # For timestep t in X_t
         for time_idx in range(out_len):
@@ -272,11 +290,20 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 v, k = logp.max(0)
                 k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
 
+                if self.preserve_logprobs:
+                    # insert logits into last timestep
+                    logprobs[-1].append(logp.to('cpu'))
+
                 del logp
 
                 # If blank token is predicted, exit inner loop, move onto next timestep t
                 if k == self._blank_index:
                     not_blank = False
+
+                    if self.preserve_logprobs:
+                        # convert Ti-th logits into a torch array
+                        logprobs[-1] = torch.stack(logprobs[-1], dim=0)
+                        logprobs.append([])  # blank buffer for next timestep
                 else:
                     # Append token to label set, update RNN state.
                     label.append(k)
@@ -286,7 +313,12 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 # Increment token counter.
                 symbols_added += 1
 
-        return label, timesteps
+        # Remove trailing empty list of logprobs
+        if self.preserve_logprobs:
+            if len(logprobs[-1]) == 0:
+                del logprobs[-1]
+
+        return label, timesteps, logprobs
 
 
 class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
