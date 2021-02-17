@@ -13,8 +13,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
@@ -26,6 +28,10 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_models_list,
 )
 from nemo.utils import logging
+
+from transformers import AutoConfig, AutoModel
+
+from hydra.utils import instantiate
 
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
@@ -93,5 +99,51 @@ def get_lm_model(
 
     if checkpoint_file and os.path.exists(checkpoint_file):
         model.restore_weights(restore_path=checkpoint_file)
+
+    return model
+
+
+def get_transformer(
+    library: str = 'nemo',
+    model_name: Optional[str] = None,
+    pretrained: bool = False,
+    config_dict: Optional[dict] = None,
+    checkpoint_file: Optional[str] = None,
+    encoder: bool = True,
+) -> Union[EncoderModule, DecoderModule]:
+
+    assert model_name is None or (
+        config_dict is None or config_dict == {}
+    ), 'Only one of model_name or config_dict should be used'
+
+    model = None
+
+    if library == 'nemo':
+        if model_name is not None:
+            logging.error(f'NeMo transformers cannot be loaded from NGC yet.')
+
+        model = get_nemo_transformer(model_name, config_dict, encoder)
+
+        if checkpoint_file is not None:
+            if os.path.isfile(checkpoint_file):
+                logging.info(f'Checkpoint found at {checkpoint_file} will be used to restore weights.')
+                logging.error(f'Loading transformer weights from checkpoint file has not been implemented yet.')
+            else:
+                logging.error(f'Checkpoint not found at {checkpoint_file}.')
+
+    elif library == 'huggingface':
+        if model_name is not None:
+            if model_name in get_huggingface_pretrained_lm_models_list():
+                if pretrained:
+                    model = AutoModel.from_pretrained(model_name)
+                else:
+                    cfg = AutoConfig.from_pretrained(model_name)
+                    model = AutoModel.from_config(cfg)
+            else:
+                logging.error(f'{model_name} not found in list of HuggingFace pretrained models')
+        else:
+            cfg = instantiate(config_dict)
+            model = AutoModel.from_config(cfg)
+        model.hidden_size = model.config.hidden_size
 
     return model
