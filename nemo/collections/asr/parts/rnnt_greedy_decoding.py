@@ -69,6 +69,18 @@ class _GreedyRNNTInfer(Typing):
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
+        preserve_logprobs: Bool flag which preserves the history of logprobs generated during
+            greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+
+            The length of the list corresponds to the Acoustic Length (T).
+            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
+
+            U has a shape [U, V + 1], where U is the number of target tokens for the current timestep Ti.
+            Each target timestep Uj is a vector of length V + 1, where V is the vocabulary size of the
+            prediction network.
+
+            The blank token is indexed as the final value of this vector (i.e. index V, 0-based indexing rule).
     """
 
     @property
@@ -182,6 +194,18 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
+        preserve_logprobs: Bool flag which preserves the history of logprobs generated during
+            greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+
+            The length of the list corresponds to the Acoustic Length (T).
+            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
+
+            U has a shape [U, V + 1], where U is the number of target tokens for the current timestep Ti.
+            Each target timestep Uj is a vector of length V + 1, where V is the vocabulary size of the
+            prediction network.
+
+            The blank token is indexed as the final value of this vector (i.e. index V, 0-based indexing rule).
     """
 
     def __init__(
@@ -334,6 +358,18 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
+        preserve_logprobs: Bool flag which preserves the history of logprobs generated during
+            greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+
+            The length of the list corresponds to the Acoustic Length (T).
+            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
+
+            U has a shape [U, V + 1], where U is the number of target tokens for the current timestep Ti.
+            Each target timestep Uj is a vector of length V + 1, where V is the vocabulary size of the
+            prediction network.
+
+            The blank token is indexed as the final value of this vector (i.e. index V, 0-based indexing rule).
     """
 
     def __init__(
