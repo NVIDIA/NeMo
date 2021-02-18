@@ -41,6 +41,77 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType
 
 
 class BeamRNNTInfer(Typing):
+    """
+    Beam Search implementation ported from ESPNet implementation -
+    https://github.com/espnet/espnet/blob/master/espnet/nets/beam_search_transducer.py
+
+    Sequence level beam decoding or batched-beam decoding, performed auto-repressively
+    depending on the search type chosen.
+
+    Args:
+        decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
+        joint_model: rnnt_utils.AbstractRNNTJoint implementation.
+
+        beam_size: number of beams for beam search. Must be a positive integer >= 1.
+            If beam size is 1, defaults to stateful greedy search.
+            This greedy search might result in slightly different results than
+            the greedy results obtained by GreedyRNNTInfer due to implementation differences.
+
+            For accurate greedy results, please use GreedyRNNTInfer or GreedyBatchedRNNTInfer.
+
+        search_type: str representing the type of beam search to perform.
+            Must be one of ['beam', 'tsd', 'alsd']. 'nsc' is currently not supported.
+
+            Algoritm used:
+            `beam` - basic beam search strategy. Larger beams generally result in better decoding,
+                however the time required for the search also grows steadily.
+
+            `tsd` - time synchronous decoding. Please refer to the paper:
+                [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
+                for details on the algorithm implemented.
+
+                Time synchronous decoding (TSD) execution time grows by the factor T * max_symmetric_expansions.
+                For longer sequences, T is greater, and can therefore take a long time for beams to obtain
+                good results. This also requires greater memory to execute.
+
+            `alsd` - alignment-length synchronous decoding. Please refer to the paper:
+                [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
+                for details on the algorithm implemented.
+
+                Alignment-length synchronous decoding (ALSD) execution time is faster than TSD, with growth
+                factor of T + U_max, where U_max is the maximum target length expected during execution.
+
+                Generally, T + U_max < T * max_symmetric_expansions. However, ALSD beams are non-unique,
+                therefore it is required to use larger beam sizes to achieve the same (or close to the same)
+                decoding accuracy as TSD.
+
+                For a given decoding accuracy, it is possible to attain faster decoding via ALSD than TSD.
+
+        score_norm: bool, whether to normalize the scores of the log probabilities.
+
+        return_best_hypothesis: bool, decides whether to return a single hypothesis (the best out of N),
+            or return all N hypothesis (sorted with best score first). The container class changes based
+            this flag -
+            When set to True (default), returns a single Hypothesis.
+            When set to False, returns a NBestHypotheses container, which contains a list of Hypothesis.
+
+        # The following arguments are specific to the chosen `search_type`
+
+        tsd_max_sym_exp_per_step: Used for `search_type=tsd`. The maximum symmetric expansions allowed
+            per timestep during beam search. Larger values should be used to attempt decoding of longer
+            sequences, but this in turn increases execution time and memory usage.
+
+        alsd_max_target_len: Used for `search_type=alsd`. The maximum expected target sequence length
+            during beam search. Larger values allow decoding of longer sequences at the expense of
+            execution time and memory.
+
+        # The following two flags are placeholders and unused until `nsc` implementation is stabilized.
+
+        nsc_max_timesteps_expansion: Unused int.
+
+        nsc_prefix_alpha: Unused int.
+    """
+
     @property
     def input_types(self):
         """Returns definitions of module input ports.
@@ -68,77 +139,8 @@ class BeamRNNTInfer(Typing):
         alsd_max_target_len: Union[int, float] = 1.0,
         nsc_max_timesteps_expansion: int = 1,
         nsc_prefix_alpha: int = 1,
+        preserve_logprobs: bool = False,
     ):
-        """
-        Beam Search implementation ported from ESPNet implementation -
-        https://github.com/espnet/espnet/blob/master/espnet/nets/beam_search_transducer.py
-
-        Sequence level beam decoding or batched-beam decoding, performed auto-repressively
-        depending on the search type chosen.
-
-        Args:
-            decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
-            joint_model: rnnt_utils.AbstractRNNTJoint implementation.
-
-            beam_size: number of beams for beam search. Must be a positive integer >= 1.
-                If beam size is 1, defaults to stateful greedy search.
-                This greedy search might result in slightly different results than
-                the greedy results obtained by GreedyRNNTInfer due to implementation differences.
-
-                For accurate greedy results, please use GreedyRNNTInfer or GreedyBatchedRNNTInfer.
-
-            search_type: str representing the type of beam search to perform.
-                Must be one of ['beam', 'tsd', 'alsd']. 'nsc' is currently not supported.
-
-                Algoritm used:
-                `beam` - basic beam search strategy. Larger beams generally result in better decoding,
-                    however the time required for the search also grows steadily.
-
-                `tsd` - time synchronous decoding. Please refer to the paper:
-                    [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
-                    for details on the algorithm implemented.
-
-                    Time synchronous decoding (TSD) execution time grows by the factor T * max_symmetric_expansions.
-                    For longer sequences, T is greater, and can therefore take a long time for beams to obtain
-                    good results. This also requires greater memory to execute.
-
-                `alsd` - alignment-length synchronous decoding. Please refer to the paper:
-                    [Alignment-Length Synchronous Decoding for RNN Transducer](https://ieeexplore.ieee.org/document/9053040)
-                    for details on the algorithm implemented.
-
-                    Alignment-length synchronous decoding (ALSD) execution time is faster than TSD, with growth
-                    factor of T + U_max, where U_max is the maximum target length expected during execution.
-
-                    Generally, T + U_max < T * max_symmetric_expansions. However, ALSD beams are non-unique,
-                    therefore it is required to use larger beam sizes to achieve the same (or close to the same)
-                    decoding accuracy as TSD.
-
-                    For a given decoding accuracy, it is possible to attain faster decoding via ALSD than TSD.
-
-            score_norm: bool, whether to normalize the scores of the log probabilities.
-
-            return_best_hypothesis: bool, decides whether to return a single hypothesis (the best out of N),
-                or return all N hypothesis (sorted with best score first). The container class changes based
-                this flag -
-                When set to True (default), returns a single Hypothesis.
-                When set to False, returns a NBestHypotheses container, which contains a list of Hypothesis.
-
-            # The following arguments are specific to the chosen `search_type`
-
-            tsd_max_sym_exp_per_step: Used for `search_type=tsd`. The maximum symmetric expansions allowed
-                per timestep during beam search. Larger values should be used to attempt decoding of longer
-                sequences, but this in turn increases execution time and memory usage.
-
-            alsd_max_target_len: Used for `search_type=alsd`. The maximum expected target sequence length
-                during beam search. Larger values allow decoding of longer sequences at the expense of
-                execution time and memory.
-
-            # The following two flags are placeholders and unused until `nsc` implementation is stabilized.
-
-            nsc_max_timesteps_expansion: Unused int.
-
-            nsc_prefix_alpha: Unused int.
-        """
         self.decoder = decoder_model
         self.joint = joint_model
 
@@ -186,6 +188,7 @@ class BeamRNNTInfer(Typing):
         self.alsd_max_target_length = alsd_max_target_len
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
         self.nsc_prefix_alpha = nsc_prefix_alpha
+        self.preserve_logprobs = preserve_logprobs
 
     @typecheck()
     def __call__(
@@ -270,6 +273,12 @@ class BeamRNNTInfer(Typing):
         Returns:
             hyp: 1-best decoding results
         """
+        if self.preserve_logprobs:
+            # Logprobs is a 2-dimensional dangling list representing T x U
+            logprobs = [[]]
+        else:
+            logprobs = None
+
         # Initialize zero state vectors
         dec_state = self.decoder.initialize_state(h)
 
@@ -299,8 +308,17 @@ class BeamRNNTInfer(Typing):
                 logp, pred = torch.max(ytu, dim=-1)  # [1, 1]
                 pred = pred.item()
 
+                if self.preserve_logprobs:
+                    # insert logits into last timestep
+                    logprobs[-1].append(ytu.to('cpu'))
+
                 if pred == self.blank:
                     not_blank = False
+
+                    if self.preserve_logprobs:
+                        # convert Ti-th logits into a torch array
+                        logprobs[-1] = torch.stack(logprobs[-1], dim=0)
+                        logprobs.append([])  # blank buffer for next timestep
                 else:
                     # Update state and current sequence
                     hyp.y_sequence.append(int(pred))
@@ -311,6 +329,14 @@ class BeamRNNTInfer(Typing):
                     # Compute next state and token
                     y, state, _ = self.decoder.score_hypothesis(hyp, cache)
                 symbols_added += 1
+
+        # Remove trailing empty list of logprobs
+        if self.preserve_logprobs:
+            if len(logprobs[-1]) == 0:
+                del logprobs[-1]
+
+        # attach logprobs to hypothesis
+        hyp.logprobs = logprobs
 
         return [hyp]
 

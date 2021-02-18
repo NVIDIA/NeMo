@@ -116,6 +116,7 @@ class AbstractRNNTDecoding(ABC):
                 return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='default',
                 score_norm=self.cfg.beam.get('score_norm', True),
+                preserve_logprobs=self.cfg.greedy.get('preserve_logprobs', False),
             )
 
         elif self.cfg.strategy == 'tsd':
@@ -128,6 +129,7 @@ class AbstractRNNTDecoding(ABC):
                 search_type='tsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
                 tsd_max_sym_exp_per_step=self.cfg.beam.get('tsd_max_sym_exp', 50),
+                preserve_logprobs=self.cfg.greedy.get('preserve_logprobs', False),
             )
 
         elif self.cfg.strategy == 'alsd':
@@ -140,6 +142,7 @@ class AbstractRNNTDecoding(ABC):
                 search_type='alsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
                 alsd_max_target_len=self.cfg.beam.get('alsd_max_target_len', 2),
+                preserve_logprobs=self.cfg.greedy.get('preserve_logprobs', False),
             )
 
     def rnnt_decoder_predictions_tensor(
