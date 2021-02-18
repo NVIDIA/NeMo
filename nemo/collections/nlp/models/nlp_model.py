@@ -360,7 +360,6 @@ class NLPModel(ModelPT, Exportable):
         if isinstance(self.bert_model, MegatronBertEncoder):
             self.bert_model.complete_lazy_init()
 
-
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
@@ -417,4 +416,3 @@ class NLPCheckpointConnector(CheckpointConnector):
                     )
                     atomic_save(checkpoint, filepath)
         return None
-
