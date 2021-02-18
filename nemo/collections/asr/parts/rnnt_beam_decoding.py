@@ -26,6 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
@@ -139,7 +140,7 @@ class BeamRNNTInfer(Typing):
         alsd_max_target_len: Union[int, float] = 1.0,
         nsc_max_timesteps_expansion: int = 1,
         nsc_prefix_alpha: int = 1,
-        preserve_logprobs: bool = False,
+        preserve_alignments: bool = False,
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -188,7 +189,7 @@ class BeamRNNTInfer(Typing):
         self.alsd_max_target_length = alsd_max_target_len
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
         self.nsc_prefix_alpha = nsc_prefix_alpha
-        self.preserve_logprobs = preserve_logprobs
+        self.preserve_logprobs = preserve_alignments
 
     @typecheck()
     def __call__(
@@ -336,7 +337,7 @@ class BeamRNNTInfer(Typing):
                 del logprobs[-1]
 
         # attach logprobs to hypothesis
-        hyp.logprobs = logprobs
+        hyp.alignments = logprobs
 
         return [hyp]
 
@@ -349,6 +350,12 @@ class BeamRNNTInfer(Typing):
         Returns:
             nbest_hyps: N-best decoding results
         """
+        if self.preserve_logprobs:
+            # Logprobs is a 2-dimensional dangling list representing T x U
+            logprobs = [[]]
+        else:
+            logprobs = None
+
         # Initialize states
         beam = min(self.beam_size, self.vocab_size)
         beam_k = min(beam, (self.vocab_size - 1))
@@ -370,6 +377,9 @@ class BeamRNNTInfer(Typing):
         # Initialize first hypothesis for the beam (blank)
         kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0)]
         cache = {}
+
+        if self.preserve_logprobs:
+            kept_hyps[0].alignments = [[]]
 
         for i in range(int(encoded_lengths)):
             hi = h[:, i : i + 1, :]  # [1, 1, D]

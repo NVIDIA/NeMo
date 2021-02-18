@@ -59,7 +59,7 @@ class Hypothesis:
     tokens: Optional[Union[List[int], torch.Tensor]] = None
     text: str = None
     timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
-    logprobs: List[torch.Tensor] = None
+    alignments: List[torch.Tensor] = None
     length: int = 0
 
 
