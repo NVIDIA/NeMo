@@ -189,7 +189,7 @@ class BeamRNNTInfer(Typing):
         self.alsd_max_target_length = alsd_max_target_len
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
         self.nsc_prefix_alpha = nsc_prefix_alpha
-        self.preserve_logprobs = preserve_alignments
+        self.preserve_alignments = preserve_alignments
 
     @typecheck()
     def __call__(
@@ -274,11 +274,11 @@ class BeamRNNTInfer(Typing):
         Returns:
             hyp: 1-best decoding results
         """
-        if self.preserve_logprobs:
+        if self.preserve_alignments:
             # Logprobs is a 2-dimensional dangling list representing T x U
-            logprobs = [[]]
+            alignments = [[]]
         else:
-            logprobs = None
+            alignments = None
 
         # Initialize zero state vectors
         dec_state = self.decoder.initialize_state(h)
@@ -309,17 +309,17 @@ class BeamRNNTInfer(Typing):
                 logp, pred = torch.max(ytu, dim=-1)  # [1, 1]
                 pred = pred.item()
 
-                if self.preserve_logprobs:
+                if self.preserve_alignments:
                     # insert logits into last timestep
-                    logprobs[-1].append(ytu.to('cpu'))
+                    alignments[-1].append(pred)
 
                 if pred == self.blank:
                     not_blank = False
 
-                    if self.preserve_logprobs:
+                    if self.preserve_alignments:
                         # convert Ti-th logits into a torch array
-                        logprobs[-1] = torch.stack(logprobs[-1], dim=0)
-                        logprobs.append([])  # blank buffer for next timestep
+                        alignments[-1] = torch.tensor(alignments[-1], dtype=torch.long)
+                        alignments.append([])  # blank buffer for next timestep
                 else:
                     # Update state and current sequence
                     hyp.y_sequence.append(int(pred))
@@ -332,12 +332,12 @@ class BeamRNNTInfer(Typing):
                 symbols_added += 1
 
         # Remove trailing empty list of logprobs
-        if self.preserve_logprobs:
-            if len(logprobs[-1]) == 0:
-                del logprobs[-1]
+        if self.preserve_alignments:
+            if len(alignments[-1]) == 0:
+                del alignments[-1]
 
         # attach logprobs to hypothesis
-        hyp.alignments = logprobs
+        hyp.alignments = alignments
 
         return [hyp]
 
@@ -350,12 +350,6 @@ class BeamRNNTInfer(Typing):
         Returns:
             nbest_hyps: N-best decoding results
         """
-        if self.preserve_logprobs:
-            # Logprobs is a 2-dimensional dangling list representing T x U
-            logprobs = [[]]
-        else:
-            logprobs = None
-
         # Initialize states
         beam = min(self.beam_size, self.vocab_size)
         beam_k = min(beam, (self.vocab_size - 1))
@@ -378,7 +372,7 @@ class BeamRNNTInfer(Typing):
         kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0)]
         cache = {}
 
-        if self.preserve_logprobs:
+        if self.preserve_alignments:
             kept_hyps[0].alignments = [[]]
 
         for i in range(int(encoded_lengths)):
@@ -418,6 +412,9 @@ class BeamRNNTInfer(Typing):
                         length=encoded_lengths,
                     )
 
+                    if self.preserve_alignments:
+                        new_hyp.alignments = copy.deepcopy(max_hyp.alignments)
+
                     # if current token is blank, dont update sequence, just store the current hypothesis
                     if k == self.blank:
                         kept_hyps.append(new_hyp)
@@ -429,6 +426,12 @@ class BeamRNNTInfer(Typing):
 
                         hyps.append(new_hyp)
 
+                    if self.preserve_alignments:
+                        if k == self.blank:
+                            new_hyp.alignments[-1].append(self.blank)
+                        else:
+                            new_hyp.alignments[-1].append(new_hyp.y_sequence[-1])
+
                 # keep those hypothesis that have scores greater than next search generation
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
                 kept_most_prob = sorted([hyp for hyp in kept_hyps if hyp.score > hyps_max], key=lambda x: x.score,)
@@ -436,8 +439,20 @@ class BeamRNNTInfer(Typing):
                 # If enough hypothesis have scores greater than next search generation,
                 # stop beam search.
                 if len(kept_most_prob) >= beam:
+                    if self.preserve_alignments:
+                        # convert Ti-th logits into a torch array
+                        for kept_h in kept_most_prob:
+                            # kept_h.alignments[-1] = torch.tensor(kept_h.alignments[-1], dtype=torch.long)
+                            kept_h.alignments.append([])  # blank buffer for next timestep
+
                     kept_hyps = kept_most_prob
                     break
+
+        # Remove trailing empty list of logprobs
+        if self.preserve_alignments:
+            for h in kept_hyps:
+                if len(h.alignments[-1]) == 0:
+                    del h.alignments[-1]
 
         return self.sort_nbest(kept_hyps)
 
