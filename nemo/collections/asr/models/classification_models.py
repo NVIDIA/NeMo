@@ -160,7 +160,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
         # preserve config
         self._update_dataset_config(dataset_name='train', config=train_data_config)
 
-        self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+        self._train_dl = self._setup_dataloader_from_config(config=DictConfig(train_data_config))
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
@@ -182,7 +182,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
         # preserve config
         self._update_dataset_config(dataset_name='validation', config=val_data_config)
 
-        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(config=DictConfig(val_data_config))
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_config:
@@ -191,7 +191,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
         # preserve config
         self._update_dataset_config(dataset_name='test', config=test_data_config)
 
-        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(config=DictConfig(test_data_config))
 
     def test_dataloader(self):
         if self._test_dl is not None:
