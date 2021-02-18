@@ -442,7 +442,6 @@ class BeamRNNTInfer(Typing):
                     if self.preserve_alignments:
                         # convert Ti-th logits into a torch array
                         for kept_h in kept_most_prob:
-                            # kept_h.alignments[-1] = torch.tensor(kept_h.alignments[-1], dtype=torch.long)
                             kept_h.alignments.append([])  # blank buffer for next timestep
 
                     kept_hyps = kept_most_prob
@@ -466,6 +465,9 @@ class BeamRNNTInfer(Typing):
         Returns:
             nbest_hyps: N-best decoding results
         """
+        if self.preserve_alignments:
+            raise NotImplementedError("`preseve_alignments` is not implemented for Time-Synchronous Decoding.")
+
         # Precompute some constants for blank position
         ids = list(range(self.vocab_size + 1))
         ids.remove(self.blank)
@@ -576,6 +578,11 @@ class BeamRNNTInfer(Typing):
         Returns:
             nbest_hyps: N-best decoding results
         """
+        if self.preserve_alignments:
+            raise NotImplementedError(
+                "`preseve_alignments` is not implemented for Alignment-length Synchronous Decoding."
+            )
+
         # Precompute some constants for blank position
         ids = list(range(self.vocab_size + 1))
         ids.remove(self.blank)

@@ -75,12 +75,7 @@ class _GreedyRNNTInfer(Typing):
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
-
-            U has a shape [U, V + 1], where U is the number of target tokens for the current timestep Ti.
-            Each target timestep Uj is a vector of length V + 1, where V is the vocabulary size of the
-            prediction network.
-
-            The blank token is indexed as the final value of this vector (i.e. index V, 0-based indexing rule).
+            U is the number of target tokens for the current timestep Ti.
     """
 
     @property
@@ -200,12 +195,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
-
-            U has a shape [U, V + 1], where U is the number of target tokens for the current timestep Ti.
-            Each target timestep Uj is a vector of length V + 1, where V is the vocabulary size of the
-            prediction network.
-
-            The blank token is indexed as the final value of this vector (i.e. index V, 0-based indexing rule).
+            U is the number of target tokens for the current timestep Ti.
     """
 
     def __init__(
@@ -364,12 +354,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
-
-            U has a shape [U, V + 1], where U is the number of target tokens for the current timestep Ti.
-            Each target timestep Uj is a vector of length V + 1, where V is the vocabulary size of the
-            prediction network.
-
-            The blank token is indexed as the final value of this vector (i.e. index V, 0-based indexing rule).
+            U is the number of target tokens for the current timestep Ti.
     """
 
     def __init__(
