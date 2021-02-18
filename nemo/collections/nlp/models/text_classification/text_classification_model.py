@@ -90,7 +90,7 @@ class TextClassificationModel(NLPModel, Exportable):
 
     def create_loss_module(self):
         # create the loss module if it is not yet created by the training data loader
-        if not self.loss:
+        if not hasattr(self, 'loss'):
             if self.class_weights:
                 # You may need to increase the number of epochs for convergence when using weighted_loss
                 self.loss = CrossEntropyLoss(weight=self.class_weights)
