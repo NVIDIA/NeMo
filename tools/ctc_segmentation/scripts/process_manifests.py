@@ -82,7 +82,7 @@ if __name__ == '__main__':
     for k in sets:
         files = manifest_dir.glob(f'*{k}')
         for manifest_f in files:
-            with open(os.path.join(manifest_dir, manifest_f), 'r') as f:
+            with open(manifest_f, 'r') as f:
                 for line in f:
                     line = json.loads(line)
                     sets[k] += line['duration']

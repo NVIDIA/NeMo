@@ -237,7 +237,7 @@ To run tutorials:
      - `Tacotron2 training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0b4/tutorials/tts/2_TTS_Tacotron2_Training.ipynb>`_
    * - Tools
      - CTC Segmentation
-     - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
+     - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
    * - Tools
      - Text Normalization for Text To Speech
      - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/Text_Normalization_Tutorial.ipynb>`_
