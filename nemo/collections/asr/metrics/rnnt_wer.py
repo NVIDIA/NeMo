@@ -95,7 +95,7 @@ class AbstractRNNTDecoding(ABC):
                 joint_model=joint,
                 blank_index=self.blank_id,
                 max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
-                preserve_logprobs=self.cfg.greedy.get('preserve_logprobs', False)
+                preserve_logprobs=self.cfg.greedy.get('preserve_logprobs', False),
             )
 
         elif self.cfg.strategy == 'greedy_batch':
@@ -104,6 +104,7 @@ class AbstractRNNTDecoding(ABC):
                 joint_model=joint,
                 blank_index=self.blank_id,
                 max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+                preserve_logprobs=self.cfg.greedy.get('preserve_logprobs', False),
             )
 
         elif self.cfg.strategy == 'beam':

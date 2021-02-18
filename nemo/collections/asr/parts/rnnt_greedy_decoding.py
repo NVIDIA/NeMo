@@ -256,6 +256,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         timesteps = []
 
         if self.preserve_logprobs:
+            # Logprobs is a 2-dimensional dangling list representing T x U
             logprobs = [[]]
         else:
             logprobs = None
@@ -341,12 +342,14 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
+        preserve_logprobs: bool = False,
     ):
         super().__init__(
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
             max_symbols_per_step=max_symbols_per_step,
+            preserve_logprobs=preserve_logprobs,
         )
 
         # Depending on availability of `blank_as_pad` support
@@ -383,10 +386,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                hypotheses, timesteps = self._greedy_decode(inseq, logitlen, device=inseq.device)
+                hypotheses, timesteps, logprobs = self._greedy_decode(inseq, logitlen, device=inseq.device)
 
             # Pack the hypotheses results
-            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen)
+            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen, logprobs=logprobs)
 
             del hypotheses, timesteps
 
@@ -408,6 +411,15 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # Output string buffer
             label = [[] for _ in range(batchsize)]
             timesteps = [[] for _ in range(batchsize)]
+
+            # If logprobs need to be preserved, register a danling list to hold the values
+            if self.preserve_logprobs:
+                # Logprobs is a 3-dimensional dangling list representing B x T x U
+                logprobs = []
+                for _ in range(batchsize):
+                    logprobs.append([[]])
+            else:
+                logprobs = None
 
             # Last Label buffer + Last Label without blank buffer
             # batch level equivalent of the last_label
@@ -452,7 +464,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Get index k, of max prob for batch
                     v, k = logp.max(1)
-                    del v, g, logp
+                    del v, g
 
                     # Update blank mask with current predicted blanks
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -461,10 +473,36 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     del k_is_blank
 
+                    # If preserving logprobs, check if sequence length of sample has been reached
+                    # before adding alignment
+                    if self.preserve_logprobs:
+                        # Insert logits into last timestep per sample
+                        logp_cpu = logp.to('cpu')
+                        for batch_idx in range(batchsize):
+                            if time_idx < out_len[batch_idx]:
+                                logprobs[batch_idx][-1].append(logp_cpu[batch_idx])
+                        del logp_cpu
+                    del logp
+
                     # If all samples predict / have predicted prior blanks, exit loop early
                     # This is equivalent to if single sample predicted k
                     if blank_mask.all():
                         not_blank = False
+
+                        # If preserving logprobs, convert the current Uj logprobs into a torch.Tensor
+                        # Then preserve U at current timestep Ti
+                        # Finally, forward the timestep history to Ti+1 for that sample
+                        # All of this should only be done iff the current time index <= sample-level AM length.
+                        # Otherwise ignore and move to next sample / next timestep.
+                        if self.preserve_logprobs:
+                            # convert Ti-th logits into a torch array
+                            for batch_idx in range(batchsize):
+                                # this checks if current timestep <= sample-level AM length
+                                # If current timestep > sample-level AM length, no logprobs will be added
+                                # Therefore the list of Uj logprobs is empty here.
+                                if len(logprobs[batch_idx][-1]) > 0:
+                                    logprobs[batch_idx][-1] = torch.stack(logprobs[batch_idx][-1], dim=0)
+                                    logprobs[batch_idx].append([])  # blank buffer for next timestep
                     else:
                         # Collect batch indices where blanks occurred now/past
                         blank_indices = []
@@ -495,7 +533,14 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                 timesteps[kidx].append(time_idx)
 
                         symbols_added += 1
-        return label, timesteps
+
+            # Remove trailing empty list of logprobs at T_{am-len} x Uj
+            if self.preserve_logprobs:
+                for batch_idx in range(batchsize):
+                    if len(logprobs[batch_idx][-1]) == 0:
+                        del logprobs[batch_idx][-1]
+
+        return label, timesteps, logprobs
 
     @torch.no_grad()
     def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
@@ -510,6 +555,15 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Output string buffer
         label = [[] for _ in range(batchsize)]
         timesteps = [[] for _ in range(batchsize)]
+
+        # If logprobs need to be preserved, register a danling list to hold the values
+        if self.preserve_logprobs:
+            # Logprobs is a 3-dimensional dangling list representing B x T x U
+            logprobs = []
+            for _ in range(batchsize):
+                logprobs.append([[]])
+        else:
+            logprobs = None
 
         # Last Label buffer + Last Label without blank buffer
         # batch level equivalent of the last_label
@@ -564,17 +618,43 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # Get index k, of max prob for batch
                 v, k = logp.max(1)
-                del v, g, logp
+                del v, g
 
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
                 k_is_blank = k == self._blank_index
                 blank_mask.bitwise_or_(k_is_blank)
 
+                # If preserving logprobs, check if sequence length of sample has been reached
+                # before adding alignment
+                if self.preserve_logprobs:
+                    # Insert logits into last timestep per sample
+                    logp_cpu = logp.to('cpu')
+                    for batch_idx in range(batchsize):
+                        if time_idx < out_len[batch_idx]:
+                            logprobs[batch_idx][-1].append(logp_cpu[batch_idx])
+                    del logp_cpu
+                del logp
+
                 # If all samples predict / have predicted prior blanks, exit loop early
                 # This is equivalent to if single sample predicted k
                 if blank_mask.all():
                     not_blank = False
+
+                    # If preserving logprobs, convert the current Uj logprobs into a torch.Tensor
+                    # Then preserve U at current timestep Ti
+                    # Finally, forward the timestep history to Ti+1 for that sample
+                    # All of this should only be done iff the current time index <= sample-level AM length.
+                    # Otherwise ignore and move to next sample / next timestep.
+                    if self.preserve_logprobs:
+                        # convert Ti-th logits into a torch array
+                        for batch_idx in range(batchsize):
+                            # this checks if current timestep <= sample-level AM length
+                            # If current timestep > sample-level AM length, no logprobs will be added
+                            # Therefore the list of Uj logprobs is empty here.
+                            if len(logprobs[batch_idx][-1]) > 0:
+                                logprobs[batch_idx][-1] = torch.stack(logprobs[batch_idx][-1], dim=0)
+                                logprobs[batch_idx].append([])  # blank buffer for next timestep
                 else:
                     # Collect batch indices where blanks occurred now/past
                     blank_indices = []
@@ -606,7 +686,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 symbols_added += 1
 
-        return label, timesteps
+        # Remove trailing empty list of logprobs at T_{am-len} x Uj
+        if self.preserve_logprobs:
+            for batch_idx in range(batchsize):
+                if len(logprobs[batch_idx][-1]) == 0:
+                    del logprobs[batch_idx][-1]
+
+        return label, timesteps, logprobs
 
 
 @dataclass
