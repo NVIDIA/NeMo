@@ -3,7 +3,8 @@ sample_rate: &sr 22050
 
 train_dataset: ???
 validation_datasets: ???
-durs_path: ???
+durs_file: ???
+f0_file: ???
 
 model:
   d_char: &d_char 128
@@ -13,7 +14,7 @@ model:
 
   train_ds:
     dataset:
-      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
       manifest_filepath: ${train_dataset}
       max_duration: null
       min_duration: 0.1
@@ -22,8 +23,9 @@ model:
       normalize: false
       sample_rate: *sr
       trim: false
-      durs_path: ${durs_path}
-      rep: true
+      durs_file: ${durs_file}
+      f0_file: ${f0_file}
+      blanking: true
       vocab:
         notation: phonemes
         punct: true
@@ -37,7 +39,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
       manifest_filepath: ${validation_datasets}
       max_duration: null
       min_duration: 0.1
@@ -46,8 +48,9 @@ model:
       normalize: false
       sample_rate: *sr
       trim: false
-      durs_path: ${durs_path}
-      rep: true
+      durs_file: ${durs_file}
+      f0_file: ${f0_file}
+      blanking: true
       vocab:
         notation: phonemes
         punct: true

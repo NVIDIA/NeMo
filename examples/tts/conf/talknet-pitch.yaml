@@ -85,6 +85,8 @@ model:
       dropout: *dropout
       residual: true
       separable: *separable
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 256
       repeat: 5
@@ -94,6 +96,8 @@ model:
       dropout: *dropout
       residual: true
       separable: *separable
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 256
       repeat: 5
@@ -103,6 +107,8 @@ model:
       dropout: *dropout
       residual: true
       separable: *separable
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 256
       repeat: 5
@@ -112,6 +118,8 @@ model:
       dropout: *dropout
       residual: true
       separable: *separable
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 256
       repeat: 5
@@ -121,6 +129,8 @@ model:
       dropout: *dropout
       residual: true
       separable: *separable
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 512
       repeat: 1

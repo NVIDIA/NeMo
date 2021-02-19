@@ -20,14 +20,12 @@ from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path='conf', config_name='talknet-durs')
+@hydra_runner(config_path='conf', config_name='talknet-pitch')
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get('exp_manager', None))
-    model = TalkNetPitchModel(cfg=cfg.model, trainer=trainer)
-    lr_logger = pl.callbacks.LearningRateMonitor()
-    epoch_time_logger = LogEpochTimeCallback()
-    trainer.callbacks.extend([lr_logger, epoch_time_logger])
+    model = TalkNetPitchModel(cfg=cfg.model)
+    trainer.callbacks.extend([pl.callbacks.LearningRateMonitor(), LogEpochTimeCallback()])  # noqa
     trainer.fit(model)
 
 
