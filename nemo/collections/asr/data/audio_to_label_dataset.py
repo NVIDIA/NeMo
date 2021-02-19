@@ -15,7 +15,7 @@
 from nemo.collections.asr.data import audio_to_label
 
 
-def get_classification_label_dataset(featurizer, config: dict,) -> audio_to_label.AudioToClassificationLabelDataset:
+def get_classification_label_dataset(featurizer, config: dict) -> audio_to_label.AudioToClassificationLabelDataset:
     """
     Instantiates a Classification AudioLabelDataset.
 
@@ -33,6 +33,7 @@ def get_classification_label_dataset(featurizer, config: dict,) -> audio_to_labe
         min_duration=config.get('min_duration', None),
         trim=config.get('trim_silence', False),
         load_audio=config.get('load_audio', True),
+        is_regression_task=config.get('is_regression_task', False),
     )
     return dataset
 
@@ -63,7 +64,7 @@ def get_speech_label_dataset(featurizer, config: dict) -> audio_to_label.AudioTo
 
 
 def get_tarred_classification_label_dataset(
-    featurizer, config: dict, shuffle_n: int, global_rank: int, world_size: int,
+    featurizer, config: dict, shuffle_n: int, global_rank: int, world_size: int
 ) -> audio_to_label.TarredAudioToClassificationLabelDataset:
     """
     Instantiates a Classification TarredAudioLabelDataset.
@@ -90,6 +91,7 @@ def get_tarred_classification_label_dataset(
         shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         global_rank=global_rank,
         world_size=world_size,
+        is_regression_task=config.get('is_regression_task', False),
     )
     return dataset
 
