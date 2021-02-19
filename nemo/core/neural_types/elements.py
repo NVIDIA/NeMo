@@ -50,6 +50,7 @@ __all__ = [
     'TokenIndex',
     'Length',
     'IntType',
+    'FloatType',
     'NormalDistributionSamplesType',
     'NormalDistributionMeanType',
     'NormalDistributionLogVarianceType',
@@ -64,7 +65,7 @@ class ElementType(ABC):
     We are relying on Python for inheritance checking"""
 
     def __str__(self):
-        self.__doc__
+        return self.__doc__
 
     def __repr__(self):
         return self.__class__.__name__
@@ -269,6 +270,10 @@ class BoolType(ElementType):
 
 class IntType(ElementType):
     """Element type representing a single integer"""
+
+
+class FloatType(ElementType):
+    """Element type representing a single float"""
 
 
 class TokenIndex(IntType):

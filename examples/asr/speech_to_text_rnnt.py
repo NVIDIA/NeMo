@@ -20,6 +20,20 @@ from nemo.utils.exp_manager import exp_manager
 
 
 """
+# Preparing the Tokenizer for the dataset
+Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts in order to prepare the tokenizer.
+
+```sh
+python <NEMO_ROOT>/scripts/process_asr_text_tokenizer.py \
+        --manifest=<path to train manifest files, seperated by commas> \
+        --data_root="<output directory>" \
+        --vocab_size=<number of tokens in vocabulary> \
+        --tokenizer=<"bpe" or "wpe"> \
+        --log
+```
+
+# Training the model
+
 Basic run (on CPU for 50 epochs):
     python examples/asr/speech_to_text_rnnt.py \
         model.train_ds.manifest_filepath="<path to train dataset>" \
@@ -49,7 +63,7 @@ Override some args of optimizer:
     model.optim.args.params.betas=[0.8,0.5] \
     model.optim.args.params.weight_decay=0.0001
 
-Overide optimizer entirely
+Override optimizer entirely
     python speech_to_text_rnnt.py \
     --config-path="experimental/contextnet_rnnt" \
     --config-name="config_rnnt" \

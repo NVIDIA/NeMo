@@ -45,7 +45,7 @@ Instructions
 
 # Import the API Key
 try:
-    from freesound_private_apikey import client_id, api_key
+    from freesound_private_apikey import api_key, client_id
 
     print("API Key found !")
 except ImportError:

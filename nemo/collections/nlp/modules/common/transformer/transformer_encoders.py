@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import copy
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
+from omegaconf.omegaconf import MISSING
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
@@ -41,14 +43,14 @@ class TransformerEncoderBlock(nn.Module):
 
     def __init__(
         self,
-        hidden_size,
-        inner_size,
-        num_attention_heads=1,
-        attn_score_dropout=0,
-        attn_layer_dropout=0,
-        ffn_dropout=0,
-        hidden_act="relu",
-        pre_ln=False,
+        hidden_size: int,
+        inner_size: int,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
     ):
         super().__init__()
         self.pre_ln = pre_ln
@@ -81,10 +83,31 @@ class TransformerEncoderBlock(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, num_layers, hidden_size, mask_future=False, **kwargs):
+    def __init__(
+        self,
+        num_layers: int,
+        hidden_size: int,
+        inner_size: int,
+        mask_future: bool = False,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
+    ):
         super().__init__()
 
-        layer = TransformerEncoderBlock(hidden_size, **kwargs)
+        layer = TransformerEncoderBlock(
+            hidden_size,
+            inner_size,
+            num_attention_heads,
+            attn_score_dropout,
+            attn_layer_dropout,
+            ffn_dropout,
+            hidden_act,
+            pre_ln,
+        )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         self.diag = 0 if mask_future else None
 

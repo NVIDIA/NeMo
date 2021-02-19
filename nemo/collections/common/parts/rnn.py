@@ -193,7 +193,7 @@ class LSTMDropout(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout) if dropout else None
 
     def forward(
-        self, x: torch.Tensor, h: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None
+        self, x: torch.Tensor, h: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         x, h = self.lstm(x, h)
 

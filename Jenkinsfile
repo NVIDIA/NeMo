@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-            image 'nvcr.io/nvidia/pytorch:20.09-py3'
+            image 'nvcr.io/nvidia/pytorch:20.11-py3'
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -29,6 +29,12 @@ pipeline {
       }
     }
 
+    stage('PyTorch STFT Patch check') {
+      steps {
+        sh 'python /home/TestData/check_stft_patch.py --dir .'
+      }
+    }
+
     stage('Code formatting checks') {
       steps {
         sh 'python setup.py style'
@@ -37,7 +43,7 @@ pipeline {
 
     stage('Installation') {
       steps {
-        sh './reinstall.sh'
+        sh './reinstall.sh release'
       }
     }
 
@@ -209,10 +215,22 @@ pipeline {
           }
         }
 
+        stage('Speaker Diarization Inference') {
+          steps {
+            sh 'python examples/speaker_recognition/speaker_diarize.py \
+            diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
+            diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.out_dir=examples/speaker_recognition/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_recognition/speaker_diarization_results'
+          }
+        }
+
         stage('L2: Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
-            --config-path="experimental/citrinet/" --config-name="config_bpe" \
+            --config-path="conf/citrinet/" --config-name="config_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
@@ -227,11 +245,13 @@ pipeline {
         stage('L2: Speech to Text WPE - Conformer') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
-            --config-path="experimental/conformer" --config-name="conformer_bpe" \
+            --config-path="conf/conformer" --config-name="conformer_ctc_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
             model.tokenizer.type="wpe" \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=10 \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
@@ -289,6 +309,69 @@ pipeline {
       }
     }
 
+    stage('L2: Segmentation Tool') {
+         when {
+            anyOf {
+              branch 'main'
+              changeRequest target: 'main'
+            }
+         }
+       stages {
+        stage('Install ctc_segmentation requirements') {
+            steps {
+            sh 'cd tools/ctc_segmentation && \
+            pip install -r requirements.txt && \
+            apt-get install -y ffmpeg'
+            }
+        }
+
+        stage('Parallel ctc_segmentation test') {
+         failFast true
+         parallel {
+          stage('L2: Eng QN with .wav') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            TIME=`date +"%Y-%m-%d-%T"` && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
+            --DATA_DIR=/home/TestData/ctc_segmentation/eng \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
+            --LANGUAGE=eng \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.wav && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
+            -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt && \
+            rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}'
+            }
+          }
+          stage('L2: Ru QN with .mp3') {
+           steps {
+            sh 'cd tools/ctc_segmentation && \
+            TIME=`date +"%Y-%m-%d-%T"` && \
+            /bin/bash run_sample.sh \
+            --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
+            --DATA_DIR=/home/TestData/ctc_segmentation/ru \
+            --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output${TIME} \
+            --LANGUAGE=ru \
+            --OFFSET=0 \
+            --CUT_PREFIX=0 \
+            --MIN_SEGMENT_LEN=0 \
+            --AUDIO_FORMAT=.mp3 \
+            --ADDITIONAL_SPLIT_SYMBOLS=";" && \
+            python /home/TestData/ctc_segmentation/verify_alignment.py \
+            -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
+            -g /home/TestData/ctc_segmentation/ru/output${TIME}/verified_segments/ru_segments.txt && \
+            rm -rf /home/TestData/ctc_segmentation/ru/output${TIME}'
+            }
+           }
+         }
+       }
+     }
+    }
+
     stage('L2: Multi-GPU Megatron finetuning') {
      when {
         anyOf{
@@ -311,6 +394,52 @@ pipeline {
         exp_manager=null'
         }
       }
+     }
+   }
+
+    stage('L2: SGD-QA') {
+     when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+     }
+     failFast true
+     parallel {
+      stage('L2: SGD-QA') {
+       steps {
+        sh 'cd examples/nlp/dialogue_state_tracking && \
+        python sgd_qa.py \
+        model.dataset.data_dir=/home/TestData/nlp/sgd_small \
+        model.dataset.dialogues_example_dir=sgd_outputs \
+        model.dataset.task_name=debug_sample \
+        trainer.max_steps=1 \
+        trainer.max_epochs=1 \
+        model.train_ds.batch_size=2 \
+        model.validation_ds.batch_size=2 \
+        model.test_ds.batch_size=2 \
+        model.nemo_path=null \
+        trainer.val_check_interval=0.0 \
+        trainer.gpus=[0,1] \
+        model.dataset.use_cache=false \
+        model.language_model.pretrained_model_name=bert-base-cased \
+        trainer.accelerator=ddp \
+        exp_manager=null  && \
+        rm -rf sgd_outputs'
+        }
+      }
+      stage('GLUE STS-b with AlBERT') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+            model.dataset.use_cache=false \
+            model.task_name=sts-b \
+            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            model.language_model.pretrained_model_name=albert-base-v1 \
+            exp_manager=null'
+          }
+        }
      }
    }
 
@@ -383,7 +512,7 @@ pipeline {
       failFast true
       steps {
         sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
+        python token_classification_train.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         model.language_model.pretrained_model_name=megatron-bert-345m-uncased \
         model.train_ds.batch_size=10 \
@@ -394,9 +523,7 @@ pipeline {
         trainer.amp_level=O1 \
         trainer.gpus=[1] \
         +trainer.fast_dev_run=true \
-        exp_manager.exp_dir=exp_megabert_base_uncased \
-        '
-        sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
+        exp_manager=null'
       }
     }
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
@@ -480,7 +607,8 @@ pipeline {
             model.test_ds.prefix=dev \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
-            exp_manager=null'
+            exp_manager.exp_dir=checkpoints'
+            sh 'rm -rf checkpoints'
           }
         }
       }
@@ -530,21 +658,22 @@ pipeline {
         stage ('NER finetuning from pretrained Test') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
-            pretrained_model=NERModel \
+            python token_classification_train.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.train_ds.batch_size=2 \
             model.dataset.use_cache=false \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
+            model.dataset.class_balancing="weighted_loss" \
             exp_manager.exp_dir=null'
           }
         }
         stage ('Punctuation and capitalization finetuning from pretrained test') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization.py \
-            pretrained_model=Punctuation_Capitalization_with_BERT \
+            python punctuation_capitalization_train.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_BERT_base_uncased.nemo \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
@@ -555,7 +684,7 @@ pipeline {
         stage ('NER with TurkuNLP/bert-base-finnish-cased-v1') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
+            python token_classification_train.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
@@ -564,22 +693,26 @@ pipeline {
             exp_manager.exp_dir=null'
           }
         }
-        stage('GLUE STS-b with AlBERT') {
+        stage('Evaluation script for Token Classification') {
           steps {
-            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
-            model.dataset.use_cache=false \
-            model.task_name=sts-b \
-            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            model.language_model.pretrained_model_name=albert-base-v1 \
-            exp_manager=null'
+            sh 'python examples/nlp/token_classification/token_classification_evaluate.py \
+            model.dataset.data_dir=/home/TestData/nlp/ner/ \
+            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo && \
+            rm -rf nemo_experiments'
+          }
+        }
+        stage('Evaluation script for Punctuation') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo && \
+            rm -rf nemo_experiments'
           }
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization.py \
+            python punctuation_capitalization_train.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             model.language_model.pretrained_model_name=distilbert-base-uncased \
             model.dataset.use_cache=false \
@@ -612,9 +745,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -662,9 +795,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -687,9 +820,9 @@ pipeline {
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=64 \
+              model.train_ds.batch_size=32 \
               model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=64 \
+              model.validation_ds.batch_size=32 \
               model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
               model.optim.lr=0.01 \
               model.optim.sched.warmup_ratio=0.1 \
@@ -700,6 +833,51 @@ pipeline {
               exp_manager.exp_dir=PretrainingBERTFromTextwordtok \
               '
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
+            }
+        }
+      }
+    }
+
+    stage('L2: NMT Attention is All You Need') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('L2: NMT Training') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=aayn_base \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              trainer.gpus=[0] \
+              +trainer.fast_dev_run=true \
+              exp_manager=null \
+              '
+            }
+        }
+
+        stage('L2: NMT Inference') {
+            steps{
+              sh 'cd examples/nlp/machine_translation && \
+              python nmt_transformer_infer.py \
+              --model=/home/TestData/nlp/nmt/toy_data/TransformerLargeDe-En.nemo \
+              --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
+              --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+              --target_lang en \
+              --source_lang de \
+              '
             }
         }
       }

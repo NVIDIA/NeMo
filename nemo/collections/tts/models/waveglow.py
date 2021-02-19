@@ -22,7 +22,8 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
-from nemo.collections.tts.models.base import Vocoder
+from nemo.collections.tts.models.base import GlowVocoder
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -45,7 +46,7 @@ class WaveglowConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-class WaveGlowModel(Vocoder):
+class WaveGlowModel(GlowVocoder, Exportable):
     """Waveglow model used to convert betweeen spectrograms and audio"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -65,15 +66,9 @@ class WaveGlowModel(Vocoder):
         self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.waveglow = instantiate(self._cfg.waveglow)
-        self.mode = OperationMode.infer
         self.loss = WaveGlowLoss()
-        self.removed_weightnorm = False
 
-    @property
-    def mode(self):
-        return self._mode
-
-    @mode.setter
+    @GlowVocoder.mode.setter
     def mode(self, new_mode):
         if new_mode == OperationMode.training:
             self.train()
@@ -95,8 +90,8 @@ class WaveGlowModel(Vocoder):
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             output_dict = {
                 "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
-                "log_s_list": NeuralType(('B', 'flowgroup', 'T'), VoidType()),  # TODO: Figure out a good typing
-                "log_det_W_list": NeuralType(elements_type=LogDeterminantType()),
+                "log_s_list": [NeuralType(('B', 'flowgroup', 'T'), VoidType())],  # TODO: Figure out a good typing
+                "log_det_W_list": [NeuralType(elements_type=LogDeterminantType())],
             }
             if self.mode == OperationMode.validation:
                 output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
@@ -123,17 +118,24 @@ class WaveGlowModel(Vocoder):
         return tensors  # audio_pred
 
     @typecheck(
-        input_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
+        input_types={
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "sigma": NeuralType(optional=True),
+            "denoise": NeuralType(optional=True),
+            "denoiser_strength": NeuralType(optional=True),
+        },
         output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     )
-    def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
-        if not self.removed_weightnorm:
+    def convert_spectrogram_to_audio(
+        self, spec: torch.Tensor, sigma: float = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
+    ) -> torch.Tensor:
+        with self.nemo_infer():
             self.waveglow.remove_weightnorm()
-            self.removed_weightnorm = True
-        self.mode = OperationMode.infer
-
-        with torch.no_grad():
-            audio = self.waveglow(spec=spec, run_inverse=True, audio=None, sigma=sigma)
+            audio = self.waveglow(
+                spec=spec.to(self.waveglow.upsample.weight.dtype), run_inverse=True, audio=None, sigma=sigma
+            )
+            if denoise:
+                audio = self.denoise(audio, denoiser_strength)
 
         return audio
 
@@ -225,3 +227,18 @@ class WaveGlowModel(Vocoder):
         )
         list_of_models.append(model)
         return list_of_models
+
+    @property
+    def input_module(self):
+        return self.waveglow
+
+    @property
+    def output_module(self):
+        return self.waveglow
+
+    def _prepare_for_export(self):
+        self.update_bias_spect()
+        self.waveglow._prepare_for_export()
+
+    def forward_for_export(self, spec, z=None):
+        return self.waveglow(spec, z)

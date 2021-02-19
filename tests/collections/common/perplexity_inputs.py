@@ -35,15 +35,15 @@ from .pl_utils import BATCH_SIZE, NUM_BATCHES, NUM_CLASSES
 Input = namedtuple('Input', ["probs", "logits"])
 
 
-_only_probs = Input(probs=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES), logits=None)
+ONLY_PROBS = Input(probs=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES), logits=None)
 
-_only_logits1 = Input(probs=None, logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES))
+ONLY_LOGITS1 = Input(probs=None, logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES))
 
-_only_logits100 = Input(probs=None, logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES) * 200 - 100)
+ONLY_LOGITS100 = Input(probs=None, logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES) * 200 - 100)
 
-_probs_and_logits = Input(
+PROBS_AND_LOGITS = Input(
     probs=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES),
     logits=torch.rand(NUM_BATCHES, BATCH_SIZE, NUM_CLASSES) * 200 - 100,
 )
 
-_no_probs_no_logits = Input(probs=None, logits=None)
+NO_PROBS_NO_LOGITS = Input(probs=None, logits=None)

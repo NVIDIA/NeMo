@@ -32,6 +32,7 @@ def get_label_ids(
     pad_label: str = 'O',
     label_ids_dict: Dict[str, int] = None,
     get_weights: bool = True,
+    class_labels_file_artifact='label_ids.csv',
 ):
     """
     Generates str to int labels mapping for training data or checks correctness of the label_ids_dict
@@ -45,6 +46,7 @@ def get_label_ids(
             If specified, the check that all labels from label_file are present in label_ids_dict will be performed.
             For training data, if label_ids_dict is None, a new mapping will be generated from label_file.
         get_weights: set to True to calculate class weights, required for Weighted Loss.
+        class_labels_file_artifact: name of the file to save in .nemo
     """
     if not os.path.exists(label_file):
         raise ValueError(f'File {label_file} was not found.')
@@ -68,10 +70,8 @@ def get_label_ids(
 
     # check that all labels from label_file are present in the specified label_ids_dict
     # or generate label_ids_dict from data (for training only)
-    save_label_ids = True
     if label_ids_dict:
         logging.info(f'Using provided labels mapping {label_ids_dict}')
-        save_label_ids = False
         for name in unique_labels:
             if name not in label_ids_dict:
                 raise ValueError(f'{name} class from {label_file} not found in the provided mapping: {label_ids_dict}')
@@ -82,8 +82,8 @@ def get_label_ids(
         for label in sorted(unique_labels):
             label_ids_dict[label] = len(label_ids_dict)
 
-    label_ids_filename = os.path.join(data_dir, 'label_ids.csv')
-    if is_training and save_label_ids:
+    label_ids_filename = os.path.join(data_dir, class_labels_file_artifact)
+    if is_training:
         with open(label_ids_filename, 'w') as f:
             labels, _ = zip(*sorted(label_ids_dict.items(), key=lambda x: x[1]))
             f.write('\n'.join(labels))

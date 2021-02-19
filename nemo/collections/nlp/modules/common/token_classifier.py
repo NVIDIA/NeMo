@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import Dict, Optional
 
+from omegaconf.omegaconf import MISSING
 from torch import nn as nn
 
 from nemo.collections.common.parts import MultiLayerPerceptron
@@ -24,6 +26,15 @@ from nemo.core.neural_types import LogitsType, LogprobsType, NeuralType
 __all__ = ['BertPretrainingTokenClassifier', 'TokenClassifier']
 
 ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
+
+
+@dataclass
+class TokenClassifierConfig:
+    num_layers: int = 1
+    activation: str = 'relu'
+    log_softmax: bool = True
+    dropout: float = 0.0
+    use_transformer_init: bool = True
 
 
 class TokenClassifier(Classifier):

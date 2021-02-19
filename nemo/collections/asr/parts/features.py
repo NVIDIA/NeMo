@@ -45,6 +45,7 @@ from torch_stft import STFT
 
 from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
+from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.utils import logging
 
 CONSTANT = 1e-5
@@ -177,14 +178,16 @@ class STFTExactPad(STFTPatch):
             )
             # remove modulation effects
             approx_nonzero_indices = torch.from_numpy(np.where(window_sum > tiny(window_sum))[0])
-            window_sum = torch.autograd.Variable(torch.from_numpy(window_sum), requires_grad=False)
+            window_sum = torch.autograd.Variable(torch.from_numpy(window_sum), requires_grad=False).to(
+                magnitude.device
+            )
             inverse_transform[:, :, approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
 
             # scale by hop ratio
             inverse_transform *= self.filter_length / self.hop_length
 
-        inverse_transform = inverse_transform[:, :, self.pad_amount :]
-        inverse_transform = inverse_transform[:, :, : -self.pad_amount :]
+        inverse_transform = inverse_transform[..., self.pad_amount :]
+        inverse_transform = inverse_transform[..., : -self.pad_amount :]
 
         return inverse_transform
 
@@ -217,8 +220,9 @@ class FilterbankFeatures(nn.Module):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        use_grads=False,
     ):
-        super(FilterbankFeatures, self).__init__()
+        super().__init__()
         self.log_zero_guard_value = log_zero_guard_value
         if (
             n_window_size is None
@@ -259,13 +263,14 @@ class FilterbankFeatures(nn.Module):
             window_fn = torch_windows.get(window, None)
             window_tensor = window_fn(self.win_length, periodic=False) if window_fn else None
             self.register_buffer("window", window_tensor)
-            self.stft = lambda x: torch.stft(
+            self.stft = lambda x: stft_patch(
                 x,
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
                 win_length=self.win_length,
                 center=False if stft_exact_pad else True,
                 window=self.window.to(dtype=torch.float),
+                return_complex=False,
             )
 
         self.normalize = normalize
@@ -297,6 +302,11 @@ class FilterbankFeatures(nn.Module):
                 f"log_zero_guard_type parameter. It must be either 'add' or "
                 f"'clamp'."
             )
+
+        self.use_grads = use_grads
+        if not use_grads:
+            self.forward = torch.no_grad()(self.forward)
+
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
         self.log_zero_guard_type = log_zero_guard_type
@@ -307,6 +317,7 @@ class FilterbankFeatures(nn.Module):
         logging.debug(f"n_mels: {nfilt}")
         logging.debug(f"fmin: {lowfreq}")
         logging.debug(f"fmax: {highfreq}")
+        logging.debug(f"using grads: {use_grads}")
 
     def log_zero_guard_value_fn(self, x):
         if isinstance(self.log_zero_guard_value, str):
@@ -330,7 +341,6 @@ class FilterbankFeatures(nn.Module):
     def filter_banks(self):
         return self.fb
 
-    @torch.no_grad()
     def forward(self, x, seq_len):
         seq_len = self.get_seq_len(seq_len.float())  # TODO: Is this correct for stft exact pad?
 
@@ -352,7 +362,9 @@ class FilterbankFeatures(nn.Module):
 
         # torch returns real, imag; so convert to magnitude
         if not self.stft_conv:
-            x = torch.sqrt(x.pow(2).sum(-1))
+            # guard is needed for sqrt if grads are passed through
+            guard = 0 if not self.use_grads else CONSTANT
+            x = torch.sqrt(x.pow(2).sum(-1) + guard)
 
         # get power spectrum
         if self.mag_power != 1.0:

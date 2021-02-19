@@ -127,7 +127,8 @@ def listener_process(queue, configurer, log_file, level):
             logger.handle(record)  # No level or filter logic applied - just do it!
 
         except Exception:
-            import sys, traceback
+            import sys
+            import traceback
 
             print('Problem:', file=sys.stderr)
             traceback.print_exc(file=sys.stderr)

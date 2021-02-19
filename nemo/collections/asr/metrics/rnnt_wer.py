@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import editdistance
 import torch
@@ -37,6 +37,10 @@ class AbstractRNNTDecoding(ABC):
                 Possible values are :
                 -   greedy, greedy_batch (for greedy decoding).
                 -   beam, tsd, alsd (for beam search decoding).
+
+            compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
+                tokens as well as the decoded string. Default is False in order to avoid double decoding
+                unless required.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -74,10 +78,11 @@ class AbstractRNNTDecoding(ABC):
         blank_id: The id of the RNNT blank token.
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
+        self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
         if self.cfg.strategy not in possible_strategies:
@@ -135,14 +140,15 @@ class AbstractRNNTDecoding(ABC):
             )
 
     def rnnt_decoder_predictions_tensor(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
-    ) -> (List[str], Optional[List[List[str]]]):
+        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, return_hypotheses: bool = False
+    ) -> (List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]):
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
 
         Args:
             encoder_output: torch.Tensor of shape [B, D, T].
             encoded_lengths: torch.Tensor containing lengths of the padded encoder outputs. Shape [B].
+            return_hypotheses: bool. If set to True it will return list of Hypothesis or NBestHypotheses
 
         Returns:
             If `return_best_hypothesis` is set:
@@ -177,13 +183,19 @@ class AbstractRNNTDecoding(ABC):
                 decoded_hyps = self.decode_hypothesis(n_hyps)  # type: List[str]
                 hypotheses.append(decoded_hyps[0])  # best hypothesis
                 all_hypotheses.append(decoded_hyps)
-
-            return hypotheses, all_hypotheses
+            if return_hypotheses:
+                return hypotheses, all_hypotheses
+            best_hyp_text = [h.text for h in hypotheses]
+            all_hyp_text = [h.text for hh in all_hypotheses for h in hh]
+            return best_hyp_text, all_hyp_text
         else:
             hypotheses = self.decode_hypothesis(prediction_list)  # type: List[str]
-            return hypotheses, None
+            if return_hypotheses:
+                return hypotheses, None
+            best_hyp_text = [h.text for h in hypotheses]
+            return best_hyp_text, None
 
-    def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[str]:
+    def decode_hypothesis(self, hypotheses_list: List[Hypothesis]) -> List[Union[Hypothesis, NBestHypotheses]]:
         """
         Decode a list of hypotheses into a list of strings.
 
@@ -193,7 +205,6 @@ class AbstractRNNTDecoding(ABC):
         Returns:
             A list of strings.
         """
-        hypotheses = []
         for ind in range(len(hypotheses_list)):
             # Extract the integer encoded hypothesis
             prediction = hypotheses_list[ind].y_sequence
@@ -206,21 +217,37 @@ class AbstractRNNTDecoding(ABC):
             prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens
-            hypothesis = self.tokenizer.ids_to_text(prediction)
-            hypotheses.append(hypothesis)
+            hypothesis = self.decode_tokens_to_str(prediction)
+            hypotheses_list[ind].text = hypothesis
 
-        return hypotheses
+            if self.compute_hypothesis_token_set:
+                hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)
+        return hypotheses_list
 
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
-        Implemented by subclass in order to decoder a token list into a string.
+        Implemented by subclass in order to decoder a token id list into a string.
 
         Args:
             tokens: List of int representing the token ids.
 
         Returns:
             A decoded string.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented by subclass in order to decode a token id list into a token list.
+        A token list is the string representation of each token id.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded tokens.
         """
         raise NotImplementedError()
 
@@ -235,6 +262,10 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 Possible values are :
                 -   greedy, greedy_batch (for greedy decoding).
                 -   beam, tsd, alsd (for beam search decoding).
+
+            compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
+                tokens as well as the decoded string. Default is False in order to avoid double decoding
+                unless required.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -292,6 +323,20 @@ class RNNTDecoding(AbstractRNNTDecoding):
         """
         hypothesis = ''.join([self.labels_map[c] for c in tokens if c != self.blank_id])
         return hypothesis
+
+    def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented by subclass in order to decode a token id list into a token list.
+        A token list is the string representation of each token id.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded tokens.
+        """
+        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
+        return token_list
 
 
 class RNNTWER(Metric):

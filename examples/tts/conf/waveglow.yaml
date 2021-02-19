@@ -34,7 +34,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 12
+      batch_size: 8
       num_workers: 4
 
   preprocessor:
