@@ -22,7 +22,7 @@ import webdataset as wd
 
 from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
 from nemo.utils import logging
 
 
@@ -281,7 +281,8 @@ target_label_n, "offset": offset_in_sec_n}
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
         """
-        return {
+
+        output_types = {
             'audio_signal': NeuralType(
                 ('B', 'T'),
                 AudioSignal(freq=self._sample_rate)
@@ -289,9 +290,22 @@ target_label_n, "offset": offset_in_sec_n}
                 else AudioSignal(),
             ),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'label': NeuralType(tuple('B'), LabelsType()),
-            'label_length': NeuralType(tuple('B'), LengthsType()),
         }
+
+        if self.is_regression_task:
+            output_types.update(
+                {
+                    'targets': NeuralType(tuple('B'), RegressionValuesType()),
+                    'targets_length': NeuralType(tuple('B'), LengthsType()),
+                }
+            )
+        else:
+
+            output_types.update(
+                {'label': NeuralType(tuple('B'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
+            )
+
+        return output_types
 
     def __init__(
         self,
@@ -303,26 +317,35 @@ target_label_n, "offset": offset_in_sec_n}
         max_duration: Optional[float] = None,
         trim: bool = False,
         load_audio: bool = True,
+        is_regression_task: bool = False,
     ):
         super().__init__()
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
+            manifests_files=manifest_filepath.split(','),
+            min_duration=min_duration,
+            max_duration=max_duration,
+            is_regression_task=is_regression_task,
         )
 
         self.featurizer = featurizer
         self.trim = trim
         self.load_audio = load_audio
+        self.is_regression_task = is_regression_task
 
-        self.labels = labels if labels else self.collection.uniq_labels
-        self.num_classes = len(self.labels)
+        if not is_regression_task:
+            self.labels = labels if labels else self.collection.uniq_labels
+            self.num_classes = len(self.labels) if self.labels is not None else 1
+            self.label2id, self.id2label = {}, {}
+            for label_id, label in enumerate(self.labels):
+                self.label2id[label] = label_id
+                self.id2label[label_id] = label
 
-        self.label2id, self.id2label = {}, {}
-        for label_id, label in enumerate(self.labels):
-            self.label2id[label] = label_id
-            self.id2label[label_id] = label
+            for idx in range(len(self.labels[:5])):
+                logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
 
-        for idx in range(len(self.labels[:5])):
-            logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+        else:
+            self.labels = []
+            self.num_classes = 1
 
     def __len__(self):
         return len(self.collection)
@@ -342,10 +365,14 @@ target_label_n, "offset": offset_in_sec_n}
         else:
             f, fl = None, None
 
-        t = self.label2id[sample.label]
-        tl = 1  # For compatibility with collate_fn used later
+        if not self.is_regression_task:
+            t = torch.tensor(self.label2id[sample.label]).long()
+        else:
+            t = torch.tensor(sample.label).float()
 
-        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+        tl = torch.tensor(1).long()  # For compatibility with collate_fn used later
+
+        return f, fl, t, tl
 
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
@@ -416,6 +443,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             Use this for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal. 
             Defaults to False.
+        is_regression_task (bool): Whether the dataset is for a regression task instead of classification
     """
 
     def __init__(
@@ -431,8 +459,8 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         time_length: Optional[float] = 8,
         shift_length: Optional[float] = 1,
         normalize_audio: bool = False,
+        is_regression_task: bool = False,
     ):
-
         logging.info("Time length considered for collate func is {}".format(time_length))
         logging.info("Shift length considered for collate func is {}".format(shift_length))
         self.time_length = time_length
@@ -447,6 +475,7 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             max_duration=max_duration,
             trim=trim,
             load_audio=load_audio,
+            is_regression_task=is_regression_task,
         )
 
     def fixed_seq_collate_fn(self, batch):
@@ -886,7 +915,6 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         global_rank: int = 0,
         world_size: int = 0,
     ):
-
         logging.info("Time length considered for collate func is {}".format(time_length))
         logging.info("Shift length considered for collate func is {}".format(shift_length))
         self.time_length = time_length
