@@ -19,7 +19,6 @@ from nemo.collections.tts.helpers.helpers import (
 )
 from nemo.collections.tts.modules.fastspeech2s import (
     FFTBlocks,
-    LengthRegulator,
     Generator,
     MultiPeriodDiscriminator,
     MultiScaleDiscriminator,
@@ -28,7 +27,7 @@ from nemo.collections.tts.modules.fastspeech2s import (
     discriminator_loss,
 )
 from nemo.core.classes import ModelPT
-from nemo.collections.tts.modules.fastspeech2_submodules import VariancePredictor
+from nemo.collections.tts.modules.fastspeech2_submodules import VariancePredictor, LengthRegulator
 
 
 class DurationLoss(torch.nn.Module):
