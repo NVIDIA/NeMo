@@ -17,18 +17,17 @@ from typing import Any, Dict, Optional
 
 import torch
 from hydra.utils import instantiate
-from torch import nn
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
-
+from torch import nn
 
 from nemo.collections.asr.parts import parsers
+from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
+from nemo.collections.tts.losses.tacotron2loss import L2MelLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator, TextToWaveform
+from nemo.collections.tts.modules.fastspeech2 import Encoder, MelSpecDecoder, VarianceAdaptor
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
-from nemo.collections.tts.modules.fastspeech2 import Encoder, VarianceAdaptor, MelSpecDecoder
-from nemo.collections.tts.losses.tacotron2loss import L2MelLoss
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 
 
 @dataclass

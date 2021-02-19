@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-import matplotlib.pyplot as plt
-
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models.fastspeech2s import FastSpeech2SModel

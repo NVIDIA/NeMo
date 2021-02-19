@@ -23,10 +23,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
+from nemo.utils import logging
 
 # from common.text.symbols import pad_idx, symbols
-
-from nemo.utils import logging
 
 
 class PositionalEmbedding(nn.Module):
@@ -363,32 +362,32 @@ class VariancePredictor(nn.Module):
         return self.layers(vp_input).squeeze(-1)
 
 
-# class LengthRegulator(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-
-#     def forward(self, hiddens, durations):
-#         """
-#         Expands the hidden states according to the duration target/prediction (depends on train vs inference).
-
-#         Args:
-#             hiddens: Hidden states of dimension (batch, time, emb_dim)
-#             durations: Timings for each frame of the hiddens, dimension (batch, time)
-#         """
-#         # Find max expanded length over batch elements for padding
-#         max_len = torch.max(torch.sum(durations, 1))
-
-#         out_list = []
-#         for x, d in zip(hiddens, durations):
-#             # For frame i of a single batch element x, repeats each the frame d[i] times.
-#             repeated = torch.cat([x[i].repeat(d[i], 1) for i in range(d.numel()) if d[i] != 0])
-#             repeated = F.pad(repeated, (0, 0, 0, max_len - repeated.shape[0]), "constant", value=0.0)
-#             out_list.append(repeated)
-
-#         return torch.stack(out_list)
-
-
 class LengthRegulator(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, hiddens, durations):
+        """
+        Expands the hidden states according to the duration target/prediction (depends on train vs inference).
+
+        Args:
+            hiddens: Hidden states of dimension (batch, time, emb_dim)
+            durations: Timings for each frame of the hiddens, dimension (batch, time)
+        """
+        # Find max expanded length over batch elements for padding
+        max_len = torch.max(torch.sum(durations, 1))
+
+        out_list = []
+        for x, d in zip(hiddens, durations):
+            # For frame i of a single batch element x, repeats each the frame d[i] times.
+            repeated = torch.cat([x[i].repeat(d[i], 1) for i in range(d.numel()) if d[i] != 0])
+            repeated = F.pad(repeated, (0, 0, 0, max_len - repeated.shape[0]), "constant", value=0.0)
+            out_list.append(repeated)
+
+        return torch.stack(out_list)
+
+
+class LengthRegulator2(nn.Module):
     def forward(self, x, dur):
         output = []
         for x_i, dur_i in zip(x, dur):

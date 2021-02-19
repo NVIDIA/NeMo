@@ -5,6 +5,7 @@ import itertools
 import string
 from typing import List
 
+import g2p_en  # noqa
 import nltk
 
 import nemo
@@ -18,8 +19,6 @@ try:
 except LookupError:
     nltk.download('cmudict', quiet=True)
 
-
-import g2p_en  # noqa
 
 _g2p = g2p_en.G2p()
 _g2p.variables = None

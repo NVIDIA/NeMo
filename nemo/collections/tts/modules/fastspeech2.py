@@ -17,15 +17,15 @@ import torch.nn as nn
 
 from nemo.collections.tts.modules.fastspeech2_submodules import (
     FFTransformer,
-    VariancePredictor,
     LengthRegulator,
-    WaveformGenerator,
+    VariancePredictor,
     WaveformDiscriminator,
+    WaveformGenerator,
 )
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.utils.decorators import experimental
 from nemo.core.neural_types import *
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 
 @experimental
@@ -39,7 +39,7 @@ class Encoder(NeuralModule):
         d_inner=1024,
         kernel_size=9,
         dropout=0.1,
-        attn_dropout=0.1
+        attn_dropout=0.1,
     ):
         """
         FastSpeech 2 encoder. Converts phoneme sequence to the phoneme hidden sequence.
@@ -153,7 +153,7 @@ class VarianceAdaptor(NeuralModule):
                 pitch_min = np.log(pitch_min)
                 pitch_max = np.log(pitch_max)
             pitch_operator = torch.exp if log_pitch else lambda x: x
-            pitch_bins = pitch_operator(torch.linspace(start=pitch_min, end=pitch_max, steps=n_f0_bins-1))
+            pitch_bins = pitch_operator(torch.linspace(start=pitch_min, end=pitch_max, steps=n_f0_bins - 1))
             # Prepend 0 for unvoiced frames
             pitch_bins = torch.cat((torch.tensor([0.0]), pitch_bins))
 
@@ -167,13 +167,10 @@ class VarianceAdaptor(NeuralModule):
         # -- Energy Setup --
         if self.energy:
             self.register_buffer(  # Linear scale bins
-                "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=n_energy_bins-1)
+                "energy_bins", torch.linspace(start=energy_min, end=energy_max, steps=n_energy_bins - 1)
             )
             self.energy_predictor = VariancePredictor(
-                d_model=d_model,
-                d_inner=n_energy_bins,
-                kernel_size=energy_kernel_size,
-                dropout=dropout,
+                d_model=d_model, d_inner=n_energy_bins, kernel_size=energy_kernel_size, dropout=dropout,
             )
             self.energy_lookup = nn.Embedding(n_energy_bins, d_model)
 
@@ -251,7 +248,7 @@ class MelSpecDecoder(NeuralModule):
         d_inner=1024,
         kernel_size=9,
         dropout=0.1,
-        attn_dropout=0.1
+        attn_dropout=0.1,
     ):
         """
         FastSpeech 2 mel-spectrogram decoder. Converts adapted hidden sequence to a mel-spectrogram sequence.
@@ -278,7 +275,7 @@ class MelSpecDecoder(NeuralModule):
             d_inner=d_inner,
             kernel_size=(kernel_size, 1),
             dropout=dropout,
-            dropatt=attn_dropout,   # TODO: Don't see this in paper
+            dropatt=attn_dropout,  # TODO: Don't see this in paper
             embed_input=False,
         )
         self.linear = nn.Linear(d_model, d_out)

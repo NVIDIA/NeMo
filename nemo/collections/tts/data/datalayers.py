@@ -36,15 +36,15 @@
 
 # TODO: Need to fix line endings on this file
 
-import os
-import shutil
-import sys
 import collections as py_collections
 import json
+import os
 import pickle
-from pathlib import Path
+import shutil
+import sys
 from os.path import expanduser
-from typing import Any, Dict, Optional, Union, Callable
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Union
 
 import librosa
 import numpy as np
@@ -54,8 +54,8 @@ from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
 from nemo.collections.asr.parts import collections, parsers
-from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.collections.asr.parts.features import WaveformFeaturizer
+from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.core.classes import Dataset
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
@@ -785,4 +785,3 @@ class FastSpeechWithDurs(Dataset):
             tokens_lengths,
             duration_batched,
         )
-

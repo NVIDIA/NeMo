@@ -14,20 +14,17 @@ ignore_file: /data/speech/LJSpeech/wavs_to_ignore_v2
 model:
   lr: 0.5
   splice_length: 64  # Length in frames
-  feature_loss: true
   mel_loss_coeff: 45.
   generator:
-    _target_: nemo.collections.tts.modules.fastspeech2s.Generator
+    _target_: nemo.collections.tts.modules.hifigan_modules.Generator
     upsample_kernel_sizes: [16,16,4,4]
     upsample_rates: [8,8,2,2]
     upsample_initial_channel: 512
     resblock_kernel_sizes: [3,7,11]
     resblock_dilation_sizes: [[1,3,5], [1,3,5], [1,3,5]]
-    # resblock: 1
-    gaussian_blur:
-      kernel_size: [3, 3]
-      sigmas: [0.25, 0.5, 0.75, 1.0]
-      p_blurring: 0.0
+    resblock: 1
+    initial_input_size: 256
+    apply_weight_init_conv_pre: true
 
   train_ds:
     dataset:

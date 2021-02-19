@@ -1,33 +1,23 @@
 from itertools import chain
 
+import librosa
+import numpy as np
 import torch
 from hydra.utils import instantiate
-from torch import nn
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
-import numpy as np
-import librosa
+from torch import nn
 
-
-from nemo.core.optim.lr_scheduler import NoamAnnealing
-from nemo.core.classes.common import typecheck
-from nemo.utils import logging
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
+from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.tacotron2loss import L1MelLoss
-from nemo.collections.tts.helpers.helpers import (
-    plot_spectrogram_to_numpy,
-    get_mask_from_lengths,
-)
-from nemo.collections.tts.modules.fastspeech2s import (
-    FFTBlocks,
-    Generator,
-    MultiPeriodDiscriminator,
-    MultiScaleDiscriminator,
-    feature_loss,
-    generator_loss,
-    discriminator_loss,
-)
+from nemo.collections.tts.modules.fastspeech2_submodules import LengthRegulator2, VariancePredictor
+from nemo.collections.tts.modules.fastspeech2s import FFTBlocks
+from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes import ModelPT
-from nemo.collections.tts.modules.fastspeech2_submodules import VariancePredictor, LengthRegulator2
+from nemo.core.classes.common import typecheck
+from nemo.core.optim.lr_scheduler import NoamAnnealing
+from nemo.utils import logging
 
 
 class DurationLoss(torch.nn.Module):
@@ -44,9 +34,6 @@ class FastSpeech2SModel(ModelPT):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
-        self.feature_loss = False
-        if "feature_loss" in self._cfg:
-            self.feature_loss = self._cfg.feature_loss
         self.mel_loss_coeff = 1.0
         if "mel_loss_coeff" in self._cfg:
             self.mel_loss_coeff = self._cfg.mel_loss_coeff
@@ -64,6 +51,9 @@ class FastSpeech2SModel(ModelPT):
 
         self.mel_val_loss = L1MelLoss()
         self.durationloss = DurationLoss()
+        self.feat_matching_loss = FeatureMatchingLoss()
+        self.disc_loss = DiscriminatorLoss()
+        self.gen_loss = GeneratorLoss()
 
         self.log_train_images = False
         self.logged_real_samples = False
@@ -168,13 +158,13 @@ class FastSpeech2SModel(ModelPT):
                     real_audio.append(f[i, splice * 256 : (splice + self.splice_length) * 256])
                 real_audio = torch.stack(real_audio).unsqueeze(1)
 
-            real_score_mp, _ = self.multiperioddisc(real_audio)
-            gen_score_mp, _ = self.multiperioddisc(audio_pred)
-            real_score_ms, _ = self.multiscaledisc(real_audio)
-            gen_score_ms, _ = self.multiscaledisc(audio_pred)
+            real_score_mp, gen_score_mp, _, _ = self.multiperioddisc(real_audio, audio_pred)
+            real_score_ms, gen_score_ms, _, _ = self.multiscaledisc(real_audio, audio_pred)
 
-            loss_mp = discriminator_loss(real_score_mp, gen_score_mp)
-            loss_ms = discriminator_loss(real_score_ms, gen_score_ms)
+            loss_mp, loss_mp_real, _ = self.disc_loss(real_score_mp, gen_score_mp)
+            loss_ms, loss_ms_real, _ = self.disc_loss(real_score_ms, gen_score_ms)
+            loss_mp /= len(loss_mp_real)
+            loss_ms /= len(loss_ms_real)
             loss_disc = loss_mp + loss_ms
 
             self.log("loss_discriminator", loss_disc, prog_bar=True)
@@ -197,20 +187,19 @@ class FastSpeech2SModel(ModelPT):
             pred_spliced_spec = self.mel_spectrogram(audio_pred)
             loss_mel = torch.nn.functional.l1_loss(real_spliced_spec, pred_spliced_spec)
             loss_mel *= self.mel_loss_coeff
-            gen_score_mp, gen_feat_mp = self.multiperioddisc(audio_pred)
-            gen_score_ms, gen_feat_ms = self.multiscaledisc(audio_pred)
-            loss_gen_mp, _ = generator_loss(gen_score_mp)
-            loss_gen_ms, _ = generator_loss(gen_score_ms)
+            _, gen_score_mp, real_feat_mp, gen_feat_mp = self.multiperioddisc(real_audio, audio_pred)
+            _, gen_score_ms, real_feat_ms, gen_feat_ms = self.multiscaledisc(real_audio, audio_pred)
+            loss_gen_mp, list_loss_gen_mp = self.gen_loss(gen_score_mp)
+            loss_gen_ms, list_loss_gen_ms = self.gen_loss(gen_score_ms)
+            loss_gen_mp /= len(list_loss_gen_mp)
+            loss_gen_ms /= len(list_loss_gen_ms)
             total_loss = loss_gen_mp + loss_gen_ms + loss_mel
-            if self.feature_loss:
-                _, real_feat_mp = self.multiperioddisc(real_audio)
-                _, real_feat_ms = self.multiscaledisc(real_audio)
-                loss_feat_mp = feature_loss(real_feat_mp, gen_feat_mp)
-                loss_feat_ms = feature_loss(real_feat_ms, gen_feat_ms)
-                total_loss += loss_feat_mp + loss_feat_ms
-                self.log(name="loss_gen_disc_feat", value=loss_feat_mp + loss_feat_ms)
-                self.log(name="loss_gen_disc_feat_ms", value=loss_feat_ms)
-                self.log(name="loss_gen_disc_feat_mp", value=loss_feat_mp)
+            loss_feat_mp = self.feat_matching_loss(real_feat_mp, gen_feat_mp)
+            loss_feat_ms = self.feat_matching_loss(real_feat_ms, gen_feat_ms)
+            total_loss += loss_feat_mp + loss_feat_ms
+            self.log(name="loss_gen_disc_feat", value=loss_feat_mp + loss_feat_ms)
+            self.log(name="loss_gen_disc_feat_ms", value=loss_feat_ms)
+            self.log(name="loss_gen_disc_feat_mp", value=loss_feat_mp)
 
             self.log(name="loss_gen_mel", value=loss_mel)
             self.log(name="loss_gen_disc", value=loss_gen_mp + loss_gen_ms)
