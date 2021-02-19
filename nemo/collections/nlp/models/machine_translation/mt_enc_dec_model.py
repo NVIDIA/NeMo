@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 import pickle
 import random
 from pathlib import Path
@@ -21,7 +22,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 import torch.utils.data as pt_data
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
@@ -82,6 +83,16 @@ class MTEncDecModel(EncDecNLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: use get_encoder function with support for HF and Megatron
+        encoder_cfg_dict = OmegaConf.to_container(cfg.get('encoder'))
+        encoder_cfg_dict['vocab_size'] = self.encoder_vocab_size
+        library = encoder_cfg_dict.pop('library', 'nemo')
+        model_name = encoder_cfg_dict.pop('model_name', None)
+        pretrained = encoder_cfg_dict.pop('pretrained', False)
+        self.encoder = get_transformer(
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict
+        )
+
+        # TODO: move to get_nemo_transformer
         self.encoder = TransformerEncoderNM(
             vocab_size=self.encoder_vocab_size,
             hidden_size=cfg.encoder.hidden_size,
@@ -104,6 +115,7 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
         # TODO: user get_decoder function with support for HF and Megatron
+        # TODO: move to get_nemo_transformer
         self.decoder = TransformerDecoderNM(
             vocab_size=self.decoder_vocab_size,
             hidden_size=cfg.decoder.hidden_size,
