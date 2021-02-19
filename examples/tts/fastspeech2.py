@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.data.datalayers import FastSpeechWithDurs
 from nemo.collections.tts.models import FastSpeech2Model
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager

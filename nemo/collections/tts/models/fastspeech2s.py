@@ -11,8 +11,7 @@ from torch import nn
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.tacotron2loss import L1MelLoss
-from nemo.collections.tts.modules.fastspeech2_submodules import LengthRegulator2, VariancePredictor
-from nemo.collections.tts.modules.fastspeech2s import FFTBlocks
+from nemo.collections.tts.modules.fastspeech2_submodules import LengthRegulator2, VariancePredictor, Encoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
@@ -40,7 +39,7 @@ class FastSpeech2SModel(ModelPT):
 
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.phone_embedding = nn.Embedding(84, 256, padding_idx=83)
-        self.encoder = FFTBlocks(max_seq_len=384, name="enc", n_layers=4)
+        self.encoder = Encoder()
 
         self.duration_predictor = VariancePredictor(d_model=256, d_inner=256, kernel_size=3, dropout=0.2)
         self.length_regulator = LengthRegulator2()
