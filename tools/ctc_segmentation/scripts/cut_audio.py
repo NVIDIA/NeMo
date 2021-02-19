@@ -23,7 +23,7 @@ import torch
 from scipy.io import wavfile
 
 from nemo.collections import asr as nemo_asr
-from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics.wer import WER, word_error_rate
 
 parser = argparse.ArgumentParser(description="Cut audio on the segments based on segments")
 parser.add_argument("--output_dir", default='output', type=str, help='Path to output directory')
@@ -61,7 +61,9 @@ def add_transcript_to_manifest(
         with open(manifest_updated, 'w', encoding='utf8') as f_updated:
             for i, line in enumerate(f):
                 info = json.loads(line)
-                info['transcript'] = transcripts[i]
+                info['transcript'] = transcripts[i].strip()
+                info['WER'] = round(word_error_rate([info['transcript']], [info['text']]) * 100, 2)
+                info['CER'] = round(word_error_rate([info['transcript']], [info['text']], use_cer=True) * 100, 2)
                 json.dump(info, f_updated, ensure_ascii=False)
                 f_updated.write('\n')
 
@@ -175,8 +177,8 @@ def process_alignment(alignment_file: str, args):
                 segment = signal[round(st * sampling_rate) : round(end * sampling_rate)]
                 duration = len(segment) / sampling_rate
                 if duration > 0:
-                    text_processed = ref_text_processed[i]
-                    text_no_preprocessing = ref_text_no_preprocessing[i]
+                    text_processed = ref_text_processed[i].strip()
+                    text_no_preprocessing = ref_text_no_preprocessing[i].strip()
                     if score > args.threshold:
                         high_score_dur += duration
                         audio_filepath = os.path.join(fragments_dir, f'{base_name}_{i:04}.wav')
@@ -253,7 +255,14 @@ def process_alignment(alignment_file: str, args):
     if missing_audio > 15:
         raise ValueError(f'{round(missing_audio)}s or ~ {round(missing_audio/60)}min is missing. Check the args')
 
-    stats = f'{args.output_dir}\t{base_name}\t{round(original_duration)}\t{round(high_score_dur)}\t{round(low_score_dur)}\t{round(del_duration)}\n'
+    stats = (
+        args.output_dir,
+        base_name,
+        round(original_duration),
+        round(high_score_dur),
+        round(low_score_dur),
+        round(del_duration),
+    )
     return stats
 
 
@@ -278,12 +287,27 @@ if __name__ == '__main__':
     else:
         alignment_files = [Path(alignment_files)]
 
-    with open(os.path.join(args.output_dir, 'stats.tsv'), 'w') as f:
+    stats_file = os.path.join(args.output_dir, 'stats.tsv')
+    with open(stats_file, 'w') as f:
         f.write('Folder\tSegment\tOriginal dur (s)\tHigh quality dur (s)\tLow quality dur (s)\tDeleted dur (s)\n')
+
+        high_score_dur = 0
+        low_score_dur = 0
+        del_duration = 0
 
         for alignment_file in alignment_files:
             stats = process_alignment(alignment_file, args)
+            high_score_dur += stats[-3]
+            low_score_dur += stats[-2]
+            del_duration += stats[-1]
+            stats = '\t'.join([str(t) for t in stats]) + '\n'
             f.write(stats)
 
-        total_time = time.time() - start_time
-        print(f'Total execution time: ~{round(total_time / 60)}min')
+        f.write(f'Total\t\t{round(high_score_dur)}\t{round(low_score_dur)}\t{del_duration}')
+
+    total_time = time.time() - start_time
+    print(f'High score segments duration: {round(high_score_dur)}')
+    print(f'Low score segments duration:  {round(low_score_dur)}')
+    print(f'Deleted segments duration:    {round(del_duration)}')
+    print(f'Stats saved at {stats_file}')
+    print(f'Total execution time: ~{round(total_time / 60)}min')

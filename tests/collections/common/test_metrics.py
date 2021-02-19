@@ -19,8 +19,9 @@ from typing import Callable
 import pytest
 import torch
 
-from .perplexity_inputs import _no_probs_no_logits, _only_logits1, _only_logits100, _only_probs, _probs_and_logits
-from .pl_utils import PerplexityTester
+from .loss_inputs import ALL_NUM_MEASUREMENTS_ARE_ZERO, NO_ZERO_NUM_MEASUREMENTS, SOME_NUM_MEASUREMENTS_ARE_ZERO
+from .perplexity_inputs import NO_PROBS_NO_LOGITS, ONLY_LOGITS1, ONLY_LOGITS100, ONLY_PROBS, PROBS_AND_LOGITS
+from .pl_utils import LossTester, PerplexityTester
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
 
 
@@ -117,15 +118,37 @@ class TestCommonMetrics:
 @pytest.mark.parametrize(
     "probs, logits",
     [
-        (_only_probs.probs, _only_probs.logits),
-        (_only_logits1.probs, _only_logits1.logits),
-        (_only_logits100.probs, _only_logits100.logits),
-        (_probs_and_logits.probs, _probs_and_logits.logits),
-        (_no_probs_no_logits.probs, _no_probs_no_logits.logits),
+        (ONLY_PROBS.probs, ONLY_PROBS.logits),
+        (ONLY_LOGITS1.probs, ONLY_LOGITS1.logits),
+        (ONLY_LOGITS100.probs, ONLY_LOGITS100.logits),
+        (PROBS_AND_LOGITS.probs, PROBS_AND_LOGITS.logits),
+        (NO_PROBS_NO_LOGITS.probs, NO_PROBS_NO_LOGITS.logits),
     ],
 )
 class TestPerplexity(PerplexityTester):
     def test_perplexity(self, ddp, dist_sync_on_step, probs, logits):
         self.run_class_perplexity_test(
             ddp=ddp, probs=probs, logits=logits, dist_sync_on_step=dist_sync_on_step,
+        )
+
+
+@pytest.mark.parametrize("ddp", [True, False])
+@pytest.mark.parametrize("dist_sync_on_step", [True, False])
+@pytest.mark.parametrize("take_avg_loss", [True, False])
+@pytest.mark.parametrize(
+    "loss_sum_or_avg, num_measurements",
+    [
+        (NO_ZERO_NUM_MEASUREMENTS.loss_sum_or_avg, NO_ZERO_NUM_MEASUREMENTS.num_measurements),
+        (SOME_NUM_MEASUREMENTS_ARE_ZERO.loss_sum_or_avg, SOME_NUM_MEASUREMENTS_ARE_ZERO.num_measurements),
+        (ALL_NUM_MEASUREMENTS_ARE_ZERO.loss_sum_or_avg, ALL_NUM_MEASUREMENTS_ARE_ZERO.num_measurements),
+    ],
+)
+class TestLoss(LossTester):
+    def test_loss(self, ddp, dist_sync_on_step, loss_sum_or_avg, num_measurements, take_avg_loss):
+        self.run_class_loss_test(
+            ddp=ddp,
+            loss_sum_or_avg=loss_sum_or_avg,
+            num_measurements=num_measurements,
+            dist_sync_on_step=dist_sync_on_step,
+            take_avg_loss=take_avg_loss,
         )

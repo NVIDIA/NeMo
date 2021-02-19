@@ -85,7 +85,7 @@ class WER(Metric):
     Args:
         vocabulary: List of strings that describes the vocabulary of the dataset.
         batch_dim_index: Index of the batch dimension.
-        use_cer: Whether to use Character Error Rate isntead of Word Error Rate.
+        use_cer: Whether to use Character Error Rate instead of Word Error Rate.
         ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
         log_prediction: Whether to log a single decoded sample per call.
 
@@ -114,7 +114,9 @@ class WER(Metric):
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
-    def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
+    def ctc_decoder_predictions_tensor(
+        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None
+    ) -> List[str]:
         """
         Decodes a sequence of labels to words
         """
@@ -124,6 +126,8 @@ class WER(Metric):
         # iterate over batch
         for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
             prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
+            if predictions_len is not None:
+                prediction = prediction[: predictions_len[ind]]
             # CTC decoding procedure
             decoded_prediction = []
             previous = self.blank_id
@@ -135,7 +139,13 @@ class WER(Metric):
             hypotheses.append(hypothesis)
         return hypotheses
 
-    def update(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor) -> torch.Tensor:
+    def update(
+        self,
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+        predictions_lengths: torch.Tensor = None,
+    ) -> torch.Tensor:
         words = 0.0
         scores = 0.0
         references = []
@@ -151,7 +161,7 @@ class WER(Metric):
                 reference = ''.join([self.labels_map[c] for c in target])
                 references.append(reference)
             if self.ctc_decode:
-                hypotheses = self.ctc_decoder_predictions_tensor(predictions)
+                hypotheses = self.ctc_decoder_predictions_tensor(predictions, predictions_lengths)
             else:
                 raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
 

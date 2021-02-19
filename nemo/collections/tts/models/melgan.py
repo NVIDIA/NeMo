@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import numpy as np
 import torch
 from hydra.utils import instantiate
@@ -88,14 +90,18 @@ class MelGanModel(Vocoder):
         """
         return self.generator(spec=spec)
 
-    @typecheck(output_types=NeuralType(('B', 'T'), AudioSignal()))
+    @typecheck(output_types={"audio": NeuralType(('B', 'T'), AudioSignal())})
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
-        return self(spec=spec).squeeze()
+        return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         audio, audio_len = batch
         spec, _ = self.audio_to_melspec_precessor(audio, audio_len)
         audio_pred = self(spec=spec)
+
+        # TODO: Lightning has a bug in 1.1.0, just always log something as a workaround
+        # https://github.com/PyTorchLightning/pytorch-lightning/issues/5063
+        self.log("Dummy", 0.0, logger=False)
 
         # train discriminator
         if optimizer_idx == 0 and self.start_training_disc:

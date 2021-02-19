@@ -19,7 +19,9 @@ import pytest
 import torch
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.models import EncDecClassificationModel
+from nemo.collections.asr.data import audio_to_label
+from nemo.collections.asr.models import EncDecClassificationModel, configs
+from nemo.utils.config_utils import assert_dataclass_signature_match
 
 
 @pytest.fixture()
@@ -84,6 +86,35 @@ class TestEncDecClassificationModel:
         assert isinstance(instance2, EncDecClassificationModel)
 
     @pytest.mark.unit
+    def test_forward(self, speech_classification_model):
+        asr_model = speech_classification_model.eval()
+
+        asr_model.preprocessor.featurizer.dither = 0.0
+        asr_model.preprocessor.featurizer.pad_to = 0
+
+        input_signal = torch.randn(size=(4, 512))
+        length = torch.randint(low=161, high=500, size=[4])
+
+        with torch.no_grad():
+            # batch size 1
+            logprobs_instance = []
+            for i in range(input_signal.size(0)):
+                logprobs_ins = asr_model.forward(
+                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
+                )
+                logprobs_instance.append(logprobs_ins)
+            logprobs_instance = torch.cat(logprobs_instance, 0)
+
+            # batch size 4
+            logprobs_batch = asr_model.forward(input_signal=input_signal, input_signal_length=length)
+
+        assert logprobs_instance.shape == logprobs_batch.shape
+        diff = torch.mean(torch.abs(logprobs_instance - logprobs_batch))
+        assert diff <= 1e-6
+        diff = torch.max(torch.abs(logprobs_instance - logprobs_batch))
+        assert diff <= 1e-6
+
+    @pytest.mark.unit
     def test_vocab_change(self, speech_classification_model):
         asr_model = speech_classification_model.train()
 
@@ -138,3 +169,40 @@ class TestEncDecClassificationModel:
         results = model.transcribe(audio_paths, batch_size=2, logprobs=True)
         assert len(results) == 2
         assert results[0].shape == torch.Size([len(model.cfg.labels)])
+
+    @pytest.mark.unit
+    def test_EncDecClassificationDatasetConfig_for_AudioToSpeechLabelDataset(self):
+        # ignore some additional arguments as dataclass is generic
+        IGNORE_ARGS = [
+            'is_tarred',
+            'num_workers',
+            'batch_size',
+            'tarred_audio_filepaths',
+            'shuffle',
+            'pin_memory',
+            'drop_last',
+            'tarred_shard_strategy',
+            'shuffle_n',
+            # `featurizer` is supplied at runtime
+            'featurizer',
+            # additional ignored arguments
+            'vad_stream',
+            'int_values',
+            'sample_rate',
+            'normalize_audio',
+            'augmentor',
+        ]
+
+        REMAP_ARGS = {'trim_silence': 'trim'}
+
+        result = assert_dataclass_signature_match(
+            audio_to_label.AudioToSpeechLabelDataset,
+            configs.EncDecClassificationDatasetConfig,
+            ignore_args=IGNORE_ARGS,
+            remap_args=REMAP_ARGS,
+        )
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None

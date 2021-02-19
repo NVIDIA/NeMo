@@ -26,13 +26,11 @@ from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = [
     'AudioToCharDataset',
     'AudioToCharWithDursDataset',
     'AudioToBPEDataset',
-    'AudioLabelDataset',
     'TarredAudioToCharDataset',
     'TarredAudioToBPEDataset',
 ]
@@ -197,7 +195,6 @@ class _AudioTextDataset(Dataset):
         return _speech_collate_fn(batch, pad_id=self.pad_id)
 
 
-@experimental
 class AudioToCharDataset(_AudioTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -443,8 +440,43 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
         )
 
 
-@experimental
 class AudioToBPEDataset(_AudioTextDataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, and durations (in seconds). Each new line is a
+    different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+    "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    In practice, the dataset and manifest used for character encoding and byte pair encoding
+    are exactly the same. The only difference lies in how the dataset tokenizes the text in
+    the manifest.
+
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        tokenizer: A subclass of the Tokenizer wrapper found in the common collection,
+            nemo.collections.common.tokenizers.TokenizerSpec. ASR Models support a subset of
+            all available tokenizers.
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
+            object used to augment loaded audio
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        max_utts: Limit number of utterances
+        trim: Whether to trim silence segments
+        load_audio: Boolean flag indicate whether do or not load audio
+        add_misc: True if add additional info dict.
+        use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
+            tokens to beginning and ending of speech respectively.
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
@@ -517,93 +549,6 @@ class AudioToBPEDataset(_AudioTextDataset):
         )
 
 
-# Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
-@experimental
-class AudioLabelDataset(Dataset):
-    """
-    Dataset that loads tensors via a json file containing paths to audio
-    files, command class, and durations (in seconds). Each new line is a
-    different sample. Example below:
-    {"audio_filepath": "/path/to/audio.wav", "label":
-    "label", "duration": 23.147}
-    ...
-    {"audio_filepath": "/path/to/audio.wav", "label": "label",
-    "offset": 301.75, "duration": 0.82}
-    Args:
-        manifest_filepath: Path to manifest json as described above. Can
-            be comma-separated paths.
-        labels (Optional[list]): String containing all the possible labels to map to
-            if None then automatically picks from ASRSpeechLabel collection.
-        featurizer: Initialized featurizer class that converts paths of
-            audio to feature tensors
-        max_duration: If audio exceeds this length, do not include in dataset
-        min_duration: If audio is less than this length, do not include
-            in dataset
-        trim: Boolean flag whether to trim the audio
-        load_audio: Boolean flag indicate whether do or not load audio
-    """
-
-    def __init__(
-        self,
-        manifest_filepath,
-        featurizer,
-        labels=None,
-        max_duration=None,
-        min_duration=None,
-        trim=False,
-        load_audio=True,
-    ):
-        self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration
-        )
-
-        self.featurizer = featurizer
-        self.trim = trim
-        self.load_audio = load_audio
-
-        self.labels = labels if labels else self.collection.uniq_labels
-        self.num_commands = len(self.labels)
-
-        self.label2id, self.id2label = {}, {}
-        for label_id, label in enumerate(self.labels):
-            self.label2id[label] = label_id
-            self.id2label[label_id] = label
-
-    def __getitem__(self, index):
-        sample = self.collection[index]
-        if self.load_audio:
-            offset = sample.offset
-
-            if offset is None:
-                offset = 0
-
-            features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim
-            )
-            f, fl = features, torch.tensor(features.shape[0]).long()
-        else:
-            f, fl = None, None
-
-        t = self.label2id[sample.label]
-        tl = 1  # For compatibility with collate_fn used later
-
-        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
-
-    def __len__(self):
-        return len(self.collection)
-
-    def _collate_fn(self, batch):
-        """collate batch of audio sig, audio len, tokens (single token), tokens len (1)
-        Args:
-            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-                   LongTensor):  A tuple of tuples of signal, signal lengths,
-                   encoded tokens, and encoded tokens length.  This collate func
-                   assumes the signals are 1d torch tensors (i.e. mono audio).
-        """
-        return _speech_collate_fn(batch, pad_id=0)
-
-
-@experimental
 class _TarredAudioToTextDataset(IterableDataset):
     """
     A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.
@@ -774,10 +719,15 @@ class _TarredAudioToTextDataset(IterableDataset):
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
         # Put together WebDataset
+        self._dataset = wd.WebDataset(audio_tar_filepaths)
+
+        if shuffle_n > 0:
+            self._dataset = self._dataset.shuffle(shuffle_n)
+        else:
+            logging.info("WebDataset will not shuffle files within the tar files.")
+
         self._dataset = (
-            wd.Dataset(audio_tar_filepaths)
-            .shuffle(shuffle_n)
-            .rename(audio='wav', key='__key__')
+            self._dataset.rename(audio='wav', key='__key__')
             .to_tuple('audio', 'key')
             .pipe(self._filter)
             .map(f=self._build_sample)
@@ -857,7 +807,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         return len(self.collection)
 
 
-@experimental
 class TarredAudioToCharDataset(_TarredAudioToTextDataset):
     """
     A similar Dataset to the AudioToCharDataset, but which loads tarred audio files.
@@ -994,7 +943,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         )
 
 
-@experimental
 class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
     """
     A similar Dataset to the AudioToBPEDataset, but which loads tarred audio files.

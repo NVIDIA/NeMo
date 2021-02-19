@@ -76,4 +76,22 @@ if __name__ == '__main__':
 
     print(f'Aggregated manifest is saved at {all_manifest}')
     print(f'Total files duration: ~{round(total_duration/60)} min or ~{round(total_duration/60/60)} hr')
+
+    sets = {'_high_score_manifest.json': 0, '_low_score_manifest.json': 0, '_del_manifest.json': 0}
+
+    for k in sets:
+        files = manifest_dir.glob(f'*{k}')
+        for manifest_f in files:
+            with open(os.path.join(manifest_dir, manifest_f), 'r') as f:
+                for line in f:
+                    line = json.loads(line)
+                    sets[k] += line['duration']
+
+    total = 0
+    for k in sets:
+        sets[k] = round(sets[k] / 3600, 1)
+        total += sets[k]
+        name = k.split('_')[1].upper()
+        print(f'Total {name} score duration: ~{sets[k]} hr')
+    print(f'Total duration: ~{total} hr')
     print('Done.')

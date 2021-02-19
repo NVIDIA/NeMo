@@ -74,8 +74,8 @@ if __name__ == '__main__':
         )
 
     # extract ASR vocabulary and add blank symbol
-    vocabulary = asr_model.cfg.decoder['params']['vocabulary']
-    odim = len(asr_model._cfg.decoder.params['vocabulary']) + 1
+    vocabulary = asr_model.cfg.decoder.vocabulary
+    odim = len(vocabulary) + 1
     logging.debug(f'ASR Model vocabulary: {vocabulary}')
 
     # add blank to vocab
@@ -131,6 +131,8 @@ if __name__ == '__main__':
     del asr_model
     torch.cuda.empty_cache()
 
+    if len(all_log_probs) == 0:
+        raise ValueError(f'No valid audio files found at {args.data}')
     start_time = time.time()
     if args.no_parallel:
         for i in range(len(all_log_probs)):

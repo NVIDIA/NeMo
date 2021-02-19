@@ -46,7 +46,7 @@ __all__ = [
 
 
 class MultiHeadAttention(nn.Module):
-    """Multi-Head Attention layer.
+    """Multi-Head Attention layer of Transformer.
     Args:
         n_head (int): number of heads
         n_feat (int): size of the features
@@ -99,7 +99,7 @@ class MultiHeadAttention(nn.Module):
         """
         n_batch = value.size(0)
         if mask is not None:
-            mask = mask.unsqueeze(1).eq(0)  # (batch, 1, time1, time2)
+            mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
             if scores.dtype == torch.float16:
                 dtype = np.float16
             else:
@@ -116,7 +116,7 @@ class MultiHeadAttention(nn.Module):
 
         return self.linear_out(x)  # (batch, time1, d_model)
 
-    def forward(self, query, key, value, mask):
+    def forward(self, query, key, value, mask, pos_emb=None):
         """Compute 'Scaled Dot Product Attention'.
         Args:
             query (torch.Tensor): (batch, time1, size)
@@ -132,7 +132,7 @@ class MultiHeadAttention(nn.Module):
 
 
 class RelPositionMultiHeadAttention(MultiHeadAttention):
-    """Multi-Head Attention layer with relative position encoding.
+    """Multi-Head Attention layer of Transformer-XL with support of relative positional encoding.
     Paper: https://arxiv.org/abs/1901.02860
     Args:
         n_head (int): number of heads
@@ -140,35 +140,35 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         dropout_rate (float): dropout rate
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate):
+    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v):
         """Construct an RelPositionMultiHeadedAttention object."""
         super().__init__(n_head, n_feat, dropout_rate)
-        # linear transformation for positional ecoding
+        # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
-        # these two learnable bias are used in matrix c and matrix d
+        # these two learnable biases are used in matrix c and matrix d
         # as described in https://arxiv.org/abs/1901.02860 Section 3.3
-        self.pos_bias_u = nn.Parameter(torch.Tensor(self.h, self.d_k))
-        self.pos_bias_v = nn.Parameter(torch.Tensor(self.h, self.d_k))
-        torch.nn.init.xavier_uniform_(self.pos_bias_u)
-        torch.nn.init.xavier_uniform_(self.pos_bias_v)
+        if pos_bias_u is None or pos_bias_v is None:
+            self.pos_bias_u = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
+            self.pos_bias_v = nn.Parameter(torch.FloatTensor(self.h, self.d_k))
+            # nn.init.normal_(self.pos_bias_u, 0.0, 0.02)
+            # nn.init.normal_(self.pos_bias_v, 0.0, 0.02)
+            nn.init.zeros_(self.pos_bias_u)
+            nn.init.zeros_(self.pos_bias_v)
+        else:
+            self.pos_bias_u = pos_bias_u
+            self.pos_bias_v = pos_bias_v
 
-    def rel_shift(self, x, zero_triu=False):
-        """Compute relative positinal encoding.
+    def rel_shift(self, x):
+        """Compute relative positional encoding.
         Args:
-            x (torch.Tensor): (batch, time, size)
-            zero_triu (bool): return the lower triangular part of the matrix
+            x (torch.Tensor): (batch, nheads, time, 2*time-1)
         """
-        zero_pad = torch.zeros((*x.size()[:3], 1), device=x.device, dtype=x.dtype)
-        x_padded = torch.cat([zero_pad, x], dim=-1)
-
-        x_padded = x_padded.view(*x.size()[:2], x.size(3) + 1, x.size(2))
-        x = x_padded[:, :, 1:].view_as(x)
-
-        if zero_triu:
-            ones = torch.ones((x.size(2), x.size(3)))
-            x = x * torch.tril(ones, x.size(3) - x.size(2))[None, None, :, :]
-
-        return x
+        qlen = x.size(2)
+        pos_len = x.size(-1)
+        x = x.view(x.size(0), x.size(1), -1)
+        x = torch.nn.functional.pad(x, pad=(0, qlen))
+        x = x.view(x.size(0), x.size(1), qlen, pos_len + 1)
+        return x[:, :, :, 0:qlen].flip(dims=[-1])
 
     def forward(self, query, key, value, mask, pos_emb):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
@@ -210,87 +210,108 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
 
 class PositionalEncoding(torch.nn.Module):
-    """Positional encoding.
+    """Fixed sinusoidal positional encoding.
     Args:
         d_model (int): embedding dim
         dropout_rate (float): dropout rate
         max_len (int): maximum input length
-        reverse (int): whether to reverse the input position
+        xscale (bool): whether to scale the input by sqrt(d_model)
+        dropout_rate_emb (float): dropout rate for the positional embeddings
     """
 
-    def __init__(self, d_model, dropout_rate, max_len=5000, reverse=False, xscale=None):
+    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
         """Construct an PositionalEncoding object."""
         super(PositionalEncoding, self).__init__()
         self.d_model = d_model
-        self.reverse = reverse
-        self.xscale = xscale  # math.sqrt(self.d_model)
+        self.xscale = xscale
         self.dropout = torch.nn.Dropout(p=dropout_rate)
         self.pe = None
         self.extend_pe(torch.tensor(0.0).expand(1, max_len))
-
-    def extend_pe(self, x):
-        """Reset the positional encodings."""
-        if self.pe is not None:
-            if self.pe.size(1) >= x.size(1):
-                if self.pe.dtype != x.dtype or self.pe.device != x.device:
-                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
-                return
-        pe = torch.zeros(x.size(1), self.d_model)
-        if self.reverse:
-            position = torch.arange(x.size(1) - 1, -1, -1.0, dtype=torch.float32).unsqueeze(1)
-        else:
-            position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
-        )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
-        self.pe = pe.to(device=x.device, dtype=x.dtype)
-
-    def forward(self, x: torch.Tensor):
-        """Add positional encoding.
-        Args:
-            x (torch.Tensor): Input. Its shape is (batch, time, ...)
-        Returns:
-            Encoded Output (torch.Tensor): Its shape is (batch, time, ...)
-        """
-        self.extend_pe(x)
-        if self.xscale:
-            x = x * self.xscale
-        x = x + self.pe[:, : x.size(1)]
-        return self.dropout(x), None
-
-
-class RelPositionalEncoding(PositionalEncoding):
-    """Relative positional encoding module.
-    See : Appendix B in https://arxiv.org/abs/1901.02860
-    Args:
-        d_model (int): embedding dim
-        dropout_rate (float): dropout rate
-        max_len (int): maximum input length
-    """
-
-    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_emb_rate=0.0):
-        super().__init__(d_model, dropout_rate, max_len, reverse=True, xscale=xscale)
-
-        if dropout_emb_rate > 0:
-            self.dropout_emb = nn.Dropout(dropout_emb_rate)
+        if dropout_rate_emb > 0:
+            self.dropout_emb = nn.Dropout(dropout_rate_emb)
         else:
             self.dropout_emb = None
 
-    def forward(self, x):
-        """Compute positional encoding.
+    def create_pe(self, pos_length, positions):
+        pe = torch.zeros(pos_length, self.d_model)
+        div_term = torch.exp(
+            torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
+        )
+        pe[:, 0::2] = torch.sin(positions * div_term)
+        pe[:, 1::2] = torch.cos(positions * div_term)
+        pe = pe.unsqueeze(0)
+        return pe
+
+    def extend_pe(self, x):
+        """Reset and extend the positional encodings if needed."""
+        if self.pe is None or self.pe.size(1) < x.size(1):
+            positions = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
+            self.pe = self.create_pe(pos_length=x.size(1), positions=positions)
+        if self.pe.dtype != x.dtype or self.pe.device != x.device:
+            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
+
+    def forward(self, x: torch.Tensor):
+        """Adds positional encoding.
         Args:
-            x (torch.Tensor): Input. Its shape is (batch, time, ...)
+            x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
         Returns:
-            x (torch.Tensor): Its shape is (batch, time, ...)
-            pos_emb (torch.Tensor): Its shape is (1, time, ...)
+            x+pos_emb (torch.Tensor): Its shape is (batch, time, feature_size)
+            pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
         """
         self.extend_pe(x)
         if self.xscale:
             x = x * self.xscale
         pos_emb = self.pe[:, : x.size(1)]
+        if self.dropout_emb:
+            pos_emb = self.dropout_emb(pos_emb)
+        x = x + pos_emb
+        return self.dropout(x), pos_emb
+
+
+class RelPositionalEncoding(PositionalEncoding):
+    """Relative positional encoding for TransformerXL's layers
+    See : Appendix B in https://arxiv.org/abs/1901.02860
+    Args:
+        d_model (int): embedding dim
+        dropout_rate (float): dropout rate
+        max_len (int): maximum input length
+        xscale (bool): whether to scale the input by sqrt(d_model)
+        dropout_rate_emb (float): dropout rate for the positional embeddings
+    """
+
+    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
+        super().__init__(d_model, dropout_rate, max_len, xscale=xscale)
+
+        if dropout_rate_emb > 0:
+            self.dropout_emb = nn.Dropout(dropout_rate_emb)
+        else:
+            self.dropout_emb = None
+
+        self.max_len = max_len
+
+    def extend_pe(self, x):
+        """Reset and extend the positional encodings if needed."""
+        needed_size = 2 * x.size(1) - 1
+        if self.pe is None or self.pe.size(1) < needed_size:
+            positions = torch.arange(-(x.size(1) - 1), x.size(1), 1.0, dtype=torch.float32).unsqueeze(1)
+            self.pe = self.create_pe(pos_length=needed_size, positions=positions)
+        if self.pe.dtype != x.dtype or self.pe.device != x.device:
+            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
+
+    def forward(self, x):
+        """Compute positional encoding.
+        Args:
+            x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
+        Returns:
+            x (torch.Tensor): Its shape is (batch, time, feature_size)
+            pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
+        """
+        self.extend_pe(x)
+        if self.xscale:
+            x = x * self.xscale
+
+        start_pos = (self.pe.size(1) + 1) // 2 - x.size(1)
+        pos_emb = self.pe[:, start_pos:-start_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
         return self.dropout(x), pos_emb

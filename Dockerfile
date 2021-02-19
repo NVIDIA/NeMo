@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:20.09-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:20.11-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -67,15 +67,21 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
     python3 setup.py install && \
     rm -rf ../tests test ../tensorflow_binding
 
+# uninstall stuff from base container
+RUN pip uninstall -y sacrebleu
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
-# build CTC beam search decoder
-COPY scripts/install_ctc_decoders.sh .
-RUN ./install_ctc_decoders.sh
+#install TRT tools: PT quantization support and ONNX graph optimizer
+WORKDIR /tmp/trt_build
+RUN git clone https://github.com/NVIDIA/TensorRT.git && \
+    cd TensorRT/tools/onnx-graphsurgeon && python setup.py install && \
+    cd ../pytorch-quantization && \
+    python setup.py install && \
+    rm -fr  /tmp/trt_build
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src

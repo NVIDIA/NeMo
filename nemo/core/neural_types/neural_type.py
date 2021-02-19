@@ -29,6 +29,7 @@ __all__ = [
 class NeuralType(object):
     """This is the main class which would represent neural type concept.
     It is used to represent *the types* of inputs and outputs.
+
     Args:
         axes (Optional[Tuple]): a tuple of AxisTypes objects representing the semantics of what varying each axis means
             You can use a short, string-based form here. For example: ('B', 'C', 'H', 'W') would correspond to an NCHW
@@ -197,6 +198,25 @@ class NeuralType(object):
                 return 1
             else:
                 return 3
+
+    def __repr__(self):
+        if self.axes is not None:
+            axes = str(self.axes)
+        else:
+            axes = "None"
+
+        if self.elements_type is not None:
+            element_type = repr(self.elements_type)
+        else:
+            element_type = "None"
+
+        data = f"axis={axes}, element_type={element_type}"
+
+        if self.optional:
+            data = f"{data}, optional={self.optional}"
+
+        final = f"{self.__class__.__name__}({data})"
+        return final
 
 
 class NeuralTypeError(Exception):

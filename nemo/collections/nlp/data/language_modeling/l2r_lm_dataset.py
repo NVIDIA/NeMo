@@ -16,6 +16,7 @@ import io
 import json
 from typing import Optional
 
+import braceexpand
 import numpy as np
 import webdataset as wd
 from torch.utils.data import Dataset, IterableDataset
@@ -161,6 +162,10 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "}")
 
+        if isinstance(text_tar_filepaths, str):
+            # Brace expand
+            text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
+
         if shard_strategy == 'scatter':
             logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
 
@@ -186,13 +191,14 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
         self.tarpath = text_tar_filepaths
 
         # Put together WebDataset
-        self._dataset = (
-            wd.Dataset(text_tar_filepaths)
-            .shuffle(shuffle_n)
-            .rename(npy='npy', key='__key__')
-            .to_tuple('npy', 'key')
-            .map(f=self._build_sample)
-        )
+        self._dataset = wd.WebDataset(text_tar_filepaths)
+
+        if shuffle_n > 0:
+            self._dataset = self._dataset.shuffle(shuffle_n)
+        else:
+            logging.info("WebDataset will not shuffle files within the tar files.")
+
+        self._dataset = self._dataset.rename(npy='npy', key='__key__').to_tuple('npy', 'key').map(f=self._build_sample)
 
     def _build_sample(self, tup):
         # Load file

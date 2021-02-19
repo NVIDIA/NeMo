@@ -6,6 +6,11 @@ CUT_PREFIX=0
 SCRIPTS_DIR="scripts"
 OFFSET=0
 LANGUAGE='eng' # 'eng', 'ru', 'other'
+MIN_SEGMENT_LEN=20
+MAX_SEGMENT_LEN=100
+ADDITIONAL_SPLIT_SYMBOLS=''
+AUDIO_FORMAT='.mp3'
+USE_NEMO_NORMALIZATION='False'
 
 for ARG in "$@"
 do
@@ -26,6 +31,11 @@ echo "CUT_PREFIX = $CUT_PREFIX"
 echo "SCRIPTS_DIR = $SCRIPTS_DIR"
 echo "OFFSET = $OFFSET"
 echo "LANGUAGE = $LANGUAGE"
+echo "MIN_SEGMENT_LEN = $MIN_SEGMENT_LEN"
+echo "MAX_SEGMENT_LEN = $MAX_SEGMENT_LEN"
+echo "ADDITIONAL_SPLIT_SYMBOLS = $ADDITIONAL_SPLIT_SYMBOLS"
+echo "AUDIO_FORMAT = $AUDIO_FORMAT"
+echo "USE_NEMO_NORMALIZATION = $USE_NEMO_NORMALIZATION"
 
 if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; then
   echo "Usage: $(basename "$0")
@@ -35,19 +45,36 @@ if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; t
   --LANGUAGE=[language (Optional)]
   --OFFSET=[offset value (Optional)]
   --CUT_PREFIX=[cut prefix in sec (Optional)]
-  --SCRIPTS_DIR=[scripts_dir_path (Optional)]"
+  --SCRIPTS_DIR=[scripts_dir_path (Optional)]
+  --MIN_SEGMENT_LEN=[min number of characters of the text segment for alignment (Optional)]
+  --MAX_SEGMENT_LEN=[max number of characters of the text segment for alignment (Optional)]
+  --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for
+    sentence split if eos sentence split resulted in sequence longer than --max_length.
+    Use '|' as a separator between symbols, for example: ';|:|' (Optional)]
+  --AUDIO_FORMAT=[choose from ['.mp3', '.wav'], input audio files format
+  --USE_NEMO_NORMALIZATION Set to 'True' to use NeMo Normalization tool to convert
+    numbers from written to spoken format. By default num2words package will be used. (Optional)"
   exit 1
 fi
+
+NEMO_NORMALIZATION=""
+    if [[ ${USE_NEMO_NORMALIZATION,,} == "true" ]]; then
+      NEMO_NORMALIZATION="--use_nemo_normalization "
+    fi
 
 # STEP #1
 # Prepare text and audio data for segmentation
 python $SCRIPTS_DIR/prepare_data.py \
---in_text=$DATA_DIR \
+--in_text=$DATA_DIR/text \
+--audio_dir=$DATA_DIR/audio \
+--audio_format=$AUDIO_FORMAT \
 --output_dir=$OUTPUT_DIR/processed/ \
 --language=$LANGUAGE \
 --cut_prefix=$CUT_PREFIX \
 --model=$MODEL_NAME_OR_PATH \
---audio_dir=$DATA_DIR || exit
+--min_length=$MIN_SEGMENT_LEN \
+--max_length=$MAX_SEGMENT_LEN \
+--additional_split_symbols=$ADDITIONAL_SPLIT_SYMBOLS $NEMO_NORMALIZATION || exit
 
 # STEP #2
 # Run CTC-segmenatation

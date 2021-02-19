@@ -14,9 +14,12 @@
 import copy
 
 import pytest
+import torch
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import EncDecRNNTModel
+from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
 
 try:
     from warprnnt_pytorch import RNNTLoss
@@ -113,6 +116,42 @@ class TestEncDecRNNTModel:
         'RNNT Loss first before running this test',
     )
     @pytest.mark.unit
+    def test_forward(self, asr_model):
+        asr_model = asr_model.eval()
+
+        asr_model.preprocessor.featurizer.dither = 0.0
+        asr_model.preprocessor.featurizer.pad_to = 0
+
+        asr_model.compute_eval_loss = False
+
+        input_signal = torch.randn(size=(4, 512))
+        length = torch.randint(low=161, high=500, size=[4])
+
+        with torch.no_grad():
+            # batch size 1
+            logprobs_instance = []
+            for i in range(input_signal.size(0)):
+                logprobs_ins, _ = asr_model.forward(
+                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
+                )
+                logprobs_instance.append(logprobs_ins)
+            logprobs_instance = torch.cat(logprobs_instance, 0)
+
+            # batch size 4
+            logprobs_batch, _ = asr_model.forward(input_signal=input_signal, input_signal_length=length)
+
+        assert logprobs_instance.shape == logprobs_batch.shape
+        diff = torch.mean(torch.abs(logprobs_instance - logprobs_batch))
+        assert diff <= 1e-6
+        diff = torch.max(torch.abs(logprobs_instance - logprobs_batch))
+        assert diff <= 1e-6
+
+    @pytest.mark.skipif(
+        not WARP_RNNT_AVAILABLE,
+        reason='RNNTLoss has not been compiled. Please compile and install '
+        'RNNT Loss first before running this test',
+    )
+    @pytest.mark.unit
     def test_vocab_change(self, asr_model):
         old_vocab = copy.deepcopy(asr_model.joint.vocabulary)
         nw1 = asr_model.num_weights
@@ -129,3 +168,46 @@ class TestEncDecRNNTModel:
         pred_embedding = 3 * (asr_model.decoder.pred_hidden)
         joint_joint = 3 * (asr_model.joint.joint_hidden + 1)
         assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint))
+
+    @pytest.mark.skipif(
+        not WARP_RNNT_AVAILABLE,
+        reason='RNNTLoss has not been compiled. Please compile and install '
+        'RNNT Loss first before running this test',
+    )
+    @pytest.mark.unit
+    def test_decoding_change(self, asr_model):
+        assert isinstance(asr_model.decoding.decoding, greedy_decode.GreedyBatchedRNNTInfer)
+
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'greedy'
+        new_strategy.greedy = DictConfig({'max_symbols': 10})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, greedy_decode.GreedyRNNTInfer)
+
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'beam'
+        new_strategy.beam = DictConfig({'beam_size': 1})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert asr_model.decoding.decoding.search_type == "default"
+
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'beam'
+        new_strategy.beam = DictConfig({'beam_size': 2})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert asr_model.decoding.decoding.search_type == "default"
+
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'tsd'
+        new_strategy.beam = DictConfig({'beam_size': 2})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert asr_model.decoding.decoding.search_type == "tsd"
+
+        new_strategy = DictConfig({})
+        new_strategy.strategy = 'alsd'
+        new_strategy.beam = DictConfig({'beam_size': 2})
+        asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
+        assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
+        assert asr_model.decoding.decoding.search_type == "alsd"

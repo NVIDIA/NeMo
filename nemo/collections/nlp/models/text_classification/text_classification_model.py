@@ -32,7 +32,6 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 __all__ = ['TextClassificationModel']
 
@@ -94,6 +93,10 @@ class TextClassificationModel(NLPModel, Exportable):
         self.classification_report = ClassificationReport(
             num_classes=cfg.dataset.num_classes, mode='micro', dist_sync_on_step=True
         )
+
+        # register the file containing the labels into the artifacts to get stored in the '.nemo' file later
+        if 'class_labels' in cfg and 'class_labels_file' in cfg.class_labels and cfg.class_labels.class_labels_file:
+            self.register_artifact('class_labels', cfg.class_labels.class_labels_file)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -316,68 +319,3 @@ class TextClassificationModel(NLPModel, Exportable):
     @classmethod
     def from_pretrained(cls, name: str):
         pass
-
-    def _prepare_for_export(self):
-        return self.bert_model._prepare_for_export()
-
-    def export(
-        self,
-        output: str,
-        input_example=None,
-        output_example=None,
-        verbose=False,
-        export_params=True,
-        do_constant_folding=True,
-        keep_initializers_as_inputs=False,
-        onnx_opset_version: int = 12,
-        try_script: bool = False,
-        set_eval: bool = True,
-        check_trace: bool = True,
-        use_dynamic_axes: bool = True,
-    ):
-        if input_example is not None or output_example is not None:
-            logging.warning(
-                "Passed input and output examples will be ignored and recomputed since"
-                " TextClassificationModel consists of two separate models with different"
-                " inputs and outputs."
-            )
-
-        qual_name = self.__module__ + '.' + self.__class__.__qualname__
-        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
-        output1_descr = qual_name + ' BERT exported to ONNX'
-        bert_model_onnx = self.bert_model.export(
-            output1,
-            None,  # computed by input_example()
-            None,
-            verbose,
-            export_params,
-            do_constant_folding,
-            keep_initializers_as_inputs,
-            onnx_opset_version,
-            try_script,
-            set_eval,
-            check_trace,
-            use_dynamic_axes,
-        )
-
-        output2 = os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output))
-        output2_descr = qual_name + ' Classifier exported to ONNX'
-        classifier_onnx = self.classifier.export(
-            output2,
-            None,  # computed by input_example()
-            None,
-            verbose,
-            export_params,
-            do_constant_folding,
-            keep_initializers_as_inputs,
-            onnx_opset_version,
-            try_script,
-            set_eval,
-            check_trace,
-            use_dynamic_axes,
-        )
-
-        output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "CL")
-        output_descr = qual_name + ' BERT+Classifier exported to ONNX'
-        onnx.save(output_model, output)
-        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])

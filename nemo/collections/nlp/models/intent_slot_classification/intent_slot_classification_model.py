@@ -31,17 +31,14 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.export_utils import attach_onnx_to_onnx
 
 
-class IntentSlotClassificationModel(NLPModel, Exportable):
+class IntentSlotClassificationModel(NLPModel):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -125,7 +122,30 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         cfg.data_desc.slot_weights = data_desc.slot_weights
 
         cfg.data_desc.pad_label = data_desc.pad_label
+
+        # for older(pre - 1.0.0.b3) configs compatibility
+        if not hasattr(cfg, "class_labels") or cfg.class_labels is None:
+            cfg.class_labels = {}
+            cfg.class_labels = OmegaConf.create(
+                {'intent_labels_file': 'intent_labels.csv', 'slot_labels_file': 'slot_labels.csv'}
+            )
+
+        slot_labels_file = os.path.join(data_dir, cfg.class_labels.slot_labels_file)
+        intent_labels_file = os.path.join(data_dir, cfg.class_labels.intent_labels_file)
+        self._save_label_ids(data_desc.slots_label_ids, slot_labels_file)
+        self._save_label_ids(data_desc.intents_label_ids, intent_labels_file)
+
+        self.register_artifact(cfg.class_labels.intent_labels_file, intent_labels_file)
+        self.register_artifact(cfg.class_labels.slot_labels_file, slot_labels_file)
         OmegaConf.set_struct(cfg, True)
+
+    def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
+        """ Saves label ids map to a file """
+        with open(filename, 'w') as out:
+            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+            out.write('\n'.join(labels))
+            logging.info(f'Labels: {label_ids}')
+            logging.info(f'Labels mapping saved to : {out.name}')
 
     def _reconfigure_classifier(self):
         """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
@@ -142,8 +162,8 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         # define losses
         if self.cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.cfg.intent_weights)
-            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.cfg.slot_weights)
+            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.cfg.data_desc.intent_weights)
+            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.cfg.data_desc.slot_weights)
         else:
             self.intent_loss = CrossEntropyLoss(logits_ndim=2)
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
@@ -461,65 +481,3 @@ class IntentSlotClassificationModel(NLPModel, Exportable):
         )
         result.append(model)
         return result
-
-    def export(
-        self,
-        output: str,
-        input_example=None,
-        output_example=None,
-        verbose=False,
-        export_params=True,
-        do_constant_folding=True,
-        keep_initializers_as_inputs=False,
-        onnx_opset_version: int = 12,
-        try_script: bool = False,
-        set_eval: bool = True,
-        check_trace: bool = True,
-        use_dynamic_axes: bool = True,
-    ):
-        if input_example is not None or output_example is not None:
-            logging.warning(
-                "Passed input and output examples will be ignored and recomputed since"
-                " IntentSlotClassificationModel consists of two separate models with different"
-                " inputs and outputs."
-            )
-
-        qual_name = self.__module__ + '.' + self.__class__.__qualname__
-        output1 = os.path.join(os.path.dirname(output), 'bert_' + os.path.basename(output))
-        output1_descr = qual_name + ' BERT exported to ONNX'
-        bert_model_onnx = self.bert_model.export(
-            output1,
-            None,  # computed by input_example()
-            None,
-            verbose,
-            export_params,
-            do_constant_folding,
-            keep_initializers_as_inputs,
-            onnx_opset_version,
-            try_script,
-            set_eval,
-            check_trace,
-            use_dynamic_axes,
-        )
-
-        output2 = os.path.join(os.path.dirname(output), 'classifier_' + os.path.basename(output))
-        output2_descr = qual_name + ' Classifier exported to ONNX'
-        classifier_onnx = self.classifier.export(
-            output2,
-            None,  # computed by input_example()
-            None,
-            verbose,
-            export_params,
-            do_constant_folding,
-            keep_initializers_as_inputs,
-            onnx_opset_version,
-            try_script,
-            set_eval,
-            check_trace,
-            use_dynamic_axes,
-        )
-
-        output_model = attach_onnx_to_onnx(bert_model_onnx, classifier_onnx, "ISC")
-        output_descr = qual_name + ' BERT+Classifier exported to ONNX'
-        onnx.save(output_model, output)
-        return ([output, output1, output2], [output_descr, output1_descr, output2_descr])

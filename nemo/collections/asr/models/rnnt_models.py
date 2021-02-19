@@ -20,7 +20,7 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -106,7 +106,11 @@ class EncDecRNNTModel(ASRModel):
         )
         # Setup WER calculation
         self.wer = RNNTWER(
-            decoding=self.decoding, batch_dim_index=0, use_cer=False, log_prediction=True, dist_sync_on_step=True
+            decoding=self.decoding,
+            batch_dim_index=0,
+            use_cer=self._cfg.get('use_cer', False),
+            log_prediction=self._cfg.get('log_prediction', True),
+            dist_sync_on_step=True,
         )
 
         # Whether to compute loss during evaluation
@@ -120,8 +124,18 @@ class EncDecRNNTModel(ASRModel):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        # setting up the variational noise for the decoder
+        if hasattr(self.cfg, 'variational_noise'):
+            self._optim_variational_noise_std = self.cfg['variational_noise'].get('std', 0)
+            self._optim_variational_noise_start = self.cfg['variational_noise'].get('start_step', 0)
+        else:
+            self._optim_variational_noise_std = 0
+            self._optim_variational_noise_start = 0
+
     @torch.no_grad()
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+    def transcribe(
+        self, paths2audio_files: List[str], batch_size: int = 4, return_hypotheses: bool = False
+    ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
@@ -132,7 +146,8 @@ class EncDecRNNTModel(ASRModel):
         But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference. \
         Bigger will result in better throughput performance but would use more memory.
-
+            return_hypotheses: (bool) Either return hypotheses or text
+        With hypotheses can do some postprocessing like getting timestamp or rescoring
         Returns:
 
             A list of transcriptions in the same order as paths2audio_files
@@ -163,7 +178,9 @@ class EncDecRNNTModel(ASRModel):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    hypotheses += self.decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len)
+                    hypotheses += self.decoding.rnnt_decoder_predictions_tensor(
+                        encoded, encoded_len, return_hypotheses=return_hypotheses
+                    )
                     del test_batch
         finally:
             # set mode back to its original value
@@ -241,6 +258,42 @@ class EncDecRNNTModel(ASRModel):
                 self.cfg.decoding = decoding_cfg
 
             logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
+
+    def change_decoding_strategy(self, decoding_cfg: DictConfig):
+        """
+        Changes decoding strategy used during RNNT decoding process.
+
+        Args:
+            decoding_cfg: A config for the decoder, which is optional. If the decoding type
+                needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
+        """
+        if decoding_cfg is None:
+            # Assume same decoding config as before
+            logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
+            decoding_cfg = self.cfg.decoding
+
+        self.decoding = RNNTDecoding(
+            decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
+        )
+
+        self.wer = RNNTWER(
+            decoding=self.decoding,
+            batch_dim_index=self.wer.batch_dim_index,
+            use_cer=self.wer.use_cer,
+            log_prediction=self.wer.log_prediction,
+            dist_sync_on_step=True,
+        )
+
+        # Setup fused Joint step
+        if self.joint.fuse_loss_wer:
+            self.joint.set_loss(self.loss)
+            self.joint.set_wer(self.wer)
+
+        # Update config
+        with open_dict(self.cfg.decoding):
+            self.cfg.decoding = decoding_cfg
+
+        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -568,3 +621,17 @@ class EncDecRNNTModel(ASRModel):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
+
+    def on_after_backward(self):
+        super().on_after_backward()
+        if self._optim_variational_noise_std > 0 and self.global_step >= self._optim_variational_noise_start:
+            for param_name, param in self.decoder.named_parameters():
+                if param.grad is not None:
+                    noise = torch.normal(
+                        mean=0.0,
+                        std=self._optim_variational_noise_std,
+                        size=param.size(),
+                        device=param.device,
+                        dtype=param.dtype,
+                    )
+                    param.grad.data.add_(noise)
