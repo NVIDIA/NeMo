@@ -329,7 +329,6 @@ class BeamRNNTInfer(Typing):
 
                     if self.preserve_alignments:
                         # convert Ti-th logits into a torch array
-                        alignments[-1] = torch.tensor(alignments[-1], dtype=torch.long)
                         alignments.append([])  # blank buffer for next timestep
                 else:
                     # Update state and current sequence
