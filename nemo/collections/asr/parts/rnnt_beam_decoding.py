@@ -111,6 +111,17 @@ class BeamRNNTInfer(Typing):
         nsc_max_timesteps_expansion: Unused int.
 
         nsc_prefix_alpha: Unused int.
+
+        preserve_alignments: Bool flag which preserves the history of alignments generated during
+            beam decoding (sample). When set to true, the Hypothesis will contain
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
+
+            The length of the list corresponds to the Acoustic Length (T).
+            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
+            U is the number of target tokens for the current timestep Ti.
+
+            NOTE: `preserve_alignments` is an invalid argument for any `search_type`
+            other than basic beam search.
     """
 
     @property
