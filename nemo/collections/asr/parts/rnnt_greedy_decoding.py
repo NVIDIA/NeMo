@@ -69,9 +69,9 @@ class _GreedyRNNTInfer(Typing):
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
-        preserve_alignments: Bool flag which preserves the history of logprobs generated during
+        preserve_alignments: Bool flag which preserves the history of alignments generated during
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -189,9 +189,9 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
-        preserve_alignments: Bool flag which preserves the history of logprobs generated during
+        preserve_alignments: Bool flag which preserves the history of alignments generated during
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -272,7 +272,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         timesteps = []
 
         if self.preserve_alignments:
-            # Logprobs is a 2-dimensional dangling list representing T x U
+            # Alignments is a 2-dimensional dangling list representing T x U
             alignments = [[]]
         else:
             alignments = None
@@ -329,7 +329,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 # Increment token counter.
                 symbols_added += 1
 
-        # Remove trailing empty list of logprobs
+        # Remove trailing empty list of Alignments
         if self.preserve_alignments:
             if len(alignments[-1]) == 0:
                 del alignments[-1]
@@ -349,9 +349,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
-        preserve_alignments: Bool flag which preserves the history of logprobs generated during
+        preserve_alignments: Bool flag which preserves the history of alignments generated during
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -434,9 +434,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             label = [[] for _ in range(batchsize)]
             timesteps = [[] for _ in range(batchsize)]
 
-            # If logprobs need to be preserved, register a danling list to hold the values
+            # If alignments need to be preserved, register a danling list to hold the values
             if self.preserve_alignments:
-                # Logprobs is a 3-dimensional dangling list representing B x T x U
+                # alignments is a 3-dimensional dangling list representing B x T x U
                 alignments = []
                 for _ in range(batchsize):
                     alignments.append([[]])
@@ -511,20 +511,20 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     if blank_mask.all():
                         not_blank = False
 
-                        # If preserving logprobs, convert the current Uj logprobs into a torch.Tensor
+                        # If preserving alignments, convert the current Uj alignments into a torch.Tensor
                         # Then preserve U at current timestep Ti
                         # Finally, forward the timestep history to Ti+1 for that sample
                         # All of this should only be done iff the current time index <= sample-level AM length.
                         # Otherwise ignore and move to next sample / next timestep.
                         if self.preserve_alignments:
+
                             # convert Ti-th logits into a torch array
                             for batch_idx in range(batchsize):
+
                                 # this checks if current timestep <= sample-level AM length
-                                # If current timestep > sample-level AM length, no logprobs will be added
-                                # Therefore the list of Uj logprobs is empty here.
+                                # If current timestep > sample-level AM length, no alignments will be added
+                                # Therefore the list of Uj alignments is empty here.
                                 if len(alignments[batch_idx][-1]) > 0:
-                                    # alignments[batch_idx][-1] = torch.stack(alignments[batch_idx][-1], dim=0)
-                                    # alignments[batch_idx][-1] = alignments[batch_idx][-1].max(1)[1]
                                     alignments[batch_idx].append([])  # blank buffer for next timestep
                     else:
                         # Collect batch indices where blanks occurred now/past
@@ -557,7 +557,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                         symbols_added += 1
 
-            # Remove trailing empty list of logprobs at T_{am-len} x Uj
+            # Remove trailing empty list of alignments at T_{am-len} x Uj
             if self.preserve_alignments:
                 for batch_idx in range(batchsize):
                     if len(alignments[batch_idx][-1]) == 0:
@@ -579,9 +579,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         label = [[] for _ in range(batchsize)]
         timesteps = [[] for _ in range(batchsize)]
 
-        # If logprobs need to be preserved, register a danling list to hold the values
+        # If alignments need to be preserved, register a danling list to hold the values
         if self.preserve_alignments:
-            # Logprobs is a 3-dimensional dangling list representing B x T x U
+            # alignments is a 3-dimensional dangling list representing B x T x U
             alignments = []
             for _ in range(batchsize):
                 alignments.append([[]])
@@ -664,17 +664,19 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 if blank_mask.all():
                     not_blank = False
 
-                    # If preserving logprobs, convert the current Uj logprobs into a torch.Tensor
+                    # If preserving alignments, convert the current Uj alignments into a torch.Tensor
                     # Then preserve U at current timestep Ti
                     # Finally, forward the timestep history to Ti+1 for that sample
                     # All of this should only be done iff the current time index <= sample-level AM length.
                     # Otherwise ignore and move to next sample / next timestep.
                     if self.preserve_alignments:
+
                         # convert Ti-th logits into a torch array
                         for batch_idx in range(batchsize):
+
                             # this checks if current timestep <= sample-level AM length
-                            # If current timestep > sample-level AM length, no logprobs will be added
-                            # Therefore the list of Uj logprobs is empty here.
+                            # If current timestep > sample-level AM length, no alignments will be added
+                            # Therefore the list of Uj alignments is empty here.
                             if len(alignments[batch_idx][-1]) > 0:
                                 alignments[batch_idx].append([])  # blank buffer for next timestep
                 else:
@@ -708,7 +710,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 symbols_added += 1
 
-        # Remove trailing empty list of logprobs at T_{am-len} x Uj
+        # Remove trailing empty list of alignments at T_{am-len} x Uj
         if self.preserve_alignments:
             for batch_idx in range(batchsize):
                 if len(alignments[batch_idx][-1]) == 0:

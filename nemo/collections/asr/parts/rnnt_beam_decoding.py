@@ -275,7 +275,7 @@ class BeamRNNTInfer(Typing):
             hyp: 1-best decoding results
         """
         if self.preserve_alignments:
-            # Logprobs is a 2-dimensional dangling list representing T x U
+            # Alignments is a 2-dimensional dangling list representing T x U
             alignments = [[]]
         else:
             alignments = None
@@ -331,12 +331,12 @@ class BeamRNNTInfer(Typing):
                     y, state, _ = self.decoder.score_hypothesis(hyp, cache)
                 symbols_added += 1
 
-        # Remove trailing empty list of logprobs
+        # Remove trailing empty list of alignments
         if self.preserve_alignments:
             if len(alignments[-1]) == 0:
                 del alignments[-1]
 
-        # attach logprobs to hypothesis
+        # attach alignments to hypothesis
         hyp.alignments = alignments
 
         return [hyp]
@@ -447,7 +447,7 @@ class BeamRNNTInfer(Typing):
                     kept_hyps = kept_most_prob
                     break
 
-        # Remove trailing empty list of logprobs
+        # Remove trailing empty list of alignments
         if self.preserve_alignments:
             for h in kept_hyps:
                 if len(h.alignments[-1]) == 0:
