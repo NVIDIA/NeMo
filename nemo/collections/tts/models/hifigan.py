@@ -22,11 +22,11 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
+from nemo.collections.tts.data.datalayers import AudioDataset, MelAudioDataset
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.collections.tts.data.datalayers import MelAudioDataset, AudioDataset
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -109,7 +109,7 @@ class HifiGanModel(Vocoder):
         return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        # if in finetune mode the mels are pre-computed using a 
+        # if in finetune mode the mels are pre-computed using a
         # spectrogram generator
         if self.finetune:
             audio, audio_len, audio_mel = batch
@@ -237,7 +237,7 @@ class HifiGanModel(Vocoder):
     def _bias_denoise(self, audio, mel):
         def stft(x):
             comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
-            real, imag = comp[...,0], comp[...,1]
+            real, imag = comp[..., 0], comp[..., 1]
             mags = torch.sqrt(real ** 2 + imag ** 2)
             phase = torch.atan2(imag, real)
             return mags, phase
@@ -252,7 +252,7 @@ class HifiGanModel(Vocoder):
             audio_bias = self(spec=torch.zeros_like(mel, device=mel.device))
             self.stft_bias, _ = stft(audio_bias)
             self.stft_bias = self.stft_bias[:, :, 0][:, :, None]
-        
+
         audio_mags, audio_phase = stft(audio)
         audio_mags = audio_mags - self.cfg.denoise_strength * self.stft_bias
         audio_mags = torch.clamp(audio_mags, 0.0)

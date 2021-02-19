@@ -35,13 +35,13 @@
 # SOFTWARE.
 
 
+import json
 import logging
+import math
 import os
+import random
 import shutil
 import sys
-import json
-import math
-import random
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -217,8 +217,8 @@ class MelAudioDataset(Dataset):
         if audio.shape[1] > self.n_segments:
             frames = math.ceil(self.n_segments / self.mel_hop_size)
             start = random.randint(0, mel.shape[1] - frames - 1)
-            mel = mel[:, start: start + frames]
-            audio = audio[:, start * self.mel_hop_size: (start + frames) * self.mel_hop_size]
+            mel = mel[:, start : start + frames]
+            audio = audio[:, start * self.mel_hop_size : (start + frames) * self.mel_hop_size]
         else:
             mel = torch.nn.functional.pad(mel, (0, frames - mel.shape[1]))
             audio = torch.nn.functional.pad(audio, (0, self.n_segments - audio.shape[1]))

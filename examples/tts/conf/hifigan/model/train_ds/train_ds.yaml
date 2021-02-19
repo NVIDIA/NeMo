@@ -1,0 +1,13 @@
+# @package _group_
+dataset:
+  _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+  manifest_filepath: ${train_dataset}
+  max_duration: null
+  min_duration: 0.75
+  n_segments: 8192
+  trim: false
+dataloader_params:
+  drop_last: false
+  shuffle: true
+  batch_size: 16
+  num_workers: 4
