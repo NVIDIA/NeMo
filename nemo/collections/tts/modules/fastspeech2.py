@@ -40,6 +40,7 @@ class Encoder(NeuralModule):
         kernel_size=9,
         dropout=0.1,
         attn_dropout=0.1,
+        embed_input=True,
     ):
         """
         FastSpeech 2 encoder. Converts phoneme sequence to the phoneme hidden sequence.
@@ -68,7 +69,7 @@ class Encoder(NeuralModule):
             kernel_size=(kernel_size, 1),
             dropout=dropout,
             dropatt=attn_dropout,  # TODO: ?? Not sure if this is right, don't see it in paper
-            embed_input=True,  # For the encoder, need to do embedding lookup
+            embed_input=embed_input,  # For the encoder, need to do embedding lookup
         )
 
     @property
