@@ -58,7 +58,8 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 @dataclass
 class CallbackParams:
-    filepath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    dirpath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    filename: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     monitor: Optional[str] = "val_loss"
     verbose: Optional[bool] = True
     save_last: Optional[bool] = True
@@ -271,7 +272,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
             " logger."
         )
-    if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
+    if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
             "You are running multi-node without slurm. Please note that this is not tested in NeMo and could result in "
             "errors."
@@ -453,7 +454,7 @@ def get_log_dir(
         version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
         if version is None:
-            if trainer.is_slurm_managing_tasks:
+            if check_slurm(trainer):
                 logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
                 version = ""
             elif is_global_rank_zero():
@@ -600,8 +601,10 @@ def configure_checkpointing(
         )
 
     # Create the callback and attach it to trainer
-    if params.filepath is None:
-        params.filepath = Path(log_dir / 'checkpoints' / f'--{{{params.monitor}:.2f}}-{{epoch}}')
+    if params.dirpath is None:
+        params.dirpath = Path(log_dir / 'checkpoints')
+    if params.filename is None:
+        params.filename = f'--{{{params.monitor}:.2f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
 
@@ -615,3 +618,10 @@ def configure_checkpointing(
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
     trainer.callbacks.append(checkpoint_callback)
+
+
+def check_slurm(trainer):
+    try:
+        return trainer.is_slurm_managing_tasks
+    except AttributeError:
+        return False
