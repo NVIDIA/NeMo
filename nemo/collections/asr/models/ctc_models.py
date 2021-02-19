@@ -130,25 +130,34 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
         )
 
     @torch.no_grad()
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False) -> List[str]:
+    def transcribe(
+        self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False, return_hypotheses: bool = False
+    ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
-
             paths2audio_files: (a list) of paths to audio files. \
-        Recommended length per file is between 5 and 25 seconds. \
-        But it is possible to pass a few hours long file if enough GPU memory is available.
-            batch_size: (int) batch size to use during inference. \
-        Bigger will result in better throughput performance but would use more memory.
+                Recommended length per file is between 5 and 25 seconds. \
+                But it is possible to pass a few hours long file if enough GPU memory is available.
+            batch_size: (int) batch size to use during inference.
+                Bigger will result in better throughput performance but would use more memory.
             logprobs: (bool) pass True to get log probabilities instead of transcripts.
+            return_hypotheses: (bool) Either return hypotheses or text
+                With hypotheses can do some postprocessing like getting timestamp or rescoring
 
         Returns:
-
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
+
+        if return_hypotheses and logprobs:
+            raise ValueError(
+                "Either `return_hypotheses` or `logprobs` can be True at any given time."
+                "Returned hypotheses will contain the logprobs."
+            )
+
         # We will store transcriptions here
         hypotheses = []
         # Model's mode and device
@@ -183,9 +192,17 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                         for idx in range(logits.shape[0]):
                             hypotheses.append(logits[idx][: logits_len[idx]])
                     else:
-                        hypotheses += self._wer.ctc_decoder_predictions_tensor(
-                            greedy_predictions, predictions_len=logits_len
+                        current_hypotheses = self._wer.ctc_decoder_predictions_tensor(
+                            greedy_predictions, predictions_len=logits_len, return_hypotheses=return_hypotheses,
                         )
+
+                        if return_hypotheses:
+                            # dump log probs per file
+                            for idx in range(logits.shape[0]):
+                                current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
+
+                        hypotheses += current_hypotheses
+
                     del greedy_predictions
                     del logits
                     del test_batch

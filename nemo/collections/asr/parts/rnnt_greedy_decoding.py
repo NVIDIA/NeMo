@@ -42,7 +42,7 @@ def pack_hypotheses(
     hypotheses: List[List[int]],
     timesteps: List[List[int]],
     logitlen: torch.Tensor,
-    alignments: Optional[List[List[torch.Tensor]]] = None,
+    alignments: Optional[List[List[int]]] = None,
 ) -> List[rnnt_utils.Hypothesis]:
     logitlen_cpu = logitlen.to("cpu")
     return [
@@ -240,7 +240,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
             hypotheses = []
             timesteps = []
-            alignments = []
+            alignments = [] if self.preserve_alignments else None
             # Process each sequence independently
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 for batch_idx in range(encoder_output.size(0)):
@@ -249,7 +249,9 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     sentence, timestep, alignment = self._greedy_decode(inseq, logitlen)
                     hypotheses.append(sentence)
                     timesteps.append(timestep)
-                    alignments.append(alignment)
+
+                    if self.preserve_alignments:
+                        alignments.append(alignment)
 
             # Pack results into Hypotheses
             packed_result = pack_hypotheses(hypotheses, timesteps, encoded_lengths, alignments=alignments)
@@ -317,7 +319,6 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
                     if self.preserve_alignments:
                         # convert Ti-th logits into a torch array
-                        alignments[-1] = torch.tensor(alignments[-1], dtype=torch.long)
                         alignments.append([])  # blank buffer for next timestep
                 else:
                     # Append token to label set, update RNN state.
@@ -407,10 +408,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                hypotheses, timesteps, logprobs = self._greedy_decode(inseq, logitlen, device=inseq.device)
+                hypotheses, timesteps, alignments = self._greedy_decode(inseq, logitlen, device=inseq.device)
 
             # Pack the hypotheses results
-            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen, alignments=logprobs)
+            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen, alignments=alignments)
 
             del hypotheses, timesteps
 
@@ -524,7 +525,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                 if len(alignments[batch_idx][-1]) > 0:
                                     # alignments[batch_idx][-1] = torch.stack(alignments[batch_idx][-1], dim=0)
                                     # alignments[batch_idx][-1] = alignments[batch_idx][-1].max(1)[1]
-                                    alignments[batch_idx][-1] = torch.tensor(alignments[batch_idx][-1], dtype=torch.long)
                                     alignments[batch_idx].append([])  # blank buffer for next timestep
                     else:
                         # Collect batch indices where blanks occurred now/past
@@ -676,7 +676,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                             # If current timestep > sample-level AM length, no logprobs will be added
                             # Therefore the list of Uj logprobs is empty here.
                             if len(alignments[batch_idx][-1]) > 0:
-                                alignments[batch_idx][-1] = torch.tensor(alignments[batch_idx][-1], dtype=torch.long)
                                 alignments[batch_idx].append([])  # blank buffer for next timestep
                 else:
                     # Collect batch indices where blanks occurred now/past
