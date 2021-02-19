@@ -37,8 +37,7 @@ model:
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.data.datalayers.MelAudioDataset"
-      manifest_filepath: "/home/tlv/data/LJSpeech-1.1/train_finetune.txt"
-      # manifest_filepath: "/home/tlv/data/LJSpeech-1.1/train_finetune_debug.txt"
+      manifest_filepath: ${train_dataset}
       min_duration: 0.75
       n_segments: 8192
     dataloader_params:
@@ -50,8 +49,7 @@ model:
   validation_ds:
     dataset:
       _target_: "nemo.collections.tts.data.datalayers.MelAudioDataset"
-      manifest_filepath: "/home/tlv/data/LJSpeech-1.1/val_finetune.txt"
-      # manifest_filepath: "/home/tlv/data/LJSpeech-1.1/train_finetune_debug.txt"
+      manifest_filepath: ${validation_datasets}
       min_duration: 3
       n_segments: 66150
     dataloader_params:
@@ -88,6 +86,8 @@ model:
     _target_: torch.optim.AdamW
     lr: 0.0002
     betas: [0.8, 0.99]
+
+  denoise_strength: 0.0025
 
 trainer:
   gpus: -1 # number of gpus
