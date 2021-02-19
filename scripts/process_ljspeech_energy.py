@@ -16,15 +16,17 @@ Extracts energy data from LJSpeech wav files and writes them to a directory as .
 """
 import argparse
 import glob
+import os
+
 import librosa
 import numpy as np
-import os
 import torch
 
 parser = argparse.ArgumentParser(description="Extracts energy (L2-norm of STFT frame amplitudes) from LJSpeech data.")
 parser.add_argument("--wav_dir", required=True, default=None, type=str)
 parser.add_argument("--target_dir", required=True, default=None, type=str)
 args = parser.parse_args()
+
 
 def main():
     wavfile_list = glob.glob(os.path.join(args.wav_dir, '*.wav'))
@@ -36,7 +38,7 @@ def main():
 
         # Calculate energy
         stft_amplitude = np.abs(librosa.stft(audio, n_fft=1024, hop_length=256, win_length=1024))
-        energy = np.linalg.norm(stft_amplitude, axis=0)     # axis=0 since librosa.stft -> (freq bins, frames)
+        energy = np.linalg.norm(stft_amplitude, axis=0)  # axis=0 since librosa.stft -> (freq bins, frames)
 
         # Save to new file
         save_path = os.path.join(args.target_dir, f"{basename}_l2_stft_energy.npy")
@@ -45,6 +47,7 @@ def main():
         count += 1
         if count % 1000 == 0:
             print(f"Finished processing {count} wav files")
+
 
 if __name__ == '__main__':
     main()

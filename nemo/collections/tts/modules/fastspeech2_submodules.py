@@ -23,9 +23,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
-# from common.text.symbols import pad_idx, symbols
-
 from nemo.utils import logging
+
+# from common.text.symbols import pad_idx, symbols
 
 
 class PositionalEmbedding(nn.Module):
@@ -385,6 +385,34 @@ class LengthRegulator(nn.Module):
             out_list.append(repeated)
 
         return torch.stack(out_list)
+
+
+class LengthRegulator2(nn.Module):
+    def forward(self, x, dur):
+        output = []
+        for x_i, dur_i in zip(x, dur):
+            expanded = self.expand(x_i, dur_i)
+            output.append(expanded)
+        output = self.pad(output)
+        return output
+
+    def expand(self, x, dur):
+        output = []
+        for i, frame in enumerate(x):
+            expanded_len = int(dur[i] + 0.5)
+            expanded = frame.expand(expanded_len, -1)
+            output.append(expanded)
+        output = torch.cat(output, 0)
+        return output
+
+    def pad(self, x):
+        output = []
+        max_len = max([x[i].size(0) for i in range(len(x))])
+        for i, seq in enumerate(x):
+            padded = F.pad(seq, [0, 0, 0, max_len - seq.size(0)], 'constant', 0.0)
+            output.append(padded)
+        output = torch.stack(output)
+        return output
 
 
 class DilatedResidualConvBlock(nn.Module):
