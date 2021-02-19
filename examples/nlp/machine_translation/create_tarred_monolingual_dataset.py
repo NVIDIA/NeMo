@@ -13,59 +13,17 @@
 # limitations under the License.
 
 import argparse
-import json
 import os
-import pickle
-import tarfile
-import tempfile
 
-from nemo.collections.nlp.data import TranslationOneSideDataset
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-
-
-def write_batches_to_tarfiles(
-    args, fname, num_tokens, tokenizer, num_files_in_tar, tar_file_ptr, tar_file_ctr, global_batch_ctr,
-):
-    """
-    Writes current fragment of the overall parallel corpus to tarfiles by:
-    (1) Creating a minibatches using a TranslationDataset object.
-    (2) Writing each minibatch to a pickle file.
-    (3) Adding pickle files to a tarfile until it reaches args.num_batches_per_tarfile.
-    """
-
-    dataset = TranslationOneSideDataset(
-        tokenizer=tokenizer,
-        dataset=fname,
-        tokens_in_batch=num_tokens,
-        clean=args.clean,
-        max_seq_length=args.max_seq_length,
-        min_seq_length=args.min_seq_length,
-        cache_ids=False,
-    )
-
-    for batch in dataset.batches:
-        global_batch_ctr += 1
-        batch = {'src': batch}
-        pickle.dump(batch, open(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)), 'wb'))
-
-        if num_files_in_tar == args.num_batches_per_tarfile:
-            tar_file_ctr += 1
-            tar_file_ptr.close()
-            tar_file_ptr = tarfile.open(
-                os.path.join(args.out_dir, 'batches.tokens.%d.%d.tar' % (num_tokens, tar_file_ctr)), 'w'
-            )
-            num_files_in_tar = 0
-
-        tar_file_ptr.add(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
-        num_files_in_tar += 1
-        os.remove(os.path.join(args.out_dir, 'batch-%d.pkl' % (global_batch_ctr)))
-    return tar_file_ptr, global_batch_ctr, num_files_in_tar, tar_file_ctr
-
+from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NMT dataset pre-processing')
-    parser.add_argument('--tokenizer', type=str, required=True, help='Path to tokenizer')
+    parser.add_argument('--tokenizer_model', type=str, required=True, help='Path to tokenizer model')
+    parser.add_argument('--tokenizer_name', type=str, default='yttm', help='BPE Tokenizer Name, Options: [yttm]')
+    parser.add_argument('--bpe_droput', type=float, default=0.0, help='BPE dropout to use')
     parser.add_argument('--clean', action="store_true", help='Whether to clean dataset based on length diff')
+    parser.add_argument('--pkl_file_prefix', type=str, default='parallel', help='Prefix for tar and pickle files')
     parser.add_argument('--fname', type=str, required=True, help='Path to monolingual data file')
     parser.add_argument('--out_dir', type=str, required=True, help='Path to store dataloader and tokenizer models')
     parser.add_argument('--max_seq_length', type=int, default=512, help='Max Sequence Length')
@@ -87,59 +45,24 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if not os.path.exists(args.out_dir):
         os.mkdir(args.out_dir)
-    if not os.path.exists(args.tokenizer):
+    if not os.path.exists(args.tokenizer_model):
         assert FileNotFoundError("Could not find tokenizer model %s" % (args.tokenizer))
 
-    tokenizer = get_tokenizer(tokenizer_name='yttm', tokenizer_model=args.tokenizer, bpe_dropout=0)
-
-    tokens_in_batch = args.tokens_in_batch
-    tar_file_ctr = 1
-    num_files_in_tar = 0
-    num_lines = 0
-    shard_num = 0
-    global_batch_ctr = 0
-    tmp_f = tempfile.NamedTemporaryFile(delete=False, mode='w')
-    tar_file_ptr = tarfile.open(os.path.join(args.out_dir, 'batches.tokens.%d.%d.tar' % (tokens_in_batch, 1)), 'w')
-    with open(args.fname, 'r') as f:
-        for line in f:
-            tmp_f.write(line)
-            num_lines += 1
-
-            if num_lines == args.lines_per_dataset_fragment:
-                tmp_f.close()
-                tar_file_ptr, global_batch_ctr, num_files_in_tar, tar_file_ctr = write_batches_to_tarfiles(
-                    args,
-                    tmp_f.name,
-                    tokens_in_batch,
-                    tokenizer,
-                    num_files_in_tar=num_files_in_tar,
-                    tar_file_ptr=tar_file_ptr,
-                    tar_file_ctr=tar_file_ctr,
-                    global_batch_ctr=global_batch_ctr,
-                )
-
-                num_lines = 0
-                shard_num += 1
-                os.remove(tmp_f.name)
-                tmp_f = tempfile.NamedTemporaryFile(delete=False, mode='w')
-
-    tmp_f.close()
-    tar_file_ptr, global_batch_ctr, num_files_in_tar, tar_file_ctr = write_batches_to_tarfiles(
-        args,
-        tmp_f.name,
-        tokens_in_batch,
-        tokenizer,
-        num_files_in_tar=num_files_in_tar,
-        tar_file_ptr=tar_file_ptr,
-        tar_file_ctr=tar_file_ctr,
-        global_batch_ctr=global_batch_ctr,
+    tokenizer_model = MTDataPreproc.get_monolingual_tokenizer(
+        tokenizer_name=args.tokenizer_name, tokenizer_model=args.tokenizer_model, bpe_dropout=args.bpe_droput
     )
-    tar_file_ptr.close()
-    os.remove(tmp_f.name)
 
-    if num_files_in_tar != args.num_batches_per_tarfile:
-        os.remove(os.path.join(args.out_dir, 'batches.tokens.%d.%d.tar' % (tokens_in_batch, tar_file_ctr)))
-        global_batch_ctr -= num_files_in_tar
-        print('Dropping %d batches because of overflow' % (num_files_in_tar))
-
-    json.dump({'num_batches': global_batch_ctr}, open(os.path.join(args.out_dir, 'metadata.json'), 'w'))
+    MTDataPreproc.preprocess_monolingual_dataset(
+        clean=args.clean,
+        fname=args.fname,
+        out_dir=args.out_dir,
+        tokenizer=tokenizer_model,
+        max_seq_length=args.max_seq_length,
+        min_seq_length=args.min_seq_length,
+        tokens_in_batch=args.tokens_in_batch,
+        lines_per_dataset_fragment=args.lines_per_dataset_fragment,
+        num_batches_per_tarfile=args.num_batches_per_tarfile,
+        pkl_file_prefix=args.pkl_file_prefix,
+        global_rank=0,
+        world_size=1,
+    )
