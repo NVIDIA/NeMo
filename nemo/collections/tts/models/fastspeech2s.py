@@ -27,7 +27,7 @@ from nemo.collections.tts.modules.fastspeech2s import (
     discriminator_loss,
 )
 from nemo.core.classes import ModelPT
-from nemo.collections.tts.modules.fastspeech2_submodules import VariancePredictor, LengthRegulator
+from nemo.collections.tts.modules.fastspeech2_submodules import VariancePredictor, LengthRegulator2
 
 
 class DurationLoss(torch.nn.Module):
@@ -56,7 +56,7 @@ class FastSpeech2SModel(ModelPT):
         self.encoder = FFTBlocks(max_seq_len=384, name="enc", n_layers=4)
 
         self.duration_predictor = VariancePredictor(d_model=256, d_inner=256, kernel_size=3, dropout=0.2)
-        self.length_regulator = LengthRegulator()
+        self.length_regulator = LengthRegulator2()
 
         self.generator = instantiate(self._cfg.generator)
         self.multiperioddisc = MultiPeriodDiscriminator()
