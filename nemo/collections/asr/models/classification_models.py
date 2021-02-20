@@ -536,9 +536,10 @@ class EncDecClassificationModel(_EncDecBaseModel):
         }
 
         self._accuracy(logits=logits, labels=labels)
-        top_k = self._accuracy.compute()
-        for i, top_i in enumerate(top_k):
-            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
+        topk_scores = self._accuracy.compute()
+
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            tensorboard_logs[f'training_batch_accuracy_top@{top_k}'] = score
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
