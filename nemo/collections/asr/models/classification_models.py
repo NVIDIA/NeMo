@@ -530,17 +530,18 @@ class EncDecClassificationModel(_EncDecBaseModel):
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+        self.log('train_loss', loss_value)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         self._accuracy(logits=logits, labels=labels)
         top_k = self._accuracy.compute()
-        for i, top_i in enumerate(top_k):
-            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        for i, top_i in enumerate(top_k):
+            self.log(f'training_batch_accuracy_top@{i}', top_i)
+
+        return {
+            'loss': loss_value,
+        }
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
@@ -577,11 +578,14 @@ class EncDecClassificationModel(_EncDecBaseModel):
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        tensorboard_log = {'val_loss': val_loss_mean}
-        for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
+        self.log('val_loss', val_loss_mean)
 
-        return {'log': tensorboard_log}
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            self.log('val_epoch_top@{}'.format(top_k), score)
+
+        return {
+            'val_loss': val_loss_mean,
+        }
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
@@ -592,11 +596,13 @@ class EncDecClassificationModel(_EncDecBaseModel):
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        tensorboard_log = {'test_loss': test_loss_mean}
+        self.log('test_loss', test_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
+            self.log('test_epoch_top@{}'.format(top_k), score)
 
-        return {'log': tensorboard_log}
+        return {
+            'test_loss': test_loss_mean,
+        }
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
@@ -735,7 +741,9 @@ class EncDecRegressionModel(_EncDecBaseModel):
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
 
-        return {'loss': loss, 'log': tensorboard_logs}
+        self.log_dict(tensorboard_logs)
+
+        return {'loss': loss}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, targets, targets_len = batch
@@ -757,8 +765,8 @@ class EncDecRegressionModel(_EncDecBaseModel):
         val_mae = self._mae.compute()
 
         tensorboard_logs = {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae}
-
-        return {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae, 'log': tensorboard_logs}
+        self.log_dict(tensorboard_logs)
+        return {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
@@ -766,8 +774,8 @@ class EncDecRegressionModel(_EncDecBaseModel):
         test_mae = self._mae.compute()
 
         tensorboard_logs = {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae}
-
-        return {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae, 'log': tensorboard_logs}
+        self.log_dict(tensorboard_logs)
+        return {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae}
 
     @torch.no_grad()
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[float]:
