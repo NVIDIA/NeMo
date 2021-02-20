@@ -20,7 +20,9 @@ from dataclasses import dataclass
 import torch
 from omegaconf.omegaconf import MISSING
 from torch import nn
+from torch import Tensor
 from torch.nn.functional import gelu
+from typing import Dict, Optional
 
 __all__ = ["TransformerEmbedding"]
 
@@ -88,7 +90,7 @@ class TransformerEmbedding(nn.Module):
         self.layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
         self.dropout = nn.Dropout(embedding_dropout)
 
-    def forward(self, input_ids, token_type_ids=None, start_pos=0):
+    def forward(self, input_ids: Tensor, token_type_ids: Optional[Tensor]=None, start_pos: int=0):
         seq_length = input_ids.size(1)
         if seq_length > self.max_sequence_length:
             raise ValueError(

@@ -51,3 +51,11 @@ class TestMTEncDecModel:
             # attempt to restore
             model_copy = model.__class__.restore_from(restore_path=model_restore_path)
             assert model.num_weights == model_copy.num_weights
+
+            filename = os.path.join(restore_folder, 'nmt.onnx')
+            model.export(output=filename, try_script=True, verbose=True)
+
+if __name__ == "__main__":
+    t = TestMTEncDecModel()
+    t.test_creation_saving_restoring()
+

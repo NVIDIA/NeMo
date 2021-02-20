@@ -104,3 +104,11 @@ class EncDecNLPModel(NLPModel):
             tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
             bpe_dropout=decoder_bpe_dropout,
         )
+
+    @property
+    def input_module(self):
+        return self.encoder
+
+    @property
+    def output_module(self):
+        return self.decoder
