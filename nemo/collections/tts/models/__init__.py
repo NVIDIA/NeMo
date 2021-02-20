@@ -15,6 +15,7 @@
 from nemo.collections.tts.models.degli import DegliModel
 from nemo.collections.tts.models.ed_mel2spec import EDMel2SpecModel
 from nemo.collections.tts.models.glow_tts import GlowTTSModel
+from nemo.collections.tts.models.hifigan import HifiGanModel
 from nemo.collections.tts.models.melgan import MelGanModel
 from nemo.collections.tts.models.squeezewave import SqueezeWaveModel
 from nemo.collections.tts.models.tacotron2 import Tacotron2Model
@@ -37,4 +38,5 @@ __all__ = [
     "TalkNetSpectModel",
     "UniGlowModel",
     "MelGanModel",
+    "HifiGanModel",
 ]
