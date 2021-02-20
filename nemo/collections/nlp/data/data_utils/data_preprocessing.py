@@ -374,7 +374,7 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True, cache_
         logging.info("Loading cached tokenized dataset ...")
         ids = pickle.load(open(cached_ids_dataset, "rb"))
     else:
-        logging.info("Tokenizing dataset ...")
+        logging.info(f"Tokenizing dataset {dataset}...")
         data = open(dataset, "rb").readlines()
         ids = []
         for sentence in tqdm(data, desc='Tokenizing sentence'):
