@@ -534,10 +534,10 @@ class EncDecClassificationModel(_EncDecBaseModel):
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         self._accuracy(logits=logits, labels=labels)
-        top_k = self._accuracy.compute()
+        topk_scores = self._accuracy.compute()
 
-        for i, top_i in enumerate(top_k):
-            self.log(f'training_batch_accuracy_top@{i}', top_i)
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            self.log('training_batch_accuracy_top@{}'.format(top_k), score)
 
         return {
             'loss': loss_value,
