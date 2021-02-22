@@ -42,6 +42,9 @@ def get_nemo_transformer(
         checkpoint_file (Optional[str], optional): load weights from path to local checkpoint. Defaults to None.
         encoder (bool, optional): True will use EncoderTransformerNM, False will use DecoderTransformerNM. Defaults to True.
     """
+    if model_name is not None:
+        raise ValueError(f'NeMo transformers cannot be loaded from NGC yet. model_name should be None')
+
     cfg = None
 
     if config_dict is not None:
@@ -52,8 +55,8 @@ def get_nemo_transformer(
             and config_dict.get('inner_size') is not None
         ), 'vocab_size, hidden_size, num_layers, and inner_size must are mandatory arguments'
         cfg = config_dict
-    elif model_name is not None:
-        logging.info(f'NeMo transformers cannot be loaded from NGC yet. Using {model_name} with configuration {cfg}.')
+    else:
+        raise ValueError(f'NeMo transformers cannot be loaded from NGC yet. config_dict should not be None')
 
     if encoder:
         model = TransformerEncoderNM(
