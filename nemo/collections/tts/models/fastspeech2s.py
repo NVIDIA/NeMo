@@ -8,6 +8,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from torch import nn
 
+from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursDataset, GaussianEmbedding
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.tacotron2loss import L1MelLoss
@@ -34,6 +35,14 @@ class FastSpeech2SModel(ModelPT):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
+
+        self.vocab, self.gauss_emb = None, None
+        if cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset":
+            self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.vocab)
+            self.length_regulator = GaussianEmbedding(self.vocab, 256)
+        else:
+            self.length_regulator = LengthRegulator2()
+
         self.mel_loss_coeff = 1.0
         if "mel_loss_coeff" in self._cfg:
             self.mel_loss_coeff = self._cfg.mel_loss_coeff
@@ -43,7 +52,6 @@ class FastSpeech2SModel(ModelPT):
         self.encoder = Encoder(embed_input=False)
 
         self.duration_predictor = VariancePredictor(d_model=256, d_inner=256, kernel_size=3, dropout=0.2)
-        self.length_regulator = LengthRegulator2()
 
         self.generator = instantiate(self._cfg.generator)
         self.multiperioddisc = MultiPeriodDiscriminator()
@@ -144,7 +152,10 @@ class FastSpeech2SModel(ModelPT):
         return output, splices, log_duration_prediction
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        f, fl, t, tl, durations, pitch, energies = batch
+        if self.vocab is None:
+            f, fl, t, tl, durations, pitch, energies = batch
+        else:
+            f, fl, t, tl, durations = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
 
         # train discriminator
