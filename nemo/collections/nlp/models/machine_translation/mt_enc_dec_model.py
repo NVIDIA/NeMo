@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 import pickle
 import random
@@ -68,10 +69,10 @@ class MTEncDecModel(EncDecNLPModel):
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         self.setup_enc_dec_tokenizers(
-            encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
-            encoder_tokenizer_model=cfg.encoder_tokenizer.tokenizer_model,
+            encoder_tokenizer_library=cfg.encoder_tokenizer.get('tokenizer_name', 'yttm'),
+            encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
-            decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
+            decoder_tokenizer_library=cfg.decoder_tokenizer.get('tokenizer_name', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
         )
@@ -247,6 +248,34 @@ class MTEncDecModel(EncDecNLPModel):
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
+
+    def setup_enc_dec_tokenizers(
+        self,
+        encoder_tokenizer_library=None,
+        encoder_tokenizer_model=None,
+        encoder_bpe_dropout=0.0,
+        decoder_tokenizer_library=None,
+        decoder_tokenizer_model=None,
+        decoder_bpe_dropout=0.0,
+    ):
+
+        supported_tokenizers = ['yttm', 'huggingface']
+        if (
+            encoder_tokenizer_library not in supported_tokenizers
+            or decoder_tokenizer_library not in supported_tokenizers
+        ):
+            raise NotImplementedError(f"Currently we only support tokenizers in {supported_tokenizers}.")
+
+        self.encoder_tokenizer = get_nmt_tokenizer(
+            library=encoder_tokenizer_library,
+            tokenizer_model=self.register_artifact("cfg.encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
+            bpe_dropout=encoder_bpe_dropout,
+        )
+        self.decoder_tokenizer = get_nmt_tokenizer(
+            library=decoder_tokenizer_library,
+            tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
+            bpe_dropout=decoder_bpe_dropout,
+        )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)

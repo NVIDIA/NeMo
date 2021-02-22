@@ -93,3 +93,24 @@ def get_tokenizer(
     return AutoTokenizer(
         pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
     )
+
+
+def get_nmt_tokenizer(
+    library: str = 'yttm',
+    model_name: Optional[str] = None,
+    tokenizer_model: Optional[str] = None,
+    vocab_file: Optional[str] = None,
+    special_tokens: Optional[Dict[str, str]] = None,
+    use_fast: Optional[bool] = False,
+    bpe_dropout: Optional[float] = 0.0,
+):
+    """
+    Args:
+        model_name: if using a pretrained model from NeMo or HuggingFace
+        tokenizer_model: tokenizer model file of sentencepiece or youtokentome
+        special_tokens: dict of special tokens
+        vocab_file: path to vocab file
+        use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
+    """
+    if library == 'yttm':
+        return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
