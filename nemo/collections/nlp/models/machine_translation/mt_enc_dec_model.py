@@ -78,10 +78,7 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.src_language: str = cfg.get("src_language", None)
         self.tgt_language: str = cfg.get("tgt_language", None)
-        self.sentencepiece_model = cfg.get(
-            "sentencepiece_model",
-            "nemo/collections/nlp/data/neural_machine_translation/spm.128k.model"
-        )
+        self.sentencepiece_model = cfg.get("sentencepiece_model", None)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
