@@ -45,6 +45,9 @@ def get_nemo_transformer(
     if model_name is not None:
         raise ValueError(f'NeMo transformers cannot be loaded from NGC yet. model_name should be None')
 
+    if pretrained:
+        raise ValueError(f'NeMo transformers cannot be loaded from NGC yet. pretrained should be False')
+
     cfg = None
 
     if config_dict is not None:

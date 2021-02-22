@@ -120,17 +120,13 @@ def get_transformer(
     model = None
 
     if library == 'nemo':
-        if model_name is not None:
-            logging.error(f'NeMo transformers cannot be loaded from NGC yet.')
-
-        model = get_nemo_transformer(model_name, config_dict, encoder)
+        model = get_nemo_transformer(
+            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder,
+        )
 
         if checkpoint_file is not None:
             if os.path.isfile(checkpoint_file):
-                logging.info(f'Checkpoint found at {checkpoint_file} will be used to restore weights.')
-                logging.error(f'Loading transformer weights from checkpoint file has not been implemented yet.')
-            else:
-                logging.error(f'Checkpoint not found at {checkpoint_file}.')
+                raise ValueError(f'Loading transformer weights from checkpoint file has not been implemented yet.')
 
     elif library == 'huggingface':
         if model_name is not None:
