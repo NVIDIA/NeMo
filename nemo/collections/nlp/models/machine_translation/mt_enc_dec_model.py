@@ -37,6 +37,7 @@ from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.pangu_jieba_detokenizer import PanguJiebaDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -77,6 +78,10 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.src_language: str = cfg.get("src_language", None)
         self.tgt_language: str = cfg.get("tgt_language", None)
+        self.sentencepiece_model = cfg.get(
+            "sentencepiece_model",
+            "nemo/collections/nlp/data/neural_machine_translation/spm.128k.model"
+        )
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -374,18 +379,25 @@ class MTEncDecModel(EncDecNLPModel):
             target_lang = self.tgt_language
 
         mode = self.training
-        if source_lang not in ['zh', 'ja']:
-            tokenizer = MosesTokenizer(lang=source_lang)
-            normalizer = MosesPunctNormalizer(lang=source_lang)
-        elif source_lang == 'ja':
-            raise NotImplementedError("Input tokenization for Japanese is not implemented yet")
+
+        if source_lang == 'ja':
+            normalizer = MosesPunctNormalizer(
+                lang=source_lang,
+                pre_replace_unicode_punct=True,
+                post_remove_control_chars=True
+            )
+            tokenizer1 = MosesTokenizer(lang=source_lang)
+            tokenizer2 = SentencePieceTokenizer(model_file=self.sentencepiece_model)
         elif source_lang == 'zh':
             normalizer = opencc.OpenCC('t2s.json')
+        else:
+            tokenizer = MosesTokenizer(lang=source_lang)
+            normalizer = MosesPunctNormalizer(lang=source_lang)
 
-        if target_lang not in ['zh']:
-            detokenizer = MosesDetokenizer(lang=target_lang)
-        elif target_lang == 'zh':
+        if target_lang == 'zh':
             detokenizer = PanguJiebaDetokenizer()
+        else:
+            detokenizer = MosesDetokenizer(lang=target_lang)
 
         try:
             self.eval()
@@ -395,6 +407,10 @@ class MTEncDecModel(EncDecNLPModel):
                     if source_lang == "zh":
                         txt = normalizer.convert(txt)
                         txt = ' '.join(jieba.cut(txt))
+                    elif source_lang == "ja":
+                        txt = normalizer.normalize(txt)
+                        txt = tokenizer1.tokenize(txt, escape=False, return_str=True)
+                        txt = tokenizer2.encode(txt, out_type=str)
                     else:
                         txt = normalizer.normalize(txt)
                         txt = tokenizer.tokenize(txt, escape=False, return_str=True)
