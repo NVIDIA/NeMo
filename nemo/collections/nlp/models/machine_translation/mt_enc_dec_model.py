@@ -82,58 +82,24 @@ class MTEncDecModel(EncDecNLPModel):
         # TODO: Why is this base constructor call so late in the game?
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # TODO: use get_encoder function with support for HF and Megatron
+        # encoder from NeMo, Megatron-LM, or HuggingFace
         encoder_cfg_dict = OmegaConf.to_container(cfg.get('encoder'))
         encoder_cfg_dict['vocab_size'] = self.encoder_vocab_size
         library = encoder_cfg_dict.pop('library', 'nemo')
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         self.encoder = get_transformer(
-            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=True
         )
 
-        # TODO: move to get_nemo_transformer
-        self.encoder = TransformerEncoderNM(
-            vocab_size=self.encoder_vocab_size,
-            hidden_size=cfg.encoder.hidden_size,
-            num_layers=cfg.encoder.num_layers,
-            inner_size=cfg.encoder.inner_size,
-            max_sequence_length=cfg.encoder.max_sequence_length
-            if hasattr(cfg.encoder, 'max_sequence_length')
-            else 512,
-            embedding_dropout=cfg.encoder.embedding_dropout if hasattr(cfg.encoder, 'embedding_dropout') else 0.0,
-            learn_positional_encodings=cfg.encoder.learn_positional_encodings
-            if hasattr(cfg.encoder, 'learn_positional_encodings')
-            else False,
-            num_attention_heads=cfg.encoder.num_attention_heads,
-            ffn_dropout=cfg.encoder.ffn_dropout,
-            attn_score_dropout=cfg.encoder.attn_score_dropout,
-            attn_layer_dropout=cfg.encoder.attn_layer_dropout,
-            hidden_act=cfg.encoder.hidden_act,
-            mask_future=cfg.encoder.mask_future,
-            pre_ln=cfg.encoder.pre_ln,
-        )
-
-        # TODO: user get_decoder function with support for HF and Megatron
-        # TODO: move to get_nemo_transformer
-        self.decoder = TransformerDecoderNM(
-            vocab_size=self.decoder_vocab_size,
-            hidden_size=cfg.decoder.hidden_size,
-            num_layers=cfg.decoder.num_layers,
-            inner_size=cfg.decoder.inner_size,
-            max_sequence_length=cfg.decoder.max_sequence_length
-            if hasattr(cfg.decoder, 'max_sequence_length')
-            else 512,
-            embedding_dropout=cfg.decoder.embedding_dropout if hasattr(cfg.decoder, 'embedding_dropout') else 0.0,
-            learn_positional_encodings=cfg.decoder.learn_positional_encodings
-            if hasattr(cfg.decoder, 'learn_positional_encodings')
-            else False,
-            num_attention_heads=cfg.decoder.num_attention_heads,
-            ffn_dropout=cfg.decoder.ffn_dropout,
-            attn_score_dropout=cfg.decoder.attn_score_dropout,
-            attn_layer_dropout=cfg.decoder.attn_layer_dropout,
-            hidden_act=cfg.decoder.hidden_act,
-            pre_ln=cfg.decoder.pre_ln,
+        # decoder from NeMo, Megatron-LM, or HuggingFace
+        decoder_cfg_dict = OmegaConf.to_container(cfg.get('decoder'))
+        decoder_cfg_dict['vocab_size'] = self.decoder_vocab_size
+        library = decoder_cfg_dict.pop('library', 'nemo')
+        model_name = decoder_cfg_dict.pop('model_name', None)
+        pretrained = decoder_cfg_dict.pop('pretrained', False)
+        self.decoder = get_transformer(
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=False
         )
 
         self.log_softmax = TokenClassifier(

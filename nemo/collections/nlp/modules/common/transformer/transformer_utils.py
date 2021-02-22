@@ -21,21 +21,22 @@ from typing import Optional, Union
 
 
 def get_nemo_transformer(
-    pretrained_model_name: Optional[str] = None,
+    model_name: Optional[str] = None,
+    pretrained: bool = False,
     config_dict: Optional[Union[dict, DictConfig]] = None,
     encoder: bool = True,
 ) -> Union[TransformerEncoderNM, TransformerDecoderNM]:
-    """Returns NeMo transformer. Module configuration will be taken in the following order of precedence:
-    config_file > config_dict > pretrained_model_name.
+    """Returns NeMo transformer.
     The following configurations are mandatory:
         vocab_size: int
         hidden_size: int
         num_layers: int
         inner_size: int
-    and must be specified if using config_dict or config_file.
+    and must be specified if using config_dict.
 
     Args:
-        pretrained_model_name (Optional[str]): model name to download from NGC
+        model_name (Optional[str]): model name to download from NGC
+        pretrained: (bool): False will instantiate the named model architecture with random weights.
         config_dict (Optional[dict], optional): model configuration parameters. Defaults to None.
         config_file (Optional[str], optional): path to json file containing model configuration. Defaults to None.
         checkpoint_file (Optional[str], optional): load weights from path to local checkpoint. Defaults to None.
@@ -51,14 +52,41 @@ def get_nemo_transformer(
             and config_dict.get('inner_size') is not None
         ), 'vocab_size, hidden_size, num_layers, and inner_size must are mandatory arguments'
         cfg = config_dict
-    elif pretrained_model_name is not None:
-        logging.info(
-            f'NeMo transformers cannot be loaded from NGC yet. Using {pretrained_model_name} with configuration {cfg}.'
-        )
+    elif model_name is not None:
+        logging.info(f'NeMo transformers cannot be loaded from NGC yet. Using {model_name} with configuration {cfg}.')
 
     if encoder:
-        model = TransformerEncoderNM(**cfg)
+        model = TransformerEncoderNM(
+            vocab_size=cfg.get('vocab_size'),
+            hidden_size=cfg.get('hidden_size'),
+            num_layers=cfg.get('num_layers'),
+            inner_size=cfg.get('inner_size'),
+            max_sequence_length=cfg.get('max_sequence_length', 512),
+            embedding_dropout=cfg.get('embedding_dropout', 0.0),
+            learn_positional_encodings=cfg.get('learn_positional_encodings', False),
+            num_attention_heads=cfg.get('num_attention_heads'),
+            ffn_dropout=cfg.get('ffn_dropout', 0.0),
+            attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
+            attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
+            hidden_act=cfg.get('hidden_act', 'relu'),
+            mask_future=cfg.get('mask_future', False),
+            pre_ln=cfg.get('pre_ln', False),
+        )
     else:
-        model = TransformerDecoderNM(**cfg)
+        model = TransformerDecoderNM(
+            vocab_size=cfg.get('vocab_size'),
+            hidden_size=cfg.get('hidden_size'),
+            num_layers=cfg.get('num_layers'),
+            inner_size=cfg.get('inner_size'),
+            max_sequence_length=cfg.get('max_sequence_length', 512),
+            embedding_dropout=cfg.get('embedding_dropout', 0.0),
+            learn_positional_encodings=cfg.get('learn_positional_encodings', False),
+            num_attention_heads=cfg.get('num_attention_heads'),
+            ffn_dropout=cfg.get('ffn_dropout', 0.0),
+            attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
+            attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
+            hidden_act=cfg.get('hidden_act', 'relu'),
+            pre_ln=cfg.get('pre_ln', False),
+        )
 
     return model
