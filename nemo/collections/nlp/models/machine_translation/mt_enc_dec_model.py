@@ -78,7 +78,10 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.src_language: str = cfg.get("src_language", None)
         self.tgt_language: str = cfg.get("tgt_language", None)
-        self.sentencepiece_model = cfg.get("sentencepiece_model", None)
+        # self.sentencepiece_model = cfg.get("sentencepiece_model", None)
+        self.sentencepiece_model = self.register_artifact(
+            "cfg.sentencepiece_model", cfg.get("sentencepiece_model", None)
+        )
 
         super().__init__(cfg=cfg, trainer=trainer)
 
