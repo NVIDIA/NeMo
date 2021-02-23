@@ -98,10 +98,11 @@ class MTEncDecConfig(NemoConfig):
 
 
 @hydra_runner(config_path="conf", config_name="aayn_base")
-def main(cfg: MTEncDecConfig) -> None:
+# def main(cfg: MTEncDecConfig) -> None:
+def main(cfg) -> None:
     # merge default config with user specified config
-    default_cfg = MTEncDecConfig()
-    cfg = update_model_config(default_cfg, cfg)
+    # default_cfg = MTEncDecConfig()
+    # cfg = update_model_config(default_cfg, cfg)
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'Config: {cfg.pretty()}')
 

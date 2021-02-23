@@ -69,8 +69,8 @@ class AAYNBaseConfig(MTEncDecModelConfig):
     label_smoothing: Optional[float] = 0.0
 
     # Attention is All You Need Base Configuration
-    encoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
-    decoder_tokenizer: TokenizerConfig = TokenizerConfig(tokenizer_name='yttm')
+    encoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
+    decoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
 
     encoder: TransformerEncoderConfig = TransformerEncoderConfig(
         hidden_size=512,

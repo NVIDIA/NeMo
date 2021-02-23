@@ -70,7 +70,7 @@ model:
       warmup_ratio: 0.1
 
   encoder_tokenizer:
-    tokenizer_name: yttm
+    library: yttm
     tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
@@ -78,7 +78,7 @@ model:
     special_tokens: null
 
   decoder_tokenizer:
-    tokenizer_name: yttm
+    library: yttm
     tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null

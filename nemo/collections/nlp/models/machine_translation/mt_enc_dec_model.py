@@ -69,12 +69,14 @@ class MTEncDecModel(EncDecNLPModel):
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         self.setup_enc_dec_tokenizers(
-            encoder_tokenizer_library=cfg.encoder_tokenizer.get('tokenizer_name', 'yttm'),
+            encoder_tokenizer_library=cfg.encoder_tokenizer.get('tokenizer_library', 'yttm'),
             encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
-            decoder_tokenizer_library=cfg.decoder_tokenizer.get('tokenizer_name', 'yttm'),
+            encoder_model_name=cfg.encoder.get('model_name'),
+            decoder_tokenizer_library=cfg.decoder_tokenizer.get('tokenizer_library', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+            decoder_model_name=cfg.decoder.get('model_name'),
         )
 
         # After this call, the model will have  self.source_processor and self.target_processor objects
@@ -254,9 +256,11 @@ class MTEncDecModel(EncDecNLPModel):
         encoder_tokenizer_library=None,
         encoder_tokenizer_model=None,
         encoder_bpe_dropout=0.0,
+        encoder_model_name=None,
         decoder_tokenizer_library=None,
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
+        decoder_model_name=None,
     ):
 
         supported_tokenizers = ['yttm', 'huggingface']
@@ -270,11 +274,19 @@ class MTEncDecModel(EncDecNLPModel):
             library=encoder_tokenizer_library,
             tokenizer_model=self.register_artifact("cfg.encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
             bpe_dropout=encoder_bpe_dropout,
+            model_name=encoder_model_name,
+            vocab_file=None,
+            special_tokens=None,
+            use_fast=False,
         )
         self.decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_library,
             tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
             bpe_dropout=decoder_bpe_dropout,
+            model_name=decoder_model_name,
+            vocab_file=None,
+            special_tokens=None,
+            use_fast=False,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):

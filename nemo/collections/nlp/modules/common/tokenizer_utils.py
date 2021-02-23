@@ -40,7 +40,7 @@ def get_tokenizer_list() -> List[str]:
 
 @dataclass
 class TokenizerConfig:
-    tokenizer_name: str = MISSING
+    library: str = MISSING
     tokenizer_model: Optional[str] = None
     vocab_size: Optional[int] = None
     vocab_file: Optional[str] = None
@@ -114,3 +114,14 @@ def get_nmt_tokenizer(
     """
     if library == 'yttm':
         return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
+
+    elif library == 'huggingface':
+        if special_tokens is None:
+            special_tokens_dict = {}
+        else:
+            special_tokens_dict = special_tokens
+
+        return AutoTokenizer(
+            pretrained_model_name=model_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
+        )
+

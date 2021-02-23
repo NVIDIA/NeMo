@@ -15,6 +15,7 @@
 
 import glob
 import json
+from nemo.collections.common.tokenizers import huggingface
 import os
 import pickle
 import tarfile
@@ -61,11 +62,12 @@ class MTDataPreproc:
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         if hasattr(cfg, 'train_ds'):
+            supported_tokenizers = ['yttm', 'huggingface']
             if (
-                cfg.encoder_tokenizer.get('tokenizer_name') != 'yttm'
-                or cfg.decoder_tokenizer.get('tokenizer_name') != 'yttm'
+                not cfg.encoder_tokenizer.get('library') in supported_tokenizers
+                or not cfg.decoder_tokenizer.get('library') in supported_tokenizers
             ):
-                raise NotImplementedError(f"Currently we only support yttm tokenizer.")
+                raise NotImplementedError(f"Currently we only support {supported_tokenizers}.")
 
             # Train tokenizer models if they don't exist
             if (
@@ -86,8 +88,8 @@ class MTDataPreproc:
                     shared_tokenizer=cfg.get('shared_tokenizer'),
                     encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.get('vocab_size'),
                     decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.get('vocab_size'),
-                    encoder_tokenizer_name=cfg.encoder_tokenizer.get('tokenizer_name'),
-                    decoder_tokenizer_name=cfg.decoder_tokenizer.get('tokenizer_name'),
+                    encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
+                    decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
                     encoder_tokenizer_coverage=cfg.encoder_tokenizer.get('coverage', 0.999),
                     decoder_tokenizer_coverage=cfg.decoder_tokenizer.get('coverage', 0.999),
                     global_rank=self.global_rank,
