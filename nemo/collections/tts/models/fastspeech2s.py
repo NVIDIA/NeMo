@@ -253,26 +253,18 @@ class FastSpeech2SModel(ModelPT):
 
         return {
             "val_loss": loss,
-            "mel_target": spec,
-            "mel_pred": pred_spec,
+            "audio_target": f,
+            "audio_pred": audio_pred,
         }
 
     def validation_epoch_end(self, outputs):
         if self.tb_logger is not None:
-            _, spec_target, spec_predict = outputs[0].values()
+            _, audio_target, audio_predict = outputs[0].values()
             if not self.logged_real_samples:
-                self.tb_logger.add_image(
-                    "val_mel_target",
-                    plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
-                    self.global_step,
-                    dataformats="HWC",
-                )
+                self.tb_logger.add_audio("val_target", audio_target.data.cpu(), self.global_step, 22050)
                 self.logged_real_samples = True
-            spec_predict = spec_predict[0].data.cpu().numpy()
-            self.tb_logger.add_image(
-                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
-            )
-
+            audio_predict = audio_predict[0].data.cpu()
+            self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, 22050)
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss, sync_dist=True)
 
