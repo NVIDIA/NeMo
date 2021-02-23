@@ -379,9 +379,7 @@ class MTEncDecModel(EncDecNLPModel):
 
         if source_lang == "ja":
             normalizer = MosesPunctNormalizer(
-                lang=source_lang,
-                pre_replace_unicode_punct=True,
-                post_remove_control_chars=True
+                lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
             )
             tokenizer1 = MosesTokenizer(lang=source_lang)
             tokenizer2 = SentencePieceTokenizer(model_path=self.sentencepiece_model)
