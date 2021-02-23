@@ -384,7 +384,7 @@ class MTEncDecModel(EncDecNLPModel):
                 post_remove_control_chars=True
             )
             tokenizer1 = MosesTokenizer(lang=source_lang)
-            tokenizer2 = SentencePieceTokenizer(model_file=self.sentencepiece_model)
+            tokenizer2 = SentencePieceTokenizer(model_path=self.sentencepiece_model)
         elif source_lang == 'zh':
             normalizer = opencc.OpenCC('t2s.json')
         else:
