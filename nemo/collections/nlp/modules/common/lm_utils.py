@@ -113,10 +113,6 @@ def get_transformer(
     encoder: bool = True,
 ) -> Union[EncoderModule, DecoderModule]:
 
-    assert model_name is None or (
-        config_dict is None or config_dict == {}
-    ), 'Only one of model_name or config_dict should be used'
-
     model = None
 
     if library == 'nemo':

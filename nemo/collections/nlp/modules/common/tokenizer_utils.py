@@ -26,6 +26,8 @@ from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import ge
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
 
+from nemo.utils import logging
+
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
 
 
@@ -120,7 +122,7 @@ def get_nmt_tokenizer(
             special_tokens_dict = {}
         else:
             special_tokens_dict = special_tokens
-
+        logging.info(f'Instantiating HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
         return AutoTokenizer(
             pretrained_model_name=model_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
         )

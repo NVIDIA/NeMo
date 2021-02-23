@@ -102,7 +102,7 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
         self.decoder = get_transformer(
-            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=False
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=decoder_cfg_dict, encoder=False
         )
 
         self.log_softmax = TokenClassifier(

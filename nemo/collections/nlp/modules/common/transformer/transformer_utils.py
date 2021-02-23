@@ -50,16 +50,15 @@ def get_nemo_transformer(
 
     cfg = None
 
-    if config_dict is not None:
+    if not pretrained:
         assert (
             config_dict.get('vocab_size') is not None
             and config_dict.get('hidden_size') is not None
             and config_dict.get('num_layers') is not None
             and config_dict.get('inner_size') is not None
-        ), 'vocab_size, hidden_size, num_layers, and inner_size must are mandatory arguments'
+        ), f'Using config_dict: {config_dict}. vocab_size, hidden_size, num_layers, and inner_size must are mandatory arguments'
+
         cfg = config_dict
-    else:
-        raise ValueError(f'NeMo transformers cannot be loaded from NGC yet. config_dict should not be None')
 
     if encoder:
         model = TransformerEncoderNM(
