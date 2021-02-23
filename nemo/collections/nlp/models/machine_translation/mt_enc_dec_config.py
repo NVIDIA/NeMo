@@ -72,25 +72,25 @@ class AAYNBaseConfig(MTEncDecModelConfig):
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
 
-    encoder: TransformerEncoderConfig = TransformerEncoderConfig(
-        hidden_size=512,
-        inner_size=2048,
-        num_layers=6,
-        num_attention_heads=8,
-        ffn_dropout=0.1,
-        attn_score_dropout=0.1,
-        attn_layer_dropout=0.1,
-    )
+    # encoder: TransformerEncoderConfig = TransformerEncoderConfig(
+    #     hidden_size=512,
+    #     inner_size=2048,
+    #     num_layers=6,
+    #     num_attention_heads=8,
+    #     ffn_dropout=0.1,
+    #     attn_score_dropout=0.1,
+    #     attn_layer_dropout=0.1,
+    # )
 
-    decoder: TransformerConfig = TransformerConfig(
-        hidden_size=512,
-        inner_size=2048,
-        num_layers=6,
-        num_attention_heads=8,
-        ffn_dropout=0.1,
-        attn_score_dropout=0.1,
-        attn_layer_dropout=0.1,
-    )
+    # decoder: TransformerConfig = TransformerConfig(
+    #     hidden_size=512,
+    #     inner_size=2048,
+    #     num_layers=6,
+    #     num_attention_heads=8,
+    #     ffn_dropout=0.1,
+    #     attn_score_dropout=0.1,
+    #     attn_layer_dropout=0.1,
+    # )
 
     head: TokenClassifierConfig = TokenClassifierConfig(log_softmax=True)
 

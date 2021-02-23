@@ -130,7 +130,7 @@ class MTDataPreproc:
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(
-                            f"Using tarred dataset for src {cfg.train_ds.get('src_file_name')} and tgt {cfg.train_ds.get('tgt_file_name')}"
+                            f"Using tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
                     self.train_tar_files, self.train_metadata_file = MTDataPreproc.preprocess_parallel_dataset(
                         clean=cfg.train_ds.clean,
