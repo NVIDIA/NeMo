@@ -69,11 +69,11 @@ class MTEncDecModel(EncDecNLPModel):
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         self.setup_enc_dec_tokenizers(
-            encoder_tokenizer_library=cfg.encoder_tokenizer.get('tokenizer_library', 'yttm'),
+            encoder_tokenizer_library=cfg.encoder_tokenizer.get('library', 'yttm'),
             encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
             encoder_model_name=cfg.encoder.get('model_name'),
-            decoder_tokenizer_library=cfg.decoder_tokenizer.get('tokenizer_library', 'yttm'),
+            decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
             decoder_model_name=cfg.decoder.get('model_name'),
