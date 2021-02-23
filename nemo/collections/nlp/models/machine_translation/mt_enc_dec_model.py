@@ -18,25 +18,30 @@ import random
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import jieba
 import numpy as np
+import opencc
 import torch
 import torch.utils.data as pt_data
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+from torch.nn.parallel.distributed import DistributedDataParallel
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
+from nemo.collections.common.tokenizers.pangu_jieba_detokenizer import PanguJiebaDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
@@ -59,12 +64,21 @@ class MTEncDecModel(EncDecNLPModel):
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         cfg = model_utils.maybe_update_config_version(cfg)
-        self.setup_enc_dec_tokenizers(cfg)
+
+        # Instaniate tokenizers and register to be saved with NeMo Model archive
+        self.setup_enc_dec_tokenizers(
+            encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
+            encoder_tokenizer_model=cfg.encoder_tokenizer.tokenizer_model,
+            encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+            decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
+            decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
+            decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+        )
+
+        self.src_language: str = cfg.get("src_language", None)
+        self.tgt_language: str = cfg.get("tgt_language", None)
 
         super().__init__(cfg=cfg, trainer=trainer)
-
-        self.src_language: str = cfg.src_language
-        self.tgt_language: str = cfg.tgt_language
 
         # TODO: use get_encoder function with support for HF and Megatron
         self.encoder = TransformerEncoderNM(
@@ -150,16 +164,9 @@ class MTEncDecModel(EncDecNLPModel):
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         src_hiddens = self.encoder(src, src_mask)
-        if tgt is not None:
-            tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
-            log_probs = self.log_softmax(hidden_states=tgt_hiddens)
-        else:
-            log_probs = None
-        beam_results = None
-        if not self.training:
-            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-            beam_results = self.filter_predicted_ids(beam_results)
-        return log_probs, beam_results
+        tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
+        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+        return log_probs
 
     def training_step(self, batch, batch_idx):
         """
@@ -173,13 +180,11 @@ class MTEncDecModel(EncDecNLPModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        log_probs, _ = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        # training_perplexity = self.training_perplexity(logits=log_probs)
         tensorboard_logs = {
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
-            # "train_ppl": training_perplexity,
         }
         return {'loss': train_loss, 'log': tensorboard_logs}
 
@@ -190,7 +195,13 @@ class MTEncDecModel(EncDecNLPModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        log_probs, beam_results = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+
+        src_hiddens = self.encoder(src_ids, src_mask)
+
+        beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+        beam_results = self.filter_predicted_ids(beam_results)
+
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
@@ -231,15 +242,27 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: add target language so detokenizer can be lang specific.
         detokenizer = MosesDetokenizer(lang=self.tgt_language)
-        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
-        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
+
         if self.tgt_language in ['ja']:
             sp_detokenizer = SentencePieceDetokenizer()
             translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
             ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
 
+        if not self.tgt_language in ['zh']:
+            translations = [detokenizer.detokenize(sent.split()) for sent in translations]
+            ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
+        else:
+            zh_detokenizer = PanguJiebaDetokenizer()
+            translations = [zh_detokenizer.detokenize(sent) for sent in translations]
+            ground_truths = [zh_detokenizer.detokenize(sent) for sent in ground_truths]
         assert len(translations) == len(ground_truths)
-        sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+        if self.tgt_language in ['ja']:
+            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
+        elif self.tgt_language in ['zh']:
+            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="zh")
+        else:
+            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+
         dataset_name = "Validation" if mode == 'val' else "Test"
         logging.info(f"\n\n\n\n{dataset_name} set size: {len(translations)}")
         logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
@@ -280,15 +303,15 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError("src must be equal to target for cached dataset")
             dataset = pickle.load(open(cfg.src_file_name, 'rb'))
             dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
-        elif cfg.get("load_from_tarred_dataset", False):
-            logging.info('Loading from tarred dataset %s' % (cfg.src_file_name))
-            if cfg.src_file_name != cfg.tgt_file_name:
-                raise ValueError("src must be equal to target for tarred dataset")
-            if cfg.get("metadata_path", None) is None:
+        elif cfg.get("use_tarred_dataset", False):
+            if cfg.get('tar_files') is None:
+                raise FileNotFoundError("Could not find tarred dataset.")
+            logging.info(f'Loading from tarred dataset {cfg.get("tar_files")}')
+            if cfg.get("metadata_file", None) is None:
                 raise FileNotFoundError("Could not find metadata path in config")
             dataset = TarredTranslationDataset(
-                text_tar_filepaths=cfg.src_file_name,
-                metadata_path=cfg.metadata_path,
+                text_tar_filepaths=cfg.tar_files,
+                metadata_path=cfg.metadata_file,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
                 shuffle_n=cfg.get("tar_shuffle_n", 100),
@@ -333,6 +356,84 @@ class MTEncDecModel(EncDecNLPModel):
             drop_last=cfg.get("drop_last", False),
         )
 
+    def replace_beam_with_sampling(self, topk=500):
+        self.beam_search = TopKSequenceGenerator(
+            embedding=self.decoder.embedding,
+            decoder=self.decoder.decoder,
+            log_softmax=self.log_softmax,
+            max_sequence_length=self.beam_search.max_seq_length,
+            beam_size=topk,  # hyperparam from https://arxiv.org/pdf/1808.09381.pdf
+            bos=self.decoder_tokenizer.bos_id,
+            pad=self.decoder_tokenizer.pad_id,
+            eos=self.decoder_tokenizer.eos_id,
+        )
+
+    def get_normalizer_and_tokenizer(self, lang):
+        """
+        Returns a normalizer and tokenizer for a specific language.
+        """
+        tokenizer, normalizer = None, None
+        if lang not in ['zh', 'ja']:
+            tokenizer = MosesTokenizer(lang=lang)
+            normalizer = MosesPunctNormalizer(lang=lang)
+        elif lang == 'ja':
+            raise NotImplementedError("Input tokenization for Japanese is not implemented yet")
+        elif lang == 'zh':
+            normalizer = opencc.OpenCC('t2s.json')
+
+        return tokenizer, normalizer
+
+    def get_detokenizer(self, lang):
+        """
+        Returns a detokenizer for a specific language.
+        """
+        detokenizer = None
+        if lang not in ['zh']:
+            detokenizer = MosesDetokenizer(lang=lang)
+        elif lang == 'zh':
+            detokenizer = PanguJiebaDetokenizer()
+
+        return detokenizer
+
+    @torch.no_grad()
+    def batch_translate(
+        self, src: torch.LongTensor, src_mask: torch.LongTensor, source_lang: str = None, target_lang: str = None
+    ) -> List[str]:
+        """
+        Translates a minibatch of inputs from source language to target language.
+        Args:
+            src: minibatch of inputs in the src language (batch x seq_len)
+            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)
+            target_lang: if not None, corresponding Detokenizer will be run
+        Returns:
+            translations: a list strings containing detokenized translations
+            inputs: a list of string containing detokenized inputs
+        """
+        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+        beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+        beam_results = self.filter_predicted_ids(beam_results)
+
+        target_detokenizer = self.get_detokenizer(target_lang)
+        source_detokenizer = self.get_detokenizer(source_lang)
+
+        if target_lang or source_lang == 'ja':
+            sp_detokenizer = SentencePieceDetokenizer()
+
+        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+        inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
+
+        if target_detokenizer is not None:
+            if target_lang == 'ja':
+                translations = [sp_detokenizer.detokenize(translation.split()) for translation in translations]
+            translations = [target_detokenizer.detokenize(translation.split()) for translation in translations]
+
+        if source_detokenizer is not None:
+            if target_lang == 'ja':
+                inputs = [sp_detokenizer.detokenize(inp.split()) for inp in inputs]
+            inputs = [source_detokenizer.detokenize(item.split()) for item in inputs]
+
+        return inputs, translations
+
     @torch.no_grad()
     def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
         """
@@ -340,8 +441,8 @@ class MTEncDecModel(EncDecNLPModel):
         Should be regular text, this method performs its own tokenization/de-tokenization
         Args:
             text: list of strings to translate
-            source_lang: if not None, corresponding MosesTokenizer and MosesPunctNormalizer will be run
-            target_lang: if not None, corresponding MosesDecokenizer will be run
+            source_lang: if not None, corresponding Tokenizer and Normalizer will be run
+            target_lang: if not None, corresponding Detokenizer will be run
         Returns:
             list of translated strings
         """
@@ -351,17 +452,21 @@ class MTEncDecModel(EncDecNLPModel):
             target_lang = self.tgt_language
 
         mode = self.training
-        tokenizer = MosesTokenizer(lang=source_lang)
-        normalizer = MosesPunctNormalizer(lang=source_lang)
-        detokenizer = MosesDetokenizer(lang=target_lang)
+
+        tokenizer, normalizer = self.get_normalizer_and_tokenizer(source_lang)
+        detokenizer = self.get_detokenizer(target_lang)
 
         try:
             self.eval()
             res = []
             for txt in text:
                 if source_lang != "None":
-                    txt = normalizer.normalize(txt)
-                    txt = tokenizer.tokenize(txt, escape=False, return_str=True)
+                    if source_lang == "zh":
+                        txt = normalizer.convert(txt)
+                        txt = ' '.join(jieba.cut(txt))
+                    else:
+                        txt = normalizer.normalize(txt)
+                        txt = tokenizer.tokenize(txt, escape=False, return_str=True)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
@@ -371,11 +476,10 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                translation = detokenizer.detokenize(translation.split())
-                if target_lang in ["ja"]:
+                if target_lang == 'ja':
                     sp_detokenizer = SentencePieceDetokenizer()
                     translation = sp_detokenizer.detokenize(translation.split())
-
+                translation = detokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
             self.train(mode=mode)
@@ -384,3 +488,15 @@ class MTEncDecModel(EncDecNLPModel):
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
+
+    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
+        logging.info(f'overriding ddp to set find_unused_parameters to {self._cfg.find_unused_parameters}')
+        model = LightningDistributedDataParallel(
+            model, device_ids=device_ids, find_unused_parameters=self._cfg.find_unused_parameters
+        )
+        return model
+
+    def setup(self, stage):
+        if stage == "fit":
+            # Update PTL trainer to use our configure_ddp
+            self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp

@@ -1,15 +1,15 @@
-name: &name Tacotron2
-sample_rate: &sr 22050
+name: Tacotron2
+sample_rate: 22050
 # <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script
-labels: &labels [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-                 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']',
-                 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-                 'u', 'v', 'w', 'x', 'y', 'z']
-n_fft: &n_fft 1024
-n_mels: &n_mels 80
-fmax: &fmax null
-n_stride: &n_window_stride 256
-pad_value: &pad_value -11.52
+labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+        'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']',
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+        'u', 'v', 'w', 'x', 'y', 'z']
+n_fft: 1024
+n_mels: 80
+fmax: null
+n_stride: 256
+pad_value: -11.52
 train_dataset: ???
 validation_datasets: ???
 
@@ -25,7 +25,7 @@ model:
       int_values: false
       load_audio: true
       normalize: false
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       # bos_id: 66
       # eos_id: 67
       # pad_id: 68  These parameters are added automatically in Tacotron2
@@ -45,7 +45,7 @@ model:
       int_values: false
       load_audio: true
       normalize: false
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       trim: false
       # bos_id: 66
       # eos_id: 67
@@ -59,22 +59,22 @@ model:
   preprocessor:
     _target_: nemo.collections.asr.parts.features.FilterbankFeatures
     dither: 0.0
-    nfilt: *n_mels
+    nfilt: ${n_mels}
     frame_splicing: 1
-    highfreq: *fmax
+    highfreq: ${fmax}
     log: true
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
     lowfreq: 0
     mag_power: 1.0
-    n_fft: *n_fft
+    n_fft: ${n_fft}
     n_window_size: 1024
-    n_window_stride: *n_window_stride
+    n_window_stride: ${n_stride}
     normalize: null
     pad_to: 16
-    pad_value: *pad_value
+    pad_value: ${pad_value}
     preemph: null
-    sample_rate: *sr
+    sample_rate: ${sample_rate}
     stft_conv: true
     window: hann
 
@@ -82,16 +82,16 @@ model:
     _target_: nemo.collections.tts.modules.tacotron2.Encoder
     encoder_kernel_size: 5
     encoder_n_convolutions: 3
-    encoder_embedding_dim: &enc_emb_dim 512
+    encoder_embedding_dim: 512
 
   decoder:
     _target_: nemo.collections.tts.modules.tacotron2.Decoder
     decoder_rnn_dim: 1024
-    encoder_embedding_dim: *enc_emb_dim
+    encoder_embedding_dim: ${model.encoder.encoder_embedding_dim}
     gate_threshold: 0.5
     max_decoder_steps: 1000
     n_frames_per_step: 1  # currently only 1 is supported
-    n_mel_channels: *n_mels
+    n_mel_channels: ${n_mels}
     p_attention_dropout: 0.1
     p_decoder_dropout: 0.1
     prenet_dim: 256
@@ -106,7 +106,7 @@ model:
 
   postnet:
     _target_: nemo.collections.tts.modules.tacotron2.Postnet
-    n_mel_channels: *n_mels
+    n_mel_channels: ${n_mels}
     p_dropout: 0.5
     postnet_embedding_dim: 512
     postnet_kernel_size: 5
@@ -138,6 +138,6 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True

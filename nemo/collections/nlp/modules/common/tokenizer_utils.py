@@ -42,9 +42,11 @@ def get_tokenizer_list() -> List[str]:
 class TokenizerConfig:
     tokenizer_name: str = MISSING
     tokenizer_model: Optional[str] = None
+    vocab_size: Optional[int] = None
     vocab_file: Optional[str] = None
     special_tokens: Optional[Dict[str, str]] = None
     bpe_dropout: Optional[float] = 0.0
+    coverage: Optional[float] = 0.999
 
 
 def get_tokenizer(

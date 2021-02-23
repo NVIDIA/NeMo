@@ -1,6 +1,6 @@
 numpy>=1.18.2
 onnx>=1.7.0
-pytorch-lightning>=1.1.0,<=1.1.3
+pytorch-lightning>=1.1.0,<=1.1.5
 python-dateutil
 torch
 wget
@@ -11,4 +11,4 @@ omegaconf>=2.0.5
 hydra-core>=1.0.4
 transformers>=4.0.1
 sentencepiece<1.0.0
-webdataset
+webdataset>=0.1.48
