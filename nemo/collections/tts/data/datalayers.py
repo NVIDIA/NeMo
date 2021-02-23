@@ -209,7 +209,6 @@ class MelAudioDataset(Dataset):
         example = self.collection[index]
         audio_file = example["audio_filepath"]
         mel_file = example["mel_filepath"]
-        duration = example["duration"]
 
         audio, sr = torchaudio.load(audio_file)
         mel = self.mel_load_func(mel_file)
