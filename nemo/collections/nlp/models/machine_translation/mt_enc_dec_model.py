@@ -407,7 +407,7 @@ class MTEncDecModel(EncDecNLPModel):
                     elif source_lang == "ja":
                         txt = normalizer.normalize(txt)
                         txt = tokenizer1.tokenize(txt, escape=False, return_str=True)
-                        txt = tokenizer2.encode(txt, out_type=str)
+                        txt = ' '.join(tokenizer2.text_to_tokens(txt))
                     else:
                         txt = normalizer.normalize(txt)
                         txt = tokenizer.tokenize(txt, escape=False, return_str=True)
