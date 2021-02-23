@@ -37,6 +37,7 @@ from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.pangu_jieba_detokenizer import PanguJiebaDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -77,6 +78,9 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.src_language: str = cfg.get("src_language", None)
         self.tgt_language: str = cfg.get("tgt_language", None)
+        self.sentencepiece_model = self.register_artifact(
+            "cfg.sentencepiece_model", cfg.get("sentencepiece_model", None)
+        )
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -453,15 +457,33 @@ class MTEncDecModel(EncDecNLPModel):
 
         mode = self.training
 
-        tokenizer, normalizer = self.get_normalizer_and_tokenizer(source_lang)
-        detokenizer = self.get_detokenizer(target_lang)
+        if source_lang == "ja":
+            normalizer = MosesPunctNormalizer(
+                lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
+            )
+            tokenizer1 = MosesTokenizer(lang=source_lang)
+            tokenizer2 = SentencePieceTokenizer(model_path=self.sentencepiece_model)
+        elif source_lang == "zh":
+            normalizer = opencc.OpenCC("t2s.json")
+        else:
+            tokenizer = MosesTokenizer(lang=source_lang)
+            normalizer = MosesPunctNormalizer(lang=source_lang)
+
+        if target_lang == "zh":
+            detokenizer = PanguJiebaDetokenizer()
+        else:
+            detokenizer = MosesDetokenizer(lang=target_lang)
 
         try:
             self.eval()
             res = []
             for txt in text:
                 if source_lang != "None":
-                    if source_lang == "zh":
+                    if source_lang == "ja":
+                        txt = normalizer.normalize(txt)
+                        txt = tokenizer1.tokenize(txt, escape=False, return_str=True)
+                        txt = ' '.join(tokenizer2.text_to_tokens(txt))
+                    elif source_lang == "zh":
                         txt = normalizer.convert(txt)
                         txt = ' '.join(jieba.cut(txt))
                     else:
@@ -476,7 +498,7 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                if target_lang == 'ja':
+                if target_lang == "ja":
                     sp_detokenizer = SentencePieceDetokenizer()
                     translation = sp_detokenizer.detokenize(translation.split())
                 translation = detokenizer.detokenize(translation.split())
