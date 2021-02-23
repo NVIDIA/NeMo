@@ -253,15 +253,15 @@ class FastSpeech2SModel(ModelPT):
 
         return {
             "val_loss": loss,
-            "audio_target": f,
-            "audio_pred": audio_pred,
+            "audio_target": f.squeeze(),
+            "audio_pred": audio_pred.squeeze(),
         }
 
     def validation_epoch_end(self, outputs):
         if self.tb_logger is not None:
             _, audio_target, audio_predict = outputs[0].values()
             if not self.logged_real_samples:
-                self.tb_logger.add_audio("val_target", audio_target.data.cpu(), self.global_step, 22050)
+                self.tb_logger.add_audio("val_target", audio_target[0].data.cpu(), self.global_step, 22050)
                 self.logged_real_samples = True
             audio_predict = audio_predict[0].data.cpu()
             self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, 22050)
