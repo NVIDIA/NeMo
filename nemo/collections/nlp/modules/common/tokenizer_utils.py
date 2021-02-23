@@ -115,6 +115,7 @@ def get_nmt_tokenizer(
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
     """
     if library == 'yttm':
+        logging.info(f'Getting YouTokenToMeTokenizer with model: {tokenizer_model}.')
         return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
 
     elif library == 'huggingface':
@@ -122,7 +123,7 @@ def get_nmt_tokenizer(
             special_tokens_dict = {}
         else:
             special_tokens_dict = special_tokens
-        logging.info(f'Instantiating HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
+        logging.info(f'Getting HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
         return AutoTokenizer(
             pretrained_model_name=model_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
         )
