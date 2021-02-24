@@ -14,6 +14,7 @@
 import re
 from typing import List
 
+
 class SentencePieceDetokenizer:
     @staticmethod
     def detokenize(translation: List[str]):

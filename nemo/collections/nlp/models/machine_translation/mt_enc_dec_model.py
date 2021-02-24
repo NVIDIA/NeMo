@@ -36,22 +36,19 @@ from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers import (
+    ChineseDetokenizer,
+    ChineseTokenizer,
+    JapaneseDetokenizer,
+    JapaneseTokenizer,
     SentencePieceDetokenizer,
     SentencePieceTokenizer,
-    JapaneseTokenizer,
-    JapaneseDetokenizer,
-    ChineseTokenizer,
-    ChineseDetokenizer,
-    Traditional2Simplified
+    Traditional2Simplified,
 )
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.transformer import (
-    BeamSearchSequenceGenerator,
-    TopKSequenceGenerator
-)
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
@@ -360,18 +357,6 @@ class MTEncDecModel(EncDecNLPModel):
             drop_last=cfg.get("drop_last", False),
         )
 
-    def replace_beam_with_sampling(self, topk=500):
-        self.beam_search = TopKSequenceGenerator(
-            embedding=self.decoder.embedding,
-            decoder=self.decoder.decoder,
-            log_softmax=self.log_softmax,
-            max_sequence_length=self.beam_search.max_seq_length,
-            beam_size=topk,  # hyperparam from https://arxiv.org/pdf/1808.09381.pdf
-            bos=self.decoder_tokenizer.bos_id,
-            pad=self.decoder_tokenizer.pad_id,
-            eos=self.decoder_tokenizer.eos_id,
-        )
-
     def get_normalizer_and_tokenizer(self, lang):
         """
         Returns a normalizer and tokenizer for a specific language.
@@ -382,9 +367,7 @@ class MTEncDecModel(EncDecNLPModel):
             normalizer = MosesPunctNormalizer(lang=lang)
         elif lang == 'ja':
             normalizer = MosesPunctNormalizer(
-                lang=lang,
-                pre_replace_unicode_punct=True,
-                post_remove_control_chars=True
+                lang=lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
             )
             tokenizer = JapaneseTokenizer(self.sentencepiece_model)
         elif lang == 'zh':

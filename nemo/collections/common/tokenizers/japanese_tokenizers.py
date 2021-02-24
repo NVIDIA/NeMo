@@ -14,11 +14,13 @@
 
 import re
 from typing import List
+
 from sacremoses import MosesDetokenizer, MosesTokenizer
+
 from nemo.collections.common.tokenizers import SentencePieceDetokenizer, SentencePieceTokenizer
 
-class JapaneseDetokenizer:
 
+class JapaneseDetokenizer:
     def __init__(self):
         self.moses_detokenizer = MosesDetokenizer(lang='ja')
 
@@ -36,15 +38,15 @@ class JapaneseDetokenizer:
         text = self.sp_detokenize(tokens)
         return self.moses_detokenizer.detokenize(text)
 
-class JapaneseTokenizer:
 
+class JapaneseTokenizer:
     def __init__(self, sp_tokenizer_model):
         self.moses_tokenizer = MosesTokenizer(lang='ja')
         self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model)
 
     def sp_tokenize(self, text: str) -> str:
         return ' '.join(self.sp_tokenizer.text_to_tokens(text))
-    
+
     def tokenize(self, text, escape=False, return_str=False):
         """
         Detokenizes a list of sentencepiece tokens in Japanese
@@ -56,4 +58,3 @@ class JapaneseTokenizer:
         text = self.moses_tokenizer.tokenize(text, escape=escape, return_str=True)
         text = self.sp_tokenize(text)
         return text if return_str else text.split()
-
