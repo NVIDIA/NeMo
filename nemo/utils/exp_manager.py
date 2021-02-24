@@ -69,6 +69,7 @@ class CallbackParams:
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
+    always_save_nemo: bool = False
 
 
 @dataclass
@@ -564,12 +565,26 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
 
-    def __init__(self, save_best_model=False, postfix=".nemo", **kwargs):
+    def __init__(self, always_save_nemo=False, save_best_model=False, postfix=".nemo", **kwargs):
         # Parse and store "extended" parameters: save_best model and postfix.
+        self.always_save_nemo = always_save_nemo
         self.save_best_model = save_best_model
         self.postfix = postfix
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
+    
+    @rank_zero_only
+    def on_save_checkpoint(self, trainer, pl_module):
+        output = super().on_save_checkpoint(trainer, pl_module)
+         
+        if not self.always_save_nemo:
+            return output
+
+        # Load the best model and then re-save it
+        if self.save_best_model:
+            trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+        return output
 
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
