@@ -86,7 +86,7 @@ if __name__ == '__main__':
             raise ValueError('Both encoder and decoder pre-trained tokenizer models must be specified')
 
     if args.encoder_tokenizer_model == 'None' and args.decoder_tokenizer_model == 'None':
-        encoder_tokenizer_model, decoder_tokenizer_model = MTDataPreproc.train_tokenizers(
+        encoder_tokenizer_model, decoder_tokenizer_model = MTDataPreproc.train_yttm_tokenizers(
             out_dir=args.out_dir,
             src_fname=args.src_fname,
             tgt_fname=args.tgt_fname,

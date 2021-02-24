@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+from nemo.collections.nlp.modules.common.huggingface.huggingface_decoder import HuggingFaceDecoderModule
+from nemo.collections.nlp.modules.common.huggingface.huggingface_encoder import HuggingFaceEncoderModule
 import os
 from omegaconf.dictconfig import DictConfig
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
@@ -93,5 +95,19 @@ def get_nemo_transformer(
             hidden_act=cfg.get('hidden_act', 'relu'),
             pre_ln=cfg.get('pre_ln', False),
         )
+
+    return model
+
+
+def get_huggingface_transformer(
+    model_name: Optional[str] = None,
+    pretrained: bool = False,
+    config_dict: Optional[Union[dict, DictConfig]] = None,
+    encoder: bool = True,
+) -> Union[HuggingFaceEncoderModule, HuggingFaceDecoderModule]:
+    if encoder:
+        model = HuggingFaceEncoderModule(model_name, pretrained, config_dict)
+    else:
+        model = HuggingFaceDecoderModule(model_name, pretrained, config_dict)
 
     return model

@@ -13,7 +13,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo.collections.nlp.modules.common.transformer.transformer_utils import get_nemo_transformer
+from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
+    get_huggingface_transformer,
+    get_nemo_transformer,
+)
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 import os
@@ -125,18 +128,8 @@ def get_transformer(
                 raise ValueError(f'Loading transformer weights from checkpoint file has not been implemented yet.')
 
     elif library == 'huggingface':
-        if model_name is not None:
-            if model_name in get_huggingface_pretrained_lm_models_list():
-                if pretrained:
-                    model = AutoModel.from_pretrained(model_name)
-                else:
-                    cfg = AutoConfig.from_pretrained(model_name)
-                    model = AutoModel.from_config(cfg)
-            else:
-                logging.error(f'{model_name} not found in list of HuggingFace pretrained models')
-        else:
-            cfg = instantiate(config_dict)
-            model = AutoModel.from_config(cfg)
-        model.hidden_size = model.config.hidden_size
+        model = get_huggingface_transformer(
+            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder
+        )
 
     return model
