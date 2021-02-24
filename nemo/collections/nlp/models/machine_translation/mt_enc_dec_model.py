@@ -101,6 +101,7 @@ class MTEncDecModel(EncDecNLPModel):
         library = decoder_cfg_dict.pop('library', 'nemo')
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
+        decoder_cfg_dict['hidden_size'] = self.encoder.hidden_size
         self.decoder = get_transformer(
             library=library, model_name=model_name, pretrained=pretrained, config_dict=decoder_cfg_dict, encoder=False
         )
@@ -132,6 +133,7 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: encoder and decoder with different hidden size?
         std_init_range = 1 / self.encoder.hidden_size ** 0.5
+        # TODO: if using pretrained encoder/decoder we don't need to init weights
         self.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         self.loss_fn = SmoothedCrossEntropyLoss(
