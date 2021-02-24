@@ -7,7 +7,7 @@ Reaches 81% in sentence accuracy on output-00001-of-00100 of [Google text normal
 More details could be found in [this tutorial](https://github.com/NVIDIA/NeMo/blob/main/tutorials/tools/Text_Normalization_Tutorial.ipynb).
 
 Example evaluation run:
-python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 --normalizer nemo
+python run_evaluate.py  --input=./en_with_types/output-00001-of-00100 [--normalizer nemo]
 
 Example prediction run:
-python run_predicition.py  --input=text_data.txt --output=. --normalizer nemo
+python run_predict.py  --input=`INPUT_FILE` --output=`OUTPUT_FILE` [--normalizer nemo]
