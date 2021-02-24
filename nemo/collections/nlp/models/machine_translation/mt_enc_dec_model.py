@@ -81,6 +81,8 @@ class MTEncDecModel(EncDecNLPModel):
         self.sentencepiece_model = self.register_artifact(
             "cfg.sentencepiece_model", cfg.get("sentencepiece_model", None)
         )
+        if self.sentencepiece_model is not None:
+            self.sentencepiece_aux_tokenizer = SentencePieceTokenizer(model_path=self.sentencepiece_model)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -462,7 +464,7 @@ class MTEncDecModel(EncDecNLPModel):
                 lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
             )
             tokenizer1 = MosesTokenizer(lang=source_lang)
-            tokenizer2 = SentencePieceTokenizer(model_path=self.sentencepiece_model)
+            # tokenizer2 = SentencePieceTokenizer(model_path=self.sentencepiece_model)
         elif source_lang == "zh":
             normalizer = opencc.OpenCC("t2s.json")
         else:
@@ -482,7 +484,7 @@ class MTEncDecModel(EncDecNLPModel):
                     if source_lang == "ja":
                         txt = normalizer.normalize(txt)
                         txt = tokenizer1.tokenize(txt, escape=False, return_str=True)
-                        txt = ' '.join(tokenizer2.text_to_tokens(txt))
+                        txt = ' '.join(self.sentencepiece_aux_tokenizer.text_to_tokens(txt))
                     elif source_lang == "zh":
                         txt = normalizer.convert(txt)
                         txt = ' '.join(jieba.cut(txt))
