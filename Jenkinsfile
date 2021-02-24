@@ -312,7 +312,7 @@ pipeline {
     stage('L2: Speech Transcription') {
       when {
         anyOf{
-          branch 'main'
+          branch { 'main' ; 'r1*' }
           changeRequest target: 'main'
         }
       }
