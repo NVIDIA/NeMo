@@ -45,7 +45,7 @@ class JapaneseTokenizer:
     def sp_tokenize(self, text: str) -> str:
         return ' '.join(self.sp_tokenizer.text_to_tokens(text))
     
-    def tokenize(self, text):
+    def tokenize(self, text, escape=False, return_str=False):
         """
         Detokenizes a list of sentencepiece tokens in Japanese
         Args:
@@ -53,6 +53,7 @@ class JapaneseTokenizer:
         Returns:
             detokenized Japanese string
         """
-        text = self.moses_tokenizer.tokenize(text, escape=False, return_str=True)
-        return self.sp_tokenize(text)
+        text = self.moses_tokenizer.tokenize(text, escape=escape, return_str=True)
+        text = self.sp_tokenize(text)
+        return text if return_str else text.split()
 
