@@ -17,7 +17,8 @@ from typing import List
 
 from sacremoses import MosesDetokenizer, MosesTokenizer
 
-from nemo.collections.common.tokenizers import SentencePieceDetokenizer, SentencePieceTokenizer
+from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
 class JapaneseDetokenizer:
