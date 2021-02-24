@@ -87,6 +87,8 @@ class MTEncDecModel(EncDecNLPModel):
         self.sentencepiece_model = self.register_artifact(
             "cfg.sentencepiece_model", cfg.get("sentencepiece_model", None)
         )
+        if self.sentencepiece_model is not None:
+            self.sentencepiece_aux_tokenizer = SentencePieceTokenizer(model_path=self.sentencepiece_model)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
