@@ -17,6 +17,7 @@ import json
 import os
 import tempfile
 from math import ceil
+from tqdm.auto import tqdm
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -174,7 +175,7 @@ class EncDecRNNTModel(ASRModel):
                 config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in temporary_datalayer:
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )

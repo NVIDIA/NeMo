@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
@@ -21,6 +22,7 @@ from pytorch_lightning.metrics import Metric
 
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
+
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
@@ -435,3 +437,15 @@ class RNNTWER(Metric):
     def compute(self):
         wer = self.scores.float() / self.words
         return wer, self.scores.detach(), self.words.detach()
+
+
+@dataclass
+class RNNTDecodingConfig:
+    strategy: str = "greedy_batch"
+    compute_hypothesis_token_set: bool = False
+
+    # greedy decoding config
+    greedy: greedy_decode.GreedyRNNTInferConfig = greedy_decode.GreedyRNNTInferConfig()
+
+    # beam decoding config
+    beam: beam_decode.BeamRNNTInferConfig = beam_decode.BeamRNNTInferConfig(beam_size=4)

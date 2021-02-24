@@ -26,6 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import numpy as np
@@ -708,3 +709,15 @@ class BeamRNNTInfer(Typing):
                 final.append(hyp)
 
         return hypotheses
+
+
+@dataclass
+class BeamRNNTInferConfig:
+    beam_size: int
+    search_type: str = 'default'
+    score_norm: bool = True
+    return_best_hypothesis: bool = True
+    tsd_max_sym_exp_per_step: Optional[int] = 50
+    alsd_max_target_len: float = 1.0
+    nsc_max_timesteps_expansion: int = 1
+    nsc_prefix_alpha: int = 1

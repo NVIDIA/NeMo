@@ -16,18 +16,20 @@ import os
 import glob
 import torch
 import pytorch_lightning as pl
+import contextlib
 from typing import Optional
 from omegaconf import OmegaConf, MISSING
 from dataclasses import dataclass
 
-from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 """
 # Transcribe audio
 
-python speech_to_text_transcribe.py \
+python transcribe_speech.py \
     model_path=null \
     pretrained_name=null \
     audio_dir=""
@@ -36,18 +38,25 @@ python speech_to_text_transcribe.py \
 
 
 @dataclass
-class SpeechToTextTranscribeConfig:
-    model_path: Optional[str] = None
-    pretrained_name: Optional[str] = None
-    audio_dir: str = MISSING
+class TranscriptionConfig:
+    # Required configs
+    model_path: Optional[str] = None  # Path to a .nemo file
+    pretrained_name: Optional[str] = None  # Name of a pretrained model
+    audio_dir: str = MISSING  # Path to a directory which contains audio files
+
+    # General configs
     output_filename: str = "speech_to_text_transcriptions.txt"
     batch_size: int = 32
-    cuda: Optional[bool] = None
+    cuda: Optional[bool] = None  # will switch to cuda if available, defaults to cpu otherwise
+    amp: bool = False
     audio_type: str = "wav"
 
+    # decoding strategy for RNNT models
+    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
 
-@hydra_runner(config_name="SpeechToTextTranscribeConfig", schema=SpeechToTextTranscribeConfig)
-def main(cfg: SpeechToTextTranscribeConfig):
+
+@hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
+def main(cfg: TranscriptionConfig):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     if cfg.model_path is None and cfg.pretrained_name is None:
@@ -60,23 +69,41 @@ def main(cfg: SpeechToTextTranscribeConfig):
 
     # setup model
     if cfg.model_path is not None:
-        asr_model = EncDecCTCModel.restore_from(
-            restore_path=cfg.model_path, map_location=device
-        )  # type: EncDecCTCModel
+        # restore model from .nemo file path
+        model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
+        classpath = model_cfg.target  # original class path
+        imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
+        logging.info(f"Restoring model : {imported_class.__name__}")
+
+        asr_model = imported_class.restore_from(restore_path=cfg.model_path, map_location=device)  # type: ASRModel
     else:
-        asr_model = EncDecCTCModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=device
-        )  # type: EncDecCTCModel
+        # restore model by name
+        asr_model = ASRModel.from_pretrained(model_name=cfg.pretrained_name, map_location=device)  # type: ASRModel
 
     trainer = pl.Trainer(gpus=int(cfg.cuda))
     asr_model.set_trainer(trainer)
+
+    # Setup decoding strategy
+    if hasattr(asr_model, 'change_decoding_strategy'):
+        asr_model.change_decoding_strategy(cfg.rnnt_decoding)
 
     # load paths to audio
     filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"*.{cfg.audio_type}")))
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
+    # setup AMP (optional)
+    if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
+        logging.info("AMP enabled!\n")
+        autocast = torch.cuda.amp.autocast
+    else:
+
+        @contextlib.contextmanager
+        def autocast():
+            yield
+
     # transcribe audio
-    transcriptions = asr_model.transcribe(filepaths, batch_size=cfg.batch_size)
+    with autocast():
+        transcriptions = asr_model.transcribe(filepaths, batch_size=cfg.batch_size)
     logging.info(f"Finished transcribing {len(filepaths)} files !")
 
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
