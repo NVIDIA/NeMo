@@ -52,12 +52,13 @@ class ConvASREncoder(NeuralModule, Exportable):
         https://arxiv.org/pdf/1910.10261.pdf
     """
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         m_count = 0
         for m in self.modules():
             if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
+        Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
     def input_example(self):
@@ -250,7 +251,7 @@ class ConvASRDecoder(NeuralModule, Exportable):
         input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
         return tuple([input_example])
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         m_count = 0
         for m in self.modules():
             if type(m).__name__ == "MaskedConv1d":
@@ -258,7 +259,7 @@ class ConvASRDecoder(NeuralModule, Exportable):
                 m_count += 1
         if m_count > 0:
             logging.warning(f"Turned off {m_count} masked convolutions")
-        Exportable._prepare_for_export(self)
+        Exportable._prepare_for_export(self, **kwargs)
 
     @property
     def vocabulary(self):

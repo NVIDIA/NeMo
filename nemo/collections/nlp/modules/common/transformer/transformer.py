@@ -14,6 +14,7 @@
 
 from dataclasses import dataclass
 
+import torch
 from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
@@ -23,7 +24,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_encoders import
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-import torch
+
 
 @dataclass
 class TransformerConfig:
@@ -119,6 +120,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
         return tuple([input_ids, encoder_mask])
 
+
 class TransformerDecoderNM(DecoderModule, Exportable):
     def __init__(
         self,
@@ -190,3 +192,13 @@ class TransformerDecoderNM(DecoderModule, Exportable):
     def decoder(self):
         return self._decoder
 
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask])

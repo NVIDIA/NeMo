@@ -72,7 +72,6 @@ class TestExportable:
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logprobs'
 
-            
     def setup_method(self):
         self.preprocessor = {
             'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
@@ -279,12 +278,11 @@ def citrinet_model():
                     'separable': True,
                     'se': True,
                     'se_context_size': -1,
-                }
-
+                },
             ],
         },
     }
-    
+
     decoder = {
         'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
         'params': {
@@ -322,7 +320,7 @@ def citrinet_model():
             ],
         },
     }
-    
+
     modelConfig = DictConfig(
         {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
     )

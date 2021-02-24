@@ -168,7 +168,7 @@ class MTEncDecModel(EncDecNLPModel):
         tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         return log_probs
-    
+
     def training_step(self, batch, batch_idx):
         """
         Lightning calls this inside the training loop with the data from the training dataloader
@@ -436,14 +436,19 @@ class MTEncDecModel(EncDecNLPModel):
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
 
-    def forward_for_export(self, src, encoder_input_mask):
-        encoder_hidden_states = self.encoder(src, encoder_input_mask)
-        tgt, batch_size, max_generation_length = self.beam_search._prepare_for_search(decoder_input_ids=None, encoder_hidden_states=encoder_hidden_states)
+    def forward_for_export(self, src: torch.Tensor, src_mask: torch.Tensor):
+        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+        beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+        beam_results = self.filter_predicted_ids(beam_results)
+        return beam_results
 
-        # generate initial buffer of beam_size prefixes-hypotheses
-        return self.beam_search._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
-
-#        ret = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-#        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
-#        return ret
-
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, encoder_mask])

@@ -105,10 +105,5 @@ class EncDecNLPModel(NLPModel):
             bpe_dropout=decoder_bpe_dropout,
         )
 
-    @property
-    def input_module(self):
-        return self.encoder
-
-    @property
-    def output_module(self):
-        return self.decoder
+    def export(self, **kwargs):
+        raise NotImplementedError('For EncDecNLPModel, you must export encoder and decoder separately!')

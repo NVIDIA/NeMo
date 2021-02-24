@@ -49,13 +49,15 @@ class TestMTEncDecModel:
             assert not os.path.exists(model_save_path)
             assert os.path.exists(model_restore_path)
             # attempt to restore
-            model_copy = model.__class__.restore_from(restore_path=model_restore_path)
+            model_copy = model.__class__.restore_from(restore_path=model_restore_path).cuda()
             assert model.num_weights == model_copy.num_weights
 
-            filename = os.path.join(restore_folder, 'nmt.onnx')
-            model.export(output=filename, try_script=True, verbose=True)
+            enc_filename = os.path.join(restore_folder, 'nmt_e.onnx')
+            dec_filename = os.path.join(restore_folder, 'nmt_d.onnx')
+            model_copy.encoder.export(output=enc_filename, try_script=True, verbose=True)
+            model_copy.decoder.export(output=dec_filename, try_script=True, verbose=True)
+
 
 if __name__ == "__main__":
     t = TestMTEncDecModel()
     t.test_creation_saving_restoring()
-
