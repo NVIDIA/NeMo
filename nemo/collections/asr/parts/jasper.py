@@ -640,7 +640,7 @@ class JasperBlock(nn.Module):
 
                 if self.residual_mode == 'add' or self.residual_mode == 'stride_add':
                     if PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
-                        out = out + self.residual_quantizer(res_out)
+                        out = self.residual_quantizer(out) + res_out
                     elif not PYTORCH_QUANTIZATION_AVAILABLE and self.quantize:
                         raise ImportError(
                             "pytorch-quantization is not installed. Install from "
