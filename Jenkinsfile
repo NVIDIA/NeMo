@@ -309,6 +309,28 @@ pipeline {
       }
     }
 
+    stage('L2: ASR Multi-dataloader dev run') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text Transcribe') {
+          steps {
+            sh 'python examples/asr/transcribe_speech.py \
+            pretrained_name="QuartzNet15x5Base-En" \
+            audio_dir="/home/TestData/an4_transcribe/test_subset/" \
+            cuda=true \
+            amp=true
+            sh 'rm -rf examples/asr/speech_to_text_transcriptions.txt'
+          }
+        }
+      }
+    }
+
     stage('L2: Segmentation Tool') {
          when {
             anyOf {

@@ -67,7 +67,13 @@ def main(cfg: TranscriptionConfig):
     # setup gpu
     if cfg.cuda is None:
         cfg.cuda = torch.cuda.is_available()
-    device = torch.device('cuda:0' if cfg.cuda else 'cpu')
+
+    if type(cfg.cuda) == int:
+        device_id = int(cfg.cuda)
+    else:
+        device_id = 0
+
+    device = torch.device(f'cuda:{device_id}' if cfg.cuda else 'cpu')
 
     # setup model
     if cfg.model_path is not None:
