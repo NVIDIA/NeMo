@@ -84,6 +84,7 @@ def main(cfg: TranscriptionConfig):
 
     trainer = pl.Trainer(gpus=int(cfg.cuda))
     asr_model.set_trainer(trainer)
+    asr_model = asr_model.eval()
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
@@ -105,7 +106,8 @@ def main(cfg: TranscriptionConfig):
 
     # transcribe audio
     with autocast():
-        transcriptions = asr_model.transcribe(filepaths, batch_size=cfg.batch_size)
+        with torch.no_grad():
+            transcriptions = asr_model.transcribe(filepaths, batch_size=cfg.batch_size)
     logging.info(f"Finished transcribing {len(filepaths)} files !")
 
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
