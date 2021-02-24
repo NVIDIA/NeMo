@@ -52,7 +52,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             pretrained_model_name="QuartzNet15x5Base-En",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo",
             description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other.",
-            class_=EncDecCTCModel,
         )
         result.append(model)
 
@@ -60,7 +59,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             pretrained_model_name="QuartzNet15x5Base-Zh",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-Zh.nemo",
             description="QuartzNet15x5 model trained on ai-shell2 Mandarin Chinese dataset.",
-            class_=EncDecCTCModel,
         )
         result.append(model)
 
@@ -68,7 +66,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             pretrained_model_name="QuartzNet5x5LS-En",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet5x5LS-En.nemo",
             description="QuartzNet5x5 model trained on LibriSpeech dataset only. The model achieves a WER of 5.37% on LibriSpeech dev-clean, and a WER of 15.69% on dev-other.",
-            class_=EncDecCTCModel,
         )
         result.append(model)
 
@@ -76,7 +73,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             pretrained_model_name="QuartzNet15x5NR-En",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5NR-En.nemo",
             description="QuartzNet15x5Base-En was finetuned with RIR and noise augmentation to make it more robust to noise. This model should be preferred for noisy speech transcription. This model achieves a WER of 3.96% on LibriSpeech dev-clean and a WER of 10.14% on dev-other.",
-            class_=EncDecCTCModel,
         )
         result.append(model)
 
@@ -84,7 +80,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             pretrained_model_name="Jasper10x5Dr-En",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/Jasper10x5Dr-En.nemo",
             description="JasperNet10x5Dr model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1. The model achieves a WER of 3.37% on LibriSpeech dev-clean, 9.81% on dev-other.",
-            class_=EncDecCTCModel,
         )
         result.append(model)
         return result
