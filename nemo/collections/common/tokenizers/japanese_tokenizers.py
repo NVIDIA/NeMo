@@ -50,11 +50,7 @@ class JapaneseTokenizer:
 
     def tokenize(self, text, escape=False, return_str=False):
         """
-        Detokenizes a list of sentencepiece tokens in Japanese
-        Args:
-            tokens: list of strings as tokens
-        Returns:
-            detokenized Japanese string
+        Tokenizes text using Moses -> Sentencepiece.
         """
         text = self.moses_tokenizer.tokenize(text, escape=escape, return_str=True)
         text = self.sp_tokenize(text)
