@@ -309,7 +309,7 @@ pipeline {
       }
     }
 
-    stage('L2: ASR Multi-dataloader dev run') {
+    stage('L2: Speech Transcription') {
       when {
         anyOf{
           branch 'main'
