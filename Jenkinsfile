@@ -324,7 +324,7 @@ pipeline {
             pretrained_name="QuartzNet15x5Base-En" \
             audio_dir="/home/TestData/an4_transcribe/test_subset/" \
             cuda=true \
-            amp=true
+            amp=true'
             sh 'rm -rf examples/asr/speech_to_text_transcriptions.txt'
           }
         }
