@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import editdistance
@@ -22,7 +22,6 @@ from pytorch_lightning.metrics import Metric
 
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
-
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 

@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import glob
-import torch
-import pytorch_lightning as pl
 import contextlib
-from typing import Optional
-from omegaconf import OmegaConf, MISSING
+import glob
+import os
 from dataclasses import dataclass
+from typing import Optional
 
-from nemo.collections.asr.models import ASRModel
+import pytorch_lightning as pl
+import torch
+from omegaconf import MISSING, OmegaConf
+
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
+from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
+
 
 """
 # Transcribe audio

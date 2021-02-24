@@ -16,11 +16,11 @@
 from nemo.core.classes.common import (
     FileIO,
     Model,
+    PretrainedModelInfo,
     Serialization,
     Typing,
     is_typecheck_enabled,
     typecheck,
-    PretrainedModelInfo,
 )
 from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.classes.exportable import Exportable, ExportFormat
