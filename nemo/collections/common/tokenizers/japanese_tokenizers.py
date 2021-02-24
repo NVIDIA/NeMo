@@ -24,9 +24,7 @@ from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentenceP
 class JapaneseDetokenizer:
     def __init__(self):
         self.moses_detokenizer = MosesDetokenizer(lang='ja')
-
-    def sp_detokenize(self, tokens: List[str]) -> str:
-        return re.sub('▁', ' ', re.sub(' ', '', "".join(tokens)))
+        self.sp_detokenizer = SentencePieceDetokenizer()
 
     def detokenize(self, tokens: List[str]) -> str:
         """
@@ -36,7 +34,7 @@ class JapaneseDetokenizer:
         Returns:
             detokenized Japanese string
         """
-        text = self.sp_detokenize(tokens)
+        text = self.sp_detokenizer.detokenize(tokens)
         return self.moses_detokenizer.detokenize(text)
 
 

@@ -18,9 +18,7 @@ import random
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import jieba
 import numpy as np
-import opencc
 import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig
@@ -40,8 +38,6 @@ from nemo.collections.common.tokenizers import (
     ChineseTokenizer,
     JapaneseDetokenizer,
     JapaneseTokenizer,
-    SentencePieceDetokenizer,
-    SentencePieceTokenizer,
     Traditional2Simplified,
 )
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset

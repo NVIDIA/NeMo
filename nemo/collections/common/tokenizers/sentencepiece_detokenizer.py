@@ -17,5 +17,5 @@ from typing import List
 
 class SentencePieceDetokenizer:
     @staticmethod
-    def detokenize(translation: List[str]):
+    def detokenize(translation: List[str]) -> str:
         return re.sub('▁', ' ', re.sub(' ', '', "".join(translation)))
