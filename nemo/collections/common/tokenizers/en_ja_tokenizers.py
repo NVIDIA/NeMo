@@ -20,32 +20,39 @@ from nemo.collections.common.tokenizers.sentencepiece_detokenizer import Sentenc
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
-class JapaneseDetokenizer:
-    def __init__(self):
-        self.moses_detokenizer = MosesDetokenizer(lang='ja')
+class EnJaDetokenizer:
+    """
+    Deokenizer for Japanese & English that undoes `EnJaTokenizer` tokenization.
+    Args:
+        lang_id: One of ['en', 'ja'].
+    """
+
+    def __init__(self, lang_id: str):
+        self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
         self.sp_detokenizer = SentencePieceDetokenizer()
 
     def detokenize(self, tokens: List[str]) -> str:
         """
-        Detokenizes a list of Japanese tokens
+        Detokenizes a list of tokens
         Args:
             tokens: list of strings as tokens
         Returns:
-            detokenized Japanese string
+            detokenized Japanese or English string
         """
         text = self.sp_detokenizer.detokenize(tokens)
         return self.moses_detokenizer.detokenize(text)
 
 
-class JapaneseTokenizer:
+class EnJaTokenizer:
     """
-    Tokenizer for Japanese that does Moses tokenization followed by SentencePiece
+    Tokenizer for Japanese & English that does Moses tokenization followed by SentencePiece
     Args:
-        sp_tokenizer_model_path: Path to a sentencepiece model
+        sp_tokenizer_model_path: String path to a sentencepiece model
+        lang_id: One of ['en', 'ja'].
     """
 
-    def __init__(self, sp_tokenizer_model_path):
-        self.moses_tokenizer = MosesTokenizer(lang='ja')
+    def __init__(self, sp_tokenizer_model_path: str, lang_id: str):
+        self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
 
     def sp_tokenize(self, text: str) -> str:
