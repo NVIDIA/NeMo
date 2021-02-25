@@ -133,8 +133,15 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: encoder and decoder with different hidden size?
         std_init_range = 1 / self.encoder.hidden_size ** 0.5
-        # TODO: if using pretrained encoder/decoder we don't need to init weights
-        self.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        # initialize weights if not using pretrained encoder/decoder
+        if not self._cfg.encoder.get('pretrained', False):
+            self.encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        if not self._cfg.decoder.get('pretrained', False):
+            self.decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
