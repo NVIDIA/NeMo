@@ -46,6 +46,7 @@ def get_lm_model(
     config_dict: Optional[dict] = None,
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
+    vocab_file: Optional[str] = None,
 ) -> BertModule:
     """
     Helper function to instantiate a language model encoder, either from scratch or a pretrained model.
@@ -58,6 +59,7 @@ def get_lm_model(
         config_dict: path to the model configuration dictionary
         config_file: path to the model configuration file
         checkpoint_file: path to the pretrained model checkpoint
+        vocab_file: path to vocab_file to be used with Megatron-LM
 
     Returns:
         Pretrained BertModule
@@ -82,6 +84,7 @@ def get_lm_model(
             config_file=config_file,
             pretrained_model_name=pretrained_model_name,
             checkpoint_file=checkpoint_file,
+            vocab_file=vocab_file,
         )
     else:
         model = get_huggingface_lm_model(
