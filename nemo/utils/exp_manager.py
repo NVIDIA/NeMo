@@ -572,6 +572,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.always_save_nemo = always_save_nemo
         self.save_best_model = save_best_model
         self.postfix = postfix
+        self.previous_best_path = ""
+
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
     
@@ -586,7 +588,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if self.save_best_model:
             if not os.path.exists(self.best_model_path):
                 return output
-           
+          
+            if self.best_model_path == self.previous_best_path:
+                return output
+
+            self.previous_model_path = self.best_model_path
             old_state_dict = deepcopy(pl_module.state_dict())
             checkpoint = torch.load(self.best_model_path, map_location='cpu')
             if 'state_dict' in checkpoint:
