@@ -375,7 +375,7 @@ class MTEncDecModel(EncDecNLPModel):
 
     def get_detokenizer(self, source_lang, target_lang):
         """
-        Returns a detokenizer for a specific language.
+        Returns a detokenizer for a specific target language.
         """
         detokenizer = None
         if source_lang in ['en', 'ja'] and target_lang in ['en', 'ja']:
