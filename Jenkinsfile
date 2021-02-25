@@ -313,8 +313,9 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          branch pattern: 'r1.*'
+          branch compare: 'r1.*'
           changeRequest target: 'main'
+          changeRequest target: compare: 'r1.*'
         }
       }
       failFast true
