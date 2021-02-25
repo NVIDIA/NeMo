@@ -17,9 +17,11 @@ import pytest
 import torch
 from omegaconf import DictConfig, ListConfig
 
+from nemo.collections.asr.metrics import rnnt_wer
 from nemo.collections.asr.models import EncDecRNNTModel
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
+from nemo.utils.config_utils import assert_dataclass_signature_match
 
 try:
     from warprnnt_pytorch import RNNTLoss
@@ -211,3 +213,45 @@ class TestEncDecRNNTModel:
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
         assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "alsd"
+
+    @pytest.mark.unit
+    def test_GreedyRNNTInferConfig(self):
+        IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index']
+
+        result = assert_dataclass_signature_match(
+            greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyRNNTInferConfig, ignore_args=IGNORE_ARGS
+        )
+
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
+
+    @pytest.mark.unit
+    def test_GreedyBatchedRNNTInferConfig(self):
+        IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index']
+
+        result = assert_dataclass_signature_match(
+            greedy_decode.GreedyBatchedRNNTInfer, greedy_decode.GreedyBatchedRNNTInferConfig, ignore_args=IGNORE_ARGS
+        )
+
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
+
+    @pytest.mark.unit
+    def test_BeamRNNTInferConfig(self):
+        IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index']
+
+        result = assert_dataclass_signature_match(
+            beam_decode.BeamRNNTInfer, beam_decode.BeamRNNTInferConfig, ignore_args=IGNORE_ARGS
+        )
+
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
