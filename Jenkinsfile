@@ -5,6 +5,11 @@ pipeline {
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
+
+  environment {
+     BRANCH_NAME = "${GIT_BRANCH.split("/").size() > 1 ? GIT_BRANCH.split("/")[1] : GIT_BRANCH}"
+  }
+
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
@@ -40,11 +45,6 @@ pipeline {
         sh 'python setup.py style'
       }
     }
-
-    environment {
-       BRANCH_NAME = "${GIT_BRANCH.split("/").size() > 1 ? GIT_BRANCH.split("/")[1] : GIT_BRANCH}"
-    }
-
     stage('Installation') {
       steps {
         sh './reinstall.sh release'
