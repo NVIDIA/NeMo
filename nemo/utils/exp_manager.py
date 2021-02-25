@@ -16,12 +16,13 @@ import os
 import subprocess
 import sys
 import time
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Dict, List, Optional, Union
-from copy import deepcopy
 
+import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
@@ -29,7 +30,6 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
-import torch
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import app_state, logging
@@ -576,11 +576,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
-    
+
     @rank_zero_only
     def on_save_checkpoint(self, trainer, pl_module):
         output = super().on_save_checkpoint(trainer, pl_module)
-         
+
         if not self.always_save_nemo:
             return output
 
@@ -588,7 +588,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if self.save_best_model:
             if not os.path.exists(self.best_model_path):
                 return output
-          
+
             if self.best_model_path == self.previous_best_path:
                 return output
 
