@@ -68,6 +68,9 @@ class FastSpeech2SModel(ModelPT):
         self.gen_loss = GeneratorLoss()
         self.mseloss = torch.nn.MSELoss()
 
+        self.use_energy_pred = False
+        self.use_pitch_pred = False
+        self.use_duration_pred = False
         self.log_train_images = False
         self.logged_real_samples = False
         self._tb_logger = None
@@ -143,11 +146,14 @@ class FastSpeech2SModel(ModelPT):
         # else:
         #     context = self.length_regulator(encoded_text, durations)
 
-        context, log_dur_preds, pitch_preds, energy_preds, spec_len_2 = self.variance_adapter(
-            x=encoded_text, x_len=text_length, dur_target=durations, pitch_target=pitch, energy_target=energies
+        context, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
+            x=encoded_text,
+            x_len=text_length,
+            dur_target=durations,
+            pitch_target=pitch,
+            energy_target=energies,
+            spec_len=spec_len,
         )
-        if not self.training:
-            spec_len = spec_len_2
 
         gen_in = context
         splices = None
@@ -291,6 +297,22 @@ class FastSpeech2SModel(ModelPT):
             "audio_target": f.squeeze(),
             "audio_pred": audio_pred.squeeze(),
         }
+
+    def on_train_epoch_start(self):
+        # Switch to using energy predictions after 50% of training
+        if not self.use_energy_pred and self.current_epoch >= np.ceil(0.5 * self._trainer.max_epochs):
+            logging.info(f"Using energy predictions after epoch: {self.current_epoch}")
+            self.use_energy_pred = True
+
+        # Switch to using pitch predictions after 62.5% of training
+        if not self.use_pitch_pred and self.current_epoch >= np.ceil(0.625 * self._trainer.max_epochs):
+            logging.info(f"Starting pitch predictions after epoch: {self.current_epoch}")
+            self.use_pitch_pred = True
+
+        # Switch to using duration predictions after 75% of training
+        if not self.use_duration_pred and self.current_epoch >= np.ceil(0.75 * self._trainer.max_epochs):
+            logging.info(f"Using duration predictions after epoch: {self.current_epoch}")
+            self.use_duration_pred = True
 
     def validation_epoch_end(self, outputs):
         if self.tb_logger is not None:
