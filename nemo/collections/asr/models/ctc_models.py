@@ -186,6 +186,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                         hypotheses += self._wer.ctc_decoder_predictions_tensor(
                             greedy_predictions, predictions_len=logits_len
                         )
+                    del greedy_predictions
+                    del logits
                     del test_batch
         finally:
             # set mode back to its original value
