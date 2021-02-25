@@ -19,7 +19,7 @@ import json
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 import braceexpand
 import numpy as np
@@ -427,3 +427,31 @@ class TarredTranslationDataset(IterableDataset):
 
     def __len__(self):
         return self.metadata['num_batches']
+
+
+class ConcatTarredTranslationDataset(IterableDataset):
+    """
+    A concatenation of multiple TranslationDataset objects with the ability to specify different sampling ratios.
+    Args:
+        datasets List[TarredTranslationDataset]: A list of TarredTranslationDataset objects.
+        ratios List[float]: Sampling ratios for each dataset (in the same order).
+        ex: [1, 5] will sample in the ratio 1:5 for the first and second element
+    """
+    def __init__(self, datasets: List[TarredTranslationDataset], ratios: List[float]):
+        super().__init__()
+        self.num_batches = sum(dataset.metadata['num_batches'] for dataset in datasets)
+        self.datasets = [x.__iter__() for x in datasets]
+        self.ratios = ratios
+        assert len(datasets) == len(ratios)
+        self.probs = [x / sum(self.ratios) for x in ratios]
+
+    def __iter__(self):
+        while True:
+            choice = np.random.choice(np.arange(len(self.datasets)), p=self.probs)
+            try:
+                yield next(self.datasets[choice])
+            except StopIteration:
+                return
+
+    def __len__(self):
+        return self.num_batches

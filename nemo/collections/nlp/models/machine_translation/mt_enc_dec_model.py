@@ -317,6 +317,24 @@ class MTEncDecModel(EncDecNLPModel):
                 world_size=self.world_size,
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
             )
+            if cfg.get('backtranslated_tar_files', None) is not None:
+                if cfg.get("backtranslated_metadata_file", None) is None:
+                    raise FileNotFoundError("Could not find backtranslated_metadata_file path in config")
+                backtranslated_dataset = TarredTranslationDataset(
+                    text_tar_filepaths=cfg.backtranslated_tar_files,
+                    metadata_path=cfg.backtranslated_metadata_file,
+                    encoder_tokenizer=self.encoder_tokenizer,
+                    decoder_tokenizer=self.decoder_tokenizer,
+                    shuffle_n=cfg.get("tar_shuffle_n", 100),
+                    shard_strategy=cfg.get("shard_strategy", "scatter"),
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                )
+                dataset = ConcatTarredTranslationDataset(
+                    datasets=[dataset, backtranslated_dataset],
+                    ratios=[1, cfg.get('backtranslate_undersample_factor', 1)]
+                )
             return torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=1,
