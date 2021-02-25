@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
@@ -173,7 +174,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                 config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in temporary_datalayer:
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     logits, logits_len, greedy_predictions = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
@@ -185,6 +186,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                         hypotheses += self._wer.ctc_decoder_predictions_tensor(
                             greedy_predictions, predictions_len=logits_len
                         )
+                    del greedy_predictions
+                    del logits
                     del test_batch
         finally:
             # set mode back to its original value

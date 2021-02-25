@@ -26,6 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import torch
@@ -574,3 +575,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 symbols_added += 1
 
         return label, timesteps
+
+
+@dataclass
+class GreedyRNNTInferConfig:
+    max_symbols_per_step: Optional[int] = None
+
+
+@dataclass
+class GreedyBatchedRNNTInferConfig:
+    max_symbols_per_step: Optional[int] = None

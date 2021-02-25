@@ -414,3 +414,54 @@ def maybe_update_config_version(cfg: DictConfig):
     OmegaConf.set_struct(cfg, True)
 
     return cfg
+
+
+def import_class_by_path(path: str):
+    """
+    Recursive import of class by path string.
+    """
+    paths = path.split('.')
+    path = ".".join(paths[:-1])
+    class_name = paths[-1]
+    mod = __import__(path, fromlist=[class_name])
+    mod = getattr(mod, class_name)
+    return mod
+
+
+def resolve_subclass_pretrained_model_info(base_class) -> List['PretrainedModelInfo']:
+    """
+    Recursively traverses the inheritance graph of subclasses to extract all pretrained model info.
+    First constructs a set of unique pretrained model info by performing DFS over the inheritance graph.
+    All model info belonging to the same class is added together.
+
+    Args:
+        base_class: The root class, whose subclass graph will be traversed.
+
+    Returns:
+        A list of unique pretrained model infos belonging to all of the inherited subclasses of
+        this baseclass.
+    """
+    list_of_models = set()
+
+    def recursive_subclass_walk(cls):
+        for subclass in cls.__subclasses__():
+            # step into its immediate subclass
+            recursive_subclass_walk(subclass)
+
+            subclass_models = subclass.list_available_models()
+
+            if subclass_models is not None and len(subclass_models) > 0:
+                # Inject subclass info into pretrained model info
+                # if not already overriden by subclass
+                for model_info in subclass_models:
+                    # If subclass manually injects class_, dont override.
+                    if model_info.class_ is None:
+                        model_info.class_ = subclass
+
+                for model_info in subclass_models:
+                    list_of_models.add(model_info)
+
+    recursive_subclass_walk(base_class)
+
+    list_of_models = list(list_of_models)
+    return list_of_models
