@@ -312,10 +312,10 @@ pipeline {
     stage('L2: Speech Transcription') {
       when {
         anyOf{
-          branch 'main';
-          branch pattern: "r\\d.*", comparator: "REGEXP";
-          changeRequest target: 'main';
-          changeRequest target: "r\\d.*", comparator: "REGEXP"
+          branch 'main'
+          branch "r\\d.*"
+          changeRequest target: 'main'
+          changeRequest target: "r\\d.*"
         }
       }
       failFast true
