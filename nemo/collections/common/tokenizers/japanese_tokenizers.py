@@ -27,7 +27,7 @@ class JapaneseDetokenizer:
 
     def detokenize(self, tokens: List[str]) -> str:
         """
-        Detokenizes a list of sentencepiece tokens in Japanese
+        Detokenizes a list of Japanese tokens
         Args:
             tokens: list of strings as tokens
         Returns:
