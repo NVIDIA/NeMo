@@ -70,8 +70,8 @@ def main():
     torch.set_grad_enabled(False)
 
     if args.model_path.endswith('.nemo'):
-        logging.info(f"Using local speaker model from {args.spkr_model}")
-        speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(restore_path=args.spkr_model)
+        logging.info(f"Using local speaker model from {args.model_path}")
+        speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(restore_path=args.model_path)
     else:
         speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name="SpeakerNet_verification")
         logging.info(f"using pretrained speaker verification model from NGC")
