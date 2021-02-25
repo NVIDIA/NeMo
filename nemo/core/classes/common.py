@@ -513,6 +513,26 @@ class PretrainedModelInfo:
     location: str
     class_: 'Model' = None
 
+    def __repr__(self):
+        base = self.__class__.__name__
+        extras = (
+            "pretrained_model_name={pretrained_model_name},\n\t"
+            "description={description},\n\t"
+            "location={location}".format(**self.__dict__)
+        )
+
+        if self.class_ is not None:
+            extras = "{extras},\n\t" "class_={class_}".format(extras=extras, **self.__dict__)
+
+        representation = f"{base}(\n\t{extras}\n)"
+        return representation
+
+    def __hash__(self):
+        # assumes that locations are unique urls, and therefore their hashes
+        # should ideally also be unique
+        location_hash = hash(self.location)
+        return location_hash
+
 
 class Model(Typing, Serialization, FileIO):
     """

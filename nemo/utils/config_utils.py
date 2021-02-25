@@ -239,12 +239,12 @@ def assert_dataclass_signature_match(
         dataclass_params = dataclass_params - ignore_args
         logging.info(f"Removing ignored arguments - {ignore_args}")
 
-    if len(class_params) != len(dataclass_params):
-        logging.error(f"Class {cls.__name__} arguments do not match " f"Dataclass {datacls.__name__}!")
+    intersection = set.intersection(class_params, dataclass_params)
+    subset_cls = class_params - intersection
+    subset_datacls = dataclass_params - intersection
 
-        intersection = set.intersection(class_params, dataclass_params)
-        subset_cls = class_params - intersection
-        subset_datacls = dataclass_params - intersection
+    if (len(class_params) != len(dataclass_params)) or len(subset_cls) > 0 or len(subset_datacls) > 0:
+        logging.error(f"Class {cls.__name__} arguments do not match " f"Dataclass {datacls.__name__}!")
 
         if len(subset_cls) > 0:
             logging.error(f"Class {cls.__name__} has additional arguments :\n" f"{subset_cls}")
