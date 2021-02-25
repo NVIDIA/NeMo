@@ -36,8 +36,8 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers import (
     ChineseDetokenizer,
     ChineseTokenizer,
-    EnJaTokenizer,
     EnJaDetokenizer,
+    EnJaTokenizer,
     Traditional2Simplified,
 )
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
