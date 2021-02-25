@@ -187,9 +187,9 @@ class FastSpeech2SModel(ModelPT):
                     spec_len=spec_len,
                     text=t,
                     text_length=tl,
-                    durations=durations,
-                    pitch=pitch,
-                    energies=energies,
+                    durations=durations if not self.use_duration_pred else None,
+                    pitch=pitch if not self.use_pitch_pred else None,
+                    energies=energies if not self.use_energy_pred else None,
                 )
                 real_audio = []
                 for i, splice in enumerate(splices):
@@ -217,9 +217,9 @@ class FastSpeech2SModel(ModelPT):
                 spec_len=spec_len,
                 text=t,
                 text_length=tl,
-                durations=durations,
-                pitch=pitch,
-                energies=energies,
+                durations=durations if not self.use_duration_pred else None,
+                pitch=pitch if not self.use_pitch_pred else None,
+                energies=energies if not self.use_energy_pred else None,
             )
             real_audio = []
             for i, splice in enumerate(splices):
