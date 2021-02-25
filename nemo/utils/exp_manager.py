@@ -602,12 +602,14 @@ def configure_checkpointing(
         )
 
     # Create the callback and attach it to trainer
-    if "filepath" in params and params.filepath is not None:
-        logging.warning("filepath is deprecated. Please switch to dirpath and filename instead")
-        if params.dirpath is None:
-            params.dirpath = Path(params.filepath).parent
-        if params.filename is None:
-            params.filename = Path(params.filepath).name
+    if "filepath" in params:
+        if params.filepath is not None:
+            logging.warning("filepath is deprecated. Please switch to dirpath and filename instead")
+            if params.dirpath is None:
+                params.dirpath = Path(params.filepath).parent
+            if params.filename is None:
+                params.filename = Path(params.filepath).name
+        params.pop("filepath")
     if params.dirpath is None:
         params.dirpath = Path(log_dir / 'checkpoints')
     if params.filename is None:
