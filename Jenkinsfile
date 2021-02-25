@@ -64,9 +64,8 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          branch "r\\d.*"
           changeRequest target: 'main'
-          expression { env.BRANCH_NAME =~ 'r\\d.*' }
+          expression { return env.BRANCH_NAME =~ 'r\\d.*' }
         }
       }
       failFast true
