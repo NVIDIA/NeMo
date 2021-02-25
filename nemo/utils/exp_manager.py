@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -609,7 +609,8 @@ def configure_checkpointing(
                 params.dirpath = Path(params.filepath).parent
             if params.filename is None:
                 params.filename = Path(params.filepath).name
-        del params["filepath"]
+        with open_dict(params):
+            del params["filepath"]
     if params.dirpath is None:
         params.dirpath = Path(log_dir / 'checkpoints')
     if params.filename is None:
