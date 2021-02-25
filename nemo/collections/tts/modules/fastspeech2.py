@@ -215,6 +215,7 @@ class VarianceAdaptor(NeuralModule):
             dur_out = self.length_regulator(x, dur_preds)
             spec_len = torch.sum(dur_preds, dim=1)
         out = dur_out
+        out *= get_mask_from_lengths(x_len)
 
         # Pitch
         # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
@@ -227,6 +228,7 @@ class VarianceAdaptor(NeuralModule):
             else:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
             out += pitch_out
+        out *= get_mask_from_lengths(x_len)
 
         # Energy
         energy_preds = None
@@ -237,6 +239,7 @@ class VarianceAdaptor(NeuralModule):
             else:
                 energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
             out += energy_out
+        out *= get_mask_from_lengths(x_len)
 
         return out, log_dur_preds, pitch_preds, energy_preds, spec_len
 
