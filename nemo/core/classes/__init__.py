@@ -13,7 +13,15 @@
 # limitations under the License.
 
 
-from nemo.core.classes.common import FileIO, Model, Serialization, Typing, is_typecheck_enabled, typecheck
+from nemo.core.classes.common import (
+    FileIO,
+    Model,
+    PretrainedModelInfo,
+    Serialization,
+    Typing,
+    is_typecheck_enabled,
+    typecheck,
+)
 from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.classes.exportable import Exportable, ExportFormat
 from nemo.core.classes.loss import Loss

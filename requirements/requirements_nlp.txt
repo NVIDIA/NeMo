@@ -6,7 +6,6 @@ torchtext
 unidecode
 youtokentome
 numpy
-tqdm>=4.41.0
 rapidfuzz
 gdown
 megatron-lm==1.1.5
