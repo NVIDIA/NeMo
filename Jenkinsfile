@@ -66,7 +66,7 @@ pipeline {
           branch 'main'
           branch "r\\d.*"
           changeRequest target: 'main'
-          changeRequest target: "r\\d.*"
+          expression { env.BRANCH_NAME =~ 'r\\d.*' }
         }
       }
       failFast true
