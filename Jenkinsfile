@@ -313,9 +313,9 @@ pipeline {
       when {
         anyOf{
           branch 'main';
-          branch pattern: 'r1.*' comparator: 'REGEXP';
+          branch pattern: 'r\d.*' comparator: 'REGEXP';
           changeRequest target: 'main';
-          changeRequest target: 'r1.*' comparator: 'REGEXP';
+          changeRequest target: 'r\d.*' comparator: 'REGEXP';
         }
       }
       failFast true
