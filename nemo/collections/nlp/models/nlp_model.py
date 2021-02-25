@@ -102,15 +102,24 @@ class NLPModel(ModelPT, Exportable):
         Args:
             cfg (DictConfig): Tokenizer config
         """
+        vocab_file = None
+        if self._is_model_being_restored():
+            if os.path.exists('tokenizer.vocab_file'):
+                # model is being restored from .nemo file so tokenizer.vocab_file has precedence
+                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
 
-        if self._is_model_being_restored() and os.path.exists('tokenizer.vocab_file'):
-            # model is being restored from .nemo file so tokenizer.vocab_file has precedence
-            vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
-        elif cfg.vocab_file is not None:
+            # tokenizer.vocab_file is added to the config file and registered as artifact for .nemo file
+            # during training but this file is missing for load_from_checkpoint() method call
+            # it's safer to use restore_from .nemo file
+            elif cfg.vocab_file and not os.path.exists(cfg.vocab_file):
+                logging.warning(
+                    f'tokenizer.vocab_file not found at {cfg.vocab_file}. It is recommended to use restore_from() method with .nemo file.'
+                )
+            else:
+                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
+        elif cfg.vocab_file:
             # use vocab file from config
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-        else:
-            vocab_file = None
 
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
@@ -349,6 +358,11 @@ class NLPModel(ModelPT, Exportable):
                 ):
                     # finish megatron-lm initialization
                     self.bert_model._lazy_init_fn()
+        else:
+            # testing stage
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                # finish megatron-lm initialization
+                self.bert_model._lazy_init_fn()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
@@ -365,7 +379,7 @@ class NLPModel(ModelPT, Exportable):
 
 
 class NLPCheckpointConnector(CheckpointConnector):
-    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM. 
+    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM.
     """
 
     def __init__(self, trainer):
