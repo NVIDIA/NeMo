@@ -313,7 +313,7 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          branch compare: 'r1.*'
+          branch pattern: 'r1.*' comparator: "REGEXP"
           changeRequest target: 'main'
           changeRequest target: compare: 'r1.*'
         }
