@@ -15,14 +15,7 @@
 
 import pynini
 from denormalization.data_loader_utils import get_abs_path
-from denormalization.graph_utils import (
-    NEMO_NON_BREAKING_SPACE,
-    NEMO_WHITE_SPACE,
-    GraphFst,
-    convert_space,
-    delete_extra_space,
-    delete_space,
-)
+from denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
 from denormalization.taggers.cardinal import CardinalFst
 from pynini.lib import pynutil
 

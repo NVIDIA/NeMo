@@ -21,7 +21,7 @@ from pynini.lib import pynutil
 class MeasureFst(GraphFst):
     def __init__(self):
         super().__init__(name="measure", kind="verbalize")
-        sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
+        # sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
         integer = (
             (pynutil.delete("integer:") | pynutil.delete("integer_part:"))
             + delete_space

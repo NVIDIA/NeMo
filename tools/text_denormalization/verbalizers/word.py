@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import pynini
-from denormalization.graph_utils import NEMO_CHAR, NEMO_SPACE, GraphFst, delete_space
+from denormalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
 from pynini.lib import pynutil
 
 

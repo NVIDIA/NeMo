@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import string
 from collections import OrderedDict
-from typing import Dict, List, Union
-
-import pynini
-import regex as re
+from typing import Union
 
 EOS = "<EOS>"
 

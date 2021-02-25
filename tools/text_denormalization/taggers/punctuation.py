@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import pynini
-from denormalization.data_loader_utils import get_abs_path
 from denormalization.graph_utils import GraphFst, convert_space
 from pynini.lib import pynutil
 

@@ -13,18 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
-import inflect
 import pynini
 from denormalization.data_loader_utils import get_abs_path
-from denormalization.graph_utils import (
-    NEMO_NON_BREAKING_SPACE,
-    GraphFst,
-    convert_space,
-    delete_extra_space,
-    delete_space,
-)
+from denormalization.graph_utils import GraphFst, convert_space, delete_extra_space, delete_space
 from denormalization.taggers.cardinal import CardinalFst
 from denormalization.utils import num_to_word
 from pynini.lib import pynutil
@@ -38,8 +30,6 @@ class TimeFst(GraphFst):
         suffix_graph = pynini.string_file(get_abs_path("data/time.tsv"))
 
         cardinal = CardinalFst().graph_no_exception
-
-        add_space = pynutil.insert(" ")
 
         labels_hour = [num_to_word(x) for x in range(1, 13)]
         labels_minute_single = [num_to_word(x) for x in range(1, 10)]

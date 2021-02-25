@@ -13,9 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pynini
 from denormalization.graph_utils import GraphFst
-from pynini.lib import pynutil
 
 
 class FractionFst(GraphFst):

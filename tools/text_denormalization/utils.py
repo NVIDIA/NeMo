@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import string
-from enum import Enum
-from typing import List, Union
+from typing import Union
 
 import inflect
-import regex as re
 
 _inflect = inflect.engine()
 
@@ -26,5 +22,5 @@ _inflect = inflect.engine()
 def num_to_word(x: Union[str, int]):
     if isinstance(x, int):
         x = str(x)
-    x = _inflect.number_to_words(str(x)).replace("-", " ").replace(",", "")
+        x = _inflect.number_to_words(str(x)).replace("-", " ").replace(",", "")
     return x

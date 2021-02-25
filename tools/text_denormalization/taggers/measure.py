@@ -15,7 +15,7 @@
 
 import pynini
 from denormalization.data_loader_utils import get_abs_path
-from denormalization.graph_utils import NEMO_CHAR, GraphFst, convert_space, delete_extra_space, get_plurals
+from denormalization.graph_utils import GraphFst, convert_space, delete_extra_space, get_plurals
 from denormalization.taggers.cardinal import CardinalFst
 from denormalization.taggers.decimal import DecimalFst
 from pynini.lib import pynutil
@@ -37,7 +37,6 @@ class MeasureFst(GraphFst):
         # optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1)
 
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_decimal + pynutil.insert("\"")
-        graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
 
         unit = pynutil.insert("units: \"") + convert_space(graph_unit) + pynutil.insert("\"")
 

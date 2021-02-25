@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import subprocess
-import sys
 from argparse import ArgumentParser
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List
 
-import numpy as np
 from denormalize import DENORMALIZERS
 
 

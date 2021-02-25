@@ -18,7 +18,7 @@ import os
 
 import pynini
 from denormalization.data_loader_utils import get_abs_path
-from denormalization.graph_utils import NEMO_SPACE, GraphFst, add_arcs, convert_space, delete_space
+from denormalization.graph_utils import NEMO_SPACE, GraphFst, add_arcs, delete_space
 from denormalization.taggers.ordinal import OrdinalFst
 from pynini.lib import pynutil
 
@@ -49,7 +49,7 @@ def _get_year_graph():
     graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
     ties_graph = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).optimize()
     graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).optimize()
-    graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
+    # graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
 
     def _get_digits_graph():
         zero = pynini.cross((pynini.accep("oh") | pynini.accep("o")), "0")

@@ -15,7 +15,7 @@
 
 import pynini
 from denormalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
-from pynini.lib import byte, pynutil
+from pynini.lib import pynutil
 
 
 class DateFst(GraphFst):
@@ -62,6 +62,5 @@ class DateFst(GraphFst):
             + pynutil.delete("\"")
         )
 
-        delete_tokens = self.delete_tokens(graph1 | graph2)
         delete_tokens = self.delete_tokens(graph1)
         self.fst = delete_tokens.optimize()

@@ -15,7 +15,7 @@
 
 
 import pynini
-from denormalization.graph_utils import NEMO_CHAR, GraphFst
+from denormalization.graph_utils import GraphFst
 from denormalization.taggers.cardinal import CardinalFst
 from denormalization.taggers.date import DateFst
 from denormalization.taggers.decimal import DecimalFst
