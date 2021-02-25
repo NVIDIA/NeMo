@@ -5,11 +5,6 @@ pipeline {
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
-
-  environment {
-     BRANCH_NAME = "${GIT_BRANCH.split("/").size() > 1 ? GIT_BRANCH.split("/")[1] : GIT_BRANCH}"
-  }
-
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
@@ -57,33 +52,9 @@ pipeline {
       }
     }
 
-//     stage('L0: Unit Tests GPU') {
-//       steps {
-//         sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
-//       }
-//     }
-
-
-    stage('L2: Speech Transcription') {
-      when {
-        anyOf{
-          branch 'main'
-          changeRequest target: 'main'
-          expression { return env.BRANCH_NAME =~ 'r\\d.*' }
-        }
-      }
-      failFast true
-      parallel {
-        stage('Speech to Text Transcribe') {
-          steps {
-            sh 'python examples/asr/transcribe_speech.py \
-            pretrained_name="QuartzNet15x5Base-En" \
-            audio_dir="/home/TestData/an4_transcribe/test_subset/" \
-            cuda=true \
-            amp=true'
-            sh 'rm -rf examples/asr/speech_to_text_transcriptions.txt'
-          }
-        }
+    stage('L0: Unit Tests GPU') {
+      steps {
+        sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
       }
     }
 
@@ -332,6 +303,28 @@ pipeline {
             ~model.preprocessor.n_fft \
             exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
+          }
+        }
+      }
+    }
+
+    stage('L2: Speech Transcription') {
+      when {
+        anyOf{
+          branch 'r1.0.0rc1'
+          changeRequest target: 'r1.0.0rc1'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text Transcribe') {
+          steps {
+            sh 'python examples/asr/transcribe_speech.py \
+            pretrained_name="QuartzNet15x5Base-En" \
+            audio_dir="/home/TestData/an4_transcribe/test_subset/" \
+            cuda=true \
+            amp=true'
+            sh 'rm -rf examples/asr/speech_to_text_transcriptions.txt'
           }
         }
       }
