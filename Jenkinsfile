@@ -53,11 +53,11 @@ pipeline {
       }
     }
 
-    stage('L0: Unit Tests GPU') {
-      steps {
-        sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
-      }
-    }
+//     stage('L0: Unit Tests GPU') {
+//       steps {
+//         sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
+//       }
+//     }
 
     stage('L0: Unit Tests CPU') {
       when {
@@ -313,7 +313,7 @@ pipeline {
       when {
         anyOf{
           branch ('main|r1.*')
-          changeRequest target: 'main'
+          changeRequest target: ('main|r1.*')
         }
       }
       failFast true
