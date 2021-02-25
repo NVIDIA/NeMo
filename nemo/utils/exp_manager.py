@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Dict, List, Optional, Union
+from copy import deepcopy
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
@@ -28,6 +29,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
+import torch
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import app_state, logging
@@ -582,8 +584,20 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # Load the best model and then re-save it
         if self.save_best_model:
-            trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            if not os.path.exists(self.best_model_path):
+                return output
+           
+            old_state_dict = deepcopy(pl_module.state_dict())
+            checkpoint = torch.load(self.best_model_path, map_location='cpu')
+            if 'state_dict' in checkpoint:
+                checkpoint = checkpoint['state_dict']
+            # get a new instanace of the model
+            pl_module.load_state_dict(checkpoint, strict=True)
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            pl_module.load_state_dict(old_state_dict, strict=True)
+        else:
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+
         return output
 
     @rank_zero_only
