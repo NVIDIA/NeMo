@@ -315,7 +315,7 @@ pipeline {
           branch 'main'
           branch pattern: 'r1.*' comparator: "REGEXP"
           changeRequest target: 'main'
-          changeRequest target: compare: 'r1.*'
+          changeRequest target: 'r1.*' comparator: 'REGEXP'
         }
       }
       failFast true
