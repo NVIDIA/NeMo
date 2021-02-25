@@ -23,7 +23,7 @@ from denormalize import DENORMALIZERS
 
 
 '''
-Runs normalization on text data
+Runs denormalization on text data
 '''
 
 
