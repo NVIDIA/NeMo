@@ -67,7 +67,7 @@ class EncDecRNNTModel(ASRModel):
             )
 
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
-        # global_rank and local_rank is set by LightningModule
+        # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
