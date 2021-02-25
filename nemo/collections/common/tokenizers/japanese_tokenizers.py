@@ -38,9 +38,15 @@ class JapaneseDetokenizer:
 
 
 class JapaneseTokenizer:
-    def __init__(self, sp_tokenizer_model):
+    """
+    Tokenizer for Japanese that does Moses tokenization followed by SentencePiece
+    Args:
+        sp_tokenizer_model_path: Path to a sentencepiece model
+    """
+
+    def __init__(self, sp_tokenizer_model_path):
         self.moses_tokenizer = MosesTokenizer(lang='ja')
-        self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model)
+        self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
 
     def sp_tokenize(self, text: str) -> str:
         return ' '.join(self.sp_tokenizer.text_to_tokens(text))

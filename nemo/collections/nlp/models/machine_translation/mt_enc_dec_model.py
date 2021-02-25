@@ -365,7 +365,7 @@ class MTEncDecModel(EncDecNLPModel):
             normalizer = MosesPunctNormalizer(
                 lang=lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
             )
-            tokenizer = JapaneseTokenizer(self.sentencepiece_model)
+            tokenizer = JapaneseTokenizer(sp_tokenizer_model_path=self.sentencepiece_model)
         elif lang == 'zh':
             normalizer = Traditional2Simplified()
             tokenizer = ChineseTokenizer()
