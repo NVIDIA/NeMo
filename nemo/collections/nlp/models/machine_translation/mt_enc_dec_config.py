@@ -39,6 +39,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     find_unused_parameters: Optional[bool] = True
     shared_tokenizer: Optional[bool] = True
     preproc_out_dir: Optional[str] = None
+    sentencepiece_model: Optional[str] = None
 
 
 @dataclass

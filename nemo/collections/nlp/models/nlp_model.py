@@ -309,8 +309,7 @@ class NLPModel(ModelPT, Exportable):
                         )
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
-                    # finish megatron-lm initialization
-                    self.bert_model._lazy_init_fn()
+                    self.bert_model.complete_lazy_init()
 
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
                     if self._trainer.resume_from_checkpoint is not None:
@@ -351,18 +350,15 @@ class NLPModel(ModelPT, Exportable):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             else:
-                if (
-                    hasattr(self, 'bert_model')
-                    and self.bert_model is not None
-                    and isinstance(self.bert_model, MegatronBertEncoder)
-                ):
-                    # finish megatron-lm initialization
-                    self.bert_model._lazy_init_fn()
+                # Megatron without model parallelism
+                self.complete_megatron_init()
         else:
             # testing stage
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                # finish megatron-lm initialization
-                self.bert_model._lazy_init_fn()
+            self.complete_megatron_init()
+
+    def complete_megatron_init(self):
+        if isinstance(self.bert_model, MegatronBertEncoder):
+            self.bert_model.complete_lazy_init()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
