@@ -26,6 +26,7 @@ class EnJaDetokenizer:
     Args:
         lang_id: One of ['en', 'ja'].
     """
+
     def __init__(self, lang_id: str):
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
         self.sp_detokenizer = SentencePieceDetokenizer()
@@ -49,6 +50,7 @@ class EnJaTokenizer:
         sp_tokenizer_model_path: String path to a sentencepiece model
         lang_id: One of ['en', 'ja'].
     """
+
     def __init__(self, sp_tokenizer_model_path: str, lang_id: str):
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
