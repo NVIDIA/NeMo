@@ -202,7 +202,7 @@ class VarianceAdaptor(NeuralModule):
         # Duration predictions (or ground truth) fed into Length Regulator to
         # expand the hidden states of the encoder embedding
         log_dur_preds = self.duration_predictor(x)
-        log_dur_preds.masked_fill_(~get_mask_from_lengths(x_len).squeeze(), 0)
+        log_dur_preds.masked_fill_(~get_mask_from_lengths(x_len), 0)
         # Output is Batch, Time
         if self.training:
             dur_out = self.length_regulator(x, dur_target)
@@ -215,7 +215,7 @@ class VarianceAdaptor(NeuralModule):
             dur_out = self.length_regulator(x, dur_preds)
             spec_len = torch.sum(dur_preds, dim=1)
         out = dur_out
-        out *= get_mask_from_lengths(x_len).transpose(1, 2)
+        out *= get_mask_from_lengths(x_len).unsqueeze(1)
 
         # Pitch
         # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
@@ -228,7 +228,7 @@ class VarianceAdaptor(NeuralModule):
             else:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
             out += pitch_out
-        out *= get_mask_from_lengths(x_len).transpose(1, 2)
+        out *= get_mask_from_lengths(x_len).unsqueeze(1)
 
         # Energy
         energy_preds = None
@@ -239,7 +239,7 @@ class VarianceAdaptor(NeuralModule):
             else:
                 energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
             out += energy_out
-        out *= get_mask_from_lengths(x_len).transpose(1, 2)
+        out *= get_mask_from_lengths(x_len).unsqueeze(1)
 
         return out, log_dur_preds, pitch_preds, energy_preds, spec_len
 
