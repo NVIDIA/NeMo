@@ -58,6 +58,7 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 @dataclass
 class CallbackParams:
+    filepath: Optional[str] = None  # Deprecated
     dirpath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     filename: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     monitor: Optional[str] = "val_loss"
@@ -601,6 +602,12 @@ def configure_checkpointing(
         )
 
     # Create the callback and attach it to trainer
+    if "filepath" in params and params.filepath is not None:
+        logging.warning("filepath is deprecated. Please switch to dirpath and filename instead")
+        if params.dirpath is None:
+            params.dirpath = Path(params.filepath).parent
+        if params.filename is None:
+            params.filename = Path(params.filepath).name
     if params.dirpath is None:
         params.dirpath = Path(log_dir / 'checkpoints')
     if params.filename is None:
