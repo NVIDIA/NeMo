@@ -1,6 +1,6 @@
+from dataclasses import dataclass
 from typing import Any
 
-from dataclasses import dataclass
 from omegaconf.omegaconf import MISSING
 from pytorch_lightning.trainer.trainer import Trainer
 
