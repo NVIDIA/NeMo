@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+from apex.optimizers import FusedLAMB
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
@@ -35,6 +36,7 @@ AVAILABLE_OPTIMIZERS = {
     'adadelta': adadelta.Adadelta,
     'adamax': adamax.Adamax,
     'adagrad': adagrad.Adagrad,
+    'lamb': FusedLAMB,
     'rmsprop': rmsprop.RMSprop,
     'rprop': rprop.Rprop,
     'novograd': Novograd,

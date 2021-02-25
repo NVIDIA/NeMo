@@ -440,6 +440,67 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
         )
 
 
+class AudioToCharWithDursPitchDataset(_AudioTextDataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports."""
+        return {
+            'audio': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'audio_len': NeuralType(('B',), LengthsType()),
+            'text': NeuralType(('B', 'T'), LabelsType()),
+            'text_len': NeuralType(('B',), LengthsType()),
+            'durs': NeuralType(('B', 'T'), TokenDurationType()),
+            'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
+            'speakers': NeuralType(('B',), Index()),
+        }
+
+    def __getitem__(self, item):
+        audio, audio_len, text, text_len = super().__getitem__(item)  # noqa
+
+        audio_path = self.collection[item].audio_file
+        durs_path = audio_path.replace('/wavs/', '/durations/').replace('.wav', '.pt')
+        pitch_path = audio_path.replace('/wavs/', '/pitch/').replace('.wav', '.pt')
+        speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
+
+        return (
+            audio,
+            audio_len,
+            text,
+            text_len,
+            torch.load(durs_path),
+            torch.load(pitch_path),
+            speaker
+        )
+
+    def _collate_fn(self, batch):
+        asr_batch = list(zip(*batch))[:4]
+        asr_batch = _speech_collate_fn(list(zip(*asr_batch)), pad_id=self.pad_id)
+        audio, audio_len, text, text_len = asr_batch
+
+        max_tokens_len = text.size(1)
+        durs, pitch, speakers = [], [], []
+        for _, _, _, tokens_i_len, durs_i, pitch_i, speaker_i in batch:
+            pad = (0, max_tokens_len - tokens_i_len.item())
+            durs.append(F.pad(durs_i, pad, value=self.pad_id))
+            pitch.append(F.pad(pitch_i, pad, value=self.pad_id))
+            speakers.append(speaker_i)
+
+        return (
+            audio,
+            audio_len,
+            text,
+            text_len,
+            torch.stack(durs),
+            torch.stack(pitch),
+            torch.stack(speakers),
+        )
+
+
 class AudioToBPEDataset(_AudioTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
