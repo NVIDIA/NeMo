@@ -313,11 +313,10 @@ pipeline {
       when {
         anyOf{
           branch 'main'
-          branch pattern: "r1.0*"
+          branch "r1.0*"
           changeRequest target: 'main'
-          changeRequest target: 'r1.0*'
+          comparator: 'REGEXP'
         }
-        comparator: 'REGEXP'
       }
       failFast true
       parallel {
