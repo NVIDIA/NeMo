@@ -357,8 +357,6 @@ class MTEncDecModel(EncDecNLPModel):
         """
         Returns a normalizer and tokenizer for the source language.
         """
-        tokenizer, normalizer = None, None
-
         if source_lang in ['en', 'ja'] and target_lang in ['en', 'ja']:
             normalizer = MosesPunctNormalizer(
                 lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
@@ -377,7 +375,6 @@ class MTEncDecModel(EncDecNLPModel):
         """
         Returns a detokenizer for a specific target language.
         """
-        detokenizer = None
         if source_lang in ['en', 'ja'] and target_lang in ['en', 'ja']:
             detokenizer = EnJaDetokenizer(target_lang)
         elif target_lang == 'zh':
