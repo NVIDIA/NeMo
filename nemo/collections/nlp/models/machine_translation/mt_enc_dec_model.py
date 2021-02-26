@@ -40,7 +40,7 @@ from nemo.collections.common.tokenizers import (
     EnJaTokenizer,
     Traditional2Simplified,
 )
-from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
+from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset, ConcatTarredTranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier

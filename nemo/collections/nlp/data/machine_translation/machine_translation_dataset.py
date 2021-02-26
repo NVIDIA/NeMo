@@ -59,7 +59,9 @@ class TranslationDataConfig:
     load_from_tarred_dataset: bool = False
     metadata_path: Optional[str] = None
     tar_shuffle_n: int = 100
-
+    backtranslated_tar_files: Optional[str] = None
+    backtranslated_metadata_file: Optional[str] = None
+    backtranslate_undersample_factor: Optional[float] = 1
 
 class TranslationDataset(Dataset):
     def __init__(
