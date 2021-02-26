@@ -14,7 +14,8 @@
 
 from typing import List
 
-from sacremoses import MosesDetokenizer, MosesTokenizer, MosesPunctNormalizer
+from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+
 
 class MosesProcessor:
     """
@@ -41,6 +42,6 @@ class MosesProcessor:
         Tokenizes text using Moses -> Sentencepiece.
         """
         return self.moses_tokenizer.tokenize(text, escape=False, return_str=True)
-    
+
     def normalize(self, text: str):
         return self.normalizer.normalize(text)

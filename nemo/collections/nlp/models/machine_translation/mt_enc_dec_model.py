@@ -87,12 +87,6 @@ class MTEncDecModel(EncDecNLPModel):
         # After this call, the model will have  self.source_processor and self.target_processor objects
         self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
 
-        '''
-        # After this call, the model will have self.src_post_tokenizer
-        # The flow is: tgt_ids => self.decoder_tokenizer => self.tgt_post_tokenizer => target text
-        self.set_tgt_posttokenizer(source_lang=self.src_language, target_lang=self.tgt_language)
-        '''
-
         # TODO: Why is this base constructor call so late in the game?
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -213,16 +207,11 @@ class MTEncDecModel(EncDecNLPModel):
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
 
-        # src_hiddens = self.encoder(src_ids, src_mask)
-        # beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-        # beam_results = self.filter_predicted_ids(beam_results)
-
         # this will run encoder twice -- TODO: potentially fix
-        translations, inputs = self.batch_translate(src=src_ids, src_mask=src_mask)
+        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
 
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
-        # translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
@@ -383,46 +372,9 @@ class MTEncDecModel(EncDecNLPModel):
             if target_lang is not None and source_lang not in ['ja', 'zh']:
                 self.target_processor = MosesProcessor(target_lang)
 
-    '''
-    def setup_src_normalizer_and_pretokenizer(self, source_lang, target_lang):
-        """
-        Returns a normalizer and tokenizer for the source language.
-        """
-
-        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            normalizer = MosesPunctNormalizer(
-                lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
-            )
-            tokenizer = EnJaTokenizer(sp_tokenizer_model_path=self.sentencepiece_model, lang_id=source_lang)
-        elif source_lang == 'zh':
-            normalizer = Traditional2Simplified()
-            tokenizer = ChineseTokenizer()
-        else:
-            tokenizer = MosesTokenizer(lang=source_lang)
-            normalizer = MosesPunctNormalizer(lang=source_lang)
-
-        self.src_normalizer = normalizer
-        self.src_pre_tokenizer = tokenizer
-
-    def set_tgt_posttokenizer(self, source_lang, target_lang):
-        """
-        Returns a detokenizer for a specific target language.
-        """
-        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            detokenizer = EnJaDetokenizer(target_lang)
-        elif target_lang == 'zh':
-            detokenizer = ChineseDetokenizer()
-        else:
-            detokenizer = MosesDetokenizer(lang=target_lang)
-
-        self.tgt_post_tokenizer = detokenizer
-        # return detokenizer
-    '''
-
     @torch.no_grad()
-    def batch_translate(self,
-        src: torch.LongTensor,
-        src_mask: torch.LongTensor,
+    def batch_translate(
+        self, src: torch.LongTensor, src_mask: torch.LongTensor,
     ):
         """	
         Translates a minibatch of inputs from source language to target language.	
@@ -478,7 +430,7 @@ class MTEncDecModel(EncDecNLPModel):
             self.eval()
             inputs = []
             for txt in text:
-                if source_lang != "None":
+                if self.source_processor is not None:
                     txt = self.source_processor.normalize(txt)
                     txt = self.source_processor.tokenize(txt)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
@@ -488,9 +440,9 @@ class MTEncDecModel(EncDecNLPModel):
             src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
             for i, txt in enumerate(inputs):
                 src_ids_[i][: len(txt)] = txt
-            # Sandeep __TODO__: Is this a FloatTensor or HalfTensor depending on precision? form_attention_mask() seems to do float, but not sure.
+
             src_mask = torch.FloatTensor((src_ids_ != self.encoder_tokenizer.pad_id)).to(self.device)
-            src = torch.LongTensor(src_ids_).to(self.device)            
+            src = torch.LongTensor(src_ids_).to(self.device)
             _, translations = self.batch_translate(src, src_mask)
         finally:
             self.train(mode=mode)

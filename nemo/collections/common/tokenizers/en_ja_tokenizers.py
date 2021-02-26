@@ -14,7 +14,7 @@
 
 from typing import List
 
-from sacremoses import MosesDetokenizer, MosesTokenizer, MosesPunctNormalizer
+from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
@@ -27,12 +27,14 @@ class EnJaProcessor:
         sp_tokenizer_model_path: Path to sentencepiece tokenizer model file.
         lang_id: One of ['en', 'ja'].
     """
-    def __init__(self, sp_tokenizer_model_path:str, lang_id: str):
+
+    def __init__(self, sp_tokenizer_model_path: str, lang_id: str):
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
         self.sp_detokenizer = SentencePieceDetokenizer()
-        self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path) \
-            if sp_tokenizer_model_path is not None else None
+        self.sp_tokenizer = (
+            SentencePieceTokenizer(model_path=sp_tokenizer_model_path) if sp_tokenizer_model_path is not None else None
+        )
         self.normalizer = MosesPunctNormalizer(
             lang=lang_id, pre_replace_unicode_punct=True, post_remove_control_chars=True
         )
@@ -59,6 +61,6 @@ class EnJaProcessor:
             raise ValueError("Need valid sp_tokenizer_model_path, found None")
         text = self.moses_tokenizer.tokenize(text, escape=False, return_str=True)
         return self.sp_tokenize(text)
-    
+
     def normalize(self, text):
         return self.normalizer.normalize(text)

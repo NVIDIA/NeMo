@@ -43,6 +43,7 @@ class ChineseProcessor:
     """
     Tokenizer, Detokenizer and Normalizer utilities for Chinese.
     """
+
     def __init__(self):
         self.normalizer = opencc.OpenCC('t2s.json')
 
@@ -56,7 +57,7 @@ class ChineseProcessor:
 
         detokenize = lambda s: spacing(RE_WS_IN_FW.sub(r'\1', s)).strip()
         return detokenize(' '.join(text))
-    
+
     def tokenize(self, text: str):
         text = jieba.cut(text)
         return ' '.join(text)
