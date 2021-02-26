@@ -311,8 +311,8 @@ pipeline {
     stage('L2: Speech Transcription') {
       when {
         anyOf{
-          branch 'r1.0.0rc1'
-          changeRequest target: 'r1.0.0rc1'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
