@@ -68,7 +68,12 @@ class MTEncDecModel(EncDecNLPModel):
 
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        # Instaniate tokenizers and register to be saved with NeMo Model archive
+        self.src_language: str = cfg.get("src_language", None)
+        self.tgt_language: str = cfg.get("tgt_language", None)
+
+        # Instantiates tokenizers and register to be saved with NeMo Model archive
+        # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
+        # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         self.setup_enc_dec_tokenizers(
             encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
             encoder_tokenizer_model=cfg.encoder_tokenizer.tokenizer_model,
@@ -78,12 +83,20 @@ class MTEncDecModel(EncDecNLPModel):
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
         )
 
-        self.src_language: str = cfg.get("src_language", None)
-        self.tgt_language: str = cfg.get("tgt_language", None)
+        # This is necessary to call in constructor to have it included in .nemo file
         self.sentencepiece_model = self.register_artifact(
             "cfg.sentencepiece_model", cfg.get("sentencepiece_model", None)
         )
 
+        # After this call, the model will have  self.src_normalizer and self.src_pre_tokenizer objects
+        # The flow is: raw_input_text => self.src_normalizer => self.src_pre_tokenizer => self.encoder_tokenizer => input_ids
+        self.setup_src_normalizer_and_pretokenizer(source_lang=self.src_language, target_lang=self.tgt_language)
+
+        # After this call, the model will have self.src_post_tokenizer
+        # The flow is: tgt_ids => self.decoder_tokenizer => self.tgt_post_tokenizer => target text
+        self.set_tgt_posttokenizer(source_lang=self.src_language, target_lang=self.tgt_language)
+
+        # TODO: Why is this base constructor call so late in the game?
         super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: use get_encoder function with support for HF and Megatron
@@ -357,7 +370,7 @@ class MTEncDecModel(EncDecNLPModel):
             drop_last=cfg.get("drop_last", False),
         )
 
-    def get_normalizer_and_tokenizer(self, source_lang, target_lang):
+    def setup_src_normalizer_and_pretokenizer(self, source_lang, target_lang):
         """
         Returns a normalizer and tokenizer for the source language.
         """
@@ -373,9 +386,10 @@ class MTEncDecModel(EncDecNLPModel):
             tokenizer = MosesTokenizer(lang=source_lang)
             normalizer = MosesPunctNormalizer(lang=source_lang)
 
-        return normalizer, tokenizer
+        self.src_normalizer = normalizer
+        self.src_pre_tokenizer = tokenizer
 
-    def get_detokenizer(self, source_lang, target_lang):
+    def set_tgt_posttokenizer(self, source_lang, target_lang):
         """
         Returns a detokenizer for a specific target language.
         """
@@ -386,7 +400,8 @@ class MTEncDecModel(EncDecNLPModel):
         else:
             detokenizer = MosesDetokenizer(lang=target_lang)
 
-        return detokenizer
+        self.tgt_post_tokenizer = detokenizer
+        # return detokenizer
 
     @torch.no_grad()
     def batch_translate(
@@ -411,18 +426,24 @@ class MTEncDecModel(EncDecNLPModel):
             beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
             beam_results = self.filter_predicted_ids(beam_results)
 
-            normalizer, tokenizer = self.get_normalizer_and_tokenizer(source_lang, target_lang)
-            detokenizer = self.get_detokenizer(source_lang, target_lang)
+            translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+            inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
 
-            translation_ids = beam_results.cpu()[0].numpy()
-            translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-            translations = detokenizer.detokenize(translation.split())
+            if self.tgt_post_tokenizer is not None:
+                translations = [
+                    self.tgt_post_tokenizer.detokenize(translation.split()) for translation in translations
+                ]
 
-            inputs = [tokenizer(inp) for inp in src.cpu().numpy()]
-            return inputs, translations
+            if self.src_pre_tokenizer is not None:
+                inputs = [self.src_pre_tokenizer.detokenize(item.split()) for item in inputs]
         finally:
             self.train(mode=mode)
+        return inputs, translations
 
+    # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
+    # TODO: The implementation of this method should be:
+    # Step 1. Prepare input batch with examples from text List.
+    # Step 2. Invoke batch_translate
     @torch.no_grad()
     def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
         """
@@ -441,17 +462,17 @@ class MTEncDecModel(EncDecNLPModel):
             target_lang = self.tgt_language
 
         mode = self.training
-
-        normalizer, tokenizer = self.get_normalizer_and_tokenizer(source_lang, target_lang)
-        detokenizer = self.get_detokenizer(source_lang, target_lang)
+        #
+        # normalizer, tokenizer = self.get_normalizer_and_tokenizer(source_lang, target_lang)
+        # detokenizer = self.get_detokenizer(source_lang, target_lang)
 
         try:
             self.eval()
             res = []
             for txt in text:
                 if source_lang != "None":
-                    txt = normalizer.normalize(txt)
-                    txt = tokenizer.tokenize(txt, escape=False, return_str=True)
+                    txt = self.src_normalizer.normalize(txt)
+                    txt = self.src_pre_tokenizer.tokenize(txt, escape=False, return_str=True)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
@@ -461,7 +482,8 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                translation = detokenizer.detokenize(translation.split())
+                # if self.tgt_post_tokenizer is not None:
+                #    translations = self.tgt_post_tokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
             self.train(mode=mode)
