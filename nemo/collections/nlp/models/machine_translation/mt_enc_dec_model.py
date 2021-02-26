@@ -40,7 +40,7 @@ from nemo.collections.common.tokenizers import (
     EnJaTokenizer,
     Traditional2Simplified,
 )
-from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset, ConcatTarredTranslationDataset
+from nemo.collections.nlp.data import ConcatTarredTranslationDataset, TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -333,7 +333,7 @@ class MTEncDecModel(EncDecNLPModel):
                 )
                 dataset = ConcatTarredTranslationDataset(
                     datasets=[dataset, backtranslated_dataset],
-                    ratios=[1, cfg.get('backtranslate_undersample_factor', 1)]
+                    ratios=[1, cfg.get('backtranslate_undersample_factor', 1)],
                 )
             return torch.utils.data.DataLoader(
                 dataset=dataset,

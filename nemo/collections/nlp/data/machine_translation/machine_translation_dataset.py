@@ -19,7 +19,7 @@ import json
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
 
 import braceexpand
 import numpy as np
@@ -62,6 +62,7 @@ class TranslationDataConfig:
     backtranslated_tar_files: Optional[str] = None
     backtranslated_metadata_file: Optional[str] = None
     backtranslate_undersample_factor: Optional[float] = 1
+
 
 class TranslationDataset(Dataset):
     def __init__(
@@ -439,6 +440,7 @@ class ConcatTarredTranslationDataset(IterableDataset):
         ratios List[float]: Sampling ratios for each dataset (in the same order).
         ex: [1, 5] will sample in the ratio 1:5 for the first and second element
     """
+
     def __init__(self, datasets: List[TarredTranslationDataset], ratios: List[float]):
         super().__init__()
         self.num_batches = sum(dataset.metadata['num_batches'] for dataset in datasets)
