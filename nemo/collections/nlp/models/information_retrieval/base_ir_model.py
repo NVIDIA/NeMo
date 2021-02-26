@@ -57,6 +57,7 @@ class BaseIRModel(NLPModel):
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
+            vocab_file=cfg.tokenizer.vocab_file,
         )
         vocab_size, hidden_size = model.config.vocab_size, model.config.hidden_size
         tokens_to_add = 8 * math.ceil(vocab_size / 8) - vocab_size

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import List, Optional
 
 import editdistance
@@ -217,3 +218,15 @@ class RNNTBPEWER(Metric):
     def compute(self):
         wer = self.scores.float() / self.words
         return wer, self.scores.detach(), self.words.detach()
+
+
+@dataclass
+class RNNTBPEDecodingConfig:
+    strategy: str = "greedy_batch"
+    compute_hypothesis_token_set: bool = False
+
+    # greedy decoding config
+    greedy: greedy_decode.GreedyRNNTInferConfig = greedy_decode.GreedyRNNTInferConfig()
+
+    # beam decoding config
+    beam: beam_decode.BeamRNNTInferConfig = beam_decode.BeamRNNTInferConfig(beam_size=4)
