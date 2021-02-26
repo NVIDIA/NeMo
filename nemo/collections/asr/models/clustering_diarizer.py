@@ -19,7 +19,6 @@ import shutil
 import tarfile
 import tempfile
 from collections import defaultdict
-from logging import log
 from typing import List, Optional
 
 import torch
