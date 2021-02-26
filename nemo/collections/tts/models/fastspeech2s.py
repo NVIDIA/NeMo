@@ -22,8 +22,8 @@ from nemo.utils import logging
 
 
 class DurationLoss(torch.nn.Module):
-    def forward(self, duration_pred, duration_target):
-        log_duration_target = torch.log(duration_target + 1)
+    def forward(self, duration_pred, duration_target, offset=1):
+        log_duration_target = torch.log(duration_target + offset)
         return torch.nn.functional.mse_loss(duration_pred, log_duration_target)
 
 
@@ -146,7 +146,7 @@ class FastSpeech2SModel(ModelPT):
         # else:
         #     context = self.length_regulator(encoded_text, durations)
 
-        context, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
+        context, log_dur_preds, log_pitch_preds, energy_preds, spec_len = self.variance_adapter(
             x=encoded_text,
             x_len=text_length,
             dur_target=durations,
@@ -170,7 +170,7 @@ class FastSpeech2SModel(ModelPT):
 
         output = self.generator(gen_in.transpose(1, 2))
 
-        return output, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
+        return output, splices, log_dur_preds, log_pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         if self.vocab is None:
@@ -212,7 +212,7 @@ class FastSpeech2SModel(ModelPT):
 
         # train generator
         elif optimizer_idx == 1:
-            audio_pred, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
+            audio_pred, splices, log_dur_preds, log_pitch_preds, energy_preds, encoded_text_mask = self(
                 spec=spec,
                 spec_len=spec_len,
                 text=t,
@@ -254,7 +254,7 @@ class FastSpeech2SModel(ModelPT):
             self.log(name="loss_gen_duration", value=dur_loss)
             total_loss += dur_loss
             if self.pitch:
-                pitch_loss = self.mseloss(pitch_preds, pitch)
+                pitch_loss = self.durationloss(log_pitch_preds, pitch.float())
                 total_loss += pitch_loss
                 self.log(name="loss_gen_pitch", value=pitch_loss)
             if self.energy:
@@ -306,13 +306,13 @@ class FastSpeech2SModel(ModelPT):
 
         # Switch to using pitch predictions after 62.5% of training
         if not self.use_pitch_pred and self.current_epoch >= np.ceil(0.625 * self._trainer.max_epochs):
-            logging.info(f"Starting pitch predictions after epoch: {self.current_epoch}")
+            logging.info(f"Using pitch predictions after epoch: {self.current_epoch}")
             self.use_pitch_pred = True
 
-        # Switch to using duration predictions after 75% of training
-        if not self.use_duration_pred and self.current_epoch >= np.ceil(0.75 * self._trainer.max_epochs):
-            logging.info(f"Using duration predictions after epoch: {self.current_epoch}")
-            self.use_duration_pred = True
+        # # Switch to using duration predictions after 75% of training
+        # if not self.use_duration_pred and self.current_epoch >= np.ceil(0.75 * self._trainer.max_epochs):
+        #     logging.info(f"Using duration predictions after epoch: {self.current_epoch}")
+        #     self.use_duration_pred = True
 
     def validation_epoch_end(self, outputs):
         if self.tb_logger is not None:
