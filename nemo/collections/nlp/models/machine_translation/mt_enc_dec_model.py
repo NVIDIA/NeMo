@@ -36,8 +36,8 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers import (
     ChineseDetokenizer,
     ChineseTokenizer,
-    JapaneseDetokenizer,
-    JapaneseTokenizer,
+    EnJaDetokenizer,
+    EnJaTokenizer,
     Traditional2Simplified,
 )
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
@@ -246,7 +246,7 @@ class MTEncDecModel(EncDecNLPModel):
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
-        detokenizer = self.get_detokenizer(self.tgt_language)
+        detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
 
         translations = [detokenizer.detokenize(sent.split()) for sent in translations]
         ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
@@ -353,36 +353,34 @@ class MTEncDecModel(EncDecNLPModel):
             drop_last=cfg.get("drop_last", False),
         )
 
-    def get_normalizer_and_tokenizer(self, lang):
+    def get_normalizer_and_tokenizer(self, source_lang, target_lang):
         """
-        Returns a normalizer and tokenizer for a specific language.
+        Returns a normalizer and tokenizer for the source language.
         """
-        tokenizer, normalizer = None, None
-        if lang not in ['zh', 'ja']:
-            tokenizer = MosesTokenizer(lang=lang)
-            normalizer = MosesPunctNormalizer(lang=lang)
-        elif lang == 'ja':
+        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             normalizer = MosesPunctNormalizer(
-                lang=lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
+                lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
             )
-            tokenizer = JapaneseTokenizer(sp_tokenizer_model_path=self.sentencepiece_model)
-        elif lang == 'zh':
+            tokenizer = EnJaTokenizer(sp_tokenizer_model_path=self.sentencepiece_model, lang_id=source_lang)
+        elif source_lang == 'zh':
             normalizer = Traditional2Simplified()
             tokenizer = ChineseTokenizer()
+        else:
+            tokenizer = MosesTokenizer(lang=source_lang)
+            normalizer = MosesPunctNormalizer(lang=source_lang)
 
         return normalizer, tokenizer
 
-    def get_detokenizer(self, lang):
+    def get_detokenizer(self, source_lang, target_lang):
         """
-        Returns a detokenizer for a specific language.
+        Returns a detokenizer for a specific target language.
         """
-        detokenizer = None
-        if lang not in ['zh', 'ja']:
-            detokenizer = MosesDetokenizer(lang=lang)
-        elif lang == 'ja':
-            detokenizer = JapaneseDetokenizer()
-        elif lang == 'zh':
+        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
+            detokenizer = EnJaDetokenizer(target_lang)
+        elif target_lang == 'zh':
             detokenizer = ChineseDetokenizer()
+        else:
+            detokenizer = MosesDetokenizer(lang=target_lang)
 
         return detokenizer
 
@@ -405,8 +403,8 @@ class MTEncDecModel(EncDecNLPModel):
 
         mode = self.training
 
-        normalizer, tokenizer = self.get_normalizer_and_tokenizer(source_lang)
-        detokenizer = self.get_detokenizer(target_lang)
+        normalizer, tokenizer = self.get_normalizer_and_tokenizer(source_lang, target_lang)
+        detokenizer = self.get_detokenizer(source_lang, target_lang)
 
         try:
             self.eval()
