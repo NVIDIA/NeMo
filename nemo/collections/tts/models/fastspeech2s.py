@@ -8,10 +8,11 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from torch import nn
 
+from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursDataset, GaussianEmbedding
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.tacotron2loss import L1MelLoss
-from nemo.collections.tts.modules.fastspeech2 import Encoder
+from nemo.collections.tts.modules.fastspeech2 import Encoder, VarianceAdaptor
 from nemo.collections.tts.modules.fastspeech2_submodules import LengthRegulator2, VariancePredictor
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes import ModelPT
@@ -34,6 +35,17 @@ class FastSpeech2SModel(ModelPT):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
+
+        self.vocab, self.gauss_emb = None, None
+        if cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset":
+            self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.vocab)
+            self.length_regulator = GaussianEmbedding(self.vocab, 256)
+        # else:
+        #     self.length_regulator = LengthRegulator2()
+
+        self.energy = cfg.add_energy_predictor
+        self.pitch = cfg.add_pitch_predictor
+
         self.mel_loss_coeff = 1.0
         if "mel_loss_coeff" in self._cfg:
             self.mel_loss_coeff = self._cfg.mel_loss_coeff
@@ -42,8 +54,8 @@ class FastSpeech2SModel(ModelPT):
         self.phone_embedding = nn.Embedding(84, 256, padding_idx=83)
         self.encoder = Encoder(embed_input=False)
 
-        self.duration_predictor = VariancePredictor(d_model=256, d_inner=256, kernel_size=3, dropout=0.2)
-        self.length_regulator = LengthRegulator2()
+        # self.duration_predictor = VariancePredictor(d_model=256, d_inner=256, kernel_size=3, dropout=0.2)
+        self.variance_adapter = VarianceAdaptor(pitch=self.pitch, energy=self.energy)
 
         self.generator = instantiate(self._cfg.generator)
         self.multiperioddisc = MultiPeriodDiscriminator()
@@ -54,7 +66,11 @@ class FastSpeech2SModel(ModelPT):
         self.feat_matching_loss = FeatureMatchingLoss()
         self.disc_loss = DiscriminatorLoss()
         self.gen_loss = GeneratorLoss()
+        self.mseloss = torch.nn.MSELoss()
 
+        self.use_energy_pred = False
+        self.use_pitch_pred = False
+        self.use_duration_pred = False
         self.log_train_images = False
         self.logged_real_samples = False
         self._tb_logger = None
@@ -83,7 +99,8 @@ class FastSpeech2SModel(ModelPT):
             self.phone_embedding.parameters(),
             self.encoder.parameters(),
             self.generator.parameters(),
-            self.duration_predictor.parameters(),
+            # self.duration_predictor.parameters(),
+            self.variance_adapter.parameters(),
         )
         disc_params = chain(self.multiscaledisc.parameters(), self.multiperioddisc.parameters())
         opt1 = torch.optim.AdamW(disc_params, lr=self._cfg.lr)
@@ -106,25 +123,37 @@ class FastSpeech2SModel(ModelPT):
         }
         return [opt1, opt2], [sch1_dict, sch2_dict]
 
-    def forward(self, *, spec, spec_len, text, text_length, splice=True, durations=None):
+    def forward(self, *, spec, spec_len, text, text_length, splice=True, durations=None, pitch=None, energies=None):
         embedded_tokens = self.phone_embedding(text)
-        encoded_text, _ = self.encoder(text=embedded_tokens, text_lengths=text_length)
+        encoded_text, encoded_text_mask = self.encoder(text=embedded_tokens, text_lengths=text_length)
 
-        log_duration_prediction = None
-        log_duration_prediction = self.duration_predictor(encoded_text)
-        log_duration_prediction.masked_fill_(~get_mask_from_lengths(text_length).squeeze(), 0)
-        duration_rounded = torch.clamp_min(torch.exp(log_duration_prediction) - 1, 0).long()
+        # log_duration_prediction = None
+        # log_duration_prediction = self.duration_predictor(encoded_text)
+        # log_duration_prediction.masked_fill_(~get_mask_from_lengths(text_length).squeeze(), 0)
+        # duration_rounded = torch.clamp_min(torch.exp(log_duration_prediction) - 1, 0).long()
 
-        if durations is None:
-            if torch.le(torch.sum(duration_rounded, dim=1), self.splice_length).bool().any():
-                logging.error("Duration prediction failed on this batch. Increasing size")
-                for duration in duration_rounded:
-                    if torch.sum(duration) < self.splice_length:
-                        duration += torch.ceil((self.splice_length - torch.sum(duration)) / duration.size(0)).long()
-            context = self.length_regulator(encoded_text, duration_rounded)
-            spec_len = torch.sum(duration_rounded, dim=1)
-        else:
-            context = self.length_regulator(encoded_text, durations)
+        # if durations is None:
+        #     # if splice:
+        #     #     if torch.le(torch.sum(duration_rounded, dim=1), self.splice_length).bool().any():
+        #     #         logging.error("Duration prediction failed on this batch. Increasing size")
+        #     #         for duration in duration_rounded:
+        #     #             if torch.sum(duration) < self.splice_length:
+        #     #                 duration += torch.ceil(
+        #     #                     (self.splice_length - torch.sum(duration)) / duration.size(0)
+        #     #                 ).long()
+        #     context = self.length_regulator(encoded_text, duration_rounded)
+        #     spec_len = torch.sum(duration_rounded, dim=1)
+        # else:
+        #     context = self.length_regulator(encoded_text, durations)
+
+        context, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
+            x=encoded_text,
+            x_len=text_length,
+            dur_target=durations,
+            pitch_target=pitch,
+            energy_target=energies,
+            spec_len=spec_len,
+        )
 
         gen_in = context
         splices = None
@@ -141,17 +170,26 @@ class FastSpeech2SModel(ModelPT):
 
         output = self.generator(gen_in.transpose(1, 2))
 
-        return output, splices, log_duration_prediction
+        return output, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        f, fl, t, tl, durations, pitch, energies = batch
+        if self.vocab is None:
+            f, fl, t, tl, durations, pitch, energies = batch
+        else:
+            f, fl, t, tl, durations = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
 
         # train discriminator
         if optimizer_idx == 0:
             with torch.no_grad():
-                audio_pred, splices, _ = self(
-                    spec=spec, spec_len=spec_len, text=t, text_length=tl, durations=durations
+                audio_pred, splices, _, _, _, _ = self(
+                    spec=spec,
+                    spec_len=spec_len,
+                    text=t,
+                    text_length=tl,
+                    durations=durations,
+                    pitch=pitch,
+                    energies=energies,
                 )
                 real_audio = []
                 for i, splice in enumerate(splices):
@@ -174,8 +212,14 @@ class FastSpeech2SModel(ModelPT):
 
         # train generator
         elif optimizer_idx == 1:
-            audio_pred, splices, log_duration_prediction = self(
-                spec=spec, spec_len=spec_len, text=t, text_length=tl, durations=durations
+            audio_pred, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
+                spec=spec,
+                spec_len=spec_len,
+                text=t,
+                text_length=tl,
+                durations=durations,
+                pitch=pitch,
+                energies=energies,
             )
             real_audio = []
             for i, splice in enumerate(splices):
@@ -206,9 +250,17 @@ class FastSpeech2SModel(ModelPT):
             self.log(name="loss_gen_disc_mp", value=loss_gen_mp)
             self.log(name="loss_gen_disc_ms", value=loss_gen_ms)
 
-            dur_loss = self.durationloss(log_duration_prediction, durations)
-            total_loss += dur_loss
+            dur_loss = self.durationloss(log_dur_preds, durations.float())
             self.log(name="loss_gen_duration", value=dur_loss)
+            total_loss += dur_loss
+            if self.pitch:
+                pitch_loss = self.mseloss(pitch_preds, pitch)
+                total_loss += pitch_loss
+                self.log(name="loss_gen_pitch", value=pitch_loss)
+            if self.energy:
+                energy_loss = self.mseloss(energy_preds, energies)
+                total_loss += energy_loss
+                self.log(name="loss_gen_energy", value=energy_loss)
 
             # Log images to tensorboard
             if self.log_train_images:
@@ -234,7 +286,7 @@ class FastSpeech2SModel(ModelPT):
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, _ = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-        audio_pred, _, _ = self(spec=spec, spec_len=spec_len, text=t, text_length=tl, splice=False)
+        audio_pred, _, _, _, _, _ = self(spec=spec, spec_len=spec_len, text=t, text_length=tl, splice=False)
         pred_spec = self.mel_spectrogram(audio_pred)
         loss = self.mel_val_loss(
             spec_pred=pred_spec, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52, transpose=False
@@ -242,26 +294,34 @@ class FastSpeech2SModel(ModelPT):
 
         return {
             "val_loss": loss,
-            "mel_target": spec,
-            "mel_pred": pred_spec,
+            "audio_target": f.squeeze(),
+            "audio_pred": audio_pred.squeeze(),
         }
+
+    def on_train_epoch_start(self):
+        # Switch to using energy predictions after 50% of training
+        if not self.use_energy_pred and self.current_epoch >= np.ceil(0.5 * self._trainer.max_epochs):
+            logging.info(f"Using energy predictions after epoch: {self.current_epoch}")
+            self.use_energy_pred = True
+
+        # Switch to using pitch predictions after 62.5% of training
+        if not self.use_pitch_pred and self.current_epoch >= np.ceil(0.625 * self._trainer.max_epochs):
+            logging.info(f"Starting pitch predictions after epoch: {self.current_epoch}")
+            self.use_pitch_pred = True
+
+        # Switch to using duration predictions after 75% of training
+        if not self.use_duration_pred and self.current_epoch >= np.ceil(0.75 * self._trainer.max_epochs):
+            logging.info(f"Using duration predictions after epoch: {self.current_epoch}")
+            self.use_duration_pred = True
 
     def validation_epoch_end(self, outputs):
         if self.tb_logger is not None:
-            _, spec_target, spec_predict = outputs[0].values()
+            _, audio_target, audio_predict = outputs[0].values()
             if not self.logged_real_samples:
-                self.tb_logger.add_image(
-                    "val_mel_target",
-                    plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
-                    self.global_step,
-                    dataformats="HWC",
-                )
+                self.tb_logger.add_audio("val_target", audio_target[0].data.cpu(), self.global_step, 22050)
                 self.logged_real_samples = True
-            spec_predict = spec_predict[0].data.cpu().numpy()
-            self.tb_logger.add_image(
-                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
-            )
-
+            audio_predict = audio_predict[0].data.cpu()
+            self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, 22050)
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss, sync_dist=True)
 

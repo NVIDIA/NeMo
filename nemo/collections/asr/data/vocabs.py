@@ -1,14 +1,25 @@
-"""Vocabularies for different datasets."""
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import abc
 import itertools
 import string
 from typing import List
 
-import g2p_en  # noqa
 import nltk
 
-import nemo
+from nemo.collections.asr.parts import parsers
 
 try:
     nltk.data.find('taggers/averaged_perceptron_tagger.zip')
@@ -19,9 +30,15 @@ try:
 except LookupError:
     nltk.download('cmudict', quiet=True)
 
+try:
+    import g2p_en  # noqa
 
-_g2p = g2p_en.G2p()
-_g2p.variables = None
+    _g2p = g2p_en.G2p()
+    _g2p.variables = None
+
+    HAVE_G2P = True
+except (FileNotFoundError, LookupError):
+    HAVE_G2P = False
 
 
 class Base(abc.ABC):
@@ -78,7 +95,7 @@ class Chars(Base):
         self.punct = punct
         self.spaces = spaces
 
-        self._parser = nemo.collections.asr.parts.parsers.ENCharParser(labels)
+        self._parser = parsers.ENCharParser(labels)
 
     def encode(self, text):
         """See base class."""
@@ -123,7 +140,7 @@ class Phonemes(Base):
     ):
         labels = []
         self.space, labels = len(labels), labels + [space]  # Space
-        if silence:
+        if silence is not None:
             self.silence, labels = len(labels), labels + [silence]  # Silence
         labels.extend(self.CONSONANTS)
         vowels = list(self.VOWELS)
@@ -170,16 +187,3 @@ class Phonemes(Base):
             ps.pop()
 
         return [self._label2id[p] for p in ps]
-
-
-class MFA(Phonemes):
-    """Montreal Forced Aligner set of phonemes."""
-
-    SPACE, SILENCE, OOV = 'sp', 'sil', 'spn'
-
-    def __init__(self):
-        super().__init__(stresses=True, space=self.SPACE, silence=self.SILENCE, oov=self.OOV)
-
-    def encode(self, text):
-        """Split already parsed string of space delim phonemes codes into list of tokens."""
-        return [self._label2id[p] for p in text.strip().split()]

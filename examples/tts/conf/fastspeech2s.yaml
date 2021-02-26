@@ -15,6 +15,8 @@ model:
   lr: 0.5
   splice_length: 64  # Length in frames
   mel_loss_coeff: 45.
+  add_energy_predictor: False
+  add_pitch_predictor: False
   generator:
     _target_: nemo.collections.tts.modules.hifigan_modules.Generator
     upsample_kernel_sizes: [16,16,4,4]

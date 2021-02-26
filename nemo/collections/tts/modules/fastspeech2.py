@@ -18,10 +18,12 @@ import torch.nn as nn
 from nemo.collections.tts.modules.fastspeech2_submodules import (
     FFTransformer,
     LengthRegulator,
+    LengthRegulator2,
     VariancePredictor,
     WaveformDiscriminator,
     WaveformGenerator,
 )
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
@@ -142,7 +144,7 @@ class VarianceAdaptor(NeuralModule):
         self.duration_predictor = VariancePredictor(
             d_model=d_model, d_inner=dur_d_hidden, kernel_size=dur_kernel_size, dropout=dropout
         )
-        self.length_regulator = LengthRegulator()
+        self.length_regulator = LengthRegulator2()
 
         self.pitch = pitch
         self.energy = energy
@@ -189,7 +191,7 @@ class VarianceAdaptor(NeuralModule):
         }
 
     @typecheck()
-    def forward(self, *, x, dur_target=None, pitch_target=None, energy_target=None):
+    def forward(self, *, x, x_len, dur_target=None, pitch_target=None, energy_target=None, spec_len=None):
         """
         Args:
             dur_target: Needs to be passed in during training. Duration targets for the duration predictor.
@@ -199,18 +201,20 @@ class VarianceAdaptor(NeuralModule):
 
         # Duration predictions (or ground truth) fed into Length Regulator to
         # expand the hidden states of the encoder embedding
-        dur_preds = self.duration_predictor(x)
+        log_dur_preds = self.duration_predictor(x)
+        log_dur_preds.masked_fill_(~get_mask_from_lengths(x_len), 0)
         # Output is Batch, Time
         if self.training:
             dur_out = self.length_regulator(x, dur_target)
         else:
-            # dur_preds = torch.clamp(torch.round(torch.exp(dur_preds) - 1), min=0, max=self.max_duration)
-            dur_preds = torch.clamp(torch.round(dur_preds), min=0).int()
+            dur_preds = torch.clamp_min(torch.exp(log_dur_preds) - 1, 0).long()
             if not torch.sum(dur_preds, dim=1).bool().all():
                 logging.error("Duration prediction failed on this batch. Settings to 1s")
                 dur_preds += 1
             dur_out = self.length_regulator(x, dur_preds)
+            spec_len = torch.sum(dur_preds, dim=1)
         out = dur_out
+        out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
 
         # Pitch
         # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
@@ -223,6 +227,7 @@ class VarianceAdaptor(NeuralModule):
             else:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
             out += pitch_out
+        out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
 
         # Energy
         energy_preds = None
@@ -233,8 +238,9 @@ class VarianceAdaptor(NeuralModule):
             else:
                 energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
             out += energy_out
+        out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
 
-        return out, dur_preds, pitch_preds, energy_preds
+        return out, log_dur_preds, pitch_preds, energy_preds, spec_len
 
 
 @experimental
