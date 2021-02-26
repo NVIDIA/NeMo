@@ -246,7 +246,7 @@ class MTEncDecModel(EncDecNLPModel):
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
-        detokenizer = self.get_detokenizer(self.tgt_language)
+        detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
 
         translations = [detokenizer.detokenize(sent.split()) for sent in translations]
         ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
@@ -357,7 +357,7 @@ class MTEncDecModel(EncDecNLPModel):
         """
         Returns a normalizer and tokenizer for the source language.
         """
-        if source_lang in ['en', 'ja'] and target_lang in ['en', 'ja']:
+        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             normalizer = MosesPunctNormalizer(
                 lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
             )
@@ -375,7 +375,7 @@ class MTEncDecModel(EncDecNLPModel):
         """
         Returns a detokenizer for a specific target language.
         """
-        if source_lang in ['en', 'ja'] and target_lang in ['en', 'ja']:
+        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             detokenizer = EnJaDetokenizer(target_lang)
         elif target_lang == 'zh':
             detokenizer = ChineseDetokenizer()
