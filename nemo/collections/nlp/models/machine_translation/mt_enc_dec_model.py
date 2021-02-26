@@ -203,14 +203,18 @@ class MTEncDecModel(EncDecNLPModel):
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
 
-        src_hiddens = self.encoder(src_ids, src_mask)
+        # src_hiddens = self.encoder(src_ids, src_mask)
+        # beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+        # beam_results = self.filter_predicted_ids(beam_results)
 
-        beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-        beam_results = self.filter_predicted_ids(beam_results)
+        # this will run encoder twice -- TODO: potentially fix
+        translations, inputs = self.batch_translate(
+            src=src_ids, src_mask=src_mask, source_lang=self.src_language, target_lang=self.tgt_language
+        )
 
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
-        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+        # translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
@@ -383,6 +387,41 @@ class MTEncDecModel(EncDecNLPModel):
             detokenizer = MosesDetokenizer(lang=target_lang)
 
         return detokenizer
+
+    @torch.no_grad()
+    def batch_translate(
+        self, src: torch.LongTensor, src_mask: torch.LongTensor, source_lang: str = None, target_lang: str = None
+    ) -> List[str]:
+        """	
+        Translates a minibatch of inputs from source language to target language.	
+        Args:	
+            src: minibatch of inputs in the src language (batch x seq_len)	
+            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)	
+            target_lang: if not None, corresponding Detokenizer will be run	
+        Returns:	
+            translations: a list strings containing detokenized translations	
+            inputs: a list of string containing detokenized inputs	
+        """
+
+        mode = self.training
+        try:
+            self.eval()
+
+            src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+            beam_results = self.filter_predicted_ids(beam_results)
+
+            normalizer, tokenizer = self.get_normalizer_and_tokenizer(source_lang, target_lang)
+            detokenizer = self.get_detokenizer(source_lang, target_lang)
+
+            translation_ids = beam_results.cpu()[0].numpy()
+            translation = self.decoder_tokenizer.ids_to_text(translation_ids)
+            translations = detokenizer.detokenize(translation.split())
+
+            inputs = [tokenizer(inp) for inp in src.cpu().numpy()]
+            return inputs, translations
+        finally:
+            self.train(mode=mode)
 
     @torch.no_grad()
     def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
