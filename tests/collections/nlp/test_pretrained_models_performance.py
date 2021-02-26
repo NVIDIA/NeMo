@@ -73,6 +73,11 @@ class TestPretrainedModelPerformance(TestCase):
         assert abs(metrics['capit_f1'] - 87.0707) < 0.001
         assert int(model.punct_class_report.total_examples) == 128
 
+        preds_512 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=512)[0]
+        assert preds_512 == 'What can I do for you today?'
+        preds_5 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=5)[0]
+        assert preds_5 == 'What can i'
+
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(
