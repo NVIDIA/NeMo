@@ -10,7 +10,7 @@ diarizer:
   path2groundtruth_rttm_files: null #file containing paths to ground truth rttm files for score computation
 
   vad:
-    model_path: null
+    model_path: null #.nemo local model path or pretrained model name or none
     window_length_in_sec: 0.15
     shift_length_in_sec: 0.01
     threshold: 0.5 # tune threshold on dev set. Check scripts/vad_tune_threshold.py
@@ -21,6 +21,6 @@ diarizer:
 
   speaker_embeddings:
     oracle_vad_manifest: null
-    model_path: ???
+    model_path: ??? #.nemo local model path or pretrained model name
     window_length_in_sec: 1.5
     shift_length_in_sec: 0.75
