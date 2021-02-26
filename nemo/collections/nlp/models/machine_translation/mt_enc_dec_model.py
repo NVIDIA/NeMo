@@ -18,9 +18,7 @@ import random
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import jieba
 import numpy as np
-import opencc
 import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig
@@ -35,14 +33,18 @@ from torch.nn.parallel.distributed import DistributedDataParallel
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.common.tokenizers.pangu_jieba_detokenizer import PanguJiebaDetokenizer
-from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.collections.common.tokenizers import (
+    ChineseDetokenizer,
+    ChineseTokenizer,
+    EnJaDetokenizer,
+    EnJaTokenizer,
+    Traditional2Simplified,
+)
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
@@ -240,22 +242,13 @@ class MTEncDecModel(EncDecNLPModel):
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
-        # TODO: add target language so detokenizer can be lang specific.
-        detokenizer = MosesDetokenizer(lang=self.tgt_language)
+        detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
 
-        if self.tgt_language in ['ja']:
-            sp_detokenizer = SentencePieceDetokenizer()
-            translations = [sp_detokenizer.detokenize(sent.split()) for sent in translations]
-            ground_truths = [sp_detokenizer.detokenize(sent.split()) for sent in ground_truths]
+        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
+        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
 
-        if not self.tgt_language in ['zh']:
-            translations = [detokenizer.detokenize(sent.split()) for sent in translations]
-            ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
-        else:
-            zh_detokenizer = PanguJiebaDetokenizer()
-            translations = [zh_detokenizer.detokenize(sent) for sent in translations]
-            ground_truths = [zh_detokenizer.detokenize(sent) for sent in ground_truths]
         assert len(translations) == len(ground_truths)
+
         if self.tgt_language in ['ja']:
             sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
         elif self.tgt_language in ['zh']:
@@ -356,87 +349,36 @@ class MTEncDecModel(EncDecNLPModel):
             drop_last=cfg.get("drop_last", False),
         )
 
-    def replace_beam_with_sampling(self, topk=500):
-        self.beam_search = TopKSequenceGenerator(
-            embedding=self.decoder.embedding,
-            decoder=self.decoder.decoder,
-            log_softmax=self.log_softmax,
-            max_sequence_length=self.beam_search.max_seq_length,
-            beam_size=topk,  # hyperparam from https://arxiv.org/pdf/1808.09381.pdf
-            bos=self.decoder_tokenizer.bos_id,
-            pad=self.decoder_tokenizer.pad_id,
-            eos=self.decoder_tokenizer.eos_id,
-        )
-
-    def get_normalizer_and_tokenizer(self, lang):
+    def get_normalizer_and_tokenizer(self, source_lang, target_lang):
         """
-        Returns a normalizer and tokenizer for a specific language.
-
-        TODO: FIX ME to properly handle Ja, see .translate method
+        Returns a normalizer and tokenizer for the source language.
         """
-        tokenizer, normalizer = None, None
-        if lang not in ['zh', 'ja']:
-            tokenizer = MosesTokenizer(lang=lang)
-            normalizer = MosesPunctNormalizer(lang=lang)
-        elif lang == 'ja':
-            raise NotImplementedError("Input tokenization for Japanese is not implemented yet")
-        elif lang == 'zh':
-            normalizer = opencc.OpenCC('t2s.json')
+        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
+            normalizer = MosesPunctNormalizer(
+                lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
+            )
+            tokenizer = EnJaTokenizer(sp_tokenizer_model_path=self.sentencepiece_model, lang_id=source_lang)
+        elif source_lang == 'zh':
+            normalizer = Traditional2Simplified()
+            tokenizer = ChineseTokenizer()
+        else:
+            tokenizer = MosesTokenizer(lang=source_lang)
+            normalizer = MosesPunctNormalizer(lang=source_lang)
 
-        return tokenizer, normalizer
+        return normalizer, tokenizer
 
-    def get_detokenizer(self, lang):
+    def get_detokenizer(self, source_lang, target_lang):
         """
-        Returns a detokenizer for a specific language.
-
-        TODO: FIX ME, see .translate method
+        Returns a detokenizer for a specific target language.
         """
-        detokenizer = None
-        if lang not in ['zh']:
-            detokenizer = MosesDetokenizer(lang=lang)
-        elif lang == 'zh':
-            detokenizer = PanguJiebaDetokenizer()
+        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
+            detokenizer = EnJaDetokenizer(target_lang)
+        elif target_lang == 'zh':
+            detokenizer = ChineseDetokenizer()
+        else:
+            detokenizer = MosesDetokenizer(lang=target_lang)
 
         return detokenizer
-
-    @torch.no_grad()
-    def batch_translate(
-        self, src: torch.LongTensor, src_mask: torch.LongTensor, source_lang: str = None, target_lang: str = None
-    ) -> List[str]:
-        """
-        Translates a minibatch of inputs from source language to target language.
-        Args:
-            src: minibatch of inputs in the src language (batch x seq_len)
-            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)
-            target_lang: if not None, corresponding Detokenizer will be run
-        Returns:
-            translations: a list strings containing detokenized translations
-            inputs: a list of string containing detokenized inputs
-        """
-        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-        beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-        beam_results = self.filter_predicted_ids(beam_results)
-
-        target_detokenizer = self.get_detokenizer(target_lang)
-        source_detokenizer = self.get_detokenizer(source_lang)
-
-        if target_lang or source_lang == 'ja':
-            sp_detokenizer = SentencePieceDetokenizer()
-
-        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
-        inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
-
-        if target_detokenizer is not None:
-            if target_lang == 'ja':
-                translations = [sp_detokenizer.detokenize(translation.split()) for translation in translations]
-            translations = [target_detokenizer.detokenize(translation.split()) for translation in translations]
-
-        if source_detokenizer is not None:
-            if target_lang == 'ja':
-                inputs = [sp_detokenizer.detokenize(inp.split()) for inp in inputs]
-            inputs = [source_detokenizer.detokenize(item.split()) for item in inputs]
-
-        return inputs, translations
 
     @torch.no_grad()
     def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
@@ -445,8 +387,8 @@ class MTEncDecModel(EncDecNLPModel):
         Should be regular text, this method performs its own tokenization/de-tokenization
         Args:
             text: list of strings to translate
-            source_lang: if not None, corresponding Tokenizer and Normalizer will be run
-            target_lang: if not None, corresponding Detokenizer will be run
+            source_lang: if not None, corresponding MosesTokenizer and MosesPunctNormalizer will be run
+            target_lang: if not None, corresponding MosesDecokenizer will be run
         Returns:
             list of translated strings
         """
@@ -457,38 +399,16 @@ class MTEncDecModel(EncDecNLPModel):
 
         mode = self.training
 
-        if source_lang == "ja":
-            normalizer = MosesPunctNormalizer(
-                lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
-            )
-            tokenizer1 = MosesTokenizer(lang=source_lang)
-            tokenizer2 = SentencePieceTokenizer(model_path=self.sentencepiece_model)
-        elif source_lang == "zh":
-            normalizer = opencc.OpenCC("t2s.json")
-        else:
-            tokenizer = MosesTokenizer(lang=source_lang)
-            normalizer = MosesPunctNormalizer(lang=source_lang)
-
-        if target_lang == "zh":
-            detokenizer = PanguJiebaDetokenizer()
-        else:
-            detokenizer = MosesDetokenizer(lang=target_lang)
+        normalizer, tokenizer = self.get_normalizer_and_tokenizer(source_lang, target_lang)
+        detokenizer = self.get_detokenizer(source_lang, target_lang)
 
         try:
             self.eval()
             res = []
             for txt in text:
                 if source_lang != "None":
-                    if source_lang == "ja":
-                        txt = normalizer.normalize(txt)
-                        txt = tokenizer1.tokenize(txt, escape=False, return_str=True)
-                        txt = ' '.join(tokenizer2.text_to_tokens(txt))
-                    elif source_lang == "zh":
-                        txt = normalizer.convert(txt)
-                        txt = ' '.join(jieba.cut(txt))
-                    else:
-                        txt = normalizer.normalize(txt)
-                        txt = tokenizer.tokenize(txt, escape=False, return_str=True)
+                    txt = normalizer.normalize(txt)
+                    txt = tokenizer.tokenize(txt, escape=False, return_str=True)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
@@ -498,9 +418,6 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                if target_lang == "ja":
-                    sp_detokenizer = SentencePieceDetokenizer()
-                    translation = sp_detokenizer.detokenize(translation.split())
                 translation = detokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
