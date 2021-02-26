@@ -204,7 +204,7 @@ class VarianceAdaptor(NeuralModule):
         log_dur_preds = self.duration_predictor(x)
         log_dur_preds.masked_fill_(~get_mask_from_lengths(x_len), 0)
         # Output is Batch, Time
-        if self.training:
+        if dur_target is not None:
             dur_out = self.length_regulator(x, dur_target)
         else:
             dur_preds = torch.clamp_min(torch.exp(log_dur_preds) - 1, 0).long()
@@ -222,7 +222,7 @@ class VarianceAdaptor(NeuralModule):
         pitch_preds = None
         if self.pitch:
             pitch_preds = self.pitch_predictor(dur_out)
-            if self.training:
+            if pitch_target is not None:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
             else:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
@@ -233,7 +233,7 @@ class VarianceAdaptor(NeuralModule):
         energy_preds = None
         if self.energy:
             energy_preds = self.energy_predictor(dur_out)
-            if self.training:
+            if energy_target is not None:
                 energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
             else:
                 energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
