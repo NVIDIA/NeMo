@@ -1,0 +1,39 @@
+// Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+//
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto.  Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
+
+syntax = "proto3";
+
+package nvidia.jarvis.nmt;
+
+option cc_enable_arenas = true;
+option go_package = "nvidia.com/jarvis_speech";
+
+// Jarvis NLP Services implement task-specific APIs for popular NLP tasks including
+// intent recognition (as well as slot filling), and entity extraction.
+service JarvisTranslate {
+  rpc TranslateText(TranslateTextRequest) returns (TranslateTextResponse) {}
+
+}
+
+message TranslateTextRequest {
+    repeated string texts = 1;
+
+    string source_language = 3;
+    string target_language = 4;
+}
+
+message Translation {
+    string translation = 1;
+
+    string language = 2;
+}
+
+message TranslateTextResponse {
+    repeated Translation translations = 1;
+
+}
