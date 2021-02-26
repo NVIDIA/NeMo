@@ -14,22 +14,28 @@
 
 from typing import List
 
-from sacremoses import MosesDetokenizer, MosesTokenizer
+from sacremoses import MosesDetokenizer, MosesTokenizer, MosesPunctNormalizer
 
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
-class EnJaDetokenizer:
+class EnJaProcessor:
     """
-    Deokenizer for Japanese & English that undoes `EnJaTokenizer` tokenization.
+    Tokenizer, Detokenizer and Normalizer utilities for Japanese & English
     Args:
+        sp_tokenizer_model_path: Path to sentencepiece tokenizer model file.
         lang_id: One of ['en', 'ja'].
     """
-
-    def __init__(self, lang_id: str):
+    def __init__(self, sp_tokenizer_model_path:str, lang_id: str):
+        self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
         self.sp_detokenizer = SentencePieceDetokenizer()
+        self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path) \
+            if sp_tokenizer_model_path is not None else None
+        self.normalizer = MosesPunctNormalizer(
+            lang=lang_id, pre_replace_unicode_punct=True, post_remove_control_chars=True
+        )
 
     def detokenize(self, tokens: List[str]) -> str:
         """
@@ -42,26 +48,17 @@ class EnJaDetokenizer:
         text = self.sp_detokenizer.detokenize(tokens)
         return self.moses_detokenizer.detokenize(text)
 
-
-class EnJaTokenizer:
-    """
-    Tokenizer for Japanese & English that does Moses tokenization followed by SentencePiece
-    Args:
-        sp_tokenizer_model_path: String path to a sentencepiece model
-        lang_id: One of ['en', 'ja'].
-    """
-
-    def __init__(self, sp_tokenizer_model_path: str, lang_id: str):
-        self.moses_tokenizer = MosesTokenizer(lang=lang_id)
-        self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
-
     def sp_tokenize(self, text: str) -> str:
         return ' '.join(self.sp_tokenizer.text_to_tokens(text))
 
-    def tokenize(self, text, escape=False, return_str=False):
+    def tokenize(self, text):
         """
         Tokenizes text using Moses -> Sentencepiece.
         """
-        text = self.moses_tokenizer.tokenize(text, escape=escape, return_str=True)
-        text = self.sp_tokenize(text)
-        return text if return_str else text.split()
+        if self.sp_tokenizer is None:
+            raise ValueError("Need valid sp_tokenizer_model_path, found None")
+        text = self.moses_tokenizer.tokenize(text, escape=False, return_str=True)
+        return self.sp_tokenize(text)
+    
+    def normalize(self, text):
+        return self.normalizer.normalize(text)
