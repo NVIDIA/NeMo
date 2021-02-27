@@ -789,3 +789,4 @@ class BeamRNNTInferConfig:
     alsd_max_target_len: float = 1.0
     nsc_max_timesteps_expansion: int = 1
     nsc_prefix_alpha: int = 1
+    preserve_alignments: bool = False

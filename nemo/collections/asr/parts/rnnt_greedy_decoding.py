@@ -722,8 +722,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 @dataclass
 class GreedyRNNTInferConfig:
     max_symbols_per_step: Optional[int] = None
+    preserve_alignments: bool = False
 
 
 @dataclass
 class GreedyBatchedRNNTInferConfig:
     max_symbols_per_step: Optional[int] = None
+    preserve_alignments: bool = False
