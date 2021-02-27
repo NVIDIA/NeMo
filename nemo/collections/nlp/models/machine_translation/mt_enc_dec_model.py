@@ -27,7 +27,6 @@ from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
-from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 from torch.nn.parallel.distributed import DistributedDataParallel
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
@@ -209,11 +208,11 @@ class MTEncDecModel(EncDecNLPModel):
 
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
-
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+        ground_truths = [self.target_processor.detokenize(tgt.split()) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
             'translations': translations,
@@ -247,13 +246,9 @@ class MTEncDecModel(EncDecNLPModel):
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
-        detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
-
-        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
-        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
-
         assert len(translations) == len(ground_truths)
-
+        print(translations)
+        print(ground_truths)
         if self.tgt_language in ['ja']:
             sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
         elif self.tgt_language in ['zh']:
