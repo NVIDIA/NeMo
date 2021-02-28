@@ -182,8 +182,7 @@ class EncDecRNNTModel(ASRModel):
                     hypotheses += self.decoding.rnnt_decoder_predictions_tensor(
                         encoded, encoded_len, return_hypotheses=return_hypotheses
                     )
-                    del greedy_predictions
-                    del logits
+                    del encoded
                     del test_batch
         finally:
             # set mode back to its original value
