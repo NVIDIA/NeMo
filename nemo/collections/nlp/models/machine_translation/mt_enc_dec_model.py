@@ -376,7 +376,7 @@ class MTEncDecModel(EncDecNLPModel):
         Returns a detokenizer for a specific target language.
         """
         if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            detokenizer = EnJaDetokenizer(target_lang)
+            detokenizer = EnJaDetokenizer(lang_id=target_lang)
         elif target_lang == 'zh':
             detokenizer = ChineseDetokenizer()
         else:
@@ -421,8 +421,8 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
-                translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                translation = detokenizer.detokenize(translation.split())
+                translation = self.decoder_tokenizer.ids_to_tokens(translation_ids)
+                translation = detokenizer.detokenize(translation)
                 res.append(translation)
         finally:
             self.train(mode=mode)
