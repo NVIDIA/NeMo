@@ -210,9 +210,15 @@ class MTEncDecModel(EncDecNLPModel):
 
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
-        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+
         np_tgt = tgt_ids.cpu().numpy()
-        ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+        if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
+            translations = [self.decoder_tokenizer.ids_to_tokens(tr) for tr in beam_results.cpu().numpy()]
+            ground_truths = [self.decoder_tokenizer.ids_to_tokens(tgt) for tgt in np_tgt]
+        else:
+            translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+            ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
             'translations': translations,
@@ -247,9 +253,13 @@ class MTEncDecModel(EncDecNLPModel):
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
         detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
-
-        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
-        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
+        
+        if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
+            translations = [detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(sent)) for sent in translations]
+            ground_truths = [detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(sent)) for sent in ground_truths]
+        else:
+            translations = [detokenizer.detokenize(sent.split()) for sent in translations]
+            ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
 
         assert len(translations) == len(ground_truths)
 

@@ -29,7 +29,7 @@ class EnJaDetokenizer:
 
     def __init__(self, lang_id: str):
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
-        self.sp_detokenizer = SentencePieceDetokenizer()
+        self.sp_tokenizer = SentencePieceDetokenizer()
 
     def detokenize(self, tokens: List[str]) -> str:
         """
@@ -39,7 +39,7 @@ class EnJaDetokenizer:
         Returns:
             detokenized Japanese or English string
         """
-        text = self.sp_detokenizer.detokenize(tokens)
+        text = self.sp_tokenizer.detokenize(tokens)
         return self.moses_detokenizer.detokenize(text)
 
 
