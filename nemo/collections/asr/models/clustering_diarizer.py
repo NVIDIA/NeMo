@@ -59,6 +59,11 @@ _VAD_MODEL = "vad_model.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
 
 
+def get_available_model_names(class_name):
+    available_models = class_name.list_available_models()
+    return list(map(lambda x: x.pretrained_model_name, available_models))
+
+
 @experimental
 class ClusteringDiarizer(Model, DiarizationMixin):
     def __init__(self, cfg: DictConfig):
@@ -86,11 +91,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             os.makedirs(self._vad_dir)
 
         # init speaker model
-        self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(
-            self._cfg.diarizer.speaker_embeddings.model_path
-        )
+        self._init_speaker_model()
         self._num_speakers = self._cfg.diarizer.num_speakers
-        self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
 
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -98,20 +100,45 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def list_available_models(cls):
         pass
 
+    def _init_speaker_model(self):
+        model_path = self._cfg.diarizer.speaker_embeddings.model_path
+        if model_path is not None and model_path.endswith('.nemo'):
+            self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)
+            logging.info("Speaker Model restored locally from {}".format(model_path))
+        else:
+            if model_path not in get_available_model_names(ExtractSpeakerEmbeddingsModel):
+                logging.warning(
+                    "requested {} model name not available in pretrained models, instead".format(model_path)
+                )
+                model_path = "SpeakerNet_verification"
+            logging.info("Loading pretrained {} model from NGC".format(model_path))
+            self._speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name=model_path)
+
+        self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
+
     def set_vad_model(self, vad_config):
         with open_dict(self._cfg):
             self._cfg.diarizer.vad = vad_config
         self._init_vad_model()
 
     def _init_vad_model(self):
-        if self._cfg.diarizer.vad.model_path.endswith('.nemo'):
-            self._vad_model = EncDecClassificationModel.restore_from(self._cfg.diarizer.vad.model_path)
-            self._vad_window_length_in_sec = self._cfg.diarizer.vad.window_length_in_sec
-            self._vad_shift_length_in_sec = self._cfg.diarizer.vad.shift_length_in_sec
-            self.has_vad_model_to_save = True
-            self.has_vad_model = True
+        model_path = self._cfg.diarizer.vad.model_path
+        if model_path.endswith('.nemo'):
+            self._vad_model = EncDecClassificationModel.restore_from(model_path)
+            logging.info("VAD model loaded locally from {}".format(model_path))
         else:
-            raise ValueError("vad.model_path should be a .json file or .nemo or a .ckpt model file")
+            if model_path not in get_available_model_names(EncDecClassificationModel):
+                logging.warning(
+                    "requested {} model name not available in pretrained models, instead".format(model_path)
+                )
+                model_path = "MatchboxNet-VAD-3x2"
+            logging.info("Loading pretrained {} model from NGC".format(model_path))
+            self._vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
+
+        self._vad_window_length_in_sec = self._cfg.diarizer.vad.window_length_in_sec
+        self._vad_shift_length_in_sec = self._cfg.diarizer.vad.shift_length_in_sec
+        self.has_vad_model_to_save = True
+        self.has_vad_model = True
 
     def _setup_vad_test_data(self, manifest_vad_input):
         vad_dl_config = {
