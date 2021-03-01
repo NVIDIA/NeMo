@@ -46,6 +46,7 @@ class TokenizerConfig:
     vocab_file: Optional[str] = None
     special_tokens: Optional[Dict[str, str]] = None
     bpe_dropout: Optional[float] = 0.0
+    coverage: Optional[float] = 0.999
 
 
 def get_tokenizer(
