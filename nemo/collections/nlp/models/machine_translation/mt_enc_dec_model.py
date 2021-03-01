@@ -253,13 +253,15 @@ class MTEncDecModel(EncDecNLPModel):
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
-        logging.info("type: {}, value: {}".format(type(translations[0]), translations))
-        logging.info("type: {}, value: {}".format(type(ground_truths[0]), ground_truths))
-
         detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
 
-        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
-        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
+        if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
+            func = lambda x: detokenizer.detokenize(x.split(' '))
+        else:
+            func = lambda x: detokenizer.detokenize(x.split())
+
+        translations = [func(sent) for sent in translations]
+        ground_truths = [func(sent) for sent in ground_truths]
 
         assert len(translations) == len(ground_truths)
 
