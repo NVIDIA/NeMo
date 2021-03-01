@@ -66,7 +66,7 @@ The `source_data_dir` structure should look like this:
 NeMo Data Format for training the model
 ---------------------------------------
 
-The punctuation and capitalization model expect the data in the following format:
+The punctuation and capitalization model expects the data in the following format:
 
 The training and evaluation data is divided into 2 files: text.txt and labels.txt. \
 Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e.
@@ -109,14 +109,14 @@ section), run the following command:
 
     python examples/nlp/token_classification/data/prepare_data_for_punctuation_capitalization.py \
            -s <PATH_TO_THE_SOURCE_FILE>
-           -o <PAHT_TO_THE_OUTPUT_DIRECTORY>
+           -o <PATH_TO_THE_OUTPUT_DIRECTORY>
 
 
 Convert Dataset Required Arguments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`-s` or :code:`source_file`: path to the raw file
-* :code:`o` or :code:`output_dir` - path to the directory to store the converted files
+* :code:`-s` or :code:`--source_file`: path to the raw file
+* :code:`-o` or :code:`--output_dir` - path to the directory to store the converted files
 
 After the conversion, the :code:`output_dir` should contain :code:`labels_*.txt` and :code:`text_*.txt` files.
 The default names for the training and evaluation in the :code:`conf/punctuation_capitalization_config.yaml` are the following:
@@ -130,8 +130,8 @@ The default names for the training and evaluation in the :code:`conf/punctuation
      |-- text_dev.txt
      |-- text_train.txt
 
-Training a Punctuation and Capitalization Model
------------------------------------------------
+Training Punctuation and Capitalization Model
+---------------------------------------------
 
 In the Punctuation and Capitalization Model, we are jointly training two token-level classifiers on top of a pre-trained \
 language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-devlin2018bert`.
@@ -242,7 +242,7 @@ To train from the pre-trained model, use:
 Required Arguments for Training
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`model.dataset.data_dir`: Path to the `data_dir` with the processed data files.
+* :code:`model.dataset.data_dir`: Path to the `data_dir` with the pre-processed data files.
 
 Optional Arguments
 ^^^^^^^^^^^^^^^^^^
@@ -296,7 +296,7 @@ To run inference with the pre-trained model on a few examples, run:
 Required Arguments for inference:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
 
 
 Model Evaluation
@@ -311,7 +311,7 @@ To run evaluation of the pre-trained model, run:
 
     python punctuation_capitalization_evaluate.py \
            model.dataset.data_dir=<PATH/TO/DATA/DIR>  \
-           pretrained_model=Punctuation_Capitalization_with_BERT_base_uncased \
+           pretrained_model=punctuation_en_bert \
            model.test_ds.text_file=<text_*.txt> \
            model.test_ds.labels_file=<labels_*.txt> \
            model.dataset.max_seq_length=512
@@ -330,7 +330,7 @@ Optional Arguments:
 
 
 During evaluation of the :code:`test_ds`, the script generates two classification reports: one for capitalization task and \
-another one for punctuaion task. This classification reports include the following metrics:
+another one for punctuation task. This classification reports include the following metrics:
 
 * :code:`Precision`
 * :code:`Recall`

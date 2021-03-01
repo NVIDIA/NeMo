@@ -86,8 +86,8 @@ Note, the development set (or dev set) will be used to evaluate the performance 
 The hyper-parameters search and model selection should be based on the dev set, while the final evaluation of \
 the selected model should be performed on the test set.
 
-Training a Token Classification Model
--------------------------------------
+Training Token Classification Model
+-----------------------------------
 
 In the Token Classification Model, we are jointly training a classifier on top of a pre-trained \
 language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__.
@@ -95,7 +95,7 @@ language model, such as `BERT: Pre-training of Deep Bidirectional Transformers f
 Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the
 pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
-
+Example of model configuration file for training the model could be found at: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
 
 The specification can be roughly grouped into three categories:
 
@@ -108,11 +108,9 @@ More details about parameters in the spec file could be found below:
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| data_dir                                  | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
+| model.dataset.data_dir                    | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | trainer.max_epochs                        | integer         | 5                                                                                | Maximum number of epochs to train the model                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.label_ids                           | string          | --                                                                               | Path to the string labels to integet mapping (is generated during the dataset conversion step)               |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.tokenizer.tokenizer_name            | string          | Will be filled automatically based on model.language_model.pretrained_model_name | Tokenizer name                                                                                               |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
@@ -171,32 +169,20 @@ Example of the command for training the model:
 
 .. code::
 
-      token_classification train [-h] \
-                                    -e /specs/nlp/token_classification/train.yaml \
-                                    -r /results/token_classification/train/ \
-                                    -g 1 \
-                                    -k $KEY
-                                    data_dir=/path/to/data_dir \
-                                    model.label_ids=/path/to/label_ids.csv \
-                                    trainer.max_epochs=5 \
-                                    training_ds.num_samples=-1 \
-                                    validation_ds.num_samples=-1
+    python token_classification_train.py \
+           model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
+           trainer.max_epochs=<NUM_EPOCHS> \
+           trainer.gpus=[<CHANGE_TO_GPU(s)_YOU_WANT_TO_USE>]
 
 
 Required Arguments for Training
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`-e`: The experiment specification file to set up training.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`-k`: Encryption key
-* :code:`data_dir`: Path to the `data_dir` with the processed data files.
-* :code:`model.label_ids`: Path to the `label_ids.csv` file, usually stored at `data_dir`
+* :code:`model.dataset.data_dir`: Path to the directory with pre-processed data.
 
 Optional Arguments
 ^^^^^^^^^^^^^^^^^^
 
-* :code:`-h, --help`: Show this help message and exit
-* :code:`-g`: The number of GPUs to be used in evaluation in a multi-gpu scenario (default: 1).
 * Other arguments to override fields in the specification file.
 
 .. note::
@@ -207,146 +193,6 @@ Optional Arguments
     However, if you see that the GPU utilization can be optimized further by using larger a batch size, \
     you may override to the desired value, by adding the field :code:`validation_ds.batch_size=128` over command line.
     You may repeat this with any of the parameters defined in the sample spec file.
-
-Snippets of the output log from executing the :code:`token_classification train` command:
-
-.. code::
-
-    # complete model's spec file will be shown
-    [NeMo I train:93] Spec file:
-        restore_from: ???
-        exp_manager:
-          explicit_log_dir: /results/token_classification/train/
-          exp_dir: null
-          name: trained-model
-          version: null
-          use_datetime_version: true
-          resume_if_exists: true
-          resume_past_end: false
-          resume_ignore_no_checkpoint: true
-          create_tensorboard_logger: false
-          summary_writer_kwargs: null
-          create_wandb_logger: false
-          wandb_logger_kwargs: null
-          create_checkpoint_callback: true
-          checkpoint_callback_params:
-            filepath: null
-            monitor: val_loss
-            verbose: true
-            save_last: true
-            save_top_k: 3
-            save_weights_only: false
-            mode: auto
-            period: 1
-            prefix: null
-            postfix: . 
-            save_best_model: false
-          files_to_copy: null
-        model:
-          tokenizer:
-            tokenizer_name: ...
-        ...
-
-    [NeMo I exp_manager:186] Experiments will be logged at /results/token_classification/train/
-
-    # The dataset will be processed and tokenized
-    [NeMo I token_classification_model:61] Reusing label_ids file found at data_dir/label_ids.csv.
-    Using bos_token, but it is not set yet.
-    Using eos_token, but it is not set yet.
-    [NeMo I token_classification_model:105] Setting model.dataset.data_dir to data_dir.
-
-    [NeMo I 2021-01-21 17:57:14 token_classification_utils:54] Processing data_dir/labels_train.txt
-    [NeMo I 2021-01-21 17:57:14 token_classification_utils:75] Using provided labels mapping {'O': 0, 'B-GPE': 1, 'B-LOC': 2, 'B-MISC': 3, 'B-ORG': 4, 'B-PER': 5, 'B-TIME': 6, 'I-GPE': 7, 'I-LOC': 8, 'I-MISC': 9, 'I-ORG': 10, 'I-PER': 11, 'I-TIME': 12}
-    [NeMo I 2021-01-21 17:57:15 token_classification_utils:101] Three most popular labels in data_dir/labels_train.txt:
-    [NeMo I 2021-01-21 17:57:15 data_preprocessing:131] label: 0, 18417 out of 21717 (84.80%).
-    [NeMo I 2021-01-21 17:57:15 data_preprocessing:131] label: 2, 829 out of 21717 (3.82%).
-    [NeMo I 2021-01-21 17:57:15 data_preprocessing:131] label: 6, 433 out of 21717 (1.99%).
-    [NeMo I 2021-01-21 17:57:15 token_classification_utils:103] Total labels: 21717. Label frequencies - {0: 18417, 2: 829, 6: 433, 4: 357, 11: 352, 5: 349, 1: 338, 10: 281, 8: 181, 12: 142, 3: 21, 9: 12, 7: 5}
-    [NeMo I 2021-01-21 17:57:15 token_classification_utils:112] Class Weights: {0: 0.09070632901875775, 2: 2.015124802820822, 6: 3.858056493160419, 4: 4.679379444085327, 11: 4.7458479020979025, 5: 4.786643156270664, 1: 4.942421483841602, 10: 5.9449767314535995, 8: 9.229494262643433, 12: 11.764355362946912, 3: 79.54945054945055, 9: 139.21153846153845, 7: 334.10769230769233}
-    [NeMo I 2021-01-21 17:57:15 token_classification_utils:116] Class weights saved to data_dir/labels_train_weights.p
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:116] Setting Max Seq length to: 64
-    [NeMo I 2021-01-21 17:57:19 data_preprocessing:295] Some stats of the lengths of the sequences:
-    [NeMo I 2021-01-21 17:57:19 data_preprocessing:301] Min: 6 |                  Max: 64 |                  Mean: 26.357 |                  Median: 26.0
-    [NeMo I 2021-01-21 17:57:19 data_preprocessing:303] 75 percentile: 32.00
-    [NeMo I 2021-01-21 17:57:19 data_preprocessing:304] 99 percentile: 51.00
-    [NeMo W 2021-01-21 17:57:19 token_classification_dataset:145] 0 are longer than 64
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:148] *** Example ***
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:149] i: 0
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:150] subtokens: [CLS] new zealand ' s cricket team has scored a morale - boost ##ing win over bangladesh in the first of three one - day internationals in new zealand . [SEP]
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:151] loss_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:152] input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:153] subtokens_mask: 0 1 1 1 0 1 1 1 1 1 1 0 0 0 1 1 1 1 1 1 1 1 1 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:155] labels: 0 2 8 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 6 12 12 12 12 12 0 0 2 8 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    [NeMo I 2021-01-21 17:57:19 token_classification_dataset:264] features saved to data_dir/cached_text_train.txt_BertTokenizer_128_30522_-1
-    [NeMo I 2021-01-21 17:57:19 token_classification_utils:54] Processing data_dir/labels_dev.txt
-    [NeMo I 2021-01-21 17:57:19 token_classification_utils:75] Using provided labels mapping {'O': 0, 'B-GPE': 1, 'B-LOC': 2, 'B-MISC': 3, 'B-ORG': 4, 'B-PER': 5, 'B-TIME': 6, 'I-GPE': 7, 'I-LOC': 8, 'I-MISC': 9, 'I-ORG': 10, 'I-PER': 11, 'I-TIME': 12}
-    [NeMo I 2021-01-21 17:57:20 token_classification_utils:101] Three most popular labels in data_dir/labels_dev.txt:
-    [NeMo I 2021-01-21 17:57:20 data_preprocessing:131] label: 0, 18266 out of 21775 (83.89%).
-    [NeMo I 2021-01-21 17:57:20 data_preprocessing:131] label: 2, 809 out of 21775 (3.72%).
-    [NeMo I 2021-01-21 17:57:20 data_preprocessing:131] label: 6, 435 out of 21775 (2.00%).
-    [NeMo I 2021-01-21 17:57:20 token_classification_utils:103] Total labels: 21775. Label frequencies - {0: 18266, 2: 809, 6: 435, 4: 418, 11: 414, 5: 392, 1: 351, 10: 351, 8: 174, 12: 146, 7: 8, 3: 8, 9: 3}
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:116] Setting Max Seq length to: 70
-    [NeMo I 2021-01-21 17:57:24 data_preprocessing:295] Some stats of the lengths of the sequences:
-    [NeMo I 2021-01-21 17:57:24 data_preprocessing:301] Min: 7 |                  Max: 70 |                  Mean: 26.437 |                  Median: 26.0
-    [NeMo I 2021-01-21 17:57:24 data_preprocessing:303] 75 percentile: 33.00
-    [NeMo I 2021-01-21 17:57:24 data_preprocessing:304] 99 percentile: 50.00
-    [NeMo W 2021-01-21 17:57:24 token_classification_dataset:145] 0 are longer than 70
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:148] *** Example ***
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:149] i: 0
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:150] subtokens: [CLS] hamas refuses to recognize israel , and has vowed to undermine palestinian leader mahmoud abbas ' s efforts to make peace with the jewish state . [SEP]
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:151] loss_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:152] input_mask: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:153] subtokens_mask: 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:155] labels: 0 4 0 0 0 2 0 0 0 0 0 0 1 0 5 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    [NeMo I 2021-01-21 17:57:24 token_classification_dataset:264] features saved to data_dir/cached_text_dev.txt_BertTokenizer_128_30522_-1
-
-    [NeMo I 2021-01-21 17:00:09 modelPT:830] Optimizer config = Adam (
-        Parameter Group 0
-            amsgrad: False
-            betas: (0.9, 0.999)
-            eps: 1e-08
-            lr: 5e-05
-            weight_decay: 0.0
-        )
-    [NeMo I 2021-01-21 17:00:09 lr_scheduler:621] Scheduler "<nemo.core.optim.lr_scheduler.WarmupAnnealing object at 0x7f3b6d05f400>"
-        will be used during training (effective maximum steps = 16) -
-        Parameters :
-        (warmup_steps: null
-        warmup_ratio: 0.1
-        last_epoch: -1
-        max_steps: 16
-        )
-    initializing ddp: GLOBAL_RANK: 0, MEMBER: 1/1
-    [NeMo I 2021-01-21 17:00:11 modelPT:704] No optimizer config provided, therefore no optimizer was created
-
-    110 M     Trainable params
-    0         Non-trainable params
-    110 M     Total params
-    Validation sanity check:  50%|████████████████████████████▌                            | 1/2 [00:00<00:00,  1.47it/s][NeMo I 2021-01-21 17:00:13 token_classification_model:178]
-        label                                                precision    recall       f1           support
-        O (label_id: 0)                                         82.08     100.00      90.16       2300
-        B-GPE (label_id: 1)                                      0.00       0.00       0.00         41
-        B-LOC (label_id: 2)                                      0.00       0.00       0.00        119
-        B-MISC (label_id: 3)                                     0.00       0.00       0.00          2
-        B-ORG (label_id: 4)                                      0.00       0.00       0.00         71
-        B-PER (label_id: 5)                                      0.00       0.00       0.00         62
-        B-TIME (label_id: 6)                                     0.00       0.00       0.00         56
-        I-GPE (label_id: 7)                                      0.00       0.00       0.00          4
-        I-LOC (label_id: 8)                                      0.00       0.00       0.00         18
-        I-MISC (label_id: 9)                                     0.00       0.00       0.00          0
-        I-ORG (label_id: 10)                                     0.00       0.00       0.00         52
-        I-PER (label_id: 11)                                     0.00       0.00       0.00         61
-        I-TIME (label_id: 12)                                    0.00       0.00       0.00         16
-        -------------------
-        micro avg                                               82.08      82.08      82.08       2802
-        macro avg                                                6.84       8.33       7.51       2802
-        weighted avg                                            67.38      82.08      74.01       2802
-
-    Training: 0it [00:00, ?it/s]
-    [NeMo I 2021-01-21 17:00:38 train:124] Experiment logs saved to 'output'
-    [NeMo I 2021-01-21 17:00:38 train:127] Trained model saved to 'output/checkpoints/trained-model. '
-    INFO: Internal process exited
-
 
 Important parameters
 ^^^^^^^^^^^^^^^^^^^^
@@ -368,55 +214,56 @@ Below is the list of parameters could help improve the model:
 - learning rate (`model.optim.lr`, for example, `5e-5`)
 
 
+Inference
+---------
 
-Fine-tuning a model on a different dataset
-------------------------------------------
+An example script on how to run inference on a few examples, could be found
+at `examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`_.
 
-In the previous section <ref>:Training a token classification model, \
-the Token Classification (NER) model was initialized with a pre-trained language model, \
-but the classifiers were trained from scratch.
-Now, that a user has trained the Token Classification model successfully (let's call it `trained-model. `), \
-there maybe scenarios where users are required to retrain this `trained-model. ` on a new smaller dataset. \
-  conversational AI applications provide a separate tool called `fine-tune` to enable this.
-
-Note, all labels from the dataset that is used for fine-tuning, should be present in the dataset the model was originally trained.
-If it is not the case, use the :code:`  token_classification train` with your data.
-
-Evaluating a trained model
---------------------------
-
-Spec example to evaluate the pre-trained model:
+To run inference with the pre-trained model on a few examples, run:
 
 .. code::
 
-    restore_from: trained-model. 
-    data_dir: ???
+    python token_classification_evaluate.py \
+           pretrained_model=<PRETRAINED_MODEL>
 
-    # Test settings: dataset.
-    test_ds:
-      text_file: text_dev.txt
-      labels_file: labels_dev.txt
-      batch_size: 1
-      shuffle: false
-      num_samples: -1 # number of samples to be considered, -1 means the whole the dataset
-
-Use the following command to evaluate the model:
-
-.. code::
-
-    TBD
-
-
-Required Arguments for Evaluation
+Required Arguments for inference:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`-e`: The experiment specification file to set up evaluation.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`data_dir`: Path to data directory with the pre-processed data to use for evaluation
-* :code:`-m`: Path to the pre-trained model checkpoint for evaluation. Should be a :code:`. ` file.
-* :code:`-k`: Encryption key
+* :code:`pretrained_model`: pretrained TokenClassification model from list_available_models() or path to a .nemo file, for example: ner_en_bert or your_model.nemo
 
-:code:`token_classification evaluate` generates a classification report that includes the following metrics:
+
+Model Evaluation
+----------------
+
+An example script on how to evaluate the pre-trained model, could be found
+at `examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`_.
+
+To run evaluation of the pre-trained model, run:
+
+.. code::
+
+    python token_classification_evaluate.py \
+           model.dataset.data_dir=<PATH/TO/DATA/DIR>  \
+           pretrained_model=ner_en_bert \
+           model.test_ds.text_file=<text_*.txt> \
+           model.test_ds.labels_file=<labels_*.txt> \
+           model.dataset.max_seq_length=512
+
+
+Required Arguments:
+^^^^^^^^^^^^^^^^^^^
+* :code:`pretrained_model`: pretrained TokenClassification model from list_available_models() or path to a .nemo file, for example: ner_en_bert or your_model.nemo
+* :code:`model.dataset.data_dir`: Path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`.
+
+
+Optional Arguments:
+^^^^^^^^^^^^^^^^^^^
+* :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`: text_*.txt and labels_*.txt file names is the default text_dev.txt and labels_dev.txt from the config files should be overwritten.
+* Other :code:`model.dataset` or :code:`model.test_ds` arguments to override fields in the config file of the pre-trained model.
+
+
+During evaluation of the :code:`test_ds`, the script generates a classification reports that includes the following metrics:
 
 * :code:`Precision`
 * :code:`Recall`
@@ -424,80 +271,10 @@ Required Arguments for Evaluation
 
 More details about these metrics could be found `here <https://en.wikipedia.org/wiki/Precision_and_recall>`__.
 
-Output log for :code:`token_classification evaluate` (note, the values below are for demonstration purposes only):
+References
+----------
 
-.. code::
-
-    label                                                precision    recall       f1           support
-    O (label_id: 0)                                         83.89     100.00      91.24      18266
-    B-GPE (label_id: 1)                                      0.00       0.00       0.00        351
-    B-LOC (label_id: 2)                                      0.00       0.00       0.00        809
-    B-MISC (label_id: 3)                                     0.00       0.00       0.00          8
-    B-ORG (label_id: 4)                                      0.00       0.00       0.00        418
-    B-PER (label_id: 5)                                      0.00       0.00       0.00        392
-    B-TIME (label_id: 6)                                     0.00       0.00       0.00        435
-    I-GPE (label_id: 7)                                      0.00       0.00       0.00          8
-    I-LOC (label_id: 8)                                      0.00       0.00       0.00        174
-    I-MISC (label_id: 9)                                     0.00       0.00       0.00          3
-    I-ORG (label_id: 10)                                     0.00       0.00       0.00        351
-    I-PER (label_id: 11)                                     0.00       0.00       0.00        414
-    I-TIME (label_id: 12)                                    0.00       0.00       0.00        146
-    -------------------
-    micro avg                                               83.89      83.89      83.89      21775
-    macro avg                                                6.45       7.69       7.02      21775
-    weighted avg                                            70.37      83.89      76.53      21775
-
-    Testing: 100%|██████████████████████████████████████████████████████████████████████████████████████████| 1000/1000 [00:39<00:00, 25.59it/s]
-    --------------------------------------------------------------------------------
-    DATALOADER:0 TEST RESULTS
-        {'f1': tensor(7.0182, device='cuda:0'),
-         'precision': tensor(6.4527, device='cuda:0'),
-         'recall': tensor(7.6923, device='cuda:0'),
-         'test_loss': tensor(1.0170, device='cuda:0')}
-
-Running inference using a trained model
----------------------------------------
-
-During inference, a batch of input sentences, listed in the spec files, are passed through the trained model \
-to add token classification label.
-
-To run inference on the model, specify the list of examples in the spec, for example:
-
-.. code::
-
-    input_batch:
-      - 'We bought four shirts from the Nvidia gear store in Santa Clara.'
-      - 'Nvidia is a company.'
-
-To run inference:
-
-.. code::
-
-    TBD
-
-Required Arguments for Inference
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`-e`: The experiment specification file to set up inference.
-  This requires the :code:`input_batch` with the list of examples to run inference on.
-* :code:`-r`: Path to the directory to store the results.
-* :code:`-m`: Path to the pre-trained model checkpoint from which to infer. Should be a :code:`. ` file.
-* :code:`-k`: Encryption key
-
-
-Optional Arguments
-^^^^^^^^^^^^^^^^^^
-
-* :code:`-h, --help`: Show this help message and exit
-* :code:`-g`: The number of GPUs to be used for fine-tuning in a multi-gpu scenario (default: 1).
-* Other arguments to override fields in the specification file.
-
-Output log sample:
-
-.. code::
-
-    Query : we bought four shirts from the nvidia gear store in santa clara.
-    Result: we bought four shirts from the nvidia[B-LOC] gear store in santa[B-LOC] clara[I-LOC].
-    Nvidia is a company.
-    Result: Nvidia[B-ORG] is a company.
-
+.. bibliography:: nlp_references.bib
+    :style: plain
+    :labelprefix: nlp-
+    :keyprefix: nlp-

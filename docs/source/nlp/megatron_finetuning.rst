@@ -33,31 +33,31 @@ BioMegatron-LM BERT Uncased 345M (~345M parameters):
 Fine-tuning
 -----------
 
-In order to finetune a pretrained Megatron BERT language model on NLP downstream tasks from `examples/nlp  <https://github.com/NVIDIA/NeMo/tree/master/examples/nlp>`_, specify the pretrained_model_name like this: 
+In order to fine-tune a pretrained Megatron BERT language model on NLP downstream tasks from `examples/nlp  <https://github.com/NVIDIA/NeMo/tree/master/examples/nlp>`_, specify the `model.language_model.pretrained_model_name` like this:
 
 .. code-block:: bash
 
     # to used uncased model
-    --pretrained_model_name megatron-bert-345m-uncased
+    model.language_model.pretrained_model_name=megatron-bert-345m-uncased
 
     # to used cased model
-    --pretrained_model_name megatron-bert-345m-cased
+    model.language_model.pretrained_model_name=megatron-bert-345m-cased
 
-For example, to finetune SQuAD v1.1 with Megatron-LM, run:
+For example, to fine-tune SQuAD v1.1 with Megatron-LM, run:
 
 .. code-block:: bash
 
-    python question_answering_squad.py  \
-    --train_file PATH_TO_DATA_DIR/squad/v1.1/train-v1.1.json  \
-    --eval_file PATH_TO_DATA_DIR/squad/v1.1/dev-v1.1.json \
-    --pretrained_model_name megatron-bert-345m-uncased
+    python question_answering_squad.py \
+           model.train_ds.file=<TRAIN_JSON_FILE> \
+           model.validation_ds=<VAL_JSON_FILE> \
+           model.language_model.pretrained_model_name=megatron-bert-345m-uncased
 
 
-If you have a different checkpoint or model configuration, use ``--pretrained_model_name megatron-bert-uncased`` \
-or ``--pretrained_model_name megatron-bert-cased`` and specify ``--bert_config`` and ``--bert_checkpoint`` for your model.
+If you have a different checkpoint or model configuration, use ``model.language_model.pretrained_model_name=megatron-bert-uncased`` \
+or ``model.language_model.pretrained_model_name=megatron-bert-cased`` and specify ``--bert_config`` and ``--bert_checkpoint`` for your model.
 
 .. note::
-    Megatron-LM has its own set of training arguments (including tokenizer) that are ignored during finetuning in NeMo. Please use downstream task training scripts for all NeMo supported arguments.
+    Megatron-LM has its own set of training arguments (including tokenizer) that are ignored during fine-tuning in NeMo. Please use downstream task training scripts for all NeMo supported arguments.
 
 
 BioMegatron
