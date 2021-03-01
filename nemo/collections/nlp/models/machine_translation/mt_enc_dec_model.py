@@ -376,7 +376,7 @@ class MTEncDecModel(EncDecNLPModel):
         Returns a detokenizer for a specific target language.
         """
         if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            detokenizer = EnJaDetokenizer(lang_id=target_lang)
+            detokenizer = EnJaDetokenizer(target_lang)
         elif target_lang == 'zh':
             detokenizer = ChineseDetokenizer()
         else:
