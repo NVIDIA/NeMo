@@ -71,6 +71,10 @@ class ASRBPEMixin(ABC):
             vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
             self.vocab_path = vocab_path
 
+            tokenizer_vocab_path = os.path.join(self.tokenizer_dir, 'tokenizer.vocab')
+            tokenizer_vocab_path = self.register_artifact('spe_tokenizer.vocab', tokenizer_vocab_path)
+            self.tokenizer_vocab_path = tokenizer_vocab_path
+
             vocabulary = {'<unk>': 0}
             with open(vocab_path) as f:
                 for i, piece in enumerate(f):
@@ -91,6 +95,7 @@ class ASRBPEMixin(ABC):
             vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
             self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
             self.vocab_path = self.tokenizer_dir
+            self.tokenizer_vocab_path = self.vocab_path
 
             self.tokenizer = tokenizers.AutoTokenizer(
                 pretrained_model_name='bert-base-cased', vocab_file=self.tokenizer_dir, **self.tokenizer_cfg
