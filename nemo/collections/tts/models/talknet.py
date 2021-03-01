@@ -31,11 +31,7 @@ class GaussianEmbedding(nn.Module):
     EPS = 1e-6
 
     def __init__(
-        self,
-        vocab,
-        d_emb,
-        sigma_c=2.0,
-        merge_blanks=False,
+        self, vocab, d_emb, sigma_c=2.0, merge_blanks=False,
     ):
         super().__init__()
 
@@ -64,12 +60,7 @@ class GaussianEmbedding(nn.Module):
         assert c.shape == sigmas.shape
 
         # Times at indexes
-        t = (
-            torch.arange(total_time, device=c.device)
-            .view(1, -1, 1)
-            .repeat(durs.shape[0], 1, durs.shape[-1])
-            .float()
-        )
+        t = torch.arange(total_time, device=c.device).view(1, -1, 1).repeat(durs.shape[0], 1, durs.shape[-1]).float()
         t = t + 0.5
 
         ns = slice(None)
@@ -130,22 +121,14 @@ class TalkNetDursModel(ModelPT):
     def training_step(self, batch, batch_idx):
         _, _, text, text_len, durs, *_ = batch
         pred_durs = self(text=text, text_len=text_len)
-        loss, acc = self._metrics(
-            true_durs=durs,
-            true_text_len=text_len,
-            pred_durs=pred_durs,
-        )
+        loss, acc = self._metrics(true_durs=durs, true_text_len=text_len, pred_durs=pred_durs,)
         train_log = {'train_loss': loss, 'train_acc': acc}
         return {'loss': loss, 'progress_bar': train_log, 'train_log': train_log}
 
     def validation_step(self, batch, batch_idx):
         _, _, text, text_len, durs, *_ = batch
         pred_durs = self(text=text, text_len=text_len)
-        loss, acc = self._metrics(
-            true_durs=durs,
-            true_text_len=text_len,
-            pred_durs=pred_durs,
-        )
+        loss, acc = self._metrics(true_durs=durs, true_text_len=text_len, pred_durs=pred_durs,)
         return {'loss': loss, 'acc': acc}
 
     def validation_epoch_end(self, outputs):
@@ -158,9 +141,7 @@ class TalkNetDursModel(ModelPT):
     def _loader(cfg):
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset,
-            collate_fn=dataset.collate_fn,
-            **cfg.dataloader_params,
+            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -206,20 +187,14 @@ class TalkNetPitchModel(ModelPT):
     def _metrics(self, true_f0, true_f0_mask, pred_f0_sil, pred_f0_body):
         sil_mask = true_f0 < 1e-5
         sil_gt = sil_mask.long()
-        sil_loss = F.binary_cross_entropy_with_logits(
-            input=pred_f0_sil,
-            target=sil_gt.float(),
-            reduction='none',
-        )
+        sil_loss = F.binary_cross_entropy_with_logits(input=pred_f0_sil, target=sil_gt.float(), reduction='none',)
         sil_loss *= true_f0_mask.type_as(sil_loss)
         sil_loss = sil_loss.sum() / true_f0_mask.sum()
         sil_acc = ((torch.sigmoid(pred_f0_sil) > 0.5).long() == sil_gt).float()  # noqa
         sil_acc *= true_f0_mask.type_as(sil_acc)
         sil_acc = sil_acc.sum() / true_f0_mask.sum()
 
-        body_mse = F.mse_loss(
-            pred_f0_body, (true_f0 - self.F0_MEAN) / self.F0_STD, reduction='none'
-        )
+        body_mse = F.mse_loss(pred_f0_body, (true_f0 - self.F0_MEAN) / self.F0_STD, reduction='none')
         body_mask = ~sil_mask
         body_mse *= body_mask.type_as(body_mse)  # noqa
         body_mse = body_mse.sum() / body_mask.sum()  # noqa
@@ -235,10 +210,7 @@ class TalkNetPitchModel(ModelPT):
         _, audio_len, text, text_len, durs, f0, f0_mask = batch
         pred_f0_sil, pred_f0_body = self(text=text, text_len=text_len, durs=durs)
         loss, sil_acc, body_mae = self._metrics(
-            true_f0=f0,
-            true_f0_mask=f0_mask,
-            pred_f0_sil=pred_f0_sil,
-            pred_f0_body=pred_f0_body,
+            true_f0=f0, true_f0_mask=f0_mask, pred_f0_sil=pred_f0_sil, pred_f0_body=pred_f0_body,
         )
         train_log = {'train_loss': loss, 'train_sil_acc': sil_acc, 'train_body_mae': body_mae}
         return {'loss': loss, 'progress_bar': train_log, 'train_log': train_log}
@@ -247,10 +219,7 @@ class TalkNetPitchModel(ModelPT):
         _, _, text, text_len, durs, f0, f0_mask = batch
         pred_f0_sil, pred_f0_body = self(text=text, text_len=text_len, durs=durs)
         loss, sil_acc, body_mae = self._metrics(
-            true_f0=f0,
-            true_f0_mask=f0_mask,
-            pred_f0_sil=pred_f0_sil,
-            pred_f0_body=pred_f0_body,
+            true_f0=f0, true_f0_mask=f0_mask, pred_f0_sil=pred_f0_sil, pred_f0_body=pred_f0_body,
         )
         return {'loss': loss, 'sil_acc': sil_acc, 'body_mae': body_mae}
 
@@ -265,9 +234,7 @@ class TalkNetPitchModel(ModelPT):
     def _loader(cfg):
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset,
-            collate_fn=dataset.collate_fn,
-            **cfg.dataloader_params,
+            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -336,11 +303,7 @@ class StyleResidual(nn.Module):
         super().__init__()
 
         self.rs = nn.Conv1d(
-            in_channels=d_style,
-            out_channels=d_channel,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=kernel_size // 2,
+            in_channels=d_style, out_channels=d_channel, kernel_size=kernel_size, stride=1, padding=kernel_size // 2,
         )
 
     def forward(self, x: torch.Tensor, s: torch.Tensor) -> torch.Tensor:
@@ -407,9 +370,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
     def _loader(cfg):
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset,
-            collate_fn=dataset.collate_fn,
-            **cfg.dataloader_params,
+            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
