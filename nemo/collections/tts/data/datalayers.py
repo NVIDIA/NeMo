@@ -49,7 +49,6 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
-import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
@@ -210,7 +209,8 @@ class MelAudioDataset(Dataset):
         audio_file = example["audio_filepath"]
         mel_file = example["mel_filepath"]
 
-        audio, sr = torchaudio.load(audio_file)
+        audio, sr = sf.read(audio_file)
+        audio = torch.FloatTensor(audio).unsqueeze(0)
         mel = self.mel_load_func(mel_file)
 
         if audio.shape[1] > self.n_segments:
