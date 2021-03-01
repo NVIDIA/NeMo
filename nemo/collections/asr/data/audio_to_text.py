@@ -291,8 +291,8 @@ class AudioToCharDataset(_AudioTextDataset):
 class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
-    files, transcripts, and durations (in seconds) and F0. Each new line is a
-    different sample. Example below:
+    files, transcripts, and durations (in seconds) and F0 along mel length.
+    Each new line is a different sample. Example below:
     {"audio_filepath": "/path/to/audio.wav", "text_filepath":
     "/path/to/audio.txt", "duration": 23.147}
     ...
@@ -300,12 +300,19 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
 
-    Additionally, user provides path to precomputed durations, which is a pickled python dict with 'tags' and 'durs'
-    keys, both of which are list of examples values. Tag is a unique example identifier, which is a wav filename
-    without suffix. Durations are an additional tuple of two tensors: graphemes durations and blanks durations.
+    Additionally, user provides path to precomputed durations via "durs_file" arg, which is a pickled python dict,
+    mapping example tag to it's durations tensor. Tag is a unique example identifier, which is a wav filename
+    without suffix. Durations are an additional dict of two tensors: graphemes durations and blanks durations with
+    "blanks" and "tokens" keys respectively.
     Example below:
-    {'tags': ['LJ050-0234', 'LJ019-0373'],
-     'durs': [(graphemes_durs0, blanks_durs0), (graphemes_durs1, blanks_durs1)]}
+    {'LJ050-0234': {'blanks': `blanks_durs_tensor`, 'tokens': `tokens_durs_tensor`},
+    ...}
+
+    Additionally, F0 statistics is passed precomputed along mel length via "f0_file" arg, which is a pickled python
+    dict, mapping example tag to it's f0 tensor.
+    Example below:
+    {'LJ050-0234': `f0_tensor`,
+    ...}
 
     Args:
         **kwargs: Passed to AudioToCharDataset constructor.

@@ -1,5 +1,5 @@
-name: &name TalkNetSpect
-sample_rate: &sr 22050
+name: TalkNetSpect
+sample_rate: 22050
 
 train_dataset: ???
 validation_datasets: ???
@@ -7,10 +7,10 @@ durs_file: ???
 f0_file: ???
 
 model:
-  d_char: &d_char 128
-  n_mels: &n_mels 80
-  dropout: &dropout 0.1
-  separable: &separable true
+  d_char: 128
+  n_mels: 80
+  dropout: 0.1
+  separable: true
 
   train_ds:
     dataset:
@@ -21,7 +21,7 @@ model:
       int_values: false
       load_audio: true
       normalize: false
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       trim: false
       durs_file: ${durs_file}
       f0_file: ${f0_file}
@@ -46,7 +46,7 @@ model:
       int_values: false
       load_audio: true
       normalize: false
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       trim: false
       durs_file: ${durs_file}
       f0_file: ${f0_file}
@@ -65,7 +65,7 @@ model:
   preprocessor:
     _target_: "nemo.collections.asr.parts.features.FilterbankFeatures"
     dither: 0.0
-    nfilt: *n_mels
+    nfilt: ${model.n_mels}
     frame_splicing: 1
     highfreq: 8000
     log: true
@@ -80,13 +80,13 @@ model:
     pad_to: 1
     pad_value: -11.52
     preemph: null
-    sample_rate: *sr
+    sample_rate: ${sample_rate}
     stft_conv: true
     window: hann
 
   model:
     _target_: "nemo.collections.asr.modules.ConvASREncoder"
-    feat_in: *d_char
+    feat_in: ${model.d_char}
     activation: relu
     conv_mask: true
 
@@ -96,18 +96,18 @@ model:
       kernel: [3]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
 
     - filters: 256
       repeat: 5
       kernel: [5]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -116,9 +116,9 @@ model:
       kernel: [7]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -127,9 +127,9 @@ model:
       kernel: [9]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -138,9 +138,9 @@ model:
       kernel: [13]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -149,9 +149,9 @@ model:
       kernel: [15]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -160,9 +160,9 @@ model:
       kernel: [17]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -171,9 +171,9 @@ model:
       kernel: [21]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -182,9 +182,9 @@ model:
       kernel: [23]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -193,9 +193,9 @@ model:
       kernel: [25]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -204,7 +204,7 @@ model:
       kernel: [1]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
 
   optim:
@@ -231,6 +231,6 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
