@@ -255,11 +255,12 @@ class MTEncDecModel(EncDecNLPModel):
         detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
         
         if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
-            translations = [detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(sent)) for sent in translations]
-            ground_truths = [detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(sent)) for sent in ground_truths]
+            func = lambda x: detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(x.split()))
         else:
-            translations = [detokenizer.detokenize(sent.split()) for sent in translations]
-            ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
+            func = lambda x: detokenizer.detokenize(x.split())
+
+        translations = [func(sent) for sent in translations]
+        ground_truths = [func(sent) for sent in ground_truths]
 
         assert len(translations) == len(ground_truths)
 
