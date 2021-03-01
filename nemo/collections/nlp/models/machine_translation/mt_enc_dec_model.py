@@ -260,8 +260,12 @@ class MTEncDecModel(EncDecNLPModel):
         else:
             func = lambda x: detokenizer.detokenize(x.split())
 
+        logging.info("previous: {}".format(translations))
+
         translations = [func(sent) for sent in translations]
         ground_truths = [func(sent) for sent in ground_truths]
+
+        logging.info("after: {}".format(translations))
 
         assert len(translations) == len(ground_truths)
 
