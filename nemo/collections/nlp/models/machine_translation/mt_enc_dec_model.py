@@ -401,9 +401,6 @@ class MTEncDecModel(EncDecNLPModel):
         return inputs, translations
 
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
-    # TODO: The implementation of this method should be:
-    # Step 1. Prepare input batch with examples from text List.
-    # Step 2. Invoke batch_translate
     @torch.no_grad()
     def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
         """
