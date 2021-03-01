@@ -15,3 +15,4 @@ sacremoses>=0.0.43
 pangu
 jieba
 opencc
+pynini=2.1.3
