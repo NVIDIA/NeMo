@@ -213,8 +213,8 @@ class MTEncDecModel(EncDecNLPModel):
 
         np_tgt = tgt_ids.cpu().numpy()
         if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
-            translations = [self.decoder_tokenizer.ids_to_tokens(tr) for tr in beam_results.cpu().numpy()]
-            ground_truths = [self.decoder_tokenizer.ids_to_tokens(tgt) for tgt in np_tgt]
+            translations = ' '.join([self.decoder_tokenizer.ids_to_tokens(tr) for tr in beam_results.cpu().numpy()])
+            ground_truths = ' '.join([self.decoder_tokenizer.ids_to_tokens(tgt) for tgt in np_tgt])
         else:
             translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
             ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
@@ -255,9 +255,9 @@ class MTEncDecModel(EncDecNLPModel):
         detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
         
         if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
-            func = lambda x: detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(x.split()))
+            func = lambda x: detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(x))
         else:
-            func = lambda x: detokenizer.detokenize(x.split())
+            func = lambda x: detokenizer.detokenize(x)
 
         translations = [func(sent) for sent in translations]
         ground_truths = [func(sent) for sent in ground_truths]
