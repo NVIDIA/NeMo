@@ -68,7 +68,7 @@ class HifiGanModel(Vocoder):
             self._cfg.optim, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
         )
 
-        max_steps = 2500000  # 2.5M in the original paper
+        max_steps = self._cfg.max_steps
         warmup_steps = 0 if self.finetune else np.ceil(0.2 * max_steps)
         self.scheduler_g = CosineAnnealing(
             self.optim_g, max_steps=max_steps, min_lr=1e-5, warmup_steps=warmup_steps

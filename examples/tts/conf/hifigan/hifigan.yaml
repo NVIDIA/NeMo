@@ -38,6 +38,7 @@ model:
     betas: [0.8, 0.99]
 
   denoise_strength: 0.0025
+  max_steps: 2500000
 
 trainer:
   gpus: -1 # number of gpus
