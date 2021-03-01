@@ -397,13 +397,14 @@ class TarredTranslationDataset(IterableDataset):
         self.tarpath = text_tar_filepaths
 
         # Put together WebDataset
-        self._dataset = (
-            wd.Dataset(text_tar_filepaths)
-            .shuffle(shuffle_n)
-            .rename(pkl='pkl', key='__key__')
-            .to_tuple('pkl', 'key')
-            .map(f=self._build_sample)
-        )
+        self._dataset = wd.WebDataset(text_tar_filepaths)
+
+        if shuffle_n > 0:
+            self._dataset = self._dataset.shuffle(shuffle_n)
+        else:
+            logging.info("WebDataset will not shuffle files within the tar files.")
+
+        self._dataset = self._dataset.rename(pkl='pkl', key='__key__').to_tuple('pkl', 'key').map(f=self._build_sample)
 
     def _build_sample(self, fname):
         # Load file

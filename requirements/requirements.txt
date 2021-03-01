@@ -11,4 +11,5 @@ omegaconf>=2.0.5
 hydra-core>=1.0.4
 transformers>=4.0.1
 sentencepiece<1.0.0
-webdataset==0.1.40
+webdataset>=0.1.48
+tqdm>=4.41.0

@@ -275,12 +275,13 @@ class SpeechLabel(_Collection):
 class ASRSpeechLabel(SpeechLabel):
     """`SpeechLabel` collector from structured json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
+    def __init__(self, manifests_files: Union[str, List[str]], is_regression_task=False, *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
             manifests_files: Either single string file or list of such -
                 manifests to yield items from.
+            is_regression_task: It's a regression task
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
@@ -289,7 +290,11 @@ class ASRSpeechLabel(SpeechLabel):
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
-            labels.append(item['label'])
+            if not is_regression_task:
+                labels.append(item['label'])
+            else:
+                labels.append(float(item['label']))
+
             offsets.append(item['offset'])
 
         super().__init__(audio_files, durations, labels, offsets, *args, **kwargs)
