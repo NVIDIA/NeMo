@@ -40,7 +40,7 @@ class EnJaDetokenizer:
             detokenized Japanese or English string
         """
         text = self.sp_detokenizer.detokenize(tokens)
-        return self.moses_detokenizer.detokenize(text)
+        return self.moses_detokenizer.detokenize(text.split(' '))
 
 
 class EnJaTokenizer:
