@@ -35,8 +35,11 @@
 # SOFTWARE.
 
 
+import json
 import logging
+import math
 import os
+import random
 import shutil
 import sys
 from pathlib import Path
@@ -160,6 +163,66 @@ class AudioDataset(Dataset):
             audio = audio[:audio_length]
 
         return audio, audio_length
+
+    def __len__(self):
+        return len(self.collection)
+
+
+class MelAudioDataset(Dataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "audio_length": NeuralType(tuple("B"), LengthsType()),
+            "melspec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+        }
+
+    def __init__(
+        self,
+        manifest_filepath: Union[str, "pathlib.Path"],
+        n_segments: int,
+        max_duration: Optional[float] = float("inf"),
+        min_duration: Optional[float] = 0,
+        mel_hop_size=256,
+        mel_load_func=np.load,
+    ):
+        """
+        `manifest_filepath` should point to a file with the following structure:
+        {"audio_filepath": "/path/to/audio.wav", "mel_filepath": "/path/to/mel.npy", "duration": 23.147}
+        where `mel.npy` is a pre-computed tensor of a melspectrogram.
+        this dataset class is used for fine-tuning vocoders with pre-computed mel-spectrograms.
+        """
+        self.collection = [json.loads(line) for line in open(manifest_filepath, "r")]
+        self.collection = list(filter(lambda item: min_duration <= item["duration"] <= max_duration, self.collection))
+        self.n_segments = n_segments
+        self.mel_hop_size = mel_hop_size
+        self.mel_load_func = mel_load_func
+
+    def __getitem__(self, index):
+        """
+        Given a index, returns audio and audio_length of the corresponding element. Audio clips of n_segments are
+        randomly chosen if the audio is longer than n_segments.
+        """
+        example = self.collection[index]
+        audio_file = example["audio_filepath"]
+        mel_file = example["mel_filepath"]
+
+        audio, sr = sf.read(audio_file)
+        audio = torch.FloatTensor(audio).unsqueeze(0)
+        mel = self.mel_load_func(mel_file)
+
+        if audio.shape[1] > self.n_segments:
+            frames = math.ceil(self.n_segments / self.mel_hop_size)
+            start = random.randint(0, mel.shape[1] - frames - 1)
+            mel = mel[:, start : start + frames]
+            audio = audio[:, start * self.mel_hop_size : (start + frames) * self.mel_hop_size]
+        else:
+            mel = torch.nn.functional.pad(mel, (0, frames - mel.shape[1]))
+            audio = torch.nn.functional.pad(audio, (0, self.n_segments - audio.shape[1]))
+
+        return audio.squeeze(0), audio.shape[1], mel
 
     def __len__(self):
         return len(self.collection)
