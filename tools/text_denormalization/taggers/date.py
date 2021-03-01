@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +49,6 @@ def _get_year_graph():
     graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
     ties_graph = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).optimize()
     graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).optimize()
-    # graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
 
     def _get_digits_graph():
         zero = pynini.cross((pynini.accep("oh") | pynini.accep("o")), "0")
@@ -64,12 +63,7 @@ def _get_year_graph():
 
     def _get_thousands_graph():
         graph_ties = _get_ties_graph()
-        # graph_hundred_component = pynini.union(graph_digit + space + graph_hundred, pynutil.insert("0"))
         graph_hundred_component = (graph_digit + delete_space + pynini.cross("hundred", "")) | pynutil.insert("0")
-
-        # graph_thousands = pynini.union(
-        #     graph_hundred_component_at_least_one_none_zero_digit + space + pynini.cross("thousand", ""),
-        #     pynutil.insert("000"))
         graph = (
             graph_digit
             + delete_space
@@ -95,6 +89,12 @@ def _get_year_graph():
 
 
 class DateFst(GraphFst):
+    """
+    Finite state transducer for classifying date, 
+        e.g. january fifth twenty twelve -> date { month: "january" day: "5" year: "2012" }
+        e.g. the fifth of january twenty twelve -> date { day: "5" month: "january" year: "2012" }
+    """
+
     def __init__(self):
         super().__init__(name="date", kind="classify")
         # weekday, day, month, year, style(depr), text(depr), short_year(depr), era

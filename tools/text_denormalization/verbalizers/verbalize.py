@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +28,12 @@ from pynini.lib import pynutil
 
 
 class VerbalizeFst(GraphFst):
+    """
+    Finite state transducer that verbalizes an entire sentence
+        e.g. tokens { name: "its" } tokens { time { hours: "12" minutes: "30" } } tokens { name: "now" } tokens { name: "." pause_length: "PAUSE_LONG phrase_break: true type: PUNCT" }
+            -> its 12:30 now .
+    """
+
     def __init__(self):
         super().__init__(name="verbalize", kind="verbalize")
         cardinal = CardinalFst().fst

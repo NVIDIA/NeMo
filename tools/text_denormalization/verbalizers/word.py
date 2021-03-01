@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,11 @@ from pynini.lib import pynutil
 
 
 class WordFst(GraphFst):
+    """
+    Finite state transducer for verbalizing word
+        e.g. tokens { name: "sleep" } -> sleep
+    """
+
     def __init__(self):
         super().__init__(name="word", kind="verbalize")
         chars = pynini.closure(NEMO_CHAR - " ", 1)

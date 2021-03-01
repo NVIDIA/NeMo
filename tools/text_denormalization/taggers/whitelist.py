@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,12 @@ from pynini.lib import pynutil
 
 
 class WhiteListFst(GraphFst):
+    """
+    Finite state transducer for classifying whitelist
+        e.g. misses -> tokens { name: "mrs." }
+    This class has highest priority among all classifiers and loads lookup table from "data/whitelist.tsv"
+    """
+
     def __init__(self):
         super().__init__(name="whitelist", kind="classify")
 

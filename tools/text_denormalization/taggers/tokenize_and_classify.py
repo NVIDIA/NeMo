@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +30,11 @@ from pynini.lib import pynutil
 
 
 class ClassifyFst(GraphFst):
+    """
+    Finite state transducer that classifies an entire sentence by composing all classier fsts
+        e.g. its twelve thirty now. -> tokens { name: "its" } tokens { time { hours: "12" minutes: "30" } } tokens { name: "now" } tokens { name: "." pause_length: "PAUSE_LONG phrase_break: true type: PUNCT" }
+    """
+
     def __init__(self):
         super().__init__(name="tokenize_and_classify", kind="classify")
 

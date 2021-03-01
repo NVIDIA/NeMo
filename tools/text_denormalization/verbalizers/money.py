@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,11 @@ from pynini.lib import pynutil
 
 
 class MoneyFst(GraphFst):
+    """
+    Finite state transducer for verbalizing money
+        e.g. tokens { money { amount { integer_part: "12" } currency: "$" } } -> $12
+    """
+
     def __init__(self):
         super().__init__(name="money", kind="verbalize")
         integer = (

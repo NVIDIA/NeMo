@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", required=True, type=str)
     parser.add_argument("--output", help="output file path", required=True, type=str)
-    parser.add_argument("--verbose", help="print normalization info. For debugging", action='store_true')
+    parser.add_argument("--verbose", help="print denormalization info. For debugging", action='store_true')
     parser.add_argument("--denormalizer", default='nemo', type=str)
     return parser.parse_args()
 

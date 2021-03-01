@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,10 @@ from denormalization.graph_utils import GraphFst
 
 
 class TelefoneFst(GraphFst):
+    """
+    Finite state transducer for classifying telephone
+    """
+
     def __init__(self):
         super().__init__(name="telefone", kind="classify")
         # country code (++), number_part, extension

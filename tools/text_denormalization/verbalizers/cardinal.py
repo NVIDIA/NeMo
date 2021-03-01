@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,11 @@ from pynini.lib import pynutil
 
 
 class CardinalFst(GraphFst):
+    """
+    Finite state transducer for verbalizing cardinal
+        e.g. tokens { cardinal { integer: "23" negative: "-" } } } -> -23
+    """
+
     def __init__(self):
         super().__init__(name="cardinal", kind="verbalize")
         sign = (

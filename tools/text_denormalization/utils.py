@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,13 @@ _inflect = inflect.engine()
 
 
 def num_to_word(x: Union[str, int]):
+    """
+    converts integer to spoken representation
+    Args
+        x: integer
+    Returns:
+        spoken representation 
+    """
     if isinstance(x, int):
         x = str(x)
         x = _inflect.number_to_words(str(x)).replace("-", " ").replace(",", "")

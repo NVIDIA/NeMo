@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,14 +20,23 @@ EOS = "<EOS>"
 
 
 class TokenParser:
+    """
+    Parses tokenized/classified text, e.g. 'tokens { money { integer: "20" currency: "$" } } tokens { name: "left"}'
+    Args
+        text: tokenized text
+    """
+
     def __call__(self, text):
         self.text = text
         self.len_text = len(text)
         self.char = text[0]  # cannot handle empty string
         self.index = 0
 
-    def parse(self):
-        # A-> space F space F space F ... space
+    def parse(self) -> list(dict):
+        """
+        main function. Implementes grammar:
+        A -> space F space F space F ... space
+        """
         l = list()
         while self.parse_ws():
             token = self.parse_token()
@@ -36,8 +45,12 @@ class TokenParser:
             l.append(token)
         return l
 
-    def parse_token(self):
-        # F-> no_space KG no_space
+    def parse_token(self) -> Dict[str, Union[str, dict]]:
+        """
+        Implementes grammar:
+        F-> no_space KG no_space
+        Returns: K, G as dictionary values
+        """
         d = OrderedDict()
         key = self.parse_string_key()
         if key is None:
@@ -48,7 +61,10 @@ class TokenParser:
         return d
 
     def parse_token_value(self) -> Union[str, dict]:
-        # G-> no_space :"v" no_space | no_space {A} no_space
+        """
+        Implementes grammar:
+        G-> no_space :"VALUE" no_space | no_space {A} no_space
+        """
         if self.char == ":":
             self.parse_char(":")
             self.parse_ws()
@@ -70,13 +86,18 @@ class TokenParser:
             raise ValueError()
 
     def parse_char(self, exp):
+        """
+        Parses character 
+        Args:
+            exp: character to read in
+        """
         assert self.char == exp
         self.read()
         return True
 
     def parse_string_key(self) -> str:
         """
-        returns parsed string
+        Parses string key, can only contain ascii and '_' characters
         """
         assert self.char not in string.whitespace and self.char != EOS
 
@@ -93,7 +114,7 @@ class TokenParser:
 
     def parse_string_value(self) -> str:
         """
-        returns parsed string
+        Parses string value, ends with quote " follower by space
         """
         assert self.char not in string.whitespace and self.char != EOS
         l = []
@@ -108,7 +129,8 @@ class TokenParser:
 
     def parse_ws(self):
         """
-        returns True if not EOS after parsing
+        Deletes whitespaces 
+        Returns true if not EOS after parsing
         """
         not_eos = self.char != EOS
         while not_eos and self.char == " ":
@@ -117,7 +139,8 @@ class TokenParser:
 
     def read(self):
         """
-        returns True if not EOS
+        Reads in next char. 
+        Returns true if not EOS
         """
         if self.index < self.len_text - 1:  # should be unique
             self.index += 1

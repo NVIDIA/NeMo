@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -102,7 +102,6 @@ def clean_generic(text: str) -> str:
     """
     text = text.strip()
     text = text.lower()
-    # text = re.sub("[^ a-z0-9'.,?!\-]", "", text)
     return text
 
 
@@ -178,28 +177,22 @@ def training_data_to_sentences(data: List[Instance]) -> Tuple[List[str], List[st
 
 
 def load_labels(rel_path):
-    label_tsv = open(os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path)
+    """
+    loads relative path file as dictionary
+    Args:
+        rel_path: relative path
+    Returns dictionary of mappings
+    """
+    label_tsv = open(get_abs_path(rel_path))
     labels = list(csv.reader(label_tsv, delimiter="\t"))
     return labels
 
 
 def get_abs_path(rel_path):
+    """
+    Get absolute path
+    Args:
+        rel_path: relative path to this file
+    Returns absolute path
+    """
     return os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path
-
-
-def select_sentences_per_category(
-    un_normalized: List[str], normalized: List[str], categories: List[Set[str]], category: str
-) -> None:
-    """
-    Displays sentences with a specified category.
-
-    un_normalized: sentences in written form
-    normalized: sentences in spoken form
-    categories: category of interest
-    """
-    print(f'Extracting sentences for {category} category.')
-    for un_norm_text, norm_text, example_categories in zip(un_normalized, normalized, categories):
-        if category in example_categories:
-            print('-' * 30)
-            print(un_norm_text)
-            print(norm_text)

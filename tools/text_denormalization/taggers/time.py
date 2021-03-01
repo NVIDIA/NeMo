@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,13 @@ from pynini.lib import pynutil
 
 
 class TimeFst(GraphFst):
+    """
+    Finite state transducer for classifying time
+        e.g. twelve thirty -> time { hours: "12" minutes: "30" }
+        e.g. twelve past one -> time { minutes: "12" hours: "1" }
+        e.g. two o clock a m -> time { hours: "2" suffix: "a.m." }
+    """
+
     def __init__(self):
         super().__init__(name="time", kind="classify")
         # hours, minutes, seconds, suffix, zone, style, speak_period

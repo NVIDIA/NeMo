@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         sentences_un_normalized, sentences_normalized, _ = training_data_to_sentences(training_data)
         print("- Data: " + str(len(sentences_normalized)) + " sentences")
         sentences_prediction = denormalizer(sentences_normalized)
-        print("- Normalized. Evaluating...")
+        print("- Deormalized. Evaluating...")
         sentences_accuracy = evaluate(
             preds=sentences_prediction, labels=sentences_un_normalized, input=sentences_normalized
         )
@@ -71,7 +71,7 @@ if __name__ == "__main__":
         tokens_un_normalized, tokens_normalized = tokens_per_type[token_type]
         print("  - Data: " + str(len(tokens_normalized)) + " tokens")
         tokens_prediction = denormalizer(tokens_normalized)
-        print("  - Normalized. Evaluating...")
+        print("  - Deormalized. Evaluating...")
         token_accuracy[token_type] = evaluate(tokens_prediction, tokens_un_normalized, input=tokens_normalized)
         print("  - Accuracy: " + str(token_accuracy[token_type]))
     token_count_per_type = {token_type: len(tokens_per_type[token_type][0]) for token_type in tokens_per_type}

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,12 @@ from pynini.lib import pynutil
 
 
 class CardinalFst(GraphFst):
+    """
+    Finite state transducer for classifying cardinals
+        e.g. minus twenty three -> cardinal { integer: "23" negative: "-" } }
+    Numbers below thirteen are not converted. 
+    """
+
     def __init__(self):
         super().__init__(name="cardinal", kind="classify")
 

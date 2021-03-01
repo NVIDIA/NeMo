@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,11 @@ from pynini.lib import pynutil
 
 
 class MoneyFst(GraphFst):
+    """
+    Finite state transducer for classifying money
+        e.g. twelve dollars -> money { amount { integer_part: "12" } currency: "$" }
+    """
+
     def __init__(self):
         super().__init__(name="money", kind="classify")
         # amount: Decimal, quantity, currency, style(depr)

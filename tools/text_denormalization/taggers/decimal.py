@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,11 @@ from pynini.lib import pynutil
 
 
 class DecimalFst(GraphFst):
+    """
+    Finite state transducer for classifying decimal, 
+        e.g. minus twelve point five o o six -> decimal { negative: "true" integer_part: "12"  fractional_part: "5006" }
+    """
+
     def __init__(self):
         super().__init__(name="decimal", kind="classify")
         # negative, fractional_part, quantity, exponent, style(depre)

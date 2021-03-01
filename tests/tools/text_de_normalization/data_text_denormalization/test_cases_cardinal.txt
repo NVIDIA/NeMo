@@ -1,0 +1,10 @@
+minus sixty~-60
+sixty~60
+zero~zero
+two million~2000000
+two million three~2000003
+one thousand thirteen~1013
+one thousand one~1001
+one thousand one hundred~1100
+one thousand twenty six~1026
+one thousand one hundred twenty six~1126

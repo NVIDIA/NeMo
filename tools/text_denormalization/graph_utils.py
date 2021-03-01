@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,8 @@ from pynini import Far
 from pynini.examples import plurals
 from pynini.lib import byte, pynutil, utf8
 
+# Fsts for different sets of characters
 NEMO_CHAR = utf8.VALID_UTF8_CHAR
-
 NEMO_DIGIT = byte.DIGIT
 NEMO_LOWER = pynini.union(*string.ascii_lowercase).optimize()
 NEMO_UPPER = pynini.union(*string.ascii_uppercase).optimize()
@@ -37,17 +37,12 @@ NEMO_SPACE = " "
 NEMO_WHITE_SPACE = pynini.union(" ", "\t", "\n", "\r", u"\u00A0").optimize()
 NEMO_NOT_SPACE = pynini.difference(NEMO_CHAR, NEMO_WHITE_SPACE).optimize()
 NEMO_NOT_QUOTE = pynini.difference(NEMO_CHAR, r'"').optimize()
-
 NEMO_PUNCT = pynini.union(*map(pynini.escape, string.punctuation)).optimize()
 NEMO_GRAPH = pynini.union(NEMO_ALNUM, NEMO_PUNCT).optimize()
-
 NEMO_SIGMA = pynini.closure(NEMO_CHAR)
-
 
 delete_space = pynutil.delete(pynini.closure(NEMO_WHITE_SPACE))
 delete_extra_space = pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 1), " ")
-
-
 suppletive = pynini.string_file(get_abs_path("data/suppletive.tsv"))
 _c = pynini.union(
     "b", "c", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "q", "r", "s", "t", "v", "w", "x", "y", "z"
@@ -60,27 +55,39 @@ graph_plural = plurals._priority_union(
     suppletive, plurals._priority_union(_ies, plurals._priority_union(_es, _s, NEMO_SIGMA), NEMO_SIGMA), NEMO_SIGMA
 ).optimize()
 
+
 SINGULAR_TO_PLURAL = graph_plural
 PLURAL_TO_SINGULAR = pynini.invert(graph_plural)
 
 
-def get_plurals(fst):
+def get_plurals(fst) -> pynini.FstLike:
     """
-    returns both singular as well as plurals
+    returns both singular as well as plurals of a given string fst
+    Args:
+        fst: string fst
     """
     return fst | (SINGULAR_TO_PLURAL @ fst) | (PLURAL_TO_SINGULAR @ fst)
 
 
-def convert_space(fst):
+def convert_space(fst) -> pynini.FstLike:
     """
     convert space to nonbreaking space
     only used in tagger rules for transducing token values within quotes, e.g. name: "hello kitty"
     This is making transducer significantly slower, so only use when there could be potential spaces within quotes, otherwise leave it
+    Args:
+        fst: input fst
     """
     return fst @ pynini.cdrewrite(pynini.cross(" ", NEMO_NON_BREAKING_SPACE), "", "", NEMO_SIGMA)
 
 
 class GraphFst:
+    """
+    Base class for all grammar fsts.
+    Args:
+        name: name of grammar class
+        kind: either 'classify' or 'verbalize'
+    """
+
     def __init__(self, name: str, kind: str):
         self.name = name
         self.kind = str
@@ -91,6 +98,9 @@ class GraphFst:
             self._fst = Far(self.far_path, mode="r", arc_type="standard", far_type="default").get_fst()
 
     def far_exist(self) -> bool:
+        """
+        Returns true if self.fst() exists
+        """
         return self.far_path.exists()
 
     @property
@@ -101,10 +111,20 @@ class GraphFst:
     def fst(self, fst):
         self._fst = fst
 
-    def add_tokens(self, fst):
+    def add_tokens(self, fst) -> pynini.FstLike:
+        """
+        wraps class name around to given fst
+        Args: 
+            fst: input fst
+        """
         return pynutil.insert(f"{self.name} {{ ") + fst + pynutil.insert(" }")
 
-    def delete_tokens(self, fst):
+    def delete_tokens(self, fst) -> pynini.FstLike:
+        """
+        Deletes class name wrap around output of given fst
+        Args
+            fst: input fst
+        """
         return (
             pynutil.delete(f"{self.name}")
             + delete_space
@@ -116,7 +136,15 @@ class GraphFst:
         )
 
 
-def add_arcs(graph, node_a, node_b, labels):
+def add_arcs(graph: pynini.FstLike, node_a: int, node_b: int, labels: List[List[str]]):
+    """
+    adds archs to a graph
+    Args:
+        graph: input fst
+        node_a: start node index
+        node_b: end node index
+        labels: list of strings for input (output labels and/or weights) 
+    """
     weight = 0
     for label in labels:
         if len(label) == 1:

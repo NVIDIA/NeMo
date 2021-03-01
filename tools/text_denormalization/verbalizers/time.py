@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,13 @@ from pynini.lib import pynutil
 
 
 class TimeFst(GraphFst):
+    """
+    Finite state transducer for verbalizing time
+        e.g. tokens { twelve thirty -> time { hours: "12" minutes: "30" } } -> 12:30
+        e.g. tokens { twelve past one -> time { minutes: "12" hours: "1" } } -> 01:12
+        e.g tokens { time { hours: "2" suffix: "a.m." } } -> 02:00 a.m.
+    """
+
     def __init__(self):
         super().__init__(name="time", kind="verbalize")
         add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
