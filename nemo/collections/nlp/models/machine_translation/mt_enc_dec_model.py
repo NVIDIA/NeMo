@@ -213,11 +213,12 @@ class MTEncDecModel(EncDecNLPModel):
 
         np_tgt = tgt_ids.cpu().numpy()
         if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
-            translations = ' '.join([self.decoder_tokenizer.ids_to_tokens(tr) for tr in beam_results.cpu().numpy()])
-            ground_truths = ' '.join([self.decoder_tokenizer.ids_to_tokens(tgt) for tgt in np_tgt])
+            func = lambda x: ' '.join(self.decoder_tokenizer.ids_to_tokens(x))
         else:
-            translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
-            ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+            func = lambda x: self.decoder_tokenizer.ids_to_text(x) 
+
+        translations = [func(tr) for tr in beam_results.cpu().numpy()]
+        ground_truths = [func(tgt) for tgt in np_tgt]
 
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
@@ -253,11 +254,14 @@ class MTEncDecModel(EncDecNLPModel):
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
         detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
+
+        logging.info("type: %s, value: %s".format(type(translations[0]), translations[0]))
+        logging.info("type: %s, value: %s".format(type(ground_truths[0]), ground_truths[0]))
         
         if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
-            func = lambda x: detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(x))
+            func = lambda x: detokenizer.detokenize(self.decoder_tokenizer.ids_to_tokens(x.split()))
         else:
-            func = lambda x: detokenizer.detokenize(x)
+            func = lambda x: detokenizer.detokenize(x.split())
 
         translations = [func(sent) for sent in translations]
         ground_truths = [func(sent) for sent in ground_truths]
