@@ -45,8 +45,7 @@ class EnJaProcessor:
         Returns:
             detokenized Japanese or English string
         """
-        tokens = [int(t) for t in tokens]
-        text = self.sp_tokenizer.ids_to_text(tokens)
+        text = self.sp_tokenizer.ids_to_text([int(t) for t in tokens])
         return self.moses_detokenizer.detokenize(text.split(' '))
 
     def sp_tokenize(self, text: str) -> str:
