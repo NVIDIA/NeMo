@@ -44,6 +44,8 @@ class EnJaProcessor:
             detokenized Japanese or English string
         """
         text = self.sp_tokenizer.ids_to_text([int(t) for t in tokens])
+        # We need to explictly specify splitting on spaces to avoid
+        # detokenizing a sequence of characters.
         return self.moses_detokenizer.detokenize(text.split(' '))
 
     def sp_tokenize(self, text: str) -> str:
