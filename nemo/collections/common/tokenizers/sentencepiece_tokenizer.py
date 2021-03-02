@@ -234,7 +234,6 @@ def create_spt_model(
     if train_extremely_large_corpus:
         cmd += " --train_extremely_large_corpus=true"
 
-    print("SEntencepiece cmd :", cmd)
     sentencepiece.SentencePieceTrainer.Train(cmd)
 
     # Add BERT control symbols
