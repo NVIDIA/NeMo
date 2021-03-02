@@ -14,9 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import Any, Dict, Optional
+import random
 
 import numpy as np
+from torch.utils.data import Sampler
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils import get_stats
@@ -290,3 +293,236 @@ class IntentSlotInferenceDataset(Dataset):
             np.array(self.all_loss_mask[idx]),
             np.array(self.all_subtokens_mask[idx]),
         )
+
+class IntentOnlyDataset(IntentSlotClassificationDataset):
+    """
+    Args:
+        input_file: file with utterances and intent labels. the first line is header (sentence [tab] label)
+            each line should be [sentence][tab][label]
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer: such as NemoBertTokenizer
+        num_samples: number of samples you want to use for the dataset. If -1, use all dataset. Useful for testing.
+        pad_label: pad value use for slot labels. by default, it's the neutral label.
+        ignore_extra_tokens: whether to ignore extra tokens in the loss_mask.
+        ignore_start_end: whether to ignore bos and eos tokens in the loss_mask.
+        do_lower_case: convert query to lower case or not
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), MaskType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            'intent_labels': NeuralType(('B'), LabelsType()),
+            'slot_labels': NeuralType(('B', 'T'), LabelsType()),
+            'data_type_indicator': NeuralType(('B'), LabelsType())
+        }
+
+    def __init__(
+            self,
+            input_file: str,
+            max_seq_length: int,
+            tokenizer: TokenizerSpec,
+            num_samples: int = -1,
+            pad_label: int = 128,
+            ignore_extra_tokens: bool = False,
+            ignore_start_end: bool = False,
+            do_lower_case: bool = False,
+    ):
+        if num_samples == 0:
+            raise ValueError("num_samples has to be positive", num_samples)
+
+        with open(input_file, 'r') as f:
+            dataset = f.readlines()[1:]
+
+        if num_samples > 0:
+            dataset = dataset[:num_samples]
+
+        raw_slots, queries, raw_intents = [], [], []
+        for input_line in dataset:
+            parts = input_line.strip().split()
+            raw_intents.append(int(parts[-1]))
+            raw_slots.append([pad_label] * len(parts[:-1]))
+            query = ' '.join(parts[:-1])
+            if do_lower_case:
+                query = query.lower()
+            queries.append(query)
+
+        features = get_features(
+            queries,
+            max_seq_length,
+            tokenizer,
+            pad_label=pad_label,
+            raw_slots=raw_slots,
+            ignore_extra_tokens=ignore_extra_tokens,
+            ignore_start_end=ignore_start_end,
+        )
+        self.all_input_ids = features[0]
+        self.all_segment_ids = features[1]
+        self.all_input_mask = features[2]
+        self.all_loss_mask = features[3]
+        self.all_subtokens_mask = features[4]
+        self.all_slots = features[5]
+        self.all_intents = raw_intents
+
+    def __getitem__(self, idx):
+        return (
+            np.array(self.all_input_ids[idx]),
+            np.array(self.all_segment_ids[idx]),
+            np.array(self.all_input_mask[idx], dtype=np.long),
+            np.array(self.all_loss_mask[idx]),
+            np.array(self.all_subtokens_mask[idx]),
+            self.all_intents[idx],
+            np.array(self.all_slots[idx]),
+            1  # indicates intent_only data
+        )
+
+
+class SlotOnlyDataset(IntentSlotClassificationDataset):
+    """
+    Args:
+        input_file: file with utterances only (no intent labels). No header.
+        slot_file: file with slot labels, each line corresponding to slot labels for a sentence in input_file. No header.
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer: such as NemoBertTokenizer
+        num_samples: number of samples you want to use for the dataset. If -1, use all dataset. Useful for testing.
+        pad_label: pad value use for slot labels. by default, it's the neutral label.
+        ignore_extra_tokens: whether to ignore extra tokens in the loss_mask.
+        ignore_start_end: whether to ignore bos and eos tokens in the loss_mask.
+        do_lower_case: convert query to lower case or not
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), MaskType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            'intent_labels': NeuralType(('B'), LabelsType()),
+            'slot_labels': NeuralType(('B', 'T'), LabelsType()),
+            'data_type_indicator': NeuralType(('B'), LabelsType())
+        }
+
+    def __init__(
+            self,
+            input_file: str,
+            slot_file: str,
+            max_seq_length: int,
+            tokenizer: TokenizerSpec,
+            num_samples: int = -1,
+            pad_label: int = 128,
+            ignore_extra_tokens: bool = False,
+            ignore_start_end: bool = False,
+            do_lower_case: bool = False,
+    ):
+        if num_samples == 0:
+            raise ValueError("num_samples has to be positive", num_samples)
+
+        with open(slot_file, 'r') as f:
+            slot_lines = f.readlines()
+
+        with open(input_file, 'r') as f:
+            input_lines = f.readlines()
+
+        assert len(slot_lines) == len(input_lines)
+
+        dataset = list(zip(slot_lines, input_lines))
+
+        if num_samples > 0:
+            dataset = dataset[:num_samples]
+
+        raw_slots, queries, raw_intents = [], [], []
+        for slot_line, input_line in dataset:
+            raw_slots.append([int(slot) for slot in slot_line.strip().split()])
+            parts = input_line.strip().split()
+            raw_intents.append(0)  # arbitrarily using intent 0
+            query = ' '.join(parts[:-1])
+            if do_lower_case:
+                query = query.lower()
+            queries.append(query)
+
+        features = get_features(
+            queries,
+            max_seq_length,
+            tokenizer,
+            pad_label=pad_label,
+            raw_slots=raw_slots,
+            ignore_extra_tokens=ignore_extra_tokens,
+            ignore_start_end=ignore_start_end,
+        )
+        self.all_input_ids = features[0]
+        self.all_segment_ids = features[1]
+        self.all_input_mask = features[2]
+        self.all_loss_mask = features[3]
+        self.all_subtokens_mask = features[4]
+        self.all_slots = features[5]
+        self.all_intents = raw_intents
+
+    def __getitem__(self, idx):
+        return (
+            np.array(self.all_input_ids[idx]),
+            np.array(self.all_segment_ids[idx]),
+            np.array(self.all_input_mask[idx], dtype=np.long),
+            np.array(self.all_loss_mask[idx]),
+            np.array(self.all_subtokens_mask[idx]),
+            self.all_intents[idx],
+            np.array(self.all_slots[idx]),
+            0  # indicates slot-only data
+        )
+
+def batch(iterable, batch_size):
+    """
+    Yield batches from iterable.
+    """
+    length = len(iterable)
+    for i in range(0, length, batch_size):
+        yield iterable[i:min(i + batch_size, length)]
+
+
+class MultiDatasetSampler(Sampler):
+    """
+    Given a list of datasets, yield batches; each batch only draws examples from one dataset.
+    Order of examples is random within each dataset and order of which dataset each batch is from is random.
+    TODO: this currently doesn't balance data between intents and slots, but it should. If one of the
+    datasets is much larger than the other(s), the model will effectively place more importance on intents or slots.
+    """
+    def __init__(self, datasets, batch_size):
+        self.datasets = datasets
+        self.batch_size = batch_size
+
+        # calculate total number of batches
+        self.total_batches = 0
+        for d in datasets:
+            batch_count = math.ceil(len(d)/self.batch_size)
+            self.total_batches += batch_count
+
+    def __iter__(self):
+        self.iterators = {}  # dataset index as key, batch iterator as value
+        self.batch_sources = []  # list of dataset indices for tracking which iterator to draw from
+
+        start = 0
+        for i, dataset in enumerate(self.datasets):
+            end = start + len(dataset)
+            dataset_indices = list(range(start, end))
+            random.shuffle(dataset_indices)
+            self.iterators[i] = batch(dataset_indices, self.batch_size)
+            start = end
+            batch_count = math.ceil(len(dataset)/self.batch_size)
+            current_batches = [i] * batch_count
+            self.batch_sources += current_batches
+        random.shuffle(self.batch_sources)
+
+        for b in self.batch_sources:
+            yield (next(self.iterators[b]))
+
+    def __len__(self):
+        return self.total_batches

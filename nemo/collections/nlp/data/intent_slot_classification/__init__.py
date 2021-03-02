@@ -16,6 +16,9 @@
 from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_dataset import (
     IntentSlotClassificationDataset,
     IntentSlotInferenceDataset,
+    IntentOnlyDataset,
+    SlotOnlyDataset,
+    MultiDatasetSampler,
 )
 from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_descriptor import (
     IntentSlotDataDesc,

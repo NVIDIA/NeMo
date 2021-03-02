@@ -19,11 +19,14 @@ import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.nlp.data.intent_slot_classification import (
     IntentSlotClassificationDataset,
+    IntentOnlyDataset,
+    SlotOnlyDataset,
+    MultiDatasetSampler,
     IntentSlotDataDesc,
     IntentSlotInferenceDataset,
 )
@@ -35,6 +38,7 @@ from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import NeuralType
+from nemo.core.optim.lr_scheduler import compute_max_steps
 from nemo.utils import logging
 
 
@@ -71,6 +75,18 @@ class IntentSlotClassificationModel(NLPModel):
 
         # Enable setup methods.
         IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
+
+        # set max_steps, needed because we are using a custom data sampler
+        max_epochs = trainer.max_epochs
+        accumulate_grad_batches = trainer.accumulate_grad_batches
+        num_workers = cfg.train_ds.num_workers
+        batch_size = cfg.train_ds.batch_size
+        num_samples = len(self._train_dl) * batch_size   # TODO: check this, may not be exactly right if batches aren't full
+        drop_last = False
+        limit_train_batches = 100000 # TODO: look into what this should be. This is a new param
+        self.cfg.optim.sched.max_steps = compute_max_steps(
+            max_epochs, accumulate_grad_batches, limit_train_batches, num_workers, num_samples, batch_size, drop_last,
+        )
 
         # Initialize Bert model
         self.bert_model = get_lm_model(
@@ -109,7 +125,7 @@ class IntentSlotClassificationModel(NLPModel):
     def _set_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
         """ Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc. """
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
-        data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
+        data_desc = IntentSlotDataDesc(config=cfg, modes=[train_ds.prefix, validation_ds.prefix])
         OmegaConf.set_struct(cfg, False)
         if not hasattr(cfg, "data_desc") or cfg.data_desc is None:
             cfg.data_desc = {}
@@ -230,17 +246,29 @@ class IntentSlotClassificationModel(NLPModel):
         passed in as `batch`.
         """
         # forward pass
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
-        intent_logits, slot_logits = self(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-        )
+        if len(batch) == 8:   # slot-only or intent-only data
+            input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels, data_type_indicator = batch
+            data_type = data_type_indicator[0].item()  # 0 = slots only, 1 = intents only
+        else:   # intents + slots
+            input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
+            data_type = 2  # intents and slots
 
-        # calculate combined loss for intents and slots
-        intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+        intent_logits, slot_logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+
+        if data_type == 0:   # slots only
+            slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+            intent_loss = torch.zeros(slot_loss.size(), dtype=slot_loss.dtype, layout=slot_loss.layout, device=slot_loss.device)
+
+        elif data_type == 1:   # intents only
+            intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
+            slot_loss = torch.zeros(intent_loss.size(), dtype=intent_loss.dtype, layout=intent_loss.layout, device=intent_loss.device)
+
+        elif data_type == 2:   # intents and slots
+            intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
+            slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+
         train_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
         lr = self._optimizer.param_groups[0]['lr']
-
         self.log('train_loss', train_loss)
         self.log('lr', lr, prog_bar=True)
 
@@ -254,25 +282,46 @@ class IntentSlotClassificationModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
+        if len(batch) == 8: # slot-only or intent-only data
+            input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels, data_type_indicator = batch
+            data_type = data_type_indicator[0].item()  # 0 = slots only, 1 = intents only
+
+        else:  # intents and slots
+            input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
+            input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
+            data_type = 2  # intents and slots
+
         intent_logits, slot_logits = self(
             input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
         )
 
-        # calculate combined loss for intents and slots
-        intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+        if data_type == 0:  # slots only
+            slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+            intent_loss = torch.zeros(slot_loss.size(), dtype=slot_loss.dtype, layout=slot_loss.layout,
+                                      device=slot_loss.device)
+
+        elif data_type == 1:  # intents only
+            intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
+            slot_loss = torch.zeros(intent_loss.size(), dtype=intent_loss.dtype, layout=intent_loss.layout,
+                                    device=intent_loss.device)
+
+        elif data_type == 2:  # intents and slots
+            intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
+            slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+
         val_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
 
         # calculate accuracy metrics for intents and slot reporting
         # intents
-        preds = torch.argmax(intent_logits, axis=-1)
-        self.intent_classification_report.update(preds, intent_labels)
+        if data_type != 0:
+            preds = torch.argmax(intent_logits, axis=-1)
+            self.intent_classification_report.update(preds, intent_labels)
         # slots
-        subtokens_mask = subtokens_mask > 0.5
-        preds = torch.argmax(slot_logits, axis=-1)[subtokens_mask]
-        slot_labels = slot_labels[subtokens_mask]
-        self.slot_classification_report.update(preds, slot_labels)
+        if data_type != 1:
+            subtokens_mask = subtokens_mask > 0.5
+            preds = torch.argmax(slot_logits, axis=-1)[subtokens_mask]
+            slot_labels = slot_labels[subtokens_mask]
+            self.slot_classification_report.update(preds, slot_labels)
 
         return {
             'val_loss': val_loss,
@@ -339,35 +388,76 @@ class IntentSlotClassificationModel(NLPModel):
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
-        input_file = f'{self.data_dir}/{cfg.prefix}.tsv'
-        slot_file = f'{self.data_dir}/{cfg.prefix}_slots.tsv'
+    def _setup_dataloader_from_config(self, cfg: Dict) -> 'torch.utils.data.DataLoader':
 
-        if not (os.path.exists(input_file) and os.path.exists(slot_file)):
-            raise FileNotFoundError(
-                f'{input_file} or {slot_file} not found. Please refer to the documentation for the right format \
-                 of Intents and Slots files.'
+        datasets = []
+
+        # Files with both intents and slots labeled
+        joint_utterance_file = f'{self.data_dir}/{cfg.prefix}.tsv'
+        joint_slot_file = f'{self.data_dir}/{cfg.prefix}_slots.tsv'
+
+        if (os.path.exists(joint_utterance_file) and os.path.exists(joint_slot_file)):
+            joint_dataset = IntentSlotClassificationDataset(
+                input_file=joint_utterance_file,
+                slot_file=joint_slot_file,
+                tokenizer=self.tokenizer,
+                max_seq_length=self.max_seq_length,
+                num_samples=cfg.num_samples,
+                pad_label=self.cfg.data_desc.pad_label,
+                ignore_extra_tokens=self._cfg.ignore_extra_tokens,
+                ignore_start_end=self._cfg.ignore_start_end,
             )
+            datasets.append(joint_dataset)
 
-        dataset = IntentSlotClassificationDataset(
-            input_file=input_file,
-            slot_file=slot_file,
-            tokenizer=self.tokenizer,
-            max_seq_length=self.max_seq_length,
-            num_samples=cfg.num_samples,
-            pad_label=self.cfg.data_desc.pad_label,
-            ignore_extra_tokens=self.cfg.ignore_extra_tokens,
-            ignore_start_end=self.cfg.ignore_start_end,
-        )
+        if "intent_only_file" in cfg:
+            intent_utterance_file = f'{self.data_dir}/{cfg.intent_only_file}'
+            if not os.path.exists(intent_utterance_file):
+                raise FileNotFoundError(
+                    f'{intent_utterance_file} not found.'
+                )
+
+            intent_dataset = IntentOnlyDataset(
+                input_file=intent_utterance_file,
+                tokenizer=self.tokenizer,
+                max_seq_length=self.max_seq_length,
+                num_samples=cfg.num_samples,
+                pad_label=self.cfg.data_desc.pad_label,
+                ignore_extra_tokens=self._cfg.ignore_extra_tokens,
+                ignore_start_end=self._cfg.ignore_start_end,
+            )
+            datasets.append(intent_dataset)
+
+        if "slot_only_text" in cfg:
+            slot_utterance_file = f'{self.data_dir}/{cfg.slot_only_text}'
+            slot_label_file = f'{self.data_dir}/{cfg.slot_only_labels}'
+            slot_label_map = f'{self.data_dir}/dict.slots.csv'
+            for f in slot_utterance_file, slot_label_file, slot_label_map:
+                if not os.path.exists(f):
+                    raise FileNotFoundError(
+                        f'{f} not found.'
+                    )
+
+            slot_dataset = SlotOnlyDataset(
+                input_file=slot_utterance_file,
+                slot_file=slot_label_file,
+                tokenizer=self.tokenizer,
+                max_seq_length=self.max_seq_length,
+                num_samples=cfg.num_samples,
+                pad_label=self.cfg.data_desc.pad_label,
+                ignore_extra_tokens=self._cfg.ignore_extra_tokens,
+                ignore_start_end=self._cfg.ignore_start_end,
+            )
+            datasets.append(slot_dataset)
+
+        sampler = MultiDatasetSampler(datasets, cfg.batch_size)
+        combined_dataset = ConcatDataset(datasets)
 
         return DataLoader(
-            dataset=dataset,
-            batch_size=cfg.batch_size,
-            shuffle=cfg.shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
-            collate_fn=dataset.collate_fn,
+            dataset=combined_dataset,
+            batch_sampler=sampler,
+            shuffle=False,
+            num_workers=self._cfg.test_ds.num_workers,
+            pin_memory=self._cfg.test_ds.pin_memory,
         )
 
     def _setup_infer_dataloader(self, queries: List[str], test_ds) -> 'torch.utils.data.DataLoader':

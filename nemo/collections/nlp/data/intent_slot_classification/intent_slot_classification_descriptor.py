@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import itertools
-from typing import List
+from typing import List, Tuple
+
+from omegaconf import DictConfig
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     fill_class_weights,
@@ -58,21 +60,31 @@ class IntentSlotDataDesc:
 
     def __init__(
         self,
-        data_dir: str,
+        config: DictConfig,
         modes: List[str] = ['train', 'test', 'dev'],
         none_slot_label: str = 'O',
         pad_label: int = -1,
     ):
-        if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
+
+        self.data_dir = config['data_dir']
+
+        # link modes back to the relevant part of the config
+        mode_dict = {}   # str as key, config for the dataset as value
+        for mode in modes:
+            for cfg in [config.train_ds, config.validation_ds, config.test_ds]:
+                if cfg.prefix == mode:
+                    mode_dict[mode] = cfg
+
+        # Look for intent and slot mappings
+        self.intent_dict_file = self.data_dir + '/dict.intents.csv'
+        self.slot_dict_file = self.data_dir + '/dict.slots.csv'
+
+        if not if_exist(self.data_dir, ['dict.intents.csv', 'dict.slots.csv']):
             raise FileNotFoundError(
                 "Make sure that your data follows the standard format "
                 "supported by JointIntentSlotDataset. Your data must "
                 "contain dict.intents.csv and dict.slots.csv."
             )
-
-        self.data_dir = data_dir
-        self.intent_dict_file = self.data_dir + '/dict.intents.csv'
-        self.slot_dict_file = self.data_dir + '/dict.slots.csv'
 
         self.intents_label_ids = IntentSlotDataDesc.label2idx(self.intent_dict_file)
         self.num_intents = len(self.intents_label_ids)
@@ -81,47 +93,76 @@ class IntentSlotDataDesc:
 
         infold = self.data_dir
         for mode in modes:
-            if not if_exist(self.data_dir, [f'{mode}.tsv']):
-                logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
-                continue
-            logging.info(f' Stats calculating for {mode} mode...')
-            slot_file = f'{self.data_dir}/{mode}_slots.tsv'
-            with open(slot_file, 'r') as f:
-                slot_lines = f.readlines()
-
-            input_file = f'{self.data_dir}/{mode}.tsv'
-            with open(input_file, 'r') as f:
-                input_lines = f.readlines()[1:]  # Skipping headers at index 0
-
-            if len(slot_lines) != len(input_lines):
-                raise ValueError(
-                    "Make sure that the number of slot lines match the "
-                    "number of intent lines. There should be a 1-1 "
-                    "correspondence between every slot and intent lines."
-                )
-
-            dataset = list(zip(slot_lines, input_lines))
-
+            mode_config = mode_dict[mode]
             raw_slots, raw_intents = [], []
-            for slot_line, input_line in dataset:
-                slot_list = [int(slot) for slot in slot_line.strip().split()]
-                raw_slots.append(slot_list)
-                parts = input_line.strip().split()
-                raw_intents.append(int(parts[-1]))
 
-            logging.info(f'Three most popular intents in {mode} mode:')
+            # look for dataset that includes both intents and slots
+            intent_file =  f'{self.data_dir}/{mode}.tsv'
+            slot_file =  f'{self.data_dir}/{mode}_slots.tsv'
+            if if_exist(self.data_dir, [f'{mode}.tsv', f'{mode}_slots.tsv']):
+                logging.info(f'Found {mode} dataset with both intents and slots')
+                slots, intents = IntentSlotDataDesc.extract_labels(slot_file, intent_file)
+                raw_slots += slots
+                raw_intents += intents
+            else:
+                logging.info(f'No {mode} dataset found with both intents and slots')
+
+            # look for slot-only dataset
+            if "slot_only_text" in mode_config and "slot_only_labels" in mode_config:
+                slot_only_text = f'{self.data_dir}/{mode_config["slot_only_text"]}'
+                slot_only_labels = f'{self.data_dir}/{mode_config["slot_only_labels"]}'
+                if if_exist(self.data_dir, [mode_config["slot_only_text"], mode_config["slot_only_labels"]]):
+                    logging.info(f'Found {mode} dataset with slots only')
+                    slots, intents = IntentSlotDataDesc.extract_labels(slot_only_labels, slot_only_text,
+                                                                                              contains_intents=False)
+                    raw_slots += slots
+                    raw_intents += intents
+                else:
+                    raise FileNotFoundError(
+                        "Slot-only dataset is specified in config, but one or both files are missing!"
+                    )
+            elif "slot_only_text" in mode_config or "slot_only_labels" in mode_config:
+                raise Exception(
+                    "You must provide both 'slot_only_text' and 'slot_only_labels' files in order to use a slot-only"
+                    "dataset. One of these files is missing from the config."
+                )
+            else:
+                logging.info(f'No slot-only {mode} dataset listed in config.')
+
+            # look for intent-only dataset
+            if "intent_only_file" in mode_config:
+                intent_only_file = f'{self.data_dir}/{mode_config["intent_only_file"]}'
+                if if_exist(self.data_dir, [mode_config["intent_only_file"]]):
+                    logging.info(f'Found {mode} dataset with intents only')
+                    with open(intent_only_file, 'r') as f:
+                        input_lines = f.readlines()[1:]  # Skipping headers at index 0
+                    intents = []
+                    for input_line in input_lines:
+                        parts = input_line.strip().split()
+                        intents.append(int(parts[-1]))
+                    raw_intents += intents
+                else:
+                    raise FileNotFoundError(
+                        f"Can't find intent-only file {intent_only_file}!"
+                    )
+            else:
+                logging.info(f'No intent-only {mode} dataset listed in config.')
+
+            # compile stats for data from all sources
+            logging.info(f' Stats calculating for {mode} set...')
+
+            logging.info(f'Three most popular intents in {mode} set:')
             total_intents, intent_label_freq, max_id = get_label_stats(
                 raw_intents, infold + f'/{mode}_intent_stats.tsv'
             )
-
             merged_slots = itertools.chain.from_iterable(raw_slots)
-            logging.info(f'Three most popular slots in {mode} mode:')
+            logging.info(f'Three most popular slots in {mode} set:')
             slots_total, slots_label_freq, max_id = get_label_stats(merged_slots, infold + f'/{mode}_slot_stats.tsv')
 
-            logging.info(f'Total Number of Intents: {total_intents}')
-            logging.info(f'Intent Label Frequencies: {intent_label_freq}')
-            logging.info(f'Total Number of Slots: {slots_total}')
-            logging.info(f'Slots Label Frequencies: {slots_label_freq}')
+            logging.info(f'Total Number of Intents in {mode} set: {total_intents}')
+            logging.info(f'Intent Label Frequencies in {mode} set: {intent_label_freq}')
+            logging.info(f'Total Number of Slots in {mode} set: {slots_total}')
+            logging.info(f'Slots Label Frequencies in {mode} set: {slots_label_freq}')
 
             if mode == 'train':
                 intent_weights_dict = get_freq_weights(intent_label_freq)
@@ -138,6 +179,45 @@ class IntentSlotDataDesc:
             if none_slot_label not in self.slots_label_ids:
                 raise ValueError(f'none_slot_label {none_slot_label} not ' f'found in {self.slot_dict_file}.')
             self.pad_label = self.slots_label_ids[none_slot_label]
+
+    @staticmethod
+    def extract_labels(slot_file: str,
+                        text_file: str,
+                        contains_intents: bool =True) -> Tuple[List[List[str]], List[List[str]]]:
+        """
+        Given parallel files containing slot labels and utterances, extract the slots and intents
+        and return them as nested lists (one sublist per utterance).
+
+        """
+        raw_slots = []
+        raw_intents = []
+
+        with open(slot_file, 'r') as f:
+            slot_lines = f.readlines()
+
+        with open(text_file, 'r') as f:
+            input_lines = f.readlines()
+
+        if contains_intents:
+            input_lines = input_lines[1:] # Skipping headers at index 0
+
+        if len(slot_lines) != len(input_lines):
+            raise ValueError(
+                "Make sure that the number of slot lines match the "
+                "number of intent lines. There should be a 1-1 "
+                "correspondence between slot and intent lines."
+            )
+
+        dataset = list(zip(slot_lines, input_lines))
+
+        for slot_line, input_line in dataset:
+            slot_list = [int(slot) for slot in slot_line.strip().split()]
+            raw_slots.append(slot_list)
+            if contains_intents:
+                parts = input_line.strip().split()
+                raw_intents.append(int(parts[-1]))
+
+        return raw_slots, raw_intents
 
     @staticmethod
     def label2idx(file):
