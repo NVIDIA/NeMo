@@ -30,7 +30,7 @@ class EnJaProcessor:
     def __init__(self, sp_tokenizer_model_path: str, lang_id: str):
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
-        self.sp_tokenizer =  SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
+        self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
         self.normalizer = MosesPunctNormalizer(
             lang=lang_id, pre_replace_unicode_punct=True, post_remove_control_chars=True
         )
