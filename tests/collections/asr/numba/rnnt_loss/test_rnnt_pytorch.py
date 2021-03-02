@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import RNNTLoss
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
 
 
 DEVICES = ['cpu']
@@ -16,12 +17,10 @@ if torch.cuda.is_available():
     DEVICES.append('cuda')
 
 
-def wrap_and_call(acts, labels, device):
-    fn = RNNTLoss(blank=0, reduction='sum')
+def wrap_and_call(fn, acts, labels, device):
     acts = torch.FloatTensor(acts)
     if 'cuda' in device:
         acts = acts.cuda()
-    # log_probs = autograd.Variable(log_probs, requires_grad=True)
     acts.requires_grad = True
 
     lengths = [acts.shape[1]] * acts.shape[0]
@@ -37,7 +36,6 @@ def wrap_and_call(acts, labels, device):
     costs = fn(acts, labels, lengths, label_lengths)
     cost = torch.sum(costs)
     cost.backward()
-    # print(repr(log_probs.grad.data.cpu().numpy()))
     return costs.data.cpu().numpy(), acts.grad.data.cpu().numpy()
 
 
@@ -56,7 +54,12 @@ class TestRNNTLossPytorch:
         )
         labels = [[1, 2]]
 
-        cost, grads = wrap_and_call(acts, labels, device)
+        fn_pt = RNNTLoss(blank=0, reduction='sum')
+        pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
+
+        fn_np = RNNTLoss_Numpy()
+        np_cost, np_grads = wrap_and_call(fn_np, acts, labels, device)
+
         expected_cost = 4.495666
         expected_grads = np.array(
             [
@@ -74,8 +77,11 @@ class TestRNNTLossPytorch:
                 ]
             ]
         )
-        assert np.allclose(cost, expected_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(grads, expected_grads), "small_test gradient mismatch."
+        assert np.allclose(pt_cost, expected_cost, rtol=1e-6), "small_test costs mismatch."
+        assert np.allclose(pt_grads, expected_grads), "small_test gradient mismatch."
+
+        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads), "small_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
@@ -180,10 +186,17 @@ class TestRNNTLossPytorch:
         activations = np.array(activations)
         labels = [[1, 2], [1, 1]]
 
-        costs, grads = wrap_and_call(activations, labels, device)
+        fn_pt = RNNTLoss(blank=0, reduction='sum')
+        pt_costs, pt_grads = wrap_and_call(fn_pt, activations, labels, device)
 
-        assert np.allclose(costs, sum(expected_costs)), "big_test average costs mismatch."
-        assert np.allclose(grads, expected_grads, rtol=1e-3), "big_test grads for average cost mismatch."
+        fn_np = RNNTLoss_Numpy()
+        np_costs, np_grads = wrap_and_call(fn_np, activations, labels, device)
+
+        assert np.allclose(pt_costs, sum(expected_costs)), "big_test average costs mismatch."
+        assert np.allclose(pt_grads, expected_grads, rtol=1e-3), "big_test grads for average cost mismatch."
+
+        assert np.allclose(pt_costs, np_costs), "big_test average costs mismatch."
+        assert np.allclose(pt_grads, np_grads, rtol=1e-3), "big_test grads for average cost mismatch."
 
 
 if __name__ == "__main__":

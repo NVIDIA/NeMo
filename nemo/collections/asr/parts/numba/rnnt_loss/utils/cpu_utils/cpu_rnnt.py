@@ -8,12 +8,11 @@ from typing import Optional
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
 
 
-@numba.jit()
-def log_sum_exp(a: float, b: float):
-    if a == global_constants.FP32_NEG_INF:
+def log_sum_exp(a: torch.Tensor, b: torch.Tensor):
+    if torch.isinf(a):
         return b
 
-    if b == global_constants.FP32_NEG_INF:
+    if torch.isinf(b):
         return a
 
     if a > b:
