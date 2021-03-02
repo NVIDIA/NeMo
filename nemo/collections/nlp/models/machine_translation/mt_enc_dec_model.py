@@ -210,15 +210,11 @@ class MTEncDecModel(EncDecNLPModel):
 
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+        
+        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
 
         np_tgt = tgt_ids.cpu().numpy()
-        if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
-            func = lambda x: ' '.join(self.decoder_tokenizer.ids_to_tokens(x))
-        else:
-            func = lambda x: self.decoder_tokenizer.ids_to_text(x)
-
-        translations = [func(tr) for tr in beam_results.cpu().numpy()]
-        ground_truths = [func(tgt) for tgt in np_tgt]
+        ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
 
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
@@ -255,13 +251,8 @@ class MTEncDecModel(EncDecNLPModel):
 
         detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
 
-        if (self.src_language == 'en' and self.tgt_language == 'ja') or (self.src_language == 'ja' and self.tgt_language == 'en'):
-            func = lambda x: detokenizer.detokenize(x.split(' '))
-        else:
-            func = lambda x: detokenizer.detokenize(x.split())
-
-        translations = [func(sent) for sent in translations]
-        ground_truths = [func(sent) for sent in ground_truths]
+        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
+        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
 
         assert len(translations) == len(ground_truths)
 
@@ -388,7 +379,7 @@ class MTEncDecModel(EncDecNLPModel):
         Returns a detokenizer for a specific target language.
         """
         if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            detokenizer = EnJaDetokenizer(target_lang)
+            detokenizer = EnJaDetokenizer(sp_tokenizer_model_path=self.sentencepiece_model, lang_id=target_lang)
         elif target_lang == 'zh':
             detokenizer = ChineseDetokenizer()
         else:
@@ -433,7 +424,7 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
-                translation = self.decoder_tokenizer.ids_to_tokens(translation_ids)
+                translation = self.decoder_tokenizer.ids_to_text(translation_ids)
                 translation = detokenizer.detokenize(translation)
                 res.append(translation)
         finally:

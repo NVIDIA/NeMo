@@ -16,20 +16,21 @@ from typing import List
 
 from sacremoses import MosesDetokenizer, MosesTokenizer
 
-from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.utils import logging, model_utils
 
 
 class EnJaDetokenizer:
     """
     Deokenizer for Japanese & English that undoes `EnJaTokenizer` tokenization.
     Args:
+        sp_tokenizer_model_path: String path to a sentencepiece model
         lang_id: One of ['en', 'ja'].
     """
 
-    def __init__(self, lang_id: str):
+    def __init__(self, sp_tokenizer_model_path: str, lang_id: str):
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
-        self.sp_detokenizer = SentencePieceDetokenizer()
+        self.sp_detokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
 
     def detokenize(self, tokens: List[str]) -> str:
         """
@@ -39,7 +40,8 @@ class EnJaDetokenizer:
         Returns:
             detokenized Japanese or English string
         """
-        text = self.sp_detokenizer.detokenize(tokens)
+        tokens = [int(t) for t in tokens]
+        text = self.sp_detokenizer.ids_to_text(tokens)
         return self.moses_detokenizer.detokenize(text.split(' '))
 
 
