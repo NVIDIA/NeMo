@@ -107,7 +107,7 @@ parser.add_argument(
     '--spe_sample_size',
     type=int,
     default=-1,
-    help="Samples the dataset by `sample_size` if positive integer, otherwise uses whole dataset"
+    help="Samples the dataset by `sample_size` if positive integer, otherwise uses whole dataset",
 )
 parser.add_argument('--spe_train_extremely_large_corpus', action='store_true', help='')
 parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
