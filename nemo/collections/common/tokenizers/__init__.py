@@ -13,12 +13,6 @@
 # limitations under the License.
 
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
-from nemo.collections.common.tokenizers.chinese_tokenizers import (
-    ChineseDetokenizer,
-    ChineseTokenizer,
-    Traditional2Simplified,
-)
-from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaDetokenizer, EnJaTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
