@@ -120,7 +120,6 @@ class NLPModel(ModelPT, Exportable):
         elif cfg.vocab_file:
             # use vocab file from config
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             vocab_file=vocab_file,
@@ -182,7 +181,7 @@ class NLPModel(ModelPT, Exportable):
                     for key in vocab_dict:
                         f.write(key + '\n')
 
-                cfg.vocab_file = vocab_file_config_path
+                cfg.vocab_file = vocab_file_src
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
                 logging.info(
