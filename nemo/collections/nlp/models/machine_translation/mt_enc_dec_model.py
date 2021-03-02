@@ -206,7 +206,6 @@ class MTEncDecModel(EncDecNLPModel):
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
-
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split()) for tgt in ground_truths]
