@@ -63,6 +63,11 @@ class MTEncDecModel(EncDecNLPModel):
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
 
         cfg = model_utils.maybe_update_config_version(cfg)
+        self.global_rank = 0
+        self.world_size = 1
+        if trainer is not None:
+            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_gpus
 
         # Instaniate tokenizers and register to be saved with NeMo Model archive
         self.setup_enc_dec_tokenizers(
