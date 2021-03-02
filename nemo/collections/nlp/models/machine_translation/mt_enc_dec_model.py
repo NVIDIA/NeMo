@@ -425,7 +425,7 @@ class MTEncDecModel(EncDecNLPModel):
                 beam_results = self.filter_predicted_ids(beam_results)
                 translation_ids = beam_results.cpu()[0].numpy()
                 translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                translation = detokenizer.detokenize(translation)
+                translation = detokenizer.detokenize(translation.split())
                 res.append(translation)
         finally:
             self.train(mode=mode)
