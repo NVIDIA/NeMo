@@ -189,6 +189,7 @@ def create_spt_model(
     tokenizer_type: str = 'unigram',
     output_dir: Optional[str] = None,
     character_coverage: float = 1.0,
+    train_extremely_large_corpus: bool = False,
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -200,6 +201,8 @@ def create_spt_model(
         character_coverage: float value between 0 and 1 (as a percentage). For languages with a vast charset,
             can be < 1.0, but for all other languages, it should be set as 1.0
         output_dir: folder to save created tokenizer model. If not specified will store model at data_file/../spt folder
+        train_extremely_large_corpus: If training on huge datasets, pass this flag to allow SentencePiece
+            to build the tokenizer.
     """
 
     if not data_file or not os.path.exists(data_file):
@@ -228,6 +231,10 @@ def create_spt_model(
     if sample_size > 0:
         cmd += f" --input_sentence_size={sample_size}"
 
+    if train_extremely_large_corpus:
+        cmd += " --train_extremely_large_corpus=true"
+
+    print("SEntencepiece cmd :", cmd)
     sentencepiece.SentencePieceTrainer.Train(cmd)
 
     # Add BERT control symbols
