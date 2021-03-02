@@ -43,23 +43,43 @@ class Hypothesis:
 
     dec_state: A list (or list of list) of LSTM-RNN decoder states. Can be None.
 
+    text: (Optional) A decoded string after processing via CTC / RNN-T decoding (removing the CTC/RNNT
+        `blank` tokens, and optionally merging word-pieces). Should be used as decoded string for
+        Word Error Rate calculation.
+
+    timestep: (Optional) A list of integer indices representing at which index in the decoding
+        process did the token appear. Should be of same length as the number of non-blank tokens.
+
+    alignments: (Optional) Represents the CTC / RNNT token alignments as integer tokens along an axis of
+        time T (for CTC) or Time x Target (TxU).
+        For CTC, represented as a single list of integer indices.
+        For RNNT, represented as a dangling list of list of integer indices.
+        Outer list represents Time dimension (T), inner list represents Target dimension (U).
+        The set of valid indices **includes** the CTC / RNNT blank token in order to represent alignments.
+
+    length: Represents the length of the sequence (the original length without padding), otherwise
+        defaults to 0.
+
     y: (Unused) A list of torch.Tensors representing the list of hypotheses.
 
     lm_state: (Unused) A dictionary state cache used by an external Language Model.
 
     lm_scores: (Unused) Score of the external Language Model.
+
+    tokens: (Optional) A list of decoded tokens (can be characters or word-pieces.
     """
 
     score: float
     y_sequence: Union[List[int], torch.Tensor]
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
+    text: Optional[str] = None
+    timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
+    alignments: Optional[Union[List[int], List[List[int]]]] = None
+    length: int = 0
     y: List[torch.tensor] = None
     lm_state: Union[Dict[str, Any], List[Any]] = None
     lm_scores: torch.Tensor = None
     tokens: Optional[Union[List[int], torch.Tensor]] = None
-    text: str = None
-    timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
-    length: int = 0
 
 
 @dataclass
