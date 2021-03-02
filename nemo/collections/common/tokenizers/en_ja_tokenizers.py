@@ -17,7 +17,6 @@ from typing import List
 from sacremoses import MosesDetokenizer, MosesTokenizer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.utils import logging, model_utils
 
 
 class EnJaDetokenizer:
