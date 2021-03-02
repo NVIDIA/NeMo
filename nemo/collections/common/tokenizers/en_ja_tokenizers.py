@@ -16,7 +16,6 @@ from typing import List
 
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
-from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
@@ -31,10 +30,7 @@ class EnJaProcessor:
     def __init__(self, sp_tokenizer_model_path: str, lang_id: str):
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
-        self.sp_detokenizer = SentencePieceDetokenizer()
-        self.sp_tokenizer = (
-            SentencePieceTokenizer(model_path=sp_tokenizer_model_path) if sp_tokenizer_model_path is not None else None
-        )
+        self.sp_tokenizer =  SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
         self.normalizer = MosesPunctNormalizer(
             lang=lang_id, pre_replace_unicode_punct=True, post_remove_control_chars=True
         )
@@ -47,11 +43,13 @@ class EnJaProcessor:
         Returns:
             detokenized Japanese or English string
         """
-        text = self.sp_detokenizer.detokenize(tokens)
-        return self.moses_detokenizer.detokenize(text.split())
+        text = self.sp_tokenizer.ids_to_text([int(t) for t in tokens])
+        # We need to explictly specify splitting on spaces to avoid
+        # detokenizing a sequence of characters.
+        return self.moses_detokenizer.detokenize(text.split(' '))
 
     def sp_tokenize(self, text: str) -> str:
-        return ' '.join(self.sp_tokenizer.text_to_tokens(text))
+        return ' '.join(self.sp_tokenizer.text_to_ids(text))
 
     def tokenize(self, text):
         """
