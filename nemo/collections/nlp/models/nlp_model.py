@@ -58,8 +58,8 @@ class NLPModel(ModelPT, Exportable):
 
         # set find_unused_parameters to True by default for NLP models
         if trainer is not None:
-            if isinstance(trainer.accelerator_connector._training_type_plugin, DDPPlugin):
-                trainer.accelerator_connector._training_type_plugin = DDPPlugin(find_unused_parameters=True)
+            if isinstance(trainer.accelerator.training_type_plugin, DDPPlugin):
+                trainer.accelerator.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
 
     @rank_zero_only
     def register_bert_model(self):
