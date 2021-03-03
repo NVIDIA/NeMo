@@ -13,6 +13,7 @@
 # limitations under the License.
 import argparse
 import os
+from shutil import copyfile
 import tarfile
 
 from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel, EncDecSpeakerLabelModel
@@ -63,8 +64,10 @@ def main(
         archive.extract('./model_config.yaml')
         with tarfile.open(enemo_file, 'w') as enemo_archive:
             enemo_archive.add('./model_config.yaml')
-            enemo_archive.addfile(tarfile.TarInfo("model_graph.onnx"), open(onnx_file))
-
+            copyfile(onnx_file,"model_graph.onnx")
+            enemo_archive.add("model_graph.onnx")
+            # cleanup extra file
+            os.remove("model_graph.onnx")
 
 if __name__ == "__main__":
     args = get_parser().parse_args()
