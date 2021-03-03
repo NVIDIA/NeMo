@@ -384,7 +384,9 @@ class MTEncDecModel(EncDecNLPModel):
             translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
             inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
             if self.target_processor is not None:
-                translations = [self.target_processor.detokenize(translation.split(' ')) for translation in translations]
+                translations = [
+                    self.target_processor.detokenize(translation.split(' ')) for translation in translations
+                ]
 
             if self.source_processor is not None:
                 inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
