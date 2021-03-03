@@ -190,6 +190,7 @@ def create_spt_model(
     output_dir: Optional[str] = None,
     character_coverage: float = 1.0,
     train_extremely_large_corpus: bool = False,
+    max_sentencepiece_length: int = -1
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -233,6 +234,9 @@ def create_spt_model(
 
     if train_extremely_large_corpus:
         cmd += " --train_extremely_large_corpus=true"
+
+    if max_sentencepiece_length >= 0:
+        cmd += f" --max_sentencepiece_length={max_sentencepiece_length}"
 
     sentencepiece.SentencePieceTrainer.Train(cmd)
 
