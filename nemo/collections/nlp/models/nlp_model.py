@@ -55,6 +55,9 @@ class NLPModel(ModelPT, Exportable):
         super().__init__(cfg, trainer)
         self.set_world_size(trainer)
 
+        # set find_unused_parameters to True by default for NLP models
+        trainer.accelerator_backend.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
+
     @rank_zero_only
     def register_bert_model(self):
         """Adds encoder config to .nemo archive.
@@ -356,8 +359,9 @@ class NLPModel(ModelPT, Exportable):
             self.complete_megatron_init()
 
     def complete_megatron_init(self):
-        if isinstance(self.bert_model, MegatronBertEncoder):
-            self.bert_model.complete_lazy_init()
+        if hasattr(self, 'bert_model'):
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                self.bert_model.complete_lazy_init()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
