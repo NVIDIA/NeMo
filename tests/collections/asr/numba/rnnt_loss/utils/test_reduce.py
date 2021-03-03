@@ -11,26 +11,28 @@ class TestRNNTCUDAReductions:
     @pytest.mark.unit
     def test_reduce_max(self):
         random = np.random.RandomState(0)
-        original_shape = [1, 5, 4, 2]
+        original_shape = [1, 5, 4, 3]
         x = random.randn(*original_shape).reshape([-1])
-        dx = np.zeros_like(x)
+        dx = random.randn(*x.shape)
 
         stream = cuda.stream()
         x_c = cuda.to_device(x, stream=stream)
         dx_c = cuda.to_device(dx, stream=stream)
 
         # call kernel
-        reduce.reduce_max(x_c, dx_c, rows=10, cols=1 * 25 * 10, minus=False, stream=stream)
+        cols = np.prod(original_shape[:3])
+        reduce.reduce_max(x_c, dx_c, rows=original_shape[-1], cols=cols, minus=False, stream=stream)
 
         # sync kernel
         stream.synchronize()
 
-        dx = dx_c.copy_to_host(stream=stream)
-        dx = dx.reshape(original_shape)
+        dx_result = dx_c.copy_to_host(stream=stream)
         del x_c, dx_c
 
-        print(dx[0, 0, :])
-        assert dx.shape == tuple(original_shape)
+        # collect results in first [B * T * U] values; for all V
+        assert np.abs(dx_result[cols:] - dx[cols:]).sum() <= 1e-7
+        # make sure dx_result updates the [B * T * U] values
+        assert np.abs(dx_result[:cols] - dx[:cols]).sum() > 0
 
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
@@ -45,17 +47,20 @@ class TestRNNTCUDAReductions:
         dx_c = cuda.to_device(dx, stream=stream)
 
         # call kernel
-        reduce.reduce_exp(x_c, dx_c, rows=10, cols=1 * 25 * 10, minus=False, stream=stream)
+        cols = np.prod(original_shape[:3])
+        reduce.reduce_exp(x_c, dx_c, rows=original_shape[-1], cols=cols, minus=False, stream=stream)
 
         # sync kernel
         stream.synchronize()
 
-        dx = dx_c.copy_to_host(stream=stream)
-        dx = dx.reshape(original_shape)
+        dx_result = dx_c.copy_to_host(stream=stream)
         del x_c, dx_c
 
-        print(dx[0, 0, :])
-        assert dx.shape == tuple(original_shape)
+        # collect results in first [B * T * U] values; for all V
+        assert (dx_result[cols:] - dx[cols:]).sum() <= 1e-7
+
+        # make sure dx_result updates the [B * T * U] values
+        assert np.abs(dx_result[:cols] - dx[:cols]).sum() > 0
 
 
 if __name__ == '__main__':
