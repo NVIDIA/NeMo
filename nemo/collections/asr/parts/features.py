@@ -181,13 +181,14 @@ class STFTExactPad(STFTPatch):
             window_sum = torch.autograd.Variable(torch.from_numpy(window_sum), requires_grad=False).to(
                 magnitude.device
             )
-            inverse_transform[:, :, approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
+            inverse_transform[..., approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
 
             # scale by hop ratio
             inverse_transform *= self.filter_length / self.hop_length
 
         inverse_transform = inverse_transform[..., self.pad_amount :]
         inverse_transform = inverse_transform[..., : -self.pad_amount :]
+        inverse_transform = inverse_transform.squeeze(1)
 
         return inverse_transform
 
