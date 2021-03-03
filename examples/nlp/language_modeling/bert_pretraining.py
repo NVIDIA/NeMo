@@ -20,12 +20,13 @@ from nemo.collections.nlp.models.language_modeling import BERTLMModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+from pytorch_lightning.plugins import DDPPlugin
 
 
 @hydra_runner(config_path="conf", config_name="bert_pretraining_from_text_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config:\n {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer(plugins=[DDPPlugin(find_unused_parameters=True)], **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     bert_model = BERTLMModel(cfg.model, trainer=trainer)
     trainer.fit(bert_model)
