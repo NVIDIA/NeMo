@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import os
-from shutil import copyfile
 import tarfile
+import os
 
+from shutil import copyfile
 from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel, EncDecSpeakerLabelModel
 from nemo.utils import logging
 
@@ -66,8 +66,7 @@ def main(
             enemo_archive.add('./model_config.yaml')
             copyfile(onnx_file,"model_graph.onnx")
             enemo_archive.add("model_graph.onnx")
-            # cleanup extra file
-            os.remove("model_graph.onnx")
+            os.remove("model_graph.onnx") # cleanup extra file
 
 if __name__ == "__main__":
     args = get_parser().parse_args()
