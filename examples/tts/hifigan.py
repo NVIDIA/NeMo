@@ -25,8 +25,6 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = HifiGanModel(cfg=cfg.model, trainer=trainer)
-    epoch_time_logger = LogEpochTimeCallback()
-    trainer.callbacks.extend([epoch_time_logger])
     trainer.fit(model)
 
 
