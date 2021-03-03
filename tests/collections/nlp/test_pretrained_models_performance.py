@@ -46,7 +46,7 @@ def get_metrics(data_dir, model):
     metrics = trainer.test(model)[0]
 
     if Path("./lightning_logs").exists():
-        rmtree('./lightning_logs')
+        rmtree('./lightning_logs', ignore_errors=True)
     return metrics
 
 
