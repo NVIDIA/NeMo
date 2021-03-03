@@ -57,8 +57,9 @@ class NLPModel(ModelPT, Exportable):
         self.set_world_size(trainer)
 
         # set find_unused_parameters to True by default for NLP models
-        if isinstance(trainer.accelerator_connector._training_type_plugin, DDPPlugin):
-            trainer.accelerator_connector._training_type_plugin = DDPPlugin(find_unused_parameters=True)
+        if trainer is not None:
+            if isinstance(trainer.accelerator_connector._training_type_plugin, DDPPlugin):
+                trainer.accelerator_connector._training_type_plugin = DDPPlugin(find_unused_parameters=True)
 
     @rank_zero_only
     def register_bert_model(self):
