@@ -16,7 +16,6 @@ import re
 from typing import List
 
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
-from nemo.utils import logging
 
 class EnJaProcessor:
     """
@@ -26,7 +25,6 @@ class EnJaProcessor:
     """
 
     def __init__(self, lang_id: str):
-        self.lang_id = lang_id
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
         self.normalizer = MosesPunctNormalizer(
