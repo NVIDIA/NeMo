@@ -17,7 +17,6 @@ import itertools
 import numpy as np
 import torch
 import torch.nn.functional as F
-import wandb
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
@@ -32,6 +31,12 @@ from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 
 class HifiGanModel(Vocoder):
@@ -189,7 +194,7 @@ class HifiGanModel(Vocoder):
         self.log("val_loss", loss_mel, prog_bar=True, sync_dist=True)
 
         # plot audio once per epoch
-        if batch_idx == 0 and isinstance(self.logger, WandbLogger):
+        if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             clips = []
             specs = []
             for i in range(min(5, audio.shape[0])):
