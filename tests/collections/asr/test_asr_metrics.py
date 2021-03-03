@@ -20,6 +20,7 @@ import pytest
 import torch
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
+from nemo.collections.asr.parts.rnnt_utils import Hypothesis
 from nemo.utils import logging
 
 
@@ -133,3 +134,41 @@ class TestWordErrorRate:
                     )
                     < 1e-6
                 )
+
+    @pytest.mark.unit
+    def test_wer_metric_decode(self):
+        wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+
+        tokens = self.__string_to_ctc_tensor('cat')[0].int().numpy().tolist()
+        assert tokens == [3, 1, 20]
+
+        tokens_decoded = wer.decode_ids_to_tokens(tokens)
+        assert tokens_decoded == ['c', 'a', 't']
+
+        str_decoded = wer.decode_tokens_to_str(tokens)
+        assert str_decoded == 'cat'
+
+    @pytest.mark.unit
+    def test_wer_metric_return_hypothesis(self):
+        wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+
+        tensor = self.__string_to_ctc_tensor('cat').int()
+
+        # pass batchsize 1 tensor, get back list of length 1 Hypothesis
+        hyp = wer.ctc_decoder_predictions_tensor(tensor, return_hypotheses=True)
+        hyp = hyp[0]
+        assert isinstance(hyp, Hypothesis)
+
+        assert hyp.y_sequence is None
+        assert hyp.score == -1.0
+        assert hyp.text == 'cat'
+        assert hyp.alignments == [3, 1, 20]
+        assert hyp.length == 0
+
+        length = torch.tensor([tensor.shape[-1]], dtype=torch.long)
+
+        # pass batchsize 1 tensor, get back list of length 1 Hypothesis [add length info]
+        hyp = wer.ctc_decoder_predictions_tensor(tensor, predictions_len=length, return_hypotheses=True)
+        hyp = hyp[0]
+        assert isinstance(hyp, Hypothesis)
+        assert hyp.length == 3
