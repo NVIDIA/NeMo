@@ -11,26 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import List
 
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
-
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
 class EnJaProcessor:
     """
     Tokenizer, Detokenizer and Normalizer utilities for Japanese & English
     Args:
-        sp_tokenizer_model_path: Path to sentencepiece tokenizer model file.
         lang_id: One of ['en', 'ja'].
     """
 
-    def __init__(self, sp_tokenizer_model_path: str, lang_id: str):
+    def __init__(self, lang_id: str):
+        self.lang_id = lang_id
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
-        self.sp_tokenizer = SentencePieceTokenizer(model_path=sp_tokenizer_model_path)
         self.normalizer = MosesPunctNormalizer(
             lang=lang_id, pre_replace_unicode_punct=True, post_remove_control_chars=True
         )
@@ -43,22 +39,18 @@ class EnJaProcessor:
         Returns:
             detokenized Japanese or English string
         """
-        text = self.sp_tokenizer.ids_to_text([int(t) for t in tokens])
-        # We need to explictly specify splitting on spaces to avoid
-        # detokenizing a sequence of characters.
-        return self.moses_detokenizer.detokenize(text.split(' '))
-
-    def sp_tokenize(self, text: str) -> str:
-        return ' '.join(self.sp_tokenizer.text_to_ids(text))
+        return self.moses_detokenizer.detokenize(tokens)
 
     def tokenize(self, text):
         """
-        Tokenizes text using Moses -> Sentencepiece.
+        Tokenizes text using Moses.
         """
-        if self.sp_tokenizer is None:
-            raise ValueError("Need valid sp_tokenizer_model_path, found None")
-        text = self.moses_tokenizer.tokenize(text, escape=False, return_str=True)
-        return self.sp_tokenize(text)
+        return self.moses_tokenizer.tokenize(text)
 
     def normalize(self, text):
-        return self.normalizer.normalize(text)
+        # Normalization doesn't handle Japanese periods correctly;
+        # '。'becomes '.'.
+        if self.lang_id == 'en':
+            return self.normalizer.normalize(text)
+        else:
+            return text

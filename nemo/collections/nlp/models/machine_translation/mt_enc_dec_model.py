@@ -76,11 +76,6 @@ class MTEncDecModel(EncDecNLPModel):
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
         )
 
-        # This is necessary to call in constructor to have it included in .nemo file
-        self.sentencepiece_model = self.register_artifact(
-            "cfg.sentencepiece_model", cfg.get("sentencepiece_model", None)
-        )
-
         # After this call, the model will have  self.source_processor and self.target_processor objects
         self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
 
@@ -210,7 +205,7 @@ class MTEncDecModel(EncDecNLPModel):
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
-        ground_truths = [self.target_processor.detokenize(tgt.split()) for tgt in ground_truths]
+        ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
             'translations': translations,
@@ -245,8 +240,6 @@ class MTEncDecModel(EncDecNLPModel):
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
         assert len(translations) == len(ground_truths)
-        print(translations)
-        print(ground_truths)
         if self.tgt_language in ['ja']:
             sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
         elif self.tgt_language in ['zh']:
@@ -353,8 +346,8 @@ class MTEncDecModel(EncDecNLPModel):
         """
         self.source_processor, self.target_processor = None, None
         if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            self.source_processor = EnJaProcessor(self.sentencepiece_model, source_lang)
-            self.target_processor = EnJaProcessor(self.sentencepiece_model, target_lang)
+            self.source_processor = EnJaProcessor(source_lang)
+            self.target_processor = EnJaProcessor(target_lang)
         else:
             if source_lang == 'zh':
                 self.source_processor = ChineseProcessor()
@@ -388,12 +381,14 @@ class MTEncDecModel(EncDecNLPModel):
 
             translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
             inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
-
             if self.target_processor is not None:
-                translations = [self.target_processor.detokenize(translation.split()) for translation in translations]
+                translations = [
+                    self.target_processor.detokenize(translation.split(' ')) for translation in translations
+                ]
 
             if self.source_processor is not None:
-                inputs = [self.source_processor.detokenize(item.split()) for item in inputs]
+                inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
+
         finally:
             self.train(mode=mode)
         return inputs, translations
