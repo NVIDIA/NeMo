@@ -23,12 +23,9 @@ import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
-from torch.nn.parallel.distributed import DistributedDataParallel
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -61,6 +58,9 @@ class MTEncDecModel(EncDecNLPModel):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_gpus
 
         cfg = model_utils.maybe_update_config_version(cfg)
 
@@ -427,15 +427,3 @@ class MTEncDecModel(EncDecNLPModel):
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
-
-    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
-        logging.info(f'overriding ddp to set find_unused_parameters to {self._cfg.find_unused_parameters}')
-        model = LightningDistributedDataParallel(
-            model, device_ids=device_ids, find_unused_parameters=self._cfg.find_unused_parameters
-        )
-        return model
-
-    def setup(self, stage):
-        if stage == "fit":
-            # Update PTL trainer to use our configure_ddp
-            self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
