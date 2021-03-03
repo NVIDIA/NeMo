@@ -56,11 +56,6 @@ class NLPModel(ModelPT, Exportable):
         super().__init__(cfg, trainer)
         self.set_world_size(trainer)
 
-        # set find_unused_parameters to True by default for NLP models
-        if trainer is not None:
-            if isinstance(trainer.accelerator.training_type_plugin, DDPPlugin):
-                trainer.accelerator.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
-
     @rank_zero_only
     def register_bert_model(self):
         """Adds encoder config to .nemo archive.
@@ -279,6 +274,9 @@ class NLPModel(ModelPT, Exportable):
         """
         # TODO: implement model parallel for test stage
         if stage == 'fit':
+            # set find_unused_parameters to True by default for NLP models
+            if isinstance(self._trainer.accelerator.training_type_plugin, DDPPlugin):
+                self._trainer.accelerator.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
 
             # adds self.bert_model config to .nemo file
             if hasattr(self, 'bert_model') and self.bert_model is not None:
