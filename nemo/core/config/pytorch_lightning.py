@@ -89,6 +89,7 @@ class TrainerConfig:
     limit_predict_batches: float = 1.0
     stochastic_weight_avg: bool = False
 
+
 # Register the trainer config.
 cs.store(
     group="trainer", name="trainer", node=TrainerConfig,
