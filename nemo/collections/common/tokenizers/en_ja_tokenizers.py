@@ -39,9 +39,7 @@ class EnJaProcessor:
         Returns:
             detokenized Japanese or English string
         """
-        text = self.moses_detokenizer.detokenize(tokens)
-        return text
-
+        return self.moses_detokenizer.detokenize(tokens)
 
     def tokenize(self, text):
         """
