@@ -24,7 +24,6 @@ from time import sleep
 import fasttext
 from tqdm import tqdm
 
-
 """
 Usage:
 python filter_by_language.py --input-src train.en \

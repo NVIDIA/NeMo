@@ -15,12 +15,12 @@
 
 import pytorch_lightning as pl
 from omegaconf import DictConfig
+from pytorch_lightning.plugins import DDPPlugin
 
 from nemo.collections.nlp.models.language_modeling import BERTLMModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from pytorch_lightning.plugins import DDPPlugin
 
 
 @hydra_runner(config_path="conf", config_name="bert_pretraining_from_text_config")
