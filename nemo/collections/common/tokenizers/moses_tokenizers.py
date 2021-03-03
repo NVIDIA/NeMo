@@ -11,25 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from typing import List
 
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
 
-class EnJaProcessor:
+class MosesProcessor:
     """
-    Tokenizer, Detokenizer and Normalizer utilities for Japanese & English
-    Args:
-        lang_id: One of ['en', 'ja'].
+    Tokenizer, Detokenizer and Normalizer utilities in Moses
     """
 
     def __init__(self, lang_id: str):
-        self.lang_id = lang_id
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
-        self.normalizer = MosesPunctNormalizer(
-            lang=lang_id, pre_replace_unicode_punct=True, post_remove_control_chars=True
-        )
+        self.normalizer = MosesPunctNormalizer(lang=lang_id)
 
     def detokenize(self, tokens: List[str]) -> str:
         """
@@ -37,20 +33,15 @@ class EnJaProcessor:
         Args:
             tokens: list of strings as tokens
         Returns:
-            detokenized Japanese or English string
+            detokenized string
         """
         return self.moses_detokenizer.detokenize(tokens)
 
-    def tokenize(self, text):
+    def tokenize(self, text: str):
         """
-        Tokenizes text using Moses.
+        Tokenizes text using Moses -> Sentencepiece.
         """
-        return self.moses_tokenizer.tokenize(text)
+        return self.moses_tokenizer.tokenize(text, escape=False, return_str=True)
 
-    def normalize(self, text):
-        # Normalization doesn't handle Japanese periods correctly;
-        # '。'becomes '.'.
-        if self.lang_id == 'en':
-            return self.normalizer.normalize(text)
-        else:
-            return text
+    def normalize(self, text: str):
+        return self.normalizer.normalize(text)
