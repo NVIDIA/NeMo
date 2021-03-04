@@ -4,36 +4,10 @@ validation_datasets: ???
 
 defaults:
   - model/generator: v1
+  - model/train_ds: train_ds
+  - model/validation_ds: val_ds
 
 model:
-  train_ds:
-    dataset:
-      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
-      manifest_filepath: ${train_dataset}
-      max_duration: null
-      min_duration: 0.75
-      n_segments: 8192
-      trim: false
-    dataloader_params:
-      drop_last: false
-      shuffle: true
-      batch_size: 16
-      num_workers: 4
-
-  validation_ds:
-    dataset:
-      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
-      manifest_filepath: ${validation_datasets}
-      max_duration: null
-      min_duration: null
-      n_segments: -1
-      trim: false
-    dataloader_params:
-      drop_last: false
-      shuffle: false
-      batch_size: 3
-      num_workers: 4
-
   preprocessor:
     _target_: nemo.collections.asr.parts.features.FilterbankFeatures
     dither: 0.0
@@ -59,15 +33,17 @@ model:
     use_grads: false
 
   optim:
+    _target_: torch.optim.AdamW
     lr: 0.0002
-    adam_b1: 0.8
-    adam_b2: 0.99
-    lr_decay: 0.999
-    lr_step: 15
+    betas: [0.8, 0.99]
+
+  denoise_strength: 0.0025
+  max_steps: 2500000
 
 trainer:
   gpus: -1 # number of gpus
-  max_epochs: 1000000
+  max_steps: ${model.max_steps}
+  max_epochs: null
   num_nodes: 1
   accelerator: ddp
   accumulate_grad_batches: 1

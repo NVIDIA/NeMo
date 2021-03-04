@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
@@ -67,13 +68,10 @@ class EncDecRNNTModel(ASRModel):
             )
 
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
-        self.global_rank = 0
+        # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
-        self.local_rank = 0
         if trainer is not None:
-            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
             self.world_size = trainer.num_nodes * trainer.num_gpus
-            self.local_rank = trainer.local_rank
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -174,13 +172,14 @@ class EncDecRNNTModel(ASRModel):
                 config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                for test_batch in temporary_datalayer:
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
                     hypotheses += self.decoding.rnnt_decoder_predictions_tensor(
                         encoded, encoded_len, return_hypotheses=return_hypotheses
                     )
+                    del encoded
                     del test_batch
         finally:
             # set mode back to its original value

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import editdistance
@@ -41,6 +42,17 @@ class AbstractRNNTDecoding(ABC):
             compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
                 tokens as well as the decoded string. Default is False in order to avoid double decoding
                 unless required.
+
+            preserve_alignments: Bool flag which preserves the history of logprobs generated during
+                decoding (sample / batched). When set to true, the Hypothesis will contain
+                the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+
+                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
+                with the `return_hypotheses` flag set to True.
+
+                The length of the list corresponds to the Acoustic Length (T).
+                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
+                U is the number of target tokens for the current timestep Ti.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -83,6 +95,7 @@ class AbstractRNNTDecoding(ABC):
         self.cfg = decoding_cfg
         self.blank_id = blank_id
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
+        self.preserve_alignments = self.cfg.get('preserve_alignments', False)
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
         if self.cfg.strategy not in possible_strategies:
@@ -94,6 +107,7 @@ class AbstractRNNTDecoding(ABC):
                 joint_model=joint,
                 blank_index=self.blank_id,
                 max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+                preserve_alignments=self.preserve_alignments,
             )
 
         elif self.cfg.strategy == 'greedy_batch':
@@ -102,6 +116,7 @@ class AbstractRNNTDecoding(ABC):
                 joint_model=joint,
                 blank_index=self.blank_id,
                 max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+                preserve_alignments=self.preserve_alignments,
             )
 
         elif self.cfg.strategy == 'beam':
@@ -113,6 +128,7 @@ class AbstractRNNTDecoding(ABC):
                 return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='default',
                 score_norm=self.cfg.beam.get('score_norm', True),
+                preserve_alignments=self.preserve_alignments,
             )
 
         elif self.cfg.strategy == 'tsd':
@@ -125,6 +141,7 @@ class AbstractRNNTDecoding(ABC):
                 search_type='tsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
                 tsd_max_sym_exp_per_step=self.cfg.beam.get('tsd_max_sym_exp', 50),
+                preserve_alignments=self.preserve_alignments,
             )
 
         elif self.cfg.strategy == 'alsd':
@@ -137,6 +154,7 @@ class AbstractRNNTDecoding(ABC):
                 search_type='alsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
                 alsd_max_target_len=self.cfg.beam.get('alsd_max_target_len', 2),
+                preserve_alignments=self.preserve_alignments,
             )
 
     def rnnt_decoder_predictions_tensor(
@@ -267,6 +285,17 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 tokens as well as the decoded string. Default is False in order to avoid double decoding
                 unless required.
 
+            preserve_alignments: Bool flag which preserves the history of logprobs generated during
+                decoding (sample / batched). When set to true, the Hypothesis will contain
+                the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+
+                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
+                with the `return_hypotheses` flag set to True.
+
+                The length of the list corresponds to the Acoustic Length (T).
+                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
+                U is the number of target tokens for the current timestep Ti.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
@@ -321,7 +350,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Returns:
             A decoded string.
         """
-        hypothesis = ''.join([self.labels_map[c] for c in tokens if c != self.blank_id])
+        hypothesis = ''.join(self.decode_ids_to_tokens(tokens))
         return hypothesis
 
     def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
@@ -435,3 +464,15 @@ class RNNTWER(Metric):
     def compute(self):
         wer = self.scores.float() / self.words
         return wer, self.scores.detach(), self.words.detach()
+
+
+@dataclass
+class RNNTDecodingConfig:
+    strategy: str = "greedy_batch"
+    compute_hypothesis_token_set: bool = False
+
+    # greedy decoding config
+    greedy: greedy_decode.GreedyRNNTInferConfig = greedy_decode.GreedyRNNTInferConfig()
+
+    # beam decoding config
+    beam: beam_decode.BeamRNNTInferConfig = beam_decode.BeamRNNTInferConfig(beam_size=4)

@@ -18,6 +18,7 @@ import editdistance
 import torch
 from pytorch_lightning.metrics import Metric
 
+from nemo.collections.asr.parts.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
@@ -78,10 +79,26 @@ class WERBPE(Metric):
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
     def ctc_decoder_predictions_tensor(
-        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None
+        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None, return_hypotheses: bool = False
     ) -> List[str]:
         """
         Decodes a sequence of labels to words
+
+        Args:
+            predictions: A torch.Tensor of shape [Batch, Time] of integer indices that correspond
+                to the index of some character in the vocabulary of the tokenizer.
+            predictions_len: Optional tensor of length `Batch` which contains the integer lengths
+                of the sequence in the padded `predictions` tensor.
+            return_hypotheses: Bool flag whether to return just the decoding predictions of the model
+                or a Hypothesis object that holds information such as the decoded `text`,
+                the `alignment` of emited by the CTC Model, and the `length` of the sequence (if available).
+                May also contain the log-probabilities of the decoder (if this method is called via
+                transcribe()) inside `y_sequence`, otherwise it is set None as it is a duplicate of
+                `alignments`.
+
+        Returns:
+            Either a list of str which represent the CTC decoded strings per sample,
+            or a list of Hypothesis objects containing additional information.
         """
         hypotheses = []
         # Drop predictions to CPU
@@ -98,9 +115,48 @@ class WERBPE(Metric):
                 if (p != previous or previous == self.blank_id) and p != self.blank_id:
                     decoded_prediction.append(p)
                 previous = p
-            hypothesis = self.tokenizer.ids_to_text(decoded_prediction)
+
+            text = self.decode_tokens_to_str(decoded_prediction)
+
+            if not return_hypotheses:
+                hypothesis = text
+            else:
+                hypothesis = Hypothesis(
+                    y_sequence=None,  # logprob info added by transcribe method
+                    score=-1.0,
+                    text=text,
+                    alignments=prediction,
+                    length=predictions_len[ind] if predictions_len is not None else 0,
+                )
             hypotheses.append(hypothesis)
         return hypotheses
+
+    def decode_tokens_to_str(self, tokens: List[int]) -> str:
+        """
+        Implemented in order to decoder a token list into a string.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A decoded string.
+        """
+        hypothesis = self.tokenizer.ids_to_text(tokens)
+        return hypothesis
+
+    def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
+        """
+        Implemented in order to decode a token id list into a token list.
+        A token list is the string representation of each token id.
+
+        Args:
+            tokens: List of int representing the token ids.
+
+        Returns:
+            A list of decoded tokens.
+        """
+        token_list = self.tokenizer.ids_to_tokens(tokens)
+        return token_list
 
     def update(
         self,
@@ -121,7 +177,7 @@ class WERBPE(Metric):
             for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
-                reference = self.tokenizer.ids_to_text(target)
+                reference = self.decode_tokens_to_str(target)
                 references.append(reference)
             if self.ctc_decode:
                 hypotheses = self.ctc_decoder_predictions_tensor(predictions, predictions_lengths)

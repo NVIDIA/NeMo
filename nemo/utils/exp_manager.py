@@ -16,14 +16,16 @@ import os
 import subprocess
 import sys
 import time
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Dict, List, Optional, Union
 
+import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -58,7 +60,9 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 @dataclass
 class CallbackParams:
-    filepath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    filepath: Optional[str] = None  # Deprecated
+    dirpath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    filename: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     monitor: Optional[str] = "val_loss"
     verbose: Optional[bool] = True
     save_last: Optional[bool] = True
@@ -69,6 +73,7 @@ class CallbackParams:
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
+    always_save_nemo: bool = False
 
 
 @dataclass
@@ -271,7 +276,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
             " logger."
         )
-    if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
+    if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
             "You are running multi-node without slurm. Please note that this is not tested in NeMo and could result in "
             "errors."
@@ -453,7 +458,7 @@ def get_log_dir(
         version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
         if version is None:
-            if trainer.is_slurm_managing_tasks:
+            if check_slurm(trainer):
                 logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
                 version = ""
             elif is_global_rank_zero():
@@ -564,12 +569,44 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
 
-    def __init__(self, save_best_model=False, postfix=".nemo", **kwargs):
+    def __init__(self, always_save_nemo=False, save_best_model=False, postfix=".nemo", **kwargs):
         # Parse and store "extended" parameters: save_best model and postfix.
+        self.always_save_nemo = always_save_nemo
         self.save_best_model = save_best_model
         self.postfix = postfix
+        self.previous_best_path = ""
+
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
+
+    @rank_zero_only
+    def on_save_checkpoint(self, trainer, pl_module):
+        output = super().on_save_checkpoint(trainer, pl_module)
+
+        if not self.always_save_nemo:
+            return output
+
+        # Load the best model and then re-save it
+        if self.save_best_model:
+            if not os.path.exists(self.best_model_path):
+                return output
+
+            if self.best_model_path == self.previous_best_path:
+                return output
+
+            self.previous_model_path = self.best_model_path
+            old_state_dict = deepcopy(pl_module.state_dict())
+            checkpoint = torch.load(self.best_model_path, map_location='cpu')
+            if 'state_dict' in checkpoint:
+                checkpoint = checkpoint['state_dict']
+            # get a new instanace of the model
+            pl_module.load_state_dict(checkpoint, strict=True)
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            pl_module.load_state_dict(old_state_dict, strict=True)
+        else:
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+
+        return output
 
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
@@ -582,7 +619,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict,
+    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig',
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
@@ -600,8 +637,19 @@ def configure_checkpointing(
         )
 
     # Create the callback and attach it to trainer
-    if params.filepath is None:
-        params.filepath = Path(log_dir / 'checkpoints' / f'--{{{params.monitor}:.2f}}-{{epoch}}')
+    if "filepath" in params:
+        if params.filepath is not None:
+            logging.warning("filepath is deprecated. Please switch to dirpath and filename instead")
+            if params.dirpath is None:
+                params.dirpath = Path(params.filepath).parent
+            if params.filename is None:
+                params.filename = Path(params.filepath).name
+        with open_dict(params):
+            del params["filepath"]
+    if params.dirpath is None:
+        params.dirpath = Path(log_dir / 'checkpoints')
+    if params.filename is None:
+        params.filename = f'--{{{params.monitor}:.2f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
 
@@ -615,3 +663,10 @@ def configure_checkpointing(
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
     trainer.callbacks.append(checkpoint_callback)
+
+
+def check_slurm(trainer):
+    try:
+        return trainer.is_slurm_managing_tasks
+    except AttributeError:
+        return False

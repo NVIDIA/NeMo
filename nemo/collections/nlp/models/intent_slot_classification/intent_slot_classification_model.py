@@ -80,6 +80,7 @@ class IntentSlotClassificationModel(NLPModel):
             if self.cfg.language_model.config
             else None,
             checkpoint_file=self.cfg.language_model.lm_checkpoint,
+            vocab_file=cfg.tokenizer.vocab_file,
         )
 
         # Initialize Classifier.
