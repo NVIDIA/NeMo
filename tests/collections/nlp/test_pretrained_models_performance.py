@@ -52,7 +52,7 @@ def data_exists(data_dir):
     return os.path.exists(data_dir)
 
 
-class TestPretrainedModelPerformance(TestCase):
+class TestPretrainedModelPerformance:
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(
