@@ -39,7 +39,17 @@ import opencc
 from pangu import spacing
 
 
-class ChineseDetokenizer:
+class ChineseProcessor:
+    """
+    Tokenizer, Detokenizer and Normalizer utilities for Chinese.
+    """
+
+    def __init__(self):
+        self.normalizer = opencc.OpenCC('t2s.json')
+
+    def normalize(self, text: str) -> str:
+        return self.normalizer.convert(text)
+
     def detokenize(self, text: List[str]) -> str:
         RE_WS_IN_FW = re.compile(
             r'([\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])\s+(?=[\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])'
@@ -48,16 +58,6 @@ class ChineseDetokenizer:
         detokenize = lambda s: spacing(RE_WS_IN_FW.sub(r'\1', s)).strip()
         return detokenize(' '.join(text))
 
-
-class ChineseTokenizer:
-    def tokenize(self, text: str, escape=False, return_str=True):
+    def tokenize(self, text: str):
         text = jieba.cut(text)
-        return ' '.join(text) if return_str else text
-
-
-class Traditional2Simplified:
-    def __init__(self):
-        self.normalizer = opencc.OpenCC('t2s.json')
-
-    def normalize(self, text: str) -> str:
-        return self.normalizer.convert(text)
+        return ' '.join(text)
