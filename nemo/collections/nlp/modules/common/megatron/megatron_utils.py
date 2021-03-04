@@ -95,6 +95,7 @@ def get_megatron_lm_model(
     config_dict: Optional[dict] = None,
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
+    vocab_file: Optional[str] = None,
 ) -> Tuple[MegatronBertEncoder, str]:
     """
     Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
@@ -105,6 +106,7 @@ def get_megatron_lm_model(
         config_dict: model configuration parameters
         config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
         checkpoint_file: path to checkpoint file or directory if using model parallel.
+        vocab_file: path to vocab file
 
     Returns:
         model: MegatronBertEncoder
@@ -139,7 +141,8 @@ def get_megatron_lm_model(
     if not checkpoint_file:
         checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
 
-    vocab = get_megatron_vocab_file(pretrained_model_name)
+    if not vocab_file:
+        vocab_file = get_megatron_vocab_file(pretrained_model_name)
 
     # if checkpoint path is a directory, then we automatically compute model parallel size,
     # and model parallel rank
@@ -174,7 +177,7 @@ def get_megatron_lm_model(
     model = MegatronBertEncoder(
         model_name=pretrained_model_name,
         config=config,
-        vocab_file=vocab,
+        vocab_file=vocab_file,
         model_parallel_size=model_parallel_size,
         model_parallel_rank=model_parallel_rank,
     )
