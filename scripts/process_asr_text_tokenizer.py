@@ -70,8 +70,8 @@
 #       train_extremely_large_corpus=true". If your machine has large amounts of RAM, it might still be possible
 #       to build the tokenizer using the above flag. Will silently fail if it runs out of RAM.
 #
-#   --spe_max_sentencepiece_length: Limits the maximum length that any any subword can be. Using this will change
-#       the subword tokens generated.
+#   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiecesubword can be.
+#       Using this will change the subword tokens generated.
 #
 #   --log: Whether the script should display log messages
 
@@ -117,7 +117,7 @@ parser.add_argument(
     '--spe_max_sentencepiece_length',
     type=int,
     default=-1,
-    help='Limit the maximum number of tokens in each subword. '
+    help='Limit the maximum number of tokens in each SentencePiece subword. '
     'Must be a positive integer > 0. By default places no limit on subword length.',
 )
 parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
@@ -189,7 +189,7 @@ def __process_data(
             by given sample size.
         spe_train_extremely_large_corpus: bool. If dataset is too large, and user has sufficient RAM,
             this flag can be set to try to trained the tokenizer. Will silently fail if it runs out of RAM.
-        spe_max_sentencepiece_length: Limits the maximum length of the subword that can be constructed.
+        spe_max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
             By default, no limit is placed.
         lower_case: whether to tokenize with lower case character set only (for english)
 
