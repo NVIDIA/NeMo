@@ -16,41 +16,55 @@ import tarfile
 import os
 
 from shutil import copyfile
-from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel, EncDecSpeakerLabelModel
+from nemo.collections.asr.models import (
+    EncDecClassificationModel,
+    EncDecCTCModel,
+    EncDecSpeakerLabelModel,
+)
 from nemo.utils import logging
 
 
 def get_parser():
-    parser = argparse.ArgumentParser(description="Convert .nemo file to onnx file (encoder and decoder fused)")
+    parser = argparse.ArgumentParser(
+        description="Convert .nemo file to onnx file (encoder and decoder fused)"
+    )
     parser.add_argument(
         "--nemo_file", default=None, type=str, required=True, help="Path to .nemo file",
     )
     parser.add_argument(
-        "--onnx_file", default=None, type=str, required=True, help="Path to the onnx output",
+        "--onnx_file",
+        default=None,
+        type=str,
+        required=True,
+        help="Path to the onnx output",
     )
     parser.add_argument(
-        "--enemo_file", default=None, type=str, required=True, help="Path to the enemo output, consiting of onnx file",
+        "--enemo_file",
+        default=None,
+        type=str,
+        required=True,
+        help="Path to the enemo output, consiting of onnx file",
     )
     parser.add_argument(
         "--model_type",
-        default='asr',
+        default="asr",
         type=str,
-        choices=['asr', 'speech_label', 'speaker'],
+        choices=["asr", "speech_label", "speaker"],
         help="Type of decoder used by the model.",
     )
     return parser
 
 
 def main(
-    nemo_file, enemo_file, onnx_file, model_type='asr',
+    nemo_file, enemo_file, onnx_file, model_type="asr",
 ):
-    if model_type == 'asr':
+    if model_type == "asr":
         logging.info("Preparing ASR model")
         model = EncDecCTCModel.restore_from(nemo_file)
-    elif model_type == 'speech_label':
+    elif model_type == "speech_label":
         logging.info("Preparing Speech Label Classification model")
         model = EncDecClassificationModel.restore_from(nemo_file)
-    elif model_type == 'speaker':
+    elif model_type == "speaker":
         logging.info("Preparing Speaker Recognition model")
         model = EncDecSpeakerLabelModel.restore_from(nemo_file)
     else:
@@ -60,13 +74,14 @@ def main(
     model.export(onnx_file, onnx_opset_version=12)
     logging.info("succesfully ported onnx file")
 
-    with tarfile.open(nemo_file, 'r') as archive:
-        archive.extract('./model_config.yaml')
-        with tarfile.open(enemo_file, 'w') as enemo_archive:
-            enemo_archive.add('./model_config.yaml')
-            copyfile(onnx_file,"model_graph.onnx")
+    with tarfile.open(nemo_file, "r") as archive:
+        archive.extract("./model_config.yaml")
+        with tarfile.open(enemo_file, "w") as enemo_archive:
+            enemo_archive.add("./model_config.yaml")
+            copyfile(onnx_file, "model_graph.onnx")
             enemo_archive.add("model_graph.onnx")
-            os.remove("model_graph.onnx") # cleanup extra file
+            os.remove("model_graph.onnx")  # cleanup extra file
+
 
 if __name__ == "__main__":
     args = get_parser().parse_args()
