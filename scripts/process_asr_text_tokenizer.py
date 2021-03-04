@@ -15,7 +15,7 @@
 # USAGE: python process_asr_text_tokenizer.py --manifest=<path to train manifest files, seperated by commas> \
 #         --data_root="<output directory>" \
 #         --vocab_size=<number of tokens in vocabulary> \
-#         --tokenizer=<"bpe" or "wpe"> \
+#         --tokenizer=<"spe" or "wpe"> \
 #         --log
 # where <manifest> can be: train_clean_100, train_clean_360, train_other_500
 # You can also put more than one data_set comma-separated:
@@ -70,6 +70,9 @@
 #       train_extremely_large_corpus=true". If your machine has large amounts of RAM, it might still be possible
 #       to build the tokenizer using the above flag. Will silently fail if it runs out of RAM.
 #
+#   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiecesubword can be.
+#       Using this will change the subword tokens generated.
+#
 #   --log: Whether the script should display log messages
 
 
@@ -110,6 +113,13 @@ parser.add_argument(
     help="Samples the dataset by `sample_size` if positive integer, otherwise uses whole dataset",
 )
 parser.add_argument('--spe_train_extremely_large_corpus', action='store_true', help='')
+parser.add_argument(
+    '--spe_max_sentencepiece_length',
+    type=int,
+    default=-1,
+    help='Limit the maximum number of tokens in each SentencePiece subword. '
+    'Must be a positive integer > 0. By default places no limit on subword length.',
+)
 parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
 parser.add_argument("--log", action='store_true')
 parser.set_defaults(log=False, lower_case=True, spe_train_extremely_large_corpus=False)
@@ -162,6 +172,7 @@ def __process_data(
     spe_character_coverage: float,
     spe_train_extremely_large_corpus: bool,
     spe_sample_size: int,
+    spe_max_sentencepiece_length: int,
     lower_case: bool,
 ):
     """
@@ -178,6 +189,8 @@ def __process_data(
             by given sample size.
         spe_train_extremely_large_corpus: bool. If dataset is too large, and user has sufficient RAM,
             this flag can be set to try to trained the tokenizer. Will silently fail if it runs out of RAM.
+        spe_max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
+            By default, no limit is placed.
         lower_case: whether to tokenize with lower case character set only (for english)
 
     Returns:
@@ -201,6 +214,7 @@ def __process_data(
             tokenizer_type=spe_type,
             character_coverage=spe_character_coverage,
             train_extremely_large_corpus=spe_train_extremely_large_corpus,
+            max_sentencepiece_length=spe_max_sentencepiece_length,
         )
 
     else:
@@ -227,6 +241,7 @@ def main():
     spe_character_coverage = args.spe_character_coverage
     spe_sample_size = args.spe_sample_size
     spe_train_extremely_large_corpus = args.spe_train_extremely_large_corpus
+    spe_max_sentencepiece_length = args.spe_max_sentencepiece_length
     lower_case = args.lower_case
 
     if not os.path.exists(data_root):
@@ -249,6 +264,7 @@ def main():
         spe_character_coverage=spe_character_coverage,
         spe_sample_size=spe_sample_size,
         spe_train_extremely_large_corpus=spe_train_extremely_large_corpus,
+        spe_max_sentencepiece_length=spe_max_sentencepiece_length,
     )
 
     print("Serialized tokenizer at location :", tokenizer_path)
