@@ -86,13 +86,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
-        self.global_rank = 0
+        # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
-        self.local_rank = 0
         if trainer is not None:
-            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
             self.world_size = trainer.num_nodes * trainer.num_gpus
-            self.local_rank = trainer.local_rank
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
@@ -130,25 +127,34 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
         )
 
     @torch.no_grad()
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False) -> List[str]:
+    def transcribe(
+        self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False, return_hypotheses: bool = False
+    ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
         Args:
-
             paths2audio_files: (a list) of paths to audio files. \
-        Recommended length per file is between 5 and 25 seconds. \
-        But it is possible to pass a few hours long file if enough GPU memory is available.
-            batch_size: (int) batch size to use during inference. \
-        Bigger will result in better throughput performance but would use more memory.
+                Recommended length per file is between 5 and 25 seconds. \
+                But it is possible to pass a few hours long file if enough GPU memory is available.
+            batch_size: (int) batch size to use during inference.
+                Bigger will result in better throughput performance but would use more memory.
             logprobs: (bool) pass True to get log probabilities instead of transcripts.
+            return_hypotheses: (bool) Either return hypotheses or text
+                With hypotheses can do some postprocessing like getting timestamp or rescoring
 
         Returns:
-
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
+
+        if return_hypotheses and logprobs:
+            raise ValueError(
+                "Either `return_hypotheses` or `logprobs` can be True at any given time."
+                "Returned hypotheses will contain the logprobs."
+            )
+
         # We will store transcriptions here
         hypotheses = []
         # Model's mode and device
@@ -183,9 +189,17 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                         for idx in range(logits.shape[0]):
                             hypotheses.append(logits[idx][: logits_len[idx]])
                     else:
-                        hypotheses += self._wer.ctc_decoder_predictions_tensor(
-                            greedy_predictions, predictions_len=logits_len
+                        current_hypotheses = self._wer.ctc_decoder_predictions_tensor(
+                            greedy_predictions, predictions_len=logits_len, return_hypotheses=return_hypotheses,
                         )
+
+                        if return_hypotheses:
+                            # dump log probs per file
+                            for idx in range(logits.shape[0]):
+                                current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
+
+                        hypotheses += current_hypotheses
+
                     del greedy_predictions
                     del logits
                     del test_batch
