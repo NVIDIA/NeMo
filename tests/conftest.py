@@ -70,11 +70,11 @@ def cleanup_local_folder():
     yield
 
     if Path("./lightning_logs").exists():
-        rmtree('./lightning_logs')
+        rmtree('./lightning_logs', ignore_errors=True)
     if Path("./NeMo_experiments").exists():
-        rmtree('./NeMo_experiments')
+        rmtree('./NeMo_experiments', ignore_errors=True)
     if Path("./nemo_experiments").exists():
-        rmtree('./nemo_experiments')
+        rmtree('./nemo_experiments', ignore_errors=True)
 
 
 @pytest.fixture
