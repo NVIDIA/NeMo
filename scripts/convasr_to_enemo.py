@@ -12,38 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import tarfile
 import os
-
+import tarfile
 from shutil import copyfile
-from nemo.collections.asr.models import (
-    EncDecClassificationModel,
-    EncDecCTCModel,
-    EncDecSpeakerLabelModel,
-)
+
+from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel, EncDecSpeakerLabelModel
 from nemo.utils import logging
 
 
 def get_parser():
-    parser = argparse.ArgumentParser(
-        description="Convert .nemo file to onnx file (encoder and decoder fused)"
-    )
+    parser = argparse.ArgumentParser(description="Convert .nemo file to onnx file (encoder and decoder fused)")
     parser.add_argument(
         "--nemo_file", default=None, type=str, required=True, help="Path to .nemo file",
     )
     parser.add_argument(
-        "--onnx_file",
-        default=None,
-        type=str,
-        required=True,
-        help="Path to the onnx output",
+        "--onnx_file", default=None, type=str, required=True, help="Path to the onnx output",
     )
     parser.add_argument(
-        "--enemo_file",
-        default=None,
-        type=str,
-        required=True,
-        help="Path to the enemo output, consiting of onnx file",
+        "--enemo_file", default=None, type=str, required=True, help="Path to the enemo output, consiting of onnx file",
     )
     parser.add_argument(
         "--model_type",
