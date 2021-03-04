@@ -190,7 +190,7 @@ def create_spt_model(
     output_dir: Optional[str] = None,
     character_coverage: float = 1.0,
     train_extremely_large_corpus: bool = False,
-    max_sentencepiece_length: int = -1
+    max_sentencepiece_length: int = -1,
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -204,6 +204,8 @@ def create_spt_model(
         output_dir: folder to save created tokenizer model. If not specified will store model at data_file/../spt folder
         train_extremely_large_corpus: If training on huge datasets, pass this flag to allow SentencePiece
             to build the tokenizer.
+        max_sentencepiece_length: Limits the maximum length of the subword that can be constructed.
+            By default, no limit is placed.
     """
 
     if not data_file or not os.path.exists(data_file):
