@@ -15,7 +15,7 @@
 # USAGE: python process_asr_text_tokenizer.py --manifest=<path to train manifest files, seperated by commas> \
 #         --data_root="<output directory>" \
 #         --vocab_size=<number of tokens in vocabulary> \
-#         --tokenizer=<"bpe" or "wpe"> \
+#         --tokenizer=<"spe" or "wpe"> \
 #         --log
 # where <manifest> can be: train_clean_100, train_clean_360, train_other_500
 # You can also put more than one data_set comma-separated:
