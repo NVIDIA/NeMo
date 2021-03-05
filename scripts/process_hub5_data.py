@@ -11,18 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# USAGE: python get_aishell_data.py --data_root=<where to put data>
-#
-# USAGE:
-# python process_hub5_data.py \
-#   --data_root=<HUB5 root> \
-#   --dest_root=<destination dir root>
-#
-# Converts the .sph audio files in the HUB5 dataset to .wav, and performs some
-# extra processing to segment audio files and prepare transcripts.
-# Requires sph2pipe to be installed.
-#
+
 # This script is heavily derived from the Patter HUB5 processing script written
 # by Ryan Leary
 
