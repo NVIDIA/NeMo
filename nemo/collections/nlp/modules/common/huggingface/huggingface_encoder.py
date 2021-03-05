@@ -32,6 +32,8 @@ class HuggingFaceEncoderModule(EncoderModule):
     ):
         super().__init__()
 
+        # TODO: argument correctness checker
+
         model = None
         if model_name is not None:
             if model_name in get_huggingface_pretrained_lm_models_list():
