@@ -20,7 +20,6 @@ from nemo.collections.tts.models import Tacotron2Model
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
-
 # hydra_runner is a thin NeMo wrapper around Hydra
 # It looks for a config named tacotron2.yaml inside the conf folder
 # Hydra parses the yaml and returns it as a Omegaconf DictConfig
