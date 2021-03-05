@@ -189,6 +189,8 @@ def create_spt_model(
     tokenizer_type: str = 'unigram',
     output_dir: Optional[str] = None,
     character_coverage: float = 1.0,
+    train_extremely_large_corpus: bool = False,
+    max_sentencepiece_length: int = -1,
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -200,6 +202,10 @@ def create_spt_model(
         character_coverage: float value between 0 and 1 (as a percentage). For languages with a vast charset,
             can be < 1.0, but for all other languages, it should be set as 1.0
         output_dir: folder to save created tokenizer model. If not specified will store model at data_file/../spt folder
+        train_extremely_large_corpus: If training on huge datasets, pass this flag to allow SentencePiece
+            to build the tokenizer.
+        max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
+            By default, no limit is placed.
     """
 
     if not data_file or not os.path.exists(data_file):
@@ -227,6 +233,12 @@ def create_spt_model(
 
     if sample_size > 0:
         cmd += f" --input_sentence_size={sample_size}"
+
+    if train_extremely_large_corpus:
+        cmd += " --train_extremely_large_corpus=true"
+
+    if max_sentencepiece_length >= 0:
+        cmd += f" --max_sentencepiece_length={max_sentencepiece_length}"
 
     sentencepiece.SentencePieceTrainer.Train(cmd)
 
