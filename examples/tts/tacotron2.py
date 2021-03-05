@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-from pytorch_lightning.plugins import DDPPlugin
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import Tacotron2Model
@@ -26,7 +25,7 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf", config_name="tacotron2")
 def main(cfg):
     # Define the Lightning trainer
-    trainer = pl.Trainer(plugins=[DDPPlugin(find_unused_parameters=False)], **cfg.trainer)
+    trainer = pl.Trainer(**cfg.trainer)
     # exp_manager is a NeMo construct that helps with logging and checkpointing
     exp_manager(trainer, cfg.get("exp_manager", None))
     # Define the Tacotron 2 model, this will construct the model as well as
