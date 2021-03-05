@@ -12,6 +12,3 @@ megatron-lm==1.1.5
 inflect
 sacrebleu[ja]
 sacremoses>=0.0.43
-pangu
-jieba
-opencc
