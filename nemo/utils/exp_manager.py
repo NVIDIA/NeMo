@@ -155,7 +155,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     """
     # Add rank information to logger
     # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_gpus + trainer.local_rank
+    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
     logging.rank = global_rank
 
     if cfg is None:
@@ -211,7 +211,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     trainer._default_root_dir = log_dir
 
     # Handle Loggers by creating file and handle DEBUG statements
-    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{trainer.local_rank}.txt'
+    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
     logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
@@ -228,10 +228,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.wandb_logger_kwargs,
         )
 
-    if is_global_rank_zero():
-        if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
+    if cfg.create_checkpoint_callback:
+        configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
 
+    if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
             for _file in cfg.files_to_copy:
@@ -580,8 +580,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         super().__init__(**kwargs)
 
     @rank_zero_only
-    def on_save_checkpoint(self, trainer, pl_module):
-        output = super().on_save_checkpoint(trainer, pl_module)
+    def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
 
         if not self.always_save_nemo:
             return output
@@ -652,6 +652,10 @@ def configure_checkpointing(
         params.filename = f'--{{{params.monitor}:.2f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
+
+    logging.debug(params.dirpath)
+    logging.debug(params.filename)
+    logging.debug(params.prefix)
 
     if "val" in params.monitor and trainer.max_epochs != -1 and trainer.max_epochs < trainer.check_val_every_n_epoch:
         logging.error(
