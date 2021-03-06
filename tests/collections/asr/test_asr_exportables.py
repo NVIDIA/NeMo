@@ -65,7 +65,7 @@ class TestExportable:
     def test_EncDecCitrinetModel_export_to_onnx(self, citrinet_model):
         model = citrinet_model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join(tmpdir, 'sl.onnx')
+            filename = os.path.join('.', 'citri.onnx')
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
@@ -287,37 +287,8 @@ def citrinet_model():
         'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
         'params': {
             'feat_in': 640,
-            'num_classes': 28,
-            'vocabulary': [
-                ' ',
-                'a',
-                'b',
-                'c',
-                'd',
-                'e',
-                'f',
-                'g',
-                'h',
-                'i',
-                'j',
-                'k',
-                'l',
-                'm',
-                'n',
-                'o',
-                'p',
-                'q',
-                'r',
-                's',
-                't',
-                'u',
-                'v',
-                'w',
-                'x',
-                'y',
-                'z',
-                "'",
-            ],
+            'num_classes': 1024,
+            'vocabulary': list(chr(i%28) for i in range(0,1024))
         },
     }
 
