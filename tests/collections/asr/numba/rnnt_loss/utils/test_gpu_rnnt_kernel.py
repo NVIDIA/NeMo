@@ -5,7 +5,6 @@ from numba import cuda
 
 from nemo.collections.asr.parts.numba.rnnt_loss import rnnt_numpy
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt_kernel, reduce
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import certify_inputs
 
 
