@@ -114,10 +114,11 @@ class CPURNNT:
         self.num_threads_ = num_threads
         self.batch_first = batch_first
 
-        if num_threads > 0:
-            numba.set_num_threads(min(multiprocessing.cpu_count(), num_threads))
-        else:
-            self.num_threads_ = numba.get_num_threads()
+        if hasattr(numba, 'set_num_threads') or hasattr(numba, 'get_num_threads'):
+            if num_threads > 0:
+                numba.set_num_threads(min(multiprocessing.cpu_count(), num_threads))
+            else:
+                self.num_threads_ = numba.get_num_threads()
 
     def cost_and_grad_kernel(
         self,

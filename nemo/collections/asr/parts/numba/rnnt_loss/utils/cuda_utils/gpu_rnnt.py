@@ -38,10 +38,11 @@ class GPURNNT:
         self.num_threads_ = num_threads
         self.stream_ = stream  # type: cuda.cudadrv.driver.Stream
 
-        if num_threads > 0:
-            numba.set_num_threads(min(multiprocessing.cpu_count(), num_threads))
-        else:
-            self.num_threads_ = numba.get_num_threads()
+        if hasattr(numba, 'set_num_threads') or hasattr(numba, 'get_num_threads'):
+            if num_threads > 0:
+                numba.set_num_threads(min(multiprocessing.cpu_count(), num_threads))
+            else:
+                self.num_threads_ = numba.get_num_threads()
 
     def log_softmax(self, acts: torch.Tensor, denom: torch.Tensor):
         # // trans_acts + pred_acts -> log_softmax denominator
