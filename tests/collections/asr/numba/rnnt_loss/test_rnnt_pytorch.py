@@ -85,6 +85,22 @@ class TestRNNTLossPytorch:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
+    def test_case_small_random(self, device):
+        rng = np.random.RandomState(0)
+        acts = rng.randn(1, 4, 3, 3)
+        labels = [[1, 2]]
+
+        fn_pt = RNNTLoss(blank=0, reduction='sum')
+        pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
+
+        fn_np = RNNTLoss_Numpy()
+        np_cost, np_grads = wrap_and_call(fn_np, acts, labels, device)
+
+        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_random_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads), "small_random_test gradient mismatch."
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('device', DEVICES)
     def big_test(self, device):
 
         # minibatch x T x U x alphabet_size
@@ -197,6 +213,25 @@ class TestRNNTLossPytorch:
 
         assert np.allclose(pt_costs, np_costs), "big_test average costs mismatch."
         assert np.allclose(pt_grads, np_grads, rtol=1e-3), "big_test grads for average cost mismatch."
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('device', DEVICES)
+    def test_case_large_random(self, device):
+        rng = np.random.RandomState(0)
+        acts = rng.randn(4, 8, 11, 5)
+        labels = [[1, 2, 4, 3, 2, 2, 1, 1, 1, 1],
+                  [3, 2, 2, 3, 4, 1, 1, 1, 1, 1],
+                  [4, 4, 1, 2, 1, 3, 4, 3, 1, 2],
+                  [1, 1, 2, 1, 2, 3, 3, 1, 1, 1]]
+
+        fn_pt = RNNTLoss(blank=0, reduction='sum')
+        pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
+
+        fn_np = RNNTLoss_Numpy()
+        np_cost, np_grads = wrap_and_call(fn_np, acts, labels, device)
+
+        assert np.allclose(pt_cost, np_cost, atol=1e-5, rtol=1e-3), "large_random_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=1e-5, rtol=1e-3), "large_random_test gradient mismatch."
 
 
 if __name__ == "__main__":

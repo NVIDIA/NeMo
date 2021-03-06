@@ -54,7 +54,6 @@ class CpuRNNT_metadata:
     ):
         super(CpuRNNT_metadata, self).__init__()
 
-        print(bytes_used, workspace.shape)
         self.alphas = workspace[bytes_used : bytes_used + T * U]
         bytes_used += T * U
 
