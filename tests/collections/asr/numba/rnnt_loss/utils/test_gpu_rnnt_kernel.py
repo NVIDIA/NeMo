@@ -9,7 +9,7 @@ from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import certify_inpu
 
 
 def log_softmax(x, axis=-1):
-    x = torch.from_numpy(x)
+    x = torch.from_numpy(x)  # zero-copy
     x = torch.log_softmax(x, axis)
     x = x.numpy()
     return x
