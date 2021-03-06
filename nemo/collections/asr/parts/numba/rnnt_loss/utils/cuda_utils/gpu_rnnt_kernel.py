@@ -40,12 +40,12 @@ def compute_alphas_kernel(
     U = ylen[b] + 1  # +1 for the blank token
 
     labels: torch.Tensor = mlabels[b]  # equivalent to mlabels + b * (maxU - 1); // mb label start point
-    offset = (b * maxT * maxU)
+    offset = b * maxT * maxU
 
     # alphas = alphas[offset:]  # alphas += offset # pointer offset
 
     if u == 0:
-        alphas[0] = 0
+        alphas[offset] = 0
 
     cuda.syncthreads()
     for n in range(1, T + U - 1):
@@ -184,4 +184,3 @@ def compute_grad_kernel(
 
             grads[col * alphabet_size + idx] = grad
             idx += GPU_RNNT_THREAD_SIZE
-
