@@ -1,9 +1,9 @@
-import multiprocessing
-
-import torch
-import numba
 import math
+import multiprocessing
 from typing import Optional
+
+import numba
+import torch
 
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
 

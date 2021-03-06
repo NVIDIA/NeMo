@@ -1,11 +1,11 @@
-import torch
 import multiprocessing
+
+import torch
 from numba import cuda
 
+from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cpu_utils import cpu_rnnt
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import rnnt_helper
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
 
 
 def rnnt_loss_cpu(

@@ -1,11 +1,10 @@
 import math
-import torch
+
 import numba
+import torch
 from numba import cuda
 
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import rnnt_helper
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
-
+from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
 
 GPU_RNNT_THREAD_SIZE = 128
 

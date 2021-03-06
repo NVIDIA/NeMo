@@ -1,12 +1,12 @@
-import torch
-import numba
 import multiprocessing
-from numba import cuda
 from typing import Optional
 
-from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import reduce
-from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt_kernel
+import numba
+import torch
+from numba import cuda
+
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
+from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt_kernel, reduce
 
 
 class GPURNNT:

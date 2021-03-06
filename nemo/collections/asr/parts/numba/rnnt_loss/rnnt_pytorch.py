@@ -132,13 +132,17 @@ def certify_inputs(log_probs, labels, lengths, label_lengths):
     check_contiguous(lengths, "lengths")
 
     if lengths.shape[0] != log_probs.shape[0]:
-        raise ValueError(f"Must have a length per example. "
-                         f"Given lengths dim: {lengths.shape[0]}, "
-                         f"Log probs dim : {log_probs.shape[0]}")
+        raise ValueError(
+            f"Must have a length per example. "
+            f"Given lengths dim: {lengths.shape[0]}, "
+            f"Log probs dim : {log_probs.shape[0]}"
+        )
     if label_lengths.shape[0] != log_probs.shape[0]:
-        raise ValueError("Must have a label length per example. "
-                         f"Given label lengths dim : {label_lengths.shape[0]}, "
-                         f"Log probs dim : {log_probs.shape[0]}")
+        raise ValueError(
+            "Must have a label length per example. "
+            f"Given label lengths dim : {label_lengths.shape[0]}, "
+            f"Log probs dim : {log_probs.shape[0]}"
+        )
 
     check_dim(log_probs, 4, "log_probs")
     check_dim(labels, 2, "labels")

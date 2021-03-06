@@ -1,4 +1,5 @@
 import enum
+
 import numpy as np
 from numba import float32
 

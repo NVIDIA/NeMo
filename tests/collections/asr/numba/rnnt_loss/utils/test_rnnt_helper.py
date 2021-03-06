@@ -1,13 +1,11 @@
-import pytest
 import numpy as np
+import pytest
 from numba import cuda
 
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import rnnt_helper
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
+from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
 
 
 class TestRNNTHelper:
-
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_log_sum_exp(self):

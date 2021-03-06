@@ -5,9 +5,9 @@ from torch.nn import Module
 
 
 def _assert_no_grad(tensor):
-    assert not tensor.requires_grad, \
-        "gradients only computed for log_probs - please " \
-        "mark other tensors as not requiring gradients"
+    assert not tensor.requires_grad, (
+        "gradients only computed for log_probs - please " "mark other tensors as not requiring gradients"
+    )
 
 
 def forward_pass(log_probs, labels, blank):
@@ -56,7 +56,7 @@ def compute_gradient(log_probs, alphas, betas, labels, blank):
 
     grads[T - 1, U - 1, blank] = alphas[T - 1, U - 1]
 
-    grads[:T - 1, :, blank] = alphas[:T - 1, :] + betas[1:, :]
+    grads[: T - 1, :, blank] = alphas[: T - 1, :] + betas[1:, :]
     for u, l in enumerate(labels):
         grads[:, u, l] = alphas[:, u] + betas[:, u + 1]
 
@@ -88,7 +88,7 @@ def transduce_batch(log_probs, labels, flen, glen, blank=0):
     for b in range(log_probs.shape[0]):
         t = int(flen[b])
         u = int(glen[b]) + 1
-        ll, g = transduce(log_probs[b, :t, :u, :], labels[b, :u - 1], blank)
+        ll, g = transduce(log_probs[b, :t, :u, :], labels[b, : u - 1], blank)
         grads[b, :t, :u, :] = g
         costs.append(ll)
     return costs, grads
@@ -98,8 +98,9 @@ class _RNNT(Function):
     @staticmethod
     def forward(ctx, acts, labels, act_lens, label_lens):
         is_cuda = True if acts.is_cuda else False
-        costs, grads = transduce_batch(acts.detach().cpu().numpy(), labels.cpu().numpy(),
-                                       act_lens.cpu().numpy(), label_lens.cpu().numpy())
+        costs, grads = transduce_batch(
+            acts.detach().cpu().numpy(), labels.cpu().numpy(), act_lens.cpu().numpy(), label_lens.cpu().numpy()
+        )
 
         costs = torch.FloatTensor([sum(costs)])
         grads = torch.Tensor(grads).to(acts)

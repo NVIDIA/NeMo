@@ -1,10 +1,10 @@
-import math
 import enum
+import math
+
 import torch
 from numba import cuda
 
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import rnnt_helper
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
+from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
 
 warp_size = global_constants.warp_size()
 dtype = global_constants.dtype()
@@ -16,6 +16,7 @@ class I_Op(enum.Enum):
     """
     Represents an operation that is performed on the input tensor
     """
+
     EXPONENTIAL = 0
     IDENTITY = 1
 
@@ -24,6 +25,7 @@ class R_Op(enum.Enum):
     """
     Represents a reduction operation performed on the input tensor
     """
+
     ADD = 0
     MAXIMUM = 1
 

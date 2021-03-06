@@ -3,13 +3,12 @@ Tests for the C implementation of the sequence transducer.
 From outside the package directory, run
 `python -m transducer.test.`
 """
-import pytest
 import numpy as np
+import pytest
 import torch
 
-from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import RNNTLoss
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
-
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import RNNTLoss
 
 DEVICES = ['cpu']
 
@@ -40,7 +39,6 @@ def wrap_and_call(fn, acts, labels, device):
 
 
 class TestRNNTLossPytorch:
-
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_small(self, device):
@@ -219,10 +217,12 @@ class TestRNNTLossPytorch:
     def test_case_large_random(self, device):
         rng = np.random.RandomState(0)
         acts = rng.randn(4, 8, 11, 5)
-        labels = [[1, 2, 4, 3, 2, 2, 1, 1, 1, 1],
-                  [3, 2, 2, 3, 4, 1, 1, 1, 1, 1],
-                  [4, 4, 1, 2, 1, 3, 4, 3, 1, 2],
-                  [1, 1, 2, 1, 2, 3, 3, 1, 1, 1]]
+        labels = [
+            [1, 2, 4, 3, 2, 2, 1, 1, 1, 1],
+            [3, 2, 2, 3, 4, 1, 1, 1, 1, 1],
+            [4, 4, 1, 2, 1, 3, 4, 3, 1, 2],
+            [1, 1, 2, 1, 2, 3, 3, 1, 1, 1],
+        ]
 
         fn_pt = RNNTLoss(blank=0, reduction='sum')
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)

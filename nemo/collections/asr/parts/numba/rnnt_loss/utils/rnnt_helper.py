@@ -1,10 +1,10 @@
 import math
-import torch
-from numba import cuda
 from typing import Optional
 
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
+import torch
+from numba import cuda
 
+from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
 
 threshold = global_constants.THRESHOLD
 
@@ -68,7 +68,9 @@ def log_plus(p1: float, p2: float):
     return result
 
 
-def get_workspace_size(maxT: int, maxU: int, minibatch: int, gpu: bool) -> (Optional[int], global_constants.RNNTStatus):
+def get_workspace_size(
+    maxT: int, maxU: int, minibatch: int, gpu: bool
+) -> (Optional[int], global_constants.RNNTStatus):
 
     if minibatch <= 0 or maxT <= 0 or maxU <= 0:
         return (None, global_constants.RNNTStatus.RNNT_STATUS_INVALID_VALUE)
@@ -96,4 +98,3 @@ def flatten_tensor(x: torch.Tensor):
     original_shape = x.shape
     x = x.view([-1])
     return x, original_shape
-
