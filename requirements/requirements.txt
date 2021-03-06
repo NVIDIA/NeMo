@@ -16,4 +16,5 @@ tqdm>=4.41.0
 opencc
 pangu
 jieba
+llvmlite>=0.33.0
 numba>=0.52.0
