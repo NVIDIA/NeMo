@@ -13,17 +13,46 @@ CTA_REDUCE_SIZE = 128
 
 
 class I_Op(enum.Enum):
+    """
+    Represents an operation that is performed on the input tensor
+    """
     EXPONENTIAL = 0
     IDENTITY = 1
 
 
 class R_Op(enum.Enum):
+    """
+    Represents a reduction operation performed on the input tensor
+    """
     ADD = 0
     MAXIMUM = 1
 
 
 @cuda.jit(device=True)
 def CTAReduce(tid: int, x, storage, count: int, R_opid: int):
+    """
+    CUDA Warp reduction kernel.
+
+    It is a device kernel to be called by other kernels.
+
+    The data will be read from the right segement recursively, and reduced (ROP) onto the left half.
+    Operation continues while warp size is larger than a given offset.
+    Beyond this offset, warp reduction is performed via `shfl_down_sync`, which halves the reduction
+    space and sums the two halves at each call.
+
+    Note:
+        Efficient warp occurs at input shapes of 2 ^ K.
+
+    References:
+        - Warp Primitives [https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/]
+
+    Args:
+        tid: CUDA thread index
+        x: activation. Single float.
+        storage: shared memory of size CTA_REDUCE_SIZE used for reduction in parallel threads.
+        count: equivalent to num_rows, which is equivalent to alphabet_size (V+1)
+        R_opid: Operator ID for reduction. See R_Op for more information.
+    """
     storage[tid] = x
 
     cuda.syncthreads()
@@ -45,7 +74,7 @@ def CTAReduce(tid: int, x, storage, count: int, R_opid: int):
 
     offset = warp_size // 2
     while offset > 0:
-        # warp sync
+        # warp reduction and sync
         shuff = cuda.shfl_down_sync(0xFFFFFFFF, x, offset)
 
         if (tid + offset < count) and (tid < offset):
@@ -61,10 +90,33 @@ def CTAReduce(tid: int, x, storage, count: int, R_opid: int):
 
 @cuda.jit()
 def _reduce_rows(I_opid: int, R_opid: int, acts, output, num_rows: int):
+    """
+    CUDA Warp reduction kernel which reduces via the R_Op.Maximum
+
+    Reduces the input data such that I_Op = Identity and R_op = Maximum.
+    The result is stored in the blockIdx, and is stored as an identity op.
+
+    Note:
+        Efficient warp occurs at input shapes of 2 ^ K.
+
+    References:
+        - Warp Primitives [https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/]
+
+    Args:
+        I_opid: Operator ID for input. See I_Op for more information. For this kernel,
+            the Identity op is chosen in general, and therefore the input is reduced in place
+            without scaling.
+        R_opid: Operator ID for reduction. See R_Op for more information.
+            For this kernel, generally Maximum op is chosen. It reduces the kernel via max.
+        acts: Flatened activation matrix of shape [B * T * U * (V+1)].
+        output: Flatened output matrix of shape [B * T * U * (V+1)]. Data will be overwritten.
+        num_rows: Vocabulary size (including blank token) - V+1.
+    """
     tid = cuda.threadIdx.x
     idx = tid
     col = cuda.blockIdx.x
 
+    # allocate shared thread memory
     storage = cuda.shared.array(shape=(CTA_REDUCE_SIZE,), dtype=acts.dtype)
 
     max = output[col]
@@ -96,17 +148,40 @@ def _reduce_rows(I_opid: int, R_opid: int, acts, output, num_rows: int):
     # // Sum thread-totals over the CTA.
     curr = CTAReduce(tid, curr, storage, num_rows, R_opid)
 
-    # // Store result in out
+    # // Store result in out (inplace, I_op: identity)
     if tid == 0:
         output[col] = curr
 
 
 @cuda.jit()
 def _reduce_minus(I_opid: int, R_opid: int, acts, output, num_rows: int):
+    """
+    CUDA Warp reduction kernel which reduces via the R_Op.Add
+
+    Reduces the input data such that I_Op = Exponential and R_op = Add.
+    The result is stored in the blockIdx, and is stored as an exp op.
+
+    Note:
+        Efficient warp occurs at input shapes of 2 ^ K.
+
+    References:
+        - Warp Primitives [https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/]
+
+    Args:
+        I_opid: Operator ID for input. See I_Op for more information. For this kernel,
+            the Exponential op is chosen in general, and therefore the input is reduced in place
+            with scaling.
+        R_opid: Operator ID for reduction. See R_Op for more information.
+            For this kernel, generally Add op is chosen. It reduces the kernel via summation.
+        acts: Flatened activation matrix of shape [B * T * U * (V+1)].
+        output: Flatened output matrix of shape [B * T * U * (V+1)]. Data will be overwritten.
+        num_rows: Vocabulary size (including blank token) - V+1.
+    """
     tid = cuda.threadIdx.x
     idx = tid
     col = cuda.blockIdx.x
 
+    # allocate shared thread memory
     storage = cuda.shared.array(shape=(CTA_REDUCE_SIZE,), dtype=acts.dtype)
 
     max = output[col]
@@ -138,7 +213,7 @@ def _reduce_minus(I_opid: int, R_opid: int, acts, output, num_rows: int):
     # // Sum thread-totals over the CTA.
     curr = CTAReduce(tid, curr, storage, num_rows, R_opid)
 
-    # // Store result in out
+    # // Store result in out (inplace, I_op: exponential)
     if tid == 0:
         output[col] = -max - math.log(curr)
 
@@ -153,6 +228,31 @@ def ReduceHelper(
     minus: bool,
     stream,
 ):
+    """
+    CUDA Warp reduction kernel helper which reduces via the R_Op.Add and writes
+    the result to `output` according to I_op id.
+
+    The result is stored in the blockIdx.
+
+    Note:
+        Efficient warp occurs at input shapes of 2 ^ K.
+
+    References:
+        - Warp Primitives [https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/]
+
+    Args:
+        I_opid: Operator ID for input. See I_Op for more information.
+        R_opid: Operator ID for reduction. See R_Op for more information.
+        acts: Flatened activation matrix of shape [B * T * U * (V+1)].
+        output: Flatened output matrix of shape [B * T * U * (V+1)]. Data will be overwritten.
+        num_rows: Vocabulary size (including blank token) - V+1.
+            Represents the number of threads per block.
+        num_cols: Flattened shape of activation matrix, without vocabulary dimension (B * T * U).
+            Represents number of blocks per grid.
+        minus: Bool flag whether to add or subtract as reduction.
+            If minus is set; calls _reduce_minus, else calls _reduce_rows kernel.
+        stream: CUDA Stream.
+    """
     if minus:
         grid_size = num_cols
         # call kernel
@@ -167,6 +267,26 @@ def ReduceHelper(
 
 
 def reduce_exp(acts: torch.Tensor, denom, rows: int, cols: int, minus: bool, stream):
+    """
+    Helper method to call the Warp Reduction Kernel to perform `exp` reduction.
+
+    Note:
+        Efficient warp occurs at input shapes of 2 ^ K.
+
+    References:
+        - Warp Primitives [https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/]
+
+    Args:
+        acts: Flatened activation matrix of shape [B * T * U * (V+1)].
+        output: Flatened output matrix of shape [B * T * U * (V+1)]. Data will be overwritten.
+        rows: Vocabulary size (including blank token) - V+1.
+            Represents the number of threads per block.
+        cols: Flattened shape of activation matrix, without vocabulary dimension (B * T * U).
+            Represents number of blocks per grid.
+        minus: Bool flag whether to add or subtract as reduction.
+            If minus is set; calls _reduce_minus, else calls _reduce_rows kernel.
+        stream: CUDA Stream.
+    """
     return ReduceHelper(
         I_opid=I_Op.EXPONENTIAL.value,
         R_opid=R_Op.ADD.value,
@@ -180,6 +300,26 @@ def reduce_exp(acts: torch.Tensor, denom, rows: int, cols: int, minus: bool, str
 
 
 def reduce_max(acts: torch.Tensor, denom, rows: int, cols: int, minus: bool, stream):
+    """
+    Helper method to call the Warp Reduction Kernel to perform `max` reduction.
+
+    Note:
+        Efficient warp occurs at input shapes of 2 ^ K.
+
+    References:
+        - Warp Primitives [https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/]
+
+    Args:
+        acts: Flatened activation matrix of shape [B * T * U * (V+1)].
+        output: Flatened output matrix of shape [B * T * U * (V+1)]. Data will be overwritten.
+        rows: Vocabulary size (including blank token) - V+1.
+            Represents the number of threads per block.
+        cols: Flattened shape of activation matrix, without vocabulary dimension (B * T * U).
+            Represents number of blocks per grid.
+        minus: Bool flag whether to add or subtract as reduction.
+            If minus is set; calls _reduce_minus, else calls _reduce_rows kernel.
+        stream: CUDA Stream.
+    """
     return ReduceHelper(
         I_opid=I_Op.IDENTITY.value,
         R_opid=R_Op.MAXIMUM.value,
