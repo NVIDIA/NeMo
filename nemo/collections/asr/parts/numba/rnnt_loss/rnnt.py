@@ -116,8 +116,10 @@ def rnnt_loss_gpu(
 
     if hasattr(cuda, 'external_stream'):
         stream = cuda.external_stream(torch.cuda.current_stream(acts.device).cuda_stream)
-    else:
+    elif hasattr(cuda, 'default_stream'):
         stream = cuda.default_stream()
+    else:
+        stream = 0
 
     if num_threads < 0:
         num_threads = multiprocessing.cpu_count()

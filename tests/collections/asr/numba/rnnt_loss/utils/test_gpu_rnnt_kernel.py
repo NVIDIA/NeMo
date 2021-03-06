@@ -52,8 +52,10 @@ class TestRNNTCUDAKernels:
         device = torch.device('cuda')
         if hasattr(cuda, 'external_stream'):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
-        else:
+        elif hasattr(cuda, 'default_stream'):
             stream = cuda.default_stream()
+        else:
+            stream = 0
 
         x_c = torch.tensor(x, device=device, dtype=torch.float32)
         labels_c = torch.tensor(labels, device=device, dtype=torch.int32)
@@ -118,8 +120,10 @@ class TestRNNTCUDAKernels:
         device = torch.device('cuda')
         if hasattr(cuda, 'external_stream'):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
-        else:
+        elif hasattr(cuda, 'default_stream'):
             stream = cuda.default_stream()
+        else:
+            stream = 0
 
         x_c = torch.tensor(x, device=device, dtype=torch.float32)
         labels_c = torch.tensor(labels, device=device, dtype=torch.int32)
