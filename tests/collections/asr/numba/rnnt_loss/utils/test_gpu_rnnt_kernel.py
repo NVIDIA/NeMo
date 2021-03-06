@@ -50,7 +50,10 @@ class TestRNNTCUDAKernels:
 
         # Pytorch kernel
         device = torch.device('cuda')
-        stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
+        if hasattr(cuda, 'external_stream'):
+            stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
+        else:
+            stream = cuda.default_stream()
 
         x_c = torch.tensor(x, device=device, dtype=torch.float32)
         labels_c = torch.tensor(labels, device=device, dtype=torch.int32)
@@ -113,7 +116,10 @@ class TestRNNTCUDAKernels:
 
         # Pytorch kernel
         device = torch.device('cuda')
-        stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
+        if hasattr(cuda, 'external_stream'):
+            stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
+        else:
+            stream = cuda.default_stream()
 
         x_c = torch.tensor(x, device=device, dtype=torch.float32)
         labels_c = torch.tensor(labels, device=device, dtype=torch.int32)
