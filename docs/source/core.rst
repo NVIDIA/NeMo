@@ -165,9 +165,33 @@ However, virtually any aspect of training can be customized via PyTorch Lightnin
 `callbacks <https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html>`_, 
 or by overriding `methods <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#methods>`_. 
 
+Please see the NeMo ASR, NLP, TTS, collections documentation for more detailed examples.
 
 Trainer API
 ~~~~~~~~~~~
+Since every NeMo Model is a ``LightningModule``, we can automatically take advantage of the PyTorch Lightning ``Trainer``.
+Every NeMo `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the `Trainer` object
+to fit the model.
+
+First instantiate the model and trainer and then call ``.fit``:
+
+.. code-block:: python
+    
+    # We first instantiate the trainer based on the model configuration.
+    # See the model configuration documentation for details.    
+    trainer = pl.Trainer(**cfg.trainer)
+
+    # Then pass the model configuration and trainer object into the NeMo model
+    model = TextClassificationModel(cfg.model, trainer=trainer)
+
+    # Now we can train with by calling .fit
+    trainer.fit(model)
+
+    # Or we can run the test loop on test data by calling
+    trainer.test(model=model)
+    
+
+
 
 Model Configuration
 -------------------
