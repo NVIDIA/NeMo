@@ -41,11 +41,11 @@ class EnJaProcessor:
         """
         return self.moses_detokenizer.detokenize(tokens)
 
-    def tokenize(self, text) -> List[str]:
+    def tokenize(self, text) -> str:
         """
-        Tokenizes text using Moses.
+        Tokenizes text using Moses. Returns a string of tokens.
         """
-        return self.moses_tokenizer.tokenize(text)
+        return ' '.join(self.moses_tokenizer.tokenize(text))
 
     def normalize(self, text) -> str:
         # Normalization doesn't handle Japanese periods correctly;

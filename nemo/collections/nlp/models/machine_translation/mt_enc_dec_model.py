@@ -416,10 +416,8 @@ class MTEncDecModel(EncDecNLPModel):
             for txt in text:
                 if self.source_processor is not None:
                     txt = self.source_processor.normalize(txt)
-                    tokens = self.source_processor.tokenize(txt)
-                    ids = self.encoder_tokenizer.tokens_to_ids(tokens)
-                else:
-                    ids = self.encoder_tokenizer.text_to_ids(txt)
+                    txt = self.source_processor.tokenize(txt)
+                ids = self.encoder_tokenizer.text_to_ids(txt)
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 inputs.append(ids)
             max_len = max(len(txt) for txt in inputs)
