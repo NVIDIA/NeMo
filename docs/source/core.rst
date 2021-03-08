@@ -34,10 +34,16 @@ so that each can be configured from .yaml or the Hydra CLI.
 .. note:: Every NeMo model has an example configuration file and a corresponding script that contains all configurations needed for training.
 
 The end result of using NeMo, Pytorch Lightning, and Hydra is that
-NeMo models all have the same look and feel. This makes it easy to do Conversational AI research
-across multiple domains.
+NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem. 
+This makes it easy to do Conversational AI research across multiple domains.
 
-NeMo models are also fully compatible with the PyTorch ecosystem. 
+Model Training
+--------------
+NeMo leverages `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for model training.
+PyTorch Lightning lets NeMo decouple the Conversational AI code from the PyTorch training code. 
+This means that NeMo users can focus on their domain (ASR, NLP, TTS) and building complex AI applications
+without having to rewrite boiler plate code for PyTorch training.
+
 Every NeMo model is a ``LightningModule`` which is an ``nn.module``. 
 This means that NeMo models can be plugged into existing PyTorch workflows.
 
@@ -51,7 +57,6 @@ data pre/post processing, data augmentation, experiment logging/visualization, a
 Please see the `Hydra Tutorials <https://hydra.cc/docs/tutorials/intro>`_ for an introduction to using Hydra.
 
 With Hydra we can configure everything needed for NeMo with three interfaces: Command Line (CLI), Configuration Files (YAML), and Dataclasses (Python).
-
 
 YAML
 ~~~~
@@ -113,7 +118,7 @@ This is extremely helpful for running lots of experiments on compute clusters or
 for quickly testing parameters while developing.
 
 All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ come with instructions on how to 
-run the training/inference script from the command line, see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/speech_to_text.py#L24>`
+run the training/inference script from the command line, see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/speech_to_text.py#L24>`_
 for an example.
 
 With Hydra, arguments are set using the ``=`` operator:
@@ -137,7 +142,7 @@ We can use the ``+`` operator to add arguments from the CLI:
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
 
-And we can use the ``~`` operator to remove configurations:
+We can use the ``~`` operator to remove configurations:
 
 .. code-block:: bash
 
@@ -149,7 +154,7 @@ And we can use the ``~`` operator to remove configurations:
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
 
-Also, we can specify configuration files using the ``--config-path`` and ``--config-name`` flags:
+We can specify configuration files using the ``--config-path`` and ``--config-name`` flags:
 
 .. code-block:: bash
 
@@ -162,7 +167,6 @@ Also, we can specify configuration files using the ``--config-path`` and ``--con
         trainer.gpus=2 \
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
-
 
 
 Dataclasses
@@ -191,8 +195,6 @@ The model configuration can be instantiated and modified like any Python `Datacl
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
 
 
-PyTorch Lightning
------------------
 
 
 Experiment Manager
