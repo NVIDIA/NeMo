@@ -21,11 +21,7 @@ from torch.nn import functional as F
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.modules.talknet import (
-    GaussianEmbedding,
-    MaskedInstanceNorm1d,
-    StyleResidual,
-)
+from nemo.collections.tts.modules.talknet import GaussianEmbedding, MaskedInstanceNorm1d, StyleResidual
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 
@@ -67,22 +63,14 @@ class TalkNetDursModel(ModelPT):
     def training_step(self, batch, batch_idx):
         _, _, text, text_len, durs, *_ = batch
         pred_durs = self(text=text, text_len=text_len)
-        loss, acc = self._metrics(
-            true_durs=durs,
-            true_text_len=text_len,
-            pred_durs=pred_durs,
-        )
+        loss, acc = self._metrics(true_durs=durs, true_text_len=text_len, pred_durs=pred_durs,)
         train_log = {'train_loss': loss, 'train_acc': acc}
         return {'loss': loss, 'progress_bar': train_log, 'train_log': train_log}
 
     def validation_step(self, batch, batch_idx):
         _, _, text, text_len, durs, *_ = batch
         pred_durs = self(text=text, text_len=text_len)
-        loss, acc = self._metrics(
-            true_durs=durs,
-            true_text_len=text_len,
-            pred_durs=pred_durs,
-        )
+        loss, acc = self._metrics(true_durs=durs, true_text_len=text_len, pred_durs=pred_durs,)
         return {'loss': loss, 'acc': acc}
 
     def validation_epoch_end(self, outputs):
@@ -95,9 +83,7 @@ class TalkNetDursModel(ModelPT):
     def _loader(cfg):
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset,
-            collate_fn=dataset.collate_fn,
-            **cfg.dataloader_params,
+            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -143,20 +129,14 @@ class TalkNetPitchModel(ModelPT):
     def _metrics(self, true_f0, true_f0_mask, pred_f0_sil, pred_f0_body):
         sil_mask = true_f0 < 1e-5
         sil_gt = sil_mask.long()
-        sil_loss = F.binary_cross_entropy_with_logits(
-            input=pred_f0_sil,
-            target=sil_gt.float(),
-            reduction='none',
-        )
+        sil_loss = F.binary_cross_entropy_with_logits(input=pred_f0_sil, target=sil_gt.float(), reduction='none',)
         sil_loss *= true_f0_mask.type_as(sil_loss)
         sil_loss = sil_loss.sum() / true_f0_mask.sum()
         sil_acc = ((torch.sigmoid(pred_f0_sil) > 0.5).long() == sil_gt).float()  # noqa
         sil_acc *= true_f0_mask.type_as(sil_acc)
         sil_acc = sil_acc.sum() / true_f0_mask.sum()
 
-        body_mse = F.mse_loss(
-            pred_f0_body, (true_f0 - self.F0_MEAN) / self.F0_STD, reduction='none'
-        )
+        body_mse = F.mse_loss(pred_f0_body, (true_f0 - self.F0_MEAN) / self.F0_STD, reduction='none')
         body_mask = ~sil_mask
         body_mse *= body_mask.type_as(body_mse)  # noqa
         body_mse = body_mse.sum() / body_mask.sum()  # noqa
@@ -172,10 +152,7 @@ class TalkNetPitchModel(ModelPT):
         _, audio_len, text, text_len, durs, f0, f0_mask = batch
         pred_f0_sil, pred_f0_body = self(text=text, text_len=text_len, durs=durs)
         loss, sil_acc, body_mae = self._metrics(
-            true_f0=f0,
-            true_f0_mask=f0_mask,
-            pred_f0_sil=pred_f0_sil,
-            pred_f0_body=pred_f0_body,
+            true_f0=f0, true_f0_mask=f0_mask, pred_f0_sil=pred_f0_sil, pred_f0_body=pred_f0_body,
         )
         train_log = {'train_loss': loss, 'train_sil_acc': sil_acc, 'train_body_mae': body_mae}
         return {'loss': loss, 'progress_bar': train_log, 'train_log': train_log}
@@ -184,10 +161,7 @@ class TalkNetPitchModel(ModelPT):
         _, _, text, text_len, durs, f0, f0_mask = batch
         pred_f0_sil, pred_f0_body = self(text=text, text_len=text_len, durs=durs)
         loss, sil_acc, body_mae = self._metrics(
-            true_f0=f0,
-            true_f0_mask=f0_mask,
-            pred_f0_sil=pred_f0_sil,
-            pred_f0_body=pred_f0_body,
+            true_f0=f0, true_f0_mask=f0_mask, pred_f0_sil=pred_f0_sil, pred_f0_body=pred_f0_body,
         )
         return {'loss': loss, 'sil_acc': sil_acc, 'body_mae': body_mae}
 
@@ -202,9 +176,7 @@ class TalkNetPitchModel(ModelPT):
     def _loader(cfg):
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset,
-            collate_fn=dataset.collate_fn,
-            **cfg.dataloader_params,
+            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -282,9 +254,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
     def _loader(cfg):
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
-            dataset=dataset,
-            collate_fn=dataset.collate_fn,
-            **cfg.dataloader_params,
+            dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
 
     def setup_training_data(self, cfg):
@@ -311,10 +281,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
         # Durs
         text = [
             AudioToCharWithDursF0Dataset.interleave(
-                x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device).fill_(
-                    self.vocab.blank
-                ),
-                y=t,
+                x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device).fill_(self.vocab.blank), y=t,
             )
             for t in tokens
         ]

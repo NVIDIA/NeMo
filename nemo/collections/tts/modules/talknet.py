@@ -25,11 +25,7 @@ class GaussianEmbedding(nn.Module):
     EPS = 1e-6
 
     def __init__(
-        self,
-        vocab,
-        d_emb,
-        sigma_c=2.0,
-        merge_blanks=False,
+        self, vocab, d_emb, sigma_c=2.0, merge_blanks=False,
     ):
         super().__init__()
 
@@ -58,12 +54,7 @@ class GaussianEmbedding(nn.Module):
         assert c.shape == sigmas.shape
 
         # Times at indexes
-        t = (
-            torch.arange(total_time, device=c.device)
-            .view(1, -1, 1)
-            .repeat(durs.shape[0], 1, durs.shape[-1])
-            .float()
-        )
+        t = torch.arange(total_time, device=c.device).view(1, -1, 1).repeat(durs.shape[0], 1, durs.shape[-1]).float()
         t = t + 0.5
 
         ns = slice(None)
@@ -137,11 +128,7 @@ class StyleResidual(nn.Module):
         super().__init__()
 
         self.rs = nn.Conv1d(
-            in_channels=d_style,
-            out_channels=d_channel,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=kernel_size // 2,
+            in_channels=d_style, out_channels=d_channel, kernel_size=kernel_size, stride=1, padding=kernel_size // 2,
         )
 
     def forward(self, x: torch.Tensor, s: torch.Tensor) -> torch.Tensor:
