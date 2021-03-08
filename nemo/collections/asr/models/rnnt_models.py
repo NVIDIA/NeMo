@@ -160,6 +160,10 @@ class EncDecRNNTModel(ASRModel):
         try:
             # Switch model to evaluation mode
             self.eval()
+            # Freeze the encoder and decoder modules
+            self.encoder.freeze()
+            self.decoder.freeze()
+            self.joint.freeze()
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
@@ -185,6 +189,10 @@ class EncDecRNNTModel(ASRModel):
             # set mode back to its original value
             self.train(mode=mode)
             logging.set_verbosity(logging_level)
+            if mode is True:
+                self.encoder.unfreeze()
+                self.decoder.unfreeze()
+                self.joint.unfreeze()
         return hypotheses
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
