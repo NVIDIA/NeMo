@@ -44,8 +44,130 @@ PyTorch Lightning lets NeMo decouple the Conversational AI code from the PyTorch
 This means that NeMo users can focus on their domain (ASR, NLP, TTS) and building complex AI applications
 without having to rewrite boiler plate code for PyTorch training.
 
+When using PyTorch Lightning, NeMo users can automatically train with:
+- multi-gpu/multi-node
+- mixed precision
+- model checkpointing
+- logging
+- early stopping
+- and more
+
+The two main aspects of the Lightning API are the `LightningModule <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#>`_ 
+and the `Trainer <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html>`_.
+
+LightningModule API
+~~~~~~~~~~~~~~~~~~~
 Every NeMo model is a ``LightningModule`` which is an ``nn.module``. 
-This means that NeMo models can be plugged into existing PyTorch workflows.
+This means that NeMo models are compatible with the PyTorch ecosystem and
+can be plugged into existing PyTorch workflows.
+
+Hence, creating a NeMo Model (also LightningModule) is similar to any other PyTorch workflow.
+We start by initializing our model architecture and then define the forward pass:
+
+.. code-block:: python
+
+    class TextClassificationModel(NLPModel, Exportable):
+        ...
+        def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+            """Initializes the BERTTextClassifier model."""
+            ...
+            super().__init__(cfg=cfg, trainer=trainer)
+
+            # instantiate a BERT based encoder
+            self.bert_model = get_lm_model(
+                pretrained_model_name=cfg.language_model.pretrained_model_name,
+                config_file=cfg.language_model.config_file,
+                config_dict=cfg.language_model.config,
+                checkpoint_file=cfg.language_model.lm_checkpoint,
+                vocab_file=cfg.tokenizer.vocab_file,
+            )
+
+            # instantiate the FFN for classification
+            self.classifier = SequenceClassifier(
+                hidden_size=self.bert_model.config.hidden_size,
+                num_classes=cfg.dataset.num_classes,
+                num_layers=cfg.classifier_head.num_output_layers,
+                activation='relu',
+                log_softmax=False,
+                dropout=cfg.classifier_head.fc_dropout,
+                use_transformer_init=True,
+                idx_conditioned_on=0,
+            )
+
+.. code-block:: python
+
+        def forward(self, input_ids, token_type_ids, attention_mask):
+            """
+            No special modification required for Lightning, define it as you normally would
+            in the `nn.Module` in vanilla PyTorch.
+            """
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
+            logits = self.classifier(hidden_states=hidden_states)
+            return logits
+
+
+The LightningModule organizes PyTorch code so that across all NeMo models we have a similar look and feel.
+For example, the training logic can be found in ``training_step``:
+
+.. code-block:: python
+
+    def training_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the training loop with the data from the training dataloader
+        passed in as `batch`.
+        """
+        # forward pass
+        input_ids, input_type_ids, input_mask, labels = batch
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+
+        train_loss = self.loss(logits=logits, labels=labels)
+
+        lr = self._optimizer.param_groups[0]['lr']
+
+        self.log('train_loss', train_loss)
+        self.log('lr', lr, prog_bar=True)
+
+        return {
+            'loss': train_loss,
+            'lr': lr,
+        }
+
+While validation logic can be found in ``validation_step``:
+
+.. code-block:: python
+
+    def validation_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the validation loop with the data from the validation dataloader
+        passed in as `batch`.
+        """
+        if self.testing:
+            prefix = 'test'
+        else:
+            prefix = 'val'
+
+        input_ids, input_type_ids, input_mask, labels = batch
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+
+        val_loss = self.loss(logits=logits, labels=labels)
+
+        preds = torch.argmax(logits, axis=-1)
+
+        tp, fn, fp, _ = self.classification_report(preds, labels)
+
+        return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+
+PyTorch Lightning then handles all of the boiler plate code needed for training.
+However, virtually any aspect of training can be customized via PyTorch Lightning `hooks <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#hooks>`_, 
+`Plugins <https://pytorch-lightning.readthedocs.io/en/stable/extensions/plugins.html>`_, 
+`callbacks <https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html>`_, 
+or by overriding `methods <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#methods>`_. 
+
+
+Trainer API
+~~~~~~~~~~~
 
 Model Configuration
 -------------------
