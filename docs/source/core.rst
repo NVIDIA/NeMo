@@ -52,7 +52,6 @@ Please see the `Hydra Tutorials <https://hydra.cc/docs/tutorials/intro>`_ for an
 
 With Hydra we can configure everything needed for NeMo with three interfaces: Command Line (CLI), Configuration Files (YAML), and Dataclasses (Python).
 
-.. note:: With the Hydra CLI we can use `+` to add configurations and `~` to remove configurations.
 
 YAML
 ~~~~
@@ -85,15 +84,15 @@ more detaied information on Model architecture configuration.
     # model network architecture, train/val/test datasets, data augmentation, and optimization
     model:
         train_ds:
-            manifest_filepath: /path/to/my/train/manifest
+            manifest_filepath: /path/to/my/train/manifest.json
             batch_size: 256
             shuffle: True
         validation_ds:
-            manifest_filepath: /path/to/my/validation/manifest
+            manifest_filepath: /path/to/my/validation/manifest.json
             batch_size: 32
             shuffle: False
         test_ds:
-            manifest_filepath: /path/to/my/test/manifest
+            manifest_filepath: /path/to/my/test/manifest.json
             batch_size: 32
             shuffle: False
         optim:
@@ -109,6 +108,62 @@ more detaied information on Model architecture configuration.
         
 CLI
 ~~~
+With NeMo and Hydra, every aspect of model training can modified from the command line. 
+This is extremely helpful for running lots of experiments on compute clusters or 
+for quickly testing parameters while developing.
+
+All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ come with instructions on how to 
+run the training/inference script from the command line, see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/speech_to_text.py#L24>`
+for an example.
+
+With Hydra, arguments are set using the ``=`` operator:
+
+.. code-block:: bash
+
+    python examples/asr/speech_to_text.py \
+        model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
+        model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
+        trainer.gpus=2 \
+        trainer.max_epochs=50
+
+We can use the ``+`` operator to add arguments from the CLI:
+
+.. code-block:: bash
+
+    python examples/asr/speech_to_text.py \
+        model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
+        model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
+        trainer.gpus=2 \
+        trainer.max_epochs=50 \
+        +trainer.fast_dev_run=true
+
+And we can use the ``~`` operator to remove configurations:
+
+.. code-block:: bash
+
+    python examples/asr/speech_to_text.py \
+        model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
+        model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
+        ~model.test_ds \
+        trainer.gpus=2 \
+        trainer.max_epochs=50 \
+        +trainer.fast_dev_run=true
+
+Also, we can specify configuration files using the ``--config-path`` and ``--config-name`` flags:
+
+.. code-block:: bash
+
+    python examples/asr/speech_to_text.py \
+        --config-path=conf \
+        --config-name=quartznet_15x5 \
+        model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
+        model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
+        ~model.test_ds \
+        trainer.gpus=2 \
+        trainer.max_epochs=50 \
+        +trainer.fast_dev_run=true
+
+
 
 Dataclasses
 ~~~~~~~~~~~
