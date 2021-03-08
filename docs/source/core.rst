@@ -15,6 +15,7 @@ mixed-precision training.
 
 NeMo Models
 -----------
+
 NeMo Models contain everything needed to train and reproduce state of the art Conversational AI
 research and applications, including:
 
@@ -29,7 +30,7 @@ research and applications, including:
 NeMo uses `Hydra <https://hydra.cc/>`_ for configuring both NeMo models and the PyTorch Lightning Trainer.
 Depending on the domain and application, many different AI libraries will have to be configured
 to build the application. Hydra makes it easy to bring all of these libraries together
-so that each can be configured from .yaml or the Hydra CLI.
+so that each can be configured from YAML or the Hydra CLI.
 
 .. note:: Every NeMo model has an example configuration file and a corresponding script that contains all configurations needed for training.
 
@@ -55,8 +56,9 @@ When using PyTorch Lightning, NeMo users can automatically train with:
 The two main aspects of the Lightning API are the `LightningModule <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#>`_ 
 and the `Trainer <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html>`_.
 
-LightningModule API
-~~~~~~~~~~~~~~~~~~~
+PyTorch Lightning LightningModule
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Every NeMo model is a ``LightningModule`` which is an ``nn.module``. 
 This means that NeMo models are compatible with the PyTorch ecosystem and
 can be plugged into existing PyTorch workflows.
@@ -167,8 +169,10 @@ or by overriding `methods <https://pytorch-lightning.readthedocs.io/en/stable/co
 
 Please see the NeMo ASR, NLP, TTS, collections documentation for more detailed examples.
 
-Trainer API
-~~~~~~~~~~~
+
+PyTorch Lightning Trainer
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Since every NeMo Model is a ``LightningModule``, we can automatically take advantage of the PyTorch Lightning ``Trainer``.
 Every NeMo `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the ``trainer`` object
 to fit the model.
@@ -194,10 +198,9 @@ All `trainer flags <https://pytorch-lightning.readthedocs.io/en/stable/common/tr
 can be set from from the NeMo Configuration, see below for more details on model configuration.
     
 
-
-
 Model Configuration
 -------------------
+
 Hydra is an open-source Python framework that simplifies configuration for complex applications
 that must bring together many different software libraries. Conversational AI is great examples of such an application.
 To build a Conversational AI application, we must be able to configure the neural network architectures, training and optimization algorithms, 
@@ -343,26 +346,25 @@ The model configuration can be instantiated and modified like any Python `Datacl
 
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
 
-
-
-
 Experiment Manager
 ------------------
 NeMo's Experiment Manager leverages PyTorch Lightning for model checkpointing, 
 TensorBoard Logging, and Weights and Biases logging. The Experiment Manager is included by default
 in all NeMo example scripts.
 
+To use the experiment manager simply call it and pass in the PyTorch Lightning ``Trainer``.
+
 .. code-block:: python
 
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-And is configurable via .yaml with Hydra.
+And is configurable via YAML with Hydra.
 
 .. code-block:: bash
 
     exp_manager:
-        exp_dir: null
-        name: *name
+        exp_dir: /path/to/my/experiments
+        name: my_experiment_name
         create_tensorboard_logger: True
         create_checkpoint_callback: True
 
@@ -373,7 +375,43 @@ Optionally launch Tensorboard to view training results in ./nemo_experiments (by
     tensorboard --bind_all --logdir nemo_experiments
 
 ..
-    TODO: add auto resume docs here
+
+If ``create_checkpoint_callback`` is set to ``True`` then NeMo will automatically create checkpoints during training
+using PyTorch Lightning's `ModelCheckpoint <https://pytorch-lightning.readthedocs.io/en/stable/extensions/generated/pytorch_lightning.callbacks.ModelCheckpoint.html#pytorch_lightning.callbacks.ModelCheckpoint>`_
+We can configure the ``ModelCheckpoint`` via YAML or CLI.
+
+.. code-block:: yaml
+
+    exp_manager:
+        ...
+        # configure the PyTorch Lightning ModelCheckpoint using checkpoint_call_back_params
+        # any ModelCheckpoint argument can be set here
+
+        # save the best checkpoints based on this metric
+        checkpoint_callback_params.monitor=val_loss 
+        
+        # choose how many total checkpoints to save
+        checkpoint_callback_params.save_top_k=5
+
+We can auto-resume training as well by configuring the exp_manager. 
+Being able to auto-resume is important when doing long training runs that are premptible or 
+may be shut down before the training procedure has completed.
+To auto-resume training set the following via YAML or CLI:
+
+.. code-block:: yaml
+
+    exp_manager:
+        ...
+        # resume training if checkpoints already exist
+        resume_if_exists: True
+
+        # to start training with no existing checkpoints
+        resume_ignore_no_checkpoint: True
+
+        # by default experiments will be versioned by datetime
+        # we can set our own version with
+        exp_manager.version: my_experiment_version
+
 
 Neural Module
 -------------
