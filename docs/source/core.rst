@@ -48,8 +48,14 @@ that must bring together many different software libraries. Conversational AI is
 To build a Conversational AI application, we must be able to configure the neural network architectures, training and optimization algorithms, 
 data pre/post processing, data augmentation, experiment logging/visualization, and model checkpointing.   
 
+Please see the `Hydra Tutorials <https://hydra.cc/docs/tutorials/intro>`_ for an introduction to using Hydra.
+
 With Hydra we can configure everything needed for NeMo with three interfaces: Command Line (CLI), Configuration Files (YAML), and Dataclasses (Python).
 
+.. note:: With the Hydra CLI we can use `+` to add configurations and `~` to remove configurations.
+
+YAML
+~~~~
 NeMo provides YAML configuration files for all of our `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training scripts.
 YAML files make it easy to experiment with different model and training configurations.
 
@@ -101,7 +107,11 @@ more detaied information on Model architecture configuration.
         decoder:
             ...
         
+CLI
+~~~
 
+Dataclasses
+~~~~~~~~~~~
 Dataclasses allow NeMo to ship model configurations as part of the NeMo library and 
 also enables pure Python configuration of NeMo models. 
 With Hydra, dataclasses can be used to create `structured configs <https://hydra.cc/docs/tutorials/structured_config/intro>`_ 
@@ -123,13 +133,8 @@ The model configuration can be instantiated and modified like any Python `Datacl
     # modify the training batch size
     cfg.train_ds.tokens_in_batch = 8192
 
-
-
-
-
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
 
-Please see the `Hydra Tutorials <https://hydra.cc/docs/tutorials/intro>`_ for a great introduction to using Hydra.
 
 PyTorch Lightning
 -----------------
