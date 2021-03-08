@@ -35,7 +35,11 @@ so that each can be configured from .yaml or the Hydra CLI.
 
 The end result of using NeMo, Pytorch Lightning, and Hydra is that
 NeMo models all have the same look and feel. This makes it easy to do Conversational AI research
-across multiple domains. NeMo models are also fully compatible with the PyTorch ecosystem.
+across multiple domains.
+
+NeMo models are also fully compatible with the PyTorch ecosystem. 
+Every NeMo model is a ``LightningModule`` which is an ``nn.module``. 
+This means that NeMo models can be plugged into existing PyTorch workflows.
 
 Model Configuration
 -------------------
@@ -44,12 +48,15 @@ that must bring together many different software libraries. Conversational AI is
 To build a Conversational AI application, we must be able to configure the neural network architectures, training and optimization algorithms, 
 data pre/post processing, data augmentation, experiment logging/visualization, and model checkpointing.   
 
-With Hydra we can configure everything needed for NeMo with three interfaces: CLI, YAML files, and Python Dataclasses.
+With Hydra we can configure everything needed for NeMo with three interfaces: Command Line (CLI), Configuration Files (YAML), and Dataclasses (Python).
 
 NeMo provides YAML configuration files for all of our `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training scripts.
 YAML files make it easy to experiment with different model and training configurations.
 
-Every NeMo example YAML has the same underlying configuration structure:
+Every NeMo example YAML has the same underlying configuration structure: trainer, exp_manager, and model.
+Model configuration always contain train_ds, validation_ds, test_ds, and optim. 
+Model architectures vary across domains so please see the ASR, NLP, and TTS Collections documentation for 
+more detaied information on Model architecture configuration.
 
 .. code-block:: yaml
 
