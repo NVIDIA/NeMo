@@ -170,7 +170,7 @@ Please see the NeMo ASR, NLP, TTS, collections documentation for more detailed e
 Trainer API
 ~~~~~~~~~~~
 Since every NeMo Model is a ``LightningModule``, we can automatically take advantage of the PyTorch Lightning ``Trainer``.
-Every NeMo `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the `Trainer` object
+Every NeMo `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the ``trainer`` object
 to fit the model.
 
 First instantiate the model and trainer and then call ``.fit``:
@@ -189,6 +189,9 @@ First instantiate the model and trainer and then call ``.fit``:
 
     # Or we can run the test loop on test data by calling
     trainer.test(model=model)
+
+All `trainer flags <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-flags>`_ 
+can be set from from the NeMo Configuration, see below for more details on model configuration.
     
 
 
