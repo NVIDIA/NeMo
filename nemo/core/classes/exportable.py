@@ -19,7 +19,6 @@ from typing import Dict
 
 import onnx
 import torch
-import trtorch
 
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
@@ -203,12 +202,6 @@ class Exportable(ABC):
                 if format == ExportFormat.TORCHSCRIPT:
                     jitted_model.save(output)
                     assert os.path.exists(output)
-                    # Compile module with TRTorch
-                    shapes = [i.shape for i in input_example]
-                    compiled_trt_model = trtorch.compile(
-                        jitted_model, {"input_shapes": shapes, "op_precision": torch.half,}  # Run in FP16
-                    )
-                    results = compiled_trt_model(data.half())
 
                 elif format == ExportFormat.ONNX:
                     if jitted_model is None:
