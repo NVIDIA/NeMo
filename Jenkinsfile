@@ -343,7 +343,7 @@ pipeline {
             steps {
             sh 'cd tools/ctc_segmentation && \
             pip install -r requirements.txt && \
-            apt-get install -y ffmpeg'
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg'
             }
         }
 
