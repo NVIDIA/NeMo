@@ -265,7 +265,7 @@ class MTEncDecModel(EncDecNLPModel):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.log_dict(self.eval_epoch_end(outputs, 'val'))
+        self.log_dict(self.eval_epoch_end(outputs, 'val'), sync_dist=True)
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
