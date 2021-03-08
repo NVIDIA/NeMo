@@ -59,4 +59,5 @@ class ChineseProcessor:
         return detokenize(' '.join(text))
 
     def tokenize(self, text: str) -> str:
-        return ' '.join(jieba.cut(text))
+        text = jieba.cut(text)
+        return ' '.join(text)
