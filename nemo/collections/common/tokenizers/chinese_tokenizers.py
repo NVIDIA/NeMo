@@ -58,6 +58,6 @@ class ChineseProcessor:
         detokenize = lambda s: spacing(RE_WS_IN_FW.sub(r'\1', s)).strip()
         return detokenize(' '.join(text))
 
-    def tokenize(self, text: str):
+    def tokenize(self, text: str) -> str:
         text = jieba.cut(text)
         return ' '.join(text)
