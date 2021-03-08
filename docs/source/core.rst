@@ -94,7 +94,7 @@ more detaied information on Model architecture configuration.
             name: novograd
             lr: .01
             betas: [0.8, 0.5]
-            weight_decary: 0.001
+            weight_decay: 0.001
         # network architecture can vary greatly depending on the domain
         encoder:
             ...
@@ -103,9 +103,13 @@ more detaied information on Model architecture configuration.
         
 
 Dataclasses allow NeMo to ship model configurations as part of the NeMo library and 
-also enables pure Python configuration of NeMo models.
+also enables pure Python configuration of NeMo models. 
+With Hydra, dataclasses can be used to create `structured configs <https://hydra.cc/docs/tutorials/structured_config/intro>`_ 
+for the Conversational AI application. 
 
-As an example, see the code block below for an Attenion is All You Need machine translation model:
+As an example, see the code block below for an Attenion is All You Need machine translation model.
+The model configuration can be instantiated and modified like any Python `Dataclass <https://docs.python.org/3/library/dataclasses.html>`_.
+
 
 .. code-block:: Python
 
