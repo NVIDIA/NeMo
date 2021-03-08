@@ -285,11 +285,7 @@ def citrinet_model():
 
     decoder = {
         'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
-        'params': {
-            'feat_in': 640,
-            'num_classes': 1024,
-            'vocabulary': list(chr(i%28) for i in range(0,1024))
-        },
+        'params': {'feat_in': 640, 'num_classes': 1024, 'vocabulary': list(chr(i % 28) for i in range(0, 1024))},
     }
 
     modelConfig = DictConfig(

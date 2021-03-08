@@ -122,6 +122,7 @@ class TransformerDecoder(nn.Module):
             pre_ln,
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
+        self.diagonal = 0
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
         if decoder_mems_list is not None:
@@ -145,7 +146,7 @@ class TransformerDecoder(nn.Module):
             return_mems: bool, whether to return outputs of all decoder layers
                 or the last layer only
         """
-        decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=0)
+        decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=self.diagonal)
         encoder_attn_mask = form_attention_mask(encoder_mask)
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
         cached_mems_list = [memory_states]
@@ -159,6 +160,17 @@ class TransformerDecoder(nn.Module):
             return cached_mems_list
         else:
             return cached_mems_list[-1]
+
+    def eval(self):
+        self.diagonal = None
+        super().eval()
+
+    def train(self, mode=True):
+        if mode is True:
+            self.diagonal = 0
+        else:
+            self.diagonal = None
+        super().train(mode)
 
     def input_example(self):
         """
