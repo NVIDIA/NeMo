@@ -23,23 +23,15 @@ import torch
 import torch.utils.data as pt_data
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
-from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
-from torch.nn.parallel.distributed import DistributedDataParallel
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.common.tokenizers import (
-    ChineseDetokenizer,
-    ChineseTokenizer,
-    EnJaDetokenizer,
-    EnJaTokenizer,
-    Traditional2Simplified,
-)
+from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
+from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -62,9 +54,18 @@ class MTEncDecModel(EncDecNLPModel):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
 
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_gpus
+
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        # Instaniate tokenizers and register to be saved with NeMo Model archive
+        self.src_language: str = cfg.get("src_language", None)
+        self.tgt_language: str = cfg.get("tgt_language", None)
+
+        # Instantiates tokenizers and register to be saved with NeMo Model archive
+        # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
+        # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         self.setup_enc_dec_tokenizers(
             encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
             encoder_tokenizer_model=cfg.encoder_tokenizer.tokenizer_model,
@@ -74,12 +75,10 @@ class MTEncDecModel(EncDecNLPModel):
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
         )
 
-        self.src_language: str = cfg.get("src_language", None)
-        self.tgt_language: str = cfg.get("tgt_language", None)
-        self.sentencepiece_model = self.register_artifact(
-            "cfg.sentencepiece_model", cfg.get("sentencepiece_model", None)
-        )
+        # After this call, the model will have  self.source_processor and self.target_processor objects
+        self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
 
+        # TODO: Why is this base constructor call so late in the game?
         super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: use get_encoder function with support for HF and Megatron
@@ -199,16 +198,13 @@ class MTEncDecModel(EncDecNLPModel):
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
 
-        src_hiddens = self.encoder(src_ids, src_mask)
-
-        beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-        beam_results = self.filter_predicted_ids(beam_results)
-
+        # this will run encoder twice -- TODO: potentially fix
+        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
-        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
         np_tgt = tgt_ids.cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+        ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
             'translations': translations,
@@ -242,13 +238,7 @@ class MTEncDecModel(EncDecNLPModel):
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
 
-        detokenizer = self.get_detokenizer(self.src_language, self.tgt_language)
-
-        translations = [detokenizer.detokenize(sent.split()) for sent in translations]
-        ground_truths = [detokenizer.detokenize(sent.split()) for sent in ground_truths]
-
         assert len(translations) == len(ground_truths)
-
         if self.tgt_language in ['ja']:
             sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
         elif self.tgt_language in ['zh']:
@@ -349,37 +339,60 @@ class MTEncDecModel(EncDecNLPModel):
             drop_last=cfg.get("drop_last", False),
         )
 
-    def get_normalizer_and_tokenizer(self, source_lang, target_lang):
+    def setup_pre_and_post_processing_utils(self, source_lang, target_lang):
         """
-        Returns a normalizer and tokenizer for the source language.
+        Creates source and target processor objects for input and output pre/post-processing.
         """
+        self.source_processor, self.target_processor = None, None
         if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            normalizer = MosesPunctNormalizer(
-                lang=source_lang, pre_replace_unicode_punct=True, post_remove_control_chars=True
-            )
-            tokenizer = EnJaTokenizer(sp_tokenizer_model_path=self.sentencepiece_model, lang_id=source_lang)
-        elif source_lang == 'zh':
-            normalizer = Traditional2Simplified()
-            tokenizer = ChineseTokenizer()
+            self.source_processor = EnJaProcessor(source_lang)
+            self.target_processor = EnJaProcessor(target_lang)
         else:
-            tokenizer = MosesTokenizer(lang=source_lang)
-            normalizer = MosesPunctNormalizer(lang=source_lang)
+            if source_lang == 'zh':
+                self.source_processor = ChineseProcessor()
+            if target_lang == 'zh':
+                self.target_processor = ChineseProcessor()
+            if source_lang is not None and source_lang not in ['ja', 'zh']:
+                self.source_processor = MosesProcessor(source_lang)
+            if target_lang is not None and target_lang not in ['ja', 'zh']:
+                self.target_processor = MosesProcessor(target_lang)
 
-        return normalizer, tokenizer
-
-    def get_detokenizer(self, source_lang, target_lang):
+    @torch.no_grad()
+    def batch_translate(
+        self, src: torch.LongTensor, src_mask: torch.LongTensor,
+    ):
+        """	
+        Translates a minibatch of inputs from source language to target language.	
+        Args:	
+            src: minibatch of inputs in the src language (batch x seq_len)	
+            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)	
+        Returns:	
+            translations: a list strings containing detokenized translations	
+            inputs: a list of string containing detokenized inputs	
         """
-        Returns a detokenizer for a specific target language.
-        """
-        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            detokenizer = EnJaDetokenizer(target_lang)
-        elif target_lang == 'zh':
-            detokenizer = ChineseDetokenizer()
-        else:
-            detokenizer = MosesDetokenizer(lang=target_lang)
+        mode = self.training
+        try:
+            self.eval()
 
-        return detokenizer
+            src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+            beam_results = self.filter_predicted_ids(beam_results)
 
+            translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+            inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
+            if self.target_processor is not None:
+                translations = [
+                    self.target_processor.detokenize(translation.split(' ')) for translation in translations
+                ]
+
+            if self.source_processor is not None:
+                inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
+
+        finally:
+            self.train(mode=mode)
+        return inputs, translations
+
+    # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
     def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
         """
@@ -392,50 +405,33 @@ class MTEncDecModel(EncDecNLPModel):
         Returns:
             list of translated strings
         """
-        if source_lang is None:
-            source_lang = self.src_language
-        if target_lang is None:
-            target_lang = self.tgt_language
+        # __TODO__: This will reset both source and target processors even if you want to reset just one.
+        if source_lang is not None or target_lang is not None:
+            self.setup_pre_and_post_processing_utils(source_lang, target_lang)
 
         mode = self.training
-
-        normalizer, tokenizer = self.get_normalizer_and_tokenizer(source_lang, target_lang)
-        detokenizer = self.get_detokenizer(source_lang, target_lang)
-
         try:
             self.eval()
-            res = []
+            inputs = []
             for txt in text:
-                if source_lang != "None":
-                    txt = normalizer.normalize(txt)
-                    txt = tokenizer.tokenize(txt, escape=False, return_str=True)
+                if self.source_processor is not None:
+                    txt = self.source_processor.normalize(txt)
+                    txt = self.source_processor.tokenize(txt)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
                 ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
-                src = torch.Tensor(ids).long().to(self._device).unsqueeze(0)
-                src_mask = torch.ones_like(src)
-                src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-                beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-                beam_results = self.filter_predicted_ids(beam_results)
-                translation_ids = beam_results.cpu()[0].numpy()
-                translation = self.decoder_tokenizer.ids_to_text(translation_ids)
-                translation = detokenizer.detokenize(translation.split())
-                res.append(translation)
+                inputs.append(ids)
+            max_len = max(len(txt) for txt in inputs)
+            src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
+            for i, txt in enumerate(inputs):
+                src_ids_[i][: len(txt)] = txt
+
+            src_mask = torch.FloatTensor((src_ids_ != self.encoder_tokenizer.pad_id)).to(self.device)
+            src = torch.LongTensor(src_ids_).to(self.device)
+            _, translations = self.batch_translate(src, src_mask)
         finally:
             self.train(mode=mode)
-        return res
+        return translations
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
-
-    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
-        logging.info(f'overriding ddp to set find_unused_parameters to {self._cfg.find_unused_parameters}')
-        model = LightningDistributedDataParallel(
-            model, device_ids=device_ids, find_unused_parameters=self._cfg.find_unused_parameters
-        )
-        return model
-
-    def setup(self, stage):
-        if stage == "fit":
-            # Update PTL trainer to use our configure_ddp
-            self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp

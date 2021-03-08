@@ -135,7 +135,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
                 spec=spec.to(self.waveglow.upsample.weight.dtype), run_inverse=True, audio=None, sigma=sigma
             )
             if denoise:
-                audio = self.denoise(audio, denoiser_strength)
+                audio = self.denoise(audio=audio, strength=denoiser_strength)
 
         return audio
 
