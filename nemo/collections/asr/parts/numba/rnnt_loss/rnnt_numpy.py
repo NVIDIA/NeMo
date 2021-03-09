@@ -25,6 +25,18 @@ def _assert_no_grad(tensor):
 
 
 def forward_pass(log_probs, labels, blank):
+    """
+    Computes probability of the forward variable alpha.
+
+    Args:
+        log_probs: Tensor of shape [T, U, V+1]
+        labels: Labels of shape [B, U]
+        blank: Index of the blank token.
+
+    Returns:
+        A tuple of the forward variable probabilities - alpha of shape [T, U]
+        and the log likelihood of this forward step.
+    """
     T, U, _ = log_probs.shape
     alphas = np.zeros((T, U), dtype='f')
 
@@ -44,6 +56,18 @@ def forward_pass(log_probs, labels, blank):
 
 
 def backward_pass(log_probs, labels, blank):
+    """
+    Computes probability of the backward variable beta.
+
+    Args:
+        log_probs: Tensor of shape [T, U, V+1]
+        labels: Labels of shape [B, U]
+        blank: Index of the blank token.
+
+    Returns:
+        A tuple of the backward variable probabilities - beta of shape [T, U]
+        and the log likelihood of this backward step.
+    """
     T, U, _ = log_probs.shape
     betas = np.zeros((T, U), dtype='f')
     betas[T - 1, U - 1] = log_probs[T - 1, U - 1, blank]
@@ -64,10 +88,25 @@ def backward_pass(log_probs, labels, blank):
 
 
 def compute_gradient(log_probs, alphas, betas, labels, blank):
+    """
+    Computes the gradients of the log_probs with respect to the log probability of this step occuring.
+
+    Args:
+    Args:
+        log_probs: Tensor of shape [T, U, V+1]
+        alphas: Tensor of shape [T, U] which represents the forward variable.
+        betas: Tensor of shape [T, U] which represents the backward variable.
+        labels: Labels of shape [B, U]
+        blank: Index of the blank token.
+
+    Returns:
+        Gradients of shape [T, U, V+1] with respect to the forward log probability
+    """
     T, U, _ = log_probs.shape
     grads = np.full(log_probs.shape, -float("inf"))
     log_like = betas[0, 0]
 
+    # // grad to last blank transition
     grads[T - 1, U - 1, blank] = alphas[T - 1, U - 1]
 
     grads[: T - 1, :, blank] = alphas[: T - 1, :] + betas[1:, :]
@@ -96,9 +135,21 @@ def transduce(log_probs, labels, blank=0):
 
 
 def transduce_batch(log_probs, labels, flen, glen, blank=0):
+    """
+    Compute the transducer loss of the batch.
+
+    Args:
+        log_probs: [B, T, U, V+1]. Activation matrix normalized with log-softmax.
+        labels: [B, U+1] - ground truth labels with <SOS> padded as blank token in the beginning.
+        flen: Length vector of the acoustic sequence.
+        glen: Length vector of the target sequence.
+        blank: Id of the blank token.
+
+    Returns:
+        Batch of transducer forward log probabilities (loss) and the gradients of the activation matrix.
+    """
     grads = np.zeros_like(log_probs)
     costs = []
-    # TODO parallel loop
     for b in range(log_probs.shape[0]):
         t = int(flen[b])
         u = int(glen[b]) + 1
@@ -110,10 +161,14 @@ def transduce_batch(log_probs, labels, flen, glen, blank=0):
 
 class _RNNT(Function):
     @staticmethod
-    def forward(ctx, acts, labels, act_lens, label_lens):
+    def forward(ctx, acts, labels, act_lens, label_lens, blank):
         is_cuda = True if acts.is_cuda else False
         costs, grads = transduce_batch(
-            acts.detach().cpu().numpy(), labels.cpu().numpy(), act_lens.cpu().numpy(), label_lens.cpu().numpy()
+            acts.detach().cpu().numpy(),
+            labels.cpu().numpy(),
+            act_lens.cpu().numpy(),
+            label_lens.cpu().numpy(),
+            blank,
         )
 
         costs = torch.FloatTensor([sum(costs)])
@@ -130,13 +185,12 @@ class _RNNT(Function):
 class RNNTLoss(Module):
     """
     Parameters:
-        `size_average` (bool): normalize the loss by the batch size
-                (default `False`)
-        `blank_label` (int): default 0
+        `blank_label` (int): default 0 - label index of blank token
     """
 
-    def __init__(self):
+    def __init__(self, blank: int = 0):
         super(RNNTLoss, self).__init__()
+        self.blank = blank
         self.rnnt = _RNNT.apply
 
     def forward(self, acts, labels, act_lens, label_lens):
@@ -146,4 +200,4 @@ class RNNTLoss(Module):
         _assert_no_grad(label_lens)
 
         acts = torch.nn.functional.log_softmax(acts, -1)
-        return self.rnnt(acts, labels, act_lens, label_lens)
+        return self.rnnt(acts, labels, act_lens, label_lens, self.blank)

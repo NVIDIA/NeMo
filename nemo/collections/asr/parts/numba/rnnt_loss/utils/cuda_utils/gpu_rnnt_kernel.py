@@ -297,7 +297,7 @@ def compute_grad_kernel(
     # blocks_per_grid = minibatch (b) * maxT (t) * maxU (u)
     # threads_per_block = constant buffer size of parallel threads (v :: Constant)
     tid = cuda.threadIdx.x  # represents v, taking steps of some constant size
-    idx = tid
+    idx = tid  # index of v < V+1; in steps of constant buffer size
     col = cuda.blockIdx.x  # represents a fused index of b * t * u
 
     # Decompose original indices from fused `col`
@@ -329,15 +329,17 @@ def compute_grad_kernel(
             grad = math.exp(alphas[col] + betas[col] + logpk - logll[mb])
 
             # // grad to last blank transition
-            # grad[b, T-1, U-1, v=blank]
+            # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
             if (idx == blank_) and (t == T - 1) and (u == U - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
 
-            # grad of blank across t < T; grad[b, t<T, u, v=blank]
+            # grad of blank across t < T;
+            # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
             if (idx == blank_) and (t < T - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
 
-            # grad of correct token across u < U; grad[b, t, u<U, v=label[u]]
+            # grad of correct token across u < U;
+            # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])
             if (u < U - 1) and (idx == labels[u]):
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + 1])
 

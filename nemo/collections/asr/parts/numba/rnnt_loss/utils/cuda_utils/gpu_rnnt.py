@@ -27,6 +27,20 @@ class GPURNNT:
     def __init__(
         self, minibatch: int, maxT: int, maxU: int, alphabet_size: int, workspace, blank: int, num_threads: int, stream
     ):
+        """
+        Helper class to launch the CUDA Kernels to compute the Transducer Loss.
+
+        Args:
+            minibatch: Int representing the batch size.
+            maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
+            maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
+            alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
+            workspace: An allocated chunk of memory that will be sliced off and reshaped into required
+                blocks used as working memory.
+            blank: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+            num_threads: Number of OMP threads to launch.
+            stream: Numba Cuda Stream.
+        """
         self.minibatch_ = minibatch
         self.maxT_ = maxT
         self.maxU_ = maxU
@@ -44,6 +58,18 @@ class GPURNNT:
             self.num_threads_ = numba.get_num_threads()
 
     def log_softmax(self, acts: torch.Tensor, denom: torch.Tensor):
+        """
+        Computes the log softmax denominator of the input activation tensor
+        and stores the result in denom.
+
+        Args:
+            acts: Activation tensor of shape [B, T, U, V+1]. The input must be represented as a flat tensor
+                of shape [B * T * U * (V+1)] to allow pointer indexing.
+            denom: A zero tensor of same shape as acts.
+
+        Updates:
+            This kernel inplace updates the `denom` tensor
+        """
         # // trans_acts + pred_acts -> log_softmax denominator
         reduce.reduce_max(
             acts,
@@ -73,17 +99,23 @@ class GPURNNT:
         input_lengths: torch.Tensor,
     ) -> global_constants.RNNTStatus:
         """
+        Compute both the loss and the gradients.
 
         Args:
-            acts:
-            grad:
-            costs:
-            flat_labels:
-            label_lengths:
-            input_lengths:
+            acts: A flattened tensor of shape [B, T, U, V+1] representing the activation matrix.
+            grad: A flattented zero tensor of same shape as acts.
+            costs: A zero vector of length B which will be updated inplace with the log probability costs.
+            flat_labels: A flattened matrix of labels of shape [B, U]
+            label_lengths: A vector of length B that contains the original lengths of the acoustic sequence.
+            input_lengths: A vector of length B that contains the original lengths of the target sequence.
+
+        Updates:
+            This will launch kernels that will update inline the following variables:
+            -   grads: Gradients of the activation matrix wrt the costs vector.
+            -   costs: Negative log likelihood of the forward variable.
 
         Returns:
-
+            An enum that either represents a successful RNNT operation or failure.
         """
         training = grads is not None
         used_offset = 0
@@ -167,6 +199,7 @@ class GPURNNT:
         costs.copy_to_device(llForward, stream=self.stream_)
         self.stream_.synchronize()
 
+        # compute negative log likelihood.
         for mb in range(self.minibatch_):
             costs[mb] = -costs[mb]
 

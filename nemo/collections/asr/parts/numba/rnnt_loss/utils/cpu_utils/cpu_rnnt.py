@@ -23,6 +23,9 @@ from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
 
 
 def log_sum_exp(a: torch.Tensor, b: torch.Tensor):
+    """
+    Logsumexp with safety checks for infs.
+    """
     if torch.isinf(a):
         return b
 
@@ -37,6 +40,17 @@ def log_sum_exp(a: torch.Tensor, b: torch.Tensor):
 
 class CpuRNNT_index:
     def __init__(self, U: int, maxU: int, minibatch: int, alphabet_size: int, batch_first: bool):
+        """
+        A placeholder Index computation class that emits the resolved index in a flattened tensor,
+        mimicing pointer indexing in CUDA kernels on the CPU.
+
+        Args:
+            U: Length of the current target sample (without padding).
+            maxU: Max Length of the padded target samples.
+            minibatch: Minibatch index
+            alphabet_size: Size of the vocabulary including RNNT blank - V+1.
+            batch_first: Bool flag determining if batch index is first or third.
+        """
         super(CpuRNNT_index, self).__init__()
         self.U = U
         self.maxU = maxU
@@ -45,9 +59,11 @@ class CpuRNNT_index:
         self.batch_first = batch_first
 
     def __call__(self, t: int, u: int, v: Optional[int] = None):
+        # if indexing all the values of the vocabulary, then only t, u are provided
         if v is None:
             return t * self.U + u
         else:
+            # otherwise, t, u, v are provided to index particular value in the vocabulary.
             if self.batch_first:
                 return (t * self.maxU + u) * self.alphabet_size + v
             else:
@@ -66,6 +82,19 @@ class CpuRNNT_metadata:
         log_probs: torch.Tensor,
         idx: CpuRNNT_index,
     ):
+        """
+        Metadata for CPU based RNNT loss calculation. Holds the working space memory.
+
+        Args:
+            T: Length of the acoustic sequence (without padding).
+            U: Length of the target sequence (without padding).
+            workspace: Working space memory for the CPU.
+            bytes_used: Number of bytes currently used for indexing the working space memory. Generally 0.
+            blank: Index of the blank token in the vocabulary.
+            labels: Ground truth padded labels matrix of shape [B, U]
+            log_probs: Log probs / activation matrix of flattented shape [B, T, U, V+1]
+            idx:
+        """
         super(CpuRNNT_metadata, self).__init__()
 
         self.alphas = workspace[bytes_used : bytes_used + T * U]
@@ -84,9 +113,10 @@ class CpuRNNT_metadata:
     def setup_probs(
         self, T: int, U: int, labels: torch.Tensor, blank: int, log_probs: torch.Tensor, idx: CpuRNNT_index
     ):
+        # initialize the log probs memory for blank and label token.
         for t in range(T):
             for u in range(U):
-                offset = (t * U + u) * 2
+                offset = (t * U + u) * 2  # mult with 2 is for selecting either blank or label token. Odd idx is blank.
                 self.log_probs2[offset] = log_probs[idx(t, u, blank)]
                 # // labels do not have first blank
                 if u < U - 1:
@@ -105,6 +135,20 @@ class CPURNNT:
         num_threads: int,
         batch_first: bool,
     ):
+        """
+        Helper class to compute the Transducer Loss on CPU.
+
+        Args:
+            minibatch: Size of the minibatch b.
+            maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
+            maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
+            alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
+            workspace: An allocated chunk of memory that will be sliced off and reshaped into required
+                blocks used as working memory.
+            blank: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+            num_threads: Number of OMP threads to launch.
+            batch_first: Bool that decides if batch dimension is first or third.
+        """
         self.minibatch_ = minibatch
         self.maxT_ = maxT
         self.maxU_ = maxU
@@ -148,6 +192,18 @@ class CPURNNT:
         return -llForward
 
     def compute_alphas(self, log_probs: torch.Tensor, T: int, U: int, alphas: torch.Tensor):
+        """
+        Compute the probability of the forward variable alpha.
+
+        Args:
+            log_probs: Flattened tensor [B, T, U, V+1]
+            T: Length of the acoustic sequence T (not padded).
+            U: Length of the target sequence U (not padded).
+            alphas: Working space memory for alpha of shape [B, T, U].
+
+        Returns:
+            Loglikelihood of the forward variable alpha.
+        """
         idx = CpuRNNT_index(U, self.maxU_, self.minibatch_, self.alphabet_size_, self.batch_first)
 
         alphas[0] = 0
@@ -178,6 +234,23 @@ class CPURNNT:
         labels: torch.Tensor,
         logll: torch.Tensor,
     ):
+        """
+        Compute backward variable beta as well as gradients of the activation matrix wrt loglikelihood
+        of forward variable.
+
+        Args:
+            grad: Working space memory of flattened shape [B, T, U, V+1]
+            log_probs: Activatio tensor of flattented shape [B, T, U, V+1]
+            T: Length of the acoustic sequence T (not padded).
+            U: Length of the target sequence U (not padded).
+            alphas: Working space memory for alpha of shape [B, T, U].
+            betas: Working space memory for alpha of shape [B, T, U].
+            labels: Ground truth label of shape [B, U]
+            logll: Loglikelihood of the forward variable.
+
+        Returns:
+            Loglikelihood of the forward variable and inplace updates the grad tensor.
+        """
         idx = CpuRNNT_index(U, self.maxU_, self.minibatch_, self.alphabet_size_, self.batch_first)
         betas[idx(T - 1, U - 1)] = log_probs[idx(T - 1, U - 1) * 2]
 
