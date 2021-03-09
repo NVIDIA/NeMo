@@ -23,6 +23,7 @@ from nemo.collections.tts.modules.fastspeech2_submodules import (
     WaveformDiscriminator,
     WaveformGenerator,
 )
+from nemo.collections.tts.modules.talknet import GaussianEmbedding
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import *
@@ -110,6 +111,8 @@ class VarianceAdaptor(NeuralModule):
         energy_kernel_size=3,
         energy_min=0.0,
         energy_max=600.0,
+        vocab=None,
+        # use_guassian_embed=False,
     ):
         """
         FastSpeech 2 variance adaptor, which adds information like duration, pitch, etc. to the phoneme encoding.
@@ -144,7 +147,10 @@ class VarianceAdaptor(NeuralModule):
         self.duration_predictor = VariancePredictor(
             d_model=d_model, d_inner=dur_d_hidden, kernel_size=dur_kernel_size, dropout=dropout
         )
-        self.length_regulator = LengthRegulator2()
+        if vocab is not None:
+            self.length_regulator = GaussianEmbedding(vocab, None, embed=False)
+        else:
+            self.length_regulator = LengthRegulator2()
 
         self.pitch = pitch
         self.energy = energy
