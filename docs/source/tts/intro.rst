@@ -32,7 +32,7 @@ Quick Start:
    github readme.
 
 Available Models
-================
+################
 
 NeMo supports a variety of models that can be used for TTS.
 
@@ -63,7 +63,7 @@ NeMo supports a variety of models that can be used for TTS.
    * - UniGlow
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - TBA
-     - Glow-based vocoder based on WaveGlow but uses only one flow layer that is repeated
+     - Glow-based vocoder based on WaveGlow but shares 1 set of parameters across all flow steps
    * - MelGAN
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - TBA
@@ -74,7 +74,7 @@ NeMo supports a variety of models that can be used for TTS.
      - Glow-based vocoder
 
 Base Classes
-============
+############
 
 The NeMo TTS has two base classes corresponding to the two stage pipeline:
 
@@ -100,7 +100,7 @@ accepts a batch of spectrograms and returns a torch.tensor that represents a bat
     :members:
 
 Training
-========
+########
 Training of TTS models can be done using the scripts inside the NeMo examples/tts folders. The majority of the TTS
 YAML configurations should work out of the box with the LJSpeech dataset. If you want to train on other data, it is
 recommended that you walk through the Tacotron 2 Training notebook. Please pay special attention to the sample rate and
