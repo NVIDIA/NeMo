@@ -111,11 +111,7 @@ def main(cfg: DictConfig) -> None:
             model.save_to(cfg.model.nemo_path)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.file is not None:
-        gpu = 1 if cfg.trainer.gpus != 0 else 0
-        trainer = pl.Trainer(gpus=gpu)
-        model.setup_test_data(test_data_config=cfg.model.test_ds)
-        if model.prepare_test(trainer):
-            trainer.test(model)
+        trainer.test(model)
 
     # change to path if you want results to be written to file e.g. os.path.join(exp_dir, "output_nbest_file.txt")
     output_nbest_file = None
