@@ -13,6 +13,7 @@ The sections on this page cover each of these in more detail.
 Example configuration files for all of the NeMo ASR scripts can be found at
 `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples/asr/conf>`_.
 
+
 Dataset Configuration
 ---------------------
 
@@ -59,13 +60,66 @@ An example ASR train and validation configuration could look like:
 Preprocessor Configuration
 --------------------------
 
+If you are loading audio files for your experiment, you will likely want to use a preprocessor to convert from the
+raw audio signal to features (e.g. mel-spectrogram or MFCC).
+The ``preprocessor`` section of the config specifies the audio preprocessor to be used via the ``_target_`` field,
+as well as any initialization parameters for that preprocessor.
+
+An example of specifying a preprocessor is as follows:
+
+.. code-block:: yaml
+
+  model:
+    ...
+    preprocessor:
+      # _target_ is the audio preprocessor module you want to use
+      _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+      normalize: "per_feature"
+      window_size: 0.02
+      ...
+      # Other parameters for the preprocessor
+
+See the :ref:`api:Audio Preprocessors` API page for the preprocessor options, expected arguments, and defaults.
+
 
 Augmentation Configurations
 ---------------------------
+
+There are a few on-the-fly spectrogram augmentation options for NeMo ASR, which can be specified by the
+configuration file using a ``spec_augment`` section.
+
+The following example is the configuration for `SpecCutout <https://arxiv.org/abs/1708.04552>`_, using the
+``SpectrogramAugmentation`` module.
+
+.. code-block:: yaml
+
+  model:
+    ...
+    spec_augment:
+      # _target_ is the augmentor module you want to use
+      _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+      rect_masks: 5   # Number of rectangles to cut from any given spectrogram
+      rect_freq: 50   # Max cut of size 50 along the frequency dimension
+      rect_time: 120  # Max cut of size 120 along the time dimension
+
+You can also use this module for `SpecAugment <https://arxiv.org/abs/1904.08779>`_ if you would like to cut
+out bands of audio features rather than rectangles.
+
+See the :ref:`api:Audio Augmentors` section for more details.
 
 
 Model Architecture Configurations
 ---------------------------------
 
+Each configuration file should describe the model architecture being used for the experiment.
+Models in the NeMo ASR collection need a ``encoder`` section and a ``decoder`` section, with the ``_target_`` field
+specifying the module to use for each.
+
+The following sections go into more detail about the specific configurations of each model architecture.
+
+For more information about each model, see the :doc:`Models <./models>` page.
+
 Jasper and QuartzNet
 ~~~~~~~~~~~~~~~~~~~~
+
+The Jasper and QuartzNet models are very similar, and as such the components in their configs look similar as well.
