@@ -76,37 +76,33 @@ class AAYNBaseConfig(MTEncDecModelConfig):
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
 
-    encoder: TransformerConfig = TransformerConfig(
+    encoder: NeMoTransformerEncoderConfig = NeMoTransformerEncoderConfig(
+        vocab_size=MISSING,
         library='nemo',
         model_name=None,
         pretrained=False,
-        config_dict=NeMoTransformerEncoderConfig(
-            vocab_size=MISSING,
-            hidden_size=512,
-            inner_size=2048,
-            num_layers=6,
-            num_attention_heads=8,
-            ffn_dropout=0.1,
-            attn_score_dropout=0.1,
-            attn_layer_dropout=0.1,
-        ),
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
         encoder=True,
     )
 
-    decoder: TransformerConfig = TransformerConfig(
+    decoder: NeMoTransformerConfig = NeMoTransformerConfig(
+        vocab_size=MISSING,
         library='nemo',
         model_name=None,
         pretrained=False,
-        config_dict=NeMoTransformerConfig(
-            vocab_size=MISSING,
-            hidden_size=512,
-            inner_size=2048,
-            num_layers=6,
-            num_attention_heads=8,
-            ffn_dropout=0.1,
-            attn_score_dropout=0.1,
-            attn_layer_dropout=0.1,
-        ),
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
         encoder=False,
     )
 

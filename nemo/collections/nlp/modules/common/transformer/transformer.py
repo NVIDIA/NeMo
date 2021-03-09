@@ -48,6 +48,11 @@ class NeMoTransformerConfig:
     hidden_act: str = 'relu'
     pre_ln: bool = False
 
+    # named model arguments
+    library: str = 'nemo'
+    model_name: str = None
+    pretrained: bool = False
+
 
 @dataclass
 class NeMoTransformerEncoderConfig(NeMoTransformerConfig):
