@@ -554,7 +554,7 @@ class MTDataPreproc:
                         f'Decoder tokenizer model {decoder_tokenizer_model} not found. Training tokenizer model.'
                     )
                     yttm.BPE.train(
-                        data=src_fname,
+                        data=tgt_fname,
                         vocab_size=decoder_tokenizer_vocab_size,
                         model=decoder_tokenizer_model,
                         coverage=decoder_tokenizer_coverage,

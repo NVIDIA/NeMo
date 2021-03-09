@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
+from pytorch_lightning.plugins import DDPPlugin
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import MelGanModel
@@ -22,7 +23,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="melgan")
 def main(cfg):
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer(plugins=[DDPPlugin(find_unused_parameters=True)], **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = MelGanModel(cfg=cfg.model, trainer=trainer)
     epoch_time_logger = LogEpochTimeCallback()
