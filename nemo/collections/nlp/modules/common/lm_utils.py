@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dataclasses import dataclass
 import os
 from typing import List, Optional, Union
 
@@ -106,6 +107,16 @@ def get_lm_model(
     return model
 
 
+@dataclass
+class TransformerConfig:
+    library: str = 'nemo'
+    model_name: Optional[str] = None
+    pretrained: bool = False
+    config_dict: Optional[dict] = None
+    checkpoint_file: Optional[str] = None
+    encoder: bool = True
+
+
 def get_transformer(
     library: str = 'nemo',
     model_name: Optional[str] = None,
@@ -114,6 +125,33 @@ def get_transformer(
     checkpoint_file: Optional[str] = None,
     encoder: bool = True,
 ) -> Union[EncoderModule, DecoderModule]:
+    """Gets Transformer based model to be used as an Encoder or Decoder in NeMo NLP.
+       First choose the library to get the transformer from. This can be huggingface,
+       megatron, or nemo. Use the model_name arg to get a named model architecture
+       and use the pretrained arg to get the named model architecture with pretrained weights.
+
+       If model_name is None, then we can pass in a custom configuration via the config_dict.
+       For example, to instantiate a HuggingFace BERT model with custom configuration we would do:
+       encoder = get_transformer(library='huggingface',
+                                 config_dict={
+                                     '_target_': 'transformers.BertConfig',
+                                     'hidden_size': 1536
+                                 }) 
+
+
+    Args:
+        library (str, optional): Can be 'nemo', 'huggingface', or 'megatron'. Defaults to 'nemo'.
+        model_name (Optional[str], optional): Named model architecture from the chosen library. Defaults to None.
+        pretrained (bool, optional): Use True to get pretrained weights. 
+                                     False will use the same architecture but with randomly initialized weights.
+                                     Defaults to False.
+        config_dict (Optional[dict], optional): Use for custom configuration of transformer. Defaults to None.
+        checkpoint_file (Optional[str], optional): Provide weights for the transformer from a local checkpoint. Defaults to None.
+        encoder (bool, optional): True returns and EncoderModule, False returns a DecoderModule. Defaults to True.
+
+    Returns:
+        Union[EncoderModule, DecoderModule]: Ensures that Encoder/Decoder will work in EncDecNLPModel
+    """
 
     model = None
 
