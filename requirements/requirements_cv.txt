@@ -1,2 +1,2 @@
 pillow
-torchvision
+torchvision==0.8.2

@@ -9,7 +9,7 @@ packaging
 ruamel.yaml
 soundfile
 sox
-torch-stft
+torch-stft==0.1.4
 unidecode
 kaldi-python-io
 kaldiio

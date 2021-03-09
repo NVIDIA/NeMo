@@ -2,7 +2,7 @@ numpy>=1.18.2
 onnx>=1.7.0
 pytorch-lightning>=1.1.0,<=1.1.5
 python-dateutil
-torch
+torch==1.7.1
 wget
 wrapt
 ruamel.yaml
