@@ -13,13 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass
-
-from attr import asdict
-from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
 import os
+from dataclasses import dataclass
 from typing import List, Optional, Union
 
+from attr import asdict
 from hydra.utils import instantiate
 from transformers import AutoConfig, AutoModel
 
@@ -34,6 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_model,
     get_megatron_lm_models_list,
 )
+from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
     get_huggingface_transformer,
     get_nemo_transformer,
