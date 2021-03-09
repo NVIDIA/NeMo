@@ -220,7 +220,9 @@ Every NeMo example YAML has the same underlying configuration structure:
 
 Model configuration always contain train_ds, validation_ds, test_ds, and optim. 
 Model architectures vary across domains so please see the ASR, NLP, and TTS Collections documentation for 
-more detaied information on Model architecture configuration.
+more detailed information on Model architecture configuration.
+
+A NeMo configuration file should look something like this:
 
 .. code-block:: yaml
 
@@ -264,6 +266,10 @@ more detaied information on Model architecture configuration.
             ...
         decoder:
             ...
+
+More specific details about configuration files for each collection can be found on the following pages:
+
+* :doc:`asr/configs`
         
 CLI
 ~~~
