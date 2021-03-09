@@ -22,6 +22,7 @@ ${PIP} uninstall -y nemo_tts
 ${PIP} uninstall -y nemo_simple_gan
 
 ${PIP} install -U setuptools
+${PIP} install -U torchtext --no-deps  # TODO: Remove when we switch to 21.03 container
 
 echo 'Installing stuff'
 ${PIP} install ${PIP_INSTALL_OPTION} ".[all]"
