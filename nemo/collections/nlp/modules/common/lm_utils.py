@@ -114,7 +114,7 @@ class TransformerConfig:
     library: str = 'nemo'
     model_name: Optional[str] = None
     pretrained: bool = False
-    transformer: Optional[dict] = None
+    config_dict: Optional[dict] = None
     checkpoint_file: Optional[str] = None
     encoder: bool = True
 
@@ -123,7 +123,7 @@ def get_transformer(
     library: str = 'nemo',
     model_name: Optional[str] = None,
     pretrained: bool = False,
-    transformer: Optional[dict] = None,
+    config_dict: Optional[dict] = None,
     checkpoint_file: Optional[str] = None,
     encoder: bool = True,
 ) -> Union[EncoderModule, DecoderModule]:
@@ -158,10 +158,10 @@ def get_transformer(
     model = None
 
     if library == 'nemo':
-        if isinstance(transformer, NeMoTransformerConfig):
-            transformer = asdict(transformer)
+        if isinstance(config_dict, NeMoTransformerConfig):
+            config_dict = asdict(config_dict)
         model = get_nemo_transformer(
-            model_name=model_name, pretrained=pretrained, config_dict=transformer, encoder=encoder,
+            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder,
         )
 
         if checkpoint_file is not None:
@@ -170,7 +170,7 @@ def get_transformer(
 
     elif library == 'huggingface':
         model = get_huggingface_transformer(
-            model_name=model_name, pretrained=pretrained, config_dict=transformer, encoder=encoder
+            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder
         )
 
     return model

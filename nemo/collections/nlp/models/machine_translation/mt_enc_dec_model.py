@@ -95,7 +95,7 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         self.encoder = get_transformer(
-            library=library, model_name=model_name, pretrained=pretrained, transformer=encoder_cfg_dict, encoder=True,
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=True,
         )
 
         # decoder from NeMo, Megatron-LM, or HuggingFace
@@ -106,7 +106,7 @@ class MTEncDecModel(EncDecNLPModel):
         pretrained = decoder_cfg_dict.pop('pretrained', False)
         decoder_cfg_dict['hidden_size'] = self.encoder.hidden_size
         self.decoder = get_transformer(
-            library=library, model_name=model_name, pretrained=pretrained, transformer=decoder_cfg_dict, encoder=False,
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=decoder_cfg_dict, encoder=False,
         )
 
         self.log_softmax = TokenClassifier(
