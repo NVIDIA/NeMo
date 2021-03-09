@@ -130,4 +130,3 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
     )
-
