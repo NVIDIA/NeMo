@@ -179,7 +179,7 @@ class _RNNT(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        return ctx.grads, None, None, None
+        return ctx.grads, None, None, None, None
 
 
 class RNNTLoss(Module):
