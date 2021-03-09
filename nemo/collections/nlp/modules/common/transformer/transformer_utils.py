@@ -13,13 +13,15 @@
 # limitations under the License.
 
 
+import os
+from typing import Optional, Union
+
+from omegaconf.dictconfig import DictConfig
+
 from nemo.collections.nlp.modules.common.huggingface.huggingface_decoder import HuggingFaceDecoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_encoder import HuggingFaceEncoderModule
-import os
-from omegaconf.dictconfig import DictConfig
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
 from nemo.utils import logging
-from typing import Optional, Union
 
 
 def get_nemo_transformer(

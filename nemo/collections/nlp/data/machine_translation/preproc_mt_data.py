@@ -15,7 +15,6 @@
 
 import glob
 import json
-from nemo.collections.common.tokenizers import huggingface
 import os
 import pickle
 import tarfile
@@ -24,6 +23,7 @@ import tempfile
 import youtokentome as yttm
 from pytorch_lightning import Trainer
 
+from nemo.collections.common.tokenizers import huggingface
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
 from nemo.collections.nlp.data.machine_translation.one_side_dataset import TranslationOneSideDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig

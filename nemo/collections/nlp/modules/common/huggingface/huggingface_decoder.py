@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
-from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from typing import Optional
-from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.utils import logging
-from transformers import AutoConfig, AutoModel
+
 from hydra.utils import instantiate
+from transformers import AutoConfig, AutoModel
+
+from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
+from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
+from nemo.utils import logging
 
 
 class HuggingFaceDecoderModule(DecoderModule):

@@ -13,16 +13,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
-    get_huggingface_transformer,
-    get_nemo_transformer,
-)
-from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
-from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 import os
 from typing import List, Optional, Union
 
+from hydra.utils import instantiate
+from transformers import AutoConfig, AutoModel
+
 from nemo.collections.nlp.modules.common.bert_module import BertModule
+from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_pretrained_lm_models_list,
@@ -31,11 +30,11 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_model,
     get_megatron_lm_models_list,
 )
+from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
+    get_huggingface_transformer,
+    get_nemo_transformer,
+)
 from nemo.utils import logging
-
-from transformers import AutoConfig, AutoModel
-
-from hydra.utils import instantiate
 
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
