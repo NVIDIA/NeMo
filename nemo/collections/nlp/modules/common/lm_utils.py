@@ -114,7 +114,7 @@ class TransformerConfig:
     library: str = 'nemo'
     model_name: Optional[str] = None
     pretrained: bool = False
-    config_dict: Optional[dict] = None
+    transformer_config: Optional[dict] = None
     checkpoint_file: Optional[str] = None
     encoder: bool = True
 
@@ -123,7 +123,7 @@ def get_transformer(
     library: str = 'nemo',
     model_name: Optional[str] = None,
     pretrained: bool = False,
-    config_dict: Optional[dict] = None,
+    transformer_config: Optional[dict] = None,
     checkpoint_file: Optional[str] = None,
     encoder: bool = True,
 ) -> Union[EncoderModule, DecoderModule]:
@@ -135,7 +135,7 @@ def get_transformer(
        If model_name is None, then we can pass in a custom configuration via the config_dict.
        For example, to instantiate a HuggingFace BERT model with custom configuration we would do:
        encoder = get_transformer(library='huggingface',
-                                 config_dict={
+                                 transformer_config={
                                      '_target_': 'transformers.BertConfig',
                                      'hidden_size': 1536
                                  }) 
@@ -147,7 +147,7 @@ def get_transformer(
         pretrained (bool, optional): Use True to get pretrained weights. 
                                      False will use the same architecture but with randomly initialized weights.
                                      Defaults to False.
-        config_dict (Optional[dict], optional): Use for custom configuration of transformer. Defaults to None.
+        transformer_config (Optional[dict], optional): Use for custom configuration of transformer. Defaults to None.
         checkpoint_file (Optional[str], optional): Provide weights for the transformer from a local checkpoint. Defaults to None.
         encoder (bool, optional): True returns an EncoderModule, False returns a DecoderModule. Defaults to True.
 
@@ -158,10 +158,10 @@ def get_transformer(
     model = None
 
     if library == 'nemo':
-        if isinstance(config_dict, NeMoTransformerConfig):
-            config_dict = asdict(config_dict)
+        if isinstance(transformer_config, NeMoTransformerConfig):
+            transformer_config = asdict(transformer_config)
         model = get_nemo_transformer(
-            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder,
+            model_name=model_name, pretrained=pretrained, config_dict=transformer_config, encoder=encoder,
         )
 
         if checkpoint_file is not None:
@@ -170,7 +170,7 @@ def get_transformer(
 
     elif library == 'huggingface':
         model = get_huggingface_transformer(
-            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder
+            model_name=model_name, pretrained=pretrained, config_dict=transformer_config, encoder=encoder
         )
 
     return model

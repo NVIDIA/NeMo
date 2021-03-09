@@ -86,20 +86,24 @@ model:
     special_tokens: null
 
   encoder:
-    max_sequence_length: 512
-    num_token_types: 2
-    embedding_dropout: 0.1
-    learn_positional_encodings: false
-    hidden_size: 512
-    num_layers: 6
-    inner_size: 2048
-    num_attention_heads: 8
-    ffn_dropout: 0.1
-    attn_score_dropout: 0.1
-    attn_layer_dropout: 0.1
-    hidden_act: relu
-    mask_future: false
-    pre_ln: false
+    library: nemo
+    model_name: null
+    pretrained: false
+    transformer_config:
+      max_sequence_length: 512
+      num_token_types: 2
+      embedding_dropout: 0.1
+      learn_positional_encodings: false
+      hidden_size: 512
+      num_layers: 6
+      inner_size: 2048
+      num_attention_heads: 8
+      ffn_dropout: 0.1
+      attn_score_dropout: 0.1
+      attn_layer_dropout: 0.1
+      hidden_act: relu
+      mask_future: false
+      pre_ln: false
 
   decoder:
     max_sequence_length: 512

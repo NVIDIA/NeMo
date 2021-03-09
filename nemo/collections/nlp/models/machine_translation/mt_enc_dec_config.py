@@ -80,7 +80,7 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         library='nemo',
         model_name=None,
         pretrained=False,
-        config_dict=NeMoTransformerEncoderConfig(
+        transformer_args=NeMoTransformerEncoderConfig(
             vocab_size=MISSING,
             hidden_size=512,
             inner_size=2048,
