@@ -307,7 +307,7 @@ def compute_grad_kernel(
     mb = (bt - t) // maxT  # (b * t - t) // T = b
 
     # constants
-    T = xlen[mb]   # select AM length of current sample
+    T = xlen[mb]  # select AM length of current sample
     U = ylen[mb] + 1  # select target length of current sample, +1 for the blank token
     labels: torch.Tensor = mlabels[mb]  # labels = mlabels + mb * (maxU - 1);
 

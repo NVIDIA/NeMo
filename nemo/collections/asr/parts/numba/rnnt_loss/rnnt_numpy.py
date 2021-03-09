@@ -164,11 +164,7 @@ class _RNNT(Function):
     def forward(ctx, acts, labels, act_lens, label_lens, blank):
         is_cuda = True if acts.is_cuda else False
         costs, grads = transduce_batch(
-            acts.detach().cpu().numpy(),
-            labels.cpu().numpy(),
-            act_lens.cpu().numpy(),
-            label_lens.cpu().numpy(),
-            blank,
+            acts.detach().cpu().numpy(), labels.cpu().numpy(), act_lens.cpu().numpy(), label_lens.cpu().numpy(), blank,
         )
 
         costs = torch.FloatTensor([sum(costs)])

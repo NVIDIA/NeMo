@@ -32,6 +32,19 @@ def rnnt_loss_cpu(
     blank_label: int,
     num_threads: int,
 ):
+    """
+    Wrapper method for accessing CPU RNNT loss.
+
+    Args:
+        acts: Activation tensor of shape [B, T, U, V+1].
+        labels: Ground truth labels of shape [B, U].
+        input_lengths: Lengths of the acoustic sequence as a vector of ints [B].
+        label_lengths: Lengths of the target sequence as a vector of ints [B].
+        costs: Zero vector of length [B] in which costs will be set.
+        grads: Zero tensor of shape [B, T, U, V+1] where the gradient will be set.
+        blank_label: Index of the blank token in the vocabulary.
+        num_threads: Number of threads for OpenMP.
+    """
     # aliases
     log_probs = acts
     flat_labels = labels
@@ -109,6 +122,19 @@ def rnnt_loss_gpu(
     blank_label: int,
     num_threads: int,
 ):
+    """
+    Wrapper method for accessing GPU RNNT loss.
+
+    Args:
+        acts: Activation tensor of shape [B, T, U, V+1].
+        labels: Ground truth labels of shape [B, U].
+        input_lengths: Lengths of the acoustic sequence as a vector of ints [B].
+        label_lengths: Lengths of the target sequence as a vector of ints [B].
+        costs: Zero vector of length [B] in which costs will be set.
+        grads: Zero tensor of shape [B, T, U, V+1] where the gradient will be set.
+        blank_label: Index of the blank token in the vocabulary.
+        num_threads: Number of threads for OpenMP.
+    """
     minibatch_size = acts.shape[0]
     maxT = acts.shape[1]
     maxU = acts.shape[2]
