@@ -1,21 +1,20 @@
-
-from concurrent import futures
-import time
-import math
-from nemo.utils import logging
-import re
-import os
-import grpc
 import argparse
-import torch
-import nemo.collections.nlp as nemo_nlp
-
+import math
+import os
+import re
+import time
+from concurrent import futures
 
 import api.nmt_pb2 as nmt
 import api.nmt_pb2_grpc as nmtsrv
+import grpc
+import torch
 
+import nemo.collections.nlp as nemo_nlp
+from nemo.utils import logging
 
 torch.set_grad_enabled(False)
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -29,10 +28,12 @@ def get_args():
     args = parser.parse_args()
     return args
 
+
 def batches(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+        yield lst[i : i + n]
+
 
 class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
     """Provides methods that implement functionality of route guide server."""
@@ -48,7 +49,7 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
             logging.info(f"Loading model {model_path}")
             self._load_model(model_path)
         logging.info("Models loaded. Ready for inference requests.")
-    
+
     def _load_model(self, model_path):
         model_name, _ = os.path.splitext(os.path.basename(model_path))
         model_name = model_name.lower()
@@ -56,7 +57,9 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
             logging.error("Model not named in language pair format src-target")
         if model_path.endswith(".nemo"):
             logging.info("Attempting to initialize from .nemo file")
-            self._models[model_name] = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path)
+            self._models[model_name] = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(
+                restore_path=model_path
+            )
         else:
             raise NotImplemented(f"Only support .nemo files, but got: {model_path}")
 
@@ -83,16 +86,21 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
             batch_results = self._models[lang_pair].translate(text=batch, source_lang=None, target_lang=None)
             translations = [nmt.Translation(translation=x) for x in batch_results]
             results.extend(translations)
-            
+
         return nmt.TranslateTextResponse(translations=results)
 
 
 def serve():
     args = get_args()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    servicer = JarvisTranslateServicer(model_paths=args.model, beam_size=args.beam_size, len_pen=args.len_pen, batch_size=args.batch_size, max_delta_length=args.max_delta_length)
-    nmtsrv.add_JarvisTranslateServicer_to_server(
-        servicer, server)
+    servicer = JarvisTranslateServicer(
+        model_paths=args.model,
+        beam_size=args.beam_size,
+        len_pen=args.len_pen,
+        batch_size=args.batch_size,
+        max_delta_length=args.max_delta_length,
+    )
+    nmtsrv.add_JarvisTranslateServicer_to_server(servicer, server)
     server.add_insecure_port('[::]:' + str(args.port))
     server.start()
     server.wait_for_termination()

@@ -1,13 +1,13 @@
-
+import argparse
+import logging
+import math
 from concurrent import futures
 from time import time
-import math
-import logging
 
-import grpc
-import argparse
 import api.nmt_pb2 as nmt
 import api.nmt_pb2_grpc as nmtsrv
+import grpc
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -18,6 +18,7 @@ def get_args():
 
     args = parser.parse_args()
     return args
+
 
 if __name__ == '__main__':
     args = get_args()

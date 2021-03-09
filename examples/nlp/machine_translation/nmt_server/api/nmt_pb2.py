@@ -6,139 +6,199 @@ from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
+
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
 
 
-
-
 DESCRIPTOR = _descriptor.FileDescriptor(
-  name='nmt.proto',
-  package='nvidia.jarvis.nmt',
-  syntax='proto3',
-  serialized_options=b'Z\030nvidia.com/jarvis_speech\370\001\001',
-  create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\tnmt.proto\x12\x11nvidia.jarvis.nmt\"W\n\x14TranslateTextRequest\x12\r\n\x05texts\x18\x01 \x03(\t\x12\x17\n\x0fsource_language\x18\x03 \x01(\t\x12\x17\n\x0ftarget_language\x18\x04 \x01(\t\"4\n\x0bTranslation\x12\x13\n\x0btranslation\x18\x01 \x01(\t\x12\x10\n\x08language\x18\x02 \x01(\t\"M\n\x15TranslateTextResponse\x12\x34\n\x0ctranslations\x18\x01 \x03(\x0b\x32\x1e.nvidia.jarvis.nmt.Translation2w\n\x0fJarvisTranslate\x12\x64\n\rTranslateText\x12\'.nvidia.jarvis.nmt.TranslateTextRequest\x1a(.nvidia.jarvis.nmt.TranslateTextResponse\"\x00\x42\x1dZ\x18nvidia.com/jarvis_speech\xf8\x01\x01\x62\x06proto3'
+    name='nmt.proto',
+    package='nvidia.jarvis.nmt',
+    syntax='proto3',
+    serialized_options=b'Z\030nvidia.com/jarvis_speech\370\001\001',
+    create_key=_descriptor._internal_create_key,
+    serialized_pb=b'\n\tnmt.proto\x12\x11nvidia.jarvis.nmt\"W\n\x14TranslateTextRequest\x12\r\n\x05texts\x18\x01 \x03(\t\x12\x17\n\x0fsource_language\x18\x03 \x01(\t\x12\x17\n\x0ftarget_language\x18\x04 \x01(\t\"4\n\x0bTranslation\x12\x13\n\x0btranslation\x18\x01 \x01(\t\x12\x10\n\x08language\x18\x02 \x01(\t\"M\n\x15TranslateTextResponse\x12\x34\n\x0ctranslations\x18\x01 \x03(\x0b\x32\x1e.nvidia.jarvis.nmt.Translation2w\n\x0fJarvisTranslate\x12\x64\n\rTranslateText\x12\'.nvidia.jarvis.nmt.TranslateTextRequest\x1a(.nvidia.jarvis.nmt.TranslateTextResponse\"\x00\x42\x1dZ\x18nvidia.com/jarvis_speech\xf8\x01\x01\x62\x06proto3',
 )
 
 
-
-
 _TRANSLATETEXTREQUEST = _descriptor.Descriptor(
-  name='TranslateTextRequest',
-  full_name='nvidia.jarvis.nmt.TranslateTextRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='texts', full_name='nvidia.jarvis.nmt.TranslateTextRequest.texts', index=0,
-      number=1, type=9, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='source_language', full_name='nvidia.jarvis.nmt.TranslateTextRequest.source_language', index=1,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='target_language', full_name='nvidia.jarvis.nmt.TranslateTextRequest.target_language', index=2,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=32,
-  serialized_end=119,
+    name='TranslateTextRequest',
+    full_name='nvidia.jarvis.nmt.TranslateTextRequest',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    create_key=_descriptor._internal_create_key,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='texts',
+            full_name='nvidia.jarvis.nmt.TranslateTextRequest.texts',
+            index=0,
+            number=1,
+            type=9,
+            cpp_type=9,
+            label=3,
+            has_default_value=False,
+            default_value=[],
+            message_type=None,
+            enum_type=None,
+            containing_type=None,
+            is_extension=False,
+            extension_scope=None,
+            serialized_options=None,
+            file=DESCRIPTOR,
+            create_key=_descriptor._internal_create_key,
+        ),
+        _descriptor.FieldDescriptor(
+            name='source_language',
+            full_name='nvidia.jarvis.nmt.TranslateTextRequest.source_language',
+            index=1,
+            number=3,
+            type=9,
+            cpp_type=9,
+            label=1,
+            has_default_value=False,
+            default_value=b"".decode('utf-8'),
+            message_type=None,
+            enum_type=None,
+            containing_type=None,
+            is_extension=False,
+            extension_scope=None,
+            serialized_options=None,
+            file=DESCRIPTOR,
+            create_key=_descriptor._internal_create_key,
+        ),
+        _descriptor.FieldDescriptor(
+            name='target_language',
+            full_name='nvidia.jarvis.nmt.TranslateTextRequest.target_language',
+            index=2,
+            number=4,
+            type=9,
+            cpp_type=9,
+            label=1,
+            has_default_value=False,
+            default_value=b"".decode('utf-8'),
+            message_type=None,
+            enum_type=None,
+            containing_type=None,
+            is_extension=False,
+            extension_scope=None,
+            serialized_options=None,
+            file=DESCRIPTOR,
+            create_key=_descriptor._internal_create_key,
+        ),
+    ],
+    extensions=[],
+    nested_types=[],
+    enum_types=[],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[],
+    serialized_start=32,
+    serialized_end=119,
 )
 
 
 _TRANSLATION = _descriptor.Descriptor(
-  name='Translation',
-  full_name='nvidia.jarvis.nmt.Translation',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='translation', full_name='nvidia.jarvis.nmt.Translation.translation', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='language', full_name='nvidia.jarvis.nmt.Translation.language', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=121,
-  serialized_end=173,
+    name='Translation',
+    full_name='nvidia.jarvis.nmt.Translation',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    create_key=_descriptor._internal_create_key,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='translation',
+            full_name='nvidia.jarvis.nmt.Translation.translation',
+            index=0,
+            number=1,
+            type=9,
+            cpp_type=9,
+            label=1,
+            has_default_value=False,
+            default_value=b"".decode('utf-8'),
+            message_type=None,
+            enum_type=None,
+            containing_type=None,
+            is_extension=False,
+            extension_scope=None,
+            serialized_options=None,
+            file=DESCRIPTOR,
+            create_key=_descriptor._internal_create_key,
+        ),
+        _descriptor.FieldDescriptor(
+            name='language',
+            full_name='nvidia.jarvis.nmt.Translation.language',
+            index=1,
+            number=2,
+            type=9,
+            cpp_type=9,
+            label=1,
+            has_default_value=False,
+            default_value=b"".decode('utf-8'),
+            message_type=None,
+            enum_type=None,
+            containing_type=None,
+            is_extension=False,
+            extension_scope=None,
+            serialized_options=None,
+            file=DESCRIPTOR,
+            create_key=_descriptor._internal_create_key,
+        ),
+    ],
+    extensions=[],
+    nested_types=[],
+    enum_types=[],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[],
+    serialized_start=121,
+    serialized_end=173,
 )
 
 
 _TRANSLATETEXTRESPONSE = _descriptor.Descriptor(
-  name='TranslateTextResponse',
-  full_name='nvidia.jarvis.nmt.TranslateTextResponse',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='translations', full_name='nvidia.jarvis.nmt.TranslateTextResponse.translations', index=0,
-      number=1, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=175,
-  serialized_end=252,
+    name='TranslateTextResponse',
+    full_name='nvidia.jarvis.nmt.TranslateTextResponse',
+    filename=None,
+    file=DESCRIPTOR,
+    containing_type=None,
+    create_key=_descriptor._internal_create_key,
+    fields=[
+        _descriptor.FieldDescriptor(
+            name='translations',
+            full_name='nvidia.jarvis.nmt.TranslateTextResponse.translations',
+            index=0,
+            number=1,
+            type=11,
+            cpp_type=10,
+            label=3,
+            has_default_value=False,
+            default_value=[],
+            message_type=None,
+            enum_type=None,
+            containing_type=None,
+            is_extension=False,
+            extension_scope=None,
+            serialized_options=None,
+            file=DESCRIPTOR,
+            create_key=_descriptor._internal_create_key,
+        ),
+    ],
+    extensions=[],
+    nested_types=[],
+    enum_types=[],
+    serialized_options=None,
+    is_extendable=False,
+    syntax='proto3',
+    extension_ranges=[],
+    oneofs=[],
+    serialized_start=175,
+    serialized_end=252,
 )
 
 _TRANSLATETEXTRESPONSE.fields_by_name['translations'].message_type = _TRANSLATION
@@ -147,51 +207,64 @@ DESCRIPTOR.message_types_by_name['Translation'] = _TRANSLATION
 DESCRIPTOR.message_types_by_name['TranslateTextResponse'] = _TRANSLATETEXTRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
-TranslateTextRequest = _reflection.GeneratedProtocolMessageType('TranslateTextRequest', (_message.Message,), {
-  'DESCRIPTOR' : _TRANSLATETEXTREQUEST,
-  '__module__' : 'nmt_pb2'
-  # @@protoc_insertion_point(class_scope:nvidia.jarvis.nmt.TranslateTextRequest)
-  })
+TranslateTextRequest = _reflection.GeneratedProtocolMessageType(
+    'TranslateTextRequest',
+    (_message.Message,),
+    {
+        'DESCRIPTOR': _TRANSLATETEXTREQUEST,
+        '__module__': 'nmt_pb2'
+        # @@protoc_insertion_point(class_scope:nvidia.jarvis.nmt.TranslateTextRequest)
+    },
+)
 _sym_db.RegisterMessage(TranslateTextRequest)
 
-Translation = _reflection.GeneratedProtocolMessageType('Translation', (_message.Message,), {
-  'DESCRIPTOR' : _TRANSLATION,
-  '__module__' : 'nmt_pb2'
-  # @@protoc_insertion_point(class_scope:nvidia.jarvis.nmt.Translation)
-  })
+Translation = _reflection.GeneratedProtocolMessageType(
+    'Translation',
+    (_message.Message,),
+    {
+        'DESCRIPTOR': _TRANSLATION,
+        '__module__': 'nmt_pb2'
+        # @@protoc_insertion_point(class_scope:nvidia.jarvis.nmt.Translation)
+    },
+)
 _sym_db.RegisterMessage(Translation)
 
-TranslateTextResponse = _reflection.GeneratedProtocolMessageType('TranslateTextResponse', (_message.Message,), {
-  'DESCRIPTOR' : _TRANSLATETEXTRESPONSE,
-  '__module__' : 'nmt_pb2'
-  # @@protoc_insertion_point(class_scope:nvidia.jarvis.nmt.TranslateTextResponse)
-  })
+TranslateTextResponse = _reflection.GeneratedProtocolMessageType(
+    'TranslateTextResponse',
+    (_message.Message,),
+    {
+        'DESCRIPTOR': _TRANSLATETEXTRESPONSE,
+        '__module__': 'nmt_pb2'
+        # @@protoc_insertion_point(class_scope:nvidia.jarvis.nmt.TranslateTextResponse)
+    },
+)
 _sym_db.RegisterMessage(TranslateTextResponse)
 
 
 DESCRIPTOR._options = None
 
 _JARVISTRANSLATE = _descriptor.ServiceDescriptor(
-  name='JarvisTranslate',
-  full_name='nvidia.jarvis.nmt.JarvisTranslate',
-  file=DESCRIPTOR,
-  index=0,
-  serialized_options=None,
-  create_key=_descriptor._internal_create_key,
-  serialized_start=254,
-  serialized_end=373,
-  methods=[
-  _descriptor.MethodDescriptor(
-    name='TranslateText',
-    full_name='nvidia.jarvis.nmt.JarvisTranslate.TranslateText',
+    name='JarvisTranslate',
+    full_name='nvidia.jarvis.nmt.JarvisTranslate',
+    file=DESCRIPTOR,
     index=0,
-    containing_service=None,
-    input_type=_TRANSLATETEXTREQUEST,
-    output_type=_TRANSLATETEXTRESPONSE,
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
-  ),
-])
+    serialized_start=254,
+    serialized_end=373,
+    methods=[
+        _descriptor.MethodDescriptor(
+            name='TranslateText',
+            full_name='nvidia.jarvis.nmt.JarvisTranslate.TranslateText',
+            index=0,
+            containing_service=None,
+            input_type=_TRANSLATETEXTREQUEST,
+            output_type=_TRANSLATETEXTRESPONSE,
+            serialized_options=None,
+            create_key=_descriptor._internal_create_key,
+        ),
+    ],
+)
 _sym_db.RegisterServiceDescriptor(_JARVISTRANSLATE)
 
 DESCRIPTOR.services_by_name['JarvisTranslate'] = _JARVISTRANSLATE
