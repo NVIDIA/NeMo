@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from nemo.collections.nlp.modules.common.lm_utils import TransformerConfig
 from typing import Optional, Tuple
 
 from omegaconf.omegaconf import MISSING
@@ -21,7 +22,10 @@ from nemo.collections.nlp.data.machine_translation.machine_translation_dataset i
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
-from nemo.collections.nlp.modules.common.transformer.transformer import TransformerConfig, TransformerEncoderConfig
+from nemo.collections.nlp.modules.common.transformer.transformer import (
+    NeMoTransformerConfig,
+    NeMoTransformerEncoderConfig,
+)
 from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
 
 
@@ -72,17 +76,24 @@ class AAYNBaseConfig(MTEncDecModelConfig):
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
 
-    encoder: TransformerEncoderConfig = TransformerEncoderConfig(
-        hidden_size=512,
-        inner_size=2048,
-        num_layers=6,
-        num_attention_heads=8,
-        ffn_dropout=0.1,
-        attn_score_dropout=0.1,
-        attn_layer_dropout=0.1,
+    encoder: TransformerConfig = TransformerConfig(
+        library='nemo',
+        model_name=None,
+        pretrained=False,
+        config_dict=NeMoTransformerEncoderConfig(
+            vocab_size=MISSING,
+            hidden_size=512,
+            inner_size=2048,
+            num_layers=6,
+            num_attention_heads=8,
+            ffn_dropout=0.1,
+            attn_score_dropout=0.1,
+            attn_layer_dropout=0.1,
+        ),
+        encoder=True,
     )
 
-    decoder: TransformerConfig = TransformerConfig(
+    decoder: NeMoTransformerConfig = NeMoTransformerConfig(
         hidden_size=512,
         inner_size=2048,
         num_layers=6,

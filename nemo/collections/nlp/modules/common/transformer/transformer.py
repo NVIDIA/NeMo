@@ -27,8 +27,9 @@ from nemo.core.classes.exportable import Exportable
 
 
 @dataclass
-class TransformerConfig:
+class NeMoTransformerConfig:
     # must be configured by the user
+    vocab_size: int = MISSING
     hidden_size: int = MISSING
     num_layers: int = MISSING
     inner_size: int = MISSING
@@ -49,7 +50,7 @@ class TransformerConfig:
 
 
 @dataclass
-class TransformerEncoderConfig(TransformerConfig):
+class NeMoTransformerEncoderConfig(NeMoTransformerConfig):
     mask_future: bool = False
 
 

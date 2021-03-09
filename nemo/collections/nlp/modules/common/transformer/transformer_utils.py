@@ -20,7 +20,10 @@ from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.modules.common.huggingface.huggingface_decoder import HuggingFaceDecoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_encoder import HuggingFaceEncoderModule
-from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
+from nemo.collections.nlp.modules.common.transformer.transformer import (
+    NeMoTransformerDecoderNM,
+    NeMoTransformerEncoderNM,
+)
 from nemo.utils import logging
 
 
@@ -29,7 +32,7 @@ def get_nemo_transformer(
     pretrained: bool = False,
     config_dict: Optional[Union[dict, DictConfig]] = None,
     encoder: bool = True,
-) -> Union[TransformerEncoderNM, TransformerDecoderNM]:
+) -> Union[NeMoTransformerEncoderNM, NeMoTransformerDecoderNM]:
     """Returns NeMo transformer.
     The following configurations are mandatory:
         vocab_size: int
@@ -65,7 +68,7 @@ def get_nemo_transformer(
         cfg = config_dict
 
     if encoder:
-        model = TransformerEncoderNM(
+        model = NeMoTransformerEncoderNM(
             vocab_size=cfg.get('vocab_size'),
             hidden_size=cfg.get('hidden_size'),
             num_layers=cfg.get('num_layers'),
@@ -82,7 +85,7 @@ def get_nemo_transformer(
             pre_ln=cfg.get('pre_ln', False),
         )
     else:
-        model = TransformerDecoderNM(
+        model = NeMoTransformerDecoderNM(
             vocab_size=cfg.get('vocab_size'),
             hidden_size=cfg.get('hidden_size'),
             num_layers=cfg.get('num_layers'),

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from nemo.collections.nlp.modules.common.lm_utils import TransformerConfig
 from typing import Any
 
 from omegaconf.omegaconf import MISSING
@@ -29,7 +30,7 @@ from nemo.core.config.modelPT import ModelConfig
 class EncDecNLPModelConfig(ModelConfig):
     encoder_tokenizer: TokenizerConfig = MISSING
     decoder_tokenizer: TokenizerConfig = MISSING
-    encoder: Any = MISSING
+    encoder: TransformerConfig = MISSING
     decoder: Any = MISSING
     head: Any = MISSING
 

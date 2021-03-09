@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
+
+from attr import asdict
+from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
 import os
 from typing import List, Optional, Union
 
@@ -156,6 +159,8 @@ def get_transformer(
     model = None
 
     if library == 'nemo':
+        if isinstance(config_dict, NeMoTransformerConfig):
+            config_dict = asdict(config_dict)
         model = get_nemo_transformer(
             model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder,
         )

@@ -39,7 +39,10 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
-from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
+from nemo.collections.nlp.modules.common.transformer.transformer import (
+    NeMoTransformerDecoderNM,
+    NeMoTransformerEncoderNM,
+)
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
