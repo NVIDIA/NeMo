@@ -15,7 +15,7 @@
 # USAGE: python process_asr_text_tokenizer.py --manifest=<path to train manifest files, seperated by commas> \
 #         --data_root="<output directory>" \
 #         --vocab_size=<number of tokens in vocabulary> \
-#         --tokenizer=<"bpe" or "wpe"> \
+#         --tokenizer=<"spe" or "wpe"> \
 #         --log
 # where <manifest> can be: train_clean_100, train_clean_360, train_other_500
 # You can also put more than one data_set comma-separated:
@@ -29,6 +29,53 @@
 # where <manifest> can be: train_clean_100, train_clean_360, train_other_500
 # You can also put more than one data_set comma-separated:
 # --manifest="train_clean_100,train_clean_360,train_other_500"
+#
+# Args:
+#   --manifest or --data_file: If your text data lies inside of an ASR manifest file,
+#       then use the --manifest path. If instead the text data is inside a file with separate lines
+#       corresponding to different text lines, then use --data_file.
+#       In either case, you can add commas to concatenate different manifests or different data files.
+#
+#   --data_root: The output directory (whose subdirectories will be created if not present) where
+#       the tokenizers will be placed.
+#
+#   --vocab_size: The size of the tokenizer vocabulary. Larger vocabularies can accommodate almost entire,
+#       words but the decoder size of any model will grow proportionally.
+#
+#   --tokenizer: Can be either spe or wpe . spe refers to the Google sentencepiece library tokenizer.
+#       wpe refers to the HuggingFace BERT Word Piece tokenizer.
+#
+#   --no_lower_case: When this flag is passed, it will force the tokenizer to create seperate tokens for
+#       upper and lower case characters. By default, the script will turn all the text to lower case
+#       before tokenization (and if upper case characters are passed during training/inference, the
+#       tokenizer will emit a token equivalent to Out-Of-Vocabulary). Used primarily for the
+#       English language.
+#
+#    --spe_type: The sentencepiece library has a few implementations of the tokenization technique, and
+#       spe_type refers to these implementations. Currently supported types are unigram, bpe, char, word.
+#       Defaults to bpe.
+#
+#   --spe_character_coverage: The sentencepiece library considers how much of the original vocabulary it
+#       should cover in its "base set" of tokens (akin to the lower and upper case characters of the
+#       English language). For almost all languages with small base token sets (<1000 tokens), this
+#       should be kept at its default of 1.0. For languages with larger vocabularies (say Japanese,
+#       Mandarin, Korean etc), the suggested value is 0.9995.
+#
+#   --spe_sample_size: If the dataset is too large, consider using a sampled dataset indicated by a
+#       positive integer. By default, any negative value (default = -1) will use the entire dataset.
+#
+#   --spe_train_extremely_large_corpus: When training a sentencepiece tokenizer on very large amounts of text,
+#       sometimes the tokenizer will run out of memory or wont be able to process so much data on RAM.
+#       At some point you might receive the following error - "Input corpus too large, try with
+#       train_extremely_large_corpus=true". If your machine has large amounts of RAM, it might still be possible
+#       to build the tokenizer using the above flag. Will silently fail if it runs out of RAM.
+#
+#   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiecesubword can be.
+#       Using this will change the subword tokens generated.
+#
+#   --log: Whether the script should display log messages
+
+
 import argparse
 import json
 import logging
@@ -59,9 +106,23 @@ parser.add_argument(
     help="Character coverage percentage for SentencePiece tokenization. For languages "
     "with large vocabulary, should be close to 0.9995, otherwise kept as 1.0",
 )
+parser.add_argument(
+    '--spe_sample_size',
+    type=int,
+    default=-1,
+    help="Samples the dataset by `sample_size` if positive integer, otherwise uses whole dataset",
+)
+parser.add_argument('--spe_train_extremely_large_corpus', action='store_true', help='')
+parser.add_argument(
+    '--spe_max_sentencepiece_length',
+    type=int,
+    default=-1,
+    help='Limit the maximum number of tokens in each SentencePiece subword. '
+    'Must be a positive integer > 0. By default places no limit on subword length.',
+)
 parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
 parser.add_argument("--log", action='store_true')
-parser.set_defaults(log=False, lower_case=True)
+parser.set_defaults(log=False, lower_case=True, spe_train_extremely_large_corpus=False)
 args = parser.parse_args()
 
 
@@ -109,6 +170,9 @@ def __process_data(
     tokenizer_type: str,
     spe_type: str,
     spe_character_coverage: float,
+    spe_train_extremely_large_corpus: bool,
+    spe_sample_size: int,
+    spe_max_sentencepiece_length: int,
     lower_case: bool,
 ):
     """
@@ -121,6 +185,12 @@ def __process_data(
         spe_type: type of tokenization model used for spe.
         spe_character_coverage: float value between 0 and 1 (as a percentage). For languages with a vast charset,
             can be < 1.0, but for all other languages, it should be set as 1.0
+        spe_sample_size: int, default of -1. If positive integer is used, samples the dataset
+            by given sample size.
+        spe_train_extremely_large_corpus: bool. If dataset is too large, and user has sufficient RAM,
+            this flag can be set to try to trained the tokenizer. Will silently fail if it runs out of RAM.
+        spe_max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
+            By default, no limit is placed.
         lower_case: whether to tokenize with lower case character set only (for english)
 
     Returns:
@@ -138,11 +208,13 @@ def __process_data(
         tokenizer_path, vocab_path = create_spt_model(
             data_file=text_path,
             vocab_size=vocab_size,
-            sample_size=-1,
+            sample_size=spe_sample_size,
             do_lower_case=lower_case,
             output_dir=tokenizer_dir,
             tokenizer_type=spe_type,
             character_coverage=spe_character_coverage,
+            train_extremely_large_corpus=spe_train_extremely_large_corpus,
+            max_sentencepiece_length=spe_max_sentencepiece_length,
         )
 
     else:
@@ -167,6 +239,9 @@ def main():
     tokenizer = args.tokenizer
     spe_type = args.spe_type
     spe_character_coverage = args.spe_character_coverage
+    spe_sample_size = args.spe_sample_size
+    spe_train_extremely_large_corpus = args.spe_train_extremely_large_corpus
+    spe_max_sentencepiece_length = args.spe_max_sentencepiece_length
     lower_case = args.lower_case
 
     if not os.path.exists(data_root):
@@ -187,6 +262,9 @@ def main():
         spe_type,
         lower_case=lower_case,
         spe_character_coverage=spe_character_coverage,
+        spe_sample_size=spe_sample_size,
+        spe_train_extremely_large_corpus=spe_train_extremely_large_corpus,
+        spe_max_sentencepiece_length=spe_max_sentencepiece_length,
     )
 
     print("Serialized tokenizer at location :", tokenizer_path)

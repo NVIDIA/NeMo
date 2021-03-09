@@ -113,7 +113,8 @@ def main(cfg: DictConfig) -> None:
         'what can i do for you today',
         'how are you',
     ]
-    inference_results = model.add_punctuation_capitalization(queries, max_seq_length=512)
+
+    inference_results = model.add_punctuation_capitalization(queries, batch_size=len(queries), max_seq_length=512)
 
     for query, result in zip(queries, inference_results):
         logging.info(f'Query : {query}')

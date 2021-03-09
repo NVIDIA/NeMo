@@ -63,6 +63,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
+            vocab_file=cfg.tokenizer.vocab_file,
         )
 
         self.punct_classifier = TokenClassifier(
@@ -366,7 +367,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         )
 
     def add_punctuation_capitalization(
-        self, queries: List[str], batch_size: int = None, max_seq_length: str = None
+        self, queries: List[str], batch_size: int = None, max_seq_length: int = 512
     ) -> List[str]:
         """
         Adds punctuation and capitalization to the queries. Use this method for debugging and prototyping.
@@ -432,6 +433,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     logging.warning(
                         f'Max sequence length of query {query} is set to {max_seq_length}. Truncating the input.'
                     )
+
+                    # removing the end of phrase punctuation of the truncated segment
+                    punct_preds[-1] = 0
                     max_len = len(punct_preds)
                     query = query[:max_len]
 
