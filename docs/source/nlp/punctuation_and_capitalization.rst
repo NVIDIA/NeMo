@@ -4,13 +4,17 @@ Punctuation and Capitalization Model
 ====================================
 
 Automatic Speech Recognition (ASR) systems typically generate text with no punctuation and capitalization of the words. \
-Besides being hard to read, the ASR output could be an input to named entity recognition, \
-machine translation or text-to-speech models. These model models could potentially benefit when the input text contains \
-punctuation and the words are capitalized correctly.
+There are two issues with non-punctuated ASR output:
 
-For each word in the input text, the model:
+- it could be difficult to read and understand;
+- models for some downstream tasks such as named entity recognition, machine translation or text-to-speech are usually trained on punctuated datasets and using raw ASR output as the input to these models could deteriorate their performance.
 
-1. predicts a punctuation mark that should follow the word (if any). The model supports commas, periods and question marks.
+Model Description
+-----------------
+
+For each word in the input text, the Punctuation and Capitalization model:
+
+1. predicts a punctuation mark that should follow the word (if any). By default, the model supports commas, periods and question marks.
 2. predicts if the word should be capitalized or not.
 
 .. note::
@@ -22,6 +26,7 @@ For each word in the input text, the model:
     Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
     An example script on how to train the model could be found here: `NeMo/examples/nlp/token_classification/punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_train.py>`__.
+
     An example script on how to run evaluation and inference could be found here: `NeMo/examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`__.
 
     The default configuration file for the model could be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
@@ -33,14 +38,9 @@ For each word in the input text, the model:
 Raw Data Format
 ---------------
 
-This model can work with any text dataset, although it is recommended to balance the data, especially for the punctuation task.
-
-Before pre-processing the data to the required format, the data should be split into train.txt and dev.txt (and optionally test.txt).
-The development set (or dev set) will be used to evaluate the performance of the model during model training. \
-The hyper-parameters search and model selection should be based on the dev set, while the final evaluation of the selected model \
-should be performed on the test set.
-
-Each line in the train.txt/dev.txt/test.txt should represent one or more full and/or truncated sentences.
+The Punctuation and Capitalization model can work with any text dataset, although it is recommended to balance the data, especially for the punctuation task.
+Before pre-processing the data to the format expected by the model, the data should be split into train.txt and dev.txt (and optionally test.txt).
+Each line in the **train.txt/dev.txt/test.txt** should represent one or more full and/or truncated sentences.
 
 Example of the train.txt/dev.txt file:
 
@@ -58,7 +58,6 @@ The `source_data_dir` structure should look like this:
    .
    |--sourced_data_dir
      |-- dev.txt
-     |-- test.txt
      |-- train.txt
 
 
@@ -69,7 +68,7 @@ NeMo Data Format for training the model
 The punctuation and capitalization model expects the data in the following format:
 
 The training and evaluation data is divided into 2 files: text.txt and labels.txt. \
-Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e.
+Each line of the **text.txt** file contains text sequences, where words are separated with spaces, i.e.
 
 [WORD] [SPACE] [WORD] [SPACE] [WORD], for example:
 
@@ -79,7 +78,7 @@ Each line of the text.txt file contains text sequences, where words are separate
         the next flight is ...
         ...
 
-The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces. \
+The **labels.txt** file contains corresponding labels for each word in text.txt, the labels are separated with spaces. \
 Each label in labels.txt file consists of 2 symbols:
 
 * the first symbol of the label indicates what punctuation mark should follow the word (where O means no punctuation needed);
@@ -134,96 +133,95 @@ Training Punctuation and Capitalization Model
 ---------------------------------------------
 
 In the Punctuation and Capitalization Model, we are jointly training two token-level classifiers on top of a pre-trained \
-language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-devlin2018bert`.
-
+language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-punct-devlin2018bert`.
 Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the
 pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
-
 Example of model configuration file for training the model could be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
 The specification can be roughly grouped into the following categories:
 
-* Parameters that describe the training process: `trainer`
-* Parameters that describe the datasets: `model.dataset`, `model.train_ds`, `model.validation_ds`
-* Parameters that describe the model: `model`
+* Parameters that describe the training process: **trainer**
+* Parameters that describe the datasets: **model.dataset**, **model.train_ds**, **model.validation_ds**
+* Parameters that describe the model: **model**
 
-More details about parameters in the config file could be found below and in the config file itself:
+More details about parameters in the config file could be found below and in the `model's config file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__:
 
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| pretrained_model                          | string          | --                                                                               | Path to the pre-trained model .nemo file or pre-trained model name                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.dataset.data_dir                    | string          | --                                                                               | Path to the data converted to the specified above format                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| trainer.max_epochs                        | integer         | 5                                                                                | Maximum number of epochs to train the model                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_name            | string          | Will be filled automatically based on model.language_model.pretrained_model_name | Tokenizer name                                                                                               |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.vocab_file                | string          | null                                                                             | Path to tokenizer vocabulary                                                                                 |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_model           | string          | null                                                                             | Path to tokenizer model (only for sentencepiece tokenizer)                                                   |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.pretrained_model_name| string          | bert-base-uncased                                                                | Pre-trained language model name, for example: `bert-base-cased` or `bert-base-uncased`                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.lm_checkpoint        | string          | null                                                                             | Path to the pre-trained language model checkpoint                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config_file          | string          | null                                                                             | Path to the pre-trained language model config file                                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config               | dictionary      | null                                                                             | Config of the pre-trained language model                                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.punct_head.punct_num_fc_layers      | integer         | 1                                                                                | Number of fully connected layers                                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.punct_head.fc_dropout               | float           | 0.1                                                                              | Activation to use between fully connected layers                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.punct_head.activation               | string          | 'relu'                                                                           | Dropout to apply to the input hidden states                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.punct_head.use_transrormer_init     | bool            | True                                                                             | Whether to initialize the weights of the classifier head with the same approach used in Transformer          |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.capit_head.punct_num_fc_layers      | integer         | 1                                                                                | Number of fully connected layers                                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.capit_head.fc_dropout               | float           | 0.1                                                                              | Activation to use between fully connected layers                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.capit_head.activation               | string          | 'relu'                                                                           | Dropout to apply to the input hidden states                                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.capit_head.use_transrormer_init     | bool            | True                                                                             | Whether to initialize the weights of the classifier head with the same approach used in Transformer          |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.text_file                     | string          | text_train.txt                                                                   | Name of the text training file located at `data_dir`                                                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.labels_file                   | string          | labels_train.txt                                                                 | Name of the labels training file located at `data_dir`                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.shuffle                       | bool            | True                                                                             | Whether to shuffle the training data                                                                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.num_samples                   | integer         | -1                                                                               | Number of samples to use from the training dataset, -1 mean all                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.batch_size                    | integer         | 64                                                                               | Training data batch size                                                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.text_file                   | string          | text_dev.txt                                                                     | Name of the text file for evaluation, located at `data_dir`                                                  |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.labels_file                 | string          | labels_dev.txt                                                                   | Name of the labels dev file located at `data_dir`                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.shuffle                     | bool            | False                                                                            | Whether to shuffle the dev data                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.num_samples                 | integer         | -1                                                                               | Number of samples to use from the dev set, -1 mean all                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.batch_size                  | integer         | 64                                                                               | Dev set batch size                                                                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.name                                | string          | adam                                                                             | Optimizer to use for training                                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.lr                                  | float           | 1e-5                                                                             | Learning rate to use for training                                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.weight_decay                        | float           | 0                                                                                | Weight decay to use for training                                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.sched.name                          | string          | WarmupAnnealing                                                                  | Warm up schedule                                                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.sched.warmup_ratio                  | float           | 0.1                                                                              | Warm up ratio                                                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 
-To train the model from scratch, use:
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| **Parameter**                             | **Data Type**   |  **Description**                                                                                             |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| pretrained_model                          | string          | Path to the pre-trained model .nemo file or pre-trained model name                                           |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.dataset.data_dir                    | string          | Path to the data converted to the specified above format                                                     |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| trainer.max_epochs                        | integer         | Maximum number of epochs to train the model                                                                  |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.tokenizer.tokenizer_name            | string          | Tokenizer name, will be filled automatically based on model.language_model.pretrained_model_name             |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.tokenizer.vocab_file                | string          | Path to tokenizer vocabulary                                                                                 |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.tokenizer.tokenizer_model           | string          | Path to tokenizer model (only for sentencepiece tokenizer)                                                   |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.language_model.pretrained_model_name| string          | Pre-trained language model name, for example: `bert-base-cased` or `bert-base-uncased`                       |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.language_model.lm_checkpoint        | string          | Path to the pre-trained language model checkpoint                                                            |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.language_model.config_file          | string          | Path to the pre-trained language model config file                                                           |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.language_model.config               | dictionary      | Config of the pre-trained language model                                                                     |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.punct_head.punct_num_fc_layers      | integer         | Number of fully connected layers                                                                             |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.punct_head.fc_dropout               | float           | Activation to use between fully connected layers                                                             |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.punct_head.activation               | string          | Dropout to apply to the input hidden states                                                                  |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.punct_head.use_transrormer_init     | bool            | Whether to initialize the weights of the classifier head with the same approach used in Transformer          |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.capit_head.punct_num_fc_layers      | integer         | Number of fully connected layers                                                                             |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.capit_head.fc_dropout               | float           | Dropout to apply to the input hidden states                                                                  |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.capit_head.activation               | string          | Activation function to use between fully connected layers                                                    |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| model.capit_head.use_transrormer_init     | bool            | Whether to initialize the weights of the classifier head with the same approach used in Transformer          |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.text_file                     | string          | Name of the text training file located at `data_dir`                                                         |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.labels_file                   | string          | Name of the labels training file located at `data_dir`, such as `labels_train.txt`                           |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.shuffle                       | bool            | Whether to shuffle the training data                                                                         |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.num_samples                   | integer         | Number of samples to use from the training dataset, -1 - to use all                                          |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| training_ds.batch_size                    | integer         | Training data batch size                                                                                     |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.text_file                   | string          | Name of the text file for evaluation, located at `data_dir`                                                  |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.labels_file                 | string          | Name of the labels dev file located at `data_dir`, such as `labels_dev.txt`                                  |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.shuffle                     | bool            | Whether to shuffle the dev data                                                                              |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.num_samples                 | integer         | Number of samples to use from the dev set, -1 mean all                                                       |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| validation_ds.batch_size                  | integer         | Dev set batch size                                                                                           |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| optim.name                                | string          | Optimizer to use for training                                                                                |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| optim.lr                                  | float           | Learning rate to use for training                                                                            |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| optim.weight_decay                        | float           | Weight decay to use for training                                                                             |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| optim.sched.name                          | string          | Warm up schedule                                                                                             |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+| optim.sched.warmup_ratio                  | float           | Warm up ratio                                                                                                |
++-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
+
+To train the model from scratch, run:
 
 .. code::
 
-      python examples/nlp/token_classification/punctuation_and_capitalization_train \
+      python examples/nlp/token_classification/punctuation_and_capitalization_train.py \
              model.dataset.data_dir=<PATH/TO/DATA_DIR> \
              trainer.gpus=[0,1] \
              optim.name=adam \
@@ -234,7 +232,7 @@ To train from the pre-trained model, use:
 
 .. code::
 
-      python examples/nlp/token_classification/punctuation_and_capitalization_train \
+      python examples/nlp/token_classification/punctuation_and_capitalization_train.py \
              model.dataset.data_dir=<PATH/TO/DATA_DIR> \
              pretrained_model=<PATH/TO/SAVE/.nemo>
 
@@ -312,14 +310,13 @@ To run evaluation of the pre-trained model, run:
     python punctuation_capitalization_evaluate.py \
            model.dataset.data_dir=<PATH/TO/DATA/DIR>  \
            pretrained_model=punctuation_en_bert \
-           model.test_ds.text_file=<text_*.txt> \
-           model.test_ds.labels_file=<labels_*.txt> \
-           model.dataset.max_seq_length=512
+           model.test_ds.text_file=<text_dev.txt> \
+           model.test_ds.labels_file=<labels_dev.txt>
 
 
 Required Arguments:
 ^^^^^^^^^^^^^^^^^^^
-* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
 * :code:`model.dataset.data_dir`: Path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`.
 
 
@@ -341,8 +338,8 @@ More details about these metrics could be found `here <https://en.wikipedia.org/
 References
 ----------
 
-.. bibliography:: nlp_references.bib
+.. bibliography:: nlp_all.bib
     :style: plain
-    :labelprefix: nlp-
-    :keyprefix: nlp-
+    :labelprefix: NLP-PUNCT
+    :keyprefix: nlp-punct-
 

@@ -5,7 +5,7 @@ Speech Data Explorer
 
     The tool could be found under `NeMo/tools/speech_data_explorer <https://github.com/NVIDIA/NeMo/tree/main/tools/speech_data_explorer>`__.
 
-`Dash <https://plotly.com/dash/>`__ -based tool for interactive exploration of ASR/TTS datasets.
+`Dash <https://plotly.com/dash/>`__-based tool for interactive exploration of ASR/TTS datasets.
 
 Features:
 

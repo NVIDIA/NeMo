@@ -1,6 +1,9 @@
 NeMo tools
 ==========
 
+NeMo provides a set of tools useful for developing Automatic Speech Recognitions (ASR) and Text-to-Speech (TTS) models: \
+`https://github.com/NVIDIA/NeMo/tree/main/tools <https://github.com/NVIDIA/NeMo/tree/main/tools>`__ .
+
 .. toctree::
    :maxdepth: 1
 
@@ -9,5 +12,3 @@ NeMo tools
    text_normalization
 
 
-NeMo provides a few tools that could be useful for developing Automatic Speech Recognitions (ASR) or Text-to-Speech (TTS) models: \
-`https://github.com/NVIDIA/NeMo/tree/main/tools <https://github.com/NVIDIA/NeMo/tree/main/tools>`__ .

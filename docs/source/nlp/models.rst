@@ -1,7 +1,7 @@
 ..nlp_models:
 
-Natural Language Processsing (NLP) Models
-=========================================
+Models
+======
 
 NeMo's NLP collection supports the following models:
 
