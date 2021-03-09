@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from omegaconf.omegaconf import MISSING
 
@@ -30,10 +30,24 @@ from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
 
 
 @dataclass
+class MTSchedConfig(SchedConfig):
+    name: str = 'InverseSquareRootAnnealing'
+    warmup_ratio: Optional[float] = None
+    last_epoch: int = -1
+
+
+# TODO: Refactor this dataclass to to support more optimizers (it pins the optimizer to Adam-like optimizers).
+@dataclass
+class MTOptimConfig(OptimConfig):
+    name: str = 'adam'
+    lr: float = 1e-3
+    betas: Tuple[float, float] = (0.9, 0.98)
+    weight_decay: float = 0.0
+    sched: Optional[MTSchedConfig] = MTSchedConfig()
+
+
+@dataclass
 class MTEncDecModelConfig(EncDecNLPModelConfig):
-    train_ds: Optional[TranslationDataConfig] = None
-    validation_ds: Optional[TranslationDataConfig] = None
-    test_ds: Optional[TranslationDataConfig] = None
     beam_size: int = 4
     len_pen: float = 0.0
     max_generation_delta: int = 3
@@ -44,22 +58,42 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     shared_tokenizer: Optional[bool] = True
     preproc_out_dir: Optional[str] = None
 
+    # neural network architectures
+    encoder: Any = MISSING
 
-@dataclass
-class AAYNBaseSchedConfig(SchedConfig):
-    name: str = 'InverseSquareRootAnnealing'
-    warmup_ratio: Optional[float] = None
-    last_epoch: int = -1
+    decoder: Any = MISSING
 
+    head: TokenClassifierConfig = TokenClassifierConfig(log_softmax=True)
 
-# TODO: Refactor this dataclass to to support more optimizers (it pins the optimizer to Adam-like optimizers).
-@dataclass
-class AAYNBaseOptimConfig(OptimConfig):
-    name: str = 'adam'
-    lr: float = 1e-3
-    betas: Tuple[float, float] = (0.9, 0.98)
-    weight_decay: float = 0.0
-    sched: Optional[AAYNBaseSchedConfig] = AAYNBaseSchedConfig()
+    # dataset configurations
+    train_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
+        clean=True,
+        shuffle=True,
+        cache_ids=False,
+        use_cache=False,
+    )
+    validation_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
+        clean=False,
+        shuffle=False,
+        cache_ids=False,
+        use_cache=False,
+    )
+    test_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
+        src_file_name=MISSING,
+        tgt_file_name=MISSING,
+        tokens_in_batch=512,
+        clean=False,
+        shuffle=False,
+        cache_ids=False,
+        use_cache=False,
+    )
+    optim: Optional[OptimConfig] = MTOptimConfig()
 
 
 @dataclass
@@ -93,7 +127,6 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         library='nemo',
         model_name=None,
         pretrained=False,
-        hidden_size=512,
         inner_size=2048,
         num_layers=6,
         num_attention_heads=8,
@@ -102,34 +135,3 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         attn_layer_dropout=0.1,
     )
 
-    head: TokenClassifierConfig = TokenClassifierConfig(log_softmax=True)
-
-    # dataset configurations
-    train_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
-        src_file_name=MISSING,
-        tgt_file_name=MISSING,
-        tokens_in_batch=512,
-        clean=True,
-        shuffle=True,
-        cache_ids=False,
-        use_cache=False,
-    )
-    validation_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
-        src_file_name=MISSING,
-        tgt_file_name=MISSING,
-        tokens_in_batch=512,
-        clean=False,
-        shuffle=False,
-        cache_ids=False,
-        use_cache=False,
-    )
-    test_ds: Optional[TranslationDataConfig] = TranslationDataConfig(
-        src_file_name=MISSING,
-        tgt_file_name=MISSING,
-        tokens_in_batch=512,
-        clean=False,
-        shuffle=False,
-        cache_ids=False,
-        use_cache=False,
-    )
-    optim: Optional[OptimConfig] = AAYNBaseOptimConfig()
