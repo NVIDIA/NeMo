@@ -77,7 +77,6 @@ class AAYNBaseConfig(MTEncDecModelConfig):
     decoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
 
     encoder: NeMoTransformerEncoderConfig = NeMoTransformerEncoderConfig(
-        vocab_size=MISSING,
         library='nemo',
         model_name=None,
         pretrained=False,
@@ -88,11 +87,9 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         ffn_dropout=0.1,
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
-        encoder=True,
     )
 
     decoder: NeMoTransformerConfig = NeMoTransformerConfig(
-        vocab_size=MISSING,
         library='nemo',
         model_name=None,
         pretrained=False,
@@ -103,7 +100,6 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         ffn_dropout=0.1,
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
-        encoder=False,
     )
 
     head: TokenClassifierConfig = TokenClassifierConfig(log_softmax=True)

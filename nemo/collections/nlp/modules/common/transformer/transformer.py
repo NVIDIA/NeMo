@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 from omegaconf.omegaconf import MISSING
@@ -29,7 +30,6 @@ from nemo.core.classes.exportable import Exportable
 @dataclass
 class NeMoTransformerConfig:
     # must be configured by the user
-    vocab_size: int = MISSING
     hidden_size: int = MISSING
     num_layers: int = MISSING
     inner_size: int = MISSING
@@ -50,7 +50,7 @@ class NeMoTransformerConfig:
 
     # named model arguments
     library: str = 'nemo'
-    model_name: str = None
+    model_name: Optional[str] = None
     pretrained: bool = False
 
 
