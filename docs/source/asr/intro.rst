@@ -33,7 +33,8 @@ It also includes guidance for creating your own NeMo-compatible dataset, if you 
 Information about how to load model checkpoints (either local files or pretrained ones from NGC), as well as a list
 of the checkpoints available on NGC are located on the :doc:`Checkpoints <./results>` page.
 
->>>TODO: Add more sections for other documentation pages
+Documentation for configuration files specific to the ``nemo_asr`` models can be found on the
+:doc:`Configuration Files <./configs>` page.
 
 The full documentation tree is as follows:
 
@@ -43,5 +44,6 @@ The full documentation tree is as follows:
    models
    datasets
    results
+   configs
    api
 
