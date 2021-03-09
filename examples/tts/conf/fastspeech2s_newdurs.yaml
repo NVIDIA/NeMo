@@ -1,0 +1,118 @@
+name: FastSpeech2S
+sample_rate: 22050
+n_fft: 1024
+n_mels: 80
+fmax: null
+n_stride: 256
+pad_value: -11.52
+train_dataset: /data/speech/LJSpeech/nvidia_ljspeech_train.json
+validation_datasets: /data/speech/LJSpeech/nvidia_ljspeech_val.json
+durs_file: /mnt/ssd1/data/LJSpeech-1.1/stan_ljspeech_durs/durs.pt
+f0_file: /mnt/ssd1/data/LJSpeech-1.1/stan_ljspeech_durs/f0.pt
+
+
+model:
+  lr: 0.5
+  splice_length: 64  # Length in frames
+  mel_loss_coeff: 45.
+  add_energy_predictor: False
+  add_pitch_predictor: False
+
+  train_ds:
+    dataset:
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
+      manifest_filepath: ${train_dataset}
+      max_duration: null
+      min_duration: 0.1
+      int_values: false
+      normalize: false
+      sample_rate: ${sample_rate}
+      trim: false
+      durs_file: ${durs_file}
+      f0_file: ${f0_file}
+      blanking: true
+      vocab:
+        notation: phonemes
+        punct: true
+        spaces: true
+        stresses: false
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 64
+      num_workers: 4
+
+  validation_ds:
+    dataset:
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
+      manifest_filepath: ${validation_datasets}
+      int_values: false
+      normalize: false
+      sample_rate: ${sample_rate}
+      trim: false
+      durs_file: ${durs_file}
+      f0_file: ${f0_file}
+      blanking: true
+      vocab:
+        notation: phonemes
+        punct: true
+        spaces: true
+        stresses: false
+    dataloader_params:
+      drop_last: false
+      shuffle: false
+      batch_size: 64
+      num_workers: 8
+
+  generator:
+    _target_: nemo.collections.tts.modules.hifigan_modules.Generator
+    upsample_kernel_sizes: [16,16,4,4]
+    upsample_rates: [8,8,2,2]
+    upsample_initial_channel: 512
+    resblock_kernel_sizes: [3,7,11]
+    resblock_dilation_sizes: [[1,3,5], [1,3,5], [1,3,5]]
+    resblock: 1
+    initial_input_size: 256
+    apply_weight_init_conv_pre: true
+
+  preprocessor:
+    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    dither: 0.0
+    nfilt: ${n_mels}
+    frame_splicing: 1
+    highfreq: ${fmax}
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    lowfreq: 0
+    mag_power: 1.0
+    n_fft: ${n_fft}
+    n_window_size: 1024
+    n_window_stride: ${n_stride}
+    normalize: null
+    pad_to: 8
+    pad_value: ${pad_value}
+    preemph: null
+    sample_rate: ${sample_rate}
+    stft_conv: false
+    window: hann
+
+
+trainer:
+  gpus: 1 # number of gpus
+  max_epochs: ???
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+  log_every_n_steps: 200
+  check_val_every_n_epoch: 25
+  move_metrics_to_cpu: False
+  precision: 16
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True

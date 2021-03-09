@@ -8,13 +8,14 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from torch import nn
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursDataset, GaussianEmbedding
+from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.tacotron2loss import L1MelLoss
 from nemo.collections.tts.modules.fastspeech2 import Encoder, VarianceAdaptor
 from nemo.collections.tts.modules.fastspeech2_submodules import LengthRegulator2, VariancePredictor
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.collections.tts.modules.talknet import GaussianEmbedding
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.optim.lr_scheduler import NoamAnnealing
@@ -36,12 +37,12 @@ class FastSpeech2SModel(ModelPT):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.vocab, self.gauss_emb = None, None
-        if cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset":
-            self.vocab = AudioToCharWithDursDataset.make_vocab(**cfg.train_ds.dataset.vocab)
+        self.vocab = None
+        if cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset":
+            self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
             self.length_regulator = GaussianEmbedding(self.vocab, 256)
-        # else:
-        #     self.length_regulator = LengthRegulator2()
+        else:
+            self.length_regulator = LengthRegulator2()
 
         self.energy = cfg.add_energy_predictor
         self.pitch = cfg.add_pitch_predictor
@@ -101,6 +102,7 @@ class FastSpeech2SModel(ModelPT):
             self.generator.parameters(),
             # self.duration_predictor.parameters(),
             self.variance_adapter.parameters(),
+            self.length_regulator.parameters(),
         )
         disc_params = chain(self.multiscaledisc.parameters(), self.multiperioddisc.parameters())
         opt1 = torch.optim.AdamW(disc_params, lr=self._cfg.lr)
@@ -146,7 +148,7 @@ class FastSpeech2SModel(ModelPT):
         # else:
         #     context = self.length_regulator(encoded_text, durations)
 
-        context, log_dur_preds, log_pitch_preds, energy_preds, spec_len = self.variance_adapter(
+        context, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
             x=encoded_text,
             x_len=text_length,
             dur_target=durations,
@@ -154,6 +156,8 @@ class FastSpeech2SModel(ModelPT):
             energy_target=energies,
             spec_len=spec_len,
         )
+
+        # TODO: Add guassian embedding
 
         gen_in = context
         splices = None
@@ -170,13 +174,14 @@ class FastSpeech2SModel(ModelPT):
 
         output = self.generator(gen_in.transpose(1, 2))
 
-        return output, splices, log_dur_preds, log_pitch_preds, energy_preds, encoded_text_mask
+        return output, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         if self.vocab is None:
             f, fl, t, tl, durations, pitch, energies = batch
         else:
-            f, fl, t, tl, durations = batch
+            pitch, energies = None, None
+            f, fl, t, tl, durations, _, _ = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
 
         # train discriminator
@@ -212,7 +217,7 @@ class FastSpeech2SModel(ModelPT):
 
         # train generator
         elif optimizer_idx == 1:
-            audio_pred, splices, log_dur_preds, log_pitch_preds, energy_preds, encoded_text_mask = self(
+            audio_pred, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
                 spec=spec,
                 spec_len=spec_len,
                 text=t,
@@ -254,7 +259,8 @@ class FastSpeech2SModel(ModelPT):
             self.log(name="loss_gen_duration", value=dur_loss)
             total_loss += dur_loss
             if self.pitch:
-                pitch_loss = self.durationloss(log_pitch_preds, pitch.float())
+                # pitch_loss = self.durationloss(log_pitch_preds, pitch.float())
+                pitch_loss = self.mseloss(pitch_preds, pitch.float())
                 total_loss += pitch_loss
                 self.log(name="loss_gen_pitch", value=pitch_loss)
             if self.energy:
@@ -284,7 +290,10 @@ class FastSpeech2SModel(ModelPT):
             return total_loss
 
     def validation_step(self, batch, batch_idx):
-        f, fl, t, tl, _ = batch
+        if self.vocab is None:
+            f, fl, t, tl, _ = batch
+        else:
+            f, fl, t, tl, _, _, _ = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
         audio_pred, _, _, _, _, _ = self(spec=spec, spec_len=spec_len, text=t, text_length=tl, splice=False)
         pred_spec = self.mel_spectrogram(audio_pred)
@@ -299,20 +308,21 @@ class FastSpeech2SModel(ModelPT):
         }
 
     def on_train_epoch_start(self):
-        # Switch to using energy predictions after 50% of training
-        if not self.use_energy_pred and self.current_epoch >= np.ceil(0.5 * self._trainer.max_epochs):
-            logging.info(f"Using energy predictions after epoch: {self.current_epoch}")
-            self.use_energy_pred = True
+        if self.vocab is None:
+            # Switch to using energy predictions after 50% of training
+            if not self.use_energy_pred and self.current_epoch >= np.ceil(0.5 * self._trainer.max_epochs):
+                logging.info(f"Using energy predictions after epoch: {self.current_epoch}")
+                self.use_energy_pred = True
 
-        # Switch to using pitch predictions after 62.5% of training
-        if not self.use_pitch_pred and self.current_epoch >= np.ceil(0.625 * self._trainer.max_epochs):
-            logging.info(f"Using pitch predictions after epoch: {self.current_epoch}")
-            self.use_pitch_pred = True
+            # Switch to using pitch predictions after 62.5% of training
+            if not self.use_pitch_pred and self.current_epoch >= np.ceil(0.625 * self._trainer.max_epochs):
+                logging.info(f"Using pitch predictions after epoch: {self.current_epoch}")
+                self.use_pitch_pred = True
 
-        # # Switch to using duration predictions after 75% of training
-        # if not self.use_duration_pred and self.current_epoch >= np.ceil(0.75 * self._trainer.max_epochs):
-        #     logging.info(f"Using duration predictions after epoch: {self.current_epoch}")
-        #     self.use_duration_pred = True
+            # # Switch to using duration predictions after 75% of training
+            # if not self.use_duration_pred and self.current_epoch >= np.ceil(0.75 * self._trainer.max_epochs):
+            #     logging.info(f"Using duration predictions after epoch: {self.current_epoch}")
+            #     self.use_duration_pred = True
 
     def validation_epoch_end(self, outputs):
         if self.tb_logger is not None:

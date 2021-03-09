@@ -221,12 +221,12 @@ class VarianceAdaptor(NeuralModule):
         #       (see Appendix C of the FastSpeech 2/2s paper).
         pitch_preds = None
         if self.pitch:
-            log_pitch_preds = self.pitch_predictor(dur_out)
-            log_pitch_preds.masked_fill_(~get_mask_from_lengths(spec_len), 0)
+            pitch_preds = self.pitch_predictor(dur_out)
+            pitch_preds.masked_fill_(~get_mask_from_lengths(spec_len), 0)
             if pitch_target is not None:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
             else:
-                pitch_preds = torch.clamp_min(torch.exp(log_pitch_preds) - 1, 0)
+                # pitch_preds = torch.clamp_min(torch.exp(lg_pitch_preds) - 1, 0)
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
             out += pitch_out
         out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
@@ -242,7 +242,7 @@ class VarianceAdaptor(NeuralModule):
             out += energy_out
         out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
 
-        return out, log_dur_preds, log_pitch_preds, energy_preds, spec_len
+        return out, log_dur_preds, pitch_preds, energy_preds, spec_len
 
 
 @experimental
