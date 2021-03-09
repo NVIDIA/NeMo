@@ -30,6 +30,7 @@ def export_test(model, suffix, try_script=False):
         assert os.path.exists(enc_filename)
         assert os.path.exists(dec_filename)
 
+
 def get_cfg():
     cfg = AAYNBaseConfig()
     cfg.encoder_tokenizer.tokenizer_name = 'yttm'
@@ -40,6 +41,7 @@ def get_cfg():
     cfg.validation_ds = None
     cfg.test_ds = None
     return cfg
+
 
 class TestMTEncDecModel:
     @pytest.mark.unit
@@ -78,7 +80,7 @@ class TestMTEncDecModel:
         assert isinstance(model, MTEncDecModel)
         export_test(model, ".onnx")
         export_test(model, ".ts")
-    
+
 
 if __name__ == "__main__":
     t = TestMTEncDecModel()
