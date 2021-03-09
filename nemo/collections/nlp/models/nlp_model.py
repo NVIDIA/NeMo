@@ -25,6 +25,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
+from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
 from pytorch_lightning.utilities.cloud_io import atomic_save
@@ -120,7 +121,6 @@ class NLPModel(ModelPT, Exportable):
         elif cfg.vocab_file:
             # use vocab file from config
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             vocab_file=vocab_file,
@@ -182,7 +182,7 @@ class NLPModel(ModelPT, Exportable):
                     for key in vocab_dict:
                         f.write(key + '\n')
 
-                cfg.vocab_file = vocab_file_config_path
+                cfg.vocab_file = vocab_file_src
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
                 logging.info(
@@ -274,6 +274,10 @@ class NLPModel(ModelPT, Exportable):
         """
         # TODO: implement model parallel for test stage
         if stage == 'fit':
+            # set find_unused_parameters to True by default for NLP models
+            if isinstance(self.trainer.accelerator.training_type_plugin, DDPPlugin):
+                self.trainer.accelerator.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
+
             # adds self.bert_model config to .nemo file
             if hasattr(self, 'bert_model') and self.bert_model is not None:
                 self.register_bert_model()
@@ -309,8 +313,7 @@ class NLPModel(ModelPT, Exportable):
                         )
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
-                    # finish megatron-lm initialization
-                    self.bert_model._lazy_init_fn()
+                    self.bert_model.complete_lazy_init()
 
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
                     if self._trainer.resume_from_checkpoint is not None:
@@ -351,18 +354,16 @@ class NLPModel(ModelPT, Exportable):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             else:
-                if (
-                    hasattr(self, 'bert_model')
-                    and self.bert_model is not None
-                    and isinstance(self.bert_model, MegatronBertEncoder)
-                ):
-                    # finish megatron-lm initialization
-                    self.bert_model._lazy_init_fn()
+                # Megatron without model parallelism
+                self.complete_megatron_init()
         else:
             # testing stage
+            self.complete_megatron_init()
+
+    def complete_megatron_init(self):
+        if hasattr(self, 'bert_model'):
             if isinstance(self.bert_model, MegatronBertEncoder):
-                # finish megatron-lm initialization
-                self.bert_model._lazy_init_fn()
+                self.bert_model.complete_lazy_init()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):

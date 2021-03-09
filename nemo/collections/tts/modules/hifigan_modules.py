@@ -284,7 +284,7 @@ class DiscriminatorP(NeuralModule):
     def output_types(self):
         return {
             "decision": NeuralType(('B', 'T'), VoidType()),
-            "feature_maps": NeuralType(("B", "C", "H", "W"), VoidType()),
+            "feature_maps": [NeuralType(("B", "C", "H", "W"), VoidType())],
         }
 
     @typecheck()
@@ -327,10 +327,10 @@ class MultiPeriodDiscriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "real_scores": NeuralType(('B', 'T'), VoidType()),
-            "fake_scores": NeuralType(('B', 'T'), VoidType()),
-            "real_feature_maps": NeuralType(("B", "C", "H", "W"), VoidType()),
-            "fake_feature_maps": NeuralType(("B", "C", "H", "W"), VoidType()),
+            "real_scores": [NeuralType(('B', 'T'), VoidType())],
+            "fake_scores": [NeuralType(('B', 'T'), VoidType())],
+            "real_feature_maps": [[NeuralType(("B", "C", "H", "W"), VoidType())]],
+            "fake_feature_maps": [[NeuralType(("B", "C", "H", "W"), VoidType())]],
         }
 
     @typecheck()
@@ -377,7 +377,7 @@ class DiscriminatorS(NeuralModule):
     def output_types(self):
         return {
             "decision": NeuralType(('B', 'T'), VoidType()),
-            "feature_maps": NeuralType(("B", "C", "T"), VoidType()),
+            "feature_maps": [NeuralType(("B", "C", "T"), VoidType())],
         }
 
     @typecheck()
@@ -412,10 +412,10 @@ class MultiScaleDiscriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "real_scores": NeuralType(('B', 'T'), VoidType()),
-            "fake_scores": NeuralType(('B', 'T'), VoidType()),
-            "real_feature_maps": NeuralType(("B", "C", "T"), VoidType()),
-            "fake_feature_maps": NeuralType(("B", "C", "T"), VoidType()),
+            "real_scores": [NeuralType(('B', 'T'), VoidType())],
+            "fake_scores": [NeuralType(('B', 'T'), VoidType())],
+            "real_feature_maps": [[NeuralType(("B", "C", "T"), VoidType())]],
+            "fake_feature_maps": [[NeuralType(("B", "C", "T"), VoidType())]],
         }
 
     @typecheck()
