@@ -264,34 +264,86 @@ def compute_grad_kernel(
     alphabet_size: int,
     blank_: int,
 ):
-    tid = cuda.threadIdx.x
-    idx = tid
-    col = cuda.blockIdx.x
+    """
+    Compute gradients over the transduction step.
 
-    u = col % maxU
-    bt = (col - u) // maxU
-    t = bt % maxT
-    mb = (bt - t) // maxT
+    Args:
+        grads: Zero Tensor of shape [B, T, U, V+1]. Is updated by this kernel to contain the gradients
+            of this batch of samples.
+        acts: Tensor of shape [B, T, U, V+1] flattened. Represents the logprobs activation tensor.
+        denom: Tensor of shape [B, T, U] flattened. Represents the denominator of the logprobs activation tensor
+            across entire vocabulary.
+        alphas: Alpha variable, contains forward probabilities. A tensor of shape [B, T, U].
+        betas: Beta varoable, contains backward probabilities. A tensor of shape [B, T, U].
+        logll: Log-likelihood of the forward variable, represented as a vector of shape [B].
+            Represents the log-likelihood of the forward pass.
+        xlen: Vector of length B which contains the actual acoustic sequence lengths in the padded
+            activation tensor.
+        ylen: Vector of length B which contains the actual target sequence lengths in the padded
+            activation tensor.
+        mlabels: Matrix of shape [B, U+1] (+1 here is due to <SOS> token - usually the RNNT blank).
+            The matrix contains the padded target transcription that must be predicted.
+        minibatch: Int representing the batch size.
+        maxT: The maximum possible acoustic sequence length. Represents T in the logprobs tensor.
+        maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
+        alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
+        blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+
+    Updates:
+        Kernel inplace updates the following inputs:
+        -   grads: Gradients with respect to the log likelihood (logll).
+    """
+    # Kernel call:
+    # blocks_per_grid = minibatch (b) * maxT (t) * maxU (u)
+    # threads_per_block = constant buffer size of parallel threads (v :: Constant)
+    tid = cuda.threadIdx.x  # represents v, taking steps of some constant size
+    idx = tid
+    col = cuda.blockIdx.x  # represents a fused index of b * t * u
+
+    # Decompose original indices from fused `col`
+    u = col % maxU  # (b * t * u) % u = u
+    bt = (col - u) // maxU  # (b * t * u - u) // U = b * t
+    t = bt % maxT  # (b * t) % t = t
+    mb = (bt - t) // maxT  # (b * t - t) // T = b
 
     # constants
-    T = xlen[mb]
-    U = ylen[mb] + 1
+    T = xlen[mb]   # select AM length of current sample
+    U = ylen[mb] + 1  # select target length of current sample, +1 for the blank token
     labels: torch.Tensor = mlabels[mb]  # labels = mlabels + mb * (maxU - 1);
 
+    # Buffered gradient calculations, broadcast across B=b, T=t and U=u, looped over V with some constant stride.
+    # Look up gradient calculation from rnnt_numpy.compute_gradient()
     if t < T and u < U:
+        # For cuda kernels, maximum number of threads per block is limited to some value.
+        # However, it may be the case that vocabulary size is larger than this limit
+        # To work around this, an arbitrary thread buffer size is chosen such that,
+        # 1) each element within the thread pool operates independently of the other
+        # 2) An inner while loop moves the index of each buffer element by the size of the buffer itself,
+        #    such that all elements of the vocabulary size are covered in (V + 1 // thread_buffer) number of steps.
+        # As such, each thread will perform the while loop at least (V + 1 // thread_buffer) number of times
         while idx < alphabet_size:
+            # remember, `col` represents the tri-index [b, t, u]
+            # therefore; logpk = denom[b, t, u] + acts[b, t, u, v]
             logpk = denom[col] + acts[col * alphabet_size + idx]
+            # initialize the grad of the sample acts[b, t, u, v]
             grad = math.exp(alphas[col] + betas[col] + logpk - logll[mb])
 
             # // grad to last blank transition
+            # grad[b, T-1, U-1, v=blank]
             if (idx == blank_) and (t == T - 1) and (u == U - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
 
+            # grad of blank across t < T; grad[b, t<T, u, v=blank]
             if (idx == blank_) and (t < T - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
 
+            # grad of correct token across u < U; grad[b, t, u<U, v=label[u]]
             if (u < U - 1) and (idx == labels[u]):
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + 1])
 
+            # update grads[b, t, u, v] = grad
             grads[col * alphabet_size + idx] = grad
+
+            # update internal index through the thread_buffer;
+            # until idx < V + 1, such that entire vocabulary has been updated.
             idx += GPU_RNNT_THREAD_SIZE
