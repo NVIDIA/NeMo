@@ -207,7 +207,7 @@ class VarianceAdaptor(NeuralModule):
         if dur_target is not None:
             dur_out = self.length_regulator(x, dur_target)
         else:
-            dur_preds = torch.clamp_min(torch.exp(log_dur_preds) - 1, 0).long()
+            dur_preds = torch.clamp_min(torch.round(torch.exp(log_dur_preds)) - 1, 0).long()
             if not torch.sum(dur_preds, dim=1).bool().all():
                 logging.error("Duration prediction failed on this batch. Settings to 1s")
                 dur_preds += 1
