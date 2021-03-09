@@ -48,17 +48,20 @@ class MTOptimConfig(OptimConfig):
 
 @dataclass
 class MTEncDecModelConfig(EncDecNLPModelConfig):
+    # machine translation configurations
+    num_val_examples: int = 3
+    num_test_examples: int = 3
+    max_generation_delta: int = 10
+    label_smoothing: Optional[float] = 0.0
     beam_size: int = 4
     len_pen: float = 0.0
-    max_generation_delta: int = 3
-    label_smoothing: Optional[float] = 0.0
     src_language: str = 'en'
     tgt_language: str = 'en'
     find_unused_parameters: Optional[bool] = True
     shared_tokenizer: Optional[bool] = True
     preproc_out_dir: Optional[str] = None
 
-    # neural network architectures
+    # network architecture configuration
     encoder: Any = MISSING
 
     decoder: Any = MISSING
@@ -98,13 +101,6 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
 
 @dataclass
 class AAYNBaseConfig(MTEncDecModelConfig):
-    # machine translation configurations
-    num_val_examples: int = 3
-    num_test_examples: int = 3
-    beam_size: int = 1
-    len_pen: float = 0.0
-    max_generation_delta: int = 10
-    label_smoothing: Optional[float] = 0.0
 
     # Attention is All You Need Base Configuration
     encoder_tokenizer: TokenizerConfig = TokenizerConfig(library='yttm')
