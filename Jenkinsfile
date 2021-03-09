@@ -14,6 +14,8 @@ pipeline {
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
+        sh 'python -c "import torchtext; print(torchtext.__version__)"'
+        sh 'python -c "import torchvision; print(torchvision.__version__)"'
       }
     }
 
