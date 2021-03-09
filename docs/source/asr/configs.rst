@@ -117,9 +117,139 @@ specifying the module to use for each.
 
 The following sections go into more detail about the specific configurations of each model architecture.
 
-For more information about each model, see the :doc:`Models <./models>` page.
+For more information about the ASR models, see the :doc:`Models <./models>` page.
 
 Jasper and QuartzNet
 ~~~~~~~~~~~~~~~~~~~~
 
-The Jasper and QuartzNet models are very similar, and as such the components in their configs look similar as well.
+The :ref:`models:Jasper` and :ref:`models:QuartzNet` models are very similar, and as such the components in their
+configs are very similar as well.
+
+Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed in the table below.
+The encoder parameters include details about the Jasper/QuartzNet [BxR] encoder architecture, including how many
+blocks to use (B), how many times to repeat each sub-block (R), and the convolution parameters for each block.
+
+The number of blocks B is determined by the number of list elements under ``jasper`` minus the one prologue and
+two epilogue blocks, and the number of sub-blocks R is determined by setting the ``repeat`` parameter.
+
+To use QuartzNet (which uses more compact time-channel separable convolutions) instead of Jasper,
+add :code:`separable: true` to all but the last block in the architecture.
+(You should not change the parameter name ``jasper``.)
+
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
++=========================+==================+===============================================================================================================+=================================+
+| :code:`feat_in`         | int              | The number of input features. Should be equal to :code:`features` in the preprocessor parameters.             |                                 |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`activation`      | string           | What activation function to use in the encoder.                                                               | :code:`hardtanh`, :code:`relu`, |
+|                         |                  |                                                                                                               | :code:`selu`, :code:`swish`     |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`conv_mask`       | bool             | Whether to used masked convolutions in the encoder. Defaults to false.                                        |                                 |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`jasper`          |                  | A list of blocks that specifies your encoder architecture. Each entry in this list represents one block in    |                                 |
+|                         |                  | the architecture and contains the parameters for that block, including convolution parameters, dropout, and   |                                 |
+|                         |                  | the number of times the block is repeated. See the `Jasper <https://arxiv.org/pdf/1904.03288.pdf>`_ and       |                                 |
+|                         |                  | `QuartzNet <https://arxiv.org/pdf/1910.10261.pdf>`_ papers for details about specific model configurations.   |                                 |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+
+A QuartzNet 15x5 (fifteen blocks, each sub-block repeated five times) encoder configuration may look like
+the example below.
+
+.. code-block:: yaml
+
+  # Specified at the beginning of the file for convenience
+  n_mels: &n_mels 64    # Used for both the preprocessor and encoder as number of input features
+  repeat: &repeat 5     # R=5
+  dropout: &dropout 0.0
+  separable: &separable true  # Set to true for QN. Set to false for Jasper.
+
+  model:
+    ...
+    encoder:
+      _target_: nemo.collections.asr.modules.ConvASREncoder
+      feat_in: *n_mels  # Should match "features" in the preprocessor.
+      activation: relu
+      conv_mask: true
+
+      jasper:   # This field name should be "jasper" for both types of models.
+
+      # Prologue block
+      - dilation: [1]
+        dropout: *dropout
+        filters: 256
+        kernel: [33]
+        repeat: 1   # Prologue block is not repeated.
+        residual: false
+        separable: *separable
+        stride: [2]
+
+      # Block 1
+      - dilation: [1]
+        dropout: *dropout
+        filters: 256
+        kernel: [33]
+        repeat: *repeat
+        residual: true
+        separable: *separable
+        stride: [1]
+
+      ... # Entries for blocks 2~14
+
+      # Block 15
+      - dilation: [1]
+        dropout: *dropout
+        filters: 512
+        kernel: [75]
+        repeat: *repeat
+        residual: true
+        separable: *separable
+        stride: [1]
+
+      # Two epilogue blocks
+      - dilation: [2]
+        dropout: *dropout
+        filters: 512
+        kernel: [87]
+        repeat: 1   # Epilogue blocks are not repeated
+        residual: false
+        separable: *separable
+        stride: [1]
+
+      - dilation: [1]
+        dropout: *dropout
+        filters: &enc_filters 1024
+        kernel: [1]
+        repeat: 1   # Epilogue blocks are not repeated
+        residual: false
+        stride: [1]
+
+Both Jasper and QuartzNet use the ``ConvASRDecoder`` as the decoder.
+The decoder parameters are detailed in the following table.
+
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
++=========================+==================+===============================================================================================================+=================================+
+| :code:`feat_in`         | int              | The number of input features to the decoder. Should be equal to the number of filters in the last block of    |                                 |
+|                         |                  | the encoder.                                                                                                  |                                 |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`vocabulary`      | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
+|                         |                  | list of all lowercase letters, space, and apostrophe.                                                         |                                 |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                              |                                 |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+
+For example, a decoder config corresponding to the encoder above would look like this:
+
+.. code-block:: yaml
+
+  model:
+    ...
+    decoder:
+      _target_: nemo.collections.asr.modules.ConvASRDecoder
+      feat_in: *enc_filters
+      vocabulary: *labels
+      num_classes: 28   # Length of the vocabulary list
+
+
+Other Model...
+~~~~~~~~~~~~~~
