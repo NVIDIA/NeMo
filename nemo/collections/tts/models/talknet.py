@@ -294,8 +294,9 @@ class TalkNetSpectModel(SpectrogramGenerator):
 
         # Pitch
         f0_sil, f0_body = self._pitch_model(text, text_len, durs)
+        sil_mask = f0_sil.sigmoid() > 0.5
         f0 = f0_body * self._pitch_model.F0_STD + self._pitch_model.F0_MEAN
-        f0[torch.sigmoid(f0_sil) > 0.5] = 0.0
+        f0 = (~sil_mask * f0).float()
 
         # Spect
         mel = self(text, text_len, durs, f0)
