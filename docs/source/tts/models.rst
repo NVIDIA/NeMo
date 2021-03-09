@@ -20,6 +20,18 @@ Glow-TTS can be instantiated using the :class:`GlowTTSModel<nemo.collections.tts
 
 .. _WaveGlow_Model:
 
+TalkNet
+----------
+
+TalkNet :cite:`tts-models-beliaev2020talknet` is an non-autoregressive cnn-based three stage model that generates
+mel spectrograms.
+
+TalkNet duration predictor can be instantiated using the :class:`TalkNetDursModel<nemo.collections.tts.models.talknet.TalkNetDursModel>` class.
+TalkNet pitch predictor can be instantiated using the :class:`TalkNetPitchModel<nemo.collections.tts.models.talknet.TalkNetPitchModel>` class.
+TalkNet spectrogram generator can be instantiated using the :class:`TalkNetSpectModel<nemo.collections.tts.models.talknet.TalkNetSpectModel>` class.
+
+Refer to TTS tutorial notebook for complete three stage pipeline.
+
 WaveGlow
 --------
 
