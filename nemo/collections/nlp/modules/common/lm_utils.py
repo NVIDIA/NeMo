@@ -147,7 +147,7 @@ def get_transformer(
                                      Defaults to False.
         config_dict (Optional[dict], optional): Use for custom configuration of transformer. Defaults to None.
         checkpoint_file (Optional[str], optional): Provide weights for the transformer from a local checkpoint. Defaults to None.
-        encoder (bool, optional): True returns and EncoderModule, False returns a DecoderModule. Defaults to True.
+        encoder (bool, optional): True returns an EncoderModule, False returns a DecoderModule. Defaults to True.
 
     Returns:
         Union[EncoderModule, DecoderModule]: Ensures that Encoder/Decoder will work in EncDecNLPModel
