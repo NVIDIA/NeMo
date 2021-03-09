@@ -86,7 +86,7 @@ class TopKClassificationAccuracy(Metric):
             total_counts_k = []
 
             for k in self.top_k:
-                correct_k = correct[:k].reshape(-1).float().sum()
+                correct_k = correct[:k].reshape(-1).float().sum().to(torch.int64)
                 total_k = labels.shape[0]
 
                 correct_counts_k.append(correct_k)
