@@ -21,18 +21,30 @@ from nemo.collections.nlp.models import MTEncDecModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import AAYNBaseConfig
 
 
+def export_test(model, suffix, try_script=False):
+    with tempfile.TemporaryDirectory() as restore_folder:
+        enc_filename = os.path.join(restore_folder, 'nmt_e' + suffix)
+        dec_filename = os.path.join(restore_folder, 'nmt_d' + suffix)
+        model.encoder.export(output=enc_filename, try_script=try_script)
+        model.decoder.export(output=dec_filename, try_script=try_script)
+        assert os.path.exists(enc_filename)
+        assert os.path.exists(dec_filename)
+
+def get_cfg():
+    cfg = AAYNBaseConfig()
+    cfg.encoder_tokenizer.tokenizer_name = 'yttm'
+    cfg.encoder_tokenizer.tokenizer_model = 'tests/.data/yttm.4096.en-de.model'
+    cfg.decoder_tokenizer.tokenizer_name = 'yttm'
+    cfg.decoder_tokenizer.tokenizer_model = 'tests/.data/yttm.4096.en-de.model'
+    cfg.train_ds = None
+    cfg.validation_ds = None
+    cfg.test_ds = None
+    return cfg
+
 class TestMTEncDecModel:
     @pytest.mark.unit
     def test_creation_saving_restoring(self):
-        cfg = AAYNBaseConfig()
-        cfg.encoder_tokenizer.tokenizer_name = 'yttm'
-        cfg.encoder_tokenizer.tokenizer_model = 'tests/.data/yttm.4096.en-de.model'
-        cfg.decoder_tokenizer.tokenizer_name = 'yttm'
-        cfg.decoder_tokenizer.tokenizer_model = 'tests/.data/yttm.4096.en-de.model'
-        cfg.train_ds = None
-        cfg.validation_ds = None
-        cfg.test_ds = None
-        model = MTEncDecModel(cfg=cfg)
+        model = MTEncDecModel(cfg=get_cfg())
         assert isinstance(model, MTEncDecModel)
         # Create a new temporary directory
         with tempfile.TemporaryDirectory() as restore_folder:
@@ -49,15 +61,25 @@ class TestMTEncDecModel:
             assert not os.path.exists(model_save_path)
             assert os.path.exists(model_restore_path)
             # attempt to restore
-            model_copy = model.__class__.restore_from(restore_path=model_restore_path).cuda()
+            model_copy = model.__class__.restore_from(restore_path=model_restore_path)
             assert model.num_weights == model_copy.num_weights
 
-            enc_filename = os.path.join(restore_folder, 'nmt_e.onnx')
-            dec_filename = os.path.join(restore_folder, 'nmt_d.onnx')
-            model_copy.encoder.export(output=enc_filename, try_script=True, verbose=True)
-            model_copy.decoder.export(output=dec_filename, try_script=True, verbose=True)
+    @pytest.mark.unit
+    def test_cpu_export(self):
+        model = MTEncDecModel(cfg=get_cfg())
+        assert isinstance(model, MTEncDecModel)
+        export_test(model, ".onnx")
+        export_test(model, ".ts")
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_gpu_export(self):
+        model = MTEncDecModel(cfg=get_cfg()).cuda()
+        assert isinstance(model, MTEncDecModel)
+        export_test(model, ".onnx")
+        export_test(model, ".ts")
+    
 
 if __name__ == "__main__":
     t = TestMTEncDecModel()
-    t.test_creation_saving_restoring()
+    t.test_gpu_export()
