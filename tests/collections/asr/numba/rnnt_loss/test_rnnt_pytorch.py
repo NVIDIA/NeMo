@@ -17,7 +17,7 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
-from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import RNNTLoss
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import RNNTLossNumba
 
 DEVICES = ['cpu']
 
@@ -61,7 +61,7 @@ class TestRNNTLossPytorch:
         )
         labels = [[1, 2]]
 
-        fn_pt = RNNTLoss(blank=0, reduction='sum')
+        fn_pt = RNNTLossNumba(blank=0, reduction='sum')
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
 
         fn_np = RNNTLoss_Numpy()
@@ -97,7 +97,7 @@ class TestRNNTLossPytorch:
         acts = rng.randn(1, 4, 3, 3)
         labels = [[1, 2]]
 
-        fn_pt = RNNTLoss(blank=0, reduction='sum')
+        fn_pt = RNNTLossNumba(blank=0, reduction='sum')
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
 
         fn_np = RNNTLoss_Numpy()
@@ -209,7 +209,7 @@ class TestRNNTLossPytorch:
         activations = np.array(activations)
         labels = [[1, 2], [1, 1]]
 
-        fn_pt = RNNTLoss(blank=0, reduction='sum')
+        fn_pt = RNNTLossNumba(blank=0, reduction='sum')
         pt_costs, pt_grads = wrap_and_call(fn_pt, activations, labels, device)
 
         fn_np = RNNTLoss_Numpy()
@@ -233,7 +233,7 @@ class TestRNNTLossPytorch:
             [1, 1, 2, 1, 2, 3, 3, 1, 1, 1],
         ]
 
-        fn_pt = RNNTLoss(blank=0, reduction='sum')
+        fn_pt = RNNTLossNumba(blank=0, reduction='sum')
         pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
 
         fn_np = RNNTLoss_Numpy()

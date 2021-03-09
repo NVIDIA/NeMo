@@ -18,10 +18,10 @@ from torch.nn import Module
 
 from nemo.collections.asr.parts.numba.rnnt_loss import rnnt
 
-__all__ = ['rnnt_loss', 'RNNTLoss']
+__all__ = ['rnnt_loss', 'RNNTLossNumba']
 
 
-class _RNNT(Function):
+class _RNNTNumba(Function):
     @staticmethod
     def forward(ctx, acts, labels, act_lens, label_lens, blank, reduction):
         """
@@ -86,10 +86,10 @@ def rnnt_loss(acts, labels, act_lens, label_lens, blank=0, reduction='mean'):
     if not acts.is_cuda:
         acts = torch.nn.functional.log_softmax(acts, -1)
 
-    return _RNNT.apply(acts, labels, act_lens, label_lens, blank, reduction)
+    return _RNNTNumba.apply(acts, labels, act_lens, label_lens, blank, reduction)
 
 
-class RNNTLoss(Module):
+class RNNTLossNumba(Module):
     """
     Parameters:
         blank (int, optional): blank label. Default: 0.
@@ -100,10 +100,10 @@ class RNNTLoss(Module):
     """
 
     def __init__(self, blank=0, reduction='mean'):
-        super(RNNTLoss, self).__init__()
+        super(RNNTLossNumba, self).__init__()
         self.blank = blank
         self.reduction = reduction
-        self.loss = _RNNT.apply
+        self.loss = _RNNTNumba.apply
 
     def forward(self, acts, labels, act_lens, label_lens):
         """
