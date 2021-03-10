@@ -17,7 +17,7 @@ NeMo Models contain everything needed to train and reproduce Conversational AI m
 
 NeMo uses `Hydra <https://hydra.cc/>`_ for configuring both NeMo models and the PyTorch Lightning Trainer.
 
-.. note:: Every NeMo model has an example configuration file and a corresponding script that contains all configurations needed for training.
+.. note:: Every NeMo model has an example configuration file and training script that can be found `here <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_.
 
 The end result of using NeMo, Pytorch Lightning, and Hydra is that
 NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem. 
@@ -31,7 +31,8 @@ This means that NeMo users can focus on their domain (ASR, NLP, TTS) and buildin
 without having to rewrite boiler plate code for PyTorch training.
 
 When using PyTorch Lightning, NeMo users can automatically train with:
-- multi-gpu/multi-node
+
+- multi-GPU/multi-node
 - mixed precision
 - model checkpointing
 - logging
@@ -48,7 +49,7 @@ Every NeMo model is a ``LightningModule`` which is an ``nn.module``.
 This means that NeMo models are compatible with the PyTorch ecosystem and
 can be plugged into existing PyTorch workflows.
 
-Hence, creating a NeMo Model (also LightningModule) is similar to any other PyTorch workflow.
+Creating a NeMo Model is similar to any other PyTorch workflow.
 We start by initializing our model architecture and then define the forward pass:
 
 .. code-block:: python
@@ -147,19 +148,19 @@ While validation logic can be found in ``validation_step``:
         return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
 PyTorch Lightning then handles all of the boiler plate code needed for training.
-However, virtually any aspect of training can be customized via PyTorch Lightning `hooks <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#hooks>`_, 
+Virtually any aspect of training can be customized via PyTorch Lightning `hooks <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#hooks>`_, 
 `Plugins <https://pytorch-lightning.readthedocs.io/en/stable/extensions/plugins.html>`_, 
 `callbacks <https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html>`_, 
 or by overriding `methods <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#methods>`_. 
 
-Please see the NeMo ASR, NLP, TTS, collections documentation for more detailed examples.
+Please see the NeMo ASR, NLP, TTS, collections sections for domain-specific documentation.
 
 
 PyTorch Lightning Trainer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Since every NeMo Model is a ``LightningModule``, we can automatically take advantage of the PyTorch Lightning ``Trainer``.
-Every NeMo `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the ``trainer`` object
+Every NeMo `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the ``Trainer`` object
 to fit the model.
 
 First instantiate the model and trainer and then call ``.fit``:
@@ -187,20 +188,36 @@ Model Configuration
 -------------------
 
 Hydra is an open-source Python framework that simplifies configuration for complex applications
-that must bring together many different software libraries. Conversational AI is great examples of such an application.
-To build a Conversational AI application, we must be able to configure the neural network architectures, training and optimization algorithms, 
-data pre/post processing, data augmentation, experiment logging/visualization, and model checkpointing.   
+that must bring together many different software libraries. 
+Conversational AI model training is a great example of such an application.
+To train a Conversational AI model, we must be able to configure:
+
+- neural network architectures
+- training and optimization algorithms 
+- data pre/post processing
+- data augmentation
+- experiment logging/visualization
+- model checkpointing   
 
 Please see the `Hydra Tutorials <https://hydra.cc/docs/tutorials/intro>`_ for an introduction to using Hydra.
 
-With Hydra we can configure everything needed for NeMo with three interfaces: Command Line (CLI), Configuration Files (YAML), and Dataclasses (Python).
+With Hydra we can configure everything needed for NeMo with three interfaces:
+
+- Command Line (CLI) 
+- Configuration Files (YAML)
+- Dataclasses (Python)
 
 YAML
 ~~~~
 NeMo provides YAML configuration files for all of our `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training scripts.
 YAML files make it easy to experiment with different model and training configurations.
 
-Every NeMo example YAML has the same underlying configuration structure: trainer, exp_manager, and model.
+Every NeMo example YAML has the same underlying configuration structure:
+
+- trainer
+- exp_manager
+- model
+
 Model configuration always contain train_ds, validation_ds, test_ds, and optim. 
 Model architectures vary across domains so please see the ASR, NLP, and TTS Collections documentation for 
 more detaied information on Model architecture configuration.
