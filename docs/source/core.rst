@@ -1,23 +1,11 @@
-Conversational AI
-=================
-
-`NVIDIA NeMo <https://github.com/NVIDIA/NeMo>`_ is a toolkit for building new State-of-the-Art 
-Conversational AI models. NeMo has separate collections for Automatic Speech Recognition (ASR), 
-Natural Language Processing (NLP), and Text-to-Speech (TTS) models. Each collection consists of 
-prebuilt modules that include everything needed to train on your data. 
-Every module can easily be customized, extended, and composed to create new Conversational AI 
-model architectures.
-
-Conversational AI architectures are typically very large and require a lot of data  and compute 
-for training. NeMo uses PyTorch Lightning for easy and performant multi-GPU/multi-node 
-mixed-precision training. 
+NeMo Basics
+===========
 
 
 NeMo Models
 -----------
 
-NeMo Models contain everything needed to train and reproduce state of the art Conversational AI
-research and applications, including:
+NeMo Models contain everything needed to train and reproduce Conversational AI model:
 
 - neural network architectures 
 - datasets/data loaders
@@ -28,15 +16,12 @@ research and applications, including:
 - language models
 
 NeMo uses `Hydra <https://hydra.cc/>`_ for configuring both NeMo models and the PyTorch Lightning Trainer.
-Depending on the domain and application, many different AI libraries will have to be configured
-to build the application. Hydra makes it easy to bring all of these libraries together
-so that each can be configured from YAML or the Hydra CLI.
 
 .. note:: Every NeMo model has an example configuration file and a corresponding script that contains all configurations needed for training.
 
 The end result of using NeMo, Pytorch Lightning, and Hydra is that
 NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem. 
-This makes it easy to do Conversational AI research across multiple domains.
+
 
 Model Training
 --------------
