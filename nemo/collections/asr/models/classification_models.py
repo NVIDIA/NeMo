@@ -397,7 +397,7 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        self.log('val_loss', val_loss_mean)
+        tensorboard_log = {'val_loss': val_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
 
@@ -412,7 +412,7 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        self.log('test_loss', test_loss_mean)
+        tensorboard_log = {'test_loss': test_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
 
