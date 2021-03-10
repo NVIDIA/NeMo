@@ -21,7 +21,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig, get_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from nemo.core.config.modelPT import ModelConfig
 
 

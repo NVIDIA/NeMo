@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import os
 from typing import Optional, Union
 
 from omegaconf.dictconfig import DictConfig
@@ -24,7 +23,6 @@ from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerDecoderNM,
     NeMoTransformerEncoderNM,
 )
-from nemo.utils import logging
 
 
 def get_nemo_transformer(

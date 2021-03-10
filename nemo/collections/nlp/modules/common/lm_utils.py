@@ -18,8 +18,6 @@ from dataclasses import dataclass
 from typing import List, Optional, Union
 
 from attr import asdict
-from hydra.utils import instantiate
-from transformers import AutoConfig, AutoModel
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
