@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-            image 'nvcr.io/nvidia/pytorch:20.11-py3'
+            image 'nvcr.io/nvidia/pytorch:21.02-py3'
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -14,6 +14,8 @@ pipeline {
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
+        sh 'python -c "import torchtext; print(torchtext.__version__)"'
+        sh 'python -c "import torchvision; print(torchvision.__version__)"'
       }
     }
 
@@ -343,7 +345,7 @@ pipeline {
             steps {
             sh 'cd tools/ctc_segmentation && \
             pip install -r requirements.txt && \
-            apt-get install -y ffmpeg'
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg'
             }
         }
 
