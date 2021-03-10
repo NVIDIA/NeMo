@@ -21,7 +21,6 @@ from omegaconf.omegaconf import MISSING
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
-from nemo.core.classes import NeuralModule
 
 __all__ = ["TransformerDecoder"]
 
