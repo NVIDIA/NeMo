@@ -34,7 +34,8 @@ class HuggingFaceEncoderModule(EncoderModule):
     ):
         super().__init__()
 
-        # TODO: argument correctness checker
+        if checkpoint_file:
+            raise NotImplementedError('Restoring from checkpoint file not implemented yet.')
 
         model = None
         if model_name is not None:
@@ -52,6 +53,8 @@ class HuggingFaceEncoderModule(EncoderModule):
             else:
                 logging.error(f'{model_name} not found in list of HuggingFace pretrained models')
         else:
+            if pretrained:
+                raise ValueError(f'If not using model_name, then pretrained should be False. Got: {pretrained}.')
             cfg = instantiate(config_dict)
             model = AutoModel.from_config(cfg)
         self._hidden_size = model.config.hidden_size

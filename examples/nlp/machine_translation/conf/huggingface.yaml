@@ -88,7 +88,7 @@ model:
   encoder:
     library: huggingface
     model_name: bert-base-uncased
-    pretrained: true
+    pretrained: false
 
   decoder:
     library: nemo
