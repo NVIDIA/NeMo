@@ -408,7 +408,7 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
 
         metric = detection.DetectionErrorRate()
         filenames = [
-            os.path.basename(f).split(".")[0] for f in glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))
+            os.path.basename(f).rsplit(".", 1)[0] for f in glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))
         ]
 
         for filename in filenames:
