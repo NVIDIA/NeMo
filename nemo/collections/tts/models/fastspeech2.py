@@ -49,9 +49,9 @@ class FastSpeech2Config:
 
 
 class DurationLoss(torch.nn.Module):
-    def forward(self, duration_pred, duration_target, mask):
-        duration_pred.masked_fill_(~mask.squeeze(), 0)
-        return torch.nn.functional.mse_loss(duration_pred, duration_target)
+    def forward(self, log_duration_pred, duration_target, mask):
+        log_duration_target = torch.log(duration_target + 1)
+        return torch.nn.functional.mse_loss(log_duration_pred, log_duration_target)
 
 
 class FastSpeech2Model(SpectrogramGenerator):
@@ -99,27 +99,27 @@ class FastSpeech2Model(SpectrogramGenerator):
     def forward(self, *, spec_len, text, text_length, durations=None, pitch=None, energies=None):
         with typecheck.disable_checks():
             encoded_text, encoded_text_mask = self.encoder(text=text, text_lengths=text_length)
-            aligned_text, dur_preds, pitch_preds, energy_preds = self.variance_adapter(
-                x=encoded_text, dur_target=durations, pitch_target=pitch, energy_target=energies
+            aligned_text, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
+                x=encoded_text,
+                x_len=text_length,
+                dur_target=durations,
+                pitch_target=pitch,
+                energy_target=energies,
+                spec_len=spec_len
             )
-            # Need to get spec_len from predicted duration
-            if not self.training:
-                spec_len = torch.sum(dur_preds, dim=1)
-            # else:
-            #     assert spec_len == torch.sum(durations, dim=1)
             mel = self.mel_decoder(decoder_input=aligned_text, lengths=spec_len)
-            return mel, dur_preds, pitch_preds, energy_preds, encoded_text_mask
+            return mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx):
         f, fl, t, tl, durations, pitch, energies = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-        mel, dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
+        mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
             spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies
         )
         total_loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         self.log(name="train_mel_loss", value=total_loss.clone().detach())
         if self.duration:
-            dur_loss = self.durationloss(dur_preds, durations.float(), encoded_text_mask)
+            dur_loss = self.durationloss(log_dur_preds, durations.float(), encoded_text_mask)
             dur_loss *= self.duration_coeff
             self.log(name="train_dur_loss", value=dur_loss)
             total_loss += dur_loss
@@ -167,7 +167,7 @@ class FastSpeech2Model(SpectrogramGenerator):
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, durations = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-        mel, dur_preds, _, _, _ = self(spec_len=spec_len, text=t, text_length=tl)
+        mel, log_dur_preds, _, _, _ = self(spec_len=spec_len, text=t, text_length=tl)
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return {
             "val_loss": loss,
@@ -237,3 +237,6 @@ class FastSpeech2Model(SpectrogramGenerator):
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
+
+    #def setup_test_data(self, cfg):
+    #    self._test_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="test")

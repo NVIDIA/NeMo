@@ -124,9 +124,6 @@ class FastSpeech2SModel(ModelPT):
         return [opt1, opt2], [sch1_dict, sch2_dict]
 
     def forward(self, *, spec, spec_len, text, text_length, splice=True, durations=None, pitch=None, energies=None):
-        # if self.training:
-        #     logging.debug(self.vocab.labels)
-        #     self.length_regulator(text, durations)
         embedded_tokens = self.phone_embedding(text)
         encoded_text, encoded_text_mask = self.encoder(text=embedded_tokens, text_lengths=text_length)
 
@@ -157,8 +154,6 @@ class FastSpeech2SModel(ModelPT):
             energy_target=energies,
             spec_len=spec_len,
         )
-
-        # TODO: Add guassian embedding
 
         gen_in = context
         splices = None
