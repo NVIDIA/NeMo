@@ -54,6 +54,8 @@ class TextClassificationModel(NLPModel, Exportable):
         # as dataloaders and datasets need it to process the data
         self.setup_tokenizer(cfg.tokenizer)
 
+        self.class_weights = None
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
@@ -75,20 +77,7 @@ class TextClassificationModel(NLPModel, Exportable):
             idx_conditioned_on=0,
         )
 
-        class_weights = None
-        if cfg.dataset.class_balancing == 'weighted_loss':
-            if cfg.train_ds.file_path:
-                class_weights = calc_class_weights(cfg.train_ds.file_path, cfg.dataset.num_classes)
-            else:
-                logging.info(
-                    'Class_balancing feature is enabled but no train file is given. Calculating the class weights is skipped.'
-                )
-
-        if class_weights:
-            # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.loss = CrossEntropyLoss(weight=class_weights)
-        else:
-            self.loss = CrossEntropyLoss()
+        self.create_loss_module()
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
@@ -98,6 +87,15 @@ class TextClassificationModel(NLPModel, Exportable):
         # register the file containing the labels into the artifacts to get stored in the '.nemo' file later
         if 'class_labels' in cfg and 'class_labels_file' in cfg.class_labels and cfg.class_labels.class_labels_file:
             self.register_artifact('class_labels', cfg.class_labels.class_labels_file)
+
+    def create_loss_module(self):
+        # create the loss module if it is not yet created by the training data loader
+        if not hasattr(self, 'loss'):
+            if hasattr(self, 'class_weights') and self.class_weights:
+                # You may need to increase the number of epochs for convergence when using weighted_loss
+                self.loss = CrossEntropyLoss(weight=self.class_weights)
+            else:
+                self.loss = CrossEntropyLoss()
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -137,11 +135,6 @@ class TextClassificationModel(NLPModel, Exportable):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        if self.testing:
-            prefix = 'test'
-        else:
-            prefix = 'val'
-
         input_ids, input_type_ids, input_mask, labels = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
@@ -199,6 +192,14 @@ class TextClassificationModel(NLPModel, Exportable):
             self._test_dl = None
             return
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
+
+        # calculate the class weights to be used in the loss function
+        if self.cfg.dataset.class_balancing == 'weighted_loss':
+            self.class_weights = calc_class_weights(train_data_config.file_path, self.cfg.dataset.num_classes)
+        else:
+            self.class_weights = None
+        # we need to create/update the loss module by using the weights calculated from the training data
+        self.create_loss_module()
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.file_path:
