@@ -349,17 +349,18 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+        self.log('train_loss', loss_value)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         self._accuracy(logits=logits, labels=labels)
-        top_k = self._accuracy.compute()
-        for i, top_i in enumerate(top_k):
-            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
+        topk_scores = self._accuracy.compute()
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            self.log('training_batch_accuracy_top@{}'.format(top_k), score)
+
+        return {
+            'loss': loss_value,
+        }
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
@@ -396,11 +397,13 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        tensorboard_log = {'val_loss': val_loss_mean}
+        self.log('val_loss', val_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
+            self.log('val_epoch_top@{}'.format(top_k), score)
 
-        return {'log': tensorboard_log}
+        return {
+            'val_loss': val_loss_mean,
+        }
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
@@ -411,11 +414,13 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        tensorboard_log = {'test_loss': test_loss_mean}
+        self.log('test_loss', test_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
+            self.log('test_epoch_top@{}'.format(top_k), score)
 
-        return {'log': tensorboard_log}
+        return {
+            'test_loss': test_loss_mean,
+        }
 
     def change_labels(self, new_labels: List[str]):
         """
