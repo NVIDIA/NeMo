@@ -71,7 +71,7 @@ model:
     tokenizer_model: null
     vocab_file: null
     special_tokens: null
-    vocab_size: 8192
+    vocab_size: null
 
   encoder:
     library: huggingface
