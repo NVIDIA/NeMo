@@ -435,20 +435,3 @@ class MTEncDecModel(EncDecNLPModel):
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
-
-    def forward_for_export(self, src: torch.Tensor, src_mask: torch.Tensor):
-        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-        beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-        beam_results = self.filter_predicted_ids(beam_results)
-        return beam_results
-
-    def input_example(self):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
-        return tuple([input_ids, encoder_mask])
