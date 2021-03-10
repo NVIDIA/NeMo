@@ -14,7 +14,7 @@ To run tutorials:
    :widths: 15 25 25
    :header-rows: 1
 
-   * - Dor1.0.0rc1
+   * - Domain
      - Title
      - GitHub URL
    * - NeMo
