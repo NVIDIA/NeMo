@@ -110,8 +110,8 @@ class TransformerDecoderBlock(NeuralModule):
     def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
         if self.pre_ln:
             return self.forward_preln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
-
-        return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
+        else:
+            return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
 
 
 class TransformerDecoder(nn.Module):
