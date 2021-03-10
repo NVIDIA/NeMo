@@ -65,13 +65,14 @@ class TransformerEncoderBlock(nn.Module):
 
         # Pre-LN: LN -> Attn -> Drop -> Residual -> LN -> FFN
         # Post-LN: Attn -> Drop -> Residual -> LN -> FFN -> Residual -> LN
+        residual = encoder_query
         if self.pre_ln:
             # Share same LN params for query, key (self-attn)
             encoder_query = self.layer_norm_1(encoder_query)
             encoder_keys = self.layer_norm_1(encoder_keys)
 
         self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
-        self_attn_output = self_attn_output + encoder_query
+        self_attn_output = self_attn_output + residual
 
         if not self.pre_ln:
             self_attn_output = self.layer_norm_1(self_attn_output)

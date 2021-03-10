@@ -71,13 +71,14 @@ class TransformerDecoderBlock(NeuralModule):
 
         # Pre-LN: LN -> Self-Attn -> Drop -> Residual -> LN -> Cross-Attn -> Drop -> Residual -> LN -> FFN
         # Post-LN: Self-Attn -> Drop -> Residual -> LN -> Cross-Attn -> Drop -> Residual -> LN -> FFN -> Residual -> LN
+        residual = decoder_query
         if self.pre_ln:
             # Share same LN params for query, key (self-attn)
             decoder_query = self.layer_norm_1(decoder_query)
             decoder_keys = self.layer_norm_1(decoder_keys)
 
         self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
-        self_attn_output = self_attn_output + decoder_query
+        self_attn_output = self_attn_output + residual
 
         if not self.pre_ln:
             self_attn_output = self.layer_norm_1(self_attn_output)
