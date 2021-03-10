@@ -95,7 +95,7 @@ class TransformerDecoderBlock(NeuralModule):
             enc_dec_attn_output = self.layer_norm_2(enc_dec_attn_output)
 
         residual = enc_dec_attn_output
-        
+
         if self.pre_ln:
             enc_dec_attn_output = self.layer_norm_3(enc_dec_attn_output)
 
