@@ -970,8 +970,9 @@ pipeline {
               python enc_dec_nmt.py \
               --config-path=conf \
               --config-name=huggingface \
-              model.shared_tokenizer=False \
-              model.encoder_tokenizer.library=huggingface \
+              model.shared_tokenizer=True \
+              model.encoder_tokenizer.library=yttm \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               model.encoder.library=huggingface \
               model.encoder.model_name=null \
               model.encoder.pretrained=false \
@@ -990,9 +991,8 @@ pipeline {
               '
             }
         }
-
-        }
       }
+    }
 
     stage('L2: TTS Fast dev runs 1') {
       when {
