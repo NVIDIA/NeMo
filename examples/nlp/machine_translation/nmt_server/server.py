@@ -31,6 +31,7 @@ torch.set_grad_enabled(False)
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True, action='append', help="")
+    parser.add_argument("--punctuation_model", required=True, type=str, help="")
     parser.add_argument("--port", default=50052, type=int, required=False)
     parser.add_argument("--batch_size", type=int, default=256, help="")
     parser.add_argument("--beam_size", type=int, default=1, help="")
@@ -50,7 +51,7 @@ def batches(lst, n):
 class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
     """Provides methods that implement functionality of route guide server."""
 
-    def __init__(self, model_paths, beam_size=1, len_pen=0.6, max_delta_length=5, batch_size=256):
+    def __init__(self, model_paths, punctuation_model_path, beam_size=1, len_pen=0.6, max_delta_length=5, batch_size=256):
         self._models = {}
         self._beam_size = beam_size
         self._len_pen = len_pen
@@ -60,7 +61,20 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
         for model_path in model_paths:
             logging.info(f"Loading model {model_path}")
             self._load_model(model_path)
+
+        logging.info(f"Loading model punctuation model {model_path}")
+        self._load_puncutation_model(punctuation_model_path)
+
         logging.info("Models loaded. Ready for inference requests.")
+
+    def _load_puncutation_model(self, punctuation_model_path):
+        if punctuation_model_path.endswith(".nemo"):
+            self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.restore_from(restore_path=punctuation_model_path)
+        else:
+            raise NotImplemented(f"Only support .nemo files, but got: {punctuation_model_path}")
+
+        if torch.cuda.is_available():
+            self.punctuation_model = self.punctuation_model.cuda()
 
     def _load_model(self, model_path):
         model_name, _ = os.path.splitext(os.path.basename(model_path))
@@ -95,6 +109,7 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
         request_strings = [x for x in request.texts]
 
         for batch in batches(request_strings, self._batch_size):
+            batch = self.punctuation_model.add_punctuation_capitalization(batch)
             batch_results = self._models[lang_pair].translate(text=batch, source_lang=None, target_lang=None)
             translations = [nmt.Translation(translation=x) for x in batch_results]
             results.extend(translations)
@@ -107,6 +122,7 @@ def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     servicer = JarvisTranslateServicer(
         model_paths=args.model,
+        punctuation_model_path=args.punctuation_model,
         beam_size=args.beam_size,
         len_pen=args.len_pen,
         batch_size=args.batch_size,
