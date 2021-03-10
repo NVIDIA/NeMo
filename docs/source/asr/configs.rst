@@ -10,8 +10,8 @@ used, the preprocessor for audio files, parameters for any augmentation being pe
 model architecture specification.
 The sections on this page cover each of these in more detail.
 
-Example configuration files for all of the NeMo ASR scripts can be found at
-`example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples/asr/conf>`_.
+Example configuration files for all of the NeMo ASR scripts can be found in the
+`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples/asr/conf>`_.
 
 
 Dataset Configuration
@@ -26,7 +26,7 @@ at runtime.
 
 Any initialization parameters that are accepted for the Dataset class used in your experiment
 in the config file.
-See the :ref:`api:Datasets` section of the API for a list of Datasets and their respective parameters.
+See the `Datasets <./api.html#Datasets>`__ section of the API for a list of Datasets and their respective parameters.
 
 An example ASR train and validation configuration could look like:
 
@@ -79,7 +79,7 @@ An example of specifying a preprocessor is as follows:
       ...
       # Other parameters for the preprocessor
 
-See the :ref:`api:Audio Preprocessors` API page for the preprocessor options, expected arguments, and defaults.
+See the `Audio Preprocessors <./api.html#Audio Preprocessors>`__ API page for the preprocessor options, expected arguments, and defaults.
 
 
 Augmentation Configurations
@@ -105,7 +105,7 @@ The following example is the configuration for `SpecCutout <https://arxiv.org/ab
 You can also use this module for `SpecAugment <https://arxiv.org/abs/1904.08779>`_ if you would like to cut
 out bands of audio features rather than rectangles.
 
-See the :ref:`api:Audio Augmentors` section for more details.
+See the `Audio Augmentors <./api.html#Audio Augmentors>`__ API section for more details.
 
 
 Model Architecture Configurations
@@ -122,7 +122,7 @@ For more information about the ASR models, see the :doc:`Models <./models>` page
 Jasper and QuartzNet
 ~~~~~~~~~~~~~~~~~~~~
 
-The :ref:`models:Jasper` and :ref:`models:QuartzNet` models are very similar, and as such the components in their
+The `Jasper <./models.html#Jasper>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their
 configs are very similar as well.
 
 Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed in the table below.
@@ -146,10 +146,10 @@ add :code:`separable: true` to all but the last block in the architecture.
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 | :code:`conv_mask`       | bool             | Whether to used masked convolutions in the encoder. Defaults to false.                                        |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`jasper`          |                  | A list of blocks that specifies your encoder architecture. Each entry in this list represents one block in    |                                 |
-|                         |                  | the architecture and contains the parameters for that block, including convolution parameters, dropout, and   |                                 |
-|                         |                  | the number of times the block is repeated. See the `Jasper <https://arxiv.org/pdf/1904.03288.pdf>`_ and       |                                 |
-|                         |                  | `QuartzNet <https://arxiv.org/pdf/1910.10261.pdf>`_ papers for details about specific model configurations.   |                                 |
+| :code:`jasper`          |                  | | A list of blocks that specifies your encoder architecture. Each entry in this list represents one block in  |                                 |
+|                         |                  | | the architecture and contains the parameters for that block, including convolution parameters, dropout, and |                                 |
+|                         |                  | | the number of times the block is repeated. See the `Jasper <https://arxiv.org/pdf/1904.03288.pdf>`_ and     |                                 |
+|                         |                  | | `QuartzNet <https://arxiv.org/pdf/1910.10261.pdf>`_ papers for details about specific model configurations. |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 A QuartzNet 15x5 (fifteen blocks, each sub-block repeated five times) encoder configuration may look like
@@ -249,7 +249,3 @@ For example, a decoder config corresponding to the encoder above would look like
       feat_in: *enc_filters
       vocabulary: *labels
       num_classes: 28   # Length of the vocabulary list
-
-
-Other Model...
-~~~~~~~~~~~~~~

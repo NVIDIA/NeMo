@@ -7,7 +7,7 @@ Each of these models can be used with the example ASR scripts (in the ``<NeMo_gi
 specifying the model architecture in the config file used.
 Examples of config files for each model can be found in the ``<NeMo_git_root>/examples/asr/conf`` directory.
 
-For more information about the config files, see (TODO)
+For more information about the config files and how they should be structured, see the :doc:`./configs` page.
 
 Pretrained checkpoints for all of these models, as well as instructions on how to load them, can be found on the :doc:`./results` page.
 You can use the available checkpoints for immediate inference, or fine-tune them on your own datasets.

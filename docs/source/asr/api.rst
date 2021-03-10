@@ -62,7 +62,6 @@ Mixins
     :show-inheritance:
     :members:
 
-
 Datasets
 --------
 

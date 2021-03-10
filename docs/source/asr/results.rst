@@ -10,7 +10,7 @@ See the following sections for instructions and examples for each.
 
 Note that these instructions are for loading fully trained checkpoints for evaluation or fine-tuning.
 For resuming an unfinished training experiment, please use the experiment manager to do so by setting the
-`resume_if_exists` flag to True.
+``resume_if_exists`` flag to True.
 
 Loading Local Checkpoints
 -------------------------
@@ -18,7 +18,7 @@ Loading Local Checkpoints
 NeMo will automatically save checkpoints of a model you are training in a `.nemo` format.
 You can also manually save your models at any point using :code:`model.save_to(<checkpoint_path>.nemo)`.
 
-If you have a local `.nemo` checkpoint that you'd like to load, simply use the :code:`restore_from()` method:
+If you have a local ``.nemo`` checkpoint that you'd like to load, simply use the :code:`restore_from()` method:
 
 .. code-block:: python
 

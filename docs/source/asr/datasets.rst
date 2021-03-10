@@ -4,7 +4,7 @@ Datasets
 NeMo has scripts to convert several common ASR datasets into the format expected by the `nemo_asr` collection.
 You can get started with those datasets by following the instructions to run those scripts in the section appropriate to each dataset below.
 
-If you have your own data and want to preprocess it to use with NeMo ASR models, check out the :ref:`Preparing Custom ASR Data` section at the bottom of the page.
+If you have your own data and want to preprocess it to use with NeMo ASR models, check out the `Preparing Custom ASR Data`_ section at the bottom of the page.
 
 .. _LibriSpeech_dataset:
 
@@ -159,7 +159,7 @@ Then, you should have `train.json` `dev.json` `test.json` and `vocab.txt` in `de
 Preparing Custom ASR Data
 -------------------------
 
-The `nemo_asr` collection expects each dataset to consist of a set of utterances in individual audio files plus
+The ``nemo_asr`` collection expects each dataset to consist of a set of utterances in individual audio files plus
 a manifest that describes the dataset, with information about one utterance per line (.json).
 The audio files can be of any format supported by `Pydub <https://github.com/jiaaro/pydub>`_, though we recommend
 WAV files as they are the default and have been most thoroughly tested.

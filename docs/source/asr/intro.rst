@@ -13,11 +13,22 @@ Thus, we can see the appeal of end-to-end ASR architectures: discriminative mode
 
 And the entire end-to-end ASR model can be trained at once--a much easier pipeline to handle!
 
+The full documentation tree is as follows:
+
+.. toctree::
+   :maxdepth: 8
+
+   models
+   datasets
+   results
+   configs
+   api
+
 Resource and Documentation Guide
 --------------------------------
 
 Hands-on speech recognition tutorial notebooks can be found under
-`the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/tutorials/asr/`_.
+`the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/tutorials/asr/>`_.
 If you are a beginner to NeMo, consider trying out the
 `ASR with NeMo <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/tutorials/asr/01_ASR_with_NeMo.ipynb>`_ tutorial.
 This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
@@ -35,15 +46,3 @@ of the checkpoints available on NGC are located on the :doc:`Checkpoints <./resu
 
 Documentation for configuration files specific to the ``nemo_asr`` models can be found on the
 :doc:`Configuration Files <./configs>` page.
-
-The full documentation tree is as follows:
-
-.. toctree::
-   :maxdepth: 8
-
-   models
-   datasets
-   results
-   configs
-   api
-
