@@ -8,6 +8,8 @@ model:
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
+  src_language: 'en'
+  tgt_language: 'de'
 
   train_ds:
     src_file_name: null

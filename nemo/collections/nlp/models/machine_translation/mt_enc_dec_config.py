@@ -61,8 +61,10 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     preproc_out_dir: Optional[str] = None
 
     # network architecture configuration
+    encoder_tokenizer: Any = MISSING
     encoder: Any = MISSING
 
+    decoder_tokenizer: Any = MISSING
     decoder: Any = MISSING
 
     head: TokenClassifierConfig = TokenClassifierConfig(log_softmax=True)

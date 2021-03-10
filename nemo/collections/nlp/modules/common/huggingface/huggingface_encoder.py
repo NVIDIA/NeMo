@@ -40,6 +40,11 @@ class HuggingFaceEncoderModule(EncoderModule):
         if model_name is not None:
             if model_name in get_huggingface_pretrained_lm_models_list():
                 if pretrained:
+                    config_dict.pop('vocab_size')
+                    if config_dict:
+                        raise ValueError(
+                            f'When using pretrained model, config_dict should be None or empty. Got: {config_dict}'
+                        )
                     model = AutoModel.from_pretrained(model_name)
                 else:
                     cfg = AutoConfig.from_pretrained(model_name)
