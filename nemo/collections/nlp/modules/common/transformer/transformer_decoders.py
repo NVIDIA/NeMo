@@ -26,7 +26,7 @@ from nemo.core.classes import NeuralModule
 __all__ = ["TransformerDecoder"]
 
 
-class TransformerDecoderBlock(NeuralModule):
+class TransformerDecoderBlock(nn.Module):
     """
     Building block of Transformer decoder.
 
@@ -106,7 +106,6 @@ class TransformerDecoderBlock(NeuralModule):
         output_states += enc_dec_attn_output
         return self.layer_norm_3(output_states)
 
-    # TODO: add Neural Types
     def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
         if self.pre_ln:
             return self.forward_preln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
