@@ -25,12 +25,19 @@ if __name__ == "__main__":
         "--threshold_range", help="range of threshold in list 'START,END,STEP' to be tuned on", required=True
     )
     parser.add_argument(
+        "--vad_pred", help="Directory of vad predictions or a file contains the paths of them.", required=True
+    )
+    parser.add_argument(
+        "--groundtruth_RTTM",
+        help="Directory of groundtruch rttm files or a file contains the paths of them",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
         "--vad_pred_method",
         help="suffix of prediction file. Should be either in 'frame', 'mean' or 'median'",
         required=True,
     )
-    parser.add_argument("--vad_pred_dir", help="Directory of prediction of vad.", required=True)
-    parser.add_argument("--groundtruth_RTTM_dir", help="Directory of grountruth rttm files", type=str, required=True)
     parser.add_argument(
         "--focus_metric",
         help="metrics we care most when tuning threshold. Should be either in 'DetER', 'FA', 'MISS' ",
@@ -46,6 +53,6 @@ if __name__ == "__main__":
         raise ValueError("Theshold input is invalid! Please enter it as a 'START,STOP,STEP' ")
 
     best_threhsold = vad_tune_threshold_on_dev(
-        thresholds, args.vad_pred_method, args.vad_pred_dir, args.groundtruth_RTTM_dir, args.focus_metric
+        thresholds, args.vad_pred, args.groundtruth_RTTM, args.vad_pred_method, args.focus_metric
     )
     logging.info(f"Best threshold selected from {thresholds} is {best_threhsold}!")
