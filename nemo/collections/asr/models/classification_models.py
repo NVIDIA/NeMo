@@ -399,11 +399,9 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
 
         self.log('val_loss', val_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            self.log('val_epoch_top@{}'.format(top_k), score)
+            tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
 
-        return {
-            'val_loss': val_loss_mean,
-        }
+        return {'log': tensorboard_log}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
@@ -416,11 +414,9 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
 
         self.log('test_loss', test_loss_mean)
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            self.log('test_epoch_top@{}'.format(top_k), score)
+            tensorboard_log['test_epoch_top@{}'.format(top_k)] = score
 
-        return {
-            'test_loss': test_loss_mean,
-        }
+        return {'log': tensorboard_log}
 
     def change_labels(self, new_labels: List[str]):
         """
