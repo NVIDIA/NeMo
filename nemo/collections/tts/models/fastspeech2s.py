@@ -41,7 +41,6 @@ class FastSpeech2SModel(ModelPT):
         if cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset":
             self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
             self.phone_embedding = nn.Embedding(len(self.vocab.labels), 256, padding_idx=self.vocab.pad)
-            self.length_regulator = GaussianEmbedding(self.vocab, 256)
         else:
             self.phone_embedding = nn.Embedding(84, 256, padding_idx=83)
         self.energy = cfg.add_energy_predictor
@@ -125,9 +124,9 @@ class FastSpeech2SModel(ModelPT):
         return [opt1, opt2], [sch1_dict, sch2_dict]
 
     def forward(self, *, spec, spec_len, text, text_length, splice=True, durations=None, pitch=None, energies=None):
-        if self.training:
-            logging.debug(self.vocab.labels)
-            self.length_regulator(text, durations)
+        # if self.training:
+        #     logging.debug(self.vocab.labels)
+        #     self.length_regulator(text, durations)
         embedded_tokens = self.phone_embedding(text)
         encoded_text, encoded_text_mask = self.encoder(text=embedded_tokens, text_lengths=text_length)
 
@@ -291,23 +290,23 @@ class FastSpeech2SModel(ModelPT):
             self.log(name="loss_gen", prog_bar=True, value=total_loss)
             return total_loss
 
-    # def validation_step(self, batch, batch_idx):
-    #     if self.vocab is None:
-    #         f, fl, t, tl, _ = batch
-    #     else:
-    #         f, fl, t, tl, _, _, _ = batch
-    #     spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-    #     audio_pred, _, _, _, _, _ = self(spec=spec, spec_len=spec_len, text=t, text_length=tl, splice=False)
-    #     pred_spec = self.mel_spectrogram(audio_pred)
-    #     loss = self.mel_val_loss(
-    #         spec_pred=pred_spec, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52, transpose=False
-    #     )
+    def validation_step(self, batch, batch_idx):
+        if self.vocab is None:
+            f, fl, t, tl, _ = batch
+        else:
+            f, fl, t, tl, _, _, _ = batch
+        spec, spec_len = self.audio_to_melspec_precessor(f, fl)
+        audio_pred, _, _, _, _, _ = self(spec=spec, spec_len=spec_len, text=t, text_length=tl, splice=False)
+        pred_spec = self.mel_spectrogram(audio_pred)
+        loss = self.mel_val_loss(
+            spec_pred=pred_spec, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52, transpose=False
+        )
 
-    #     return {
-    #         "val_loss": loss,
-    #         "audio_target": f.squeeze(),
-    #         "audio_pred": audio_pred.squeeze(),
-    #     }
+        return {
+            "val_loss": loss,
+            "audio_target": f.squeeze(),
+            "audio_pred": audio_pred.squeeze(),
+        }
 
     def on_train_epoch_start(self):
         if self.vocab is None:
@@ -326,18 +325,18 @@ class FastSpeech2SModel(ModelPT):
             #     logging.info(f"Using duration predictions after epoch: {self.current_epoch}")
             #     self.use_duration_pred = True
 
-    # def validation_epoch_end(self, outputs):
-    #     if self.tb_logger is not None:
-    #         _, audio_target, audio_predict = outputs[0].values()
-    #         if not self.logged_real_samples:
-    #             self.tb_logger.add_audio("val_target", audio_target[0].data.cpu(), self.global_step, 22050)
-    #             self.logged_real_samples = True
-    #         audio_predict = audio_predict[0].data.cpu()
-    #         self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, 22050)
-    #     avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
-    #     self.log('val_loss', avg_loss, sync_dist=True)
+    def validation_epoch_end(self, outputs):
+        if self.tb_logger is not None:
+            _, audio_target, audio_predict = outputs[0].values()
+            if not self.logged_real_samples:
+                self.tb_logger.add_audio("val_target", audio_target[0].data.cpu(), self.global_step, 22050)
+                self.logged_real_samples = True
+            audio_predict = audio_predict[0].data.cpu()
+            self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, 22050)
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
+        self.log('val_loss', avg_loss, sync_dist=True)
 
-    #     self.log_train_images = True
+        self.log_train_images = True
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):

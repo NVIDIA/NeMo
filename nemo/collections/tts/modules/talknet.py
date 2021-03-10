@@ -44,7 +44,7 @@ class GaussianEmbedding(nn.Module):
         ipdb.set_trace()
         if not self.use_embed:
             text = text.transpose(1, 2)
-        text = F.pad(text, [0, 2, 0, 0], value=self.pad)
+        text = F.pad(text, [0, 2, 0, 0], value=self.pad)  # This can just be 0 since durs=0 will result in 0%
         durs = F.pad(durs, [0, 2, 0, 0], value=0)
         ipdb.set_trace()
 
@@ -74,15 +74,22 @@ class GaussianEmbedding(nn.Module):
             ns = slice(1, None, 2)
         ipdb.set_trace()
 
-        # TODO
         # Weights: [B,T,N]
         d = torch.distributions.normal.Normal(c, sigmas)
         w = d.log_prob(t).exp()[:, :, ns]  # [B,T,N]
+        ipdb.set_trace()
         pad_mask = (text == self.pad)[:, ns].unsqueeze(1).repeat(1, total_time, 1)
         w.masked_fill_(pad_mask, 0.0)  # noqa
+        ipdb.set_trace()
         w = w / (w.sum(-1, keepdim=True) + self.EPS)
+        ipdb.set_trace()
+        # The next step is redundant since durs for any pad character must be 0
         pad_mask = (repeats == self.pad).unsqueeze(-1).repeat(1, 1, text[:, ns].size(1))  # noqa
         w.masked_fill_(pad_mask, 0.0)  # noqa
+        ipdb.set_trace()
+        # B, Spec_len, text_len
+        # Everything past duration for current sample gets set to last pad element
+        # Basically a fancy way of doing padding
         pad_mask[:, :, :-1] = False
         w.masked_fill_(pad_mask, 1.0)  # noqa
         ipdb.set_trace()
