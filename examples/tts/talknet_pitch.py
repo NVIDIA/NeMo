@@ -15,16 +15,16 @@
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.models import TalkNetDursModel
+from nemo.collections.tts.models import TalkNetPitchModel
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path='conf', config_name='talknet-durs')
+@hydra_runner(config_path='conf', config_name='talknet-pitch')
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get('exp_manager', None))
-    model = TalkNetDursModel(cfg=cfg.model)
+    model = TalkNetPitchModel(cfg=cfg.model)
     trainer.callbacks.extend([pl.callbacks.LearningRateMonitor(), LogEpochTimeCallback()])  # noqa
     trainer.fit(model)
 

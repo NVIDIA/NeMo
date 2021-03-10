@@ -1,4 +1,4 @@
-name: TalkNetDurs
+name: TalkNetPitch
 sample_rate: 22050
 
 train_dataset: ???
