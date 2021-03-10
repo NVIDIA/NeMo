@@ -21,7 +21,6 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.lm_utils import TransformerConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig, get_tokenizer
 from nemo.core.config.modelPT import ModelConfig
 
@@ -30,7 +29,7 @@ from nemo.core.config.modelPT import ModelConfig
 class EncDecNLPModelConfig(ModelConfig):
     encoder_tokenizer: TokenizerConfig = MISSING
     decoder_tokenizer: TokenizerConfig = MISSING
-    encoder: TransformerConfig = MISSING
+    encoder: Any = MISSING
     decoder: Any = MISSING
     head: Any = MISSING
 

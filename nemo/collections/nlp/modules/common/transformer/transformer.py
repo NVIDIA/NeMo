@@ -27,6 +27,14 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 
 
+# @dataclass
+# class TransformerConfig:
+#     # named model arguments
+#     library: str = 'nemo'
+#     model_name: Optional[str] = None
+#     pretrained: bool = False
+
+
 @dataclass
 class NeMoTransformerConfig:
     # must be configured by the user

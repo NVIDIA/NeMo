@@ -75,11 +75,11 @@ class MTEncDecModel(EncDecNLPModel):
             encoder_tokenizer_library=cfg.encoder_tokenizer.get('library', 'yttm'),
             encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
-            encoder_model_name=cfg.encoder.get('model_name'),
+            encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
             decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
-            decoder_model_name=cfg.decoder.get('model_name'),
+            decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
         )
 
         # After this call, the model will have  self.source_processor and self.target_processor objects

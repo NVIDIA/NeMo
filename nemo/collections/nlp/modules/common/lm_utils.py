@@ -109,14 +109,14 @@ def get_lm_model(
     return model
 
 
-@dataclass
-class TransformerConfig:
-    library: str = 'nemo'
-    model_name: Optional[str] = None
-    pretrained: bool = False
-    config_dict: Optional[dict] = None
-    checkpoint_file: Optional[str] = None
-    encoder: bool = True
+# @dataclass
+# class TransformerConfig:
+#     library: str = 'nemo'
+#     model_name: Optional[str] = None
+#     pretrained: bool = False
+#     config_dict: Optional[dict] = None
+#     checkpoint_file: Optional[str] = None
+#     encoder: bool = True
 
 
 def get_transformer(
