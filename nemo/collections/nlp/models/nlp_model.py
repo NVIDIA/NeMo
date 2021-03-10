@@ -120,7 +120,6 @@ class NLPModel(ModelPT, Exportable):
         elif cfg.vocab_file:
             # use vocab file from config
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             vocab_file=vocab_file,
@@ -182,7 +181,7 @@ class NLPModel(ModelPT, Exportable):
                     for key in vocab_dict:
                         f.write(key + '\n')
 
-                cfg.vocab_file = vocab_file_config_path
+                cfg.vocab_file = vocab_file_src
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
                 logging.info(
@@ -309,8 +308,7 @@ class NLPModel(ModelPT, Exportable):
                         )
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
-                    # finish megatron-lm initialization
-                    self.bert_model._lazy_init_fn()
+                    self.bert_model.complete_lazy_init()
 
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
                     if self._trainer.resume_from_checkpoint is not None:
@@ -351,18 +349,15 @@ class NLPModel(ModelPT, Exportable):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             else:
-                if (
-                    hasattr(self, 'bert_model')
-                    and self.bert_model is not None
-                    and isinstance(self.bert_model, MegatronBertEncoder)
-                ):
-                    # finish megatron-lm initialization
-                    self.bert_model._lazy_init_fn()
+                # Megatron without model parallelism
+                self.complete_megatron_init()
         else:
             # testing stage
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                # finish megatron-lm initialization
-                self.bert_model._lazy_init_fn()
+            self.complete_megatron_init()
+
+    def complete_megatron_init(self):
+        if isinstance(self.bert_model, MegatronBertEncoder):
+            self.bert_model.complete_lazy_init()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):

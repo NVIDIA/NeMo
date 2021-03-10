@@ -802,9 +802,14 @@ class AugmentationDataset(IterableDataset):
                 if bkey in tar_filepaths:
                     tar_filepaths = tar_filepaths.replace(bkey, "}")
 
-        self.audio_dataset = (
-            wd.Dataset(tar_filepaths).shuffle(shuffle_n).rename(audio='wav', key='__key__').to_tuple('audio', 'key')
-        )
+        self.audio_dataset = wd.WebDataset(tar_filepaths)
+
+        if shuffle_n > 0:
+            self.audio_dataset = self.audio_dataset.shuffle(shuffle_n)
+        else:
+            logging.info("WebDataset will not shuffle files within the tar files.")
+
+        self.audio_dataset = self.audio_dataset.rename(audio='wav', key='__key__').to_tuple('audio', 'key')
         self.audio_iter = iter(self.audio_dataset)
 
     def __len__(self):

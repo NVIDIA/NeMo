@@ -41,7 +41,7 @@ For more details about the config files and different ways of model restoration,
 The script runs two types of evaluation: 
     * model.test() - this eval will use the config setting for evaluation such as model.dataset.max_seq_length
     * model.evaluate_from_file():
-        * disregards model.dataset.max_seq_length and evaluate all the tokens
+        * disregards model.dataset.max_seq_length and evaluates all the tokens, BERT max seq length - 512 tokens after tokenization
         * creates confusion matrix
         * saves predictions and labels (if provided)
 
