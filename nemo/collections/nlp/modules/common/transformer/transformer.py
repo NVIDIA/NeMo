@@ -26,7 +26,6 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 
-
 # @dataclass
 # class TransformerConfig:
 #     # named model arguments
