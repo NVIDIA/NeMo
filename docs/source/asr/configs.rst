@@ -25,7 +25,7 @@ You may also decide to leave fields such as the ``manifest_filepath`` blank, to 
 at runtime.
 
 Any initialization parameters that are accepted for the Dataset class used in your experiment
-in the config file.
+can be set in the config file.
 See the `Datasets <./api.html#Datasets>`__ section of the API for a list of Datasets and their respective parameters.
 
 An example ASR train and validation configuration could look like:
@@ -88,22 +88,49 @@ Augmentation Configurations
 There are a few on-the-fly spectrogram augmentation options for NeMo ASR, which can be specified by the
 configuration file using a ``spec_augment`` section.
 
-The following example is the configuration for `SpecCutout <https://arxiv.org/abs/1708.04552>`_, using the
-``SpectrogramAugmentation`` module.
+The options for `Cutout <https://arxiv.org/abs/1708.04552>`_ and `SpecAugment <https://arxiv.org/abs/1904.08779>`_
+available via the ``SpectrogramAugmentation`` module are detailed in the following table.
+
++-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+| **Parameter**           | **Datatype**     | **Description**                                                                                                          | **Supported Values**         |
++=========================+==================+==========================================================================================================================+==============================+
+| :code:`rect_masks`      | int              | How many rectangular masks should be cut (Cutout). Defaults to 5.                                                        |                              |
++-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+| :code:`rect_freq`       | int              | Should only be set if :code:`rect_masks` was set. Maximum size of cut rectangles along the frequency dimension.          |                              |
+|                         |                  | Defaults to 5.                                                                                                           |                              |
++-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+| :code:`rect_time`       | int              | Should only be set if :code:`rect_masks` was set. Maximum size of cut rectangles along the time dimension.               |                              |
+|                         |                  | Defaults to 25.                                                                                                          |                              |
++-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+| :code:`freq_masks`      | int              | How many frequency segments should be cut (SpecAugment). Defaults to 0.                                                  |                              |
++-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+| :code:`freq_width`      | int              | Should only be set if :code:`freq_masks` is set. Maximum number of frequencies to be cut in one segment. Defaults to 10. |                              |
++-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+| :code:`time_masks`      | int              | How many time segments should be cut (SpecAugment). Defaults to 0.                                                       |                              |
++-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+| :code:`time_width`      | int              | Should only be set if :code:`time_masks` is set. Maximum number of time steps to be cut in one segment. Defaults to 10.  |                              |
++-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+
+The following example sets up both Cutout (via the ``rect_*`` parameters) and SpecAugment (via the ``freq_*``
+and ``time_*`` parameters).
 
 .. code-block:: yaml
 
   model:
     ...
     spec_augment:
-      # _target_ is the augmentor module you want to use
       _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+      # Cutout parameters
       rect_masks: 5   # Number of rectangles to cut from any given spectrogram
       rect_freq: 50   # Max cut of size 50 along the frequency dimension
       rect_time: 120  # Max cut of size 120 along the time dimension
+      # SpecAugment parameters
+      freq_masks: 2   # Cut two frequency bands
+      freq_width: 15  # ... of width 15 at maximum
+      time_masks: 5    # Cut out 10 time bands
+      time_width: 25  # ... of width 25 at maximum
 
-You can also use this module for `SpecAugment <https://arxiv.org/abs/1904.08779>`_ if you would like to cut
-out bands of audio features rather than rectangles.
+You can use any combination of Cutout, frequency/time SpecAugment, or none of them.
 
 See the `Audio Augmentors <./api.html#Audio Augmentors>`__ API section for more details.
 
@@ -144,7 +171,7 @@ add :code:`separable: true` to all but the last block in the architecture.
 | :code:`activation`      | string           | What activation function to use in the encoder.                                                               | :code:`hardtanh`, :code:`relu`, |
 |                         |                  |                                                                                                               | :code:`selu`, :code:`swish`     |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`conv_mask`       | bool             | Whether to used masked convolutions in the encoder. Defaults to false.                                        |                                 |
+| :code:`conv_mask`       | bool             | Whether to used masked convolutions in the encoder. Defaults to true.                                         |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 | :code:`jasper`          |                  | | A list of blocks that specifies your encoder architecture. Each entry in this list represents one block in  |                                 |
 |                         |                  | | the architecture and contains the parameters for that block, including convolution parameters, dropout, and |                                 |

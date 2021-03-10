@@ -42,15 +42,18 @@ In general, you can load any of these models with code in the following format.
 .. code-block:: python
 
   import nemo.collections.asr as nemo_asr
-  model = nemo_asr.models.<MODEL_BASE_CLASS>.from_pretrained(model_name="<MODEL_NAME>")
+  model = nemo_asr.models.ASRModel.from_pretrained(model_name="<MODEL_NAME>")
 
-Where the model name and base class are the entries under the appropriate columns in the tables below.
+Where the model name is the value under "Model Name" entry in the tables below.
 
 For example, to load the base English QuartzNet model for speech recognition, run:
 
 .. code-block:: python
 
-  model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En")
+  model = nemo_asr.models.ASRModel.from_pretrained(model_name="QuartzNet15x5Base-En")
+
+You can also call :code:`from_pretrained()` from the specific model class (such as :code:`EncDecCTCModel`
+for QuartzNet) if you will need to access specific model functionality.
 
 If you would like to programatically list the models available for a particular base class, you can use the
 :code:`list_available_models()` method.
