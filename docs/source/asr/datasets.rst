@@ -1,7 +1,10 @@
 Datasets
 ========
 
-You can get started with the following datasets.
+NeMo has scripts to convert several common ASR datasets into the format expected by the `nemo_asr` collection.
+You can get started with those datasets by following the instructions to run those scripts in the section appropriate to each dataset below.
+
+If you have your own data and want to preprocess it to use with NeMo ASR models, check out the `Preparing Custom ASR Data`_ section at the bottom of the page.
 
 .. _LibriSpeech_dataset:
 
@@ -152,3 +155,38 @@ Run the script to process AIShell-2 dataset in order to generate files in the su
     python process_aishell2_data.py --audio_folder=<data directory> --dest_folder=<destination directory>
 
 Then, you should have `train.json` `dev.json` `test.json` and `vocab.txt` in `dest_folder`. 
+
+Preparing Custom ASR Data
+-------------------------
+
+The ``nemo_asr`` collection expects each dataset to consist of a set of utterances in individual audio files plus
+a manifest that describes the dataset, with information about one utterance per line (.json).
+The audio files can be of any format supported by `Pydub <https://github.com/jiaaro/pydub>`_, though we recommend
+WAV files as they are the default and have been most thoroughly tested.
+
+You should have one manifest file per dataset that will be passed in, so if you have separate training and validation
+datasets, they should also have separate manifests.
+Otherwise, you will be loading validation data with your training data and vice versa.
+
+Each line of the manifest should be in the following format:
+
+.. code::
+
+  {"audio_filepath": "/path/to/audio.wav", "text": "the transcription of the utterance", "duration": 23.147}
+
+The :code:`audio_filepath` field should provide an absolute path to the .wav file corresponding to the utterance.
+The :code:`text` field should contain the full transcript for the utterance, and the :code:`duration` field should
+reflect the duration of the utterance in seconds.
+
+Each entry in the manifest (describing one audio file) should be bordered by '{' and '}' and must
+be contained on one line.
+The fields that describe the file should be separated by commas, and have the form :code:`"field_name": value`,
+as shown above.
+There should be no extra lines in the manifest, i.e. there should be exactly as many lines in the manifest as
+you have audio files in the dataset.
+
+Since the manifest specifies the path for each utterance, the audio files do not have to be located
+in the same directory as the manifest, or even in any specific directory structure.
+
+Once you have a manifest that describes each audio file in your dataset, you can then use the dataset by passing
+in the manifest file path in your experiment config file, e.g. as `training_ds.manifest_filepath=<path/to/manifest,json>`.
