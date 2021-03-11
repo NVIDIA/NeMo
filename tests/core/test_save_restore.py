@@ -123,7 +123,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_EncDecCTCModel(self):
         # TODO: Switch to using named configs because here we don't really care about weights
-        qn = EncDecCTCModel.from_pretrained(model_name="stt_en_quartznet15x5")
+        qn = EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En")
         self.__test_restore_elsewhere(model=qn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]))
 
     @pytest.mark.unit

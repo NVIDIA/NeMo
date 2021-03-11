@@ -320,7 +320,7 @@ pipeline {
         stage('Speech to Text Transcribe') {
           steps {
             sh 'python examples/asr/transcribe_speech.py \
-            pretrained_name="stt_en_quartznet15x5" \
+            pretrained_name="QuartzNet15x5Base-En" \
             audio_dir="/home/TestData/an4_transcribe/test_subset/" \
             cuda=true \
             amp=true'
@@ -355,7 +355,7 @@ pipeline {
             sh 'cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
             /bin/bash run_sample.sh \
-            --MODEL_NAME_OR_PATH=stt_en_quartznet15x5 \
+            --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
             --DATA_DIR=/home/TestData/ctc_segmentation/eng \
             --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
             --LANGUAGE=eng \
@@ -1009,7 +1009,7 @@ pipeline {
       parallel {
         stage('QuartzNet15x5Base-En') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model stt_en_quartznet15x5 --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+            sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
           }
         }
         stage('Tacotron2_WaveGlow_Jasper') {
