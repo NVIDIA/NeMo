@@ -246,7 +246,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             for line in manifest.readlines():
                 line = line.strip()
                 dic = json.loads(line)
-                uniq_names.append(dic['audio_filepath'].split('/')[-1].split('.')[0])
+                uniq_names.append(dic['audio_filepath'].split('/')[-1].rsplit('.', 1)[0])
 
         for i, test_batch in enumerate(tqdm(self._speaker_model.test_dataloader())):
             test_batch = [x.to(self._device) for x in test_batch]
@@ -263,7 +263,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         if not os.path.exists(embedding_dir):
             os.makedirs(embedding_dir, exist_ok=True)
 
-        prefix = manifest_file.split('/')[-1].split('.')[-2]
+        prefix = manifest_file.split('/')[-1].rsplit('.', 1)[-2]
 
         name = os.path.join(embedding_dir, prefix)
         self._embeddings_file = name + '_embeddings.pkl'
