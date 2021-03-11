@@ -41,11 +41,11 @@ For more details about the config files and different ways of model restoration,
 
     python punctuation_capitalization_evaluate.py \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-    pretrained_model=Punctuation_Capitalization_with_BERT_base_uncased 
+    pretrained_model=punctuation_en_distilbert 
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained PunctuationCapitalizationModel model from list_available_models() or 
-                     path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+                     path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
 
 """
 

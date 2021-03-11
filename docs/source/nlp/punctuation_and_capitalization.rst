@@ -224,7 +224,7 @@ Required Arguments for Training
 
 Optional Arguments
 ^^^^^^^^^^^^^^^^^^
-* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
 * :code:`--config-name`: Path to the config file to use. The default config file for the model is `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml`. You may update the config file from the file directly. The other option is to set another config file via command line arguments by :code:`--config-name=<CONFIG/FILE/PATH>`. For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
 * Other arguments to override fields in the specification file, please see the note below.
 
