@@ -81,30 +81,5 @@ class EncDecNLPModel(NLPModel):
     def decoder(self, decoder):
         self._decoder = decoder
 
-    def setup_enc_dec_tokenizers(
-        self,
-        encoder_tokenizer_name=None,
-        encoder_tokenizer_model=None,
-        encoder_bpe_dropout=0.0,
-        decoder_tokenizer_name=None,
-        decoder_tokenizer_model=None,
-        decoder_bpe_dropout=0.0,
-    ):
-
-        supported_tokenizers = ['yttm', 'huggingface']
-        if encoder_tokenizer_name not in supported_tokenizers or decoder_tokenizer_name not in supported_tokenizers:
-            raise NotImplementedError(f"Currently we only support tokenizers in {supported_tokenizers}.")
-
-        self.encoder_tokenizer = get_tokenizer(
-            tokenizer_name=encoder_tokenizer_name,
-            tokenizer_model=self.register_artifact("cfg.encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
-            bpe_dropout=encoder_bpe_dropout,
-        )
-        self.decoder_tokenizer = get_tokenizer(
-            tokenizer_name=decoder_tokenizer_name,
-            tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
-            bpe_dropout=decoder_bpe_dropout,
-        )
-
     def export(self, **kwargs):
         raise NotImplementedError('For EncDecNLPModel, you must export encoder and decoder separately!')
