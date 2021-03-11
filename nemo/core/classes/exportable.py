@@ -186,20 +186,19 @@ class Exportable(ABC):
                     except Exception as e:
                         print("jit.script() failed!", e)
 
-            if jitted_model is None:
-                jitted_model = torch.jit.trace(
-                    self,
-                    input_example,
-                    strict=False,
-                    optimize=True,
-                    check_trace=check_trace,
-                    check_tolerance=check_tolerance,
-                )
-                if verbose:
-                    print(jitted_model.code)
-
             with torch.jit.optimized_execution(True), torch.no_grad():
                 if format == ExportFormat.TORCHSCRIPT:
+                    if jitted_model is None:
+                        jitted_model = torch.jit.trace(
+                            self,
+                            input_example,
+                            strict=False,
+                            optimize=True,
+                            check_trace=check_trace,
+                            check_tolerance=check_tolerance,
+                        )
+                    if verbose:
+                        print(jitted_model.code)
                     jitted_model.save(output)
                     assert os.path.exists(output)
 

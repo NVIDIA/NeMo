@@ -67,21 +67,32 @@ class TestMTEncDecModel:
             assert model.num_weights == model_copy.num_weights
 
     @pytest.mark.unit
-    def test_cpu_export(self):
+    def test_cpu_export_onnx(self):
+        model = MTEncDecModel(cfg=get_cfg())
+        assert isinstance(model, MTEncDecModel)
+        export_test(model, ".ts")
+
+    @pytest.mark.unit
+    def test_cpu_export_ts(self):
         model = MTEncDecModel(cfg=get_cfg())
         assert isinstance(model, MTEncDecModel)
         export_test(model, ".onnx")
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_gpu_export_ts(self):
+        model = MTEncDecModel(cfg=get_cfg()).cuda()
+        assert isinstance(model, MTEncDecModel)
         export_test(model, ".ts")
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_gpu_export(self):
+    def test_gpu_export_onnx(self):
         model = MTEncDecModel(cfg=get_cfg()).cuda()
         assert isinstance(model, MTEncDecModel)
         export_test(model, ".onnx")
-        export_test(model, ".ts")
 
 
 if __name__ == "__main__":
     t = TestMTEncDecModel()
-    t.test_gpu_export()
+    t.test_gpu_export_ts()
