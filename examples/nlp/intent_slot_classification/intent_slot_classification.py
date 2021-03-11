@@ -46,9 +46,11 @@ def main(cfg: DictConfig) -> None:
     logging.info("Starting the testing of the trained model on test set...")
     logging.info("We will load the latest model saved checkpoint from the training...")
 
-    # load the model from the saved .nemo checkpoint
-    checkpoint_path = str(log_dir) + '/checkpoints/IntentSlot.nemo'
-    eval_model = IntentSlotClassificationModel.restore_from(restore_path=checkpoint_path)
+    # you can load the previously trained model saved in .nemo file like this in your code,
+    # but we will just reuse the trained model here to prevent raise condition in multi GPU training case
+    # checkpoint_path = str(log_dir) + '/checkpoints/IntentSlot.nemo'
+    # eval_model = IntentSlotClassificationModel.restore_from(restore_path=checkpoint_path)
+    eval_model = model
 
     # we will setup testing data reusing the same config (test section)
     eval_model.update_data_dir_for_testing(data_dir=cfg.model.data_dir)
