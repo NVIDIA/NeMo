@@ -30,7 +30,6 @@ class EncoderModule(NeuralModule, ABC):
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "encoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
     @property
