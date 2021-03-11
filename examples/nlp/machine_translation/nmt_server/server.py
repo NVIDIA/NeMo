@@ -62,7 +62,7 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
             logging.info(f"Loading model {model_path}")
             self._load_model(model_path)
 
-        logging.info(f"Loading model punctuation model {model_path}")
+        logging.info(f"Loading punctuation model {model_path}")
         self._load_puncutation_model(punctuation_model_path)
 
         logging.info("Models loaded. Ready for inference requests.")
