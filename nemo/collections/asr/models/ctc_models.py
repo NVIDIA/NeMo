@@ -168,6 +168,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             self.preprocessor.featurizer.pad_to = 0
             # Switch model to evaluation mode
             self.eval()
+            # Freeze the encoder and decoder modules
+            self.encoder.freeze()
+            self.decoder.freeze()
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
@@ -208,6 +211,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             self.train(mode=mode)
             self.preprocessor.featurizer.dither = dither_value
             self.preprocessor.featurizer.pad_to = pad_to_value
+            if mode is True:
+                self.encoder.unfreeze()
+                self.decoder.unfreeze()
             logging.set_verbosity(logging_level)
         return hypotheses
 
