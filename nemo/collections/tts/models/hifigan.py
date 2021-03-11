@@ -22,6 +22,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
+from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.collections.tts.data.datalayers import MelAudioDataset
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
@@ -55,7 +56,7 @@ class HifiGanModel(Vocoder):
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
 
-        if isinstance(self._train_dl.dataset, MelAudioDataset):
+        if self._train_dl and isinstance(self._train_dl.dataset, MelAudioDataset):
             self.finetune = True
             logging.info("fine-tuning on pre-computed mels")
         else:
@@ -236,7 +237,7 @@ class HifiGanModel(Vocoder):
 
     def _bias_denoise(self, audio, mel):
         def stft(x):
-            comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
+            comp = stft_patch(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
             real, imag = comp[..., 0], comp[..., 1]
             mags = torch.sqrt(real ** 2 + imag ** 2)
             phase = torch.atan2(imag, real)
