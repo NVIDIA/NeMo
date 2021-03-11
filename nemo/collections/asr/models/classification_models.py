@@ -464,17 +464,18 @@ class EncDecClassificationModel(_EncDecBaseModel):
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+        self.log('train_loss', loss_value)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         self._accuracy(logits=logits, labels=labels)
-        top_k = self._accuracy.compute()
-        for i, top_i in enumerate(top_k):
-            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
+        topk_scores = self._accuracy.compute()
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            self.log('training_batch_accuracy_top@{}'.format(top_k), score)
+
+        return {
+            'loss': loss_value,
+        }
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
