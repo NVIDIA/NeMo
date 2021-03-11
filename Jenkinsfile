@@ -355,7 +355,7 @@ pipeline {
             sh 'cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
             /bin/bash run_sample.sh \
-            --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
+            --MODEL_NAME_OR_PATH=stt_en_quartznet15x5 \
             --DATA_DIR=/home/TestData/ctc_segmentation/eng \
             --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
             --LANGUAGE=eng \
