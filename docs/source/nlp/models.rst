@@ -10,3 +10,4 @@ NeMo's NLP collection supports the following models:
 
    punctuation_and_capitalization
    token_classification
+   question_answering
