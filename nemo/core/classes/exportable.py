@@ -46,6 +46,7 @@ class ExportFormat(Enum):
 
 _EXT_DICT = {
     ".pt": ExportFormat.TORCHSCRIPT,
+    ".ts": ExportFormat.TORCHSCRIPT,
     ".onnx": ExportFormat.ONNX,
 }
 
@@ -136,7 +137,12 @@ class Exportable(ABC):
         check_tolerance=0.01,
         forward_method=None,
     ):
-        exported = None
+        my_args = locals()
+        del my_args['self']
+
+        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        output_descr = qual_name + ' exported to ONNX'
+
         try:
             # Disable typechecks
             typecheck_on = typecheck.set_typecheck_enabled(enabled=False)
@@ -159,9 +165,26 @@ class Exportable(ABC):
                 self.eval()
 
             format = self.get_format(output)
-            self._prepare_for_export()
 
-            with torch.jit.optimized_execution(True):
+            if input_example is None:
+                input_example = self.input_module.input_example()
+
+            if isinstance(input_example, Dict):
+                input_example = tuple(input_example.values())
+
+            my_args['input_example'] = input_example
+            self._prepare_for_export(**my_args)
+
+            if output_example is None:
+                if isinstance(input_example, tuple):
+                    output_example = self.forward(*input_example)
+                else:
+                    output_example = self.forward(input_example)
+
+            input_names = self.input_module.get_input_names(input_example)
+            output_names = self.output_module.get_output_names(output_example)
+
+            with torch.jit.optimized_execution(True), torch.no_grad():
                 jitted_model = None
                 if try_script:
                     try:
@@ -169,14 +192,8 @@ class Exportable(ABC):
                     except Exception as e:
                         print("jit.script() failed!", e)
 
-            if input_example is None:
-                input_example = self.input_example()
-
-            with torch.jit.optimized_execution(True):
+            with torch.jit.optimized_execution(True), torch.no_grad():
                 if format == ExportFormat.TORCHSCRIPT:
-                    if isinstance(input_example, Dict):
-                        input_example = tuple(input_example.values())
-
                     if jitted_model is None:
                         jitted_model = torch.jit.trace(
                             self,
@@ -186,6 +203,8 @@ class Exportable(ABC):
                             check_trace=check_trace,
                             check_tolerance=check_tolerance,
                         )
+                    if verbose:
+                        print(jitted_model.code)
                     jitted_model.save(output)
                     exported = jitted_model
                     assert os.path.exists(output)
@@ -193,35 +212,6 @@ class Exportable(ABC):
                 elif format == ExportFormat.ONNX:
                     if jitted_model is None:
                         jitted_model = self
-                    if output_example is None:
-                        if isinstance(input_example, tuple):
-                            output_example = self.forward(*input_example)
-                        else:
-                            output_example = self.forward(input_example)
-
-                    if isinstance(input_example, Dict):
-                        input_names = list(input_example.keys())
-                    else:
-                        if not (hasattr(self, 'input_types')):
-                            raise NotImplementedError(
-                                'For export to work you must define input_types or pass names in input_example'
-                            )
-                        input_names = list(self.input_types.keys())
-                    # remove unnecessary inputs for input_ports
-                    for name in self.disabled_deployment_input_names:
-                        input_names.remove(name)
-
-                    if isinstance(output_example, Dict):
-                        output_names = list(output_example.keys())
-                    else:
-                        if not (hasattr(self, 'output_types')):
-                            raise NotImplementedError(
-                                'For export to work you must define output_types or pass names in output_example'
-                            )
-                        output_names = list(self.output_types.keys())
-                    # remove unnecessary inputs for input_ports
-                    for name in self.disabled_deployment_output_names:
-                        output_names.remove(name)
 
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
                     if dynamic_axes is None:
@@ -239,9 +229,6 @@ class Exportable(ABC):
                                 }
                     if len(dynamic_axes) == 0:
                         dynamic_axes = None
-
-                    if isinstance(input_example, Dict):
-                        input_example = tuple(input_example.values())
 
                     torch.onnx.export(
                         jitted_model,
@@ -287,7 +274,7 @@ class Exportable(ABC):
             typecheck.set_typecheck_enabled(enabled=True)
             if forward_method:
                 type(self).forward = old_forward_method
-        return exported
+        return ([output], [output_descr])
 
     @property
     def disabled_deployment_input_names(self):
@@ -328,9 +315,10 @@ class Exportable(ABC):
                     dynamic_axes[name].append(ind)
         return dynamic_axes
 
-    def _prepare_for_export(self, replace_1D_2D=False):
+    def _prepare_for_export(self, **kwargs):
         """
         Override this method to prepare module for export. This is in-place operation.
         Base version does common necessary module replacements (Apex etc)
         """
+        replace_1D_2D = kwargs.get('replace_1D_2D', False)
         replace_for_export(self, replace_1D_2D)
