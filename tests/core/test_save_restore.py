@@ -141,7 +141,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_PunctuationCapitalization(self):
         # TODO: Switch to using named configs because here we don't really care about weights
-        pn = PunctuationCapitalizationModel.from_pretrained(model_name='Punctuation_Capitalization_with_DistilBERT')
+        pn = PunctuationCapitalizationModel.from_pretrained(model_name='punctuation_en_distilbert')
         self.__test_restore_elsewhere(
             model=pn, attr_for_eq_check=set(["punct_classifier.log_softmax", "punct_classifier.log_softmax"])
         )
