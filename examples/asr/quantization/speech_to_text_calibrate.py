@@ -51,7 +51,7 @@ can_gpu = torch.cuda.is_available()
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, default="stt_en_quartznet15x5", required=True, help="Pass: 'stt_en_quartznet15x5'",
+        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=256)

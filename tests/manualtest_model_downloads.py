@@ -36,7 +36,7 @@ for refresh_cache in [True, False]:
         nemo_asr.models.EncDecCTCModel,
         refresh_cache,
         [
-            'stt_en_quartznet15x5',
+            'QuartzNet15x5Base-En',
             'QuartzNet15x5Base-Zh',
             'QuartzNet5x5LS-En',
             'QuartzNet15x5NR-En',
