@@ -127,7 +127,7 @@ install_requires_buffer = []
 for line in install_requires:
     if 'torch' in line:
         install_requires_buffer.append(SUPPORTED_TORCH_VERSION)
-    elif 'pytorch-lightning' in line:
+    elif 'lightning' in line:
         install_requires_buffer.append(SUPPORTED_PYTORCH_LIGHTNING)
     else:
         install_requires_buffer.append(line)
