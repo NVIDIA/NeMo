@@ -96,7 +96,7 @@ class TransformerEncoderBlock(nn.Module):
 
     def forward(self, encoder_query, encoder_mask, encoder_keys):
         if self.pre_ln:
-            self.forward_preln(encoder_query, encoder_mask, encoder_keys)
+            return self.forward_preln(encoder_query, encoder_mask, encoder_keys)
         else:
             return self.forward_postln(encoder_query, encoder_mask, encoder_keys)
 
