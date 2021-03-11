@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# USAGE: python get_openslr_rir.py --data_root=<where to put data>
+# USAGE: python get_openslr_rir_data.py --data_root=<where to put data>
 # Data is downloaded from OpenSLR's "Room Impulse Response and Noise Database"
 # RIRs in multichannel files are separated into single channel files and
 # a json file that can be used as in input to NeMo is created

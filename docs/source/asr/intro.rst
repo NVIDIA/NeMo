@@ -13,8 +13,7 @@ Thus, we can see the appeal of end-to-end ASR architectures: discriminative mode
 
 And the entire end-to-end ASR model can be trained at once--a much easier pipeline to handle!
 
-Speech recognition tutorials can be found under ``<NeMo_Git_root>/tutorials/asr/``
-
+The full documentation tree is as follows:
 
 .. toctree::
    :maxdepth: 8
@@ -22,5 +21,28 @@ Speech recognition tutorials can be found under ``<NeMo_Git_root>/tutorials/asr/
    models
    datasets
    results
+   configs
    api
 
+Resource and Documentation Guide
+--------------------------------
+
+Hands-on speech recognition tutorial notebooks can be found under
+`the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/tutorials/asr/>`_.
+If you are a beginner to NeMo, consider trying out the
+`ASR with NeMo <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/tutorials/asr/01_ASR_with_NeMo.ipynb>`_ tutorial.
+This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
+
+If you are looking for information about a particular ASR model, or would like to find out more about the model
+architectures available in the `nemo_asr` collection, check out the :doc:`Models <./models>` page.
+
+Documentation on dataset preprocessing can be found on the :doc:`Datasets <./datasets>` page.
+NeMo includes preprocessing scripts for several common ASR datasets, and this page contains instructions on running
+those scripts.
+It also includes guidance for creating your own NeMo-compatible dataset, if you have your own data.
+
+Information about how to load model checkpoints (either local files or pretrained ones from NGC), as well as a list
+of the checkpoints available on NGC are located on the :doc:`Checkpoints <./results>` page.
+
+Documentation for configuration files specific to the ``nemo_asr`` models can be found on the
+:doc:`Configuration Files <./configs>` page.
