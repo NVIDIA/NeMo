@@ -61,7 +61,7 @@ class HifiGanModel(Vocoder):
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
 
-        if isinstance(self._train_dl.dataset, MelAudioDataset):
+        if self._train_dl and isinstance(self._train_dl.dataset, MelAudioDataset):
             self.finetune = True
             logging.info("fine-tuning on pre-computed mels")
         else:
