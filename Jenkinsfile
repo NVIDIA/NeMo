@@ -948,7 +948,7 @@ pipeline {
               model.shared_tokenizer=False \
               model.encoder_tokenizer.library=huggingface \
               model.encoder.library=huggingface \
-              model.encoder.model_name=bert-base-uncased \
+              model.encoder.model_name=bert-base-cased \
               model.encoder.pretrained=true \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
