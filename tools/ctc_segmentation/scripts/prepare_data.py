@@ -47,7 +47,7 @@ parser.add_argument(
     '--cut_prefix', type=int, default=0, help='Number of seconds to cut from the beginning of the audio files.',
 )
 parser.add_argument(
-    '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
+    '--model', type=str, default='stt_en_quartznet15x5', help='Pre-trained model name or path to model checkpoint'
 )
 parser.add_argument('--min_length', type=int, default=0, help='Min number of chars of the text segment for alignment.')
 parser.add_argument(

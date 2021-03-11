@@ -41,7 +41,7 @@ parser.add_argument('--window_len', type=int, default=8000, help='Window size fo
 parser.add_argument('--no_parallel', action='store_true', help='Flag to disable parallel segmentation')
 parser.add_argument('--sample_rate', type=int, default=16000, help='Sampling rate')
 parser.add_argument(
-    '--model', type=str, default='QuartzNet15x5Base-En', help='Path to model checkpoint or pre-trained model name',
+    '--model', type=str, default='stt_en_quartznet15x5', help='Path to model checkpoint or pre-trained model name',
 )
 parser.add_argument('--debug', action='store_true', help='Flag to enable debugging messages')
 

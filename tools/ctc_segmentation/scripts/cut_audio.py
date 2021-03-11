@@ -37,7 +37,7 @@ parser.add_argument("--threshold", type=float, default=-5, help='Minimum score v
 parser.add_argument(
     '--model',
     type=str,
-    default='QuartzNet15x5Base-En',
+    default='stt_en_quartznet15x5',
     help='Path to model checkpoint or pre-trained CTC-based ASR model name',
 )
 parser.add_argument('--offset', type=int, default=0, help='Offset in seconds')
@@ -53,7 +53,7 @@ def add_transcript_to_manifest(
     Args:
         manifest_original: path to the manifest
         manifest_updated: path to the updated manifest with transcript included
-        asr_model: CTC-based ASR model, for example, QuartzNet15x5Base-En
+        asr_model: CTC-based ASR model, for example, stt_en_quartznet15x5
         batch_size: Batch size for asr_model inference
     """
     transcripts = get_transcript(manifest_original, asr_model, batch_size)
@@ -74,7 +74,7 @@ def get_transcript(manifest_path: str, asr_model: nemo_asr.models.EncDecCTCModel
 
     Args:
         manifest_path: path to the manifest for inference
-        asr_model: CTC-based ASR model, for example, QuartzNet15x5Base-En
+        asr_model: CTC-based ASR model, for example, stt_en_quartznet15x5
         batch_size: batch size
 
     Returns: hypotheses: transcripts for the audio segments

@@ -51,7 +51,7 @@ def main():
     parser.add_argument(
         "--asr_model",
         type=str,
-        default="QuartzNet15x5Base-En",
+        default="stt_en_quartznet15x5",
         choices=[x.pretrained_model_name for x in EncDecCTCModel.list_available_models()],
     )
     parser.add_argument(

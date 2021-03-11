@@ -50,7 +50,7 @@ For example, to load the base English QuartzNet model for speech recognition, ru
 
 .. code-block:: python
 
-  model = nemo_asr.models.ASRModel.from_pretrained(model_name="QuartzNet15x5Base-En")
+  model = nemo_asr.models.ASRModel.from_pretrained(model_name="stt_en_quartznet15x5")
 
 You can also call :code:`from_pretrained()` from the specific model class (such as :code:`EncDecCTCModel`
 for QuartzNet) if you will need to access specific model functionality.
