@@ -518,6 +518,3 @@ class TokenClassificationModel(NLPModel):
         )
         result.append(model)
         return result
-
-    def _prepare_for_export(self):
-        return self.bert_model._prepare_for_export()
