@@ -59,21 +59,21 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         model = PretrainedModelInfo(
             pretrained_model_name="speakerrecognition_speakernet",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerrecognition_speakernet/versions/1.0.0rc1/files/speakerrecognition_speakernet.nemo",
-            description="speakerrecognition_speakernet model trained end-to-end for speaker recognition and fine tuning purposes with cross_entropy loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Recognition model achieves 2.65% EER on voxceleb-O cleaned trial file",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="speakerverification_speakernet",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerverification_speakernet/versions/1.0.0rc1/files/speakerverification_speakernet.nemo",
-            description="speakerverification_speakernet model trained end-to-end for speaker verification purposes with arcface angular softmax loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Verification model achieves 2.12% EER on voxceleb-O cleaned trial file",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="speakerdiarization_speakernet",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerdiarization_speakernet/versions/1.0.0rc1/files/speakerdiarization_speakernet.nemo",
-            description="speakerdiarization_speakernet model trained end-to-end for speaker diarization purposes with arcface angular softmax loss. It was trained on voxceleb 1 dev, voxceleb 2 dev, Fisher and SWBD  datasets. Speaker Diarization model achieves 7.3% oracle CER on CH109 set",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet",
         )
         result.append(model)
 
