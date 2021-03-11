@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.core.classes.common import typecheck
 from typing import Optional
 
 from hydra.utils import instantiate
@@ -84,7 +85,7 @@ class HuggingFaceEncoderModule(EncoderModule):
 
         self._encoder = model
 
-    # @typecheck()
+    @typecheck()
     def forward(self, input_ids, encoder_mask):
         encoder_hidden_states = self._encoder.forward(input_ids=input_ids, attention_mask=encoder_mask)[0]
         return encoder_hidden_states

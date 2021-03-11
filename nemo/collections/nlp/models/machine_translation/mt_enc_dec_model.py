@@ -153,8 +153,10 @@ class MTEncDecModel(EncDecNLPModel):
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
-        src_hiddens = self.encoder(src, src_mask)
-        tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
+        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+        tgt_hiddens = self.decoder(
+            input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
+        )
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         return log_probs
 
