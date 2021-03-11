@@ -21,12 +21,11 @@ from omegaconf.omegaconf import MISSING
 
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
-from nemo.core.classes import NeuralModule
 
 __all__ = ["TransformerDecoder"]
 
 
-class TransformerDecoderBlock(NeuralModule):
+class TransformerDecoderBlock(nn.Module):
     """
     Building block of Transformer decoder.
 
@@ -66,34 +65,51 @@ class TransformerDecoderBlock(NeuralModule):
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
-    # TODO: add Neural Types
-    def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward_preln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+        """
+        Pre-LayerNorm block
+        Order of operations: LN -> Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN
+        """
+        residual = decoder_query
+        decoder_query = self.layer_norm_1(decoder_query)
+        decoder_keys = self.layer_norm_1(decoder_keys)
+        self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
+        self_attn_output += residual
 
-        # Pre-LN: LN -> Self-Attn -> Drop -> Residual -> LN -> Cross-Attn -> Drop -> Residual -> LN -> FFN
-        # Post-LN: Self-Attn -> Drop -> Residual -> LN -> Cross-Attn -> Drop -> Residual -> LN -> FFN -> Residual -> LN
-        if self.pre_ln:
-            # Share same LN params for query, key (self-attn)
-            decoder_query = self.layer_norm_1(decoder_query)
-            decoder_keys = self.layer_norm_1(decoder_keys)
+        residual = self_attn_output
+        self_attn_output = self.layer_norm_2(self_attn_output)
+        enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output += residual
 
+        residual = enc_dec_attn_output
+        enc_dec_attn_output = self.layer_norm_3(enc_dec_attn_output)
+        output_states = self.third_sub_layer(enc_dec_attn_output)
+        output_states += residual
+
+        return output_states
+
+    def forward_postln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+        """
+        Post-LayerNorm block
+        Order of operations: Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN -> Residual -> LN
+        """
         self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
         self_attn_output += decoder_query
-
-        self_attn_output = self.layer_norm_2(self_attn_output) if self.pre_ln else self.layer_norm_1(self_attn_output)
+        self_attn_output = self.layer_norm_1(self_attn_output)
 
         enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
         enc_dec_attn_output += self_attn_output
-
-        enc_dec_attn_output = (
-            self.layer_norm_3(enc_dec_attn_output) if self.pre_ln else self.layer_norm_2(enc_dec_attn_output)
-        )
+        enc_dec_attn_output = self.layer_norm_2(enc_dec_attn_output)
 
         output_states = self.third_sub_layer(enc_dec_attn_output)
+        output_states += enc_dec_attn_output
+        return self.layer_norm_3(output_states)
 
-        if not self.pre_ln:
-            output_states = self.layer_norm_3(output_states + enc_dec_attn_output)
-
-        return output_states
+    def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+        if self.pre_ln:
+            return self.forward_preln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
+        else:
+            return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
 
 
 class TransformerDecoder(nn.Module):

@@ -62,7 +62,6 @@ Mixins
     :show-inheritance:
     :members:
 
-
 Datasets
 --------
 
@@ -89,5 +88,27 @@ Subword Encoding Datasets
     :members:
 
 .. autoclass:: nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset
+    :show-inheritance:
+    :members:
+
+Audio Preprocessors
+-------------------
+
+.. autoclass:: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.AudioToMFCCPreprocessor
+    :show-inheritance:
+    :members:
+
+Audio Augmentors
+----------------
+
+.. autoclass:: nemo.collections.asr.modules.SpectrogramAugmentation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.CropOrPadSpectrogramAugmentation
     :show-inheritance:
     :members:
