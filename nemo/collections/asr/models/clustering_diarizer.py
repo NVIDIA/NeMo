@@ -110,7 +110,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
-                model_path = "SpeakerNet_verification"
+                model_path = "speakerverification_speakernet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name=model_path)
 

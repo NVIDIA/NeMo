@@ -58,7 +58,9 @@ for refresh_cache in [True, False]:
         ],
     )
     testclass_downloads(
-        nemo_asr.models.EncDecSpeakerLabelModel, refresh_cache, ['SpeakerNet_recognition', 'SpeakerNet_verification']
+        nemo_asr.models.EncDecSpeakerLabelModel,
+        refresh_cache,
+        ['speakerrecognition_speakernet', 'speakerverification_speakernet', 'speakerdiarization_speakernet'],
     )
 
     # Test NLP collection
