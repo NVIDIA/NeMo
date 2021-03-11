@@ -908,7 +908,7 @@ pipeline {
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               model.encoder.pre_ln=true \
               model.decoder.pre_ln=true \
-              trainer.gpus=[0] \
+              trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
               exp_manager=null \
               '
