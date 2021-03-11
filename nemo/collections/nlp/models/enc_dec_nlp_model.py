@@ -104,3 +104,6 @@ class EncDecNLPModel(NLPModel):
             tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
             bpe_dropout=decoder_bpe_dropout,
         )
+
+    def export(self, **kwargs):
+        raise NotImplementedError('For EncDecNLPModel, you must export encoder and decoder separately!')

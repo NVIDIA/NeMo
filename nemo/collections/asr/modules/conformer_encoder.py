@@ -72,9 +72,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to 0.0.
     """
 
-    def _prepare_for_export(self):
-        Exportable._prepare_for_export(self)
-
     def input_example(self):
         """
         Generates input examples for tracing etc.

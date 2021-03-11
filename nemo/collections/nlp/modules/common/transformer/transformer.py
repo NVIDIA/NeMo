@@ -14,6 +14,7 @@
 
 from dataclasses import dataclass
 
+import torch
 from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
@@ -22,6 +23,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_decoders import
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
 from nemo.core.classes.common import typecheck
+from nemo.core.classes.exportable import Exportable
 
 
 @dataclass
@@ -51,7 +53,7 @@ class TransformerEncoderConfig(TransformerConfig):
     mask_future: bool = False
 
 
-class TransformerEncoderNM(EncoderModule):
+class TransformerEncoderNM(EncoderModule, Exportable):
     def __init__(
         self,
         vocab_size: int,
@@ -107,8 +109,19 @@ class TransformerEncoderNM(EncoderModule):
     def hidden_size(self):
         return self._hidden_size
 
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, encoder_mask])
 
-class TransformerDecoderNM(DecoderModule):
+
+class TransformerDecoderNM(DecoderModule, Exportable):
     def __init__(
         self,
         vocab_size: int,
@@ -178,3 +191,14 @@ class TransformerDecoderNM(DecoderModule):
     @property
     def decoder(self):
         return self._decoder
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask])
