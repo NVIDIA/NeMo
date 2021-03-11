@@ -871,7 +871,7 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('L2: NMT Training') {
+        stage('L2: NMT Training Post-LN') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
               python enc_dec_nmt.py \
@@ -886,6 +886,29 @@ pipeline {
               model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               trainer.gpus=[0] \
+              +trainer.fast_dev_run=true \
+              exp_manager=null \
+              '
+            }
+        }
+
+        stage('L2: NMT Training Pre-LN') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=aayn_base \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.encoder.pre_ln=true \
+              model.decoder.pre_ln=true \
+              trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
               exp_manager=null \
               '
