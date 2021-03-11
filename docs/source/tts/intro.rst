@@ -46,31 +46,31 @@ NeMo supports a variety of models that can be used for TTS.
      - Description
    * - Tacotron2
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
-     - TBA
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_tacotron2
      - LSTM encoder decoder based model that generates spectrograms
    * - GlowTTS
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
-     - TBA
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_glowtts
      - Glow-based spectrogram generator
    * - WaveGlow
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
-     - TBA
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_waveglow_88m
      - Glow-based vocoder
    * - SqueezeWave
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
-     - TBA
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_squeezewave
      - Glow-based vocoder based on WaveGlow but with less parameters
    * - UniGlow
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
-     - TBA
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_uniglow
      - Glow-based vocoder based on WaveGlow but shares 1 set of parameters across all flow steps
    * - MelGAN
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
-     - TBA
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_melgan
      - GAN-based vocoder
    * - HiFiGAN
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
-     - TBA
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_hifigan
      - Glow-based vocoder
 
 Base Classes
