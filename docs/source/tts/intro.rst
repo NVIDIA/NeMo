@@ -71,7 +71,7 @@ NeMo supports a variety of models that can be used for TTS.
    * - HiFiGAN
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_hifigan
-     - Glow-based vocoder
+     - GAN-based vocoder
 
 Base Classes
 ############
