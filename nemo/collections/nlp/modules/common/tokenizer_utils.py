@@ -126,3 +126,5 @@ def get_nmt_tokenizer(
         return AutoTokenizer(
             pretrained_model_name=model_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
         )
+    else:
+        raise NotImplementedError('Currently we only support "yttm" and "huggingface" tokenizer library.')
