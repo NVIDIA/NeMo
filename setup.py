@@ -109,6 +109,7 @@ tests_requirements = extras_require["test"]
 
 try:
     import torch
+
     version = torch.__version__
     SUPPORTED_TORCH_VERSION = f"torch=={version}"
 
