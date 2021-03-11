@@ -112,10 +112,10 @@ class TransformerEncoderNM(EncoderModule, Exportable):
             pre_ln=pre_ln,
         )
 
-    # @typecheck()
+    @typecheck()
     def forward(self, input_ids, encoder_mask):
-        embeddings = self._embedding(input_ids)
-        encoder_hidden_states = self._encoder(embeddings, encoder_mask)
+        embeddings = self._embedding(input_ids=input_ids)
+        encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
         return encoder_hidden_states
 
     @property
