@@ -68,8 +68,8 @@ def audio_rttm_map(audio_file_list, rttm_file_list=None):
     rttm_dict = {}
     audio_dict = {}
     for audio_file, rttm_file in zip(audio_files, rttm_files):
-        uniq_audio_name = audio_file.split('/')[-1].split('.')[0]
-        uniq_rttm_name = rttm_file.split('/')[-1].split('.')[0]
+        uniq_audio_name = audio_file.split('/')[-1].rsplit('.', 1)[0]
+        uniq_rttm_name = rttm_file.split('/')[-1].rsplit('.', 1)[0]
 
         if rttm_notfound:
             uniq_rttm_name = uniq_audio_name
@@ -209,7 +209,7 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
             line = line.strip()
             line = json.loads(line)
             audio, offset, duration = line['audio_filepath'], line['offset'], line['duration']
-            audio = os.path.basename(audio).split('.')[0]
+            audio = os.path.basename(audio).rsplit('.', 1)[0]
             if audio not in time_stamps:
                 time_stamps[audio] = []
             start = offset
