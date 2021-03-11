@@ -88,28 +88,8 @@ Augmentation Configurations
 There are a few on-the-fly spectrogram augmentation options for NeMo ASR, which can be specified by the
 configuration file using a ``spec_augment`` section.
 
-The options for `Cutout <https://arxiv.org/abs/1708.04552>`_ and `SpecAugment <https://arxiv.org/abs/1904.08779>`_
-available via the ``SpectrogramAugmentation`` module are detailed in the following table.
-
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| **Parameter**           | **Datatype**     | **Description**                                                                                                          | **Supported Values**         |
-+=========================+==================+==========================================================================================================================+==============================+
-| :code:`rect_masks`      | int              | How many rectangular masks should be cut (Cutout). Defaults to 5.                                                        |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`rect_freq`       | int              | Should only be set if :code:`rect_masks` was set. Maximum size of cut rectangles along the frequency dimension.          |                              |
-|                         |                  | Defaults to 5.                                                                                                           |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`rect_time`       | int              | Should only be set if :code:`rect_masks` was set. Maximum size of cut rectangles along the time dimension.               |                              |
-|                         |                  | Defaults to 25.                                                                                                          |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`freq_masks`      | int              | How many frequency segments should be cut (SpecAugment). Defaults to 0.                                                  |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`freq_width`      | int              | Should only be set if :code:`freq_masks` is set. Maximum number of frequencies to be cut in one segment. Defaults to 10. |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`time_masks`      | int              | How many time segments should be cut (SpecAugment). Defaults to 0.                                                       |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`time_width`      | int              | Should only be set if :code:`time_masks` is set. Maximum number of time steps to be cut in one segment. Defaults to 10.  |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+For example, there are options for `Cutout <https://arxiv.org/abs/1708.04552>`_ and
+`SpecAugment <https://arxiv.org/abs/1904.08779>`_ available via the ``SpectrogramAugmentation`` module.
 
 The following example sets up both Cutout (via the ``rect_*`` parameters) and SpecAugment (via the ``freq_*``
 and ``time_*`` parameters).
