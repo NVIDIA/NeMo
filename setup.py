@@ -132,6 +132,8 @@ for line in install_requires:
     else:
         install_requires_buffer.append(line)
 
+# override install requires
+install_requires = install_requires_buffer
 
 ###############################################################################
 #                            Code style checkers                              #
