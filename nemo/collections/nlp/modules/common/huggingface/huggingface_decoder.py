@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,28 @@ from nemo.utils import logging
 
 
 class HuggingFaceDecoderModule(DecoderModule):
-    """ Class for using HuggingFace encoders in NeMo NLP."""
+    """Gets HuggingFace based model to be used as an Decoder in NeMo NLP.
+    Use the model_name arg to get a named model architecture. 
+    Available model names can be found with get_huggingface_pretrained_lm_models_list() or
+    by going to https://huggingface.co/models.
+    Use the pretrained arg to get the named model architecture with or without pretrained weights.
+
+    If model_name is None, then we can pass in a custom configuration via the config_dict.
+    For example, to instantiate a HuggingFace BERT model with custom configuration we would do:
+        config_dict={
+            '_target_': 'transformers.BertConfig',
+            'hidden_size': 1536
+        } 
+
+
+    Args:
+        model_name (Optional[str]): Named model architecture from HuggingFace. Defaults to None.
+        pretrained (bool): Use True to get pretrained weights. 
+                                    False will use the same architecture but with randomly initialized weights.
+                                    Defaults to False.
+        config_dict (Optional[dict], optional): Use for custom configuration of the HuggingFace model. Defaults to None.
+        checkpoint_file (Optional[str], optional): Provide weights for the transformer from a local checkpoint. Defaults to None.
+    """
 
     def __init__(
         self,
