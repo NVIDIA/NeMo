@@ -320,7 +320,7 @@ pipeline {
         stage('Speech to Text Transcribe') {
           steps {
             sh 'python examples/asr/transcribe_speech.py \
-            pretrained_name="QuartzNet15x5Base-En" \
+            pretrained_name="stt_en_quartznet15x5" \
             audio_dir="/home/TestData/an4_transcribe/test_subset/" \
             cuda=true \
             amp=true'
@@ -1009,7 +1009,7 @@ pipeline {
       parallel {
         stage('QuartzNet15x5Base-En') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+            sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model stt_en_quartznet15x5 --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
           }
         }
         stage('Tacotron2_WaveGlow_Jasper') {
