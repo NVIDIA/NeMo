@@ -106,11 +106,10 @@ tests_requirements = extras_require["test"]
 
 ########################## VERSION MISMATCH PATCH #############################
 # REMOVE AFTER 21.03 Container is released !
+
 try:
     import torch
-
     version = torch.__version__
-
     SUPPORTED_TORCH_VERSION = f"torch=={version}"
 
     if 'a' in version or 'b' in version:
@@ -124,11 +123,11 @@ except (ImportError, ModuleNotFoundError):
     SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning>=1.2.3"
 
 install_requires_buffer = []
-for line in install_requires:
-    if 'torch' in line:
-        install_requires_buffer.append(SUPPORTED_TORCH_VERSION)
-    elif 'lightning' in line:
+for ix, line in enumerate(install_requires):
+    if 'lightning' in line:
         install_requires_buffer.append(SUPPORTED_PYTORCH_LIGHTNING)
+    elif 'torch' in line:
+        install_requires_buffer.append(SUPPORTED_TORCH_VERSION)
     else:
         install_requires_buffer.append(line)
 
