@@ -120,6 +120,7 @@ try:
         # Downgrade torch, pytorch-lightning
         SUPPORTED_TORCH_VERSION = "torch<=1.7.1"
         SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning==1.1.5"
+
 except (ImportError, ModuleNotFoundError):
     # Since no torch is installed, pip install torch will install latest torch and latest pytorch lightning
     SUPPORTED_TORCH_VERSION = "torch<=1.7.1"
