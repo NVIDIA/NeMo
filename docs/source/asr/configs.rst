@@ -364,7 +364,7 @@ A Citrinet-512 config might look like below.
         stride_last: true
         residual_mode: "stride_add"
 
-      ... # Entries for blocks 2~22
+      ... # Entries for blocks 2~21
 
       # Block 22
       - filters: 512
