@@ -26,7 +26,7 @@ from pytorch_lightning import Trainer
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
 from nemo.collections.nlp.data.machine_translation.one_side_dataset import TranslationOneSideDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer, get_tokenizer
 from nemo.utils import logging
 
 
@@ -61,49 +61,58 @@ class MTDataPreproc:
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         if hasattr(cfg, 'train_ds'):
+            supported_tokenizers = ['yttm', 'huggingface']
             if (
-                cfg.encoder_tokenizer.get('tokenizer_name') != 'yttm'
-                or cfg.decoder_tokenizer.get('tokenizer_name') != 'yttm'
+                not cfg.encoder_tokenizer.get('library') in supported_tokenizers
+                or not cfg.decoder_tokenizer.get('library') in supported_tokenizers
             ):
-                raise NotImplementedError(f"Currently we only support yttm tokenizer.")
+                raise NotImplementedError(f"Currently we only support {supported_tokenizers}.")
 
-            # Train tokenizer models if they don't exist
-            if (
-                cfg.encoder_tokenizer.get('tokenizer_model') is None
-                or cfg.decoder_tokenizer.get('tokenizer_model') is None
-            ):
-                if cfg.get('preproc_out_dir') is None:
-                    raise ValueError('Tokenizer model training required but cfg.preproc_out_dir is None.')
-                if cfg.train_ds.get('src_file_name') is None or cfg.train_ds.get('tgt_file_name') is None:
-                    raise ValueError(
-                        'src_file_name and tgt_file_name needed to train tokenizers but could not be found.'
+            # Prepare tokenizers
+            if cfg.encoder_tokenizer.get('library') == 'yttm' or cfg.decoder_tokenizer.get('library') == 'yttm':
+
+                # Train tokenizer models if using yttm and they don't exist
+                if (
+                    cfg.encoder_tokenizer.get('library') == 'yttm'
+                    and cfg.encoder_tokenizer.get('tokenizer_model') is None
+                ) or (
+                    cfg.decoder_tokenizer.get('library') == 'yttm'
+                    and cfg.decoder_tokenizer.get('tokenizer_model') is None
+                ):
+                    if cfg.get('preproc_out_dir') is None:
+                        raise ValueError('Tokenizer model training required but cfg.preproc_out_dir is None.')
+                    if cfg.train_ds.get('src_file_name') is None or cfg.train_ds.get('tgt_file_name') is None:
+                        raise ValueError(
+                            'src_file_name and tgt_file_name needed to train tokenizers but could not be found.'
+                        )
+                    # train tokenizer model on training data
+                    self.encoder_tokenizer_model, self.decoder_tokenizer_model = MTDataPreproc.train_yttm_tokenizers(
+                        out_dir=cfg.get('preproc_out_dir'),
+                        src_fname=cfg.train_ds.get('src_file_name'),
+                        tgt_fname=cfg.train_ds.get('tgt_file_name'),
+                        shared_tokenizer=cfg.get('shared_tokenizer'),
+                        encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.get('vocab_size'),
+                        decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.get('vocab_size'),
+                        encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
+                        decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
+                        encoder_tokenizer_coverage=cfg.encoder_tokenizer.get('coverage', 0.999),
+                        decoder_tokenizer_coverage=cfg.decoder_tokenizer.get('coverage', 0.999),
+                        global_rank=self.global_rank,
                     )
-                # train tokenizer model on training data
-                self.encoder_tokenizer_model, self.decoder_tokenizer_model = MTDataPreproc.train_tokenizers(
-                    out_dir=cfg.get('preproc_out_dir'),
-                    src_fname=cfg.train_ds.get('src_file_name'),
-                    tgt_fname=cfg.train_ds.get('tgt_file_name'),
-                    shared_tokenizer=cfg.get('shared_tokenizer'),
-                    encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.get('vocab_size'),
-                    decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.get('vocab_size'),
-                    encoder_tokenizer_name=cfg.encoder_tokenizer.get('tokenizer_name'),
-                    decoder_tokenizer_name=cfg.decoder_tokenizer.get('tokenizer_name'),
-                    encoder_tokenizer_coverage=cfg.encoder_tokenizer.get('coverage', 0.999),
-                    decoder_tokenizer_coverage=cfg.decoder_tokenizer.get('coverage', 0.999),
-                    global_rank=self.global_rank,
-                )
-                # update config
-                self._cfg.encoder_tokenizer.tokenizer_model = self.encoder_tokenizer_model
-                self._cfg.decoder_tokenizer.tokenizer_model = self.decoder_tokenizer_model
-            else:
-                self.encoder_tokenizer_model = cfg.encoder_tokenizer.get('tokenizer_model')
-                self.decoder_tokenizer_model = cfg.decoder_tokenizer.get('tokenizer_model')
+                    # update config
+                    self._cfg.encoder_tokenizer.tokenizer_model = self.encoder_tokenizer_model
+                    self._cfg.decoder_tokenizer.tokenizer_model = self.decoder_tokenizer_model
+                else:
+                    self.encoder_tokenizer_model = cfg.encoder_tokenizer.get('tokenizer_model')
+                    self.decoder_tokenizer_model = cfg.decoder_tokenizer.get('tokenizer_model')
 
             self.encoder_tokenizer, self.decoder_tokenizer = self.get_enc_dec_tokenizers(
-                encoder_tokenizer_name=cfg.encoder_tokenizer.get('tokenizer_name'),
+                encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
+                encoder_model_name=cfg.encoder.get('model_name'),
                 encoder_tokenizer_model=self.encoder_tokenizer_model,
                 encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
-                decoder_tokenizer_name=cfg.decoder_tokenizer.get('tokenizer_name'),
+                decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
+                decoder_model_name=cfg.decoder.get('model_name'),
                 decoder_tokenizer_model=self.decoder_tokenizer_model,
                 decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
             )
@@ -120,7 +129,7 @@ class MTDataPreproc:
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(
-                            f"Using tarred dataset for src {cfg.train_ds.get('src_file_name')} and tgt {cfg.train_ds.get('tgt_file_name')}"
+                            f"Using tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
                     self.train_tar_files, self.train_metadata_file = MTDataPreproc.preprocess_parallel_dataset(
                         clean=cfg.train_ds.clean,
@@ -171,21 +180,25 @@ class MTDataPreproc:
         encoder_tokenizer_name=None,
         encoder_tokenizer_model=None,
         encoder_bpe_dropout=0.0,
+        encoder_model_name=None,
         decoder_tokenizer_name=None,
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
+        decoder_model_name=None,
     ):
 
-        if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
-            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
+        # if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
+        #     raise NotImplementedError(f"Currently we only support yttm tokenizer.")
 
-        encoder_tokenizer = get_tokenizer(
-            tokenizer_name=encoder_tokenizer_name,
+        encoder_tokenizer = get_nmt_tokenizer(
+            library=encoder_tokenizer_name,
+            model_name=encoder_model_name,
             tokenizer_model=encoder_tokenizer_model,
             bpe_dropout=encoder_bpe_dropout,
         )
-        decoder_tokenizer = get_tokenizer(
-            tokenizer_name=decoder_tokenizer_name,
+        decoder_tokenizer = get_nmt_tokenizer(
+            library=decoder_tokenizer_name,
+            model_name=decoder_model_name,
             tokenizer_model=decoder_tokenizer_model,
             bpe_dropout=decoder_bpe_dropout,
         )
@@ -478,7 +491,7 @@ class MTDataPreproc:
         return tar_file_paths, metadata_path
 
     @staticmethod
-    def train_tokenizers(
+    def train_yttm_tokenizers(
         out_dir,
         src_fname,
         tgt_fname,
@@ -491,12 +504,14 @@ class MTDataPreproc:
         decoder_tokenizer_coverage,
         global_rank,
     ):
+        encoder_tokenizer_model = None
+        decoder_tokenizer_model = None
         os.makedirs(out_dir, exist_ok=True)
 
-        if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
-            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
-
         if shared_tokenizer:
+            if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
+                raise NotImplementedError(f"Currently we only support yttm for shared tokenizer.")
+
             encoder_tokenizer_model = os.path.join(
                 out_dir, 'shared_tokenizer.%d.BPE.model' % (encoder_tokenizer_vocab_size)
             )
@@ -521,45 +536,47 @@ class MTDataPreproc:
                             n_threads=-1,
                         )
         else:
-            encoder_tokenizer_model = os.path.join(
-                out_dir, 'tokenizer.encoder.%d.BPE.model' % (encoder_tokenizer_vocab_size)
-            )
-            if global_rank == 0:
-                if os.path.isfile(encoder_tokenizer_model):
-                    logging.info(
-                        f'Encoder tokenizer model {encoder_tokenizer_model} already exists. Remove file if training a new tokenizer model.'
-                    )
-                else:
-                    logging.info(
-                        f'Encoder tokenizer model {encoder_tokenizer_model} not found. Training tokenizer model.'
-                    )
-                    yttm.BPE.train(
-                        data=src_fname,
-                        vocab_size=encoder_tokenizer_vocab_size,
-                        model=encoder_tokenizer_model,
-                        coverage=encoder_tokenizer_coverage,
-                        n_threads=-1,
-                    )
+            if encoder_tokenizer_name == 'yttm':
+                encoder_tokenizer_model = os.path.join(
+                    out_dir, 'tokenizer.encoder.%d.BPE.model' % (encoder_tokenizer_vocab_size)
+                )
+                if global_rank == 0:
+                    if os.path.isfile(encoder_tokenizer_model):
+                        logging.info(
+                            f'Encoder tokenizer model {encoder_tokenizer_model} already exists. Remove file if training a new tokenizer model.'
+                        )
+                    else:
+                        logging.info(
+                            f'Encoder tokenizer model {encoder_tokenizer_model} not found. Training tokenizer model.'
+                        )
+                        yttm.BPE.train(
+                            data=src_fname,
+                            vocab_size=encoder_tokenizer_vocab_size,
+                            model=encoder_tokenizer_model,
+                            coverage=encoder_tokenizer_coverage,
+                            n_threads=-1,
+                        )
 
-            decoder_tokenizer_model = os.path.join(
-                out_dir, 'tokenizer.decoder.%d.BPE.model' % (decoder_tokenizer_vocab_size)
-            )
-            if global_rank == 0:
-                if os.path.isfile(decoder_tokenizer_model):
-                    logging.info(
-                        f'Decoder tokenizer model {decoder_tokenizer_model} already exists. Remove file if training a new tokenizer model.'
-                    )
-                else:
-                    logging.info(
-                        f'Decoder tokenizer model {decoder_tokenizer_model} not found. Training tokenizer model.'
-                    )
-                    yttm.BPE.train(
-                        data=tgt_fname,
-                        vocab_size=decoder_tokenizer_vocab_size,
-                        model=decoder_tokenizer_model,
-                        coverage=decoder_tokenizer_coverage,
-                        n_threads=-1,
-                    )
+            if decoder_tokenizer_name == 'yttm':
+                decoder_tokenizer_model = os.path.join(
+                    out_dir, 'tokenizer.decoder.%d.BPE.model' % (decoder_tokenizer_vocab_size)
+                )
+                if global_rank == 0:
+                    if os.path.isfile(decoder_tokenizer_model):
+                        logging.info(
+                            f'Decoder tokenizer model {decoder_tokenizer_model} already exists. Remove file if training a new tokenizer model.'
+                        )
+                    else:
+                        logging.info(
+                            f'Decoder tokenizer model {decoder_tokenizer_model} not found. Training tokenizer model.'
+                        )
+                        yttm.BPE.train(
+                            data=tgt_fname,
+                            vocab_size=decoder_tokenizer_vocab_size,
+                            model=decoder_tokenizer_model,
+                            coverage=decoder_tokenizer_coverage,
+                            n_threads=-1,
+                        )
 
         return encoder_tokenizer_model, decoder_tokenizer_model
 
