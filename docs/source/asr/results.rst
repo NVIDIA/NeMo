@@ -84,7 +84,7 @@ Speech Classification Models
 -----------------------------
 
 Speech Recognition (Languages)
------------------------------
+------------------------------
 
 English
 ^^^^^^^
