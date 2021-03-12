@@ -1,13 +1,13 @@
-name: AttentionIsAllYouNeed
-do_training: True # set to False if only preprocessing data
+name: HuggingFaceEncoder
+do_training: true
 
 model:
   beam_size: 4
   len_pen: 0.6
   max_generation_delta: 5
   label_smoothing: 0.1
-  shared_tokenizer: True # train tokenizer model across src and tgt train data
-  preproc_out_dir: null # path to store data preprocessing outputs
+  shared_tokenizer: false
+  preproc_out_dir: null
   src_language: 'en'
   tgt_language: 'de'
 
@@ -35,8 +35,8 @@ model:
     num_workers: 8
 
   validation_ds:
-    src_file_name: ???
-    tgt_file_name: ???
+    src_file_name: null
+    tgt_file_name: null
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
@@ -47,8 +47,8 @@ model:
     num_workers: 8
 
   test_ds:
-    src_file_name: ???
-    tgt_file_name: ???
+    src_file_name: null
+    tgt_file_name: null
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
@@ -72,39 +72,23 @@ model:
       warmup_ratio: 0.1
 
   encoder_tokenizer:
-    library: yttm
+    library: huggingface
     tokenizer_model: null
-    vocab_size: null # vocab size for training bpe
-    bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    vocab_size: null
 
   decoder_tokenizer:
     library: yttm
     tokenizer_model: null
-    vocab_size: null # vocab size for training bpe
-    bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    vocab_size: null
 
   encoder:
-    library: nemo
-    model_name: null
+    library: huggingface
+    model_name: bert-base-uncased
     pretrained: false
-    max_sequence_length: 512
-    num_token_types: 2
-    embedding_dropout: 0.1
-    learn_positional_encodings: false
-    hidden_size: 512
-    num_layers: 6
-    inner_size: 2048
-    num_attention_heads: 8
-    ffn_dropout: 0.1
-    attn_score_dropout: 0.1
-    attn_layer_dropout: 0.1
-    hidden_act: relu
-    mask_future: false
-    pre_ln: false
 
   decoder:
     library: nemo
@@ -144,5 +128,5 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  name: AAYNBase
+  name: HuggingFaceEncoder
   files_to_copy: []
