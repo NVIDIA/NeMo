@@ -98,7 +98,7 @@ extensions = [
     "sphinxcontrib.bibtex",
 ]
 
-bibtex_bibfiles = ['asr/asr_all.bib', 'tts/tts_all.bib']
+bibtex_bibfiles = ['asr/asr_all.bib']
 
 intersphinx_mapping = {
     'pytorch': ('https://pytorch.org/docs/stable', None),

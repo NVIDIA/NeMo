@@ -56,7 +56,7 @@ def main():
     parser.add_argument(
         "--spkr_model",
         type=str,
-        default="SpeakerNet_recognition",
+        default="speakerrecognition_speakernet",
         required=True,
         help="Pass your trained .nemo model",
     )

@@ -55,7 +55,7 @@ def main():
     parser.add_argument(
         "--model_path",
         type=str,
-        default='SpeakerNet_verification',
+        default='speakerverification_speakernet',
         required=False,
         help="path to .nemo speaker verification model file to extract embeddings, if not passed SpeakerNet-M model would be downloaded from NGC and used to extract embeddings",
     )
@@ -73,7 +73,7 @@ def main():
         logging.info(f"Using local speaker model from {args.model_path}")
         speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(restore_path=args.model_path)
     else:
-        speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name="SpeakerNet_verification")
+        speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name="speakerverification_speakernet")
         logging.info(f"using pretrained speaker verification model from NGC")
 
     num_gpus = 1 if torch.cuda.is_available() else 0
