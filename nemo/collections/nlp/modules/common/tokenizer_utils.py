@@ -25,6 +25,7 @@ from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenTo
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
+from nemo.utils import logging
 
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
 
@@ -40,7 +41,7 @@ def get_tokenizer_list() -> List[str]:
 
 @dataclass
 class TokenizerConfig:
-    tokenizer_name: str = MISSING
+    library: str = MISSING
     tokenizer_model: Optional[str] = None
     vocab_size: Optional[int] = None
     vocab_file: Optional[str] = None
@@ -93,3 +94,37 @@ def get_tokenizer(
     return AutoTokenizer(
         pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
     )
+
+
+def get_nmt_tokenizer(
+    library: str = 'yttm',
+    model_name: Optional[str] = None,
+    tokenizer_model: Optional[str] = None,
+    vocab_file: Optional[str] = None,
+    special_tokens: Optional[Dict[str, str]] = None,
+    use_fast: Optional[bool] = False,
+    bpe_dropout: Optional[float] = 0.0,
+):
+    """
+    Args:
+        model_name: if using a pretrained model from NeMo or HuggingFace
+        tokenizer_model: tokenizer model file of sentencepiece or youtokentome
+        special_tokens: dict of special tokens
+        vocab_file: path to vocab file
+        use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
+    """
+    if library == 'yttm':
+        logging.info(f'Getting YouTokenToMeTokenizer with model: {tokenizer_model}.')
+        return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
+
+    elif library == 'huggingface':
+        if special_tokens is None:
+            special_tokens_dict = {}
+        else:
+            special_tokens_dict = special_tokens
+        logging.info(f'Getting HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
+        return AutoTokenizer(
+            pretrained_model_name=model_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
+        )
+    else:
+        raise NotImplementedError('Currently we only support "yttm" and "huggingface" tokenizer library.')
