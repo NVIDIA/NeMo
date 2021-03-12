@@ -82,7 +82,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             A tuple of input examples.
         """
         input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        return tuple([input_example])
+        input_example_length = torch.randint(0, 256, (16,)).to(next(self.parameters()).device)
+        return tuple([input_example, input_example_length])
 
     @property
     def input_types(self):
@@ -130,6 +131,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
+        self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
 
         if xscaling:
@@ -203,7 +205,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
 
     @typecheck()
-    def forward(self, audio_signal, length):
+    def forward(self, audio_signal, length=None):
+        if length is None:
+            length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, ConvSubsampling):
