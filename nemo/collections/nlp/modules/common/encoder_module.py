@@ -29,8 +29,7 @@ class EncoderModule(NeuralModule, ABC):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "encoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
+            "encoder_mask": NeuralType(('B', 'T'), MaskType()),
         }
 
     @property

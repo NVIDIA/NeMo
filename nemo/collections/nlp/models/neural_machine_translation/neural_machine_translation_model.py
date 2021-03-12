@@ -134,7 +134,7 @@ class NeuralMachineTranslationModel(ModelPT):
         return outputs
 
     @typecheck.disable_checks()
-    def generate(self, input_ids: Union[torch.Tensor, torch.LongTensor]) -> torch.Tensor:
+    def generate(self, input_ids: torch.Tensor) -> torch.Tensor:
         """Wraps huggingface EncoderDecoder.generate()."""
         outputs = self.model.generate(
             input_ids=input_ids,

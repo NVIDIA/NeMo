@@ -14,9 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List, Optional, Union
+
+from attr import asdict
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
+from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_pretrained_lm_models_list,
@@ -24,6 +29,11 @@ from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_model,
     get_megatron_lm_models_list,
+)
+from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
+from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
+    get_huggingface_transformer,
+    get_nemo_transformer,
 )
 from nemo.utils import logging
 
@@ -93,5 +103,72 @@ def get_lm_model(
 
     if checkpoint_file and os.path.exists(checkpoint_file):
         model.restore_weights(restore_path=checkpoint_file)
+
+    return model
+
+
+# @dataclass
+# class TransformerConfig:
+#     library: str = 'nemo'
+#     model_name: Optional[str] = None
+#     pretrained: bool = False
+#     config_dict: Optional[dict] = None
+#     checkpoint_file: Optional[str] = None
+#     encoder: bool = True
+
+
+def get_transformer(
+    library: str = 'nemo',
+    model_name: Optional[str] = None,
+    pretrained: bool = False,
+    config_dict: Optional[dict] = None,
+    checkpoint_file: Optional[str] = None,
+    encoder: bool = True,
+) -> Union[EncoderModule, DecoderModule]:
+    """Gets Transformer based model to be used as an Encoder or Decoder in NeMo NLP.
+       First choose the library to get the transformer from. This can be huggingface,
+       megatron, or nemo. Use the model_name arg to get a named model architecture
+       and use the pretrained arg to get the named model architecture with pretrained weights.
+
+       If model_name is None, then we can pass in a custom configuration via the config_dict.
+       For example, to instantiate a HuggingFace BERT model with custom configuration we would do:
+       encoder = get_transformer(library='huggingface',
+                                 config_dict={
+                                     '_target_': 'transformers.BertConfig',
+                                     'hidden_size': 1536
+                                 }) 
+
+
+    Args:
+        library (str, optional): Can be 'nemo', 'huggingface', or 'megatron'. Defaults to 'nemo'.
+        model_name (Optional[str], optional): Named model architecture from the chosen library. Defaults to None.
+        pretrained (bool, optional): Use True to get pretrained weights. 
+                                     False will use the same architecture but with randomly initialized weights.
+                                     Defaults to False.
+        config_dict (Optional[dict], optional): Use for custom configuration of transformer. Defaults to None.
+        checkpoint_file (Optional[str], optional): Provide weights for the transformer from a local checkpoint. Defaults to None.
+        encoder (bool, optional): True returns an EncoderModule, False returns a DecoderModule. Defaults to True.
+
+    Returns:
+        Union[EncoderModule, DecoderModule]: Ensures that Encoder/Decoder will work in EncDecNLPModel
+    """
+
+    model = None
+
+    if library == 'nemo':
+        if isinstance(config_dict, NeMoTransformerConfig):
+            config_dict = asdict(config_dict)
+        model = get_nemo_transformer(
+            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder,
+        )
+
+        if checkpoint_file is not None:
+            if os.path.isfile(checkpoint_file):
+                raise ValueError(f'Loading transformer weights from checkpoint file has not been implemented yet.')
+
+    elif library == 'huggingface':
+        model = get_huggingface_transformer(
+            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder
+        )
 
     return model

@@ -236,9 +236,9 @@ class WaveGlowModel(GlowVocoder, Exportable):
     def output_module(self):
         return self.waveglow
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         self.update_bias_spect()
-        self.waveglow._prepare_for_export()
+        self.waveglow._prepare_for_export(**kwargs)
 
     def forward_for_export(self, spec, z=None):
         return self.waveglow(spec, z)
