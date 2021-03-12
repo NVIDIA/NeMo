@@ -562,6 +562,7 @@ class _TarredAudioLabelDataset(IterableDataset):
                 sampled at least once during 1 epoch.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        is_regression_task (bool): Whether it is a regression task. Defualts to False.
     """
 
     def __init__(
@@ -579,6 +580,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 0,
+        is_regression_task: bool = False,
     ):
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath.split(','),
@@ -817,6 +819,7 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
                 sampled at least once during 1 epoch.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        is_regression_task (bool): Whether it is a regression task. Defualts to False.
     """
 
     # self.labels = labels if labels else self.collection.uniq_labels
