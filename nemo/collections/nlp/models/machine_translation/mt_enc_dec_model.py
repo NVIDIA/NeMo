@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 import torch.utils.data as pt_data
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
@@ -36,8 +36,9 @@ from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDatas
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.collections.nlp.modules.common.lm_utils import get_transformer
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
-from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
@@ -67,12 +68,14 @@ class MTEncDecModel(EncDecNLPModel):
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         self.setup_enc_dec_tokenizers(
-            encoder_tokenizer_name=cfg.encoder_tokenizer.tokenizer_name,
-            encoder_tokenizer_model=cfg.encoder_tokenizer.tokenizer_model,
+            encoder_tokenizer_library=cfg.encoder_tokenizer.get('library', 'yttm'),
+            encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
-            decoder_tokenizer_name=cfg.decoder_tokenizer.tokenizer_name,
+            encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
+            decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+            decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
         )
 
         # After this call, the model will have  self.source_processor and self.target_processor objects
@@ -81,47 +84,25 @@ class MTEncDecModel(EncDecNLPModel):
         # TODO: Why is this base constructor call so late in the game?
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # TODO: use get_encoder function with support for HF and Megatron
-        self.encoder = TransformerEncoderNM(
-            vocab_size=self.encoder_vocab_size,
-            hidden_size=cfg.encoder.hidden_size,
-            num_layers=cfg.encoder.num_layers,
-            inner_size=cfg.encoder.inner_size,
-            max_sequence_length=cfg.encoder.max_sequence_length
-            if hasattr(cfg.encoder, 'max_sequence_length')
-            else 512,
-            embedding_dropout=cfg.encoder.embedding_dropout if hasattr(cfg.encoder, 'embedding_dropout') else 0.0,
-            learn_positional_encodings=cfg.encoder.learn_positional_encodings
-            if hasattr(cfg.encoder, 'learn_positional_encodings')
-            else False,
-            num_attention_heads=cfg.encoder.num_attention_heads,
-            ffn_dropout=cfg.encoder.ffn_dropout,
-            attn_score_dropout=cfg.encoder.attn_score_dropout,
-            attn_layer_dropout=cfg.encoder.attn_layer_dropout,
-            hidden_act=cfg.encoder.hidden_act,
-            mask_future=cfg.encoder.mask_future,
-            pre_ln=cfg.encoder.pre_ln,
+        # encoder from NeMo, Megatron-LM, or HuggingFace
+        encoder_cfg_dict = OmegaConf.to_container(cfg.get('encoder'))
+        encoder_cfg_dict['vocab_size'] = self.encoder_vocab_size
+        library = encoder_cfg_dict.pop('library', 'nemo')
+        model_name = encoder_cfg_dict.pop('model_name', None)
+        pretrained = encoder_cfg_dict.pop('pretrained', False)
+        self.encoder = get_transformer(
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=True,
         )
 
-        # TODO: user get_decoder function with support for HF and Megatron
-        self.decoder = TransformerDecoderNM(
-            vocab_size=self.decoder_vocab_size,
-            hidden_size=cfg.decoder.hidden_size,
-            num_layers=cfg.decoder.num_layers,
-            inner_size=cfg.decoder.inner_size,
-            max_sequence_length=cfg.decoder.max_sequence_length
-            if hasattr(cfg.decoder, 'max_sequence_length')
-            else 512,
-            embedding_dropout=cfg.decoder.embedding_dropout if hasattr(cfg.decoder, 'embedding_dropout') else 0.0,
-            learn_positional_encodings=cfg.decoder.learn_positional_encodings
-            if hasattr(cfg.decoder, 'learn_positional_encodings')
-            else False,
-            num_attention_heads=cfg.decoder.num_attention_heads,
-            ffn_dropout=cfg.decoder.ffn_dropout,
-            attn_score_dropout=cfg.decoder.attn_score_dropout,
-            attn_layer_dropout=cfg.decoder.attn_layer_dropout,
-            hidden_act=cfg.decoder.hidden_act,
-            pre_ln=cfg.decoder.pre_ln,
+        # decoder from NeMo, Megatron-LM, or HuggingFace
+        decoder_cfg_dict = OmegaConf.to_container(cfg.get('decoder'))
+        decoder_cfg_dict['vocab_size'] = self.decoder_vocab_size
+        library = decoder_cfg_dict.pop('library', 'nemo')
+        model_name = decoder_cfg_dict.pop('model_name', None)
+        pretrained = decoder_cfg_dict.pop('pretrained', False)
+        decoder_cfg_dict['hidden_size'] = self.encoder.hidden_size
+        self.decoder = get_transformer(
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=decoder_cfg_dict, encoder=False,
         )
 
         self.log_softmax = TokenClassifier(
@@ -151,7 +132,15 @@ class MTEncDecModel(EncDecNLPModel):
 
         # TODO: encoder and decoder with different hidden size?
         std_init_range = 1 / self.encoder.hidden_size ** 0.5
-        self.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        # initialize weights if not using pretrained encoder/decoder
+        if not self._cfg.encoder.get('pretrained', False):
+            self.encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        if not self._cfg.decoder.get('pretrained', False):
+            self.decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
@@ -164,8 +153,10 @@ class MTEncDecModel(EncDecNLPModel):
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
-        src_hiddens = self.encoder(src, src_mask)
-        tgt_hiddens = self.decoder(tgt, tgt_mask, src_hiddens, src_mask)
+        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+        tgt_hiddens = self.decoder(
+            input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
+        )
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         return log_probs
 
@@ -202,7 +193,7 @@ class MTEncDecModel(EncDecNLPModel):
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
-        np_tgt = tgt_ids.cpu().numpy()
+        np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
@@ -269,6 +260,44 @@ class MTEncDecModel(EncDecNLPModel):
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
+
+    def setup_enc_dec_tokenizers(
+        self,
+        encoder_tokenizer_library=None,
+        encoder_tokenizer_model=None,
+        encoder_bpe_dropout=0.0,
+        encoder_model_name=None,
+        decoder_tokenizer_library=None,
+        decoder_tokenizer_model=None,
+        decoder_bpe_dropout=0.0,
+        decoder_model_name=None,
+    ):
+
+        supported_tokenizers = ['yttm', 'huggingface']
+        if (
+            encoder_tokenizer_library not in supported_tokenizers
+            or decoder_tokenizer_library not in supported_tokenizers
+        ):
+            raise NotImplementedError(f"Currently we only support tokenizers in {supported_tokenizers}.")
+
+        self.encoder_tokenizer = get_nmt_tokenizer(
+            library=encoder_tokenizer_library,
+            tokenizer_model=self.register_artifact("cfg.encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
+            bpe_dropout=encoder_bpe_dropout,
+            model_name=encoder_model_name,
+            vocab_file=None,
+            special_tokens=None,
+            use_fast=False,
+        )
+        self.decoder_tokenizer = get_nmt_tokenizer(
+            library=decoder_tokenizer_library,
+            tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
+            bpe_dropout=decoder_bpe_dropout,
+            model_name=decoder_model_name,
+            vocab_file=None,
+            special_tokens=None,
+            use_fast=False,
+        )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
