@@ -678,7 +678,8 @@ class EncDecRegressionModel(_EncDecBaseModel):
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
 
-        return {'loss': loss, 'log': tensorboard_logs}
+        self.log_dict(tensorboard_logs)
+        return {'loss': loss}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, targets, targets_len = batch
