@@ -269,6 +269,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         init_mode: Optional[str] = 'xavier_uniform',
         aggregation_mode: Optional[str] = None,
         quantize: bool = False,
+        bn_zero_init: bool = False,
     ):
         super().__init__()
         if isinstance(jasper, ListConfig):
@@ -281,6 +282,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
 
         residual_panes = []
         encoder_layers = []
+        last_bn_layers = []
         self.dense_residual = False
         for lcfg in jasper:
             dense_res = []
@@ -334,12 +336,22 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
               encoder_layers.append(parallel_blocks[0])
             else:
               encoder_layers.append(ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode, out_filters=lcfg['filters']))
+              if bn_zero_init:
+                for block in parallel_blocks:
+                    for layer in list(block.mconv)[::-1]:
+                        if isinstance(layer, nn.BatchNorm1d):
+                            last_bn_layers.append(layer)
+                            break
             feat_in = lcfg['filters']
 
         self._feat_out = feat_in
 
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
+        if bn_zero_init:
+            for layer in last_bn_layers:
+                if layer.affine:
+                    nn.init.zeros_(layer.weight)
 
     @typecheck()
     def forward(self, audio_signal, length=None):
