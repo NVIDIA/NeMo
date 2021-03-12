@@ -38,13 +38,14 @@ class ConformerLayer(torch.nn.Module):
         self,
         d_model,
         d_ff,
-        conv_kernel_size,
-        self_attention_model,
-        n_heads,
-        dropout,
-        dropout_att,
-        pos_bias_u,
-        pos_bias_v,
+        self_attention_model='rel_pos',
+        n_heads=4,
+        conv_kernel_size=31,
+        conv_norm_type="batch_norm",
+        dropout=0.0,
+        dropout_att=0.0,
+        pos_bias_u=None,
+        pos_bias_v=None,
     ):
         super(ConformerLayer, self).__init__()
 
@@ -58,7 +59,7 @@ class ConformerLayer(torch.nn.Module):
 
         # convolution module
         self.norm_conv = LayerNorm(d_model)
-        self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size)
+        self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type)
 
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
@@ -69,7 +70,7 @@ class ConformerLayer(torch.nn.Module):
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
         else:
-            raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
+            raise ValueError(f"Not a valid value for 'self_attention_model': {self_attention_model}!")
 
         # second feed forward module
         self.norm_feed_forward2 = LayerNorm(d_model)
@@ -124,7 +125,7 @@ class ConformerConvolution(nn.Module):
         kernel_size (int): kernel size for depthwise convolution
     """
 
-    def __init__(self, d_model, kernel_size):
+    def __init__(self, d_model, kernel_size, norm_type="batch_norm"):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
@@ -141,7 +142,13 @@ class ConformerConvolution(nn.Module):
             groups=d_model,
             bias=True,
         )
-        self.batch_norm = nn.BatchNorm1d(d_model)
+        if norm_type == "batch_norm":
+            self.batch_norm = nn.BatchNorm1d(d_model)
+        elif norm_type == "group_norm":
+            self.batch_norm = nn.GroupNorm(num_groups=1, num_channels=d_model)
+        else:
+            raise ValueError(f"Not a valid conv_norm_type: {norm_type}!")
+
         self.activation = Swish()
         self.pointwise_conv2 = nn.Conv1d(
             in_channels=d_model, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
