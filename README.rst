@@ -179,6 +179,12 @@ To run tutorials:
      - Speaker Recognition and Verification
      - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
    * - ASR
+     - Speaker Diarization
+     - `Speaker Diarization Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb>`_
+   * - ASR
+     - Speaker Diarization with ASR
+     - `Speaker Diarization with ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb>`_
+   * - ASR
      - Online Noise Augmentation
      - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - ASR
