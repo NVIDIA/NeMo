@@ -204,7 +204,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # (batch, head, time1, time2)
         matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
         matrix_bd = self.rel_shift(matrix_bd)
-        matrix_bd = matrix_bd[:, :, :, :matrix_ac.size(-1)]
+        matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
         scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
 
@@ -298,7 +298,7 @@ class RelPositionalEncoding(PositionalEncoding):
 
     def extend_pe(self, length):
         """Reset and extend the positional encodings if needed."""
-        needed_size = 2*(length - 1) + 1
+        needed_size = 2 * (length - 1) + 1
         if hasattr(self, 'pe') and self.pe.size(1) >= needed_size:
             return
         positions = torch.arange(length - 1, -length, -1, dtype=torch.float32).unsqueeze(1)
@@ -325,7 +325,7 @@ class RelPositionalEncoding(PositionalEncoding):
         center_pos = self.pe.size(1) // 2
         start_pos = center_pos - x.size(1) + 1
         end_pos = center_pos + x.size(1)
-        pos_emb = self.pe[:, start_pos: end_pos]
+        pos_emb = self.pe[:, start_pos:end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
         return self.dropout(x), pos_emb
