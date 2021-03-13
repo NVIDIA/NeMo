@@ -22,7 +22,7 @@ python speaker_reco_infer.py --spkr_model='/path/to/.nemo/file' --train_manifest
 train_manifest file is used to map the labels from which model was trained so it is mandatory to 
 pass the train manifest file
 
-for finetuning tips see: https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0b2/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb
+for finetuning tips see: https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb
 """
 
 
