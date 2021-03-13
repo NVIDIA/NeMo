@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from typing import Optional
 
+import torch
 from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
@@ -22,10 +24,18 @@ from nemo.collections.nlp.modules.common.transformer.transformer_decoders import
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
 from nemo.core.classes.common import typecheck
+from nemo.core.classes.exportable import Exportable
+
+# @dataclass
+# class TransformerConfig:
+#     # named model arguments
+#     library: str = 'nemo'
+#     model_name: Optional[str] = None
+#     pretrained: bool = False
 
 
 @dataclass
-class TransformerConfig:
+class NeMoTransformerConfig:
     # must be configured by the user
     hidden_size: int = MISSING
     num_layers: int = MISSING
@@ -45,13 +55,18 @@ class TransformerConfig:
     hidden_act: str = 'relu'
     pre_ln: bool = False
 
+    # named model arguments
+    library: str = 'nemo'
+    model_name: Optional[str] = None
+    pretrained: bool = False
+
 
 @dataclass
-class TransformerEncoderConfig(TransformerConfig):
+class NeMoTransformerEncoderConfig(NeMoTransformerConfig):
     mask_future: bool = False
 
 
-class TransformerEncoderNM(EncoderModule):
+class TransformerEncoderNM(EncoderModule, Exportable):
     def __init__(
         self,
         vocab_size: int,
@@ -97,18 +112,29 @@ class TransformerEncoderNM(EncoderModule):
             pre_ln=pre_ln,
         )
 
-    # @typecheck
+    @typecheck()
     def forward(self, input_ids, encoder_mask):
-        embeddings = self._embedding(input_ids)
-        encoder_hidden_states = self._encoder(embeddings, encoder_mask)
+        embeddings = self._embedding(input_ids=input_ids)
+        encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
         return encoder_hidden_states
 
     @property
     def hidden_size(self):
         return self._hidden_size
 
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, encoder_mask])
 
-class TransformerDecoderNM(DecoderModule):
+
+class TransformerDecoderNM(DecoderModule, Exportable):
     def __init__(
         self,
         vocab_size: int,
@@ -153,10 +179,15 @@ class TransformerDecoderNM(DecoderModule):
             pre_ln=pre_ln,
         )
 
-    # @typecheck
+    @typecheck()
     def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
-        decoder_embeddings = self._embedding(input_ids)
-        decoder_hidden_states = self._decoder(decoder_embeddings, decoder_mask, encoder_embeddings, encoder_mask)
+        decoder_embeddings = self._embedding(input_ids=input_ids)
+        decoder_hidden_states = self._decoder(
+            decoder_states=decoder_embeddings,
+            decoder_mask=decoder_mask,
+            encoder_states=encoder_embeddings,
+            encoder_mask=encoder_mask,
+        )
         return decoder_hidden_states
 
     @property
@@ -178,3 +209,14 @@ class TransformerDecoderNM(DecoderModule):
     @property
     def decoder(self):
         return self._decoder
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask])
