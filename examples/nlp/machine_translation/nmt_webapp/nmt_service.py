@@ -17,7 +17,7 @@ import time
 import flask
 import torch
 from flask import Flask, json, request
-
+from flask_cors import  CORS
 import nemo.collections.nlp as nemo_nlp
 from nemo.utils import logging
 
@@ -26,7 +26,7 @@ MODELS_DICT = {}
 
 model = None
 api = Flask(__name__)
-
+CORS(api)
 
 def initialize(config_file_path: str):
     """
@@ -91,4 +91,4 @@ def get_translation():
 
 if __name__ == '__main__':
     initialize('config.json')
-    api.run()
+    api.run(host='0.0.0.0')

@@ -1,4 +1,14 @@
 {
-  "en-de": "/home/okuchaiev/Workspace/MTModels/DeEn/en-de.nemo",
-  "de-en": "/home/okuchaiev/Workspace/MTModels/DeEn/de-en.nemo"
+  "en-de": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_en_de_transformer12x2_v1.0.0rc1/nmt_en_de_transformer12x2.nemo",
+  "de-en": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_de_en_transformer12x2_v1.0.0rc1/nmt_de_en_transformer12x2.nemo",
+  "en-es": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_en_es_transformer12x2_v1.0.0rc1/nmt_en_es_transformer12x2.nemo",
+  "es-en": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_es_en_transformer12x2_v1.0.0rc1/nmt_es_en_transformer12x2.nemo",
+  "en-ru": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_en_ru_transformer6x6_v1.0.0rc1/nmt_en_ru_transformer6x6.nemo",
+  "ru-en": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_ru_en_transformer6x6_v1.0.0rc1/nmt_ru_en_transformer6x6.nemo",
+  "en-fr": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_en_fr_transformer12x2_v1.0.0rc1/nmt_en_fr_transformer12x2.nemo",
+  "fr-en": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_fr_en_transformer12x2_v1.0.0rc1/nmt_fr_en_transformer12x2.nemo",
+  "en-zh": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_en_zh_transformer6x6_v1.0.0rc1/nmt_en_zh_transformer6x6.nemo",
+  "zh-en": "/raid/Workspace/NMTService/Models/FromNGC/r1.0.0rc1/nmt_zh_en_transformer6x6_v1.0.0rc1/nmt_zh_en_transformer6x6.nemo",
+  "en-ja": "/raid/Workspace/NMTService/Models/En-Ja.nemo",
+  "ja-en": "/raid/Workspace/NMTService/Models/ja-en.nemo"
 }
