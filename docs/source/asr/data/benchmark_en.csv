@@ -1,8 +1,8 @@
-Model Name,Model Base Class,Description
-QuartzNet15x5Base-En,EncDecCTCModel,"QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other."
-stt_zh_quartznet15x5,EncDecCTCModel,"For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_zh_quartznet15x5"
-stt_en_jasper10x5dr,EncDecCTCModel,"For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_jasper10x5dr"
-stt_en_citrinet_256,EncDecCTCBPEModel,"For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_citrinet_256"
-stt_en_citrinet_512,EncDecCTCBPEModel,"For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_citrinet_512"
-stt_en_citrinet_1024,EncDecCTCBPEModel,"For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_citrinet_1024"
-stt_zh_citrinet_512,EncDecCTCBPEModel,"For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_zh_citrinet_512"
+Model Name,Model Base Class,Model Card
+QuartzNet15x5Base-En,EncDecCTCModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels"
+stt_zh_quartznet15x5,EncDecCTCModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_zh_quartznet15x5"
+stt_en_jasper10x5dr,EncDecCTCModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_jasper10x5dr"
+stt_en_citrinet_256,EncDecCTCBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_citrinet_256"
+stt_en_citrinet_512,EncDecCTCBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_citrinet_512"
+stt_en_citrinet_1024,EncDecCTCBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_citrinet_1024"
+stt_zh_citrinet_512,EncDecCTCBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_zh_citrinet_512"

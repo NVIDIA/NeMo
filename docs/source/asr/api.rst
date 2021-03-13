@@ -55,6 +55,14 @@ Modules
     :members:
 
 
+Parts
+-----
+
+.. autoclass:: nemo.collections.asr.parts.jasper.JasperBlock
+    :show-inheritance:
+    :members:
+
+
 Mixins
 ------
 

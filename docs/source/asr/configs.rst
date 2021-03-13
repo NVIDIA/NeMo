@@ -120,7 +120,7 @@ Tokenizer Configurations
 Some models utilize sub-word encoding via an external tokenizer instead of explicitly defining their vocabulary.
 
 For such models, a ``tokenizer`` section is added  to the model config. ASR Models currently support two types of
-custom tokenizers.
+custom tokenizers - Google Sentencepiece tokenizers (tokenizer type of ``bpe`` in the config) or HuggingFace WordPiece tokenizers (tokenizer type of ``wpe`` in the config).
 
 In order to build custom tokenizers, please refer to the ``ASR_with_Subword_Tokenization`` notebook available in the
 ASR tutorials directory.
@@ -133,7 +133,7 @@ The following example sets up a ``SentencePiece Tokenizer`` at a path specified 
     ...
     tokenizer:
       dir: "<path to the directory that contains the custom tokenizer files>"
-      type: "bpe"  # can be "bpe" for `sentencepiece` tokenizers or "wpe" for wordpiece tokenizers.
+      type: "bpe"  # can be "bpe" or "wpe"
 
 For models which utilize sub-word tokenization, we share the decoder module (``ConvASRDecoder``) with character tokenization models. All parameters are shared, but for models which utilize sub-word encoding, there are minor differences when setting up the config. For such models, the tokenizer is utilized to fill in the missing information when the model is constructed automatically.
 
@@ -295,13 +295,15 @@ For example, a decoder config corresponding to the encoder above would look like
 Citrinet
 ~~~~~~~~
 
-The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in contrast to QuartzNet.
+The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in contrast to QuartzNet. Depending on the dataset, we utilize different tokenizers. For Librispeech, we utilize the HuggingFace WordPiece tokenizer, and for all other datasets we utilize the Google Sentencepiece tokenizer - usually the ``unigram`` tokenizer type.
 
-Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed in the table above.
+Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed above.
 The encoder parameters include details about the Citrinet-C encoder architecture, including how many
 filters are used per channel (C). The Citrinet-C configuration is a shortform notation for Citrinet-21x5xC, such that B = 21 and R = 5 are the default and should generally not be changed.
 
-To use Citrinet instead of QuartzNet, please refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citinet`` directory. While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below
+To use Citrinet instead of QuartzNet, please refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citinet`` directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.jasper.JasperBlock` as ``Jasper`` or ``QuartzNet`.
+
+While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Please refer to the ``JasperBlock`` documentation for the meaning of these arguments.
 
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 | **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
@@ -336,7 +338,7 @@ A Citrinet-512 config might look like below.
       activation: relu
       conv_mask: true
 
-      jasper:   # This field name should be "jasper" for both types of models.
+      jasper:   # This field name should be "jasper" for the JasperBlock (which constructs Citrinet).
 
       # Prologue block
       - filters: 512
