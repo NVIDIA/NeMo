@@ -104,6 +104,36 @@ extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']
 
 tests_requirements = extras_require["test"]
 
+########################## VERSION MISMATCH PATCH #############################
+# REMOVE AFTER 21.03 Container is released !
+
+try:
+    import torch
+
+    version = torch.__version__
+    SUPPORTED_TORCH_VERSION = f"torch=={version}"
+
+    if 'a' in version or 'b' in version:
+        # It is githash release, force to supported Pytorch Lightning branch
+        SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning==1.2.2"
+    else:
+        SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning>=1.2.3"
+except (ImportError, ModuleNotFoundError):
+    # Since no torch is installed, pip install torch will install latest torch and latest pytorch lightning
+    SUPPORTED_TORCH_VERSION = "torch"
+    SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning>=1.2.3"
+
+install_requires_buffer = []
+for ix, line in enumerate(install_requires):
+    if 'lightning' in line:
+        install_requires_buffer.append(SUPPORTED_PYTORCH_LIGHTNING)
+    elif 'torch' in line:
+        install_requires_buffer.append(SUPPORTED_TORCH_VERSION)
+    else:
+        install_requires_buffer.append(line)
+
+# override install requires
+install_requires = install_requires_buffer
 
 ###############################################################################
 #                            Code style checkers                              #

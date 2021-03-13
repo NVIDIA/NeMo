@@ -129,13 +129,7 @@ class TestSaveRestore:
     @pytest.mark.unit
     def test_EncDecCTCModelBPE(self):
         # TODO: Switch to using named configs because here we don't really care about weights
-        cn = EncDecCTCModelBPE.from_pretrained(model_name="ContextNet-192-WPE-1024-8x-Stride")
-        self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]))
-
-    @pytest.mark.unit
-    def test_EncDecCTCModelBPE(self):
-        # TODO: Switch to using named configs because here we don't really care about weights
-        cn = EncDecCTCModelBPE.from_pretrained(model_name="ContextNet-192-WPE-1024-8x-Stride")
+        cn = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_citrinet_256")
         self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]))
 
     @pytest.mark.unit
