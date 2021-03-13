@@ -115,13 +115,16 @@ try:
 
     if 'a' in version or 'b' in version:
         # It is githash release, force to supported Pytorch Lightning branch
-        SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning==1.2.2"
+        SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning==1.1.5"
     else:
-        SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning>=1.2.3"
+        # Downgrade torch, pytorch-lightning
+        SUPPORTED_TORCH_VERSION = "torch<=1.7.1"
+        SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning==1.1.5"
+
 except (ImportError, ModuleNotFoundError):
     # Since no torch is installed, pip install torch will install latest torch and latest pytorch lightning
-    SUPPORTED_TORCH_VERSION = "torch"
-    SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning>=1.2.3"
+    SUPPORTED_TORCH_VERSION = "torch<=1.7.1"
+    SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning==1.1.5"
 
 install_requires_buffer = []
 for ix, line in enumerate(install_requires):
