@@ -171,7 +171,7 @@ To run tutorials:
 
    * - Domain
      - Title
-     - GitHub URL
+     - Colab URL
    * - NeMo
      - Simple Application with NeMo
      - `Voice swap app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_voice_swap_app.ipynb>`_
