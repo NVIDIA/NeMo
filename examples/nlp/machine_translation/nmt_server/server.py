@@ -51,7 +51,9 @@ def batches(lst, n):
 class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
     """Provides methods that implement functionality of route guide server."""
 
-    def __init__(self, model_paths, punctuation_model_path, beam_size=1, len_pen=0.6, max_delta_length=5, batch_size=256):
+    def __init__(
+        self, model_paths, punctuation_model_path, beam_size=1, len_pen=0.6, max_delta_length=5, batch_size=256
+    ):
         self._models = {}
         self._beam_size = beam_size
         self._len_pen = len_pen
@@ -69,7 +71,9 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
 
     def _load_puncutation_model(self, punctuation_model_path):
         if punctuation_model_path.endswith(".nemo"):
-            self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.restore_from(restore_path=punctuation_model_path)
+            self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.restore_from(
+                restore_path=punctuation_model_path
+            )
         else:
             raise NotImplemented(f"Only support .nemo files, but got: {punctuation_model_path}")
 
