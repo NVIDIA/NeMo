@@ -376,6 +376,7 @@ class JasperBlock(nn.Module):
             (stride of S when this flag is True).
         quantize: Bool flag whether to quantize the Convolutional blocks.
     """
+
     __constants__ = ["conv_mask", "separable", "residual_mode", "res", "mconv"]
 
     def __init__(
