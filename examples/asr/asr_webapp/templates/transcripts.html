@@ -1,0 +1,16 @@
+<table class="transcript-view-table" cellpadding="20px">
+  <thead>
+    <tr>
+      <th>Filename</th>
+      <th>Transcript</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for transcript in transcripts %}
+    <tr>
+      <td class="property-value-col">{{ transcript.filename }}</td>
+      <td class="property-value-col">{{ transcript.transcription }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

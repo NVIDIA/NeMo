@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Automatic Speech Recognition</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+  <link rel="stylesheet" href="/resources/demos/style.css">
+  <style>
+    .ui-resizable-se {
+      bottom: 17px;
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+  <!-- Load from unpkg https://htmx.org/ -->
+  <script src="https://unpkg.com/htmx.org@1.3.1"></script>
+</head>
+<body>
+
+<p> Model Name : <form id="model_names_form" action="">
+      <select name="model_names_select">
+          {% for x in model_names %}
+          <option value="{{ x }}"{% if loop.first %} SELECTED{% endif %}>{{ x }}</option>
+          {% endfor %}
+      </select>
+    <button class="btn" hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="innerHTML">
+        Load Model
+    </button>
+    </form>
+</p>
+
+<br><br>
+
+<form action="" enctype="multipart/form-data">
+     <input type = "file" name = "file" accept=".wav" multiple="" />
+    <button class="btn" hx-post="{{ url_for('upload_audio_files') }}"
+            hx-target="this" hx-swap="innerHTML" hx-encoding="multipart/form-data" >
+        Upload audio file(s)
+    </button>
+
+    <button class="btn" hx-post="{{ url_for('remove_audio_files') }}"
+        hx-target="this" hx-swap="innerHTML">
+        Remove all files
+    </button>
+</form>
+
+<br><br>
+
+<button class="btn" hx-post="{{ url_for('transcribe') }}"  hx-target="#transcribeResults">
+    Transcribe all
+</button>
+
+<div id="transcribeResults"></div>
+
+</body>
+</html>
