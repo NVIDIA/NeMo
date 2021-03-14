@@ -50,7 +50,14 @@ def initialize_model():
     model_api.initialize_model(model_name)
 
     logging.info("ASR service started")
-    return f"Model '{model_name}' has been initialized. Click to reload !"
+    result = f"Model '{model_name}' has been initialized. Click to reload !"
+
+    return f"""
+    <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+            hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="outerHTML">
+        {result}
+    </button>
+    """
 
 
 @app.route('/upload_audio_files', methods=['POST'])

@@ -1,17 +1,22 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Roboto:300,400,500,700" type="text/css">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Automatic Speech Recognition</title>
   <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-  <link rel="stylesheet" href="/resources/demos/style.css">
+<!--  <link rel="stylesheet" href="/resources/demos/style.css">-->
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+  <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
   <style>
     .ui-resizable-se {
       bottom: 17px;
     }
   </style>
-  <link rel="stylesheet" href="style.css">
+<!--  <link rel="stylesheet" href="style.css">-->
   <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
   <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
   <!-- Load from unpkg https://htmx.org/ -->
@@ -19,36 +24,48 @@
 </head>
 <body>
 
-<p> Model Name : <form id="model_names_form" action="">
+<h2>
+    NeMo Automatic Speech Recognition Demo
+</h2>
+<hr>
+
+<form id="model_names_form" action="">
+    <h4> Model Name :
       <select name="model_names_select">
           {% for x in model_names %}
           <option value="{{ x }}"{% if loop.first %} SELECTED{% endif %}>{{ x }}</option>
           {% endfor %}
       </select>
-    <button class="btn" hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="innerHTML">
+    </h4>
+
+    <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+            hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="outerHTML">
         Load Model
     </button>
-    </form>
-</p>
+</form>
 
-<br><br>
+<hr>
+<br>
 
 <form action="" enctype="multipart/form-data">
-     <input type = "file" name = "file" accept=".wav" multiple="" />
-    <button class="btn" hx-post="{{ url_for('upload_audio_files') }}"
+    <input type = "file" name = "file" accept=".wav" multiple="" />
+    <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+            hx-post="{{ url_for('upload_audio_files') }}"
             hx-target="this" hx-swap="innerHTML" hx-encoding="multipart/form-data" >
         Upload audio file(s)
     </button>
 
-    <button class="btn" hx-post="{{ url_for('remove_audio_files') }}"
+    <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+            hx-post="{{ url_for('remove_audio_files') }}"
         hx-target="this" hx-swap="innerHTML">
         Remove all files
     </button>
 </form>
+<hr>
+<br>
 
-<br><br>
-
-<button class="btn" hx-post="{{ url_for('transcribe') }}"  hx-target="#transcribeResults">
+<button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+        hx-post="{{ url_for('transcribe') }}"  hx-target="#transcribeResults">
     Transcribe all
 </button>
 
