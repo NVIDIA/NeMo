@@ -19,13 +19,13 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import hydra
 import wrapt
 from omegaconf import DictConfig, OmegaConf
-from functools import total_ordering
 
 import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
