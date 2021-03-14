@@ -25,6 +25,7 @@ from typing import Dict, List, Optional, Union
 import hydra
 import wrapt
 from omegaconf import DictConfig, OmegaConf
+from functools import total_ordering
 
 import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
@@ -506,6 +507,7 @@ class FileIO(ABC):
             raise NotImplementedError()
 
 
+@total_ordering
 @dataclass
 class PretrainedModelInfo:
     pretrained_model_name: str
@@ -532,6 +534,14 @@ class PretrainedModelInfo:
         # should ideally also be unique
         location_hash = hash(self.location)
         return location_hash
+
+    def __eq__(self, other):
+        # another object is equal to self, iff
+        # if it's hash is equal to hash(self)
+        return hash(self) == hash(other)
+
+    def __lt__(self, other):
+        return self.pretrained_model_name < other.pretrained_model_name
 
 
 class Model(Typing, Serialization, FileIO):
