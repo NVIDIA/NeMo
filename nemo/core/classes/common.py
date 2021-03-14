@@ -538,7 +538,7 @@ class PretrainedModelInfo:
     def __eq__(self, other):
         # another object is equal to self, iff
         # if it's hash is equal to hash(self)
-        return hash(self) == hash(other)
+        return hash(self) == hash(other) or self.pretrained_model_name == other.pretrained_model_name
 
     def __lt__(self, other):
         return self.pretrained_model_name < other.pretrained_model_name
