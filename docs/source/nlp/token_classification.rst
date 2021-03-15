@@ -27,7 +27,7 @@ Quick Start
     # Download and load the pre-trained BERT-based model
     model = TokenClassificationModel.from_pretrained("ner_en_bert")
 
-    # try the model on an example query
+    # try the model on a few examples
     model.add_predictions(['we bought four shirts from the nvidia gear store in santa clara.', 'NVIDIA is a company.'])
 
 .. note::
