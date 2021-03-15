@@ -36,37 +36,18 @@ import torch
 class Hypothesis:
     """Hypothesis class for beam search algorithms.
 
-    score: A float score obtained from an AbstractRNNTDecoder module's score_hypothesis method.
-
-    y_sequence: Either a sequence of integer ids pointing to some vocabulary, or a packed torch.Tensor
-        behaving in the same manner. dtype must be torch.Long in the latter case.
-
-    dec_state: A list (or list of list) of LSTM-RNN decoder states. Can be None.
-
-    text: (Optional) A decoded string after processing via CTC / RNN-T decoding (removing the CTC/RNNT
-        `blank` tokens, and optionally merging word-pieces). Should be used as decoded string for
-        Word Error Rate calculation.
-
-    timestep: (Optional) A list of integer indices representing at which index in the decoding
-        process did the token appear. Should be of same length as the number of non-blank tokens.
-
-    alignments: (Optional) Represents the CTC / RNNT token alignments as integer tokens along an axis of
-        time T (for CTC) or Time x Target (TxU).
-        For CTC, represented as a single list of integer indices.
-        For RNNT, represented as a dangling list of list of integer indices.
-        Outer list represents Time dimension (T), inner list represents Target dimension (U).
-        The set of valid indices **includes** the CTC / RNNT blank token in order to represent alignments.
-
-    length: Represents the length of the sequence (the original length without padding), otherwise
-        defaults to 0.
-
-    y: (Unused) A list of torch.Tensors representing the list of hypotheses.
-
-    lm_state: (Unused) A dictionary state cache used by an external Language Model.
-
-    lm_scores: (Unused) Score of the external Language Model.
-
-    tokens: (Optional) A list of decoded tokens (can be characters or word-pieces.
+    Args:
+        score: A float score obtained from an AbstractRNNTDecoder module's score_hypothesis method.
+        y_sequence: Either a sequence of integer ids pointing to some vocabulary, or a packed torch.Tensor
+            behaving in the same manner. dtype must be torch.Long in the latter case.
+        dec_state: A list (or list of list) of LSTM-RNN decoder states. Can be None.
+        y: (Unused) A list of torch.Tensors representing the list of hypotheses.
+        lm_state: (Unused) A dictionary state cache used by an external Language Model.
+        lm_scores: (Unused) Score of the external Language Model.
+        tokens: (Optional) List of decoded tokens.
+        text: Decoded transcript of the acoustic input.
+        timestep: (Optional) List of int timesteps where tokens were predicted.
+        length: (Optional) int which represents the length of the decoded tokens / text.
     """
 
     score: float
@@ -84,6 +65,10 @@ class Hypothesis:
 
 @dataclass
 class NBestHypotheses:
-    """List of N best hypotheses"""
+    """List of N best hypotheses
+
+    Args:
+        n_best_hypotheses: An optional list of :class:`Hypothesis` objects.
+    """
 
     n_best_hypotheses: Optional[List[Hypothesis]]
