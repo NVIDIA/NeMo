@@ -9,6 +9,24 @@ There are two issues with non-punctuated ASR output:
 - it could be difficult to read and understand;
 - models for some downstream tasks such as named entity recognition, machine translation or text-to-speech are usually trained on punctuated datasets and using raw ASR output as the input to these models could deteriorate their performance.
 
+Quick Start
+-----------
+
+.. code-block:: python
+
+    from nemo.collections.nlp.models import PunctuationCapitalizationModel
+
+    # to get the list of pre-trained models
+    PunctuationCapitalizationModel.list_available_models()
+
+    # Download and load the pre-trained BERT-based model
+    model = PunctuationCapitalizationModel.from_pretrained("punctuation_en_bert")
+
+    # try the model on a few example queries
+    model.add_punctuation_capitalization(['how are you', 'great how about you'])
+
+
+
 Model Description
 -----------------
 
@@ -16,6 +34,9 @@ For each word in the input text, the Punctuation and Capitalization model:
 
 1. predicts a punctuation mark that should follow the word (if any). By default, the model supports commas, periods and question marks.
 2. predicts if the word should be capitalized or not.
+
+In the Punctuation and Capitalization Model, we are jointly training two token-level classifiers on top of a pre-trained \
+language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-punct-devlin2018bert`.
 
 .. note::
 
@@ -62,8 +83,8 @@ The `source_data_dir` structure should look like this:
 
 
 
-NeMo Data Format for training the model
----------------------------------------
+NeMo Data Format
+----------------
 
 The punctuation and capitalization model expects the data in the following format:
 
@@ -98,7 +119,7 @@ For example, labels for the above text.txt file should be:
 
 The complete list of all possible labels for this task used in this tutorial is: OO, ,O, .O, ?O, OU, ,U, .U, ?U.
 
-Converting Raw data to NeMo format
+Converting Raw Data to NeMo Format
 ----------------------------------
 
 To pre-process the raw text data, stored under :code:`sourced_data_dir` (see the :ref:`raw_data_format_punct`
@@ -111,8 +132,8 @@ section), run the following command:
            -o <PATH_TO_THE_OUTPUT_DIRECTORY>
 
 
-Convert Dataset Required Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Required Argument for Dataset Conversion
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * :code:`-s` or :code:`--source_file`: path to the raw file
 * :code:`-o` or :code:`--output_dir` - path to the directory to store the converted files
@@ -132,10 +153,8 @@ The default names for the training and evaluation in the :code:`conf/punctuation
 Training Punctuation and Capitalization Model
 ---------------------------------------------
 
-In the Punctuation and Capitalization Model, we are jointly training two token-level classifiers on top of a pre-trained \
-language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-punct-devlin2018bert`.
-Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the
-pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
+The language model is initialized with the
+pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__, unless the user provides a pre-trained checkpoint for the language model, t
 Example of model configuration file for training the model could be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
 The specification can be roughly grouped into the following categories:
@@ -153,20 +172,6 @@ More details about parameters in the config file could be found below and in the
 | pretrained_model                          | string          | Path to the pre-trained model .nemo file or pre-trained model name                                           |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 | model.dataset.data_dir                    | string          | Path to the data converted to the specified above format                                                     |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_name            | string          | Tokenizer name, will be filled automatically based on model.language_model.pretrained_model_name             |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.vocab_file                | string          | Path to tokenizer vocabulary                                                                                 |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_model           | string          | Path to tokenizer model (only for sentencepiece tokenizer)                                                   |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.pretrained_model_name| string          | Pre-trained language model name, for example: `bert-base-cased` or `bert-base-uncased`                       |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.lm_checkpoint        | string          | Path to the pre-trained language model checkpoint                                                            |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config_file          | string          | Path to the pre-trained language model config file                                                           |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config               | dictionary      | Config of the pre-trained language model                                                                     |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 | model.punct_head.punct_num_fc_layers      | integer         | Number of fully connected layers                                                                             |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
@@ -197,6 +202,8 @@ More details about parameters in the config file could be found below and in the
 | validation_ds.num_samples                 | integer         | Number of samples to use from the dev set, -1 mean all                                                       |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 
+See also :ref:`nlp_model`.
+
 To train the model from scratch, run:
 
 .. code::
@@ -207,6 +214,9 @@ To train the model from scratch, run:
              optim.name=adam \
              optim.lr=0.0001 \
              model.nemo_path=<PATH/TO/SAVE/.nemo>
+
+The above command will start model training onGPUSs 0 and 1 with Adam optimizer and learning rate of 0.0001; and the trained model will be store \
+under `<PATH/TO/SAVE/.nemo>` specified.
 
 To train from the pre-trained model, use:
 
@@ -222,11 +232,6 @@ Required Arguments for Training
 
 * :code:`model.dataset.data_dir`: Path to the `data_dir` with the pre-processed data files.
 
-Optional Arguments
-^^^^^^^^^^^^^^^^^^
-* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
-* :code:`--config-name`: Path to the config file to use. The default config file for the model is `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml`. You may update the config file from the file directly. The other option is to set another config file via command line arguments by :code:`--config-name=<CONFIG/FILE/PATH>`. For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
-* Other arguments to override fields in the specification file, please see the note below.
 
 .. note::
 
@@ -235,28 +240,6 @@ Optional Arguments
     However, if you see that the GPU utilization can be optimized further by using a larger batch size, \
     you may override to the desired value, by adding the field :code:`validation_ds.batch_size=128` over the command line.
     You may repeat this with any of the parameters defined in the sample configuration file.
-
-
-
-Important parameters
-^^^^^^^^^^^^^^^^^^^^
-
-Below is the list of parameters could help improve the model:
-
-- language model (`model.language_model.pretrained_model_name`)
-    - pre-trained language model name, such as:
-    - `megatron-bert-345m-uncased`, `megatron-bert-345m-cased`, `biomegatron-bert-345m-uncased`, `biomegatron-bert-345m-cased`, `bert-base-uncased`, `bert-large-uncased`, `bert-base-cased`, `bert-large-cased`
-    - `distilbert-base-uncased`, `distilbert-base-cased`,
-    - `roberta-base`, `roberta-large`, `distilroberta-base`
-    - `albert-base-v1`, `albert-large-v1`, `albert-xlarge-v1`, `albert-xxlarge-v1`, `albert-base-v2`, `albert-large-v2`, `albert-xlarge-v2`, `albert-xxlarge-v2`
-
-- classification head parameters:
-    - the number of layers in the classification heads (`model.punct_head.punct_num_fc_layers` and `model.capit_head.capit_num_fc_layers`)
-    - dropout value between layers (`model.punct_head.fc_dropout` and `model.capit_head.fc_dropout`)
-
-- optimizer (`model.optim.name`, for example, `adam`)
-- learning rate (`model.optim.lr`, for example, `5e-5`)
-
 
 Inference
 ---------
@@ -270,11 +253,6 @@ To run inference with the pre-trained model on a few examples, run:
 
     python punctuation_capitalization_evaluate.py \
            pretrained_model=<PRETRAINED_MODEL>
-
-Required Arguments for inference:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
 
 
 Model Evaluation
@@ -294,16 +272,11 @@ To run evaluation of the pre-trained model, run:
            model.test_ds.labels_file=<labels_dev.txt>
 
 
-Required Arguments:
-^^^^^^^^^^^^^^^^^^^
+Required Arguments
+^^^^^^^^^^^^^^^^^^
+
 * :code:`pretrained_model`: pretrained PunctuationCapitalization model from list_available_models() or path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
 * :code:`model.dataset.data_dir`: Path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`.
-
-
-Optional Arguments:
-^^^^^^^^^^^^^^^^^^^
-* :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`: text_*.txt and labels_*.txt file names is the default text_dev.txt and labels_dev.txt from the config files should be overwritten.
-* Other :code:`model.dataset` or :code:`model.test_ds` arguments to override fields in the config file of the pre-trained model.
 
 
 During evaluation of the :code:`test_ds`, the script generates two classification reports: one for capitalization task and \

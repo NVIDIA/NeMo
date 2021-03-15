@@ -10,11 +10,12 @@ NeMo's NLP collection supports the following models:
 
    punctuation_and_capitalization
    token_classification
-   intent_slot
+   joint_intent_slot
    text_classification
    language_modeling
-   sqd_qa
+   sgd_qa
    glue_benchmark
    information_retrieval
    nmt
+   nlp_model
 

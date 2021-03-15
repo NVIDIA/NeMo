@@ -14,6 +14,22 @@ For example, in a sentence: `Mary lives in Santa Clara and works at NVIDIA`, the
 is a person, `Santa Clara` is a location and `NVIDIA` is a company.
 
 
+Quick Start
+-----------
+
+.. code-block:: python
+
+    from nemo.collections.nlp.models import TokenClassificationModel
+
+    # to get the list of pre-trained models
+    TokenClassificationModel.list_available_models()
+
+    # Download and load the pre-trained BERT-based model
+    model = TokenClassificationModel.from_pretrained("ner_en_bert")
+
+    # try the model on an example query
+    model.add_predictions(['we bought four shirts from the nvidia gear store in santa clara.', 'NVIDIA is a company.'])
+
 .. note::
 
     We recommend you try this model in a Jupyter notebook \
@@ -30,16 +46,15 @@ is a person, `Santa Clara` is a location and `NVIDIA` is a company.
 
 
 
-
 .. _dataset_token_classification:
 
-Data Input for Token Classification model
+Data Input for Token Classification Model
 -----------------------------------------
 
 For pre-training or fine-tuning of the model, the data should be split into 2 files:
 
-- text.txt and
-- labels.txt.
+- text.txt
+- labels.txt
 
 Each line of the text.txt file contains text sequences, where words are separated with spaces, i.e.: [WORD] [SPACE] [WORD] [SPACE] [WORD].
 The labels.txt file contains corresponding labels for each word in text.txt, the labels are separated with spaces, i.e.: [LABEL] [SPACE] [LABEL] [SPACE] [LABEL].
@@ -107,20 +122,6 @@ More details about parameters in the spec file could be found below:
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 | model.dataset.data_dir                    | string          | Path to the data converted to the specified above format                                                     |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_name            | string          | Tokenizer name, will be filled automatically based on model.language_model.pretrained_model_name             |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.vocab_file                | string          | Path to tokenizer vocabulary                                                                                 |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_model           | string          | Path to tokenizer model (only for sentencepiece tokenizer)                                                   |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.pretrained_model_name| string          | Pre-trained language model name, for example: `bert-base-cased` or `bert-base-uncased`                       |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.lm_checkpoint        | string          | Path to the pre-trained language model checkpoint                                                            |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config_file          | string          | Path to the pre-trained language model config file                                                           |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config               | dictionary      | Config of the pre-trained language model                                                                     |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 | model.head.num_fc_layers                  | integer         | Number of fully connected layers                                                                             |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 | model.head.fc_dropout                     | float           | Dropout to apply to the input hidden states                                                                  |
@@ -142,6 +143,8 @@ More details about parameters in the spec file could be found below:
 | validation_ds.num_samples                 | integer         | Number of samples to use from the dev set, -1 - to use all                                                   |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 
+See also :ref:`nlp_model`.
+
 Example of the command for training the model:
 
 .. code::
@@ -157,11 +160,6 @@ Required Arguments for Training
 
 * :code:`model.dataset.data_dir`: Path to the directory with pre-processed data.
 
-Optional Arguments
-^^^^^^^^^^^^^^^^^^
-
-* Other arguments to override fields in the specification file.
-
 .. note::
 
     While the arguments are defined in the spec file, if you wish to override these parameter definitions in the spec file \
@@ -170,26 +168,6 @@ Optional Arguments
     However, if you see that the GPU utilization can be optimized further by using larger a batch size, \
     you may override to the desired value, by adding the field :code:`validation_ds.batch_size=128` over command line.
     You may repeat this with any of the parameters defined in the sample spec file.
-
-Important parameters
-^^^^^^^^^^^^^^^^^^^^
-
-Below is the list of parameters could help improve the model:
-
-- language model (`model.language_model.pretrained_model_name`)
-    - pre-trained language model name, such as:
-    - `megatron-bert-345m-uncased`, `megatron-bert-345m-cased`, `biomegatron-bert-345m-uncased`, `biomegatron-bert-345m-cased`, `bert-base-uncased`, `bert-large-uncased`, `bert-base-cased`, `bert-large-cased`
-    - `distilbert-base-uncased`, `distilbert-base-cased`,
-    - `roberta-base`, `roberta-large`, `distilroberta-base`
-    - `albert-base-v1`, `albert-large-v1`, `albert-xlarge-v1`, `albert-xxlarge-v1`, `albert-base-v2`, `albert-large-v2`, `albert-xlarge-v2`, `albert-xxlarge-v2`
-
-- classification head parameters:
-    - the number of layers in the classification head (`model.head.num_fc_layers`)
-    - dropout value between layers (`model.head.fc_dropout`)
-
-- optimizer (`model.optim.name`, for example, `adam`)
-- learning rate (`model.optim.lr`, for example, `5e-5`)
-
 
 Inference
 ---------
@@ -204,8 +182,8 @@ To run inference with the pre-trained model on a few examples, run:
     python token_classification_evaluate.py \
            pretrained_model=<PRETRAINED_MODEL>
 
-Required Arguments for inference:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Required Arguments for inference
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * :code:`pretrained_model`: pretrained TokenClassification model from list_available_models() or path to a .nemo file, for example: ner_en_bert or your_model.nemo
 
@@ -228,16 +206,10 @@ To run evaluation of the pre-trained model, run:
            model.dataset.max_seq_length=512
 
 
-Required Arguments:
-^^^^^^^^^^^^^^^^^^^
+Required Arguments
+^^^^^^^^^^^^^^^^^^
 * :code:`pretrained_model`: pretrained TokenClassification model from list_available_models() or path to a .nemo file, for example: ner_en_bert or your_model.nemo
 * :code:`model.dataset.data_dir`: Path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`.
-
-
-Optional Arguments:
-^^^^^^^^^^^^^^^^^^^
-* :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`: text_*.txt and labels_*.txt file names is the default text_dev.txt and labels_dev.txt from the config files should be overwritten.
-* Other :code:`model.dataset` or :code:`model.test_ds` arguments to override fields in the config file of the pre-trained model.
 
 
 During evaluation of the :code:`test_ds`, the script generates a classification reports that includes the following metrics:

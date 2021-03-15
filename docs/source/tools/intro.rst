@@ -1,4 +1,4 @@
-NeMo tools
+NeMo Tools
 ==========
 
 NeMo provides a set of tools useful for developing Automatic Speech Recognitions (ASR) and Text-to-Speech (TTS) models: \
