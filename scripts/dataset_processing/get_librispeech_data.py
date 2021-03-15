@@ -133,7 +133,7 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str, num_wo
 
     with multiprocessing.Pool(num_workers) as p:
         processing_func = functools.partial(__process_transcript, dst_folder=dst_folder)
-        results = p.imap_unordered(processing_func, files)
+        results = p.imap(processing_func, files)
         for result in tqdm(results, total=len(files)):
             entries.extend(result)
 
