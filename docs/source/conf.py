@@ -20,6 +20,8 @@ import re
 import sys
 import glob
 
+import sphinx_rtd_theme
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -83,6 +85,7 @@ for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
+
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.todo",
@@ -96,6 +99,7 @@ extensions = [
     "sphinx.ext.inheritance_diagram",
     "sphinx.ext.intersphinx",
     "sphinxcontrib.bibtex",
+    "sphinx_rtd_theme",
 ]
 
 bibtex_bibfiles = ['asr/asr_all.bib']
@@ -152,23 +156,75 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "default"
 
-# NVIDIA theme settings.
-html_theme = 'nvidia_theme'
+### Previous NeMo theme
+# # NVIDIA theme settings.
+# html_theme = 'nvidia_theme'
 
-html_theme_path = ["."]
+# html_theme_path = ["."]
 
-html_theme_options = {
-    'display_version': True,
-    'project_version': version,
-    'project_name': project,
-    'logo_path': None,
-    'logo_only': True,
-}
-html_title = 'Introduction'
+# html_theme_options = {
+#     'display_version': True,
+#     'project_version': version,
+#     'project_name': project,
+#     'logo_path': None,
+#     'logo_only': True,
+# }
+# html_title = 'Introduction'
 
-html_logo = html_theme_options["logo_path"]
+# html_logo = html_theme_options["logo_path"]
 
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = "nemodoc"
+
+### from TLT conf.py
+# -- Options for HTML output -------------------------------------------------
+
+# The theme to use for HTML and HTML Help pages.  See the documentation for
+# a list of builtin themes.
+#
+
+# html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+
+html_theme = "sphinx_rtd_theme"
+html_logo = os.path.join('nv_logo.png')
+
+html_theme_options = {
+    'logo_only': True,
+    'display_version': True,
+    'prev_next_buttons_location': 'bottom',
+    'style_external_links': False,
+    'style_nav_header_background': '#000000',
+    # Toc options
+    'collapse_navigation': False,
+    'sticky_navigation': False,
+    # 'navigation_depth': 10,
+    'includehidden': False,
+    'titles_only': False,
+}
+
+
+# Add any paths that contain custom static files (such as style sheets) here,
+# relative to this directory. They are copied after the builtin static files,
+# so a file named "default.css" will overwrite the builtin "default.css".
+
+html_favicon = 'favicon.ico'
+
+html_static_path = ['_static']
+
+html_last_updated_fmt = ''
+
+
+def setup(app):
+    app.add_css_file('css/custom.css')
+    app.add_js_file('js/pk_scripts.js')
+
+
+# html_css_files = [
+#     './custom.css',
+# ]
+
+# html_js_files = [
+#     './pk_scripts.js',
+# ]
