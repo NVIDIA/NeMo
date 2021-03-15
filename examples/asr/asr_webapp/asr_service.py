@@ -11,17 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-import time
 
 import os
 import glob
 import shutil
-import flask
 import torch
 import werkzeug
-from flask import Flask, json, request, render_template, url_for, send_from_directory
+from flask import Flask, json, request, render_template, url_for
 from werkzeug.utils import secure_filename
+from html import unescape
 
 from nemo.utils import logging
 import model_api
@@ -62,16 +60,11 @@ def upload_audio_files():
         f = None
 
     if f is None or len(f) == 0:
-        result = render_template('toast_msg.html', toast_message="No file has been selected to upload !")
-
-        return f"""
-            {result}
-            <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-                hx-post="{url_for('upload_audio_files')}"
-                hx-target="this" hx-swap="outerHTML" hx-encoding="multipart/form-data" >
-            Upload audio file(s)
-            </button>
-            """
+        toast = render_template('toast_msg.html', toast_message="No file has been selected to upload !")
+        result = render_template('updates/upload_files_failed.html', pre_exec=toast,
+                                 url=url_for('upload_audio_files'))
+        result = unescape(result)
+        return result
 
     for fn in f:
         filename = secure_filename(fn.filename)
@@ -81,45 +74,35 @@ def upload_audio_files():
         fn.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         logging.info(f"Saving file : {fn.filename}")
 
-    result = f"{len(f)} file(s) uploaded. Click to upload more !"
-
-    return f"""
-    <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-            hx-post="{url_for('upload_audio_files')}"
-            hx-target="this" hx-swap="outerHTML" hx-encoding="multipart/form-data" >
-        {result}
-    </button>
-    """
+    msg = f"{len(f)} file(s) uploaded. Click to upload more !"
+    toast = render_template('toast_msg.html', toast_message=f"{len(f)} file(s) uploaded !")
+    result = render_template('updates/upload_files_successful.html',
+                             pre_exec=toast,
+                             msg=msg,
+                             url=url_for('upload_audio_files'))
+    result = unescape(result)
+    return result
 
 
 @app.route('/remove_audio_files', methods=['POST'])
 def remove_audio_files():
-    files_dont_exist = render_template('toast_msg.html', toast_message="No files have been uploaded !")
 
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        return f"""
-        {files_dont_exist}
-        <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-            hx-post="{url_for('remove_audio_files')}"
-            hx-target="this" hx-swap="outerHTML">
-        Remove all files
-        </button>
-        """
+        files_dont_exist = render_template('toast_msg.html', toast_message="No files have been uploaded !")
+        result = render_template('updates/remove_files.html', pre_exec=files_dont_exist,
+                                 url=url_for('remove_audio_files'))
+        result = unescape(result)
+        return result
 
     else:
         shutil.rmtree(os.path.join(app.config['UPLOAD_FOLDER']))
         logging.info("Removed all data")
 
-        result = render_template('toast_msg.html', toast_message="All files removed !")
-
-        return f"""
-        {result}
-        <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-            hx-post="{url_for('remove_audio_files')}"
-            hx-target="this" hx-swap="outerHTML">
-        Remove all files
-        </button>
-        """
+        toast = render_template('toast_msg.html', toast_message="All files removed !")
+        result = render_template('updates/remove_files.html', pre_exec=toast,
+                                 url=url_for('remove_audio_files'))
+        result = unescape(result)
+        return result
 
 
 @app.route('/transcribe', methods=['POST'])
@@ -146,6 +129,8 @@ def transcribe():
 @app.route('/')
 def main():
     model_names = sorted(list(model_api.get_model_names()))
+
+    # button initializations
     return render_template('main.html', model_names=model_names)
 
 
