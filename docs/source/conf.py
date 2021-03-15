@@ -211,18 +211,20 @@ html_theme_options = {
 
 html_favicon = 'favicon.ico'
 
-html_static_path = []
+html_static_path = ['_static']
 
 html_last_updated_fmt = ''
 
 
-# def setup(app):
-#    app.add_css_file('custom.css')
+def setup(app):
+    app.add_css_file('css/custom.css')
+    app.add_js_file('js/pk_scripts.js')
 
-html_css_files = [
-    'custom.css',
-]
 
-html_js_files = [
-    'pk_scripts.js',
-]
+# html_css_files = [
+#     './custom.css',
+# ]
+
+# html_js_files = [
+#     './pk_scripts.js',
+# ]
