@@ -1,7 +1,7 @@
 Dataset creation tool based on CTC-Segmentation
 -----------------------------------------------
 
-This tool provides functionality to align a long audio files and the corresponding transcripts into shorter fragments 
+This tool provides functionality to align long audio files and the corresponding transcripts into shorter fragments 
 that are suitable for an Automatic Speech Recognition (ASR) model training.
 
 More details could be found in [this tutorial](https://github.com/NVIDIA/NeMo/blob/main/tutorials/tools/CTC_Segmentation_Tutorial.ipynb).

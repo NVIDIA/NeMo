@@ -102,7 +102,7 @@ extensions = [
     "sphinx_rtd_theme",
 ]
 
-bibtex_bibfiles = ['asr/asr_all.bib', 'tts/tts_all.bib']
+bibtex_bibfiles = ['asr/asr_all.bib', 'nlp/nlp_all.bib', 'tools/tools_all.bib', 'tts_all.bib']
 
 intersphinx_mapping = {
     'pytorch': ('https://pytorch.org/docs/stable', None),
