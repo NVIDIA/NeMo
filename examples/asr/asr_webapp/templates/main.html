@@ -24,10 +24,31 @@
 </head>
 <body>
 
-<h2>
-    NeMo Automatic Speech Recognition Demo
-</h2>
-<hr>
+<!-- Always shows a header, even in smaller screens. -->
+<div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
+  <header class="mdl-layout__header">
+    <div class="mdl-layout__header-row">
+      <!-- Title -->
+      <span class="mdl-layout-title">NeMo Automatic Speech Recognition Demo</span>
+      <!-- Add spacer, to align navigation to the right -->
+      <div class="mdl-layout-spacer"></div>
+      <!-- Navigation. We hide it in small screens. -->
+      <nav class="mdl-navigation mdl-layout--large-screen-only">
+        <a class="mdl-navigation__link" href="#top">Transcribe</a>
+      </nav>
+    </div>
+  </header>
+  <div class="mdl-layout__drawer">
+    <span class="mdl-layout-title">ASR Transcription</span>
+    <nav class="mdl-navigation">
+      <a class="mdl-navigation__link" href="https://github.com/NVIDIA/NeMo">Github</a>
+    </nav>
+  </div>
+  <main class="mdl-layout__content">
+    <div class="page-content">
+
+<!--Placeholder for top of app-->
+<div id="top"></div>
 
 <form id="model_names_form" action="">
     <h4> Model Name :
@@ -51,13 +72,13 @@
     <input type = "file" name = "file" accept=".wav" multiple="" />
     <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
             hx-post="{{ url_for('upload_audio_files') }}"
-            hx-target="this" hx-swap="innerHTML" hx-encoding="multipart/form-data" >
+            hx-target="this" hx-swap="outerHTML" hx-encoding="multipart/form-data" >
         Upload audio file(s)
     </button>
 
     <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
             hx-post="{{ url_for('remove_audio_files') }}"
-        hx-target="this" hx-swap="innerHTML">
+        hx-target="this" hx-swap="outerHTML">
         Remove all files
     </button>
 </form>
@@ -70,6 +91,12 @@
 </button>
 
 <div id="transcribeResults"></div>
+
+
+
+    </div>
+  </main>
+</div>
 
 </body>
 </html>

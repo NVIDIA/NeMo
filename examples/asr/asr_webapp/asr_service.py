@@ -20,7 +20,7 @@ import shutil
 import flask
 import torch
 import werkzeug
-from flask import Flask, json, request, render_template, flash
+from flask import Flask, json, request, render_template, flash, url_for
 from werkzeug.utils import secure_filename
 
 from nemo.utils import logging
@@ -54,7 +54,7 @@ def initialize_model():
 
     return f"""
     <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-            hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="outerHTML">
+            hx-post="{url_for('initialize_model')}" hx-target="this" hx-swap="outerHTML">
         {result}
     </button>
     """
@@ -65,11 +65,19 @@ def upload_audio_files():
     try:
         f = request.files.getlist('file')
     except werkzeug.exceptions.BadRequestKeyError:
-        return """
+        result = """
         <script>
             alert("No file has been selected to upload !");
         </script>
-        File could not be uploaded!
+        """
+
+        return f"""
+        {result}
+        <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+            hx-post="{url_for('upload_audio_files')}"
+            hx-target="this" hx-swap="outerHTML" hx-encoding="multipart/form-data" >
+        Upload audio file(s)
+        </button>
         """
 
     for fn in f:
@@ -79,7 +87,16 @@ def upload_audio_files():
 
         fn.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         logging.info(f"Saving file : {fn.filename}")
-    return f"{len(f)} file(s) uploaded. Click to upload more !"
+
+    result = f"{len(f)} file(s) uploaded. Click to upload more !"
+
+    return f"""
+    <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+            hx-post="{url_for('upload_audio_files')}"
+            hx-target="this" hx-swap="outerHTML" hx-encoding="multipart/form-data" >
+        {result}
+    </button>
+    """
 
 
 @app.route('/remove_audio_files', methods=['POST'])
@@ -88,21 +105,35 @@ def remove_audio_files():
         <script>
             alert("No files have been uploaded !");
         </script>
-        Remove all files
         """
 
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        return files_dont_exist
+        return f"""
+        {files_dont_exist}
+        <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+            hx-post="{url_for('remove_audio_files')}"
+            hx-target="this" hx-swap="outerHTML">
+        Remove all files
+        </button>
+        """
 
     else:
         shutil.rmtree(os.path.join(app.config['UPLOAD_FOLDER']))
         logging.info("Removed all data")
 
-        return """
+        result = """
         <script>
             alert("All files removed !");
         </script>
+        """
+
+        return f"""
+        {result}
+        <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+            hx-post="{url_for('remove_audio_files')}"
+            hx-target="this" hx-swap="outerHTML">
         Remove all files
+        </button>
         """
 
 
@@ -139,4 +170,4 @@ def main():
 
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
