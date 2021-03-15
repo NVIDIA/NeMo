@@ -1,3 +1,5 @@
+.. _ASR:
+
 Automatic Speech Recognition (ASR)
 ==================================
 

@@ -1,9 +1,9 @@
-NeMo Basics
+NeMo Models
 ===========
 
 
-NeMo Models
------------
+Basics
+------
 
 NeMo Models contain everything needed to train and reproduce Conversational AI model:
 
@@ -22,9 +22,33 @@ NeMo uses `Hydra <https://hydra.cc/>`_ for configuring both NeMo models and the 
 The end result of using NeMo, Pytorch Lightning, and Hydra is that
 NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem. 
 
+Pretrained
+----------
 
-Model Training
---------------
+NeMo comes with many pretrained models for each of our collections: ASR, NLP, and TTS.
+
+Every pretrained NeMo model can be downloaded and used with the ```from_pretrained()``` method.
+
+As an example we can instantiate QuartzNet with the following:
+
+.. code-block:: Python
+
+    import nemo.collections.asr as nemo_asr
+
+    model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En")
+
+To see all available pretrained models for a specific NeMo model use the ```list_available_models()``` method.
+
+.. code-block:: Python
+
+    nemo_asr.model.EncDecCTCModel.list_available_models()
+
+For detailed information on the available pretrained models, please the the collections documentation: 
+:ref:`ASR`, :ref:`NLP`, :ref:`TTS`.
+
+Training
+--------
+
 NeMo leverages `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for model training.
 PyTorch Lightning lets NeMo decouple the Conversational AI code from the PyTorch training code. 
 This means that NeMo users can focus on their domain (ASR, NLP, TTS) and building complex AI applications
@@ -44,7 +68,6 @@ and the `Trainer <https://pytorch-lightning.readthedocs.io/en/stable/common/trai
 
 PyTorch Lightning LightningModule
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 Every NeMo model is a ``LightningModule`` which is an ``nn.module``. 
 This means that NeMo models are compatible with the PyTorch ecosystem and
 can be plugged into existing PyTorch workflows.
@@ -158,7 +181,6 @@ Please see the NeMo ASR, NLP, TTS, collections sections for domain-specific docu
 
 PyTorch Lightning Trainer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-
 Since every NeMo Model is a ``LightningModule``, we can automatically take advantage of the PyTorch Lightning ``Trainer``.
 Every NeMo `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the ``Trainer`` object
 to fit the model.
@@ -184,9 +206,8 @@ All `trainer flags <https://pytorch-lightning.readthedocs.io/en/stable/common/tr
 can be set from from the NeMo Configuration, see below for more details on model configuration.
     
 
-Model Configuration
--------------------
-
+Configuration
+-------------
 Hydra is an open-source Python framework that simplifies configuration for complex applications
 that must bring together many different software libraries. 
 Conversational AI model training is a great example of such an application.
@@ -353,6 +374,11 @@ The model configuration can be instantiated and modified like any Python `Datacl
     cfg.train_ds.tokens_in_batch = 8192
 
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
+
+Save and Restore
+----------------
+
+TODO
 
 Experiment Manager
 ------------------
