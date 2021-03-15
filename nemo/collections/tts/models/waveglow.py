@@ -220,9 +220,16 @@ class WaveGlowModel(GlowVocoder, Exportable):
         """
         list_of_models = []
         model = PretrainedModelInfo(
-            pretrained_model_name="WaveGlow-22050Hz",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemottsmodels/versions/1.0.0a5/files/WaveGlow-22050Hz.nemo",
-            description="This model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder.",
+            pretrained_model_name="tts_waveglow_268m",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_268m/versions/1.0.0rc1/files/tts_waveglow_268m.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent and Mandarin voices.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_waveglow_88m",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_88m/versions/1.0.0rc1/files/tts_waveglow_88m.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent and Mandarin voices.",
             class_=cls,
         )
         list_of_models.append(model)
