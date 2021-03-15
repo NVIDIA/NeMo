@@ -9,7 +9,7 @@
 <!--  <link rel="stylesheet" href="/resources/demos/style.css">-->
 
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.light_green-lime.min.css">
   <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
   <style>
     .ui-resizable-se {
@@ -34,7 +34,7 @@
       <div class="mdl-layout-spacer"></div>
       <!-- Navigation. We hide it in small screens. -->
       <nav class="mdl-navigation mdl-layout--large-screen-only">
-        <a class="mdl-navigation__link" href="#top">Transcribe</a>
+        <a class="mdl-navigation__link" href="#top">Top</a>
       </nav>
     </div>
   </header>
@@ -52,13 +52,18 @@
 
 <form id="model_names_form" action="">
     <h4> Model Name :
-      <select name="model_names_select">
-          {% for x in model_names %}
-          <option value="{{ x }}"{% if loop.first %} SELECTED{% endif %}>{{ x }}</option>
-          {% endfor %}
-      </select>
+
+<!-- Format selectable list of models -->
+      <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
+          <select name="model_names_select" class="mdl-textfield__input" id="model_names_select_id">
+              {% for x in model_names %}
+              <option value="{{ x }}"{% if loop.first %} SELECTED{% endif %}>{{ x }}</option>
+              {% endfor %}
+          </select>
+      </div>
     </h4>
 
+<!-- Load Model -->
     <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
             hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="outerHTML">
         Load Model
@@ -68,8 +73,10 @@
 <hr>
 <br>
 
+<!-- Form input for files -->
 <form action="" enctype="multipart/form-data">
     <input type = "file" name = "file" accept=".wav" multiple="" />
+
     <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
             hx-post="{{ url_for('upload_audio_files') }}"
             hx-target="this" hx-swap="outerHTML" hx-encoding="multipart/form-data" >
@@ -85,13 +92,13 @@
 <hr>
 <br>
 
+<!-- Transcribe Button -->
 <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
         hx-post="{{ url_for('transcribe') }}"  hx-target="#transcribeResults">
     Transcribe all
 </button>
 
 <div id="transcribeResults"></div>
-
 
 
     </div>

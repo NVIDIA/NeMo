@@ -14,8 +14,11 @@
         </div>
       </td>
       <td class="property-value-col mdl-data-table__cell--non-numeric">
-        <div class="col-value" style="width: 80%; overflow-x:auto;">
-          {{ transcript.transcription }}
+        <div class="col-value mdl-textfield mdl-js-textfield"
+             style="width: 100%; display: block;">
+          <textarea class="mdl-textfield__input" type="text" rows= "2" readonly >
+            {{ transcript.transcription }}
+          </textarea>
         </div>
       </td>
     </tr>
