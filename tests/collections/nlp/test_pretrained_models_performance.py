@@ -62,7 +62,7 @@ class TestPretrainedModelPerformance(TestCase):
     )
     def test_punct_capit_with_bert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
-        model = models.PunctuationCapitalizationModel.from_pretrained("Punctuation_Capitalization_with_BERT")
+        model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_bert")
         metrics = get_metrics(data_dir, model)
 
         assert abs(metrics['punct_precision'] - 52.3024) < 0.001
@@ -85,7 +85,7 @@ class TestPretrainedModelPerformance(TestCase):
     )
     def test_punct_capit_with_distilbert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
-        model = models.PunctuationCapitalizationModel.from_pretrained("Punctuation_Capitalization_with_DistilBERT")
+        model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_distilbert")
         metrics = get_metrics(data_dir, model)
 
         assert abs(metrics['punct_precision'] - 53.0826) < 0.001
@@ -100,7 +100,7 @@ class TestPretrainedModelPerformance(TestCase):
     )
     def test_ner_model(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/gmb'
-        model = models.TokenClassificationModel.from_pretrained("NERModel")
+        model = models.TokenClassificationModel.from_pretrained("ner_en_bert")
         metrics = get_metrics(data_dir, model)
 
         assert abs(metrics['precision'] - 96.0937) < 0.001

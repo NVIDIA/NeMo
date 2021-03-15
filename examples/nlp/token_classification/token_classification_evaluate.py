@@ -30,7 +30,7 @@ More details on Token Classification model could be found in tutorials/nlp/Token
 
 *** Setting the configs ***
 
-This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml` config file
+This script uses the `/examples/nlp/token_classification/conf/token_classification_config.yaml` config file
 by default. You may update the config file from the file directly. 
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
@@ -49,11 +49,11 @@ To run the script:
 
     python token_classification_evaluate.py \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-    pretrained_model=NER_Model_with_BERT_base_uncased 
+    pretrained_model=ner_en_bert 
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained TokenClassification model from list_available_models() or 
-                     path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or your_model.nemo
+                     path to a .nemo file, for example: ner_en_bert or your_model.nemo
 
 """
 
@@ -95,26 +95,24 @@ def main(cfg: DictConfig) -> None:
         )
 
     data_dir = cfg.model.dataset.get('data_dir', None)
-    if not data_dir:
-        raise ValueError(
-            'Specify a valid dataset directory that contains test_ds.text_file and test_ds.labels_file \
-            with "model.dataset.data_dir" argument'
+    if data_dir is None:
+        logging.error(
+            'No dataset directory provided. Skipping evaluation. '
+            'To run evaluation on a file, specify path to the directory that contains test_ds.text_file and test_ds.labels_file with "model.dataset.data_dir" argument.'
         )
-
-    if not os.path.exists(data_dir):
-        raise ValueError(f'{data_dir} is not found at')
-
-    model.update_data_dir(data_dir=data_dir)
-    model._cfg.dataset.use_cache = False
-
-    if not hasattr(cfg.model, 'test_ds'):
-        raise ValueError(f'model.test_ds was not found in the config, skipping evaluation')
+    elif not os.path.exists(data_dir):
+        logging.error(f'{data_dir} is not found, skipping evaluation on the test set.')
     else:
-        if model.prepare_test(trainer):
-            model.setup_test_data()
+        model.update_data_dir(data_dir=data_dir)
+        model._cfg.dataset = cfg.model.dataset
+
+        if not hasattr(cfg.model, 'test_ds'):
+            logging.error(f'model.test_ds was not found in the config, skipping evaluation')
+        elif model.prepare_test(trainer):
+            model.setup_test_data(cfg.model.test_ds)
             trainer.test(model)
         else:
-            raise ValueError('Terminating evaluation')
+            logging.error('Skipping the evaluation. The trainer is not setup properly.')
 
     model.evaluate_from_file(
         text_file=os.path.join(data_dir, cfg.model.test_ds.text_file),

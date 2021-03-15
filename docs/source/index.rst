@@ -40,6 +40,13 @@ NVIDIA NeMo Developer Guide
 
 .. toctree::
    :maxdepth: 2
+   :caption: Tools
+   :name: Tools
+
+   tools/intro
+
+.. toctree::
+   :maxdepth: 2
    :caption: API
    :name: API
 
