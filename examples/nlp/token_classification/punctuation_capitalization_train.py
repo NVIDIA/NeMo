@@ -49,12 +49,12 @@ To run this script and train the model from scratch, use:
 
 To use one of the pretrained versions of the model and finetune it, run:
     python punctuation_and_capitalization.py \
-    pretrained_model=Punctuation_Capitalization_with_BERT_base_uncased \
+    pretrained_model=punctuation_en_bert \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>
     
     <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
     pretrained_model   - pretrained PunctuationCapitalization model from list_available_models() or 
-                     path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or model.nemo
+                     path to a .nemo file, for example: punctuation_en_bert or model.nemo
 
 """
 
