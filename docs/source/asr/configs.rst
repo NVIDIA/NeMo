@@ -301,7 +301,7 @@ Both architectures use the ``ConvASREncoder`` for the ``encoder``, with paramete
 The encoder parameters include details about the Citrinet-C encoder architecture, including how many
 filters are used per channel (C). The Citrinet-C configuration is a shortform notation for Citrinet-21x5xC, such that B = 21 and R = 5 are the default and should generally not be changed.
 
-To use Citrinet instead of QuartzNet, please refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citinet`` directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.jasper.JasperBlock` as ``Jasper`` or ``QuartzNet`.
+To use Citrinet instead of QuartzNet, please refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet`` directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.jasper.JasperBlock` as ``Jasper`` or ``QuartzNet`.
 
 While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Please refer to the ``JasperBlock`` documentation for the meaning of these arguments.
 
