@@ -65,7 +65,7 @@
 
 <!-- Load Model -->
     <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-            hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="outerHTML">
+            hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="afterend">
         Load Model
     </button>
 </form>
@@ -100,6 +100,13 @@
 
 <div id="transcribeResults"></div>
 
+
+<!--Material Toast -->
+
+<div id="toast" class="mdl-js-snackbar mdl-snackbar">
+  <div class="mdl-snackbar__text"></div>
+  <button class="mdl-snackbar__action" type="button"></button>
+</div>
 
     </div>
   </main>

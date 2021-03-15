@@ -46,18 +46,12 @@ def initialize_model():
         logging.info("CUDA is not available. Defaulting to CPUs")
 
     model_name = request.form['model_names_select']
-
     model_api.initialize_model(model_name)
 
     logging.info("ASR service started")
-    result = f"Model '{model_name}' has been initialized. Click to reload !"
 
-    return f"""
-    <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-            hx-post="{url_for('initialize_model')}" hx-target="this" hx-swap="outerHTML">
-        {result}
-    </button>
-    """
+    result = render_template('toast_msg.html', toast_message=f"Model {model_name} has been initialized !")
+    return result
 
 
 @app.route('/upload_audio_files', methods=['POST'])
@@ -65,20 +59,19 @@ def upload_audio_files():
     try:
         f = request.files.getlist('file')
     except werkzeug.exceptions.BadRequestKeyError:
-        result = """
-        <script>
-            alert("No file has been selected to upload !");
-        </script>
-        """
+        f = None
+
+    if f is None or len(f) == 0:
+        result = render_template('toast_msg.html', toast_message="No file has been selected to upload !")
 
         return f"""
-        {result}
-        <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-            hx-post="{url_for('upload_audio_files')}"
-            hx-target="this" hx-swap="outerHTML" hx-encoding="multipart/form-data" >
-        Upload audio file(s)
-        </button>
-        """
+            {result}
+            <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
+                hx-post="{url_for('upload_audio_files')}"
+                hx-target="this" hx-swap="outerHTML" hx-encoding="multipart/form-data" >
+            Upload audio file(s)
+            </button>
+            """
 
     for fn in f:
         filename = secure_filename(fn.filename)
@@ -101,11 +94,7 @@ def upload_audio_files():
 
 @app.route('/remove_audio_files', methods=['POST'])
 def remove_audio_files():
-    files_dont_exist = """
-        <script>
-            alert("No files have been uploaded !");
-        </script>
-        """
+    files_dont_exist = render_template('toast_msg.html', toast_message="No files have been uploaded !")
 
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         return f"""
@@ -121,11 +110,7 @@ def remove_audio_files():
         shutil.rmtree(os.path.join(app.config['UPLOAD_FOLDER']))
         logging.info("Removed all data")
 
-        result = """
-        <script>
-            alert("All files removed !");
-        </script>
-        """
+        result = render_template('toast_msg.html', toast_message="All files removed !")
 
         return f"""
         {result}
@@ -140,20 +125,15 @@ def remove_audio_files():
 @app.route('/transcribe', methods=['POST'])
 def transcribe():
     if not model_api.is_model_availale():
-        return """
-        <script>
-            alert("Model has not been initialized !");
-        </script>
-        """
+        result = render_template('toast_msg.html', toast_message="Model has not been initialized !")
+
+        return result
 
     files = list(glob.glob(os.path.join(app.config['UPLOAD_FOLDER'], "*.wav")))
 
     if len(files) == 0:
-        return """
-        <script>
-            alert("No audio files were found !");
-        </script>
-        """
+        result = render_template('toast_msg.html', toast_message="No audio files were found !")
+        return result
 
     transcriptions = model_api.transcribe_all(files)
 

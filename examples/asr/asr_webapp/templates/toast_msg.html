@@ -1,0 +1,8 @@
+<script>
+(function() {
+  'use strict';
+  var snackbarContainer = document.querySelector('#toast');
+  var data = {message: '{{ toast_message }}'};
+  snackbarContainer.MaterialSnackbar.showSnackbar(data);
+}());
+</script>
