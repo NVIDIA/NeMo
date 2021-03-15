@@ -21,7 +21,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
 from nemo.collections.tts.models.base import Vocoder
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
@@ -322,5 +322,17 @@ class MelGanModel(Vocoder):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        # TODO
-        pass
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_melgan",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_melgan/versions/1.0.0rc1/files/tts_melgan.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+        return list_of_models

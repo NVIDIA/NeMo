@@ -117,9 +117,7 @@ class UniGlowModel(Vocoder):
     @typecheck()
     def forward(self, *, audio, audio_len):
         if self.mode != self.model.mode:
-            raise ValueError(
-                f"WaveGlowModel's mode {self.mode} does not match WaveGlowModule's mode {self.model.mode}"
-            )
+            raise ValueError(f"UniGlowModel's mode {self.mode} does not match UniGlowModule's mode {self.model.mode}")
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         tensors = self.model(spec=spec, audio=audio, sigma=self.sigma)
         if self.mode == OperationMode.training:
@@ -135,7 +133,7 @@ class UniGlowModel(Vocoder):
     )
     def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
         if not self.removed_weightnorm:
-            self.waveglow.remove_weightnorm()
+            self.model.remove_weightnorm()
             self.removed_weightnorm = True
         self.mode = OperationMode.infer
 
@@ -234,9 +232,10 @@ class UniGlowModel(Vocoder):
         """
         list_of_models = []
         model = PretrainedModelInfo(
-            pretrained_model_name="UniGlow-22050Hz",
-            location="https://drive.google.com/file/d/18JO5heoz1pBicZnGGqJzAJYMpzxiDQDa/view?usp=sharing",
-            description="The model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder",
+            pretrained_model_name="tts_uniglow",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_uniglow/versions/1.0.0rc1/files/tts_uniglow.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent.",
+            class_=cls,
         )
         list_of_models.append(model)
         return list_of_models

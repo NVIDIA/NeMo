@@ -57,13 +57,13 @@ def main():
     parser.add_argument(
         "--tts_model_spec",
         type=str,
-        default="Tacotron2-22050Hz",
+        default="tts_en_tacotron2",
         choices=[x.pretrained_model_name for x in SpectrogramGenerator.list_available_models()],
     )
     parser.add_argument(
         "--tts_model_vocoder",
         type=str,
-        default="WaveGlow-22050Hz",
+        default="tts_waveglow_88m",
         choices=[x.pretrained_model_name for x in Vocoder.list_available_models()],
     )
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
