@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -506,6 +507,7 @@ class FileIO(ABC):
             raise NotImplementedError()
 
 
+@total_ordering
 @dataclass
 class PretrainedModelInfo:
     pretrained_model_name: str
@@ -532,6 +534,14 @@ class PretrainedModelInfo:
         # should ideally also be unique
         location_hash = hash(self.location)
         return location_hash
+
+    def __eq__(self, other):
+        # another object is equal to self, iff
+        # if it's hash is equal to hash(self)
+        return hash(self) == hash(other) or self.pretrained_model_name == other.pretrained_model_name
+
+    def __lt__(self, other):
+        return self.pretrained_model_name < other.pretrained_model_name
 
 
 class Model(Typing, Serialization, FileIO):
