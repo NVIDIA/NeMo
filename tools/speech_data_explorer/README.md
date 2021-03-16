@@ -21,6 +21,6 @@ JSON manifest file should contain the following fields:
 
 Errors' analysis requires "pred_text" (ASR transcript) for all utterances.
 
-Any additional field will be parsed and diplayed in 'Samples' tab.
+Any additional field will be parsed and displayed in 'Samples' tab.
 
 ![Speech Data Explorer](screenshot.png)

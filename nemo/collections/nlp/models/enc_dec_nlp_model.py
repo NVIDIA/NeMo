@@ -1,3 +1,17 @@
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -7,7 +21,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig, get_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from nemo.core.config.modelPT import ModelConfig
 
 
@@ -67,26 +81,5 @@ class EncDecNLPModel(NLPModel):
     def decoder(self, decoder):
         self._decoder = decoder
 
-    def setup_enc_dec_tokenizers(
-        self,
-        encoder_tokenizer_name=None,
-        encoder_tokenizer_model=None,
-        encoder_bpe_dropout=0.0,
-        decoder_tokenizer_name=None,
-        decoder_tokenizer_model=None,
-        decoder_bpe_dropout=0.0,
-    ):
-
-        if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
-            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
-
-        self.encoder_tokenizer = get_tokenizer(
-            tokenizer_name=encoder_tokenizer_name,
-            tokenizer_model=self.register_artifact("cfg.encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
-            bpe_dropout=encoder_bpe_dropout,
-        )
-        self.decoder_tokenizer = get_tokenizer(
-            tokenizer_name=decoder_tokenizer_name,
-            tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
-            bpe_dropout=decoder_bpe_dropout,
-        )
+    def export(self, **kwargs):
+        raise NotImplementedError('For EncDecNLPModel, you must export encoder and decoder separately!')

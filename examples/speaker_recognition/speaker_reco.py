@@ -43,7 +43,7 @@ Optional: Use tarred dataset to speech up data loading.
    Note that it's possible that tarred datasets impacts validation scores because it drop values in order to have same amount of files per tarfile; 
    Scores might be off since some data is missing. 
    
-   Use the `convert_to_tarred_audio_dataset.py` script under <NEMO_ROOT>/scripts in order to prepare tarred audio dataset.
+   Use the `convert_to_tarred_audio_dataset.py` script under <NEMO_ROOT>/speech_recognition/scripts in order to prepare tarred audio dataset.
    For details, please see TarredAudioToClassificationLabelDataset in <NEMO_ROOT>/nemo/collections/asr/data/audio_to_label.py
 """
 

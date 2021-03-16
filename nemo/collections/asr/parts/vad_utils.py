@@ -383,14 +383,14 @@ def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_
     return reference, hypothesis
 
 
-def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundtruth_RTTM_dir, focus_metric="DetER"):
+def vad_tune_threshold_on_dev(thresholds, vad_pred, groundtruth_RTTM, vad_pred_method="frame", focus_metric="DetER"):
     """
     Tune threshold on dev set. Return best threshold which gives the lowest detection error rate (DetER) in thresholds.
     Args:
         thresholds (list): list of thresholds.
         vad_pred_method (str): suffix of prediction file. Use to locate file. Should be either in "frame", "mean" or "median".
-        vad_pred_dir (str): directory of vad predictions.
-        groundtruth_RTTM_dir (str): directory of groundtruch rttm files.
+        vad_pred_dir (str): directory of vad predictions or a file contains the paths of them
+        groundtruth_RTTM_dir (str): directory of groundtruch rttm files or a file contains the paths of them.
         focus_metric (str): metrics we care most when tuning threshold. Should be either in "DetER", "FA", "MISS"
     Returns:
         best_threhsold (float): threshold that gives lowest DetER.
@@ -405,23 +405,25 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
         raise ValueError("Invalid threshold! Should be in [0, 1]")
 
     for threshold in thresholds:
-
         metric = detection.DetectionErrorRate()
-        filenames = [
-            os.path.basename(f).split(".")[0] for f in glob.glob(os.path.join(groundtruth_RTTM_dir, "*.rttm"))
-        ]
+        paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(
+            vad_pred, groundtruth_RTTM, vad_pred_method
+        )
+        print(paired_filenames)
+        for filename in paired_filenames:
+            vad_pred_filepath = vad_pred_dict[filename]
+            groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
 
-        for filename in filenames:
-            vad_pred_filepath = os.path.join(vad_pred_dir, filename + "." + vad_pred_method)
-            table_out_dir = os.path.join(vad_pred_dir, "table_output_" + str(threshold))
+            if os.path.isdir(vad_pred):
+                table_out_dir = os.path.join(vad_pred, "table_output_" + str(threshold))
+            else:
+                table_out_dir = os.path.join("tmp_table_outputs", "table_output_" + str(threshold))
 
             if not os.path.exists(table_out_dir):
-                os.mkdir(table_out_dir)
+                os.makedirs(table_out_dir)
 
             per_args = {"threshold": threshold, "shift_len": 0.01, "out_dir": table_out_dir}
-
             vad_table_filepath = generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
-            groundtruth_RTTM_file = os.path.join(groundtruth_RTTM_dir, filename + '.rttm')
 
             reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
             metric(reference, hypothesis)  # accumulation
@@ -450,20 +452,51 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred_method, vad_pred_dir, groundt
     return best_threhsold
 
 
-def extract_labels(path2ground_truth_label, time):
-    data = pd.read_csv(path2ground_truth_label, sep=" ", delimiter=None, header=None)
-    data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
-    labels = []
-    for pos in time:
-        line = data[(data["start"] <= pos) & (data["start"] + data["dur"] > pos)]
-        if len(line) >= 1:
-            labels.append(1)
-        else:
-            labels.append(0)
-    return labels
+def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
+    """
+    Find paired files in vad_pred and groundtruth_RTTM
+    """
+    groundtruth_RTTM_dict = {}
+    if os.path.isfile(groundtruth_RTTM):
+        with open(groundtruth_RTTM, "r") as fp:
+            groundtruth_RTTM_files = fp.read().splitlines()
+    elif os.path.isdir(groundtruth_RTTM):
+        groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
+    else:
+        raise ValueError(
+            "groundtruth_RTTM should either be a directory contains rttm files or a file contains paths to them!"
+        )
+    for f in groundtruth_RTTM_files:
+        filename = os.path.basename(f).rsplit(".", 1)[0]
+        groundtruth_RTTM_dict[filename] = f
+
+    vad_pred_dict = {}
+    if os.path.isfile(vad_pred):
+        with open(vad_pred, "r") as fp:
+            vad_pred_files = fp.read().splitlines()
+    elif os.path.isdir(vad_pred):
+        vad_pred_files = glob.glob(os.path.join(vad_pred, "*." + vad_pred_method))
+    else:
+        raise ValueError(
+            "vad_pred should either be a directory contains vad pred files or a file contains paths to them!"
+        )
+    for f in vad_pred_files:
+        filename = os.path.basename(f).rsplit(".", 1)[0]
+        vad_pred_dict[filename] = f
+
+    paired_filenames = groundtruth_RTTM_dict.keys() & vad_pred_dict.keys()
+    return paired_filenames, groundtruth_RTTM_dict, vad_pred_dict
 
 
 def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshold=0.85):
+    """
+    Plot VAD outputs for demonstration in tutorial
+    Args:
+        path2audio_file (str):  path to audio file.
+        path2_vad_pred (str): path to vad prediction file,
+        path2ground_truth_label(str): path to groundtruth label file.
+        threshold (float): threshold for prediction score (from 0 to 1).
+    """
     plt.figure(figsize=[20, 2])
     FRAME_LEN = 0.01
     audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True)
@@ -489,5 +522,23 @@ def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshol
     ax2.legend(loc='lower right', shadow=True)
     ax2.set_ylabel('Preds and Probas')
     ax2.set_ylim([-0.1, 1.1])
-
     return None
+
+
+def extract_labels(path2ground_truth_label, time):
+    """
+    Extract groundtruth label for given time period.
+    path2ground_truth_label (str): path of groundtruth label file 
+    time (list) : a list of array represent time period.
+    """
+
+    data = pd.read_csv(path2ground_truth_label, sep=" ", delimiter=None, header=None)
+    data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+    labels = []
+    for pos in time:
+        line = data[(data["start"] <= pos) & (data["start"] + data["dur"] > pos)]
+        if len(line) >= 1:
+            labels.append(1)
+        else:
+            labels.append(0)
+    return labels

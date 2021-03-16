@@ -17,21 +17,27 @@ import itertools
 import numpy as np
 import torch
 import torch.nn.functional as F
-import wandb
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
+from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.collections.tts.data.datalayers import MelAudioDataset
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 
 class HifiGanModel(Vocoder):
@@ -55,7 +61,7 @@ class HifiGanModel(Vocoder):
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
 
-        if isinstance(self._train_dl.dataset, MelAudioDataset):
+        if self._train_dl and isinstance(self._train_dl.dataset, MelAudioDataset):
             self.finetune = True
             logging.info("fine-tuning on pre-computed mels")
         else:
@@ -189,7 +195,7 @@ class HifiGanModel(Vocoder):
         self.log("val_loss", loss_mel, prog_bar=True, sync_dist=True)
 
         # plot audio once per epoch
-        if batch_idx == 0 and isinstance(self.logger, WandbLogger):
+        if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             clips = []
             specs = []
             for i in range(min(5, audio.shape[0])):
@@ -236,7 +242,7 @@ class HifiGanModel(Vocoder):
 
     def _bias_denoise(self, audio, mel):
         def stft(x):
-            comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
+            comp = stft_patch(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
             real, imag = comp[..., 0], comp[..., 1]
             mags = torch.sqrt(real ** 2 + imag ** 2)
             phase = torch.atan2(imag, real)
@@ -289,5 +295,12 @@ class HifiGanModel(Vocoder):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        # TODO
-        pass
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_hifigan",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_hifigan/versions/1.0.0rc1/files/tts_hifigan.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz. Trained on ground-truth mel-spectrograms, should not be used on synthetic mel-spectrograms.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+        return list_of_models
