@@ -3,7 +3,7 @@
 Joint Intent and Slot Classification
 ====================================
 
-Joint Intent and Slot classification is a method for classifying an Intent and detecting all
+Joint Intent and Slot classification is a NLP task for classifying an Intent and detecting all
 relevant Slots (Entities) for the Intent in a query.
 For example, in the query `What is the weather in Santa Clara tomorrow morning?`,
 we would like to classify the query as a `weather intent`, detect `Santa Clara` as a `location slot`,
@@ -25,21 +25,41 @@ Our BERT-based model implementation allows you to train and detect both of these
     An example script on how to train the model could be found here: `NeMo/examples/nlp/intent_slot_classification <https://github.com/NVIDIA/NeMo/tree/main/examples/nlp/intent_slot_classification>`__.
 
 
-Data Format
------------
+NeMo Data Format
+----------------
 
 When training the model, the dataset should be first converted to the required data format,
 which requires these files:
 
-- :code:`dict.intents.csv` - A list of all Intent names in the data. Only one line per intent name
-  is allowed.
-- :code:`dict.slots.csv` - A list of all Slot names in the data. Only one line per intent name
-  is allowed.
+- :code:`dict.intents.csv` - A list of all Intent names in the data. One line per an intent name. The index of the intent line
+  (starting from 0) is used to identify appropriate intent in train.tsv and test.tsv files.
+
+.. code::
+
+    weather
+    alarm
+    meeting
+    ...
+
+- :code:`dict.slots.csv` - A list of all Slot names in the data. One line per a slot name. The index of the slot line
+  (starting from 0) is used to identify appropriate slots in the queries in train_slot.tsv and test_slot.tsv files.
+  In the last line of this dictionary `O` slot name is used to identify all `out of scope` slots, which are usually majority of the tokens
+  in the queries.
+
+.. code::
+
+    date
+    time
+    city
+    ...
+    O
+
 - :code:`train.tsv/test.tsv` - A list of original queries, one per line, with the intent number
   separated by a tab (e.g. "what alarms do i have set right now <TAB> 0"). Intent numbers are
   set according to the intent line in the intent dictionary file (:code:`dict.intents.csv`),
   starting from 0. The first line in these files should contain the header line "sentence
   <tab> label".
+
 - :code:`train_slot.tvs/test_slot.tsv` - A list that contains one line per a query, when an each word from the original text queries,
   is replaced by a token number from the slots dictionary file (dict.slots.csv), counted starting from 0.
   All the words which do not contain a relevant slot are replaced by 'out-of scope' token number, which is also a part of the slot dictionary file,
@@ -97,14 +117,14 @@ Model Training
 This is a pretrained Bert based model with 2 linear classifier heads on the top of it,
 one for classifying an intent of the query and another for classifying slots for each token of the query.
 This model is trained with the combined loss function on the Intent and Slot classification task on the given dataset.
-The model architecture is based on the paper: https://arxiv.org/pdf/1902.10909.pdf
+The model architecture is based on the paper `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/pdf/1902.10909.pdf>`__.
 
 For each query the model will classify it as one the intents from the intent dictionary and
 for each word of the query it will classify it as one of the slots from the slot dictionary, including out of scope slot
 for all the remaining words in the query which does not fall in another slot category.
 Out of scope slot (O) is a part of slot dictionary that the model is trained on.
 
-Example of model configuration file for training the model could be found at: `NeMo/examples/nlp/intent_slot_classification/conf/intent_slot_classification.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
+Example of model configuration file for training the model could be found at: `NeMo/examples/nlp/intent_slot_classification/conf/intent_slot_classification.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml>`__.
 In the configuration file you can define many parameters of the training and the model, although most of the default values will work quite well.
 
 The specification can be roughly grouped into three categories:
@@ -118,8 +138,6 @@ More details about parameters in the spec file could be found below:
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | **Parameter**                             | **Data Type**   |   **Default**                                                                    | **Description**                                                                                              |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| save_to                                   | string          | trained-model.tlt                                                                | The filename of the trained model                                                                            |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.data_dir                            | string          | --                                                                               | The path of the data converted to the specified format                                                       |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.class_balancing                     | string          | null                                                                             | Choose from [null, weighted_loss]. The weighted_loss enables weighted class balancing of the loss            |
@@ -132,40 +150,18 @@ More details about parameters in the spec file could be found below:
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.ignore_start_end                    | boolean         | true                                                                             | A flag that specifies whether to not use the first and last token for slot training                          |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_name            | string          | Will be filled automatically based on model.language_model.pretrained_model_name | The tokenizer name                                                                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.vocab_file                | string          | null                                                                             | The path to the tokenizer vocabulary                                                                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_model           | string          | null                                                                             | The path to tokenizer model (only for the sentencepiece tokenizer)                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.special_tokens            | string          | null                                                                             | Special tokens for the tokenizer (if they exist)                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.max_seq_length       | integer         | 50                                                                               | The maximum length of the input queries (in tokens)                                                          |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.pretrained_model_name| string          | bert-base-uncased                                                                | The pre-trained language model name (e.g. ``bert-base-cased`` or ``bert-base-uncased``)                      |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.lm_checkpoint        | string          | null                                                                             | The path to the pre-trained language-model checkpoint                                                        |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config_file          | string          | null                                                                             | The path to the pre-trained language-model config file                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config               | dictionary      | null                                                                             | The config for the pre-trained language model                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.head.num_output_layers              | integer         | 2                                                                                | The number of fully connected layers of the Classifier on top of the BERT model                              |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.head.fc_dropout                     | float           | 0.1                                                                              | The dropout ratio of the fully connected layers                                                              |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | training_ds.prefix                        | string          | train                                                                            | A prefix for the training file names                                                                         |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.num_workers                   | integer         | 2                                                                                | The number of worker threads for training                                                                    |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.batch_size                    | integer         | 32                                                                               | The training data batch size                                                                                 |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | validation_ds.prefix                      | string          | dev                                                                              | A prefix for the validation file names                                                                       |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.num_workers                 | integer         | 2                                                                                | The number of worker threads for validation                                                                  |
+| test_ds.prefix                            | string          | test                                                                             | A prefix for the test file names                                                                             |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.batch_size                  | integer         | 32                                                                               | The validation data batch size                                                                               |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+
+For additional config parameters common to all NLP models see also `nlp_model doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/nlp_model.rst#model-nlp>`__.
 
 The following is an example of the command for training the model:
 
@@ -252,4 +248,4 @@ There is no separate script for the evaluation and inference of this model in Ne
 after the training part is finished you can see the code that evaluates the trained model
 on an evaluation test set and then an example of doing inference using a list of given queries.
 
-For the deployment in the production environment please refer to Jarvis and TLT documentation.
+For the deployment in the production environment please refer to `Jarvis <https://developer.nvidia.com/nvidia-jarvis-getting-started>`__ and `TLT documentation <https://docs.nvidia.com/metropolis/TLT/tlt-user-guide/text/nlp/index.html>`__.
