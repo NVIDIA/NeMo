@@ -4,7 +4,6 @@ import torch
 import nemo.collections.asr as nemo_asr
 from nemo.utils import logging
 
-_MODEL = None  # type: nemo_asr.models.ASRModel
 
 # setup AMP (optional)
 if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
@@ -17,10 +16,6 @@ else:
         yield
 
 
-def is_model_availale():
-    return _MODEL is not None
-
-
 def get_model_names():
     model_names = set()
     for model_name in nemo_asr.models.ASRModel.list_available_models():
@@ -29,27 +24,27 @@ def get_model_names():
     return model_names
 
 
-def initialize_model(model_name):
-    global _MODEL
-    if _MODEL is not None:
-        del _MODEL
-
+def initialize_model(model_name, use_gpu_if_available):
     # load model
     model = nemo_asr.models.ASRModel.from_pretrained(model_name)
 
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and use_gpu_if_available:
         model = model.cuda()
 
-    # Cache model
-    _MODEL = model
+    return model
 
 
-def transcribe_all(filepaths):
+def transcribe_all(filepaths, model_name, use_gpu_if_available=True):
+    # instantiate model
+    model = initialize_model(model_name, use_gpu_if_available)
+
     # transcribe audio
     logging.info("Begin transcribing audio...")
     with autocast():
         with torch.no_grad():
-            transcriptions = _MODEL.transcribe(filepaths, batch_size=32)
+            transcriptions = model.transcribe(filepaths, batch_size=32)
     logging.info(f"Finished transcribing {len(filepaths)} files !")
 
+    # delete model
+    del model
     return transcriptions
