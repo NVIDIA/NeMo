@@ -4,14 +4,14 @@ Speaker Recognition (SR)
 Speaker Recognition (SR) is a broad research area which solves two major tasks: speaker identification (who is speaking?) and speaker verification (is the speaker who they claim to be?). 
 We focus on far-field, text-independent speaker recognition when the identity of the speaker is based on how the speech is spoken, not necessarily in what is being said. 
 Typically such SR systems operate on unconstrained speech utterances, which are converted into vectors of fixed length, called speaker embeddings. 
-Speaker embeddings are also used in automatic speech recognition (ASR) and speech synthesis.
+Speaker embeddings can also be used in automatic speech recognition (ASR) and speech synthesis.
 
-As the goal of most speaker related systems is to get good speaker level embeddings that could help distinguish from other speakers, we shall first train these embeddings in end-to-end manner optimizing the QuatzNet based encoder model on cross-entropy loss. 
-We modify the decoder to get these fixed size embeddings irrespective of the length of ithe input audio and employ a mean and variance based statistics pooling method to grab these embeddings.
+As the goal of most speaker recognition systems is to get good speaker level embeddings that could help distinguish from other speakers, we shall first train these embeddings in end-to-end manner optimizing the QuatzNet based encoder model on cross-entropy loss. 
+We modify the decoder to get these fixed size embeddings irrespective of the length of the input audio and employ a mean and variance based statistics pooling method to grab these embeddings.
    
-In Speaker Identification we typically train on a larger set with cross-entrophy loss and finetune later on your preferred set of labels where one would want to classify only known set of speakers. 
+In Speaker Identification we typically train on a larger training set with cross-entrophy loss and finetune later on your preferred set of labels where one would want to classify only known set of speakers. 
 And in Speaker verification we train with Angular Softmax loss and compare embedings extracted from one audio file coming from a single speaker with 
-embeddings extracted from another file of same or another speaker by employing backend scoring techniques like cosine similarity or PLDA. 
+embeddings extracted from another file of same or another speaker by employing backend scoring techniques like cosine similarity. 
 
 Quick Start
 -----------

@@ -26,12 +26,12 @@ model has B blocks, each with R sub-blocks. Each sub-block applies the following
         :alt: speakernet model
         :scale: 40%
 
-Top level acoustic Features, E obtained from the output of
+Top level acoustic Features, obtained from the output of
 encoder are used to compute intermediate features that are
 then passed to the decoder for getting utterance level speaker
 embeddings. The intermediate time-independent features are
-computed using a statistics pooling layer [13], where we compute the mean and standard deviation of features E across
-time-channels, to get a time-independent feature representation S of size B × 3000.
+computed using a statistics pooling layer, where we compute the mean and standard deviation of features across
+time-channels, to get a time-independent feature representation S of size Batch_size × 3000.
 The intermediate features, S are passed through the Decoder consisting of two layers each of output size 512 for a
 linear transformation from S to the final number of classes
 N for the larger (L) model, and a single linear layer of output size 256 to the final number of classes N for the medium

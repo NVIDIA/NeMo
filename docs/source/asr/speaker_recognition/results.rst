@@ -31,8 +31,7 @@ NGC Pretrained Checkpoints
 --------------------------
 
 The SpeakerNet-ASR collection has checkpoints of several models trained on various datasets for a variety of tasks.
-These checkpoints are obtainable via NGC at `NeMo Speech collection <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_.
-The model cards on NGC contain more information about each of the checkpoints available.
+`Speaker_Recognition <https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet>`_ and `Speaker_Verification <https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet>`_ model cards on NGC contain more information about each of the checkpoints available.
 
 The tables below list the SpeakerNet models available from NGC, and the models can be accessed via the
 :code:`from_pretrained()` method inside the EncDecSpeakerLabelModel Model class.

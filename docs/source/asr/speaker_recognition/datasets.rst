@@ -6,14 +6,14 @@ Datasets
 HI-MIA
 --------
 
-Run the script to download and process hi-mia dataset in order to generate files in the supported format of  `nemo_asr`. You should set the data folder of 
-hi-mia using `--data_root`. These scripts are present in <nemo_root>/scripts
+Run the script to download and process ``hi-mia`` dataset in order to generate files in the supported format of  ``nemo_asr``. You should set the data folder of 
+hi-mia using ``--data_root``. These scripts are present in ``<nemo_root>/scripts``
 
 .. code-block:: bash
 
     python get_hi-mia_data.py --data_root=<data directory> 
 
-After download and conversion, your `data` folder should contain directories with follwing set of files as:
+After download and conversion, your `data` folder should contain directories with following set of files as:
 
 * `data/<set>/train.json`
 * `data/<set>/dev.json` 
@@ -26,7 +26,7 @@ All-other Datasets
 
 These methods can be applied to any dataset to get similar training manifest files.
 
-First get an scp file(s) which has all the wav files with absolute paths for each of the train, dev, and test set. This can be easily done by the find bash command
+First we prepare scp file(s) containing absolute paths to all the wav files required for each of the train, dev, and test set. This can be easily prepared by using ``find`` bash command as follows:
 
 .. code-block:: bash 
 
@@ -35,7 +35,7 @@ First get an scp file(s) which has all the wav files with absolute paths for eac
 
 
 Since we created the scp file for the train, we use `scp_to_manifest.py` to convert this scp file to a manifest file and then optionally split the files to train \& dev for evaluating the models while training by using the --split flag. 
-We wouldn't be needing the --split option for the test folder. Accordingly please mention the id number, which is the field num separated by / to be considered as the speaker label.
+We wont be needing the --split option for the test folder. Accordingly please mention the id number, which is the field num separated by / to be considered as the speaker label.
 After the download and conversion, your data folder should contain directories with manifest files as:
     
 * `data/<path>/train.json`

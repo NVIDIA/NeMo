@@ -11,7 +11,7 @@ model architecture specification.
 The sections on this page cover each of these in more detail.
 
 Example configuration files for all of the Speaker related scripts can be found in the
-`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples/speaker_recognition/conf>`_.
+config directory of the examples ``{NEMO_ROOT/examples/speaker_recognition/conf}``.
 
 
 Dataset Configuration
@@ -39,9 +39,6 @@ An example SpeakerNet train and validation configuration could look like:
       trim_silence: False
       time_length: 8
       shuffle: True
-      is_tarred: False  # If set to true, uses the tarred version of the Dataset
-      tarred_audio_filepaths: null      # Not used if is_tarred is false
-      tarred_shard_strategy: "scatter"  # Not used if is_tarred is false
 
     validation_ds:
       manifest_filepath: ???
@@ -53,27 +50,8 @@ An example SpeakerNet train and validation configuration could look like:
 
 Preprocessor Configuration
 --------------------------
-
-If you are loading audio files for your experiment, you will likely want to use a preprocessor to convert from the
-raw audio signal to features (e.g. mel-spectrogram or MFCC).
-The ``preprocessor`` section of the config specifies the audio preprocessor to be used via the ``_target_`` field,
-as well as any initialization parameters for that preprocessor.
-
-An example of specifying a preprocessor is as follows:
-
-.. code-block:: yaml
-
-  model:
-    ...
-    preprocessor:
-      # _target_ is the audio preprocessor module you want to use
-      _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-      normalize: "per_feature"
-      window_size: 0.02
-      ...
-      # Other parameters for the preprocessor
-
-See the `Audio Preprocessors <../api.html#Audio Preprocessors>`__ API page for the preprocessor options, expected arguments, and defaults.
+Preprocessor helps to compute MFCC or mel spectrogram features that are given as inputs to model. 
+For details on how to write this section, refer to `Preprocessor Configuration <../configs.html#preprocessor-configuration>`__
 
 
 Augmentation Configurations
@@ -83,7 +61,7 @@ For SpeakerNet training we use on-the fly augmentations with MUSAN and RIR impul
 
 The following example sets up musan augmentation with audio files taken from manifest path and 
 minimum and maximum SNR specified with min_snr and max_snr respectively. This section can be added to 
-train_ds part in model
+``train_ds`` part in model
 
 .. code-block:: yaml
 
@@ -99,7 +77,7 @@ train_ds part in model
           max_snr_db: 15        
 
 
-See the `nemo.collections.asr.parts.perturb.AudioAugmentor`  API section for more details.
+See the :class:`nemo.collections.asr.parts.perturb.AudioAugmentor`  API section for more details.
 
 
 Model Architecture Configurations
@@ -116,7 +94,7 @@ For more information about the SpeakerNet Encoder models, see the :doc:`Models <
 Decoder Configurations
 ------------------------
 
-After features have been computed from speakernet encoder, we pass the features to decoder to compute embeddings and then to compute log_probs 
+After features have been computed from speakernet encoder, we pass these features to thedecoder to compute embeddings and then to compute log probabilities
 for training models.
 
 .. code-block:: yaml
