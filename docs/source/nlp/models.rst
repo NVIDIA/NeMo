@@ -13,9 +13,11 @@ NeMo's NLP collection supports the following models:
    joint_intent_slot
    text_classification
    language_modeling
+   question_answering
    sgd_qa
    glue_benchmark
    information_retrieval
    nmt
    nlp_model
+   
 
