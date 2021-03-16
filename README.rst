@@ -79,7 +79,7 @@ Documentation
 
 Tutorials
 ---------
-A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/introduction/tutorials.html>`_.
+A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/starthere/tutorials.html>`_.
 
 Getting help with NeMo
 ----------------------
@@ -144,9 +144,7 @@ If you chose to work with main branch, we recommend using NVIDIA's PyTorch conta
 Examples
 --------
 
-`Simplest application with NeMo. <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_voice_swap_app.ipynb>`_ (runs in Google Colab, no local installation necessary)
-
-Lots of other examples in `"Examples" folder. <https://github.com/NVIDIA/NeMo/tree/main/examples>`_
+Many example can be found under `"Examples" folder. <https://github.com/NVIDIA/NeMo/tree/main/examples>`_
 
 
 Contributing
