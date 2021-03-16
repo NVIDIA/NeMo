@@ -46,7 +46,9 @@ def initialize_model():
     model_name = request.form['model_names_select']
     use_gpu_if_available = request.form.get('use_gpu_ckbx', "off")
 
-    result = render_template('toast_msg.html', toast_message=f"Model {model_name} has been initialized !")
+    result = render_template('toast_msg.html',
+                             toast_message=f"Model {model_name} has been initialized !",
+                             timeout=2000)
     result = make_response(result)
 
     # set cookies
@@ -63,7 +65,9 @@ def upload_audio_files():
         f = None
 
     if f is None or len(f) == 0:
-        toast = render_template('toast_msg.html', toast_message="No file has been selected to upload !")
+        toast = render_template('toast_msg.html',
+                                toast_message="No file has been selected to upload !",
+                                timeout=2000)
         result = render_template('updates/upload_files_failed.html', pre_exec=toast, url=url_for('upload_audio_files'))
         result = unescape(result)
         return result
@@ -77,7 +81,7 @@ def upload_audio_files():
         logging.info(f"Saving file : {fn.filename}")
 
     msg = f"{len(f)} file(s) uploaded. Click to upload more !"
-    toast = render_template('toast_msg.html', toast_message=f"{len(f)} file(s) uploaded !")
+    toast = render_template('toast_msg.html', toast_message=f"{len(f)} file(s) uploaded !", timeout=2000)
     result = render_template(
         'updates/upload_files_successful.html', pre_exec=toast, msg=msg, url=url_for('upload_audio_files')
     )
@@ -88,7 +92,7 @@ def upload_audio_files():
 @app.route('/remove_audio_files', methods=['POST'])
 def remove_audio_files():
     if not os.path.exists(app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}']):
-        files_dont_exist = render_template('toast_msg.html', toast_message="No files have been uploaded !")
+        files_dont_exist = render_template('toast_msg.html', toast_message="No files have been uploaded !", timeout=2000)
         result = render_template(
             'updates/remove_files.html', pre_exec=files_dont_exist, url=url_for('remove_audio_files')
         )
@@ -101,7 +105,7 @@ def remove_audio_files():
 
         logging.info("Removed all data")
 
-        toast = render_template('toast_msg.html', toast_message="All files removed !")
+        toast = render_template('toast_msg.html', toast_message="All files removed !", timeout=2000)
         result = render_template('updates/remove_files.html', pre_exec=toast, url=url_for('remove_audio_files'))
         result = unescape(result)
         return result
@@ -114,7 +118,7 @@ def transcribe():
     logging.info(f"Model name : {model_name}")
 
     if model_name is None or model_name == '':
-        result = render_template('toast_msg.html', toast_message="Model has not been initialized !")
+        result = render_template('toast_msg.html', toast_message="Model has not been initialized !", timeout=2000)
         return result
 
     # load whether gpu should be used
@@ -125,7 +129,7 @@ def transcribe():
     files = list(glob.glob(os.path.join(app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}'], "*.wav")))
 
     if len(files) == 0:
-        result = render_template('toast_msg.html', toast_message="No audio files were found !")
+        result = render_template('toast_msg.html', toast_message="No audio files were found !", timeout=2000)
         return result
 
     # transcribe file
@@ -146,6 +150,7 @@ def transcribe():
         'toast_msg.html',
         toast_message=f"Transcribed {len(files)} files using {model_name} (gpu={gpu_used}), "
         f"and removed them from cache.",
+        timeout=10000
     )
     result = render_template('transcripts.html', transcripts=results)
 

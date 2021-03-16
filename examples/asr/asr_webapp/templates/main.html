@@ -50,24 +50,37 @@
 <!--Placeholder for top of app-->
 <div id="top"></div>
 
-<form id="model_names_form" action="">
-    <h4> Model Name :
+<br>
+
+<form id="model_names_form" action="" style="display: inline;">
+
+        <!-- GPU checkbox -->
+      <label class="mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="use_gpu_ckbx_id">
+        <input type="checkbox" id="use_gpu_ckbx_id" name="use_gpu_ckbx" class="mdl-checkbox__input" checked>
+        <span class="mdl-checkbox__label">Use GPU (if available)</span>
+      </label>
+
+   <h5> Model Name :
 
 <!-- Format selectable list of models -->
-      <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label">
+      <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 25%">
           <select name="model_names_select" class="mdl-textfield__input" id="model_names_select_id">
               {% for x in model_names %}
               <option value="{{ x }}"{% if loop.first %} SELECTED{% endif %}>{{ x }}</option>
               {% endfor %}
           </select>
       </div>
-    </h4>
 
-<!-- Load Model -->
+    &nbsp;
+
+    <!-- Load Model -->
     <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
             hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="afterend">
         Load Model
     </button>
+
+    </h5>
+
 </form>
 
 <hr>

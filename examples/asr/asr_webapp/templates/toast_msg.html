@@ -2,7 +2,10 @@
 (function() {
   'use strict';
   var snackbarContainer = document.querySelector('#toast');
-  var data = {message: '{{ toast_message }}'};
+  var data = {
+      message: '{{ toast_message }}',
+      timeout: {{ timeout }},
+  };
   snackbarContainer.MaterialSnackbar.showSnackbar(data);
 }());
 </script>
