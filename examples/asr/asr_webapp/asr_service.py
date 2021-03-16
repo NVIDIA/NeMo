@@ -18,7 +18,9 @@ import shutil
 import torch
 import werkzeug
 import atexit
+import time
 
+from uuid import uuid4
 from flask import Flask, json, request, render_template, url_for, make_response
 from werkzeug.utils import secure_filename
 from html import unescape
@@ -27,7 +29,8 @@ from nemo.utils import logging
 import model_api
 
 app = Flask(__name__)
-app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}'] = f"tmp_{os.getpid()}/"
+app.config[f'UPLOAD_FOLDER'] = f"tmp/"
+app.config[f'WORKER_UUIDS'] = {}
 
 
 @app.route('/initialize_model', methods=['POST'])
@@ -72,12 +75,25 @@ def upload_audio_files():
         result = unescape(result)
         return result
 
+    # temporary id to store data
+    uuid = str(uuid4())
+    data_store = os.path.join(app.config[f'UPLOAD_FOLDER'], uuid)
+
+    # remove old data store (if exists)
+    old_uuid = request.cookies.get('uuid', '')
+    if old_uuid is not None and old_uuid != '':
+        # delete old data store
+        old_data_store = os.path.join(app.config[f'UPLOAD_FOLDER'], old_uuid)
+
+        logging.info("Tried uploading more data without using old uploaded data. Purging data cache.")
+        shutil.rmtree(old_data_store, ignore_errors=True)
+
     for fn in f:
         filename = secure_filename(fn.filename)
-        if not os.path.exists(app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}']):
-            os.makedirs(app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}'])
+        if not os.path.exists(data_store):
+            os.makedirs(data_store)
 
-        fn.save(os.path.join(app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}'], filename))
+        fn.save(os.path.join(data_store, filename))
         logging.info(f"Saving file : {fn.filename}")
 
     msg = f"{len(f)} file(s) uploaded. Click to upload more !"
@@ -86,12 +102,18 @@ def upload_audio_files():
         'updates/upload_files_successful.html', pre_exec=toast, msg=msg, url=url_for('upload_audio_files')
     )
     result = unescape(result)
+
+    result = make_response(result)
+    result.set_cookie("uuid", uuid)
     return result
 
 
 @app.route('/remove_audio_files', methods=['POST'])
 def remove_audio_files():
-    if not os.path.exists(app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}']):
+    uuid = request.cookies.get("uuid", "")
+    data_store = os.path.join(app.config[f'UPLOAD_FOLDER'], uuid)
+
+    if not os.path.exists(data_store) or uuid == "":
         files_dont_exist = render_template('toast_msg.html', toast_message="No files have been uploaded !", timeout=2000)
         result = render_template(
             'updates/remove_files.html', pre_exec=files_dont_exist, url=url_for('remove_audio_files')
@@ -101,13 +123,16 @@ def remove_audio_files():
 
     else:
         # delete data
-        shutil.rmtree(os.path.join(app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}']))
+        shutil.rmtree(data_store, ignore_errors=True)
 
         logging.info("Removed all data")
 
         toast = render_template('toast_msg.html', toast_message="All files removed !", timeout=2000)
         result = render_template('updates/remove_files.html', pre_exec=toast, url=url_for('remove_audio_files'))
         result = unescape(result)
+
+        result = make_response(result)
+        result.set_cookie("uuid", '', expires=0)
         return result
 
 
@@ -126,14 +151,19 @@ def transcribe():
     gpu_used = torch.cuda.is_available() and use_gpu_if_available
 
     # Load audio from paths
-    files = list(glob.glob(os.path.join(app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}'], "*.wav")))
+    uuid = request.cookies.get("uuid", "")
+    data_store = os.path.join(app.config[f'UPLOAD_FOLDER'], uuid)
+
+    files = list(glob.glob(os.path.join(data_store, "*.wav")))
 
     if len(files) == 0:
         result = render_template('toast_msg.html', toast_message="No audio files were found !", timeout=2000)
         return result
 
     # transcribe file
+    t1 = time.time()
     transcriptions = model_api.transcribe_all(files, model_name, use_gpu_if_available)
+    t2 = time.time()
 
     # delete all transcribed files immediately
     for fp in files:
@@ -142,6 +172,10 @@ def transcribe():
         except FileNotFoundError:
             logging.info(f"Failed to delete transcribed file : {os.path.basename(fp)}")
 
+    # delete temporary transcription directory
+    shutil.rmtree(data_store, ignore_errors=True)
+
+    # Write results to table
     results = []
     for filename, transcript in zip(files, transcriptions):
         results.append(dict(filename=os.path.basename(filename), transcription=transcript))
@@ -149,23 +183,28 @@ def transcribe():
     toast = render_template(
         'toast_msg.html',
         toast_message=f"Transcribed {len(files)} files using {model_name} (gpu={gpu_used}), "
-        f"and removed them from cache.",
+        f"in {(t2 - t1): 0.2f} s",
         timeout=10000
     )
     result = render_template('transcripts.html', transcripts=results)
-
     result = toast + result
     result = unescape(result)
+
+    result = make_response(result)
+    result.set_cookie("uuid", "", expires=0)
     return result
 
 
 def remove_tmp_dir_at_exit():
-    cache_dir = app.config[f'UPLOAD_FOLDER_PID_{os.getpid()}']
-    logging.info(f"Removing cache file for worker : {os.getpid()}")
+    uuid = request.cookies.get("uuid", "")
 
-    if os.path.exists(cache_dir):
-        shutil.rmtree(cache_dir, ignore_errors=True)
-        logging.info(f"Deleted tmp folder : {cache_dir}")
+    if uuid is not None or uuid != "":
+        cache_dir = os.path.join(os.path.join(app.config[f'UPLOAD_FOLDER'], uuid))
+        logging.info(f"Removing cache file for worker : {os.getpid()}")
+
+        if os.path.exists(cache_dir):
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            logging.info(f"Deleted tmp folder : {cache_dir}")
 
 
 @app.route('/')
@@ -179,6 +218,7 @@ def main():
     # Reset cookies
     result.set_cookie("model_name", '', expires=0)
     result.set_cookie("use_gpu", '', expires=0)
+    result.set_cookie("uuid", '', expires=0)
     return result
 
 
