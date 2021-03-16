@@ -13,8 +13,9 @@ In Speaker Identification we typically train on a larger training set with cross
 And in Speaker verification we train with Angular Softmax loss and compare embedings extracted from one audio file coming from a single speaker with 
 embeddings extracted from another file of same or another speaker by employing backend scoring techniques like cosine similarity. 
 
-Quick Start
------------
+--------------------------------
+
+``Quick Start``
 
 Write audio files to a ``manifest.json`` file with lines as in format:
 
