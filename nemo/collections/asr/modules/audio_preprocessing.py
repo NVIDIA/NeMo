@@ -142,9 +142,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             stft_exact_pad (bool): If True, uses pytorch_stft and convolutions with
                 padding such that num_frames = num_samples / hop_length. If False,
                 stft_conv will be used to determine how stft will be performed.
-                Defaults to False
+                Defaults to False. TODO:This feature is deprecated and will be removed in 1.1.0
             stft_conv (bool): If True, uses pytorch_stft and convolutions. If
-                False, uses torch.stft.
+                False, uses torch.stft. TODO:This feature is deprecated and will be removed in 1.1.0
                 Defaults to False
             pad_value (float): The value that shorter mels are padded with.
                 Defaults to 0

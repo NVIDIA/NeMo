@@ -217,13 +217,19 @@ class FilterbankFeatures(nn.Module):
         pad_to=16,
         max_duration=16.7,
         frame_splicing=1,
-        stft_exact_pad=False,
-        stft_conv=False,
+        stft_exact_pad=False,  # TODO: Remove this in 1.1.0
+        stft_conv=False,  # TODO: Remove this in 1.1.0
         pad_value=0,
         mag_power=2.0,
         use_grads=False,
     ):
         super().__init__()
+        if stft_conv or stft_exact_pad:
+            logging.warning(
+                "Using torch_stft is deprecated and will be removed in 1.1.0. Please set stft_conv and stft_exact_pad "
+                "to False for FilterbankFeatures and AudioToMelSpectrogramPreprocessor. Please set exact_pad to True "
+                "as needed."
+            )
         self.log_zero_guard_value = log_zero_guard_value
         if (
             n_window_size is None
