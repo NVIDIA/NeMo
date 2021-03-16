@@ -48,8 +48,8 @@ Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training t
 Requirements
 ------------
 
-1) Python 3.6 or above
-2) Pytorch 1.7.1 or above
+1) Python 3.6, 3.7 or 3.8
+2) Pytorch 1.7.1.  WARNING: This version currently does not support Pytorch 1.8.0
 
 Installation
 ------------
@@ -178,6 +178,12 @@ To run tutorials:
    * - ASR
      - Speaker Recognition and Verification
      - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
+   * - ASR
+     - Speaker Diarization
+     - `Speaker Diarization Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb>`_
+   * - ASR
+     - Speaker Diarization with ASR
+     - `Speaker Diarization with ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb>`_
    * - ASR
      - Online Noise Augmentation
      - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_

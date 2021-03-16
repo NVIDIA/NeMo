@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 NeMo tools
+=======
+NeMo Tools
+>>>>>>> origin/r1.0.0rc1
 ==========
 
 NeMo provides a set of tools useful for developing Automatic Speech Recognitions (ASR) and Text-to-Speech (TTS) models: \

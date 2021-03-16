@@ -30,7 +30,7 @@ More details on Token Classification model could be found in tutorials/nlp/Token
 
 *** Setting the configs ***
 
-This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml` config file
+This script uses the `/examples/nlp/token_classification/conf/token_classification_config.yaml` config file
 by default. You may update the config file from the file directly. 
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
@@ -49,11 +49,11 @@ To run the script:
 
     python token_classification_evaluate.py \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-    pretrained_model=NER_Model_with_BERT_base_uncased 
+    pretrained_model=ner_en_bert 
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained TokenClassification model from list_available_models() or 
-                     path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or your_model.nemo
+                     path to a .nemo file, for example: ner_en_bert or your_model.nemo
 
 """
 

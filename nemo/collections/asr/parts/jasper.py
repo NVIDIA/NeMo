@@ -315,6 +315,71 @@ class SqueezeExcite(nn.Module):
 
 
 class JasperBlock(nn.Module):
+    """
+    Constructs a single "Jasper" block. With modified parameters, also constructs other blocks for models
+    such as `QuartzNet` and `Citrinet`.
+
+    - For `Jasper`    : `separable` flag should be False
+    - For `QuartzNet` : `separable` flag should be True
+    - For `Citrinet`  : `separable` flag and `se` flag should be True
+
+    Note that above are general distinctions, each model has intricate differences that expand over
+    multiple such blocks.
+
+    For further information about the differences between models which use JasperBlock, please review
+    the configs for ASR models found in the ASR examples directory.
+
+    Args:
+        inplanes: Number of input channels.
+        planes: Number of output channels.
+        repeat: Number of repeated sub-blocks (R) for this block.
+        kernel_size: Convolution kernel size across all repeated sub-blocks.
+        kernel_size_factor: Floating point scale value that is multiplied with kernel size,
+            then rounded down to nearest odd integer to compose the kernel size. Defaults to 1.0.
+        stride: Stride of the convolutional layers.
+        dilation: Integer which defined dilation factor of kernel. Note that when dilation > 1, stride must
+            be equal to 1.
+        padding: String representing type of padding. Currently only supports "same" padding,
+            which symmetrically pads the input tensor with zeros.
+        dropout: Floating point value, determins percentage of output that is zeroed out.
+        activation: String representing activation functions. Valid activation functions are :
+            {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}.
+            Defaults to "relu".
+        residual: Bool that determined whether a residual branch should be added or not.
+            All residual branches are constructed using a pointwise convolution kernel, that may or may not
+            perform strided convolution depending on the parameter `residual_mode`.
+        groups: Number of groups for Grouped Convolutions. Defaults to 1.
+        separable: Bool flag that describes whether Time-Channel depthwise separable convolution should be
+            constructed, or ordinary convolution should be constructed.
+        heads: Number of "heads" for the masked convolution. Defaults to -1, which disables it.
+        normalization: String that represents type of normalization performed. Can be one of
+            "batch", "group", "instance" or "layer" to compute BatchNorm1D, GroupNorm1D, InstanceNorm or
+            LayerNorm (which are special cases of GroupNorm1D).
+        norm_groups: Number of groups used for GroupNorm (if `normalization` == "group").
+        residual_mode: String argument which describes whether the residual branch should be simply
+            added ("add") or should first stride, then add ("stride_add"). Required when performing stride on
+            parallel branch as well as utilizing residual add.
+        residual_panes: Number of residual panes, used for Jasper-DR models. Please refer to the paper.
+        conv_mask: Bool flag which determines whether to utilize masked convolutions or not. In general,
+            it should be set to True.
+        se: Bool flag that determines whether Squeeze-and-Excitation layer should be used.
+        se_reduction_ratio: Integer value, which determines to what extend the hidden dimension of the SE
+            intermediate step should be reduced. Larger values reduce number of parameters, but also limit
+            the effectiveness of SE layers.
+        se_context_window: Integer value determining the number of timesteps that should be utilized in order
+            to compute the averaged context window. Defaults to -1, which means it uses global context - such
+            that all timesteps are averaged. If any positive integer is used, it will utilize limited context
+            window of that size.
+        se_interpolation_mode: String used for interpolation mode of timestep dimension for SE blocks.
+            Used only if context window is > 1.
+            The modes available for resizing are: `nearest`, `linear` (3D-only),
+            `bilinear`, `area`.
+        stride_last: Bool flag that determines whether all repeated blocks should stride at once,
+            (stride of S^R when this flag is False) or just the last repeated block should stride
+            (stride of S when this flag is True).
+        quantize: Bool flag whether to quantize the Convolutional blocks.
+    """
+
     __constants__ = ["conv_mask", "separable", "residual_mode", "res", "mconv"]
 
     def __init__(
@@ -609,6 +674,18 @@ class JasperBlock(nn.Module):
         return layers
 
     def forward(self, input_: Tuple[List[Tensor], Optional[Tensor]]):
+        """
+        Forward pass of the module.
+
+        Args:
+            input_: The input is a tuple of two values - the preprocessed audio signal as well as the lengths
+                of the audio signal. The audio signal is padded to the shape [B, D, T] and the lengths are
+                a torch vector of length B.
+
+        Returns:
+            The output of the block after processing the input through `repeat` number of sub-blocks,
+            as well as the lengths of the encoded audio after padding/striding.
+        """
         # type: (Tuple[List[Tensor], Optional[Tensor]]) -> Tuple[List[Tensor], Optional[Tensor]] # nopep8
         lens_orig = None
         xs = input_[0]
