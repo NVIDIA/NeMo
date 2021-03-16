@@ -17,6 +17,8 @@ import glob
 import shutil
 import torch
 import werkzeug
+import atexit
+
 from flask import Flask, json, request, render_template, url_for
 from werkzeug.utils import secure_filename
 from html import unescape
@@ -25,9 +27,7 @@ from nemo.utils import logging
 import model_api
 
 app = Flask(__name__)
-
-
-app.config['UPLOAD_FOLDER'] = "tmp/"
+app.config['UPLOAD_FOLDER'] = f"tmp_{os.getpid()}/"
 
 
 @app.route('/initialize_model', methods=['POST'])
@@ -109,7 +109,6 @@ def remove_audio_files():
 def transcribe():
     if not model_api.is_model_availale():
         result = render_template('toast_msg.html', toast_message="Model has not been initialized !")
-
         return result
 
     files = list(glob.glob(os.path.join(app.config['UPLOAD_FOLDER'], "*.wav")))
@@ -126,12 +125,23 @@ def transcribe():
     return render_template('transcripts.html', transcripts=results)
 
 
+def remove_tmp_dir_at_exit():
+    cache_dir = app.config['UPLOAD_FOLDER']
+    if os.path.exists(cache_dir):
+        shutil.rmtree(cache_dir, ignore_errors=True)
+        logging.info(f"Deleted tmp folder : {cache_dir}")
+
+
 @app.route('/')
 def main():
     model_names = sorted(list(model_api.get_model_names()))
 
     # button initializations
     return render_template('main.html', model_names=model_names)
+
+
+# Register hook to delete file cache
+atexit.register(remove_tmp_dir_at_exit)
 
 
 if __name__ == '__main__':
