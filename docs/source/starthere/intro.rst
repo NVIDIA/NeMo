@@ -30,6 +30,54 @@ Requirements
 
 1) Python 3.6, 3.7 or 3.8
 2) Pytorch 1.7.1.  WARNING: This version currently does not support Pytorch 1.8.0
+3) NVIDIA GPU for training.
+
+Quick Start
+-----------
+
+We start by describing a simple prototype application which will take audio in one language and translate it into audio in another.
+The fastest way to start is to go through `Getting Started Colab notebook. <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_
+
+Below we is the exact same code-snippet for your reference.
+
+.. code-block:: python
+
+    # Import NeMo and it's ASR, NLP and TTS collections
+    import nemo
+    # Import Speech Recognition collection
+    import nemo.collections.asr as nemo_asr
+    # Import Natural Language Processing colleciton
+    import nemo.collections.nlp as nemo_nlp
+    # Import Speech Synthesis collection
+    import nemo.collections.tts as nemo_tts
+
+    # Next, we instantiate all the necessary models directly from NVIDIA NGC
+    # Speech Recognition model - QuartzNet trained on Russian part of MCV 6.0
+    quartznet = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="stt_ru_quartznet15x5").cuda()
+    # Neural Machine Translation model
+    nmt_model = nemo_nlp.models.MTEncDecModel.from_pretrained(model_name='nmt_ru_en_transformer6x6', strict=False).cuda()
+    # Spectrogram generator which takes text as an input and produces spectrogram
+    spectrogram_generator = nemo_tts.models.Tacotron2Model.from_pretrained(model_name="tts_en_tacotron2").cuda()
+    # Vocoder model which takes spectrogram and produces actual audio
+    vocoder = nemo_tts.models.WaveGlowModel.from_pretrained(model_name="tts_waveglow_88m").cuda()
+    # Transcribe an audio file
+    # IMPORTANT: The audio must be mono with 16Khz sampling rate
+    # Get example from: https://nemo-public.s3.us-east-2.amazonaws.com/mcv-samples-ru/common_voice_ru_19034087.wav
+    russian_text = quartznet.transcribe(['Path_to_audio_file'])
+    print(russian_text)
+    # You should see russian text here. Let's translate it to English
+    english_text = nmt_model.translate(russian_text)
+    print(english_text)
+    # After this you should see English translation
+    # Let's convert it into audio
+    # A helper function which combines Tacotron2 and WaveGlow to go directly from
+    # text to audio
+    def text_to_audio(text):
+      parsed = spectrogram_generator.parse(text)
+      spectrogram = spectrogram_generator.generate_spectrogram(tokens=parsed)
+      audio = vocoder.convert_spectrogram_to_audio(spec=spectrogram)
+      return audio.to('cpu').numpy()
+    audio = text_to_audio(english_text[0])
 
 
 Installation
@@ -88,8 +136,8 @@ If you chose to work with main branch, we recommend using NVIDIA's PyTorch conta
     stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3
 
 
-Getting help with NeMo
-----------------------
+FAQ
+---
 Have a look at our `Discussions board <https://github.com/NVIDIA/NeMo/discussions>`_ and feel free to post a question or start a discussion.
 
 
