@@ -18,6 +18,8 @@ NVIDIA NeMo Developer Guide
 
    asr/intro
    asr/speaker_recognition/intro
+   asr/speaker_recognition/intro
+   asr/speaker_diarization/intro
 
 .. toctree::
    :maxdepth: 2
