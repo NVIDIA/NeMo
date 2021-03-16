@@ -16,6 +16,10 @@ Model Classes
     :show-inheritance:
     :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
 
+.. autoclass:: nemo.collections.nlp.models.QAModel
+    :show-inheritance:
+    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, inference, validation_epoch_end, test_epoch_end
+
 
 Modules
 -------

@@ -9,6 +9,7 @@ NeMo's NLP collection supports the following models:
    :maxdepth: 1
 
    punctuation_and_capitalization
+   question_answering
    token_classification
    joint_intent_slot
    text_classification
