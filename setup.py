@@ -129,6 +129,13 @@ for ix, line in enumerate(install_requires):
         install_requires_buffer.append(SUPPORTED_PYTORCH_LIGHTNING)
     elif 'torch' in line:
         install_requires_buffer.append(SUPPORTED_TORCH_VERSION)
+
+        # Pytorch 1.7.1 must use torchtext==0.8.0, torchaudio==0.7.2 and torchvision==0.8.2
+        if SUPPORTED_TORCH_VERSION == "torch<=1.7.1":
+            install_requires_buffer.append("torchvision==0.8.2")
+            install_requires_buffer.append("torchaudio==0.7.2")
+            install_requires_buffer.append("torchtext==0.8.0")
+
     else:
         install_requires_buffer.append(line)
 

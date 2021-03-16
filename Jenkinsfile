@@ -683,7 +683,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification && \
             python token_classification_train.py \
-            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo \
+            pretrained_model=ner_en_bert \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.train_ds.batch_size=2 \
             model.dataset.use_cache=false \
@@ -697,7 +697,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification && \
             python punctuation_capitalization_train.py \
-            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_BERT_base_uncased.nemo \
+            pretrained_model=punctuation_en_bert \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
