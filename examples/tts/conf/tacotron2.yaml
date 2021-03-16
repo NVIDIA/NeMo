@@ -7,7 +7,7 @@ labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B', '
         'u', 'v', 'w', 'x', 'y', 'z']
 n_fft: 1024
 n_mels: 80
-fmax: null
+fmax: 8000
 n_stride: 256
 pad_value: -11.52
 train_dataset: ???
@@ -75,7 +75,6 @@ model:
     pad_value: ${pad_value}
     preemph: null
     sample_rate: ${sample_rate}
-    stft_conv: true
     window: hann
 
   encoder:

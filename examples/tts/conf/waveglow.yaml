@@ -2,7 +2,7 @@ name: "WaveGlow"
 sample_rate: 22050
 n_fft: 1024
 n_mels: 80
-fmax: null
+fmax: 8000
 pad_value: -11.52
 train_dataset: ???
 validation_datasets: ???
@@ -60,7 +60,6 @@ model:
     pad_value: ${pad_value}
     preemph: null
     sample_rate: ${sample_rate}
-    stft_conv: true
     window: hann
 
   waveglow:

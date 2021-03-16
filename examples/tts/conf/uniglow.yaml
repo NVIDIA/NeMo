@@ -61,7 +61,6 @@ model:
     pad_value: ${pad_value}
     preemph: null
     sample_rate: ${sample_rate}
-    stft_conv: true
     window: hann
 
   uniglow:

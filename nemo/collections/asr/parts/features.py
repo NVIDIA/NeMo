@@ -217,6 +217,7 @@ class FilterbankFeatures(nn.Module):
         pad_to=16,
         max_duration=16.7,
         frame_splicing=1,
+        exact_pad=False,
         stft_exact_pad=False,  # TODO: Remove this in 1.1.0
         stft_conv=False,  # TODO: Remove this in 1.1.0
         pad_value=0,
@@ -275,7 +276,7 @@ class FilterbankFeatures(nn.Module):
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
                 win_length=self.win_length,
-                center=False if stft_exact_pad else True,
+                center=False if exact_pad else True,
                 window=self.window.to(dtype=torch.float),
                 return_complex=False,
             )

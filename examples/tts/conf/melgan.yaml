@@ -1,7 +1,7 @@
 name: "MelGan"
 sample_rate: 22050
 n_fft: 1024
-fmax: null
+fmax: 8000
 pad_value: -11.52
 train_dataset: ???
 validation_datasets: ???
@@ -58,8 +58,7 @@ model:
     pad_value: ${pad_value}
     preemph: null
     sample_rate: ${sample_rate}
-    stft_exact_pad: true
-    stft_conv: false
+    exact_pad: true
     window: hann
 
   generator:

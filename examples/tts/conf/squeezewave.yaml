@@ -64,8 +64,7 @@ model:
     pad_value: ${pad_value}
     preemph: null
     sample_rate: ${sample_rate}
-    stft_exact_pad: true
-    stft_conv: true
+    exact_pad: true
     window: hann
 
   squeezewave:
