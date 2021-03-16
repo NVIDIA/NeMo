@@ -3,7 +3,7 @@
 Joint Intent and Slot Classification
 ====================================
 
-Joint Intent and Slot classification is a NLP task for classifying an Intent and detecting all
+Joint Intent and Slot classification is a NLU task for classifying an Intent and detecting all
 relevant Slots (Entities) for the Intent in a query.
 For example, in the query `What is the weather in Santa Clara tomorrow morning?`,
 we would like to classify the query as a `weather intent`, detect `Santa Clara` as a `location slot`,
@@ -117,7 +117,7 @@ Model Training
 This is a pretrained Bert based model with 2 linear classifier heads on the top of it,
 one for classifying an intent of the query and another for classifying slots for each token of the query.
 This model is trained with the combined loss function on the Intent and Slot classification task on the given dataset.
-The model architecture is based on the paper `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/pdf/1902.10909.pdf>`__.
+The model architecture is based on the paper `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/pdf/1902.10909.pdf>`__:cite:`nlp-jis-chen2019bert`.
 
 For each query the model will classify it as one the intents from the intent dictionary and
 for each word of the query it will classify it as one of the slots from the slot dictionary, including out of scope slot
@@ -249,3 +249,12 @@ after the training part is finished you can see the code that evaluates the trai
 on an evaluation test set and then an example of doing inference using a list of given queries.
 
 For the deployment in the production environment please refer to `Jarvis <https://developer.nvidia.com/nvidia-jarvis-getting-started>`__ and `TLT documentation <https://docs.nvidia.com/metropolis/TLT/tlt-user-guide/text/nlp/index.html>`__.
+
+
+References
+----------
+
+.. bibliography:: nlp_all.bib
+    :style: plain
+    :labelprefix: NLP-JIS
+    :keyprefix: nlp-jis-
