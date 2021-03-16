@@ -19,7 +19,6 @@ NVIDIA NeMo Developer Guide
    asr/intro
    asr/sc/intro
    asr/speaker_recognition/intro
-   asr/sd/intro
    
 
 
