@@ -82,6 +82,6 @@ class ExportableEncDecModel(Exportable):
     def forward_for_export(self, input):
         return self.output_module(self.input_module(input))
 
-    def _prepare_for_export(self):
-        self.input_module._prepare_for_export()
-        self.output_module._prepare_for_export()
+    def _prepare_for_export(self, **kwargs):
+        self.input_module._prepare_for_export(**kwargs)
+        self.output_module._prepare_for_export(**kwargs)

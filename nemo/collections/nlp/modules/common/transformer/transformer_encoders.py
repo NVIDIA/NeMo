@@ -61,25 +61,44 @@ class TransformerEncoderBlock(nn.Module):
         self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.second_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
 
-    def forward(self, encoder_query, encoder_mask, encoder_keys):
+    def forward_preln(self, encoder_query, encoder_mask, encoder_keys):
+        """
+        Pre-LayerNorm block
+        Order of operations: LN -> Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN
+        """
+        residual = encoder_query
+        encoder_query = self.layer_norm_1(encoder_query)
+        encoder_keys = self.layer_norm_1(encoder_keys)
+        self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        self_attn_output += residual
 
-        # Pre-LN: LN -> Attn -> Drop -> Residual -> LN -> FFN
-        # Post-LN: Attn -> Drop -> Residual -> LN -> FFN -> Residual -> LN
-        if self.pre_ln:
-            # Share same LN params for query, key (self-attn)
-            encoder_query = self.layer_norm_1(encoder_query)
-            encoder_keys = self.layer_norm_1(encoder_keys)
+        residual = self_attn_output
+        self_attn_output = self.layer_norm_2(self_attn_output)
+        output_states = self.second_sub_layer(self_attn_output)
+        output_states += residual
 
+        return output_states
+
+    def forward_postln(self, encoder_query, encoder_mask, encoder_keys):
+        """
+        Post-LayerNorm block
+        Order of operations: Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN -> Residual -> LN
+        """
         self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
         self_attn_output += encoder_query
-
-        self_attn_output = self.layer_norm_2(self_attn_output) if self.pre_ln else self.layer_norm_1(self_attn_output)
+        self_attn_output = self.layer_norm_1(self_attn_output)
 
         output_states = self.second_sub_layer(self_attn_output)
+        output_states += self_attn_output
+        output_states = self.layer_norm_2(output_states)
 
-        if not self.pre_ln:
-            output_states = self.layer_norm_2(output_states + self_attn_output)
         return output_states
+
+    def forward(self, encoder_query, encoder_mask, encoder_keys):
+        if self.pre_ln:
+            return self.forward_preln(encoder_query, encoder_mask, encoder_keys)
+        else:
+            return self.forward_postln(encoder_query, encoder_mask, encoder_keys)
 
 
 class TransformerEncoder(nn.Module):

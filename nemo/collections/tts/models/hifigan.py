@@ -27,7 +27,7 @@ from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
@@ -61,7 +61,7 @@ class HifiGanModel(Vocoder):
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
 
-        if isinstance(self._train_dl.dataset, MelAudioDataset):
+        if self._train_dl and isinstance(self._train_dl.dataset, MelAudioDataset):
             self.finetune = True
             logging.info("fine-tuning on pre-computed mels")
         else:
@@ -295,5 +295,12 @@ class HifiGanModel(Vocoder):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        # TODO
-        pass
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_hifigan",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_hifigan/versions/1.0.0rc1/files/tts_hifigan.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz. Trained on ground-truth mel-spectrograms, should not be used on synthetic mel-spectrograms.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+        return list_of_models

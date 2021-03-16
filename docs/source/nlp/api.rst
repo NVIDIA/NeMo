@@ -1,7 +1,6 @@
 NeMo NLP collection API
 =======================
 
-
 Model Classes
 -------------
 

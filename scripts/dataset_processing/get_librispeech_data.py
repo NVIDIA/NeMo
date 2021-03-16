@@ -13,15 +13,17 @@
 # limitations under the License.
 #
 # USAGE: python get_librispeech_data.py --data_root=<where to put data>
-#        --data_set=<datasets_to_download>
+#        --data_set=<datasets_to_download> --num_workers=<number of parallel workers>
 # where <datasets_to_download> can be: dev_clean, dev_other, test_clean,
 # test_other, train_clean_100, train_clean_360, train_other_500 or ALL
 # You can also put more than one data_set comma-separated:
 # --data_set=dev_clean,train_clean_100
 import argparse
 import fnmatch
+import functools
 import json
 import logging
+import multiprocessing
 import os
 import subprocess
 import tarfile
@@ -33,6 +35,7 @@ from tqdm import tqdm
 parser = argparse.ArgumentParser(description='LibriSpeech Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
 parser.add_argument("--data_sets", default="dev_clean", type=str)
+parser.add_argument("--num_workers", default=4, type=int)
 args = parser.parse_args()
 
 URLS = {
@@ -75,13 +78,46 @@ def __extract_file(filepath: str, data_dir: str):
         logging.info('Not extracting. Maybe already there?')
 
 
-def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
+def __process_transcript(file_path: str, dst_folder: str):
+    """
+    Converts flac files to wav from a given transcript, capturing the metadata.
+    Args:
+        file_path: path to a source transcript  with flac sources
+        dst_folder: path where wav files will be stored
+    Returns:
+        a list of metadata entries for processed files.
+    """
+    entries = []
+    root = os.path.dirname(file_path)
+    with open(file_path, encoding="utf-8") as fin:
+        for line in fin:
+            id, text = line[: line.index(" ")], line[line.index(" ") + 1 :]
+            transcript_text = text.lower().strip()
+
+            # Convert FLAC file to WAV
+            flac_file = os.path.join(root, id + ".flac")
+            wav_file = os.path.join(dst_folder, id + ".wav")
+            if not os.path.exists(wav_file):
+                Transformer().build(flac_file, wav_file)
+            # check duration
+            duration = subprocess.check_output("soxi -D {0}".format(wav_file), shell=True)
+
+            entry = {}
+            entry['audio_filepath'] = os.path.abspath(wav_file)
+            entry['duration'] = float(duration)
+            entry['text'] = transcript_text
+            entries.append(entry)
+    return entries
+
+
+def __process_data(data_folder: str, dst_folder: str, manifest_file: str, num_workers: int):
     """
     Converts flac to wav and build manifests's json
     Args:
         data_folder: source with flac files
         dst_folder: where wav files will be stored
         manifest_file: where to store manifest
+        num_workers: number of parallel workers processing files
     Returns:
     """
 
@@ -93,27 +129,13 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
 
     for root, dirnames, filenames in os.walk(data_folder):
         for filename in fnmatch.filter(filenames, '*.trans.txt'):
-            files.append((os.path.join(root, filename), root))
+            files.append(os.path.join(root, filename))
 
-    for transcripts_file, root in tqdm(files):
-        with open(transcripts_file, encoding="utf-8") as fin:
-            for line in fin:
-                id, text = line[: line.index(" ")], line[line.index(" ") + 1 :]
-                transcript_text = text.lower().strip()
-
-                # Convert FLAC file to WAV
-                flac_file = os.path.join(root, id + ".flac")
-                wav_file = os.path.join(dst_folder, id + ".wav")
-                if not os.path.exists(wav_file):
-                    Transformer().build(flac_file, wav_file)
-                # check duration
-                duration = subprocess.check_output("soxi -D {0}".format(wav_file), shell=True)
-
-                entry = {}
-                entry['audio_filepath'] = os.path.abspath(wav_file)
-                entry['duration'] = float(duration)
-                entry['text'] = transcript_text
-                entries.append(entry)
+    with multiprocessing.Pool(num_workers) as p:
+        processing_func = functools.partial(__process_transcript, dst_folder=dst_folder)
+        results = p.imap(processing_func, files)
+        for result in tqdm(results, total=len(files)):
+            entries.extend(result)
 
     with open(manifest_file, 'w') as fout:
         for m in entries:
@@ -123,6 +145,7 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
 def main():
     data_root = args.data_root
     data_sets = args.data_sets
+    num_workers = args.num_workers
 
     if data_sets == "ALL":
         data_sets = "dev_clean,dev_other,train_clean_100,train_clean_360,train_other_500,test_clean,test_other"
@@ -139,6 +162,7 @@ def main():
             os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-"),),
             os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-"),) + "-processed",
             os.path.join(data_root, data_set + ".json"),
+            num_workers=num_workers,
         )
     logging.info('Done!')
 
