@@ -114,6 +114,41 @@ You can use any combination of Cutout, frequency/time SpecAugment, or none of th
 
 See the `Audio Augmentors <./api.html#Audio Augmentors>`__ API section for more details.
 
+Tokenizer Configurations
+------------------------
+
+Some models utilize sub-word encoding via an external tokenizer instead of explicitly defining their vocabulary.
+
+For such models, a ``tokenizer`` section is added  to the model config. ASR Models currently support two types of
+custom tokenizers - Google Sentencepiece tokenizers (tokenizer type of ``bpe`` in the config) or HuggingFace WordPiece tokenizers (tokenizer type of ``wpe`` in the config).
+
+In order to build custom tokenizers, please refer to the ``ASR_with_Subword_Tokenization`` notebook available in the
+ASR tutorials directory.
+
+The following example sets up a ``SentencePiece Tokenizer`` at a path specified by the user:
+
+.. code-block:: yaml
+
+  model:
+    ...
+    tokenizer:
+      dir: "<path to the directory that contains the custom tokenizer files>"
+      type: "bpe"  # can be "bpe" or "wpe"
+
+For models which utilize sub-word tokenization, we share the decoder module (``ConvASRDecoder``) with character tokenization models. All parameters are shared, but for models which utilize sub-word encoding, there are minor differences when setting up the config. For such models, the tokenizer is utilized to fill in the missing information when the model is constructed automatically.
+
+For example, a decoder config corresponding to a sub-word tokenization model would look like this:
+
+.. code-block:: yaml
+
+  model:
+    ...
+    decoder:
+      _target_: nemo.collections.asr.modules.ConvASRDecoder
+      feat_in: *enc_final
+      num_classes: -1  # filled with vocabulary size from tokenizer at runtime
+      vocabulary: []  # filled with vocabulary from tokenizer at runtime
+
 
 Model Architecture Configurations
 ---------------------------------
@@ -256,3 +291,106 @@ For example, a decoder config corresponding to the encoder above would look like
       feat_in: *enc_filters
       vocabulary: *labels
       num_classes: 28   # Length of the vocabulary list
+
+Citrinet
+~~~~~~~~
+
+The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in contrast to QuartzNet. Depending on the dataset, we utilize different tokenizers. For Librispeech, we utilize the HuggingFace WordPiece tokenizer, and for all other datasets we utilize the Google Sentencepiece tokenizer - usually the ``unigram`` tokenizer type.
+
+Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed above.
+The encoder parameters include details about the Citrinet-C encoder architecture, including how many
+filters are used per channel (C). The Citrinet-C configuration is a shortform notation for Citrinet-21x5xC, such that B = 21 and R = 5 are the default and should generally not be changed.
+
+To use Citrinet instead of QuartzNet, please refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet`` directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.jasper.JasperBlock` as ``Jasper`` or ``QuartzNet`.
+
+While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Please refer to the ``JasperBlock`` documentation for the meaning of these arguments.
+
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
++=========================+==================+===============================================================================================================+=================================+
+| :code:`se`              | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                     | :code:`true` or :code:`false`   |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`se_context_size` | int              | SE context size. -1 means global context.                                                                     | :code:`-1` or :code:`+ve int`   |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`stride_last`     | bool             | Stride on the final repeated block or all repeated blocks.                                                    | :code:`true` or :code:`false`   |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`residual_mode`   | str              | | Type of residual branch to construct.                                                                       | :code:`"add"` or                |
+|                         |                  | | Can be pointwise residual addition or pointwise strided residual attention                                  | :code:`"stride_add"`            |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+
+A Citrinet-512 config might look like below.
+
+.. code-block:: yaml
+
+  model:
+    ...
+    # Specify some defaults across the entire model
+    model_defaults:
+      repeat: 5
+      dropout: 0.1
+      separable: true
+      se: true
+      se_context_size: -1
+    ...
+    encoder:
+      _target_: nemo.collections.asr.modules.ConvASREncoder
+      feat_in: *n_mels  # Should match "features" in the preprocessor.
+      activation: relu
+      conv_mask: true
+
+      jasper:   # This field name should be "jasper" for the JasperBlock (which constructs Citrinet).
+
+      # Prologue block
+      - filters: 512
+        repeat: 1
+        kernel: [5]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: false
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      # Block 1
+      - filters: 512
+        repeat: ${model.model_defaults.repeat}
+        kernel: [11]
+        stride: [2]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
+
+      ... # Entries for blocks 2~21
+
+      # Block 22
+      - filters: 512
+        repeat: ${model.model_defaults.repeat}
+        kernel: [39]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      # Epilogue block
+
+      - filters: &enc_final 640
+        repeat: 1
+        kernel: [41]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: false
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+As discussed above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be changed slightly as Citrinet is utilizes sub-word tokenization.

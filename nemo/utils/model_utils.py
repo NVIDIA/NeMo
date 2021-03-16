@@ -463,5 +463,5 @@ def resolve_subclass_pretrained_model_info(base_class) -> List['PretrainedModelI
 
     recursive_subclass_walk(base_class)
 
-    list_of_models = list(list_of_models)
+    list_of_models = list(sorted(list_of_models))
     return list_of_models

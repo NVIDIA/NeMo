@@ -218,9 +218,9 @@ class SqueezeWaveModel(GlowVocoder):
         """
         list_of_models = []
         model = PretrainedModelInfo(
-            pretrained_model_name="SqueezeWave-22050Hz",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemottsmodels/versions/1.0.0a5/files/SqueezeWave-22050Hz.nemo",
-            description="This model is trained on LJSpeech sampled at 22050Hz, and can be used as an universal vocoder.",
+            pretrained_model_name="tts_squeezewave",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_squeezewave/versions/1.0.0rc1/files/tts_squeezewave.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)
