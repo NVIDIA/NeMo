@@ -11,11 +11,15 @@ NVIDIA NeMo Developer Guide
    introduction/tutorials
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 8
    :caption: Automatic Speech Recognition
    :name: Automatic Speech Recognition
 
    asr/intro
+
+   :name: Speaker Recognition
+   
+   asr/speaker_recognition/intro
 
 .. toctree::
    :maxdepth: 2
