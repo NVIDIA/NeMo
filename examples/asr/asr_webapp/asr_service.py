@@ -22,6 +22,7 @@ import time
 
 from uuid import uuid4
 from flask import Flask, json, request, render_template, url_for, make_response
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from html import unescape
 
@@ -29,8 +30,9 @@ from nemo.utils import logging
 import model_api
 
 app = Flask(__name__)
+CORS(app)
+
 app.config[f'UPLOAD_FOLDER'] = f"tmp/"
-app.config[f'WORKER_UUIDS'] = {}
 
 
 @app.route('/initialize_model', methods=['POST'])
