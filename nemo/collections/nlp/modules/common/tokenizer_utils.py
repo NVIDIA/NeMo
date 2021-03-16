@@ -138,4 +138,4 @@ def get_nmt_tokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens_dict
         )
     else:
-        raise NotImplementedError('Currently we only support "yttm" and "huggingface" tokenizer library.')
+        raise NotImplementedError('Currently we only support "yttm", "huggingface", and "sentencepiece" tokenizer library.')

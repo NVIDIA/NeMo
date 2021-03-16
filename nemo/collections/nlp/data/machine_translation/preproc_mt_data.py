@@ -521,15 +521,15 @@ class MTDataPreproc:
         decoder_tokenizer_model = None
         os.makedirs(out_dir, exist_ok=True)
 
-        supported_tokenizers = ['yttm', 'sentencepiece']
+        supported_train_tokenizers = ['yttm', 'sentencepiece']
 
         if shared_tokenizer:
             if (
-                encoder_tokenizer_name not in supported_tokenizers
-                or decoder_tokenizer_name not in supported_tokenizers
+                encoder_tokenizer_name not in supported_train_tokenizers
+                or decoder_tokenizer_name not in supported_train_tokenizers
             ):
                 raise NotImplementedError(
-                    f"Currently we only support tokenizers in {supported_tokenizers} for shared tokenizer."
+                    f"Currently we only support tokenizers in {supported_train_tokenizers} for shared tokenizer."
                 )
 
             encoder_tokenizer_model = os.path.join(
@@ -571,7 +571,7 @@ class MTDataPreproc:
                                 os.path.join(out_dir, encoder_tokenizer_model),
                             )
         else:
-            if encoder_tokenizer_name in supported_tokenizers:
+            if encoder_tokenizer_name in supported_train_tokenizers:
                 encoder_tokenizer_model = os.path.join(
                     out_dir, 'tokenizer.encoder.%d.BPE.model' % (encoder_tokenizer_vocab_size)
                 )
@@ -605,7 +605,7 @@ class MTDataPreproc:
                             )
                             os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(encoder_tokenizer_model))
 
-            if decoder_tokenizer_name in supported_tokenizers:
+            if decoder_tokenizer_name in supported_train_tokenizers:
                 decoder_tokenizer_model = os.path.join(
                     out_dir, 'tokenizer.decoder.%d.BPE.model' % (decoder_tokenizer_vocab_size)
                 )
