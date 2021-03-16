@@ -512,8 +512,8 @@ class TokenClassificationModel(NLPModel):
         """
         result = []
         model = PretrainedModelInfo(
-            pretrained_model_name="NERModel",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemonlpmodels/versions/1.0.0a5/files/NERModel.nemo",
+            pretrained_model_name="ner_en_bert",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ner_en_bert/versions/1.0.0rc1/files/ner_en_bert.nemo",
             description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and achieves 74.61 F1 Macro score.",
         )
         result.append(model)
