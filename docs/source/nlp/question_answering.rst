@@ -1,4 +1,4 @@
-.. _token_classification:
+.. _question_answering:
 
 Question Answering Model
 =====================================================
@@ -156,65 +156,23 @@ More details about parameters in the spec file could be found below:
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | do_training                               | bool            | true                                                                             | If true kicks off training otherwise skips training and continues with evaluation/inference                  |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| trainer.max_epochs                        | integer         | 2                                                                                | The number of epochs to train                                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.dataset.version_2_with_negative     | bool            | false                                                                            | Set to true to allow examples without an answer, e.g. for SQuADv2.0                                          |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.dataset.do_lower_case               | bool            | true                                                                             | If true converts text to lower case, only import for inference/evaluation                                    |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.dataset.use_cache                   | bool            | true                                                                             | If true either loads all preprocessed data from cache or saves preprocessed data for future use              |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_name            | string          | Will be filled automatically based on model.language_model.pretrained_model_name | The tokenizer name                                                                                           |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.vocab_file                | string          | null                                                                             | The path to tokenizer vocabulary                                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.tokenizer_model           | string          | null                                                                             | The path to tokenizer model (for sentencepiece tokenizer only)                                               |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.tokenizer.special_tokens            | string          | null                                                                             | Special tokens for the tokenizer (if they exist)                                                             |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.pretrained_model_name| string          | bert-base-uncased                                                                | The pre-trained language model name (e.g., `bert-base-cased` or `bert-base-uncased`)                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.lm_checkpoint        | string          | null                                                                             | The path to the pre-trained language model checkpoint                                                        |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config_file          | string          | null                                                                             | The path to the pre-trained language model config file                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.language_model.config               | dictionary      | null                                                                             | The config of the pre-trained language model, subordinate to config file                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.token_classifier.num_layers         | integer         | 1                                                                                | The number of fully connected layers of the Classifier on top of the Bert model                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.token_classifier.dropout            | float           | 0.0                                                                              | The dropout ratio of the fully connected layers                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.token_classifier.num_classes        | integer         | 2                                                                                | The number of Classifiers (two for QA, i.e. start and end position)                                          |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.token_classifier.activation         | string          | relu                                                                             | The activation function to use                                                                               |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.token_classifier.log_softmax        | boolean         | false                                                                            | A flag specifying whether to use log soft max                                                                |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | training_ds.file                          | string          | --                                                                               | The training file path                                                                                       |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.batch_size                    | integer         | 24                                                                               | The training data batch size                                                                                 |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| training_ds.shuffle                       | bool            | true                                                                             | A flag specifying whether to shuffle the training data                                                       |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | training_ds.num_samples                   | integer         | -1                                                                               | The number of samples to use from the training dataset (use -1 to specify all samples)                       |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | validation_ds.file                        | string          | --                                                                               | The validation file path                                                                                     |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.batch_size                  | integer         | 12                                                                               | The validation data batch size                                                                               |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| validation_ds.shuffle                     | bool            | false                                                                            | A flag specifying whether to shuffle the validation data                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | validation_ds.num_samples                 | integer         | -1                                                                               | The number of samples to use from the validation dataset (use -1 to specify all samples)                     |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.name                                | string          | adamw                                                                            | The optimizer to use for training                                                                            |
+| test_ds.file                              | string          | null                                                                             | The test file path (optional)                                                                                |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.lr                                  | float           | 2e-5                                                                             | The learning rate to use for training                                                                        |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.weight_decay                        | float           | 0.0                                                                              | The weight decay to use for training                                                                         |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.sched.name                          | string          | SquareRootAnnealing                                                              | The warmup schedule                                                                                          |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| optim.sched.warmup_ratio                  | float           | 0.0                                                                              | The warmup ratio                                                                                             |
+| test_ds.num_samples                       | integer         | -1                                                                               | The number of samples to use from the test dataset (use -1 to specify all samples)                           |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 
 Example of the command for training the model:
@@ -225,7 +183,7 @@ Example of the command for training the model:
            model.train_ds.file=<PATH_TO_TRAIN_DATA_FILE>  \
            model.validation_ds.file=<PATH_TO_VALIDATION_DATA_FILE>  \
            model.dataset.version_2_with_negative=<ALLOW_UNANSWERABLE_SAMPLES>  \
-           model.dataset.do_lower_case=<DO_LOWER_CASE>  \
+           model.dataset.do_lower_case=<DO_LOWER_CASE> \
            trainer.max_epochs=<NUM_EPOCHS> \
            trainer.gpus=[<CHANGE_TO_GPU(s)_YOU_WANT_TO_USE>]
 
@@ -239,35 +197,6 @@ Required Arguments for Training
 * :code:`model.train_ds.file`: Path to the training file in JSON format.
 * :code:`model.validation_ds.file`: Path to the validation file in JSON format.
 
-Optional Arguments
-^^^^^^^^^^^^^^^^^^
-
-* Other arguments to override fields in the specification file.
-
-.. note::
-
-    While the arguments are defined in the spec file, if you wish to override these parameter definitions in the spec file \
-    and experiment with them, you may do so over command line by simple defining the param. \
-    For example, the sample spec file mentioned above has :code:`validation_ds.batch_size` set to 24. \
-    However, if you see that the GPU utilization can be optimized further by using larger a batch size, \
-    you may override to the desired value, by adding the field :code:`validation_ds.batch_size=128` over command line.
-    You may repeat this with any of the parameters defined in the sample spec file.
-
-Important parameters
-^^^^^^^^^^^^^^^^^^^^
-
-Below is the list of parameters could help improve the model:
-
-- language model (`model.language_model.pretrained_model_name`)
-    - pre-trained language model name, such as:
-    - `megatron-bert-345m-uncased`, `megatron-bert-345m-cased`, `biomegatron-bert-345m-uncased`, `biomegatron-bert-345m-cased`, `bert-base-uncased`, `bert-large-uncased`, `bert-base-cased`, `bert-large-cased`
-    - `distilbert-base-uncased`, `distilbert-base-cased`,
-    - `roberta-base`, `roberta-large`, `distilroberta-base`
-    - `albert-base-v1`, `albert-large-v1`, `albert-xlarge-v1`, `albert-xxlarge-v1`, `albert-base-v2`, `albert-large-v2`, `albert-xlarge-v2`, `albert-xxlarge-v2`
-
-- dataset parameters (`model.dataset.version_2_with_negative`, `model.dataset.do_lower_case`)
-- optimizer (`model.optim.name`, for example, `adamw`)
-- learning rate (`model.optim.lr`, for example, `2e-5`)
 
 Fine-tuning Procedure
 ^^^^^^^^^^^^^^^^^^^^^
@@ -328,7 +257,7 @@ During evaluation of the :code:`test_ds`, the script generates the following met
 * :code:`Exact Match (EM)`
 * :code:`F1`
 
-More details about these metrics could be found `here <https://en.wikipedia.org/wiki/Precision_and_recall>`__.
+More details about these metrics could be found `here <https://en.wikipedia.org/wiki/F-score>`__.
 
 References
 ----------
