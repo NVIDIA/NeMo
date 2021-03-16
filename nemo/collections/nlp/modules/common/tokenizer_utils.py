@@ -113,18 +113,29 @@ def get_nmt_tokenizer(
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
     """
+    if special_tokens is None:
+        special_tokens_dict = {}
+    else:
+        special_tokens_dict = special_tokens
+
     if library == 'yttm':
         logging.info(f'Getting YouTokenToMeTokenizer with model: {tokenizer_model}.')
         return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
-
     elif library == 'huggingface':
-        if special_tokens is None:
-            special_tokens_dict = {}
-        else:
-            special_tokens_dict = special_tokens
         logging.info(f'Getting HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
         return AutoTokenizer(
             pretrained_model_name=model_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
+        )
+    elif library == 'sentencepiece':
+        logging.info(f'Getting SentencePiece with model: {model_name}')
+        special_nmt = {
+            "pad_token": "<pad>",
+            "bos_token": "<s>",
+            "eos_token": "</s>",
+        }
+        special_tokens_dict.update(special_nmt)
+        return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
+            model_path=tokenizer_model, special_tokens=special_tokens_dict
         )
     else:
         raise NotImplementedError('Currently we only support "yttm" and "huggingface" tokenizer library.')

@@ -16,6 +16,7 @@ import os
 import re
 from typing import Dict, List, Optional, Union
 
+import numpy as np
 import sentencepiece
 
 from nemo.collections.common.parts.utils import if_exist
@@ -105,17 +106,11 @@ class SentencePieceTokenizer(TokenizerSpec):
         return self.tokenizer.decode_pieces(tokens)
 
     def ids_to_text(self, ids):
-        text = ""
-        last_i = 0
+        if isinstance(ids, np.ndarray):
+            ids = ids.tolist()
 
-        for i, id in enumerate(ids):
-            if id in self.id_to_special_token:
-                text += self.tokenizer.decode_ids(ids[last_i:i]) + " "
-                text += self.id_to_special_token[id] + " "
-                last_i = i + 1
-
-        text += self.tokenizer.decode_ids(ids[last_i:])
-        return text.strip()
+        ids_ = [id_ for id_ in ids if id_ not in self.id_to_special_token]
+        return self.tokenizer.decode_ids(ids_)
 
     def token_to_id(self, token):
         if token in self.special_token_to_id:
@@ -179,6 +174,10 @@ class SentencePieceTokenizer(TokenizerSpec):
     @property
     def cls_id(self):
         return self.tokens_to_ids([self.cls_token])[0]
+
+    @property
+    def unk_id(self):
+        return self.tokenizer.unk_id()
 
 
 def create_spt_model(

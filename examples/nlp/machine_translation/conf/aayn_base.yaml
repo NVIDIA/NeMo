@@ -78,6 +78,7 @@ model:
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
 
   decoder_tokenizer:
     library: yttm
@@ -86,6 +87,7 @@ model:
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
 
   encoder:
     library: nemo

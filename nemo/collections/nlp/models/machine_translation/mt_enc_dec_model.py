@@ -273,7 +273,7 @@ class MTEncDecModel(EncDecNLPModel):
         decoder_model_name=None,
     ):
 
-        supported_tokenizers = ['yttm', 'huggingface']
+        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece']
         if (
             encoder_tokenizer_library not in supported_tokenizers
             or decoder_tokenizer_library not in supported_tokenizers
