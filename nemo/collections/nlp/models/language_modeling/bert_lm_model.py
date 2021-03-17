@@ -29,7 +29,7 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
