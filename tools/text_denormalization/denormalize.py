@@ -18,60 +18,84 @@ from collections import OrderedDict
 from typing import List
 
 import pynini
-from denormalization.taggers.tokenize_and_classify import ClassifyFst
-from denormalization.token_parser import TokenParser
-from denormalization.verbalizers.verbalize import VerbalizeFst
+from denormalization.taggers.tokenize_and_classify_final import ClassifyFinalFst
+from denormalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
+from denormalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from tqdm import tqdm
 
-tagger = ClassifyFst()
-verbalizer = VerbalizeFst()
+tagger = ClassifyFinalFst()
+verbalizer = VerbalizeFinalFst()
 parser = TokenParser()
 
 
-def reorder_from_string_of_tokens(text: str) -> List[str]:
+def _permute(d: OrderedDict) -> List[str]:
     """
-    reorder fields within tokenized string of tokens
-    Args
-        text: tokenized string of tokens
-    Returns list of reordered strings
-    """
+    Creates reorderings of dictionary elements and serializes as strings
 
-    def reorder(d: OrderedDict) -> List[str]:
-        """
-        create reorderings of dictionary elements and serialize as strings
-        Args:
-            d: dictionary of tokens
-        Return permutations of different string serializations of given dictionary
-        """
-        l = []
+    Args:
+        d: (nested) dictionary of key value pairs
+
+    Return permutations of different string serializations of key value pairs
+    """
+    l = []
+    if PRESERVE_ORDER_KEY in d.keys():
+        d_permutations = [d.items()]
+    else:
         d_permutations = itertools.permutations(d.items())
-        for perm in d_permutations:
-            subl = [""]
-            for k, v in perm:
-                if isinstance(v, str):
-                    subl = ["".join(x) for x in itertools.product(subl, [f"{k}: \"{v}\" "])]
-                elif isinstance(v, OrderedDict):
-                    rec = reorder(v)
-                    subl = ["".join(x) for x in itertools.product(subl, [f" {k} {{ "], rec, [f" }} "])]
-                else:
-                    raise ValueError()
-            l.extend(subl)
-        return l
+    for perm in d_permutations:
+        subl = [""]
+        for k, v in perm:
+            if isinstance(v, str):
+                subl = ["".join(x) for x in itertools.product(subl, [f"{k}: \"{v}\" "])]
+            elif isinstance(v, OrderedDict):
+                rec = _permute(v)
+                subl = ["".join(x) for x in itertools.product(subl, [f" {k} {{ "], rec, [f" }} "])]
+            elif isinstance(v, bool):
+                subl = ["".join(x) for x in itertools.product(subl, [f"{k}: true "])]
+            else:
+                raise ValueError()
+        l.extend(subl)
+    return l
 
-    parser(text)
-    tokens = parser.parse()
-    l = [""]
-    for i in range(len(tokens)):
-        reorders = reorder(tokens[i])
-        l = ["".join(x) for x in itertools.product(l, reorders)]
-    return list(l)
+
+def generate_permutations(tokens: List[dict]):
+    """
+    Generates permutations of string serializations of list of dictionaries
+
+    Args:
+        tokens: list of dictionaries
+
+    Returns string serialization of list of dictionaries
+    """
+
+    def _helper(prefix: str, tokens: List[dict], idx: int):
+        """
+        Generates permutations of string serializations of given dictionary
+
+        Args:
+            tokens: list of dictionaries
+            prefix: prefix string
+            idx:    index of next dictionary
+
+        Returns string serialization of dictionary
+        """
+        if idx == len(tokens):
+            yield prefix
+            return
+        token_options = _permute(tokens[idx])
+        for token_option in token_options:
+            yield from _helper(prefix + token_option, tokens, idx + 1)
+
+    return _helper("", tokens, 0)
 
 
 def find_tags(text: str) -> pynini.FstLike:
     """
     Given text use tagger Fst to tag text
+
     Args:
         text: sentence
+
     Returns: tagged lattice
     """
     lattice = text @ tagger.fst
@@ -81,8 +105,10 @@ def find_tags(text: str) -> pynini.FstLike:
 def select_tag(lattice: pynini.FstLike) -> str:
     """
     Given tagged lattice return shortest path
+
     Args:
         tagged_text: tagged text
+
     Returns: shortest path
     """
     tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
@@ -93,8 +119,10 @@ def find_verbalizer(tagged_text: str) -> pynini.FstLike:
     """
     Given tagged text, e.g. token {name: ""} token {money {fractional: ""}}, creates verbalization lattice
     This is context-independent.
+
     Args:
         tagged_text: input text
+
     Returns: verbalized lattice
     """
     lattice = tagged_text @ verbalizer.fst
@@ -104,8 +132,10 @@ def find_verbalizer(tagged_text: str) -> pynini.FstLike:
 def select_verbalizer(lattice: pynini.FstLike) -> str:
     """
     Given verbalized lattice return shortest path
+
     Args:
         lattice: verbalization lattice
+
     Returns: shortest path
     """
     output = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
@@ -116,15 +146,19 @@ def denormalize(text: str, verbose: bool) -> str:
     """
     main function. normalizes spoken tokens in given text to its written form
         e.g. twelve kilograms -> 12 kg
+
     Args:
         text: string that may include semiotic classes.
+
     Returns: written form
     """
 
     text = pynini.escape(text)
     tagged_lattice = find_tags(text)
     tagged_text = select_tag(tagged_lattice)
-    tags_reordered = reorder_from_string_of_tokens(tagged_text)
+    parser(tagged_text)
+    tokens = parser.parse()
+    tags_reordered = generate_permutations(tokens)
     for tagged_text in tags_reordered:
         tagged_text = pynini.escape(tagged_text)
         verbalizer_lattice = find_verbalizer(tagged_text)
@@ -140,8 +174,10 @@ def denormalize(text: str, verbose: bool) -> str:
 def denormalize_identity(texts: List[str], verbose=False) -> List[str]:
     """
     Identity function. Returns input unchanged
+
     Args:
         texts: input strings
+
     Returns input strings
     """
     return texts
@@ -150,8 +186,10 @@ def denormalize_identity(texts: List[str], verbose=False) -> List[str]:
 def denormalize_nemo(texts: List[str], verbose=False) -> List[str]:
     """
     NeMo inverse text normalizer
+
     Args:
         texts: input strings
+
     Returns converted input strings
     """
     res = []

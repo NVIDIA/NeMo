@@ -62,6 +62,7 @@ def load_kaggle_text_norm_file(file_path: str) -> List[Instance]:
 
     Args:
         file_path: file path to text file
+
     Returns: flat list of instances 
     """
     res = []
@@ -82,9 +83,11 @@ def load_kaggle_text_norm_file(file_path: str) -> List[Instance]:
 def load_files(file_paths: List[str], load_func=load_kaggle_text_norm_file) -> List[Instance]:
     """
     Load given list of text files using the `load_func` function.
+
     Args: 
         file_paths: list of file paths
         load_func: loading function
+
     Returns: flat list of instances
     """
     res = []
@@ -96,8 +99,10 @@ def load_files(file_paths: List[str], load_func=load_kaggle_text_norm_file) -> L
 def clean_generic(text: str) -> str:
     """
     Cleans text without affecting semiotic classes.
+
     Args:
         text: string
+
     Returns: cleaned string
     """
     text = text.strip()
@@ -108,11 +113,13 @@ def clean_generic(text: str) -> str:
 def evaluate(preds: List[str], labels: List[str], input: Optional[List[str]] = None, verbose: bool = True) -> float:
     """
     Evaluates accuracy given predictions and labels. 
+
     Args:
         preds: predictions
         labels: labels
         input: optional, only needed for verbosity
         verbose: if true prints [input], golden labels and predictions
+
     Returns accuracy
     """
     acc = 0
@@ -135,9 +142,11 @@ def training_data_to_tokens(
 ) -> Dict[str, Tuple[List[str], List[str]]]:
     """
     Filters the instance list by category if provided and converts it into a map from token type to list of un_normalized and normalized strings
+
     Args:
         data: list of instances
         category: optional semiotic class category name
+
     Returns Dict: token type -> (list of un_normalized strings, list of normalized strings)
     """
     result = defaultdict(lambda: ([], []))
@@ -179,8 +188,10 @@ def training_data_to_sentences(data: List[Instance]) -> Tuple[List[str], List[st
 def load_labels(rel_path):
     """
     loads relative path file as dictionary
+
     Args:
         rel_path: relative path
+
     Returns dictionary of mappings
     """
     label_tsv = open(get_abs_path(rel_path))
@@ -191,8 +202,10 @@ def load_labels(rel_path):
 def get_abs_path(rel_path):
     """
     Get absolute path
+
     Args:
         rel_path: relative path to this file
+        
     Returns absolute path
     """
     return os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path

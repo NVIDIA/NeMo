@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +29,7 @@ class CardinalFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="cardinal", kind="classify")
+        # integer, negative
 
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
@@ -48,23 +48,50 @@ class CardinalFst(GraphFst):
         graph_hundred_component_at_least_one_none_zero_digit = graph_hundred_component @ (
             pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)
         )
+        self.graph_hundred_component_at_least_one_none_zero_digit = (
+            graph_hundred_component_at_least_one_none_zero_digit
+        )
 
         graph_thousands = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynini.cross("thousand", ""),
-            pynutil.insert("000"),
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("thousand"),
+            pynutil.insert("000", weight=0.1),
         )
 
         graph_million = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynini.cross("million", ""),
-            pynutil.insert("000"),
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("million"),
+            pynutil.insert("000", weight=0.1),
+        )
+        graph_billion = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("billion"),
+            pynutil.insert("000", weight=0.1),
         )
         graph_trillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynini.cross("trillion", ""),
-            pynutil.insert("000"),
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("trillion"),
+            pynutil.insert("000", weight=0.1),
+        )
+        graph_quadrillion = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("quadrillion"),
+            pynutil.insert("000", weight=0.1),
+        )
+        graph_quintillion = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("quintillion"),
+            pynutil.insert("000", weight=0.1),
+        )
+        graph_sextillion = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("sextillion"),
+            pynutil.insert("000", weight=0.1),
         )
 
         graph = pynini.union(
-            graph_trillion
+            graph_sextillion
+            + delete_space
+            + graph_quintillion
+            + delete_space
+            + graph_quadrillion
+            + delete_space
+            + graph_trillion
+            + delete_space
+            + graph_billion
             + delete_space
             + graph_million
             + delete_space
@@ -74,12 +101,16 @@ class CardinalFst(GraphFst):
             graph_zero,
         )
 
+        # graph = pynutil.add_weight(graph, weight=-1) | (pynutil.insert("one ") + (graph_hundred_component_at_least_one_none_zero_digit | graph_thousands ))
+
         graph = graph @ pynini.union(
             pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
         )
 
         labels_exception = [num_to_word(x) for x in range(0, 13)]
         graph_exception = pynini.union(*labels_exception)
+
+        graph = pynini.cdrewrite(pynutil.delete("and"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA) @ graph
 
         self.graph_no_exception = graph
 

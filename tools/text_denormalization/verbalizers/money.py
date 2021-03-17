@@ -21,41 +21,18 @@ from pynini.lib import pynutil
 class MoneyFst(GraphFst):
     """
     Finite state transducer for verbalizing money
-        e.g. tokens { money { amount { integer_part: "12" } currency: "$" } } -> $12
+        e.g. tokens { money { integer_part: "12" fractional_part: 05 currency: "$" } } -> $12.05
     """
 
     def __init__(self):
         super().__init__(name="money", kind="verbalize")
-        integer = (
-            pynutil.delete("integer_part:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        point = pynutil.insert(".")
-        fractional = (
-            pynutil.delete("fractional_part:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
         unit = (
             pynutil.delete("currency:")
             + delete_space
             + pynutil.delete("\"")
-            + pynini.closure(NEMO_CHAR, 1)
+            + pynini.closure(NEMO_CHAR - " ", 1)
             + pynutil.delete("\"")
         )
-        graph = (
-            unit
-            + delete_space
-            + pynutil.delete("amount {")
-            + delete_space
-            + pynini.union(pynini.closure(integer + delete_space, 0, 1) + point + delete_space + fractional, integer)
-            + delete_space
-            + pynutil.delete("}")
-        )
+        graph = unit + delete_space + decimal.numbers
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

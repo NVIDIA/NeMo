@@ -19,15 +19,17 @@ from denormalize import DENORMALIZERS
 
 
 '''
-Runs denormalization on text data
+Runs denormalization prediction on text data
 '''
 
 
 def load_file(file_path: str) -> List[str]:
     """
     Load given text file into list of string.
+
     Args: 
         file_path: file path
+
     Returns: flat list of string
     """
     res = []
@@ -41,9 +43,11 @@ def load_file(file_path: str) -> List[str]:
 def write_file(file_path: str, data: List[str]):
     """
     Writes out list of string to file.
+
     Args:
         file_path: file path
         data: list of string
+        
     """
     with open(file_path, 'w') as fp:
         for line in data:

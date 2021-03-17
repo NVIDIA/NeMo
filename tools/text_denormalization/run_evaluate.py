@@ -16,6 +16,7 @@ from argparse import ArgumentParser
 
 from data_loader_utils import evaluate, known_types, load_files, training_data_to_sentences, training_data_to_tokens
 from denormalize import DENORMALIZERS
+from clean_eval_data import filter_loaded_data
 
 
 '''
@@ -41,6 +42,7 @@ def parse_args():
         default=None,
         choices=known_types,
     )
+    parser.add_argument("--filter", action='store_true', help="clean data for denormalization purposes")
     return parser.parse_args()
 
 
@@ -51,6 +53,9 @@ if __name__ == "__main__":
 
     print("Loading training data: " + file_path)
     training_data = load_files([file_path])
+
+    if args.filter:
+        training_data = filter_loaded_data(training_data)
 
     if args.category is None:
         print("Sentence level evaluation...")

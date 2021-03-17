@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +29,5 @@ class WhiteListFst(GraphFst):
         super().__init__(name="whitelist", kind="classify")
 
         whitelist = pynini.string_file(get_abs_path("data/whitelist.tsv")).invert()
-        whitelist = pynutil.add_weight(whitelist, weight=-10)
-        graph = pynutil.insert("name: \"") + whitelist + pynutil.insert("\"")
+        graph = pynutil.insert("name: \"") + convert_space(whitelist) + pynutil.insert("\"")
         self.fst = graph.optimize()

@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,59 +33,61 @@ class TimeFst(GraphFst):
         super().__init__(name="time", kind="classify")
         # hours, minutes, seconds, suffix, zone, style, speak_period
 
-        suffix_graph = pynini.string_file(get_abs_path("data/time.tsv"))
+        suffix_graph = pynini.string_file(get_abs_path("data/time_suffix.tsv"))
+        time_zone_graph = pynini.invert(pynini.string_file(get_abs_path("data/time_zone.tsv")))
 
-        cardinal = CardinalFst().graph_no_exception
+        # only used for < 1000 thousand -> 0 weight
+        cardinal = pynutil.add_weight(CardinalFst().graph_no_exception, weight=-0.7)
 
-        labels_hour = [num_to_word(x) for x in range(1, 13)]
+        labels_hour = [num_to_word(x) for x in range(0, 24)]
         labels_minute_single = [num_to_word(x) for x in range(1, 10)]
         labels_minute_double = [num_to_word(x) for x in range(10, 60)]
 
         graph_hour = pynini.union(*labels_hour) @ cardinal
 
         graph_minute_single = pynini.union(*labels_minute_single) @ cardinal
-
         graph_minute_double = pynini.union(*labels_minute_double) @ cardinal
-
         graph_minute_verbose = pynini.cross("half", "30") | pynini.cross("quarter", "15")
+        oclock = pynini.cross(pynini.union("o' clock", "o clock", "o'clock", "oclock"), "")
 
-        oclock = pynini.cross(pynini.union("o' clock", "o clock", "o'clock"), "")
+        final_graph_hour = pynutil.insert("hours: \"") + graph_hour + pynutil.insert("\"")
+        final_graph_minute = (
+            pynutil.insert("minutes: \"")
+            + (
+                pynutil.insert("00")
+                | oclock + pynutil.insert("00")
+                | pynutil.delete("o") + delete_space + graph_minute_single
+                | graph_minute_double
+            )
+            + pynutil.insert("\"")
+        )
+        final_suffix = pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\"")
+        final_suffix_optional = pynini.closure(delete_space + insert_space + final_suffix, 0, 1)
+        final_time_zone_optional = pynini.closure(
+            delete_space
+            + insert_space
+            + pynutil.insert("zone: \"")
+            + convert_space(time_zone_graph)
+            + pynutil.insert("\""),
+            0,
+            1,
+        )
 
         # five o' clock
         # two o eight, two thiry five (am/pm)
         # two pm/am
-        graph1 = (
-            pynutil.insert("hours: \"")
-            + graph_hour
-            + pynutil.insert("\"")
-            + delete_space
-            + pynini.union(
-                oclock,
-                pynini.cross("o", "")
-                + delete_extra_space
-                + pynutil.insert("minutes: \"")
-                + graph_minute_single
-                + pynutil.insert("\""),
-                delete_extra_space + pynutil.insert("minutes: \"") + graph_minute_double + pynutil.insert("\""),
-            )
-            + (delete_extra_space + pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\""))
-            ** (0, 1)
-        )
-        # 10 to three, 10 past four, quarter past four, half past four
-        graph2 = (
+        graph_hm = final_graph_hour + delete_extra_space + final_graph_minute
+        # 10 past four, quarter past four, half past four
+        graph_mh = (
             pynutil.insert("minutes: \"")
             + pynini.union(graph_minute_single, graph_minute_double, graph_minute_verbose)
             + pynutil.insert("\"")
             + delete_space
-            + (pynini.cross("to", "") | pynini.cross("past", ""))
+            + pynutil.delete("past")
             + delete_extra_space
-            + pynutil.insert("hours: \"")
-            + graph_hour
-            + pynutil.insert("\"")
-            + (delete_extra_space + pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\""))
-            ** (0, 1)
+            + final_graph_hour
         )
-        final_graph = pynini.union(graph1, graph2).optimize()
+        final_graph = ((graph_hm | graph_mh) + final_suffix_optional + final_time_zone_optional).optimize()
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

@@ -19,30 +19,29 @@ from pynini.lib import pynutil
 
 
 class DateFst(GraphFst):
+    """
+    Finite state transducer for verbalizing date
+        e.g. tdate { month: "january" day: "5" year: "2012" preserve_order: true } -> february 5 2012
+    """
+
     def __init__(self):
         super().__init__(name="date", kind="verbalize")
-        optional_month = (
+        month = (
             pynutil.delete("month:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
-            + pynini.accep(" ")
         )
-        optional_day = (
+        day = (
             pynutil.delete("day:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
-            + pynini.accep(" ")
         )
-
-        # month day year
-        graph1 = (
-            pynini.closure(optional_month)
-            + pynini.closure(optional_day)
-            + pynutil.delete("year:")
+        year = (
+            pynutil.delete("year:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
@@ -50,17 +49,27 @@ class DateFst(GraphFst):
             + pynutil.delete("\"")
         )
 
-        # day month year
-        graph2 = (
-            pynini.closure(optional_day)
-            + pynini.closure(optional_month)
-            + pynutil.delete("year:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + delete_space
-            + pynutil.delete("\"")
+        # month (day) year
+        graph_mdy = (
+            month + pynini.closure(delete_extra_space + day, 0, 1) + pynini.closure(delete_extra_space + year, 0, 1)
         )
 
-        delete_tokens = self.delete_tokens(graph1)
+        # (day) month year
+        graph_dmy = (
+            pynini.closure(day + delete_extra_space, 0, 1) + month + pynini.closure(delete_extra_space + year, 0, 1)
+        )
+
+        optional_preserve_order = pynini.closure(
+            pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
+            | pynutil.delete("field_order:")
+            + delete_space
+            + pynutil.delete("\"")
+            + NEMO_NOT_QUOTE
+            + pynutil.delete("\"")
+            + delete_space
+        )
+
+        final_graph = (graph_mdy | year | graph_dmy) + delete_space + optional_preserve_order
+
+        delete_tokens = self.delete_tokens(final_graph)
         self.fst = delete_tokens.optimize()

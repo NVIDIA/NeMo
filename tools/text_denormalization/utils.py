@@ -22,10 +22,11 @@ _inflect = inflect.engine()
 def num_to_word(x: Union[str, int]):
     """
     converts integer to spoken representation
+
     Args
         x: integer
-    Returns:
-        spoken representation 
+
+    Returns: spoken representation 
     """
     if isinstance(x, int):
         x = str(x)

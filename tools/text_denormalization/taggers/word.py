@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,12 +27,10 @@ class WordFst(GraphFst):
     def __init__(self):
         super().__init__(name="word", kind="classify")
 
-        exceptions = pynutil.add_weight(
-            pynini.string_file(get_abs_path("grammars/sentence_boundary_exceptions.txt")), weight=-10
-        )
+        exceptions = pynini.string_file(get_abs_path("data/sentence_boundary_exceptions.txt"))
         word = (
             pynutil.insert("name: \"")
-            + (pynini.closure(pynutil.add_weight(NEMO_NOT_SPACE, weight=1), 1) | convert_space(exceptions))
+            + (pynini.closure(pynutil.add_weight(NEMO_NOT_SPACE, weight=0.1), 1) | convert_space(exceptions))
             + pynutil.insert("\"")
         )
         self.fst = word.optimize()

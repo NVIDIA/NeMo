@@ -14,38 +14,30 @@
 # limitations under the License.
 
 import pynini
-from denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
-from denormalization.verbalizers.cardinal import CardinalFst
-from denormalization.verbalizers.date import DateFst
-from denormalization.verbalizers.decimal import DecimalFst
-from denormalization.verbalizers.measure import MeasureFst
-from denormalization.verbalizers.money import MoneyFst
-from denormalization.verbalizers.ordinal import OrdinalFst
+from denormalization.graph_utils import NEMO_SIGMA, GraphFst, delete_extra_space, delete_space
 from denormalization.verbalizers.punctuation import PunctuationFst
-from denormalization.verbalizers.time import TimeFst
+from denormalization.verbalizers.verbalize import VerbalizeFst
+from denormalization.verbalizers.whitelist import WhiteListFst
 from denormalization.verbalizers.word import WordFst
 from pynini.lib import pynutil
 
 
-class VerbalizeFst(GraphFst):
+class VerbalizeFinalFst(GraphFst):
     """
-    Composes other verbalizer grammars. This class will be compiled and exported to thrax FAR.
+    Finite state transducer that verbalizes an entire sentence
+        e.g. tokens { name: "its" } tokens { time { hours: "12" minutes: "30" } } tokens { name: "now" } tokens { name: "." pause_length: "PAUSE_LONG phrase_break: true type: PUNCT" }
+            -> its 12:30 now .
     """
 
     def __init__(self):
-        super().__init__(name="verbalize", kind="verbalize")
-        cardinal = CardinalFst().fst
-        ordinal = OrdinalFst().fst
-        decimal = DecimalFst().fst
-        measure = MeasureFst().fst
+        super().__init__(name="verbalize_final", kind="verbalize")
+        verbalize = VerbalizeFst().fst
         punct = PunctuationFst().fst
-        time = TimeFst().fst
+        whitelist = WhiteListFst().fst
         word = WordFst().fst
-        date = DateFst().fst
-        money = MoneyFst().fst
-        types = date | money | time | measure | ordinal | decimal | cardinal | word | punct
+        types = verbalize | word | punct
         graph = (
-            pynutil.delete("tokens", weight=-10)
+            pynutil.delete("tokens")
             + delete_space
             + pynutil.delete("{")
             + delete_space

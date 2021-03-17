@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,49 +19,78 @@ from denormalization.taggers.cardinal import CardinalFst
 from denormalization.taggers.decimal import DecimalFst
 from pynini.lib import pynutil
 
+cardinal = CardinalFst()
+decimal = DecimalFst()
+
 
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure
-        e.g. twelve kilograms -> measure { cardinal { integer: "12" } units: "kg" }
+        e.g. minus twelve kilograms -> measure { negative: "true" cardinal { integer: "12" } units: "kg" }
     """
 
     def __init__(self):
         super().__init__(name="measure", kind="classify")
         # decimal, fraction, cardinal, units, style(depr)
-        cardinal_graph = CardinalFst().graph_no_exception
-        graph_decimal = DecimalFst().graph
 
+        cardinal_graph = cardinal.graph_no_exception
+        graph_decimal = decimal.graph
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
-        graph_unit = pynini.invert(graph_unit)
-        graph_unit = get_plurals(graph_unit)
+        graph_unit_singular = pynini.invert(graph_unit)  # singular -> abbr
+        graph_unit_plural = get_singulars(graph_unit_singular)  # plural -> abbr
 
         point = pynutil.delete("point")
 
-        # optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1)
+        optional_graph_negative = pynini.closure(
+            pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1
+        )
 
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_decimal + pynutil.insert("\"")
 
-        unit = pynutil.insert("units: \"") + convert_space(graph_unit) + pynutil.insert("\"")
+        unit_singular = convert_space(graph_unit_singular)
+        unit_plural = convert_space(graph_unit_plural)
+        unit_misc = pynutil.insert("/") + pynutil.delete("per") + delete_space + convert_space(graph_unit_singular)
+
+        unit_singular = (
+            pynutil.insert("units: \"")
+            + (unit_singular | unit_misc | pynutil.add_weight(unit_singular + delete_space + unit_misc, 0.01))
+            + pynutil.insert("\"")
+        )
+        unit_plural = (
+            pynutil.insert("units: \"")
+            + (unit_plural | unit_misc | pynutil.add_weight(unit_plural + delete_space + unit_misc, 0.01))
+            + pynutil.insert("\"")
+        )
 
         subgraph_decimal = (
             pynutil.insert("decimal { ")
-            + pynini.closure(
-                pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"") + delete_extra_space, 0, 1
-            )
-            + point
-            + delete_extra_space
-            + graph_fractional
+            + optional_graph_negative
+            + decimal.final_graph_wo_negative
             + pynutil.insert(" }")
+            + delete_extra_space
+            + unit_plural
         )
         subgraph_cardinal = (
             pynutil.insert("cardinal { ")
+            + optional_graph_negative
             + pynutil.insert("integer: \"")
-            + cardinal_graph
+            + ((NEMO_SIGMA - "one") @ cardinal_graph)
             + pynutil.insert("\"")
             + pynutil.insert(" }")
+            + delete_extra_space
+            + unit_plural
+        )
+        subgraph_cardinal |= (
+            pynutil.insert("cardinal { ")
+            + optional_graph_negative
+            + pynutil.insert("integer: \"")
+            + pynini.cross("one", "1")
+            + pynutil.insert("\"")
+            + pynutil.insert(" }")
+            + delete_extra_space
+            + unit_singular
         )
         # final_graph = optional_graph_negative +  delete_extra_space + graph_integer + delete_extra_space + point + delete_extra_space + graph_fractional
-        final_graph = (subgraph_decimal | subgraph_cardinal) + delete_extra_space + unit
+        final_graph = subgraph_decimal | subgraph_cardinal
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

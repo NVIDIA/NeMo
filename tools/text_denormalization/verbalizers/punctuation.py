@@ -35,4 +35,4 @@ class PunctuationFst(GraphFst):
             + pynutil.delete("\" pause_length")
             + pynutil.delete(pynini.closure(NEMO_CHAR - "}"))
         )
-        self.fst = char
+        self.fst = char.optimize()

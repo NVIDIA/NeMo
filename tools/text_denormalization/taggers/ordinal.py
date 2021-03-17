@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,9 +32,11 @@ class OrdinalFst(GraphFst):
 
         graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
         graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv"))
+        # change to General UTF8
         graph = pynini.closure(NEMO_CHAR) + pynini.union(
             graph_digit, graph_teens, pynini.cross("tieth", "ty"), pynini.cross("th", "")
         )
+
         self.graph = graph @ cardinal_graph
         final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)

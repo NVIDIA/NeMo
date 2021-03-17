@@ -39,7 +39,7 @@ class OrdinalFst(GraphFst):
         convert_one = pynini.cross("1", "1st")
         convert_two = pynini.cross("2", "2nd")
         convert_three = pynini.cross("3", "3rd")
-        convert_rest = pynutil.insert("th", 1)
+        convert_rest = pynutil.insert("th", weight=0.01)
 
         suffix = pynini.cdrewrite(
             convert_eleven

@@ -15,56 +15,49 @@
 
 import pynini
 from denormalization.graph_utils import NEMO_CHAR, NEMO_NOT_QUOTE, GraphFst, delete_space
+from denormalization.verbalizers.cardinal import CardinalFst
+from denormalization.verbalizers.decimal import DecimalFst
 from pynini.lib import pynutil
+
+decimal = DecimalFst()
+cardinal = CardinalFst()
 
 
 class MeasureFst(GraphFst):
     """
     Finite state transducer for verbalizing measure, 
-        e.g. tokens { measure { cardinal { integer: "12" } units: "kg" } } -> 12 kg
+        e.g. tokens { measure { negative: "true" cardinal { integer: "12" } units: "kg" } } -> -12 kg
     """
 
     def __init__(self):
         super().__init__(name="measure", kind="verbalize")
-        # sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
-        integer = (
-            (pynutil.delete("integer:") | pynutil.delete("integer_part:"))
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        point = pynutil.insert(".")
-        fractional = (
-            pynutil.delete("fractional_part:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
+        optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
         unit = (
             pynutil.delete("units:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_CHAR - " ", 1)
             + pynutil.delete("\"")
+            + delete_space
         )
-        # graph = sign + delete_space + integer + delete_space + point + delete_space + fractional
-        graph = (
-            pynini.union(
-                pynutil.delete("decimal {")
-                + delete_space
-                + pynini.closure(integer + delete_space, 0, 1)
-                + point
-                + delete_space
-                + fractional,
-                pynutil.delete("cardinal {") + delete_space + integer,
-            )
+        graph_decimal = (
+            pynutil.delete("decimal {")
+            + delete_space
+            + optional_sign
+            + delete_space
+            + decimal.numbers
             + delete_space
             + pynutil.delete("}")
-            + delete_space
-            + pynutil.insert(" ")
-            + unit
         )
+        graph_cardinal = (
+            pynutil.delete("cardinal {")
+            + delete_space
+            + optional_sign
+            + delete_space
+            + cardinal.numbers
+            + delete_space
+            + pynutil.delete("}")
+        )
+        graph = (graph_cardinal | graph_decimal) + delete_space + pynutil.insert(" ") + unit
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

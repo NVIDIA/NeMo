@@ -1,6 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
-#
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import pynini
-from denormalization.graph_utils import GraphFst
+from denormalization.graph_utils import NEMO_CHAR, GraphFst
 from denormalization.taggers.cardinal import CardinalFst
 from denormalization.taggers.date import DateFst
 from denormalization.taggers.decimal import DecimalFst
 from denormalization.taggers.measure import MeasureFst
 from denormalization.taggers.money import MoneyFst
 from denormalization.taggers.ordinal import OrdinalFst
-from denormalization.taggers.punctuation import PunctuationFst
 from denormalization.taggers.time import TimeFst
 from denormalization.taggers.whitelist import WhiteListFst
 from denormalization.taggers.word import WordFst
@@ -31,8 +28,7 @@ from pynini.lib import pynutil
 
 class ClassifyFst(GraphFst):
     """
-    Finite state transducer that classifies an entire sentence by composing all classier fsts
-        e.g. its twelve thirty now. -> tokens { name: "its" } tokens { time { hours: "12" minutes: "30" } } tokens { name: "now" } tokens { name: "." pause_length: "PAUSE_LONG phrase_break: true type: PUNCT" }
+    Composes other classfier grammars. This class will be compiled and exported to thrax FAR. 
     """
 
     def __init__(self):
@@ -44,19 +40,18 @@ class ClassifyFst(GraphFst):
         measure = MeasureFst().fst
         date = DateFst().fst
         word = WordFst().fst
-        punct = PunctuationFst().fst
         time = TimeFst().fst
         money = MoneyFst().fst
         whitelist = WhiteListFst().fst
-        types = whitelist | date | ordinal | decimal | measure | cardinal | time | money | word
-        token = pynutil.insert("tokens { ") + types + pynutil.insert(" }")
-        token_plus_punct = (
-            pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
-        )
-        graph = token_plus_punct + pynini.closure(pynini.cross(pynini.closure(" ", 1), " ") + token_plus_punct)
         graph = (
-            pynini.closure(pynutil.delete(pynini.closure(" ", 1)), 0, 1)
-            + graph
-            + pynini.closure(pynutil.delete(pynini.closure(" ", 1)), 0, 1)
+            pynutil.add_weight(whitelist, 1.0)
+            | pynutil.add_weight(time, 1.1)
+            | pynutil.add_weight(date, 1.01)
+            | pynutil.add_weight(decimal, 1.1)
+            | pynutil.add_weight(measure, 1.1)
+            | pynutil.add_weight(cardinal, 1.1)
+            | pynutil.add_weight(ordinal, 1.1)
+            | pynutil.add_weight(money, 1.1)
+            | pynutil.add_weight(word, 100)
         )
         self.fst = graph.optimize()
