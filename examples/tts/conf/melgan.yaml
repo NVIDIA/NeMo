@@ -59,6 +59,7 @@ model:
     preemph: null
     sample_rate: ${sample_rate}
     window: hann
+    exact_pad: true
 
   generator:
     _target_: nemo.collections.tts.modules.melgan_modules.MelGANGenerator

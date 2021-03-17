@@ -65,6 +65,7 @@ model:
     preemph: null
     sample_rate: ${sample_rate}
     window: hann
+    exact_pad: true
 
   squeezewave:
     _target_: nemo.collections.tts.modules.squeezewave.SqueezeWaveModule

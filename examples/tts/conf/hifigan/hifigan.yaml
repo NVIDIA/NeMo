@@ -29,6 +29,7 @@ model:
     sample_rate: 22050
     window: hann
     use_grads: false
+    exact_pad: true
 
   optim:
     _target_: torch.optim.AdamW

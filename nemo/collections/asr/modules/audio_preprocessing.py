@@ -139,6 +139,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
                 a multiple of pad_to.
                 Defaults to 16
             frame_splicing (int): Defaults to 1
+            exact_pad (bool): If True, sets stft center to False and adds padding, such that num_frames = audio_length
+                // hop_length. Defaults to False.
             stft_exact_pad (bool): If True, uses pytorch_stft and convolutions with
                 padding such that num_frames = num_samples / hop_length. If False,
                 stft_conv will be used to determine how stft will be performed.
@@ -204,7 +206,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         dither=1e-5,
         pad_to=16,
         frame_splicing=1,
-        stft_center=True,
+        exact_pad=False,
         stft_exact_pad=False,
         stft_conv=False,
         pad_value=0,
@@ -241,7 +243,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             dither=dither,
             pad_to=pad_to,
             frame_splicing=frame_splicing,
-            stft_center=stft_center,
+            exact_pad=exact_pad,
             stft_exact_pad=stft_exact_pad,
             stft_conv=stft_conv,
             pad_value=pad_value,
