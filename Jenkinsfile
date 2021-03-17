@@ -1142,11 +1142,9 @@ pipeline {
 
   post {
     always {
-      node(null) {
-        docker.image('nvcr.io/nvidia/pytorch:21.02-py3').inside {
-          sh 'chmod -R 777 .'
-          cleanWs()
-        }
+      node('docker') {
+        sh 'chmod -R 777 .'
+        cleanWs()
       }
     }
   }
