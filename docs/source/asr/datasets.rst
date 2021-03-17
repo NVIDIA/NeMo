@@ -157,7 +157,6 @@ Run the script to process AIShell-2 dataset in order to generate files in the su
 Then, you should have `train.json` `dev.json` `test.json` and `vocab.txt` in `dest_folder`. 
 
 
-.. _preprare-custom-asr-data:
 
 Preparing Custom ASR Data
 -------------------------

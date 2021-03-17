@@ -1,21 +1,43 @@
 Speech Classification
 ==================================
-Speech Classification, refers to the a set of taks or problems of getting a program to automatically classify input utterance or audio segment into categories, 
-such as task Speech Command Recogntion (multi-class), Voice Activity Detection (binary or multi-class), and Audio Sentiment Classification (tyically multi-class), etc.
+Speech Classification refers to a set of tasks or problems of getting a program to automatically classify input utterance or audio segment into categories, 
+such as task Speech Command Recognition (multi-class), Voice Activity Detection (binary or multi-class), and Audio Sentiment Classification (typically multi-class), etc.
 
 
 
 **Speech Command Recognition** is the task of classifying an input audio pattern into a discrete set of classes. 
 It is a subset of Automatic Speech Recognition, sometimes referred to as Key Word Spotting, in which a model is constantly analyzing speech patterns to detect certain "command" classes. 
 Upon detection of these commands, a specific action can be taken by the system. 
-It is often the objective of command recognition models to be small and efficient, so that they can be deployed onto low power sensors and remain active for long durations of time.
+It is often the objective of command recognition models to be small and efficient so that they can be deployed onto low-power sensors and remain active for long durations of time.
 
 
-**Voice Activity Detection (VAD)** also known as speech activity detection or speech detection, is the task of predicting which parts of input audio contains speech versus background noise.
+**Voice Activity Detection (VAD)** also known as speech activity detection or speech detection, is the task of predicting which parts of input audio contain speech versus background noise.
 It is an essential first step for a variety of speech-based applications including Automatic Speech Recognition. 
-It serves to determine which samples to be send to the model and when to close the microphone.
+It serves to determine which samples to be sent to the model and when to close the microphone.
 
 
+``Quick Start``
+
+.. note::
+  For model details and deep understanding, please refer to tutorials in ``<NeMo_git_root>/tutorials/asr/``.
+
+
+Transcribe speech command segment:
+
+.. code-block:: python 
+
+  mbn_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(<commandrecognition_en_matchboxnet3x1x64_v2>)
+  mbn_model.transcribe([<path to audio file>])
+
+
+Run VAD inference with below command:
+
+.. code-block:: bash 
+
+  python examples/speaker_recognition/vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
+  # Have a look at scripts under <NeMo-git-root>/scripts/voice_activity_detection for posterior processing and threshold tuning.
+
+  
 The full documentation tree is as follows:
 
 .. toctree::
@@ -30,12 +52,11 @@ The full documentation tree is as follows:
 Resource and Documentation Guide
 --------------------------------
 
-Hands-on speech classification tutorial notebooks can be found under
-`the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/tutorials/asr/>`_.
-There are training and offline & online mircophone inference tutorials for Speech Command Detection and Voice Activity Detection tasks.
+Hands-on speech classification tutorial notebooks can be found under ``<NeMo_git_repo>/tutorials/asr/``.
+There are training and offline & online microphone inference tutorials for Speech Command Detection and Voice Activity Detection tasks.
 This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
 
-If you are looking for information about a particular Speech Classificatoin model, or would like to find out more about the model
+If you are looking for information about a particular Speech Classification model or would like to find out more about the model
 architectures available in the `nemo_asr` collection, check out the :doc:`Models <./models>` page.
 
 Documentation on dataset preprocessing can be found on the :doc:`Datasets <./datasets>` page.

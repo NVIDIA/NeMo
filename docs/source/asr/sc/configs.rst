@@ -1,9 +1,9 @@
 NeMo Speech Classification Configuration Files
-============================
+================================================
 
 This page covers NeMo configuration file setup that is specific to models in the Speech Classification collection.
 For general information about how to set up and run experiments that is common to all NeMo models (e.g.
-experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../introduction/core` page.
+experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../starthere/core`  page.
 
 The model section of NeMo Speech Classification configuration files will generally require information about the dataset(s) being
 used, the preprocessor for audio files, parameters for any augmentation being performed, as well as the
@@ -28,7 +28,7 @@ Any initialization parameters that are accepted for the Dataset class used in yo
 can be set in the config file.
 See the `Datasets <../api.html#Datasets>`__ section of the API for a list of Datasets and their respective parameters.
 
-An example Speech Classiciation train and validation configuration could look like:
+An example Speech Classification train and validation configuration could look like:
 
 .. code-block:: yaml
 
@@ -128,7 +128,7 @@ specifying the module to use for each.
 
 The following sections go into more detail about the specific configurations of each model architecture.
 
-The `MatchboxNet <./models.html#MatchboxNet (Commands)>`__ and `MarbleNet <./models.html#MarbleNet (VAD)>`__ models are very similar, and they are based on `QuartzNet <../models.html#QuartzNet)>`__  and as such the components in their
+The `MatchboxNet <./models.html#matchboxnet-commands>`__ and `MarbleNet <./models.html#marblenet-vad>`__ models are very similar, and they are based on `QuartzNet <../models.html#quartznet>`__  and as such the components in their
 configs are very similar as well.
 
 Decoder Configurations

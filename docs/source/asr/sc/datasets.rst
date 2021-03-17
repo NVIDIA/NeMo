@@ -1,29 +1,28 @@
-.. _sc-dataset:
-
 Datasets
 ========
 
 NeMo has scripts to convert several common ASR datasets into the format expected by the `nemo_asr` collection.
 You can get started with those datasets by following the instructions to run those scripts in the section appropriate to each dataset below.
 
-If you have your own data and want to preprocess it to use with NeMo ASR models, check out the `Preparing Custom ASR Data`_ section at the bottom of the page.
+If you have your own data and want to preprocess it to use with NeMo ASR models, check out the `Preparing Custom Speech Classification Data`_ section at the bottom of the page.
 
-.. _freesound-dataset:
+.. _Freesound-dataset:
+
 Freesound
 -----------
 
 `Freesound <http://www.freesound.org/>`_ is a website that aims to create a huge open collaborative database of audio snippets, samples, recordings, bleeps. 
 Audio samples are released under Creative Commons licenses that allow their reuse. 
-Researchers and developers can access Freesound content using the Freesound API to retrieve meaningful sound information such as metadata, analysis files and the sounds themselves. 
+Researchers and developers can access Freesound content using the Freesound API to retrieve meaningful sound information such as metadata, analysis files, and the sounds themselves. 
 
 **Instructions**
 
-Go to ``<NeMo_git_root>/scripts/freesound_download_resample`` and follow below steps to download and convert freedsound data into a format expected by the `nemo_asr` collection.
+Go to ``<NeMo_git_root>/scripts/freesound_download_resample`` and follow the below steps to download and convert freedsound data into a format expected by the `nemo_asr` collection.
 
 1. We will need some requirements including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run `pip install -r freesound_requirements.txt`
 2. Create an API key for freesound.org at https://freesound.org/help/developers/
 3. Create a python file called `freesound_private_apikey.py` and add lined `api_key = <your Freesound api key> and client_id = <your Freesound client id>`
-4. Authorize by run `python freesound_download.py --authorize` and visit website and paste response code
+4. Authorize by run `python freesound_download.py --authorize` and visit the website and paste response code
 5. Feel free to change any arguments in `download_resample_freesound.sh` such as max_samples and max_filesize
 6. Run `bash download_resample_freesound.sh <numbers of files you want> <download data directory> <resampled data directory>` . For example: 
 
@@ -31,12 +30,11 @@ Go to ``<NeMo_git_root>/scripts/freesound_download_resample`` and follow below s
 
     bash download_resample_freesound.sh 4000 ./freesound ./freesound_resampled_background
 
-Note that downloading this dataset may takes hours. Change categories in download_resample_freesound.sh to include other (speech) categories audio files.
+Note that downloading this dataset may take hours. Change categories in download_resample_freesound.sh to include other (speech) categories audio files.
 Then, you should have 16khz mono wav files in `<resampled data directory>`. 
 
-Each line is a training example. `audio_filepath` contains path to the wav file, `duration` it's duration in seconds and `text` it's transcript:
 
-.. _google-speechcommand-dataset:
+.. _Google-Speech-Commands-Dataset:
 
 Google Speech Commands Dataset
 ------------------------------
@@ -73,9 +71,9 @@ Each line is a training example.
 
 SCF dataset for VAD
 --------------------------------
-Speech Command & Freesound (SCF) dataset is used to train MarbleNet in paper :cite:`sc-models-marbleboxnet`. Here we show how to download and process it. 
-This script assume that you already have the Freesound dataset, if not, have a look at :ref:`_freesound-dataset` . 
-We will use the open source  :ref:`_google-speechcommand-dataset` (we will use V2 of the dataset for SCF dataset, but require very minor changes to support V1 dataset) as our speech data. 
+Speech Command & Freesound (SCF) dataset is used to train MarbleNet in the `paper <https://arxiv.org/pdf/2010.13886.pdf>`_. Here we show how to download and process it. 
+This script assumes that you already have the Freesound dataset, if not, have a look at :ref:`Freesound-dataset`. 
+We will use the open-source :ref:`Google-Speech-Commands-Dataset` (we will use V2 of the dataset for SCF dataset, but require very minor changes to support V1 dataset) as our speech data. 
 
 These scripts below will download the Google Speech Commands v2 dataset and convert speech and background data to a format suitable for use with nemo_asr.
 
@@ -108,7 +106,7 @@ After download and conversion, your `manifest` folder should contain a few json 
 * `(balanced_)speech_training_manifest.json`
 * `(balanced_)speech_validation_manifest.json`
 
-Each line is a training example. `audio_filepath` contains path to the wav file, `duration` it's duration in seconds, `offset` it's offset in seconds, and `label` it's label:
+Each line is a training example. `audio_filepath` contains path to the wav file, `duration` is duration in seconds, `offset` is offset in seconds, and `label` is label (class):
 
 .. code-block:: bash
 
@@ -117,9 +115,9 @@ Each line is a training example. `audio_filepath` contains path to the wav file,
 
 
 
-Preparing Custom ASR Data
--------------------------
+Preparing Custom Speech Classification Data
+--------------------------------------------
 
-Preparing Custom Speech Classification Data is almost identical to :ref:`_preprare-custom-asr-data`.
+Preparing Custom Speech Classification Data is almost identical to `Preparing Custom ASR Data <../datasets.html#preparing-custom-asr-data>`__.
 
 Instead of :code:`text` entry in manifest, you need :code:`label` to determine class of this sample

@@ -91,12 +91,12 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
-        dither_value = self.preprocessor.featurizer.dither
-        pad_to_value = self.preprocessor.featurizer.pad_to
+#         dither_value = self.preprocessor.featurizer.dither
+#         pad_to_value = self.preprocessor.featurizer.pad_to
 
         try:
-            self.preprocessor.featurizer.dither = 0.0
-            self.preprocessor.featurizer.pad_to = 0
+#             self.preprocessor.featurizer.dither = 0.0
+#             self.preprocessor.featurizer.pad_to = 0
             # Switch model to evaluation mode
             self.eval()
             logging_level = logging.get_verbosity()
@@ -139,8 +139,8 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
         finally:
             # set mode back to its original value
             self.train(mode=mode)
-            self.preprocessor.featurizer.dither = dither_value
-            self.preprocessor.featurizer.pad_to = pad_to_value
+#             self.preprocessor.featurizer.dither = dither_value
+#             self.preprocessor.featurizer.pad_to = pad_to_value
             logging.set_verbosity(logging_level)
         return labels
 

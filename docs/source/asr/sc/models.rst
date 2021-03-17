@@ -14,12 +14,12 @@ Pretrained checkpoints for all of these models, as well as instructions on how t
 You can use the available checkpoints for immediate inference, or fine-tune them on your own datasets.
 The Checkpoints page also contains benchmark results for the available ASR models.
 
-.. _MatchboxNet_model:
+.. _MatchboxNet-model:
 
 MatchboxNet (Commands) 
-------
+------------------------
 
-MatchboxNet :cite:`asr-models-matchboxnet` is an end-to-end neural network for speech command recognition based on :ref:`QuartzNet_model`, 
+MatchboxNet :cite:`sc-models-matchboxnet` is an end-to-end neural network for speech command recognition based on `QuartzNet <../models.html#QuartzNet>`__.
 
 Similarly to QuartzNet, the MatchboxNet family of models are denoted as MatchBoxNet_[BxRxC] where B is the number of blocks, and R is the number of convolutional sub-blocks within a block, and C is the number of channels. Each sub-block contains a 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
@@ -40,32 +40,32 @@ MatchboxNet models can be instantiated using the :class:`EncDecClassificationMod
 
 
 
-.. _MarbleNet_model:
+.. _MarbleNet-model:
 
-  
 MarbleNet (VAD) 
-------
+------------------
 
-MarbleNet :cite:`asr-models-marblenet` an end-to-end neural network for speech command recognition based on :ref:`MatchboxNet_model`, 
+MarbleNet :cite:`sc-models-marblenet` an end-to-end neural network for speech command recognition based on :ref:`MatchboxNet-model`, 
 
-Similarly to QuartzNet, the MatchboxNet family of models are denoted as MatchBoxNet_[BxRxC] where B is the number of blocks, and R is the number of convolutional sub-blocks within a block, and C is the number of channels. Each sub-block contains a 1-D *separable* convolution, batch normalization, ReLU, and dropout:
+Similarly to MatchboxNet, the MarbleNet family of models are denoted as MarbleNet_[BxRxC] where B is the number of blocks, and R is the number of convolutional sub-blocks within a block, and C is the number of channels. Each sub-block contains a 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
     .. image:: images/marblenet_vertical.png
         :align: center
         :alt: MarbleNet model
         :scale: 30%
 
-It can reach state-of-the art performance on the difficult AVA speech dataset while having significantly fewer parameters than similar models even training on simple data.
-MarbleboxNet models can be instantiated using the :class:`EncDecClassificationModel<nemo.collections.asr.models.EncDecClassificationModel>` class.
+It can reach state-of-the art performance on the difficult `AVA speech dataset <https://research.google.com/ava/download.html#ava_speech_download>`_ while having significantly fewer parameters than similar models even training on simple data.
+MarbleNet models can be instantiated using the :class:`EncDecClassificationModel<nemo.collections.asr.models.EncDecClassificationModel>` class.
 
 .. note::
   For model details and deep understanding about VAD training, inference, postprocessing, threshold tuning and etc., 
   please refer to  ``<NeMo_git_root>/tutorials/asr/06_Voice_Activiy_Detection.ipynb`` and ``<NeMo_git_root>/tutorials/asr/07_Online_Offline_Microphone_VAD_Demo.ipynb``.
 
+
 References
-----------
+----------------
 
 .. bibliography:: ../asr_all.bib
     :style: plain
-    :labelprefix: ASR-MODELS
-    :keyprefix: asr-models-
+    :labelprefix: SC-MODELS
+    :keyprefix: sc-models-
