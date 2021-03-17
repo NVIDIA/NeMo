@@ -6,16 +6,14 @@ pipeline {
   }
   stages {
     stage('Text denorm') {
-
       stages {
         stage('pynini export') {
           agent {
-                docker { 
-                  image 'gitlab-master.nvidia.com:5005/yangzhang/text_normalization/pynini:latest' 
+                docker {
+                  image 'gitlab-master.nvidia.com:5005/yangzhang/text_normalization/pynini:latest'
                   args '--user 0:128 -v /home/TestData:/home/TestData --shm-size=8g'
-
                 }
-            }
+          }
           steps {
             sh 'conda develop .'
             sh 'cd tools/text_denormalization/export && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 2'
@@ -23,25 +21,16 @@ pipeline {
         }
         stage('sparrowhawk test') {
           agent {
-                docker { 
-                  image 'gitlab-master.nvidia.com:5005/yangzhang/text_normalization/sparrowhawk:latest' 
+                docker {
+                  image 'gitlab-master.nvidia.com:5005/yangzhang/text_normalization/sparrowhawk:latest'
                   args '--user 0:128 -v /home/TestData:/home/TestData --shm-size=8g'
-
                 }
-            }
+          }
           steps {
             sh 'cd /home/TestData/nlp/text_denorm/ci/ && bash setup_sparrowhawk.sh /home/TestData/nlp/text_denorm/output/ && || exit 1'
           }
         }
       }
-
-      
-    post {
-    always {
-      sh "chmod -R 777 ."
-      cleanWs()
-    }
-    }
     }
 
     stage('PyTorch Container') {
@@ -52,7 +41,6 @@ pipeline {
         }
       }
 
-        
       stages {
         stage('PyTorch version') {
           steps {
@@ -105,7 +93,7 @@ pipeline {
 
         stage('L0: Unit Tests CPU') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -117,7 +105,7 @@ pipeline {
 
         stage('L0: Computer Vision Integration') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -176,7 +164,7 @@ pipeline {
 
         stage('L2: ASR dev run') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -305,11 +293,9 @@ pipeline {
           }
         }
 
-
-
         stage('L2: ASR Multi-dataloader dev run') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -355,7 +341,7 @@ pipeline {
 
         stage('L2: Speech Transcription') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -375,7 +361,6 @@ pipeline {
           }
         }
 
-
         stage('L2: Segmentation Tool') {
             when {
                 anyOf {
@@ -393,11 +378,11 @@ pipeline {
             }
 
             stage('Parallel ctc_segmentation test') {
-            failFast true
-            parallel {
-              stage('L2: Eng QN with .wav') {
-              steps {
-                sh 'cd tools/ctc_segmentation && \
+              failFast true
+              parallel {
+                stage('L2: Eng QN with .wav') {
+                  steps {
+                    sh 'cd tools/ctc_segmentation && \
                 TIME=`date +"%Y-%m-%d-%T"` && \
                 /bin/bash run_sample.sh \
                 --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
@@ -412,11 +397,11 @@ pipeline {
                 -r /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
                 -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt && \
                 rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}'
+                  }
                 }
-              }
-              stage('L2: Ru QN with .mp3') {
-              steps {
-                sh 'cd tools/ctc_segmentation && \
+                stage('L2: Ru QN with .mp3') {
+                  steps {
+                    sh 'cd tools/ctc_segmentation && \
                 TIME=`date +"%Y-%m-%d-%T"` && \
                 /bin/bash run_sample.sh \
                 --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
@@ -432,25 +417,25 @@ pipeline {
                 -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
                 -g /home/TestData/ctc_segmentation/ru/output${TIME}/verified_segments/ru_segments.txt && \
                 rm -rf /home/TestData/ctc_segmentation/ru/output${TIME}'
+                  }
                 }
               }
             }
           }
         }
-        }
 
         stage('L2: Multi-GPU Megatron finetuning') {
-        when {
-            anyOf{
+          when {
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
-        }
-        failFast true
-        parallel {
-          stage('L2: Cased Megatron finetuning on MRPC') {
-          steps {
-            sh 'cd examples/nlp/glue_benchmark && \
+          }
+          failFast true
+          parallel {
+            stage('L2: Cased Megatron finetuning on MRPC') {
+              steps {
+                sh 'cd examples/nlp/glue_benchmark && \
             python glue_benchmark.py \
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
             trainer.gpus=[0,1] \
@@ -459,23 +444,23 @@ pipeline {
             model.language_model.pretrained_model_name=megatron-bert-345m-cased \
             trainer.accelerator=ddp \
             exp_manager=null'
+              }
             }
           }
         }
-      }
 
         stage('L2: SGD-QA') {
-        when {
-            anyOf{
+          when {
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
-        }
-        failFast true
-        parallel {
-          stage('L2: SGD-QA') {
-          steps {
-            sh 'cd examples/nlp/dialogue_state_tracking && \
+          }
+          failFast true
+          parallel {
+            stage('L2: SGD-QA') {
+              steps {
+                sh 'cd examples/nlp/dialogue_state_tracking && \
             python sgd_qa.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_outputs \
@@ -493,9 +478,9 @@ pipeline {
             trainer.accelerator=ddp \
             exp_manager=null  && \
             rm -rf sgd_outputs'
+              }
             }
-          }
-          stage('GLUE STS-b with AlBERT') {
+            stage('GLUE STS-b with AlBERT') {
               steps {
                 sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
                 model.dataset.use_cache=false \
@@ -507,12 +492,12 @@ pipeline {
                 exp_manager=null'
               }
             }
+          }
         }
-      }
 
         stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -571,7 +556,7 @@ pipeline {
         // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
         stage('L2: MegaBERT Token Classification') {
           when {
-            anyOf{
+            anyOf {
               branch 'v1.0.0b2'
               changeRequest target: 'v1.0.0b2'
             }
@@ -595,7 +580,7 @@ pipeline {
         }
         stage('L2: Parallel SQUAD v1.1 & v2.0') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -715,7 +700,7 @@ pipeline {
 
         stage('L2: Parallel NLP Examples 2') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -792,10 +777,9 @@ pipeline {
           }
         }
 
-
         stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -907,7 +891,7 @@ pipeline {
 
         stage('L2: NMT Attention is All You Need') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -959,7 +943,7 @@ pipeline {
             }
 
             stage('L2: NMT Inference') {
-                steps{
+                steps {
                   sh 'cd examples/nlp/machine_translation && \
                   python nmt_transformer_infer.py \
                   --model=/home/TestData/nlp/nmt/toy_data/TransformerLargeDe-En.nemo \
@@ -975,7 +959,7 @@ pipeline {
 
         stage('L2: NMT with HuggingFace') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -1039,7 +1023,7 @@ pipeline {
 
         stage('L2: TTS Fast dev runs 1') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -1078,7 +1062,7 @@ pipeline {
 
         stage('L2: TTS Fast dev runs 2') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -1132,7 +1116,7 @@ pipeline {
 
         stage('L??: Speech Checkpoints tests') {
           when {
-            anyOf{
+            anyOf {
               branch 'main'
               changeRequest target: 'main'
             }
@@ -1151,20 +1135,17 @@ pipeline {
             }
           }
         }
-      
+      }
+
+    }
   }
-  
-  
+
   post {
-  always {
-    sh "chmod -R 777 ."
-    cleanWs()
+    always {
+      node(null) {
+        sh 'chmod -R 777 .'
+        cleanWs()
+      }
+    }
   }
-  }
-  }
-  }
-
-
-
-
 }
