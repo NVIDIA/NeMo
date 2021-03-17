@@ -15,7 +15,7 @@
 import pynini
 from pynini.lib import pynutil
 from tools.text_denormalization.data_loader_utils import get_abs_path
-from tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
+from tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space, NEMO_DIGIT
 from tools.text_denormalization.taggers.cardinal import CardinalFst
 
 cardinal = CardinalFst()
