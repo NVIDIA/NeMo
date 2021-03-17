@@ -15,7 +15,7 @@ pipeline {
                 }
           }
           steps {
-            sh 'conda develop . '
+            sh 'conda develop .'
             sh 'cd tools/text_denormalization/export && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 2'
             sh 'cd tools/text_denormalization/export && cp *.grm /home/TestData/nlp/text_denorm/output/'
             sh 'ls -R /home/TestData/nlp/text_denorm/output/'
