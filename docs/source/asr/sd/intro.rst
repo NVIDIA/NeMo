@@ -18,7 +18,7 @@ In NeMo we support both **oracle VAD** and **non-oracle VAD** diarization.
 ``Quick Start``
 
 .. note::
-        For model details and deep understanding, please refer to  `Speaker_Diarization_Inference <https://github.com/NVIDIA/NeMo/blob/1.0.0rc1/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb>`_ .
+  For model details and deep understanding, please refer to ``<NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb``.
 
         
 Run and evaluate speaker diarizer with below command:
@@ -48,8 +48,7 @@ The full documentation tree is as follows:
 Resource and Documentation Guide
 --------------------------------
 
-Hands-on speaker diarization tutorial notebooks can be found under
-`the speaker rectonition realted  tutorials folder <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/tutorials/speaker_recognition/>`_.
+Hands-on speaker diarization tutorial notebooks can be found under ``<NeMo_git_root>/tutorials/speaker_recognition/``.
 
 There are tutorials for peformming inference using :ref:`MarbleNet_model` and :ref:`SpeakerNet_model`, 
 and how one can get ASR transcriptions combined with Speaker labels along with voice activity time stamps with NeMo asr collections.

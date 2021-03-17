@@ -13,12 +13,12 @@ The sections on this page cover each of these in more detail.
 
 
 Example configuration files for speaker diarization can be found in the
-`speaker_diarization.yaml <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/speaker_recognition/conf/speaker_diarization.yaml>`_.
+``<NeMo_git_root>/examples/speaker_recognition/conf/speaker_diarization.yaml>``
 
 .. note::
   For model details and deep understanding about configs, finetuning, tuning threshold, and evaluation, 
-  please refer to  `Speaker_Diarization_Inference <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb>`_ ;
-  for other applications such as possible integration with ASR, have a look at `ASR_with_SpeakerDiarization <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb>`_.
+  please refer to ``<NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb``;
+  for other applications such as possible integration with ASR, have a look at ``<NeMo_git_root>/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb``.
 
 
 Dataset Configuration
