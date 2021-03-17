@@ -412,7 +412,9 @@ Here is a sample YAML configuration for a Novograd optimizer with Cosine Anneali
         min_lr: 1e-9:
 
 .. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ has optimizer and scheduler configurations for every NeMo model. 
-        
+
+Optimizers
+~~~~~~~~~~
 ``name`` corresponds to the lowercase name of the optimizer. 
 The list of available optimizers can be found by
 
@@ -435,7 +437,8 @@ The list of available optimizers can be found by
     name: rprop opt: <class 'torch.optim.rprop.Rprop'>
     name: novograd opt: <class 'nemo.core.optim.novograd.Novograd'>
 
-
+Optimizer Params
+~~~~~~~~~~~~~~~~
 Optimizers params can vary between optimizers but the ``lr`` param is required for all optimizers.
 To see the available params for an optimizer we can look at its corresponding dataclass.
 
@@ -449,8 +452,66 @@ To see the available params for an optimizer we can look at its corresponding da
 
     NovogradParams(lr='???', betas=(0.95, 0.98), eps=1e-08, weight_decay=0, grad_averaging=False, amsgrad=False, luc=False, luc_trust=0.001, luc_eps=1e-08)
 
-.. note:: '???' indicates that the ``lr`` argument is required.
+``'???'`` indicates that the lr argument is required.
+
+Register Optimizer
+~~~~~~~~~~~~~~~~~~
+Register a new optimizer to be used with NeMo with:
+
+.. autofunction:: nemo.core.optim.optimizers.register_optimizer
+
+Learning Rate Schedulers
+~~~~~~~~~~~~~~~~~~~~~~~~
+Learning rate schedulers can be optionally configured under the ``optim.sched`` namespace.
+
+``name`` corresponds to the name of the learning rate schedule. 
+The list of available schedulers can be found by 
     
+.. code-block:: Python
+
+    from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS
+
+    for name, opt in AVAILABLE_SCHEDULERS.items():
+        print(f'name: {name}, schedule: {opt}')
+
+.. code-block:: bash
+
+    name: WarmupPolicy, schedule: <class 'nemo.core.optim.lr_scheduler.WarmupPolicy'>
+    name: WarmupHoldPolicy, schedule: <class 'nemo.core.optim.lr_scheduler.WarmupHoldPolicy'>
+    name: SquareAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.SquareAnnealing'>
+    name: CosineAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.CosineAnnealing'>
+    name: NoamAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.NoamAnnealing'>
+    name: WarmupAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.WarmupAnnealing'>
+    name: InverseSquareRootAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.InverseSquareRootAnnealing'>
+    name: SquareRootAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.SquareRootAnnealing'>
+    name: PolynomialDecayAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.PolynomialDecayAnnealing'>
+    name: PolynomialHoldDecayAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.PolynomialHoldDecayAnnealing'>
+    name: StepLR, schedule: <class 'torch.optim.lr_scheduler.StepLR'>
+    name: ExponentialLR, schedule: <class 'torch.optim.lr_scheduler.ExponentialLR'>
+    name: ReduceLROnPlateau, schedule: <class 'torch.optim.lr_scheduler.ReduceLROnPlateau'>
+    name: CyclicLR, schedule: <class 'torch.optim.lr_scheduler.CyclicLR'>
+
+Scheduler Params
+~~~~~~~~~~~~~~~~
+To see the available params for a scheduler we can look at its corresponding dataclass:
+
+.. code-block:: Python
+
+    from nemo.core.config.schedulers import CosineAnnealingParams
+
+    print(CosineAnnealingParams())
+
+.. code-block:: bash
+
+    CosineAnnealingParams(last_epoch=-1, warmup_steps=None, warmup_ratio=None, min_lr=0.0)
+
+Register scheduler
+~~~~~~~~~~~~~~~~~~
+Register a new scheduler to be used with NeMo with:
+
+.. autofunction:: nemo.core.optim.lr_scheduler.register_scheduler
+
+
 
 Save and Restore
 ----------------
