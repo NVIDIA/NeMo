@@ -31,6 +31,7 @@ pipeline {
           }
           steps {
             sh 'cd /home/TestData/nlp/text_denorm/ci/ && bash setup_sparrowhawk.sh /home/TestData/nlp/text_denorm/output/ || exit 2'
+            sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
         }
       }
