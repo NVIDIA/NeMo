@@ -1,5 +1,3 @@
-.. _TTS:
-
 Speech Synthesis (TTS)
 ======================
 Speech Synthesis or Text-to-Speech (TTS) involves turning text into human speech. The NeMo TTS collection currently

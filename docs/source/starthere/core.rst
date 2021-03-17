@@ -44,7 +44,9 @@ To see all available pretrained models for a specific NeMo model use the ``list_
     nemo_asr.model.EncDecCTCModel.list_available_models()
 
 For detailed information on the available pretrained models, please the the collections documentation: 
-:ref:`ASR`, :ref:`NLP`, :ref:`TTS`.
+:ref:`Automatic Speech Recognition (ASR)`,
+:ref:`Natural Language Processing (NLP)`, and
+:ref:`Speech Synthesis (TTS)`.
 
 Training
 --------
@@ -176,7 +178,11 @@ Virtually any aspect of training can be customized via PyTorch Lightning `hooks 
 `callbacks <https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html>`_, 
 or by overriding `methods <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#methods>`_. 
 
-Please see the NeMo ASR, NLP, TTS, collections sections for domain-specific documentation.
+Please see the 
+:ref:`Automatic Speech Recognition (ASR)`,
+:ref:`Natural Language Processing (NLP)`, and
+:ref:`Speech Synthesis (TTS)`,
+pages for domain-specific documentation.
 
 
 PyTorch Lightning Trainer
@@ -290,7 +296,7 @@ A NeMo configuration file should look something like this:
 
 More specific details about configuration files for each collection can be found on the following pages:
 
-* :doc:`asr/configs`
+:ref:`NeMo ASR Configuration Files`
         
 CLI
 ~~~
@@ -375,6 +381,10 @@ The model configuration can be instantiated and modified like any Python `Datacl
 
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
 
+Optimization
+------------
+
+
 Save and Restore
 ----------------
 
@@ -400,7 +410,7 @@ To restore a NeMo model:
 When using the PyTorch Lightning Trainer, PyTorch Lightning checkpoint are created. 
 These are mainly used within NeMo to autoresume training. 
 Since NeMo models are ``LightningModules``, the PyTorch Lightning method ``load_from_checkpoint`` is available.
-Note that ``load_from_checkpoint`` won't necessarily work out of the box for all models as some moodels
+Note that ``load_from_checkpoint`` won't necessarily work out of the box for all models as some models
 require more artifacts than just the checkpoint to be restored. 
 For these models, the user will have to override ``load_from_checkpoint`` if they wish to use it.
 
