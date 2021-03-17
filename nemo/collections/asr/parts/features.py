@@ -45,7 +45,7 @@ from torch_stft import STFT
 
 from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
-from nemo.collections.common.parts.patch_utils import stft_patch
+from nemo.collections.common.parts.patch_utils import stft_patch, istft_patch
 from nemo.utils import logging
 
 CONSTANT = 1e-5
@@ -217,7 +217,7 @@ class FilterbankFeatures(nn.Module):
         pad_to=16,
         max_duration=16.7,
         frame_splicing=1,
-        exact_pad=False,
+        stft_center=True,
         stft_exact_pad=False,  # TODO: Remove this in 1.1.0
         stft_conv=False,  # TODO: Remove this in 1.1.0
         pad_value=0,
@@ -276,9 +276,19 @@ class FilterbankFeatures(nn.Module):
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
                 win_length=self.win_length,
-                center=False if exact_pad else True,
+                center=stft_center,
                 window=self.window.to(dtype=torch.float),
                 return_complex=False,
+            )
+            self.istft = lambda x: istft_patch(
+                x,
+                n_fft=self.n_fft,
+                hop_length=self.hop_length,
+                win_length=self.win_length,
+                center=stft_center,
+                window=self.window.to(dtype=torch.float),
+                return_complex=False,
+                length=None,
             )
 
         self.normalize = normalize
