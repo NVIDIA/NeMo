@@ -81,19 +81,19 @@ To train TokenClassification model from scratch with the default config file, ru
 
 To use one of the pretrained versions of the model specify a `pretrained_model` arg with either 
 TokenClassification model from list_available_models() or path to a .nemo file, for example: 
-NNER_Model_with_BERT_base_uncased or model.nemo, run:
+ner_en_bert or model.nemo, run:
 
-    python token_classification_train.py pretrained_model=NER_Model_with_BERT_base_uncased
+    python token_classification_train.py pretrained_model=ner_en_bert
 
 To use one of the pretrained versions of the model and fine-tune it, run:
 
     python token_classification_train.py \
            model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-           pretrained_model=NER_Model_with_BERT_base_uncased
+           pretrained_model=ner_en_bert
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained TokenClassification model from list_available_models() or 
-                     path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or model.nemo
+                     path to a .nemo file, for example: ner_en_bert or model.nemo
                      
 For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipynb
 """

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -129,16 +129,16 @@ def remove_punctuation(word: str):
     return re.sub('[' + all_punct_marks + ']', '', word)
 
 
-def __create_text_and_labels(data_dir: str, file: str, punct_marks: str = ',.?'):
+def create_text_and_labels(output_dir: str, file_path: str, punct_marks: str = ',.?'):
     """
     Create datasets for training and evaluation.
 
     Args:
-      data_dir: path to the output data directory
-      file: file name
+      output_dir: path to the output data directory
+      file_path: path to file name
       punct_marks: supported punctuation marks
 
-    The data will be splitted into 2 files: text.txt and labels.txt. \
+    The data will be split into 2 files: text.txt and labels.txt. \
     Each line of the text.txt file contains text sequences, where words\
     are separated with spaces. The labels.txt file contains \
     corresponding labels for each word in text.txt, the labels are \
@@ -147,29 +147,39 @@ def __create_text_and_labels(data_dir: str, file: str, punct_marks: str = ',.?')
     [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
     [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
     """
-    f = open(os.path.join(data_dir, file), 'r')
-    text_f = open(os.path.join(data_dir, 'text_' + file), 'w')
-    labels_f = open(os.path.join(data_dir, 'labels_' + file), 'w')
+    if not os.path.exists(file_path):
+        raise ValueError(f'{file_path} not found')
 
-    for line in f:
-        line = line.split()
-        text = ''
-        labels = ''
-        for word in line:
-            label = word[-1] if word[-1] in punct_marks else 'O'
-            word = remove_punctuation(word)
-            if len(word) > 0:
-                if word[0].isupper():
-                    label += 'U'
-                else:
-                    label += 'O'
+    os.makedirs(output_dir, exist_ok=True)
 
-                word = word.lower()
-                text += word + ' '
-                labels += label + ' '
+    base_name = os.path.basename(file_path)
+    labels_file = os.path.join(output_dir, 'labels_' + base_name)
+    text_file = os.path.join(output_dir, 'text_' + base_name)
 
-        text_f.write(text.strip() + '\n')
-        labels_f.write(labels.strip() + '\n')
+    with open(file_path, 'r') as f:
+        with open(text_file, 'w') as text_f:
+            with open(labels_file, 'w') as labels_f:
+                for line in f:
+                    line = line.split()
+                    text = ''
+                    labels = ''
+                    for word in line:
+                        label = word[-1] if word[-1] in punct_marks else 'O'
+                        word = remove_punctuation(word)
+                        if len(word) > 0:
+                            if word[0].isupper():
+                                label += 'U'
+                            else:
+                                label += 'O'
+
+                            word = word.lower()
+                            text += word + ' '
+                            labels += label + ' '
+
+                    text_f.write(text.strip() + '\n')
+                    labels_f.write(labels.strip() + '\n')
+
+    print(f'{text_file} and {labels_file} created from {file_path}.')
 
 
 def __delete_file(file_to_del: str):
@@ -220,8 +230,8 @@ if __name__ == "__main__":
     __split_into_train_dev(clean_eng_sentences, train_file, dev_file, args.percent_dev)
 
     logging.info(f'Creating text and label files for training')
-    __create_text_and_labels(args.data_dir, 'train.txt')
-    __create_text_and_labels(args.data_dir, 'dev.txt')
+    create_text_and_labels(args.data_dir, os.path.join(args.data_dir, 'train.txt'))
+    create_text_and_labels(args.data_dir, os.path.join(args.data_dir, 'dev.txt'))
 
     if args.clean_dir:
         logging.info(f'Cleaning up {args.data_dir}')

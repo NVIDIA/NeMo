@@ -47,42 +47,93 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
         Returns:
             List of available pre-trained models.
         """
-        result = []
+        results = []
+
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
+            description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other. Please visit https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels for further details.",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo",
-            description="QuartzNet15x5 model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1 for 600 epochs. The model achieves a WER of 3.79% on LibriSpeech dev-clean, and a WER of 10.05% on dev-other.",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="QuartzNet15x5Base-Zh",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-Zh.nemo",
-            description="QuartzNet15x5 model trained on ai-shell2 Mandarin Chinese dataset.",
+            pretrained_model_name="stt_en_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_quartznet15x5/versions/1.0.0rc1/files/stt_en_quartznet15x5.nemo",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="QuartzNet5x5LS-En",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet5x5LS-En.nemo",
-            description="QuartzNet5x5 model trained on LibriSpeech dataset only. The model achieves a WER of 5.37% on LibriSpeech dev-clean, and a WER of 15.69% on dev-other.",
+            pretrained_model_name="stt_zh_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_zh_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_zh_quartznet15x5/versions/1.0.0rc1/files/stt_zh_quartznet15x5.nemo",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="QuartzNet15x5NR-En",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5NR-En.nemo",
-            description="QuartzNet15x5Base-En was finetuned with RIR and noise augmentation to make it more robust to noise. This model should be preferred for noisy speech transcription. This model achieves a WER of 3.96% on LibriSpeech dev-clean and a WER of 10.14% on dev-other.",
+            pretrained_model_name="stt_en_jasper10x5dr",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_jasper10x5dr",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_jasper10x5dr/versions/1.0.0rc1/files/stt_en_jasper10x5dr.nemo",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="Jasper10x5Dr-En",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/Jasper10x5Dr-En.nemo",
-            description="JasperNet10x5Dr model trained on six datasets: LibriSpeech, Mozilla Common Voice (validated clips from en_1488h_2019-12-10), WSJ, Fisher, Switchboard, and NSC Singapore English. It was trained with Apex/Amp optimization level O1. The model achieves a WER of 3.37% on LibriSpeech dev-clean, 9.81% on dev-other.",
+            pretrained_model_name="stt_ca_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_ca_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_ca_quartznet15x5/versions/1.0.0rc1/files/stt_ca_quartznet15x5.nemo",
         )
-        result.append(model)
-        return result
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_it_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_it_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_it_quartznet15x5/versions/1.0.0rc1/files/stt_it_quartznet15x5.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_fr_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_fr_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_fr_quartznet15x5/versions/1.0.0rc1/files/stt_fr_quartznet15x5.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_es_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_es_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_es_quartznet15x5/versions/1.0.0rc1/files/stt_es_quartznet15x5.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_de_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_quartznet15x5/versions/1.0.0rc1/files/stt_de_quartznet15x5.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_pl_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_pl_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_pl_quartznet15x5/versions/1.0.0rc1/files/stt_pl_quartznet15x5.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_ru_quartznet15x5",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_ru_quartznet15x5",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_ru_quartznet15x5/versions/1.0.0rc1/files/stt_ru_quartznet15x5.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_zh_citrinet_512",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_zh_citrinet_512",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_zh_citrinet_512/versions/1.0.0rc1/files/stt_zh_citrinet_512.nemo",
+        )
+        results.append(model)
+
+        return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
@@ -312,6 +363,20 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the training data loader via a Dict-like object.
+
+        Args:
+            train_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
 
@@ -334,6 +399,20 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the validation data loader via a Dict-like object.
+
+        Args:
+            val_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
 
@@ -343,6 +422,20 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the test data loader via a Dict-like object.
+
+        Args:
+            test_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
 
@@ -376,6 +469,26 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
     def forward(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
     ):
+        """
+        Forward pass of the model.
+
+        Args:
+            input_signal: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
+                `self.sample_rate` number of floating point values.
+            input_signal_length: Vector of length B, that contains the individual lengths of the audio
+                sequences.
+            processed_signal: Tensor that represents a batch of processed audio signals,
+                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
+            processed_signal_length: Vector of length B, that contains the individual lengths of the
+                processed audio sequences.
+
+        Returns:
+            A tuple of 3 elements -
+            1) The log probabilities tensor of shape [B, T, D].
+            2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
+            3) The greedy token predictions of the model of shape [B, T] (via argmax)
+        """
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) == False:
