@@ -1144,8 +1144,7 @@ pipeline {
     always {
       node(null) {
         script {
-          docker.image('gitlab-master.nvidia.com:5005/yangzhang/text_normalization/pynini:latest').inside {
-            sh 'whoami'
+          docker.image('gitlab-master.nvidia.com:5005/yangzhang/text_normalization/pynini:latest').inside("""--user 0:128 --entrypoint=''""") {
             sh 'chmod -R 777 .'
             cleanWs()
           }
