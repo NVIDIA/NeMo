@@ -58,7 +58,6 @@ model:
     pad_value: ${pad_value}
     preemph: null
     sample_rate: ${sample_rate}
-    exact_pad: true
     window: hann
 
   generator:

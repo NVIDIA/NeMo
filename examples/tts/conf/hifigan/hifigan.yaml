@@ -27,7 +27,6 @@ model:
     pad_value: -11.52
     preemph: null
     sample_rate: 22050
-    exact_pad: true
     window: hann
     use_grads: false
 
