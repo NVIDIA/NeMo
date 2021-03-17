@@ -1,7 +1,7 @@
 Speaker Diarization
 ==================================
 
-Who Speaks When? Speaker Diarization is the task of segmenting audio recordings by speaker labels. 
+Speaker Diarization (SD) is the task of segmenting audio recordings by speaker labels, that is Who Speaks When?
 
 .. image:: images/sd_pipeline.png
         :align: center
@@ -10,7 +10,7 @@ Who Speaks When? Speaker Diarization is the task of segmenting audio recordings 
 
 
 A diarization system consists of **Voice Activity Detection (VAD)** model to get the time stamps of audio where speech is being spoken ignoring the background and 
-**Speaker Embeddings** model to get speaker embeddings on segments that were previously time stamped. 
+**Speaker Embeddings** model to get speaker embeddings on segments that were previously time stamped by VAD. 
 These speaker embeddings would then be clustered into clusters based on number of speakers present in the audio recording.
 
 In NeMo we support both **oracle VAD** and **non-oracle VAD** diarization. 

@@ -1,9 +1,9 @@
 NeMo Speaker Diarization Configuration Files
-============================
+=============================================
 
 This page covers NeMo configuration file setup that is specific to Speaker Diarization (Inference) task.
 For general information about how to set up and run experiments that is common to all NeMo models (e.g.
-experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../introduction/core` page.
+experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../starthere/core` page.
 
 Since speaker diarization model here is not a fully-trainble End-to-End model but a inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
 
@@ -22,7 +22,7 @@ Example configuration files for speaker diarization can be found in the
 
 
 Dataset Configuration
----------------------
+-----------------------
 
 In contrast to other ASR related tasks or models, speaker diarization supported in NeMo now is a modular inference pipeline.
 Datasets here denotes the data you would like to perform speaker diarization on. 
@@ -42,8 +42,9 @@ An example Speaker Diarization dataset configuration could look like:
   Note we expect audio and corresponding RTTM have same base name and the name should be unique.
 
 
+
 Diarizer Architecture Configurations
----------------------------------
+-------------------------------------
 
 .. code-block:: yaml
 
@@ -60,7 +61,7 @@ Diarizer Architecture Configurations
         overlap: 0.875
 
     speaker_embeddings:
-      oracle_vad_manifest: null
+      oracle_vad_manifest: null # leave it null if to perform diarization with above VAD model else path to manifest file genrerated as shown in Datasets section
       model_path: ??? #.nemo local model path or pretrained model name
       window_length_in_sec: 1.5
       shift_length_in_sec: 0.75
