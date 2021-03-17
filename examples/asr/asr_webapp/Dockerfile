@@ -25,16 +25,17 @@ FROM ${BASE_IMAGE} as nemo-deps
 WORKDIR /tmp/nemo-service
 COPY . .
 
-# Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
-# version information as runtime environment variable for introspection purposes
+# override nemo version with dependency from requirements.txt
 RUN /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 RUN cd /tmp/nemo-service && pip install -r "requirements.txt"
 
-# copy scripts/examples/tests into container for end user
+# copy webapp into container for end user
 WORKDIR /workspace/nemo-service
 COPY . /workspace/nemo-service/
 
+# pre-import some asr dependencies which would take time on each worker
 RUN python -c "import nemo.collections.asr as nemo_asr"
 
+# expose port 8000 and launch gunicorn
 EXPOSE 8000
 CMD ["gunicorn", "wsgi:app"]

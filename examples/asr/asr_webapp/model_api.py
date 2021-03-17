@@ -34,12 +34,10 @@ MODEL_CACHE = {}
 def get_model_names():
     model_names = set()
     for model_info in nemo_asr.models.ASRModel.list_available_models():
-        logging.info(f"Checking model : {model_info.pretrained_model_name} | {model_info.class_.__name__}")
-
-        for subclass in model_info.class_.__subclasses__():
-            if 'CTC' in subclass.__name__ or 'RNNT' in subclass.__name__:
+        for superclass in model_info.class_.mro():
+            if 'CTC' in superclass.__name__ or 'RNNT' in superclass.__name__:
                 model_names.add(model_info.pretrained_model_name)
-                logging.info(f"Added model : {model_info.pretrained_model_name}")
+                logging.info(f"Available model : {model_info.pretrained_model_name}")
                 break
     return model_names
 
