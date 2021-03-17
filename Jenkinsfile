@@ -16,7 +16,7 @@ pipeline {
           }
           steps {
             sh 'conda develop .'
-            sh 'cd tools/text_denormalization/export && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 2'
+            sh 'cd tools/text_denormalization/export && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 2'
           }
         }
         stage('sparrowhawk test') {
@@ -27,7 +27,7 @@ pipeline {
                 }
           }
           steps {
-            sh 'cd /home/TestData/nlp/text_denorm/ci/ && bash setup_sparrowhawk.sh /home/TestData/nlp/text_denorm/output/ && || exit 1'
+            sh 'cd /home/TestData/nlp/text_denorm/ci/ && bash setup_sparrowhawk.sh /home/TestData/nlp/text_denorm/output/ || exit 2'
           }
         }
       }
