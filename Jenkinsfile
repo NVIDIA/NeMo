@@ -5,23 +5,37 @@ pipeline {
     disableConcurrentBuilds()
   }
   stages {
-    stage('SH Container') {
-      agent {
-        docker {
-              image 'nvcr.io/nvidia/pytorch:21.02-py3'
-              args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
-        }
-      }
+    stage('Text denorm') {
+
       stages {
-        stage('SH test') {
+        stage('pynini export') {
+          agent {
+                docker { 
+                  image 'gitlab-master.nvidia.com:5005/yangzhang/text_normalization/pynini:latest' 
+                  args '--user 0:128 -v /home/TestData:/home/TestData --shm-size=8g'
+
+                }
+            }
           steps {
-            sh 'python -c "import torch; print(torch.__version__)"'
-            sh 'python -c "import torchtext; print(torchtext.__version__)"'
-            sh 'python -c "import torchvision; print(torchvision.__version__)"'
+            sh 'conda develop .'
+            sh 'cd /home/TestData/nlp/text_denorm/ci/ && bash test_pynini.sh ../output/ || exit 1'
+          }
+        }
+        stage('sparrowhawk test') {
+          agent {
+                docker { 
+                  image 'gitlab-master.nvidia.com:5005/yangzhang/text_normalization/sparrowhawk:latest' 
+                  args '--user 0:128 -v /home/TestData:/home/TestData --shm-size=8g'
+
+                }
+            }
+          steps {
+            sh 'cd /home/TestData/nlp/text_denorm/ci/ && bash setup_sparrowhawk.sh && || exit 1'
           }
         }
       }
     }
+
     stage('PyTorch Container') {
       agent {
         docker {
