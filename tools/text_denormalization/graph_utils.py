@@ -27,7 +27,7 @@ from .data_loader_utils import get_abs_path
 
 NEMO_CHAR = utf8.VALID_UTF8_CHAR
 
-NEMO_DIGIT = byte.DIGI
+NEMO_DIGIT = byte.DIGIT
 NEMO_LOWER = pynini.union(*string.ascii_lowercase).optimize()
 NEMO_UPPER = pynini.union(*string.ascii_uppercase).optimize()
 NEMO_ALPHA = pynini.union(NEMO_LOWER, NEMO_UPPER).optimize()
