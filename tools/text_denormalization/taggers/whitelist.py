@@ -14,8 +14,8 @@
 
 import pynini
 from pynini.lib import pynutil
-from ..data_loader_utils import get_abs_path, convert_space
-from ..graph_utils import GraphFst
+from ..data_loader_utils import get_abs_path
+from ..graph_utils import GraphFst, convert_space
 
 
 class WhiteListFst(GraphFst):
