@@ -384,6 +384,73 @@ The model configuration can be instantiated and modified like any Python `Datacl
 Optimization
 ------------
 
+Optimizers and learning rate schedules are configurable across all NeMo models and have their own namespace.
+Here is a sample YAML configuration for a Novograd optimizer with Cosine Annealing learning rate schedule.
+
+.. code-block:: yaml
+
+    optim:
+        name: novograd
+        lr: 0.01
+    
+        # optimizer arguments
+        betas: [0.8, 0.25]
+        weight_decay: 0.001
+    
+        # scheduler setup
+        sched:
+        name: CosineAnnealing
+    
+        # Optional arguments
+        max_steps: null # computed at runtime or explicitly set here
+        monitor: val_loss
+        reduce_on_plateau: false
+    
+        # scheduler config override
+        warmup_steps: 1000
+        warmup_ratio: null
+        min_lr: 1e-9:
+
+.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ has optimizer and scheduler configurations for every NeMo model. 
+        
+``name`` corresponds to the lowercase name of the optimizer. 
+The list of available optimizers can be found by
+
+.. code-block:: Python
+
+    from nemo.core.optim.optimizers import AVAILABLE_OPTIMIZERS
+
+    for name, opt in AVAILABLE_OPTIMIZERS.items():
+        print(f'name: {name}, opt: {opt}')
+
+.. code-block:: bash
+
+    name: sgd opt: <class 'torch.optim.sgd.SGD'>
+    name: adam opt: <class 'torch.optim.adam.Adam'>
+    name: adamw opt: <class 'torch.optim.adamw.AdamW'>
+    name: adadelta opt: <class 'torch.optim.adadelta.Adadelta'>
+    name: adamax opt: <class 'torch.optim.adamax.Adamax'>
+    name: adagrad opt: <class 'torch.optim.adagrad.Adagrad'>
+    name: rmsprop opt: <class 'torch.optim.rmsprop.RMSprop'>
+    name: rprop opt: <class 'torch.optim.rprop.Rprop'>
+    name: novograd opt: <class 'nemo.core.optim.novograd.Novograd'>
+
+
+Optimizers params can vary between optimizers but the ``lr`` param is required for all optimizers.
+To see the available params for an optimizer we can look at its corresponding dataclass.
+
+.. code-block:: python
+
+    from nemo.core.config.optimizers import NovogradParams
+
+    print(NovogradParams())
+
+.. code-block:: bash
+
+    NovogradParams(lr='???', betas=(0.95, 0.98), eps=1e-08, weight_decay=0, grad_averaging=False, amsgrad=False, luc=False, luc_trust=0.001, luc_eps=1e-08)
+
+.. note:: '???' indicates that the ``lr`` argument is required.
+    
 
 Save and Restore
 ----------------
