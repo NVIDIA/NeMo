@@ -36,7 +36,7 @@ MatchboxNet models can be instantiated using the :class:`EncDecClassificationMod
 
 .. note::
   For model details and deep understanding about Speech Command Detedction training, inference, finetuning and etc., 
-  please refer to  `Speech_Commands <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/03_Speech_Commands.ipynb>`_ and `Online_Offline_Speech_Commands_Demo <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/04_Online_Offline_Speech_Commands_Demo.ipynb>`_.
+  please refer to  ``<NeMo_git_root>/tutorials/asr/03_Speech_Commands.ipynb`` and ``<NeMo_git_root>/tutorials/asr/04_Online_Offline_Speech_Commands_Demo.ipynb``.
 
 
 
@@ -60,7 +60,7 @@ MarbleboxNet models can be instantiated using the :class:`EncDecClassificationMo
 
 .. note::
   For model details and deep understanding about VAD training, inference, postprocessing, threshold tuning and etc., 
-  please refer to  `Voice_Activiy_Detection <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/06_Voice_Activiy_Detection.ipynb>`_ and `Online_Offline_Microphone_VAD_Demo <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/07_Online_Offline_Microphone_VAD_Demo.ipynb>`_.
+  please refer to  ``<NeMo_git_root>/tutorials/asr/06_Voice_Activiy_Detection.ipynb`` and ``<NeMo_git_root>/tutorials/asr/07_Online_Offline_Microphone_VAD_Demo.ipynb``.
 
 References
 ----------

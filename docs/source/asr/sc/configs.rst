@@ -11,7 +11,7 @@ model architecture specification.
 The sections on this page cover each of these in more detail.
 
 Example configuration files for all of the NeMo ASR scripts can be found in the
-`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples/asr/conf>`_.
+``<NeMo_git_root>/examples/asr/conf>``.
 
 
 Dataset Configuration

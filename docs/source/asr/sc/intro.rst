@@ -25,7 +25,7 @@ The full documentation tree is as follows:
    datasets
    results
    configs
-   api
+
 
 Resource and Documentation Guide
 --------------------------------

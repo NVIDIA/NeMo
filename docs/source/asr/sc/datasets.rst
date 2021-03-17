@@ -18,7 +18,7 @@ Researchers and developers can access Freesound content using the Freesound API 
 
 **Instructions**
 
-Go to `NeMo/scripts/freesound_download_resample <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/scripts/freesound_download_resample>`_ and follow below steps to download and convert freedsound data into a format expected by the `nemo_asr` collection.
+Go to ``<NeMo_git_root>/scripts/freesound_download_resample`` and follow below steps to download and convert freedsound data into a format expected by the `nemo_asr` collection.
 
 1. We will need some requirements including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run `pip install -r freesound_requirements.txt`
 2. Create an API key for freesound.org at https://freesound.org/help/developers/
@@ -45,7 +45,7 @@ Google released two versions of the dataset with the first version containing 65
 We refer to these datasets as v1 and v2
 
 Run the script `process_speech_commands_data.py` to process Google Speech Commands dataset in order to generate files in the supported format of  `nemo_asr`,
-which can be found in the `NeMo/scripts/dataset_processing <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/scripts/dataset_processing>`_. 
+which can be found in ``<NeMo_git_root>/scripts/dataset_processing/``. 
 You should set the data folder of Speech Commands using :code:`--data_root` and the version of the dataset using :code:`--data_version` as an int.
 
 You can further rebalance the train set by passing the `--rebalance` flag.
