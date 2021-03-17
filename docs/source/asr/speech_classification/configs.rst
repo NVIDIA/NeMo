@@ -19,8 +19,7 @@ Dataset Configuration
 
 Training, validation, and test parameters are specified using the ``train_ds``, ``validation_ds``, and
 ``test_ds`` sections of your configuration file, respectively.
-Depending on the task, you may have arguments specifying the sample rate of your audio files, the vocabulary
-of your dataset (for character prediction), whether or not to shuffle the dataset, and so on.
+Depending on the task, you may have arguments specifying the sample rate of your audio files, labels, whether or not to shuffle the dataset, and so on.
 You may also decide to leave fields such as the ``manifest_filepath`` blank, to be specified via the command line
 at runtime.
 
@@ -28,13 +27,13 @@ Any initialization parameters that are accepted for the Dataset class used in yo
 can be set in the config file.
 See the `Datasets <../api.html#Datasets>`__ section of the API for a list of Datasets and their respective parameters.
 
-An example Speech Classification train and validation configuration could look like:
+An example Speech Classification train and validation configuration could look like: 
 
 .. code-block:: yaml
 
   model:
     sample_rate: 16000
-    repeat: 2
+    repeat: 2 # number of convolutional sub-blocks within a block, R in <MODEL>_[BxRxC]
     dropout: 0.0
     kernel_size_factor: 1.0
     labels: ['bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'four', 'go', 'happy', 'house', 'left', 'marvin',
@@ -47,76 +46,33 @@ An example Speech Classification train and validation configuration could look l
       labels: ${model.labels} # Uses the labels above
       batch_size: 128
       shuffle: True
-      is_tarred: False  # If set to true, uses the tarred version of the Dataset
-      tarred_audio_filepaths: null      # Not used if is_tarred is false
-      tarred_shard_strategy: "scatter"  # Not used if is_tarred is false
 
     validation_ds:
       manifest_filepath: ???
       sample_rate: ${model.sample_rate}
       labels: ${model.labels} # Uses the labels above
       batch_size: 128
-      shuffle: False
-      val_loss_idx: # No need to shuffle the validation data
+      shuffle: False # No need to shuffle the validation data
+
+If you want to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
 
 
 Preprocessor Configuration
 --------------------------
+Preprocessor helps to compute MFCC or mel spectrogram features that are given as inputs to model. 
+For details on how to write this section, refer to `Preprocessor Configuration <../configs.html#preprocessor-configuration>`__
 
-If you are loading audio files for your experiment, you will likely want to use a preprocessor to convert from the
-raw audio signal to features (e.g. mel-spectrogram or MFCC).
-The ``preprocessor`` section of the config specifies the audio preprocessor to be used via the ``_target_`` field,
-as well as any initialization parameters for that preprocessor.
-
-An example of specifying a preprocessor is as follows:
-
-.. code-block:: yaml
-
-  model:
-    ...
-    preprocessor:
-      _target_: nemo.collections.asr.modules.AudioToMFCCPreprocessor
-      window_size: 0.025
-      window_stride: 0.01
-      window: "hann"
-      n_mels: &n_mels 64
-      n_mfcc: *n_mels
-      n_fft: 512
-
-See the `Audio Preprocessors <../api.html#Audio Preprocessors>`__ API page for the preprocessor options, expected arguments, and defaults.
+Check config yaml files in ``<NeMo_git_root>/tutorials/asr/conf`` to find the processors been used by speech classification models. 
 
 
 Augmentation Configurations
 ---------------------------
 
 There are a few on-the-fly spectrogram augmentation options for NeMo ASR, which can be specified by the
-configuration file using a ``spec_augment`` section.
+configuration file using the ``augmentor`` and ``spec_augment`` section.
+For details on how to write this section, refer to `Augmentation Configuration <../configs.html#augmentation-configurations>`__
 
-For example, there are options for `Cutout <https://arxiv.org/abs/1708.04552>`_ and
-`SpecAugment <https://arxiv.org/abs/1904.08779>`_ available via the ``SpectrogramAugmentation`` module.
-
-The following example sets up both Cutout (via the ``rect_*`` parameters) and SpecAugment (via the ``freq_*``
-and ``time_*`` parameters).
-
-.. code-block:: yaml
-
-  model:
-    ...
-    spec_augment:
-      _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-      # Cutout parameters
-      rect_masks: 5   # Number of rectangles to cut from any given spectrogram
-      rect_freq: 15   # Max cut of size 50 along the frequency dimension
-      rect_time: 25  # Max cut of size 120 along the time dimension
-      # SpecAugment parameters
-      freq_masks: 2   # Cut two frequency bands
-      freq_width: 15  # ... of width 15 at maximum
-      time_masks: 2    # Cut out 10 time bands
-      time_width: 25  # ... of width 25 at maximum
-
-You can use any combination of Cutout, frequency/time SpecAugment, or none of them.
-
-See the `Audio Augmentors <../api.html#Audio Augmentors>`__ API section for more details.
+Check config yaml files in ``<NeMo_git_root>/tutorials/asr/conf`` to find the processors been used by speech classification models. 
 
 
 Model Architecture Configurations
@@ -128,7 +84,7 @@ specifying the module to use for each.
 
 The following sections go into more detail about the specific configurations of each model architecture.
 
-The `MatchboxNet <./models.html#matchboxnet-commands>`__ and `MarbleNet <./models.html#marblenet-vad>`__ models are very similar, and they are based on `QuartzNet <../models.html#quartznet>`__  and as such the components in their
+The `MatchboxNet <./models.html#matchboxnet-speech-commands>`__ and `MarbleNet <./models.html#marblenet-vad>`__ models are very similar, and they are based on `QuartzNet <../models.html#quartznet>`__  and as such the components in their
 configs are very similar as well.
 
 Decoder Configurations
@@ -144,5 +100,5 @@ for training models.
     decoder:
       _target_: nemo.collections.asr.modules.ConvASRDecoderClassification
       feat_in: *enc_final_filters
-      return_logits: true
-      pooling_type: 'avg'
+      return_logits: true # return logits if true, else return softmax output
+      pooling_type: 'avg' # AdaptiveAvgPool1d 'avg' or AdaptiveMaxPool1d 'max'

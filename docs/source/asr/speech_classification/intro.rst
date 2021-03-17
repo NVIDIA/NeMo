@@ -26,8 +26,9 @@ Transcribe speech command segment:
 
 .. code-block:: python 
 
-  mbn_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(<commandrecognition_en_matchboxnet3x1x64_v2>)
-  mbn_model.transcribe([<path to audio file>])
+  mbn_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(model_name="<MODEL_NAME>")
+  mbn_model.transcribe(["<path to audio file>"])
+  # Learn how to fine tune on your own data or on subset classes in <NeMo_git_root>/tutorials/asr/03_Speech_Commands.ipynb
 
 
 Run VAD inference with below command:

@@ -12,14 +12,14 @@ Freesound
 -----------
 
 `Freesound <http://www.freesound.org/>`_ is a website that aims to create a huge open collaborative database of audio snippets, samples, recordings, bleeps. 
-Audio samples are released under Creative Commons licenses that allow their reuse. 
+Most audio samples are released under Creative Commons licenses that allow their reuse. 
 Researchers and developers can access Freesound content using the Freesound API to retrieve meaningful sound information such as metadata, analysis files, and the sounds themselves. 
 
 **Instructions**
 
 Go to ``<NeMo_git_root>/scripts/freesound_download_resample`` and follow the below steps to download and convert freedsound data into a format expected by the `nemo_asr` collection.
 
-1. We will need some requirements including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run `pip install -r freesound_requirements.txt`
+1. We will need some required libraries including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run `pip install -r freesound_requirements.txt`
 2. Create an API key for freesound.org at https://freesound.org/help/developers/
 3. Create a python file called `freesound_private_apikey.py` and add lined `api_key = <your Freesound api key> and client_id = <your Freesound client id>`
 4. Authorize by run `python freesound_download.py --authorize` and visit the website and paste response code
@@ -40,13 +40,13 @@ Google Speech Commands Dataset
 ------------------------------
 
 Google released two versions of the dataset with the first version containing 65k samples over 30 classes and the second containing 110k samples over 35 classes.
-We refer to these datasets as v1 and v2
+We refer to these datasets as `v1` and `v2` respectively.
 
 Run the script `process_speech_commands_data.py` to process Google Speech Commands dataset in order to generate files in the supported format of  `nemo_asr`,
 which can be found in ``<NeMo_git_root>/scripts/dataset_processing/``. 
 You should set the data folder of Speech Commands using :code:`--data_root` and the version of the dataset using :code:`--data_version` as an int.
 
-You can further rebalance the train set by passing the `--rebalance` flag.
+You can further rebalance the train set by randomly oversampling files inside the manifest by passing the `--rebalance` flag.
 
 .. code-block:: bash
 
@@ -69,8 +69,8 @@ Each line is a training example.
 
 
 
-SCF dataset for VAD
---------------------------------
+Speech Command & Freesound for VAD
+------------------------------------
 Speech Command & Freesound (SCF) dataset is used to train MarbleNet in the `paper <https://arxiv.org/pdf/2010.13886.pdf>`_. Here we show how to download and process it. 
 This script assumes that you already have the Freesound dataset, if not, have a look at :ref:`Freesound-dataset`. 
 We will use the open-source :ref:`Google-Speech-Commands-Dataset` (we will use V2 of the dataset for SCF dataset, but require very minor changes to support V1 dataset) as our speech data. 

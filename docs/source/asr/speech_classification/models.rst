@@ -2,7 +2,7 @@ Models
 ======
 
 This page gives a brief overview of the models that NeMo's Speech Classification collection currently supports.
-Now for Speech Classification, we support Speech Command (Keyword) Detection and Voice Activity Detection (VAD).
+For Speech Classification, we support Speech Command (Keyword) Detection and Voice Activity Detection (VAD).
 
 Each of these models can be used with the example ASR scripts (in the ``<NeMo_git_root>/examples/asr`` directory) by
 specifying the model architecture in the config file used.
@@ -16,8 +16,8 @@ The Checkpoints page also contains benchmark results for the available ASR model
 
 .. _MatchboxNet-model:
 
-MatchboxNet (Commands) 
-------------------------
+MatchboxNet (Speech Commands) 
+------------------------------
 
 MatchboxNet :cite:`sc-models-matchboxnet` is an end-to-end neural network for speech command recognition based on `QuartzNet <../models.html#QuartzNet>`__.
 
@@ -29,7 +29,7 @@ Similarly to QuartzNet, the MatchboxNet family of models are denoted as MatchBox
         :scale: 50%
 
 It can reach state-of-the art accuracy on the Google Speech Commands dataset while having significantly fewer parameters than similar models. 
-The _v1 and _v2 are denoted for models trained on v1 (30-way classification) and v2 (35-way classification) datasets; 
+The `_v1` and `_v2` are denoted for models trained on `v1` (30-way classification) and `v2` (35-way classification) datasets; 
 And we use _subset_task to represent (10+2)-way subset (10 specific classes + other remaining classes + silence) classification task.
 
 MatchboxNet models can be instantiated using the :class:`EncDecClassificationModel<nemo.collections.asr.models.EncDecClassificationModel>` class.
