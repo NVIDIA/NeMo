@@ -13,9 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.graph_utils import GraphFst
 from nemo_tools.text_denormalization.verbalizers.cardinal import CardinalFst
 from nemo_tools.text_denormalization.verbalizers.date import DateFst
