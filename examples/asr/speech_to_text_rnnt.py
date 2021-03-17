@@ -21,10 +21,10 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 # Preparing the Tokenizer for the dataset
-Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts in order to prepare the tokenizer.
+Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts/tokenizers/ in order to prepare the tokenizer.
 
 ```sh
-python <NEMO_ROOT>/scripts/process_asr_text_tokenizer.py \
+python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
         --manifest=<path to train manifest files, seperated by commas> \
         --data_root="<output directory>" \
         --vocab_size=<number of tokens in vocabulary> \

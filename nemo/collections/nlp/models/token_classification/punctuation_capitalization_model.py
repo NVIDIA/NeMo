@@ -468,15 +468,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         result = []
         result.append(
             PretrainedModelInfo(
-                pretrained_model_name="Punctuation_Capitalization_with_BERT",
-                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemonlpmodels/versions/1.0.0a5/files/Punctuation_Capitalization_with_BERT.nemo",
+                pretrained_model_name="punctuation_en_bert",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/punctuation_en_bert/versions/1.0.0rc1/files/punctuation_en_bert.nemo",
                 description="The model was trained with NeMo BERT base uncased checkpoint on a subset of data from the following sources: Tatoeba sentences, books from Project Gutenberg, Fisher transcripts.",
             )
         )
         result.append(
             PretrainedModelInfo(
-                pretrained_model_name="Punctuation_Capitalization_with_DistilBERT",
-                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemonlpmodels/versions/1.0.0a5/files/Punctuation_Capitalization_with_DistilBERT.nemo",
+                pretrained_model_name="punctuation_en_distilbert",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/punctuation_en_distilbert/versions/1.0.0rc1/files/punctuation_en_distilbert.nemo",
                 description="The model was trained with DiltilBERT base uncased checkpoint from HuggingFace on a subset of data from the following sources: Tatoeba sentences, books from Project Gutenberg, Fisher transcripts.",
             )
         )
