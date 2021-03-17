@@ -19,7 +19,7 @@ import string
 from pathlib import Path
 
 import pynini
-from denormalization.data_loader_utils import get_abs_path
+from tools.text_denormalization.data_loader_utils import get_abs_path
 from pynini import Far
 from pynini.examples import plurals
 from pynini.lib import byte, pynutil, utf8
@@ -170,7 +170,7 @@ class GraphFst:
 def add_arcs(graph: pynini.FstLike, node_a: int, node_b: int, labels: List[List[str]]):
     """
     Adds archs to a graph
-    
+
     Args:
         graph: input fst
         node_a: start node index

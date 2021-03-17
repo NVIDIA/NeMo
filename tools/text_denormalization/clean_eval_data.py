@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 from typing import List
 
 import regex as re
-from denormalization.data_loader_utils import (
+from tools.text_denormalization.data_loader_utils import (
     EOS_TYPE,
     Instance,
     known_types,
@@ -30,7 +30,7 @@ from utils import num_to_word
 
 
 """
-filter_loaded_data() cleans loaded normalization data for usage for denormalization
+filter_loaded_data() cleans loaded normalization data for usage for tools.text_denormalization
 """
 
 
