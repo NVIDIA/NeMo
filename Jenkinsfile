@@ -1144,7 +1144,7 @@ pipeline {
     always {
       node(null) {
         script {
-          docker.image('gitlab-master.nvidia.com:5005/yangzhang/text_normalization/pynini:latest').inside("""--user 0:128 --entrypoint=''""") {
+          docker.image('nvcr.io/nvidia/pytorch:21.02-py3').inside("""--user 0:128 --entrypoint=''""") {
             sh 'chmod -R 777 .'
             cleanWs()
           }
