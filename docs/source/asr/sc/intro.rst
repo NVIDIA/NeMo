@@ -1,7 +1,7 @@
 Speech Classification
 ==================================
 Speech Classification refers to a set of tasks or problems of getting a program to automatically classify input utterance or audio segment into categories, 
-such as task Speech Command Recognition (multi-class), Voice Activity Detection (binary or multi-class), and Audio Sentiment Classification (typically multi-class), etc.
+such as Speech Command Recognition (multi-class), Voice Activity Detection (binary or multi-class), and Audio Sentiment Classification (typically multi-class), etc.
 
 
 
