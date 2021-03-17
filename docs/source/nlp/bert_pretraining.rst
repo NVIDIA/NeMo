@@ -10,6 +10,36 @@ BERT is often used an language model encoder for downstream tasks, e.g. :ref:`to
 Domain-specific BERT models can be advantageous for a wide range of applications. One notable is domain-specific BERT in a biomedical setting,
 e.g. BioBERT :cite:`nlp-bert-lee2019biobert` or its improved derivative BioMegatron :cite:`nlp-bert-shin2020biomegatron`. For the latter refer to :ref:`megatron_finetuning`.
 
+
+
+Quick Start
+-----------
+
+.. code-block:: python
+
+    from nemo.collections.nlp.models import BERTLMModel
+
+    # to get the list of pre-trained models
+    BERTLMModel.list_available_models()
+
+    # Download and load the pre-trained BERT-based model
+    model = BERTLMModel.from_pretrained("bertbaseuncased")
+
+Available Models
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: *Pretrained Models*
+   :widths: 5 10
+   :header-rows: 1
+
+   * - Model
+     - Pretrained Checkpoint
+   * - bertbaseuncased
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:bertbaseuncased
+   * - bertlargeuncased
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:bertlargeuncased
+
+
 .. _dataset_bert_pretraining:
 
 Data Input for BERT Model
