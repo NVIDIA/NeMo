@@ -413,6 +413,21 @@ Here is a sample YAML configuration for a Novograd optimizer with Cosine Anneali
 
 .. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ has optimizer and scheduler configurations for every NeMo model. 
 
+Optimizers can be configured from the CLI as well:
+
+.. code-block:: bash
+
+    python examples/asr/speech_to_text.py \
+        --config-path=conf \
+        --config-name=quartznet_15x5 \
+        ...
+        # train with the adam optimizer
+        model.optim=adam \
+        # change the learning rate
+        model.optim.lr=.0004 \
+        # modify betas 
+        model.optim.betas=[.8, .5]
+
 Optimizers
 ~~~~~~~~~~
 ``name`` corresponds to the lowercase name of the optimizer. 
@@ -518,6 +533,8 @@ Save and Restore
 
 NeMo models all come with ``.save_to`` and ``.restore_from`` methods.  
 
+Save
+~~~~
 To save a NeMo model:
 
 .. code-block:: Python
@@ -529,6 +546,8 @@ For example, in the NLP domain, ``.nemo`` files will include necessary tokenizer
 
 .. note:: .nemo files are simply archives like any other .tar file.
 
+Restore
+~~~~~~~
 To restore a NeMo model:
 
 .. code-block:: Python
