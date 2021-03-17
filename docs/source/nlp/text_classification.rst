@@ -75,14 +75,14 @@ You can change any of these parameters directly from the config file or update t
 
 The config file contains three main sections:
 - trainer: Trainer section contains the configs for PTL training and you may find more info at
-`Model Training <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/starthere/core.html#model-training>` and
+:doc:`../../introduction/core.html#model-training` and
 `PTL Trainer class API <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-class-api>'.
-- exp_manager: the configs of experiment manager. You can find more info at 'Experiment Manager <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/starthere/core.html#experiment-manager>'
+- exp_manager: the configs of experiment manager. You can find more info at :doc:`../../introduction/core.html#experiment-manager`
 - model: contains the configs of the datasets, model architecture, tokenizer, optimizer, scheduler, etc.
 
 Some sub-sections of the model section are shared among most of the NLP models. The details of these sections can be found at:
-- tokenizer and language_model: The configs of the tokenizer and encoder part and the `NLP Models <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/nlp/nlp_model.html#important-parameters>`
-- optim: the configs of the optimizer and scheduler `NeMo Core<https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/starthere/core.html>`
+- tokenizer and language_model: The configs of the tokenizer and encoder part and the :doc:`../nlp_model.html#important-parameters`
+- optim: the configs of the optimizer and scheduler :doc:`../../introduction/core.html`
 
 Example of a command for training a text classification model on two GPUs for 50 epochs:
 
@@ -109,11 +109,19 @@ The following table lists some of the model's parameters you may use in the conf
 +-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | model.class_labels.class_labels_file      | string          | null                                           | Path to an optional file containing the labels; each line is the string label corresponding to a label       |
 +-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.intent_loss_weight                  | float           | 0.6                                            | Relation of intent to slot loss in total loss                                                                |
+| model.dataset.num_classes                 | int             | ?                                              | Number of the categories or classes, 0 < Label <num_classes                                                  |
 +-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.head.num_output_layers              | integer         | 2                                              | Number of fully connected layers of the Classifier on top of Bert model                                      |
+| model.dataset.do_lower_case               | boolean         | true for uncased models, false for cased       | Specifies if inputs should be made lower case, would be set automatically if pre-trained model is used       |
 +-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.head.fc_dropout                     | float           | 0.1                                            | Dropout ratio of the fully connected layers                                                                  |
+| model.dataset.max_seq_length              | int             | 256                                            | Maximum length of the input sequences.                                                                       |
++-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.dataset.class_balancing             | string          | null                                           | null or 'weighted_loss'. 'weighted_loss' enables the weighted class balancing to handle unbalanced classes   |
++-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.dataset.use_cache                   | boolean         | false                                          | uses a cache to store the processed dataset, you may use it for large datasets for speed up                  |
++-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.classifier_head.num_output_layers   | integer         | 2                                              | Number of fully connected layers of the Classifier on top of Bert model                                      |
++-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
+| model.classifier_head.fc_dropout          | float           | 0.1                                            | Dropout ratio of the fully connected layers                                                                  |
 +-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | {training,validation,test}_ds.file_path   | string          | ??                                             | Path of the training '.tsv file                                                                              |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------------+
@@ -138,27 +146,11 @@ At the start of each training experiment, there will a printed log of the experi
 It will also show additional information, such as which GPUs are available and where logs will be saved.
 Then it shows some samples from the datasets with their corresponding inputs to the model. It also provides some stats on the lengths of sequences in the dataset.
 
-After each epoch, you should see a summary table of metrics on the validation set.
-
-.. code::
-
-    Validating:  100%|████████████████████████████| 14/14 [00:00<00:00, 13.94it/s]
-    [NeMo I text_classification_model:173] val_report:
-        label                                                precision    recall       f1           support
-        label_id: 0                                             91.97      88.32      90.11        428
-        label_id: 1                                             89.15      92.57      90.83        444
-        -------------------
-        micro avg                                               90.48      90.48      90.48        872
-        macro avg                                               90.56      90.44      90.47        872
-        weighted avg                                            90.54      90.48      90.47        872
-
-This classification reports include the following metrics:
+After each epoch, you should see a summary table of metrics on the validation set which include the following metrics:
 
 * :code:`Precision`
 * :code:`Recall`
 * :code:`F1`
-
-More details about these metrics could be found `here <https://en.wikipedia.org/wiki/Precision_and_recall>`__.
 
 At the end of training, NeMo will save the last checkpoint at the path specified in '.nemo' format.
 
