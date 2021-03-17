@@ -36,9 +36,8 @@ pipeline {
     stage('PyTorch Container') {
       agent {
         docker {
-          label 'docker'
-          image 'nvcr.io/nvidia/pytorch:21.02-py3'
-          args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+              image 'nvcr.io/nvidia/pytorch:21.02-py3'
+              args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
       }
 
@@ -1137,14 +1136,17 @@ pipeline {
           }
         }
       }
+
     }
   }
 
   post {
     always {
-      node('docker') {
-        sh 'chmod -R 777 .'
-        cleanWs()
+      node {
+        docker.image('nvcr.io/nvidia/pytorch:21.02-py3').inside() {
+          sh 'chmod -R 777 .'
+          cleanWs()
+        }
       }
     }
   }
