@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from pynini.lib import pynutil
+
 from ..graph_utils import GraphFst
 from .cardinal import CardinalFst
 from .date import DateFst

@@ -15,7 +15,8 @@
 
 import pynini
 from pynini.lib import pynutil
-from ..graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, delete_extra_space
+
+from ..graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_extra_space, delete_space
 
 
 class DateFst(GraphFst):

@@ -15,7 +15,8 @@
 
 import pynini
 from pynini.lib import pynutil
-from ..graph_utils import NEMO_DIGIT, GraphFst, delete_space, insert_space, NEMO_CHAR
+
+from ..graph_utils import NEMO_CHAR, NEMO_DIGIT, GraphFst, delete_space, insert_space
 
 
 class TimeFst(GraphFst):

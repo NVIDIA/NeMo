@@ -18,10 +18,11 @@ from collections import OrderedDict
 from typing import List
 
 import pynini
+from tqdm import tqdm
+
 from .taggers.tokenize_and_classify_final import ClassifyFinalFst
 from .token_parser import PRESERVE_ORDER_KEY, TokenParser
 from .verbalizers.verbalize_final import VerbalizeFinalFst
-from tqdm import tqdm
 
 tagger = ClassifyFinalFst()
 verbalizer = VerbalizeFinalFst()

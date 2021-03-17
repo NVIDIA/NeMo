@@ -15,6 +15,7 @@
 
 import pynini
 from pynini.lib import pynutil
+
 from ..graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst, delete_space
 
 

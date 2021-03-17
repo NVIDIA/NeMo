@@ -15,6 +15,7 @@
 
 import pynini
 from pynini.lib import pynutil
+
 from ..graph_utils import GraphFst, delete_extra_space, delete_space
 from .punctuation import PunctuationFst
 from .verbalize import VerbalizeFst

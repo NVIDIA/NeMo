@@ -14,8 +14,9 @@
 
 import pynini
 from pynini.lib import pynutil
+
 from ..data_loader_utils import get_abs_path
-from ..graph_utils import NEMO_SIGMA, GraphFst, convert_space, delete_extra_space, get_singulars, delete_space
+from ..graph_utils import NEMO_SIGMA, GraphFst, convert_space, delete_extra_space, delete_space, get_singulars
 from .cardinal import CardinalFst
 from .decimal import DecimalFst
 

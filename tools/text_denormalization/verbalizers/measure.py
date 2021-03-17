@@ -15,6 +15,7 @@
 
 import pynini
 from pynini.lib import pynutil
+
 from ..graph_utils import NEMO_CHAR, GraphFst, delete_space
 from .cardinal import CardinalFst
 from .decimal import DecimalFst

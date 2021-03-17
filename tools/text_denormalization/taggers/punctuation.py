@@ -14,6 +14,7 @@
 
 import pynini
 from pynini.lib import pynutil
+
 from ..graph_utils import GraphFst, convert_space
 
 

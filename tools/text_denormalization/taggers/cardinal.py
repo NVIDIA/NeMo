@@ -15,6 +15,7 @@
 
 import pynini
 from pynini.lib import pynutil
+
 from ..data_loader_utils import get_abs_path
 from ..graph_utils import NEMO_DIGIT, NEMO_SIGMA, NEMO_SPACE, GraphFst, delete_space
 from ..utils import num_to_word
