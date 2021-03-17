@@ -98,7 +98,8 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
                 _ = subprocess.check_output(f"sox {rir_f} {chan_file_name} remix {chan}", shell=True)
 
     # move simulated rirs to processed
-    move(os.path.join(data_folder, "RIRS_NOISES", "simulated_rirs"), dst_folder)
+    if not os.path.exists(os.path.join(dst_folder, "simulated_rirs")):
+        move(os.path.join(data_folder, "RIRS_NOISES", "simulated_rirs"), dst_folder)
 
     os.chdir(dst_folder)
     all_rirs = glob.glob("**/*.wav", recursive=True)
@@ -117,7 +118,7 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
 
 
 def main():
-    data_root = args.data_root
+    data_root = os.path.abspath(args.data_root)
     data_set = "slr28"
     logging.getLogger().setLevel(logging.INFO)
     logging.info("\n\nWorking on: {0}".format(data_set))
