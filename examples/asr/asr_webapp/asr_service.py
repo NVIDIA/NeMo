@@ -34,6 +34,8 @@ CORS(app)
 
 app.config[f'UPLOAD_FOLDER'] = f"tmp/"
 
+model_names = sorted(list(model_api.get_model_names()))
+
 
 @app.route('/initialize_model', methods=['POST'])
 def initialize_model():
@@ -214,8 +216,6 @@ def remove_tmp_dir_at_exit():
 
 @app.route('/')
 def main():
-    model_names = sorted(list(model_api.get_model_names()))
-
     # page initializations
     result = render_template('main.html', model_names=model_names)
     result = make_response(result)
