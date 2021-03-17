@@ -17,9 +17,12 @@ NVIDIA NeMo Developer Guide
    :name: Automatic Speech Recognition
 
    asr/intro
-   asr/speaker_recognition/intro
+   asr/speech_classification/intro
    asr/speaker_recognition/intro
    asr/speaker_diarization/intro
+
+   
+>>>>>>> 37c46b71... speaker diarization doc
 
 .. toctree::
    :maxdepth: 2
