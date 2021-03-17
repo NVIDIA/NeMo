@@ -5,8 +5,8 @@ Text Classification Model
 
 Text Classification Model is a sequence classification model based on BERT-based encoders. It can be used for a
 variety of tasks like text classification, sentiment analysis, domain/intent detection for dialogue systems, etc.
-The model takes a text input and classifies it into predefined categories. Most of the BERT-based encoders
-supported by HuggingFace including BERT, Megatron-LM, RoBERTa, DistilBERT, XLNet, etc can be used as the encoder of this model.
+The model takes a text input and predicts a label/class for the whole sequence. Megatron-LM and most of the BERT-based encoders
+supported by HuggingFace including BERT, RoBERTa and DistilBERT can be used as the encoder of this model.
 
 An example script on how to train the model can be found here: `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/text_classification_with_bert.py>`__.
 The default configuration file for the model can be found at: `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
