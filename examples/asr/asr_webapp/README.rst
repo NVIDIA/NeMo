@@ -17,6 +17,8 @@ Local Setup
 
 2) Simply run ``python asr_service.py``. This will launch a single service worker that can be run locally.
 
+3) The app will run at ``127.0.0.1:5000`` by default.
+
 Gunicorn Setup
 --------------
 
@@ -25,6 +27,8 @@ Gunicorn Setup
 2) Edit the configuration of ``gunicorn`` inside ``gunicorn.conf.py`` if you wish to change the port or number of workers (though this can be achieved via command line overrides as well).
 
 3) Simply run ``gunicorn wsgi:app``. This will launch two workers (default) in a gunicorn environment.
+
+4) The app will run at ``0.0.0.0:8000`` by default.
 
 Docker Setup
 ------------

@@ -37,7 +37,6 @@ def get_model_names():
         for superclass in model_info.class_.mro():
             if 'CTC' in superclass.__name__ or 'RNNT' in superclass.__name__:
                 model_names.add(model_info.pretrained_model_name)
-                logging.info(f"Available model : {model_info.pretrained_model_name}")
                 break
     return model_names
 
