@@ -27,7 +27,7 @@ Pretrained
 
 NeMo comes with many pretrained models for each of our collections: ASR, NLP, and TTS.
 
-Every pretrained NeMo model can be downloaded and used with the ```from_pretrained()``` method.
+Every pretrained NeMo model can be downloaded and used with the ``from_pretrained()`` method.
 
 As an example we can instantiate QuartzNet with the following:
 
@@ -37,7 +37,7 @@ As an example we can instantiate QuartzNet with the following:
 
     model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En")
 
-To see all available pretrained models for a specific NeMo model use the ```list_available_models()``` method.
+To see all available pretrained models for a specific NeMo model use the ``list_available_models()`` method.
 
 .. code-block:: Python
 
@@ -378,7 +378,34 @@ The model configuration can be instantiated and modified like any Python `Datacl
 Save and Restore
 ----------------
 
-TODO
+NeMo models all come with ``.save_to`` and ``.restore_from`` methods.  
+
+To save a NeMo model:
+
+.. code-block:: Python
+
+    model.save_to('/path/to/model.nemo')
+
+Everything needed to use the trained model will be packaged and saved in the ``.nemo`` file.
+For example, in the NLP domain, ``.nemo`` files will include necessary tokenizer models and/or vocabulary files, etc.
+
+.. note:: .nemo files are simply archives like any other .tar file.
+
+To restore a NeMo model:
+
+.. code-block:: Python
+
+    model.restore_from('/path/to/model.nemo')
+
+When using the PyTorch Lightning Trainer, PyTorch Lightning checkpoint are created. 
+These are mainly used within NeMo to autoresume training. 
+Since NeMo models are ``LightningModules``, the PyTorch Lightning method ``load_from_checkpoint`` is available.
+Note that ``load_from_checkpoint`` won't necessarily work out of the box for all models as some moodels
+require more artifacts than just the checkpoint to be restored. 
+For these models, the user will have to override ``load_from_checkpoint`` if they wish to use it.
+
+It's highly recommended to use ``restore_from`` to load NeMo models.
+
 
 Experiment Manager
 ------------------
