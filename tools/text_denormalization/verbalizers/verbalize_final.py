@@ -15,10 +15,10 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
-from tools.text_denormalization.verbalizers.punctuation import PunctuationFst
-from tools.text_denormalization.verbalizers.verbalize import VerbalizeFst
-from tools.text_denormalization.verbalizers.word import WordFst
+from ..graph_utils import GraphFst, delete_extra_space, delete_space
+from .punctuation import PunctuationFst
+from .verbalize import VerbalizeFst
+from .word import WordFst
 
 
 class VerbalizeFinalFst(GraphFst):

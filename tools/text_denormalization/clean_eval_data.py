@@ -16,11 +16,11 @@ from argparse import ArgumentParser
 from typing import List
 
 import regex as re
-from tools.text_denormalization.data_loader_utils import EOS_TYPE, Instance, load_files, training_data_to_sentences
+from .data_loader_utils import EOS_TYPE, Instance, load_files, training_data_to_sentences
 
 
 """
-filter_loaded_data() cleans loaded normalization data for usage for tools.text_denormalization
+filter_loaded_data() cleans loaded normalization data for usage for .
 """
 
 

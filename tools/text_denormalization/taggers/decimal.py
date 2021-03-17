@@ -14,9 +14,9 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.data_loader_utils import get_abs_path
-from tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space, NEMO_DIGIT
-from tools.text_denormalization.taggers.cardinal import CardinalFst
+from ..data_loader_utils import get_abs_path
+from ..graph_utils import GraphFst, delete_extra_space, delete_space, NEMO_DIGIT
+from .cardinal import CardinalFst
 
 cardinal = CardinalFst()
 cardinal_graph = cardinal.graph_no_exception

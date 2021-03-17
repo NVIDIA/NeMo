@@ -15,7 +15,7 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.graph_utils import NEMO_DIGIT, GraphFst, delete_space, insert_space
+from ..graph_utils import NEMO_DIGIT, GraphFst, delete_space, insert_space
 
 
 class TimeFst(GraphFst):

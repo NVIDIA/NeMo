@@ -15,9 +15,9 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
-from tools.text_denormalization.verbalizers.cardinal import CardinalFst
-from tools.text_denormalization.verbalizers.decimal import DecimalFst
+from ..graph_utils import NEMO_CHAR, GraphFst, delete_space
+from .cardinal import CardinalFst
+from .decimal import DecimalFst
 
 decimal = DecimalFst()
 cardinal = CardinalFst()

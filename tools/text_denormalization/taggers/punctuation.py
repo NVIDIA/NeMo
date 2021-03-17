@@ -14,7 +14,7 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.graph_utils import GraphFst, convert_space
+from ..graph_utils import GraphFst, convert_space
 
 
 class PunctuationFst(GraphFst):

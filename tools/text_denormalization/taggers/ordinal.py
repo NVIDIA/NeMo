@@ -14,9 +14,9 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.data_loader_utils import get_abs_path
-from tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst
-from tools.text_denormalization.taggers.cardinal import CardinalFst
+from ..data_loader_utils import get_abs_path
+from ..graph_utils import NEMO_CHAR, GraphFst
+from .cardinal import CardinalFst
 
 
 class OrdinalFst(GraphFst):

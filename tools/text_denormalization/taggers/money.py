@@ -14,10 +14,10 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.data_loader_utils import get_abs_path
-from tools.text_denormalization.graph_utils import NEMO_SIGMA, GraphFst, convert_space, delete_extra_space, NEMO_DIGIT, get_singulars, delete_space, insert_space
-from tools.text_denormalization.taggers.cardinal import CardinalFst
-from tools.text_denormalization.taggers.decimal import DecimalFst
+from ..data_loader_utils import get_abs_path
+from ..graph_utils import NEMO_SIGMA, GraphFst, convert_space, delete_extra_space, NEMO_DIGIT, get_singulars, delete_space, insert_space
+from .cardinal import CardinalFst
+from .decimal import DecimalFst
 
 
 class MoneyFst(GraphFst):

@@ -14,8 +14,8 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.data_loader_utils import get_abs_path
-from tools.text_denormalization.graph_utils import NEMO_NOT_SPACE, GraphFst, convert_space
+from ..data_loader_utils import get_abs_path
+from ..graph_utils import NEMO_NOT_SPACE, GraphFst, convert_space
 
 
 class WordFst(GraphFst):

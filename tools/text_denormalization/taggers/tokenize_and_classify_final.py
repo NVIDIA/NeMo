@@ -14,9 +14,9 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.graph_utils import GraphFst
-from tools.text_denormalization.taggers.punctuation import PunctuationFst
-from tools.text_denormalization.taggers.tokenize_and_classify import ClassifyFst
+from ..graph_utils import GraphFst
+from .punctuation import PunctuationFst
+from .tokenize_and_classify import ClassifyFst
 
 
 class ClassifyFst(GraphFst):

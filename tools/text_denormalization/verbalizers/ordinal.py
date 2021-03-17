@@ -15,7 +15,7 @@
 
 import pynini
 from pynini.lib import pynutil
-from tools.text_denormalization.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst, delete_space
+from ..graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst, delete_space
 
 
 class OrdinalFst(GraphFst):

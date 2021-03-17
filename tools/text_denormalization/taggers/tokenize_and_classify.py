@@ -13,16 +13,16 @@
 # limitations under the License.
 
 from pynini.lib import pynutil
-from tools.text_denormalization.graph_utils import GraphFst
-from tools.text_denormalization.taggers.cardinal import CardinalFst
-from tools.text_denormalization.taggers.date import DateFst
-from tools.text_denormalization.taggers.decimal import DecimalFst
-from tools.text_denormalization.taggers.measure import MeasureFst
-from tools.text_denormalization.taggers.money import MoneyFst
-from tools.text_denormalization.taggers.ordinal import OrdinalFst
-from tools.text_denormalization.taggers.time import TimeFst
-from tools.text_denormalization.taggers.whitelist import WhiteListFst
-from tools.text_denormalization.taggers.word import WordFst
+from ..graph_utils import GraphFst
+from .cardinal import CardinalFst
+from .date import DateFst
+from .decimal import DecimalFst
+from .measure import MeasureFst
+from .money import MoneyFst
+from .ordinal import OrdinalFst
+from .time import TimeFst
+from .whitelist import WhiteListFst
+from .word import WordFst
 
 
 class ClassifyFst(GraphFst):

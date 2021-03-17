@@ -14,9 +14,9 @@
 
 from argparse import ArgumentParser
 
-from clean_eval_data import filter_loaded_data
-from data_loader_utils import evaluate, known_types, load_files, training_data_to_sentences, training_data_to_tokens
-from denormalize import DENORMALIZERS
+from .clean_eval_data import filter_loaded_data
+from .data_loader_utils import evaluate, known_types, load_files, training_data_to_sentences, training_data_to_tokens
+from .denormalize import DENORMALIZERS
 
 
 '''
