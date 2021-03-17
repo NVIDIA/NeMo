@@ -98,6 +98,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx.ext.inheritance_diagram",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
     "sphinx_rtd_theme",
 ]
