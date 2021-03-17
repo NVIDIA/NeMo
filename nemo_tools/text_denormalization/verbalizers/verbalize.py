@@ -16,16 +16,15 @@
 import pynini
 from pynini.lib import pynutil
 
-from nemo_tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
+from nemo_tools.text_denormalization.graph_utils import GraphFst
 from nemo_tools.text_denormalization.verbalizers.cardinal import CardinalFst
 from nemo_tools.text_denormalization.verbalizers.date import DateFst
 from nemo_tools.text_denormalization.verbalizers.decimal import DecimalFst
 from nemo_tools.text_denormalization.verbalizers.measure import MeasureFst
 from nemo_tools.text_denormalization.verbalizers.money import MoneyFst
 from nemo_tools.text_denormalization.verbalizers.ordinal import OrdinalFst
-from nemo_tools.text_denormalization.verbalizers.punctuation import PunctuationFst
 from nemo_tools.text_denormalization.verbalizers.time import TimeFst
-from nemo_tools.text_denormalization.verbalizers.word import WordFst
+from nemo_tools.text_denormalization.verbalizers.whitelist import WhiteListFst
 
 
 class VerbalizeFst(GraphFst):
@@ -39,20 +38,9 @@ class VerbalizeFst(GraphFst):
         ordinal = OrdinalFst().fst
         decimal = DecimalFst().fst
         measure = MeasureFst().fst
-        punct = PunctuationFst().fst
         time = TimeFst().fst
-        word = WordFst().fst
         date = DateFst().fst
         money = MoneyFst().fst
-        types = date | money | time | measure | ordinal | decimal | cardinal | word | punct
-        graph = (
-            pynutil.delete("tokens", weight=-10)
-            + delete_space
-            + pynutil.delete("{")
-            + delete_space
-            + types
-            + delete_space
-            + pynutil.delete("}")
-        )
-        graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
+        whitelist = WhiteListFst().fst
+        graph = time | date | money | measure | ordinal | decimal | cardinal | whitelist
         self.fst = graph
