@@ -244,5 +244,28 @@ class BERTLMModel(ModelPT):
         return dl
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="bertbaseuncased",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/bertbaseuncased/versions/1.0.0rc1/files/bertbaseuncased.nemo",
+                description="The model was trained EN Wikipedia and BookCorpus on a sequence length of 512.",
+            )
+        )
+
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="bertlargeuncased",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/bertlargeuncased/versions/1.0.0rc1/files/bertlargeuncased.nemo",
+                description="The model was trained EN Wikipedia and BookCorpus on a sequence length of 512.",
+            )
+        )
+        return result
