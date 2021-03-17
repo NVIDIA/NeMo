@@ -20,13 +20,8 @@ from tools.text_normalization.normalize import normalize
 from utils import parse_test_case_file
 
 
-class TestTime(TestCase):
-    @parameterized.expand(parse_test_case_file('data_text_denormalization/test_cases_time.txt'))
-    def test_denorm(self, test_input, expected):
-        pred = denormalize(test_input, verbose=False)
-        assert pred == expected
-
-    @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_time.txt'))
+class TestOrdinal(TestCase):
+    @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_ordinal.txt'))
     def test_norm(self, test_input, expected):
         pred = normalize(test_input, verbose=False)
         assert pred == expected
