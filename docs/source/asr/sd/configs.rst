@@ -1,9 +1,4 @@
 NeMo Speaker Diarization Configuration Files
-=============================================
-
-This page covers NeMo configuration file setup that is specific to Speaker Diarization (Inference) task.
-For general information about how to set up and run experiments that is common to all NeMo models (e.g.
-experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../starthere/core` page.
 
 Since speaker diarization model here is not a fully-trainble End-to-End model but a inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
 

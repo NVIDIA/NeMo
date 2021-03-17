@@ -39,9 +39,14 @@ MatchboxNet models can be instantiated using the :class:`EncDecClassificationMod
   please refer to  ``<NeMo_git_root>/tutorials/asr/03_Speech_Commands.ipynb`` and ``<NeMo_git_root>/tutorials/asr/04_Online_Offline_Speech_Commands_Demo.ipynb``.
 
 
+  .. _MarbleNet_model:
 
+<<<<<<< HEAD:docs/source/asr/speech_classification/models.rst
 .. _MarbleNet-model:
 
+=======
+  
+>>>>>>> speaker diarization doc:docs/source/asr/sc/models.rst
 MarbleNet (VAD) 
 ------------------
 
