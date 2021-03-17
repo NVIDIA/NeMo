@@ -14,8 +14,8 @@
 # limitations under the License.
 
 import pynini
-from tools.text_denormalization.graph_utils import NEMO_CHAR, NEMO_NOT_QUOTE, GraphFst, delete_space
 from pynini.lib import pynutil
+from tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
 
 
 class MoneyFst(GraphFst):

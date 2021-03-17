@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import pynini
+from pynini.lib import pynutil
 from tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
 from tools.text_denormalization.verbalizers.cardinal import CardinalFst
 from tools.text_denormalization.verbalizers.date import DateFst
@@ -24,7 +25,6 @@ from tools.text_denormalization.verbalizers.ordinal import OrdinalFst
 from tools.text_denormalization.verbalizers.punctuation import PunctuationFst
 from tools.text_denormalization.verbalizers.time import TimeFst
 from tools.text_denormalization.verbalizers.word import WordFst
-from pynini.lib import pynutil
 
 
 class VerbalizeFst(GraphFst):

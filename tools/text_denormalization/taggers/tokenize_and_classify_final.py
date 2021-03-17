@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import pynini
-from tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst
+from pynini.lib import pynutil
+from tools.text_denormalization.graph_utils import GraphFst
 from tools.text_denormalization.taggers.punctuation import PunctuationFst
 from tools.text_denormalization.taggers.tokenize_and_classify import ClassifyFst
-from pynini.lib import pynutil
 
 
 class ClassifyFst(GraphFst):

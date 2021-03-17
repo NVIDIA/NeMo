@@ -14,12 +14,11 @@
 # limitations under the License.
 
 import pynini
-from tools.text_denormalization.graph_utils import NEMO_SIGMA, GraphFst, delete_extra_space, delete_space
+from pynini.lib import pynutil
+from tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
 from tools.text_denormalization.verbalizers.punctuation import PunctuationFst
 from tools.text_denormalization.verbalizers.verbalize import VerbalizeFst
-from tools.text_denormalization.verbalizers.whitelist import WhiteListFst
 from tools.text_denormalization.verbalizers.word import WordFst
-from pynini.lib import pynutil
 
 
 class VerbalizeFinalFst(GraphFst):
@@ -33,7 +32,6 @@ class VerbalizeFinalFst(GraphFst):
         super().__init__(name="verbalize_final", kind="verbalize")
         verbalize = VerbalizeFst().fst
         punct = PunctuationFst().fst
-        whitelist = WhiteListFst().fst
         word = WordFst().fst
         types = verbalize | word | punct
         graph = (

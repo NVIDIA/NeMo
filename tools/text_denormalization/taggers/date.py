@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import csv
-import os
-
 import pynini
-from tools.text_denormalization.data_loader_utils import get_abs_path
-from tools.text_denormalization.graph_utils import NEMO_SPACE, GraphFst, delete_space
-from tools.text_denormalization.taggers.ordinal import OrdinalFst
 from pynini.lib import pynutil
+from tools.text_denormalization.data_loader_utils import get_abs_path
+from tools.text_denormalization.graph_utils import NEMO_SIGMA, GraphFst, delete_space
+from tools.text_denormalization.taggers.ordinal import OrdinalFst
 
 
 def _get_month_graph():
@@ -75,7 +72,6 @@ def _get_year_graph():
     graph_ties = _get_ties_graph()
     graph_digits = _get_digits_graph()
     graph_thousands = _get_thousands_graph()
-    graph_ranges = _get_range_graph()
     year_graph = (
         # 20 19, 40 12, 2012 - assuming no limit on the year
         (graph_teen + delete_space + (graph_ties | graph_digits | graph_teen))

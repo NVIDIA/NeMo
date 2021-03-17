@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pynini
-from tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst
+from pynini.lib import pynutil
+from tools.text_denormalization.graph_utils import GraphFst
 from tools.text_denormalization.taggers.cardinal import CardinalFst
 from tools.text_denormalization.taggers.date import DateFst
 from tools.text_denormalization.taggers.decimal import DecimalFst
@@ -23,7 +23,6 @@ from tools.text_denormalization.taggers.ordinal import OrdinalFst
 from tools.text_denormalization.taggers.time import TimeFst
 from tools.text_denormalization.taggers.whitelist import WhiteListFst
 from tools.text_denormalization.taggers.word import WordFst
-from pynini.lib import pynutil
 
 
 class ClassifyFst(GraphFst):

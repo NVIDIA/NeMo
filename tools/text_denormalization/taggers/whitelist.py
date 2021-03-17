@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import pynini
+from pynini.lib import pynutil
 from tools.text_denormalization.data_loader_utils import get_abs_path
 from tools.text_denormalization.graph_utils import GraphFst
-from pynini.lib import pynutil
 
 
 class WhiteListFst(GraphFst):

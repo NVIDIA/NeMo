@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import pynini
+from pynini.lib import pynutil
 from tools.text_denormalization.data_loader_utils import get_abs_path
-from tools.text_denormalization.graph_utils import GraphFst, convert_space, delete_extra_space, get_plurals
+from tools.text_denormalization.graph_utils import NEMO_SIGMA, GraphFst, convert_space, delete_extra_space
 from tools.text_denormalization.taggers.cardinal import CardinalFst
 from tools.text_denormalization.taggers.decimal import DecimalFst
-from pynini.lib import pynutil
 
 cardinal = CardinalFst()
 decimal = DecimalFst()
@@ -39,13 +39,9 @@ class MeasureFst(GraphFst):
         graph_unit_singular = pynini.invert(graph_unit)  # singular -> abbr
         graph_unit_plural = get_singulars(graph_unit_singular)  # plural -> abbr
 
-        point = pynutil.delete("point")
-
         optional_graph_negative = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1
         )
-
-        graph_fractional = pynutil.insert("fractional_part: \"") + graph_decimal + pynutil.insert("\"")
 
         unit_singular = convert_space(graph_unit_singular)
         unit_plural = convert_space(graph_unit_plural)

@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import pynini
+from pynini.lib import pynutil
 from tools.text_denormalization.data_loader_utils import get_abs_path
-from tools.text_denormalization.graph_utils import GraphFst, convert_space, delete_extra_space, get_plurals
+from tools.text_denormalization.graph_utils import NEMO_SIGMA, GraphFst, convert_space, delete_extra_space
 from tools.text_denormalization.taggers.cardinal import CardinalFst
 from tools.text_denormalization.taggers.decimal import DecimalFst
-from pynini.lib import pynutil
 
 
 class MoneyFst(GraphFst):
@@ -30,7 +30,6 @@ class MoneyFst(GraphFst):
         super().__init__(name="money", kind="classify")
         # quantity, integer_part, fractional_part, currency, style(depr)
         cardinal_graph = CardinalFst().graph_no_exception
-        graph_decimal = DecimalFst().graph
         graph_decimal_final = DecimalFst().final_graph_wo_negative
 
         unit = pynini.string_file(get_abs_path("data/currency.tsv"))

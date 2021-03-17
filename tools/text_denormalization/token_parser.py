@@ -16,8 +16,6 @@ import string
 from collections import OrderedDict
 from typing import Union
 
-import pynini
-
 PRESERVE_ORDER_KEY = "preserve_order"
 EOS = "<EOS>"
 

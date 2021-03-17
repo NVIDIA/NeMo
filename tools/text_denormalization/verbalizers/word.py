@@ -14,8 +14,9 @@
 # limitations under the License.
 
 import pynini
-from ..graph_utils import NEMO_CHAR, NEMO_SIGMA, NEMO_SPACE, GraphFst, delete_space
 from pynini.lib import pynutil
+
+from ..graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst, delete_space
 
 
 class WordFst(GraphFst):

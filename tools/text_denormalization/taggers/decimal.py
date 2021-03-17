@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import pynini
+from pynini.lib import pynutil
 from tools.text_denormalization.data_loader_utils import get_abs_path
 from tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
 from tools.text_denormalization.taggers.cardinal import CardinalFst
-from pynini.lib import pynutil
 
 cardinal = CardinalFst()
 cardinal_graph = cardinal.graph_no_exception
