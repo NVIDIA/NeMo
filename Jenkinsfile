@@ -34,6 +34,14 @@ pipeline {
           }
         }
       }
+
+      
+    post {
+    always {
+      sh "chmod -R 777 ."
+      cleanWs()
+    }
+    }
     }
 
     stage('PyTorch Container') {
@@ -1144,14 +1152,19 @@ pipeline {
           }
         }
       
-  }}}
-
-  post {
-    always {
-      sh "chmod -R 777 ."
-      cleanWs()
-    }
   }
+  
+  
+  post {
+  always {
+    sh "chmod -R 777 ."
+    cleanWs()
+  }
+  }
+  }
+  }
+
+
 
 
 }
