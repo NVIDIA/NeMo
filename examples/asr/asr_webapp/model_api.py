@@ -10,10 +10,11 @@ if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cu
     logging.info("AMP enabled!\n")
     autocast = torch.cuda.amp.autocast
 else:
-
     @contextlib.contextmanager
     def autocast():
         yield
+
+MODEL_CACHE = {}
 
 
 def get_model_names():
@@ -24,27 +25,45 @@ def get_model_names():
     return model_names
 
 
-def initialize_model(model_name, use_gpu_if_available):
+def initialize_model(model_name):
     # load model
-    model = nemo_asr.models.ASRModel.from_pretrained(model_name)
+    if model_name not in MODEL_CACHE:
+        model = nemo_asr.models.ASRModel.from_pretrained(model_name, map_location='cpu')
+        model.freeze()
+        # cache model
+        MODEL_CACHE[model_name] = model
 
-    if torch.cuda.is_available() and use_gpu_if_available:
-        model = model.cuda()
-
+    model = MODEL_CACHE[model_name]
     return model
 
 
 def transcribe_all(filepaths, model_name, use_gpu_if_available=True):
     # instantiate model
-    model = initialize_model(model_name, use_gpu_if_available)
+    if model_name in MODEL_CACHE:
+        model = MODEL_CACHE[model_name]
+    else:
+        model = initialize_model(model_name)
+
+    if torch.cuda.is_available() and use_gpu_if_available:
+        model = model.cuda()
 
     # transcribe audio
     logging.info("Begin transcribing audio...")
-    with autocast():
+    try:
+        with autocast():
+            with torch.no_grad():
+                transcriptions = model.transcribe(filepaths, batch_size=32)
+
+    except RuntimeError:
+        logging.info("Ran out of memory on GPU - dumping cache and performing inference on CPU for now")
+
+        model = model.cpu()
         with torch.no_grad():
             transcriptions = model.transcribe(filepaths, batch_size=32)
+
     logging.info(f"Finished transcribing {len(filepaths)} files !")
 
-    # delete model
-    del model
+    model = model.cpu()
+    MODEL_CACHE[model_name] = model
+
     return transcriptions

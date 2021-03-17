@@ -51,6 +51,9 @@ def initialize_model():
     model_name = request.form['model_names_select']
     use_gpu_if_available = request.form.get('use_gpu_ckbx', "off")
 
+    # Load model into cache
+    model_api.initialize_model(model_name=model_name)
+
     result = render_template('toast_msg.html',
                              toast_message=f"Model {model_name} has been initialized !",
                              timeout=2000)
@@ -186,7 +189,7 @@ def transcribe():
         'toast_msg.html',
         toast_message=f"Transcribed {len(files)} files using {model_name} (gpu={gpu_used}), "
         f"in {(t2 - t1): 0.2f} s",
-        timeout=10000
+        timeout=5000
     )
     result = render_template('transcripts.html', transcripts=results)
     result = toast + result
