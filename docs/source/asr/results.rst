@@ -72,7 +72,7 @@ You may perform inference and transcribe a sample of speech after loading the mo
 
     model.transcribe(paths2audio_files=[list of audio files], batch_size=BATCH_SIZE, logprobs=False)
 
-Setting argument 'logprobs' to True would return the log probabilities instead of transcriptions. You may find more detail here: `transcribe() <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/asr/api.html#modules>`
+Setting argument 'logprobs' to True would return the log probabilities instead of transcriptions. You may find more detail here: :doc:`./api.html#modules`
 The audio files should be 16KHz monochannel wav files.
 
 
