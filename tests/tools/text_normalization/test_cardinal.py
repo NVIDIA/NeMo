@@ -15,7 +15,6 @@
 from unittest import TestCase
 
 from parameterized import parameterized
-from tools.text_denormalization.denormalize import denormalize
 from tools.text_normalization.normalize import normalize
 from utils import parse_test_case_file
 
