@@ -39,7 +39,9 @@ MatchboxNet models can be instantiated using the :class:`EncDecClassificationMod
   please refer to  `Speech_Commands <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/03_Speech_Commands.ipynb>`_ and `Online_Offline_Speech_Commands_Demo <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/04_Online_Offline_Speech_Commands_Demo.ipynb>`_.
 
 
+  .. _MarbleNet_model:
 
+  
 MarbleNet (VAD) 
 ------
 

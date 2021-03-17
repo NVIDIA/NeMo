@@ -1,0 +1,71 @@
+Speaker Diarization
+==================================
+
+Who Speaks When? Speaker Diarization is the task of segmenting audio recordings by speaker labels. 
+
+.. image:: images/sd_pipeline.png
+        :align: center
+        :alt: Speaker Diarization pipeline [todo]
+        :scale: 50%
+
+
+A diarization system consists of **Voice Activity Detection (VAD)** model to get the time stamps of audio where speech is being spoken ignoring the background and 
+**Speaker Embeddings** model to get speaker embeddings on segments that were previously time stamped. 
+These speaker embeddings would then be clustered into clusters based on number of speakers present in the audio recording.
+
+In NeMo we support both **oracle VAD** and **non-oracle VAD** diarization. 
+
+``Quick Start``
+
+.. note::
+        For model details and deep understanding, please refer to  `Speaker_Diarization_Inference <https://github.com/NVIDIA/NeMo/blob/1.0.0rc1/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb>`_ .
+
+        
+Run and evaluate speaker diarizer with below command:
+
+.. code-block:: bash
+
+  python examples/speaker_recognition/speaker_diarize.py \
+  diarizer.paths2audio_files=<either list of audio file paths or file containing paths to audio files> \
+  diarizer.path2groundtruth_rttm_files=<(Optional) either list of rttm file paths or file containing paths to rttm files> \
+  diarizer.vad.model_path="vad_telephony_marblenet" \
+  diarizer.vad.threshold=0.7 \
+  diarizer.speaker_embeddings.model_path="speakerverification_speakernet" \
+  diarizer.out_dir="demo"
+
+
+The full documentation tree is as follows:
+
+.. toctree::
+   :maxdepth: 8
+
+   models
+   datasets
+   results
+   configs
+   api
+
+Resource and Documentation Guide
+--------------------------------
+
+Hands-on speaker diarization tutorial notebooks can be found under
+`the speaker rectonition realted  tutorials folder <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/tutorials/speaker_recognition/>`_.
+
+There are tutorials for peformming inference using :ref:`MarbleNet_model` and :ref:`SpeakerNet_model`, 
+and how one can get ASR transcriptions combined with Speaker labels along with voice activity time stamps with NeMo asr collections.
+
+Most of the tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
+
+If you are looking for information about a particular model used for speaker diarization inference, or would like to find out more about the model
+architectures available in the `nemo_asr` collection, check out the :doc:`Models <./models>` page.
+
+Documentation on dataset preprocessing can be found on the :doc:`Datasets <./datasets>` page.
+NeMo includes preprocessing scripts for several common ASR datasets, and this page contains instructions on running
+those scripts.
+It also includes guidance for creating your own NeMo-compatible dataset, if you have your own data.
+
+Information about how to load model checkpoints (either local files or pretrained ones from NGC), as well as a list
+of the checkpoints available on NGC are located on the :doc:`Checkpoints <./results>` page.
+
+Documentation for configuration files specific to the ``nemo_asr`` models can be found on the
+:doc:`Configuration Files <./configs>` page.
