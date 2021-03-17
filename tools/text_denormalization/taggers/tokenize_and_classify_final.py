@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import pynini
-from denormalization.graph_utils import NEMO_CHAR, GraphFst
-from denormalization.taggers.punctuation import PunctuationFst
-from denormalization.taggers.tokenize_and_classify import ClassifyFst
+from tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst
+from tools.text_denormalization.taggers.punctuation import PunctuationFst
+from tools.text_denormalization.taggers.tokenize_and_classify import ClassifyFst
 from pynini.lib import pynutil
 
 

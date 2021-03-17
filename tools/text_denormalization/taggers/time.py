@@ -14,10 +14,10 @@
 
 
 import pynini
-from denormalization.data_loader_utils import get_abs_path
-from denormalization.graph_utils import GraphFst, convert_space, delete_extra_space, delete_space
-from denormalization.taggers.cardinal import CardinalFst
-from denormalization.utils import num_to_word
+from tools.text_denormalization.data_loader_utils import get_abs_path
+from tools.text_denormalization.graph_utils import GraphFst, convert_space, delete_extra_space, delete_space
+from tools.text_denormalization.taggers.cardinal import CardinalFst
+from tools.text_denormalization.utils import num_to_word
 from pynini.lib import pynutil
 
 

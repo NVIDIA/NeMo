@@ -13,16 +13,16 @@
 # limitations under the License.
 
 import pynini
-from denormalization.graph_utils import NEMO_CHAR, GraphFst
-from denormalization.taggers.cardinal import CardinalFst
-from denormalization.taggers.date import DateFst
-from denormalization.taggers.decimal import DecimalFst
-from denormalization.taggers.measure import MeasureFst
-from denormalization.taggers.money import MoneyFst
-from denormalization.taggers.ordinal import OrdinalFst
-from denormalization.taggers.time import TimeFst
-from denormalization.taggers.whitelist import WhiteListFst
-from denormalization.taggers.word import WordFst
+from tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst
+from tools.text_denormalization.taggers.cardinal import CardinalFst
+from tools.text_denormalization.taggers.date import DateFst
+from tools.text_denormalization.taggers.decimal import DecimalFst
+from tools.text_denormalization.taggers.measure import MeasureFst
+from tools.text_denormalization.taggers.money import MoneyFst
+from tools.text_denormalization.taggers.ordinal import OrdinalFst
+from tools.text_denormalization.taggers.time import TimeFst
+from tools.text_denormalization.taggers.whitelist import WhiteListFst
+from tools.text_denormalization.taggers.word import WordFst
 from pynini.lib import pynutil
 
 

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pynini
-from denormalization.graph_utils import GraphFst, convert_space
+from tools.text_denormalization.graph_utils import GraphFst, convert_space
 from pynini.lib import pynutil
 
 

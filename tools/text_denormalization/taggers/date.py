@@ -16,9 +16,9 @@ import csv
 import os
 
 import pynini
-from denormalization.data_loader_utils import get_abs_path
-from denormalization.graph_utils import NEMO_SPACE, GraphFst, add_arcs, delete_space
-from denormalization.taggers.ordinal import OrdinalFst
+from tools.text_denormalization.data_loader_utils import get_abs_path
+from tools.text_denormalization.graph_utils import NEMO_SPACE, GraphFst, add_arcs, delete_space
+from tools.text_denormalization.taggers.ordinal import OrdinalFst
 from pynini.lib import pynutil
 
 

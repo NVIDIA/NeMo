@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import pynini
-from denormalization.graph_utils import NEMO_DIGIT, NEMO_NOT_QUOTE, GraphFst, delete_extra_space, delete_space
+from tools.text_denormalization.graph_utils import NEMO_DIGIT, NEMO_NOT_QUOTE, GraphFst, delete_extra_space, delete_space
 from pynini.lib import pynutil
 
 
