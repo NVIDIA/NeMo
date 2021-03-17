@@ -64,13 +64,11 @@
 <!--Placeholder for top of app-->
 <div id="top"></div>
 
-<br>
-
-<form id="model_names_form" action="" style="display: inline;">
+<form id="model_names_form" action="" enctype="multipart/form-data" style="display: inline;">
 
    <h5> Model Name :
 
-<!-- Format selectable list of models -->
+    <!-- Format selectable list of models -->
       <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 25%">
           <select name="model_names_select" class="mdl-textfield__input" id="model_names_select_id">
               {% for x in model_names %}
@@ -79,13 +77,17 @@
           </select>
       </div>
 
-    &nbsp;
-
     <!-- Load Model -->
     <button class="btn mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect"
-            hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="afterend">
+            hx-post="{{ url_for('initialize_model') }}" hx-target="this" hx-swap="afterend"
+            hx-encoding="multipart/form-data">
         Load Model
     </button>
+
+    <!-- Load .nemo checkpoint -->
+&nbsp;  <br>
+   Model Checkpoint :
+   <input type = "file" name = "nemo_model" accept=".nemo" id="nemo_model_file" />
 
     </h5>
 

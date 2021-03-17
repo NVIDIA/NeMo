@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import contextlib
 import torch
+import glob
 
 import nemo.collections.asr as nemo_asr
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
 # setup AMP (optional)
@@ -31,20 +33,43 @@ else:
 MODEL_CACHE = {}
 
 
-def get_model_names():
-    model_names = set()
+def get_model_names(upload_folder: str):
+    # Populate local copy of models
+    local_model_paths = glob.glob(os.path.join(upload_folder, 'models', "**", "*.nemo"), recursive=True)
+    local_model_names = list(sorted([os.path.basename(path) for path in local_model_paths]))
+
+    # Populate with pretrained nemo checkpoint list
+    nemo_model_names = set()
     for model_info in nemo_asr.models.ASRModel.list_available_models():
         for superclass in model_info.class_.mro():
             if 'CTC' in superclass.__name__ or 'RNNT' in superclass.__name__:
-                model_names.add(model_info.pretrained_model_name)
+                nemo_model_names.add(model_info.pretrained_model_name)
                 break
-    return model_names
+    nemo_model_names = list(sorted(nemo_model_names))
+    return nemo_model_names, local_model_names
 
 
-def initialize_model(model_name):
+def initialize_model(model_name, upload_folder: str):
     # load model
     if model_name not in MODEL_CACHE:
-        model = nemo_asr.models.ASRModel.from_pretrained(model_name, map_location='cpu')
+        if '.nemo' in model_name:
+            # use local model
+            model_name_no_ext = os.path.splitext(model_name)[0]
+            model_path = os.path.join(upload_folder, 'models', model_name_no_ext, model_name)
+
+            # Extract config
+            model_cfg = nemo_asr.models.ASRModel.restore_from(restore_path=model_path, return_config=True)
+            classpath = model_cfg.target  # original class path
+            imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
+            logging.info(f"Restoring local model : {imported_class.__name__}")
+
+            # load model from checkpoint
+            model = imported_class.restore_from(restore_path=model_path, map_location='cpu')  # type: ASRModel
+
+        else:
+            # use pretrained model
+            model = nemo_asr.models.ASRModel.from_pretrained(model_name, map_location='cpu')
+
         model.freeze()
 
         # cache model
@@ -54,12 +79,12 @@ def initialize_model(model_name):
     return model
 
 
-def transcribe_all(filepaths, model_name, use_gpu_if_available=True):
+def transcribe_all(filepaths, model_name, upload_folder, use_gpu_if_available=True):
     # instantiate model
     if model_name in MODEL_CACHE:
         model = MODEL_CACHE[model_name]
     else:
-        model = initialize_model(model_name)
+        model = initialize_model(model_name, upload_folder=upload_folder)
 
     if torch.cuda.is_available() and use_gpu_if_available:
         model = model.cuda()
@@ -79,6 +104,11 @@ def transcribe_all(filepaths, model_name, use_gpu_if_available=True):
             transcriptions = model.transcribe(filepaths, batch_size=32)
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
+
+    # If RNNT models transcribe, they return a tuple (greedy, beam_scores)
+    if type(transcriptions[0]) == list and len(transcriptions) == 2:
+        # get greedy transcriptions only
+        transcriptions = transcriptions[0]
 
     # Force onto CPU
     model = model.cpu()
