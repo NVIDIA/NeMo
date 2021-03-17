@@ -24,6 +24,8 @@ from pynini import Far
 from pynini.examples import plurals
 from pynini.lib import byte, pynutil, utf8
 
+NEMO_CHAR = utf8.VALID_UTF8_CHAR
+
 NEMO_DIGIT = byte.DIGIT
 NEMO_NOT_QUOTE = pynini.difference(NEMO_CHAR, r'"').optimize()
 NEMO_LOWER = pynini.union(*string.ascii_lowercase).optimize()
