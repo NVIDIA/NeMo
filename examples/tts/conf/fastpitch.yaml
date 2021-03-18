@@ -1,8 +1,5 @@
 name: "FastPitch"
 sample_rate: 22050
-n_fft: 1024
-n_mels: 80
-fmax: 8000
 
 train_dataset: ???
 validation_datasets: ???
@@ -12,7 +9,7 @@ model:
   n_speakers: 1
   symbols_embedding_dim: 384
   max_token_duration: 75
-  n_mel_channels: ${n_mels}
+  n_mel_channels: 80
   pitch_embedding_kernel_size: 3
 
   train_ds:
@@ -25,7 +22,7 @@ model:
     drop_last: true
     shuffle: true
     batch_size: 32
-    num_workers: 16
+    num_workers: 1
 
   validation_ds:
     manifest_filepath: ${validation_datasets}
@@ -37,26 +34,25 @@ model:
     drop_last: false
     shuffle: false
     batch_size: 32
-    num_workers: 8
+    num_workers: 1
 
   parser:
     _target_: nemo.collections.tts.modules.fastpitch_parser.FastPitchParser
-    params:
-      symbol_set: english_basic
-      text_cleaners: [english_cleaners]
+    symbol_set: english_basic
+    text_cleaners: [english_cleaners]
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     dither: 0.0
-    features: ${n_mels}
+    features: ${model.n_mel_channels}
     frame_splicing: 1
-    highfreq: ${fmax}
+    highfreq: 8000
     log: true
     log_zero_guard_type: add
     log_zero_guard_value: 1e-05
     lowfreq: 0
     mag_power: 1.0
-    n_fft: ${n_fft}
+    n_fft: 1024
     n_window_size: 1024
     n_window_stride: 256
     normalize: null
@@ -64,59 +60,52 @@ model:
     pad_value: 0
     preemph: null
     sample_rate: ${sample_rate}
-    stft_conv: true
     window: hann
     window_size: null
     window_stride: null
 
   input_fft:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder
-    params:
-      n_layer: 6
-      n_head: 1
-      d_model: ${model.symbols_embedding_dim}
-      d_head: 64
-      d_inner: 1536
-      kernel_size: 3
-      dropout: 0.1
-      dropatt: 0.1
-      dropemb: 0.0
-      n_embed: 148  # NOTE Should match # of tokens in `symbol_set`
-      d_embed: ${model.symbols_embedding_dim}
-      padding_idx: 0
+    n_layer: 6
+    n_head: 1
+    d_model: ${model.symbols_embedding_dim}
+    d_head: 64
+    d_inner: 1536
+    kernel_size: 3
+    dropout: 0.1
+    dropatt: 0.1
+    dropemb: 0.0
+    n_embed: 148  # NOTE Should match # of tokens in `symbol_set`
+    d_embed: ${model.symbols_embedding_dim}
+    padding_idx: 0
 
   output_fft:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
-    params:
-      n_layer: 6
-      n_head: 1
-      d_model: ${model.symbols_embedding_dim}
-      d_head: 64
-      d_inner: 1536
-      kernel_size: 3
-      dropout: 0.1
-      dropatt: 0.1
-      dropemb: 0.0
+    n_layer: 6
+    n_head: 1
+    d_model: ${model.symbols_embedding_dim}
+    d_head: 64
+    d_inner: 1536
+    kernel_size: 3
+    dropout: 0.1
+    dropatt: 0.1
+    dropemb: 0.0
 
   duration_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
-    params:
-      input_size: ${model.symbols_embedding_dim}
-      kernel_size: 3
-      filter_size: 256
-      dropout: 0.1
-      n_layers: 2
+    input_size: ${model.symbols_embedding_dim}
+    kernel_size: 3
+    filter_size: 256
+    dropout: 0.1
+    n_layers: 2
 
   pitch_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
-    params:
-      input_size: ${model.symbols_embedding_dim}
-      kernel_size: 3
-      filter_size: 256
-      dropout: 0.1
-      n_layers: 2
-
-  target: nemo.collections.tts.models.fastpitch.FastPitchModel
+    input_size: ${model.symbols_embedding_dim}
+    kernel_size: 3
+    filter_size: 256
+    dropout: 0.1
+    n_layers: 2
 
   optim:
     name: lamb

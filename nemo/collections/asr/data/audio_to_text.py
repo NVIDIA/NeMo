@@ -495,19 +495,11 @@ class AudioToCharWithDursPitchDataset(_AudioTextDataset):
         audio, audio_len, text, text_len = super().__getitem__(item)  # noqa
 
         audio_path = self.collection[item].audio_file
-        durs_path = audio_path.replace('/wavs/', '/durations/').replace('.wav', '.pt')
-        pitch_path = audio_path.replace('/wavs/', '/pitch/').replace('.wav', '.pt')
+        durs_path = audio_path.replace('/wavs/', '/fastpitch/durations/').replace('.wav', '.pt')
+        pitch_path = audio_path.replace('/wavs/', '/fastpitch/pitch_char/').replace('.wav', '.pt')
         speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
 
-        return (
-            audio,
-            audio_len,
-            text,
-            text_len,
-            torch.load(durs_path),
-            torch.load(pitch_path),
-            speaker
-        )
+        return (audio, audio_len, text, text_len, torch.load(durs_path), torch.load(pitch_path), speaker, audio_path)
 
     def _collate_fn(self, batch):
         asr_batch = list(zip(*batch))[:4]
@@ -516,8 +508,10 @@ class AudioToCharWithDursPitchDataset(_AudioTextDataset):
 
         max_tokens_len = text.size(1)
         durs, pitch, speakers = [], [], []
-        for _, _, _, tokens_i_len, durs_i, pitch_i, speaker_i in batch:
+        for _, _, _, tokens_i_len, durs_i, pitch_i, speaker_i, path_i in batch:
             pad = (0, max_tokens_len - tokens_i_len.item())
+            assert len(durs_i) == len(pitch_i), f"{len(durs_i)}, {len(pitch_i)}: {path_i}"
+            assert len(durs_i) == tokens_i_len, f"{len(durs_i)}, {tokens_i_len}:  {path_i}"
             durs.append(F.pad(durs_i, pad, value=self.pad_id))
             pitch.append(F.pad(pitch_i, pad, value=self.pad_id))
             speakers.append(speaker_i)
@@ -527,9 +521,9 @@ class AudioToCharWithDursPitchDataset(_AudioTextDataset):
             audio_len,
             text,
             text_len,
-            torch.stack(durs),
-            torch.stack(pitch),
-            torch.stack(speakers),
+            torch.stack(durs).to(audio.dtype),
+            torch.stack(pitch).to(audio.dtype),
+            torch.stack(speakers).to(audio.dtype),
         )
 
 
