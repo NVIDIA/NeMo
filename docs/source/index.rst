@@ -21,7 +21,6 @@ NVIDIA NeMo Developer Guide
    asr/speaker_recognition/intro
    asr/speaker_diarization/intro
 
-
 .. toctree::
    :maxdepth: 2
    :caption: Natural Language Processing
