@@ -32,6 +32,9 @@ else:
 
 MODEL_CACHE = {}
 
+# Special tags for fallbacks / user notifications
+TAG_ERROR_DURING_TRANSCRIPTION = "<ERROR_DURING_TRANSCRIPTION>"
+
 
 def get_model_names(upload_folder: str):
     # Populate local copy of models
@@ -97,11 +100,16 @@ def transcribe_all(filepaths, model_name, upload_folder, use_gpu_if_available=Tr
                 transcriptions = model.transcribe(filepaths, batch_size=32)
 
     except RuntimeError:
-        logging.info("Ran out of memory on GPU - dumping cache and performing inference on CPU for now")
+        logging.info("Ran out of memory on GPU - performing inference on CPU for now")
 
-        model = model.cpu()
-        with torch.no_grad():
-            transcriptions = model.transcribe(filepaths, batch_size=32)
+        try:
+            model = model.cpu()
+            with torch.no_grad():
+                transcriptions = model.transcribe(filepaths, batch_size=32)
+
+        except Exception as e:
+            logging.info(f"Exception {e} occured while attemting to transcribe audio. Returning error message")
+            return TAG_ERROR_DURING_TRANSCRIPTION
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
 

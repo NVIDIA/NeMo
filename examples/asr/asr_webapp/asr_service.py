@@ -223,17 +223,30 @@ def transcribe():
     # delete temporary transcription directory
     shutil.rmtree(data_store, ignore_errors=True)
 
+    if type(transcriptions) == str and transcriptions == model_api.TAG_ERROR_DURING_TRANSCRIPTION:
+        # Something happened during transcription, and it failed, notify user.
+        toast = render_template(
+            'toast_msg.html',
+            toast_message=f"Failed to transcribe files due to unknown reason. "
+                          f"Please provide 16 KHz Monochannel wav files onle.",
+            timeout=5000,
+        )
+        transcriptions = ["" for _ in range(len(files))]
+
+    else:
+        # Transcriptions obtained successfully, notify user.
+        toast = render_template(
+            'toast_msg.html',
+            toast_message=f"Transcribed {len(files)} files using {model_name} (gpu={gpu_used}), "
+                          f"in {(t2 - t1): 0.2f} s",
+            timeout=5000,
+        )
+
     # Write results to table
     results = []
     for filename, transcript in zip(files, transcriptions):
         results.append(dict(filename=os.path.basename(filename), transcription=transcript))
 
-    toast = render_template(
-        'toast_msg.html',
-        toast_message=f"Transcribed {len(files)} files using {model_name} (gpu={gpu_used}), "
-        f"in {(t2 - t1): 0.2f} s",
-        timeout=5000,
-    )
     result = render_template('transcripts.html', transcripts=results)
     result = toast + result
     result = unescape(result)
@@ -257,7 +270,7 @@ def remove_tmp_dir_at_exit():
     except RuntimeError:
         # Working outside of request context (probably shutdown)
         # simply delete entire tmp folder
-        # shutil.rmtree(app.config[f'UPLOAD_FOLDER'], ignore_errors=True)
+        shutil.rmtree(app.config[f'UPLOAD_FOLDER'], ignore_errors=True)
         pass
 
 
