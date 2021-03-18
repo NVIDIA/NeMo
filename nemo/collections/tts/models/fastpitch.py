@@ -28,6 +28,7 @@ from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import RegressionValuesType, TokenDurationType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.collections.asr.parts import parsers
 
 
 @dataclass
@@ -168,10 +169,13 @@ class FastPitchModel(SpectrogramGenerator):
         return {'val_loss': tb_logs['val_loss'], 'log': tb_logs}
 
     def _loader(self, cfg):
+        parser = parsers.make_parser(
+            labels=self._cfg.labels, name='en', unk_id=-1, blank_id=-1, do_normalize=True, abbreviation_version="tts"
+        )
 
         dataset = AudioToCharWithDursPitchDataset(
             manifest_filepath=cfg['manifest_filepath'],
-            parser=self.parser,
+            parser=parser,
             sample_rate=cfg['sample_rate'],
             int_values=cfg.get('int_values', False),
             max_duration=cfg.get('max_duration', None),

@@ -22,4 +22,4 @@ class FastPitchParser:
         self.tp = TextProcessing(symbol_set, text_cleaners)
 
     def __call__(self, text: str) -> Optional[List[int]]:
-        return self.tp.encode_text(text)
+        return self.tp.encode_text(text, return_all=True)
