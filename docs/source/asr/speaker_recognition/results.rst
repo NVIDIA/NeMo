@@ -27,6 +27,25 @@ If you have a local ``.nemo`` checkpoint that you'd like to load, simply use the
 
 Where the model base class is the ASR model class of the original checkpoint, or the general `ASRModel` class.
 
+
+Inference
+----------
+
+The audio files should be 16KHz monochannel wav files.
+
+Write audio files to a ``manifest.json`` file with lines as in format:
+
+.. code-block:: json
+    
+    {"audio_filepath": "<absolute path to dataset>/audio_file.wav", "duration": "duration of file in sec", "label": "speaker_id"}
+      
+This python call will download best pretrained model from NGC and writes embeddings pickle file to current working directory
+
+.. code-block:: bash
+  
+    python examples/speaker_recognition/extract_speaker_embeddings.py --manifest=manifest.json
+
+
 NGC Pretrained Checkpoints
 --------------------------
 
@@ -63,3 +82,4 @@ Speaker Recognition Models
    :align: left
    :widths: 30, 30, 40
    :header-rows: 1
+
