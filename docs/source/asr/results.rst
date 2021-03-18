@@ -85,17 +85,8 @@ Automatic Speech Recognition Models
    :widths: 30, 30, 40
    :header-rows: 1
 
-Speech Classification Models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. csv-table::
-   :file: data/classification_results.csv
-   :align: left
-   :widths: 30, 30, 40
-   :header-rows: 1
-
------------------------------
-
+   
 Speech Recognition (Languages)
 ------------------------------
 
