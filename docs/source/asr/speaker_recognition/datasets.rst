@@ -1,3 +1,5 @@
+.. _sc-dataset:
+
 Datasets
 ========
 
