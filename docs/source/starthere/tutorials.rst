@@ -24,31 +24,49 @@ To run tutorials:
      - `Audio translator app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_
    * - General
      - Exploring NeMo Fundamentals
-     - `NeMo primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
+     - `NeMo Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
    * - General
      - Exploring NeMo Model Construction
-     - `NeMo models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/01_NeMo_Models.ipynb>`_
-   * - ASR
-     - ASR with Subword Tokenization
-     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/08_ASR_with_Subword_Tokenization.ipynb>`_
+     - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
      - ASR with NeMo
      - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
+     - ASR with Subword Tokenization
+     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/08_ASR_with_Subword_Tokenization.ipynb>`_
+   * - ASR
+     - Offline ASR Inference with Beam Search and External Language Model Rescoring
+     - `Offline ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/Offline_ASR.ipynb>`_
+   * - ASR
+     - Online ASR inference with Microphone
+     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/02_Online_ASR_Microphone_Demo.ipynb>`_
+   * - ASR
      - Speech Commands
-     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/03_Speech_Commands.ipynb>`_
+     - `Speech Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/03_Speech_Commands.ipynb>`_
+   * - ASR
+     - Online and Offline Speech Commands Inference
+     - `Online Offline Microphone Speech Commands <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/04_Online_Offline_Speech_Commands_Demo.ipynb>`_
+   * - ASR
+     - Voice Activiy Detection (VAD)
+     - `Voice Activiy Detection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/06_Voice_Activiy_Detection.ipynb>`_
+   * - ASR
+     - Online and Offline VAD Inference
+     - `Online Offline Microphone VAD <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/07_Online_Offline_Microphone_VAD_Demo.ipynb>`_
    * - ASR
      - Speaker Recognition and Verification
      - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
    * - ASR
-     - Online Noise Augmentation
-     - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+     - Speaker Diarization Inference
+     - `Speaker Diarization Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb>`_
    * - ASR
-     - Beam Search and External Language Model Rescoring
-     - `Beam search and external language model rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/Offline_ASR.ipynb>`_
+     - ASR with SpeakerDiarization
+     - `ASR with SpeakerDiarization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb>`_
+   * - ASR
+     - Online Noise Augmentation
+     - `Online Noise Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
-     - `Pretrained language models for downstream tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
+     - `Pretrained Language Models for Downstream Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
    * - NLP
      - Exploring NeMo NLP Tokenizers
      - `NLP tokenizers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/02_NLP_Tokenizers.ipynb>`_
