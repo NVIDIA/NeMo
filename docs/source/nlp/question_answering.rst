@@ -22,6 +22,23 @@ the end position of the answer. The span predictions are token classifiers consi
 linear layer.
 
 
+Quick Start
+-----------
+
+.. code-block:: python
+
+    from nemo.collections.nlp.models import QAModel
+
+    # to get the list of pre-trained models
+    QAModel.list_available_models()
+
+    # Download and load the pre-trained BERT-based model
+    model = QAModel.from_pretrained("qa_squadv1_1_bertbase")
+
+    # try the model on a few examples
+    model.inference(test_file)
+
+  
 .. note::
 
     We recommend you try this model in a Jupyter notebook \
@@ -35,6 +52,32 @@ linear layer.
     The default configuration file for the model could be found at: `NeMo/examples/nlp/question_answering/conf/question_answering_squad.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
 
 
+
+Available Models
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: *Pretrained Models*
+   :widths: 5 10
+   :header-rows: 1
+
+   * - Model
+     - Pretrained Checkpoint
+   * - qa_squadv1_1_bertbase
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv1_1_bertbase
+   * - qa_squadv2_0_bertbase
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv2_0_bertbase
+   * - qa_squadv1_1_bertlarge
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv1_1_bertlarge
+   * - qa_squadv2_0_bertlarge
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv2_0_bertlarge
+   * - qa_squadv1_1_megatron_cased
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv1_1_megatron_cased
+   * - qa_squadv2_0_megatron_cased
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv2_0_megatron_cased
+   * - qa_squadv1_1_megatron_uncased
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv1_1_megatron_uncased
+   * - qa_squadv2_0_megatron_uncased
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv2_0_megatron_uncased
 
 
 .. _dataset_question_answering:
