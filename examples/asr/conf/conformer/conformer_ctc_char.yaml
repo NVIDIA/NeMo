@@ -1,4 +1,5 @@
-# It contains the default values for training a Conformer ASR model large size (~120M) with CTC loss and char-based vocabulary.
+# It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and char-based vocabulary.
+# Char-based encoding may give worse results than word-piece encoding (conformer_ctc_bpe.yaml) due to the 4x sub-sampling.
 # Default learning parameters in this config are set for effective batch size of 2K.
 # To train it with smaller effective batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
