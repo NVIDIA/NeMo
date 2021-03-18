@@ -31,7 +31,7 @@ An example Speaker Diarization dataset configuration could look like:
     num_speakers: 2 # for each recording
     out_dir: ??? 
     paths2audio_files: null # either list of audio file paths or file containing paths to audio files for which we need to perform diarization.
-    path2groundtruth_rttm_files: null: # (Optional) either list of rttm file paths or file containing paths to rttm files (this can be passed if we need to calculate DER rate based on our ground truth rttm files).
+    path2groundtruth_rttm_files: null # (Optional) either list of rttm file paths or file containing paths to rttm files (this can be passed if we need to calculate DER rate based on our ground truth rttm files).
     ...
     
 .. note::

@@ -15,8 +15,8 @@ For generating file that contains paths to audio files (which we call as ``scp f
 Preparing Evaluation Dataset
 ----------------------------
 
-Similarly if we want to score a diarizer model, we need to provide an scp like file for groundtruth label rttms.
-Each groundtruth file should be in NIST Rich Transcription Time Marked (RTTM) format. Take one line from a rttm file for example:
+Similarly if we want to score a diarizer model, we need to provide an scp like file for groundtruth label file.
+Each groundtruth label file should be in NIST Rich Transcription Time Marked (RTTM) format. Take one line from a RTTM file for example:
 
 .. code-block:: bash
 
