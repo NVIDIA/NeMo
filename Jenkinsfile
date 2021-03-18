@@ -9,6 +9,8 @@ pipeline {
   stages {
     stage('Text denorm') {
       stages {
+        
+        ws {
         stage('pynini export') {
           agent {
                 docker {
@@ -23,13 +25,8 @@ pipeline {
             sh 'ls -R /home/TestData/nlp/text_denorm/output/'
             sh 'cd nemo_tools/text_denormalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
           }
+        }
 
-          post {
-            always {
-                    sh 'chmod -R 777 .'
-                    cleanWs()
-            }
-          }
         }
         stage('sparrowhawk test') {
           agent {
@@ -44,12 +41,6 @@ pipeline {
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
           
-          post {
-            always {
-                    sh 'chmod -R 777 .'
-                    cleanWs()
-            }
-          }
         }
       }
     }
