@@ -9,11 +9,12 @@ Pretrained checkpoints for all of these models, as well as instructions on how t
 You can use the available checkpoints for immediate inference, or fine-tune them on your own datasets.
 The Checkpoints page also contains benchmark results for the available speaker recognition models.
 
+.. _SpeakerNet_model:
 
 SpeakerNet
 -----------
 
-The model is based on the QuartzNet ASR architecture :cite:`asr-models-koluguri2020speakernet`
+The model is based on the QuartzNet ASR architecture :cite:`sr-models-koluguri2020speakernet`
 comprising of an encoder and decoder structure. We use the encoder of the QuartzNet model as a top-level feature extractor, and feed the output to the statistics pooling layer, where
 we compute the mean and variance across channel dimensions to capture the time-independent utterance-level speaker features.
 
@@ -47,5 +48,5 @@ References
 
 .. bibliography:: ../asr_all.bib
     :style: plain
-    :labelprefix: ASR-MODELS
-    :keyprefix: asr-models-
+    :labelprefix: SR-MODELS
+    :keyprefix: sr-models-

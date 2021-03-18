@@ -13,23 +13,8 @@ In Speaker Identification we typically train on a larger training set with cross
 And in Speaker verification we train with Angular Softmax loss and compare embedings extracted from one audio file coming from a single speaker with 
 embeddings extracted from another file of same or another speaker by employing backend scoring techniques like cosine similarity. 
 
---------------------------------
 
-``Quick Start``
-
-Write audio files to a ``manifest.json`` file with lines as in format:
-
-.. code-block:: json
-    
-    {"audio_filepath": "<absolute path to dataset>/audio_file.wav", "duration": "duration of file in sec", "label": "speaker_id"}
-      
-This python call will download best pretrained model from NGC and writes embeddings pickle file to current working directory
-
-.. code-block:: bash
-   
-    python examples/speaker_recognition/extract_speaker_embeddings.py --manifest=manifest.json
-
---------------------------------
+The full documentation tree is as follows:
 
 .. toctree::
    :maxdepth: 8
