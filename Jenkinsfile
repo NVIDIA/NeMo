@@ -100,44 +100,44 @@ pipeline {
           }
         }
 
-        // stage('L0: Unit Tests GPU') {
-        //   steps {
-        //     sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
-        //   }
-        // }
+        stage('L0: Unit Tests GPU') {
+          steps {
+            sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
+          }
+        }
 
-        // stage('L0: Unit Tests CPU') {
-        //   when {
-        //     anyOf {
-        //       branch 'main'
-        //       changeRequest target: 'main'
-        //     }
-        //   }
-        //   steps {
-        //     sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
-        //   }
-        // }
+        stage('L0: Unit Tests CPU') {
+          when {
+            anyOf {
+              branch 'main'
+              changeRequest target: 'main'
+            }
+          }
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
+          }
+        }
 
-        // stage('L0: Computer Vision Integration') {
-        //   when {
-        //     anyOf {
-        //       branch 'main'
-        //       changeRequest target: 'main'
-        //     }
-        //   }
-        //   failFast true
-        //   parallel {
-        //     stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
-        //       steps {
-        //         sh 'cd examples/cv && \
-        //         python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
-        //         trainer.accelerator=null \
-        //         trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
-        //         && rm -rf outputs'
-        //       }
-        //     }
-        //   }
-        // }
+        stage('L0: Computer Vision Integration') {
+          when {
+            anyOf {
+              branch 'main'
+              changeRequest target: 'main'
+            }
+          }
+          failFast true
+          parallel {
+            stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
+              steps {
+                sh 'cd examples/cv && \
+                python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
+                trainer.accelerator=null \
+                trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
+                && rm -rf outputs'
+              }
+            }
+          }
+        }
 
         // We have no integration tests, please enable this when one is added
         // stage('L0: Integration Tests GPU') {
