@@ -138,7 +138,6 @@ def main():
     else:
         logging.info("Could not find Common Voice, Downloading corpus...")
 
-        # filename = wget.download(COMMON_VOICE_URL, data_root)
         commands = [
             'wget',
             '--user-agent',
