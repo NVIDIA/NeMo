@@ -14,13 +14,13 @@
 
 from unittest import TestCase
 
+from nemo_tools.text_normalization.normalize import normalize
 from parameterized import parameterized
-from tools.text_normalization.normalize import normalize
 from utils import parse_test_case_file
 
 
-class TestWhitelist(TestCase):
-    @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_whitelist.txt'))
+class TestTime(TestCase):
+    @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_time.txt'))
     def test_norm(self, test_input, expected):
         pred = normalize(test_input, verbose=False)
         assert pred == expected
