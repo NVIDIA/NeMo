@@ -119,7 +119,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         ff_expansion_factor=4,
         self_attention_model='rel_pos',
         n_heads=4,
-        att_context_size=[-1, -1],
+        att_context_size=None,
         xscaling=True,
         untie_biases=True,
         pos_emb_max_len=5000,
@@ -134,7 +134,10 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.d_model = d_model
         self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
-        self.att_context_size = att_context_size
+        if att_context_size:
+            self.att_context_size = att_context_size
+        else:
+            self.att_context_size = [-1, -1]
 
         if xscaling:
             self.xscale = math.sqrt(d_model)
