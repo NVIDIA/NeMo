@@ -1,9 +1,9 @@
-NeMo Basics
+NeMo Models
 ===========
 
 
-NeMo Models
------------
+Basics
+------
 
 NeMo Models contain everything needed to train and reproduce Conversational AI model:
 
@@ -22,9 +22,35 @@ NeMo uses `Hydra <https://hydra.cc/>`_ for configuring both NeMo models and the 
 The end result of using NeMo, Pytorch Lightning, and Hydra is that
 NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem. 
 
+Pretrained
+----------
 
-Model Training
---------------
+NeMo comes with many pretrained models for each of our collections: ASR, NLP, and TTS.
+
+Every pretrained NeMo model can be downloaded and used with the ``from_pretrained()`` method.
+
+As an example we can instantiate QuartzNet with the following:
+
+.. code-block:: Python
+
+    import nemo.collections.asr as nemo_asr
+
+    model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En")
+
+To see all available pretrained models for a specific NeMo model use the ``list_available_models()`` method.
+
+.. code-block:: Python
+
+    nemo_asr.model.EncDecCTCModel.list_available_models()
+
+For detailed information on the available pretrained models, please the the collections documentation: 
+:ref:`Automatic Speech Recognition (ASR)`,
+:ref:`Natural Language Processing (NLP)`, and
+:ref:`Speech Synthesis (TTS)`.
+
+Training
+--------
+
 NeMo leverages `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for model training.
 PyTorch Lightning lets NeMo decouple the Conversational AI code from the PyTorch training code. 
 This means that NeMo users can focus on their domain (ASR, NLP, TTS) and building complex AI applications
@@ -44,7 +70,6 @@ and the `Trainer <https://pytorch-lightning.readthedocs.io/en/stable/common/trai
 
 PyTorch Lightning LightningModule
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 Every NeMo model is a ``LightningModule`` which is an ``nn.module``. 
 This means that NeMo models are compatible with the PyTorch ecosystem and
 can be plugged into existing PyTorch workflows.
@@ -153,12 +178,15 @@ Virtually any aspect of training can be customized via PyTorch Lightning `hooks 
 `callbacks <https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html>`_, 
 or by overriding `methods <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#methods>`_. 
 
-Please see the NeMo ASR, NLP, TTS, collections sections for domain-specific documentation.
+Please see the 
+:ref:`Automatic Speech Recognition (ASR)`,
+:ref:`Natural Language Processing (NLP)`, and
+:ref:`Speech Synthesis (TTS)`,
+pages for domain-specific documentation.
 
 
 PyTorch Lightning Trainer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-
 Since every NeMo Model is a ``LightningModule``, we can automatically take advantage of the PyTorch Lightning ``Trainer``.
 Every NeMo `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the ``Trainer`` object
 to fit the model.
@@ -184,9 +212,8 @@ All `trainer flags <https://pytorch-lightning.readthedocs.io/en/stable/common/tr
 can be set from from the NeMo Configuration, see below for more details on model configuration.
     
 
-Model Configuration
--------------------
-
+Configuration
+-------------
 Hydra is an open-source Python framework that simplifies configuration for complex applications
 that must bring together many different software libraries. 
 Conversational AI model training is a great example of such an application.
@@ -269,7 +296,7 @@ A NeMo configuration file should look something like this:
 
 More specific details about configuration files for each collection can be found on the following pages:
 
-* :doc:`asr/configs`
+:ref:`NeMo ASR Configuration Files`
         
 CLI
 ~~~
@@ -353,6 +380,189 @@ The model configuration can be instantiated and modified like any Python `Datacl
     cfg.train_ds.tokens_in_batch = 8192
 
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
+
+Optimization
+------------
+
+Optimizers and learning rate schedules are configurable across all NeMo models and have their own namespace.
+Here is a sample YAML configuration for a Novograd optimizer with Cosine Annealing learning rate schedule.
+
+.. code-block:: yaml
+
+    optim:
+        name: novograd
+        lr: 0.01
+    
+        # optimizer arguments
+        betas: [0.8, 0.25]
+        weight_decay: 0.001
+    
+        # scheduler setup
+        sched:
+        name: CosineAnnealing
+    
+        # Optional arguments
+        max_steps: null # computed at runtime or explicitly set here
+        monitor: val_loss
+        reduce_on_plateau: false
+    
+        # scheduler config override
+        warmup_steps: 1000
+        warmup_ratio: null
+        min_lr: 1e-9:
+
+.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ has optimizer and scheduler configurations for every NeMo model. 
+
+Optimizers can be configured from the CLI as well:
+
+.. code-block:: bash
+
+    python examples/asr/speech_to_text.py \
+        --config-path=conf \
+        --config-name=quartznet_15x5 \
+        ...
+        # train with the adam optimizer
+        model.optim=adam \
+        # change the learning rate
+        model.optim.lr=.0004 \
+        # modify betas 
+        model.optim.betas=[.8, .5]
+
+Optimizers
+~~~~~~~~~~
+``name`` corresponds to the lowercase name of the optimizer. 
+The list of available optimizers can be found by
+
+.. code-block:: Python
+
+    from nemo.core.optim.optimizers import AVAILABLE_OPTIMIZERS
+
+    for name, opt in AVAILABLE_OPTIMIZERS.items():
+        print(f'name: {name}, opt: {opt}')
+
+.. code-block:: bash
+
+    name: sgd opt: <class 'torch.optim.sgd.SGD'>
+    name: adam opt: <class 'torch.optim.adam.Adam'>
+    name: adamw opt: <class 'torch.optim.adamw.AdamW'>
+    name: adadelta opt: <class 'torch.optim.adadelta.Adadelta'>
+    name: adamax opt: <class 'torch.optim.adamax.Adamax'>
+    name: adagrad opt: <class 'torch.optim.adagrad.Adagrad'>
+    name: rmsprop opt: <class 'torch.optim.rmsprop.RMSprop'>
+    name: rprop opt: <class 'torch.optim.rprop.Rprop'>
+    name: novograd opt: <class 'nemo.core.optim.novograd.Novograd'>
+
+Optimizer Params
+~~~~~~~~~~~~~~~~
+Optimizers params can vary between optimizers but the ``lr`` param is required for all optimizers.
+To see the available params for an optimizer we can look at its corresponding dataclass.
+
+.. code-block:: python
+
+    from nemo.core.config.optimizers import NovogradParams
+
+    print(NovogradParams())
+
+.. code-block:: bash
+
+    NovogradParams(lr='???', betas=(0.95, 0.98), eps=1e-08, weight_decay=0, grad_averaging=False, amsgrad=False, luc=False, luc_trust=0.001, luc_eps=1e-08)
+
+``'???'`` indicates that the lr argument is required.
+
+Register Optimizer
+~~~~~~~~~~~~~~~~~~
+Register a new optimizer to be used with NeMo with:
+
+.. autofunction:: nemo.core.optim.optimizers.register_optimizer
+
+Learning Rate Schedulers
+~~~~~~~~~~~~~~~~~~~~~~~~
+Learning rate schedulers can be optionally configured under the ``optim.sched`` namespace.
+
+``name`` corresponds to the name of the learning rate schedule. 
+The list of available schedulers can be found by 
+    
+.. code-block:: Python
+
+    from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS
+
+    for name, opt in AVAILABLE_SCHEDULERS.items():
+        print(f'name: {name}, schedule: {opt}')
+
+.. code-block:: bash
+
+    name: WarmupPolicy, schedule: <class 'nemo.core.optim.lr_scheduler.WarmupPolicy'>
+    name: WarmupHoldPolicy, schedule: <class 'nemo.core.optim.lr_scheduler.WarmupHoldPolicy'>
+    name: SquareAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.SquareAnnealing'>
+    name: CosineAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.CosineAnnealing'>
+    name: NoamAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.NoamAnnealing'>
+    name: WarmupAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.WarmupAnnealing'>
+    name: InverseSquareRootAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.InverseSquareRootAnnealing'>
+    name: SquareRootAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.SquareRootAnnealing'>
+    name: PolynomialDecayAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.PolynomialDecayAnnealing'>
+    name: PolynomialHoldDecayAnnealing, schedule: <class 'nemo.core.optim.lr_scheduler.PolynomialHoldDecayAnnealing'>
+    name: StepLR, schedule: <class 'torch.optim.lr_scheduler.StepLR'>
+    name: ExponentialLR, schedule: <class 'torch.optim.lr_scheduler.ExponentialLR'>
+    name: ReduceLROnPlateau, schedule: <class 'torch.optim.lr_scheduler.ReduceLROnPlateau'>
+    name: CyclicLR, schedule: <class 'torch.optim.lr_scheduler.CyclicLR'>
+
+Scheduler Params
+~~~~~~~~~~~~~~~~
+To see the available params for a scheduler we can look at its corresponding dataclass:
+
+.. code-block:: Python
+
+    from nemo.core.config.schedulers import CosineAnnealingParams
+
+    print(CosineAnnealingParams())
+
+.. code-block:: bash
+
+    CosineAnnealingParams(last_epoch=-1, warmup_steps=None, warmup_ratio=None, min_lr=0.0)
+
+Register scheduler
+~~~~~~~~~~~~~~~~~~
+Register a new scheduler to be used with NeMo with:
+
+.. autofunction:: nemo.core.optim.lr_scheduler.register_scheduler
+
+
+
+Save and Restore
+----------------
+
+NeMo models all come with ``.save_to`` and ``.restore_from`` methods.  
+
+Save
+~~~~
+To save a NeMo model:
+
+.. code-block:: Python
+
+    model.save_to('/path/to/model.nemo')
+
+Everything needed to use the trained model will be packaged and saved in the ``.nemo`` file.
+For example, in the NLP domain, ``.nemo`` files will include necessary tokenizer models and/or vocabulary files, etc.
+
+.. note:: .nemo files are simply archives like any other .tar file.
+
+Restore
+~~~~~~~
+To restore a NeMo model:
+
+.. code-block:: Python
+
+    model.restore_from('/path/to/model.nemo')
+
+When using the PyTorch Lightning Trainer, PyTorch Lightning checkpoint are created. 
+These are mainly used within NeMo to autoresume training. 
+Since NeMo models are ``LightningModules``, the PyTorch Lightning method ``load_from_checkpoint`` is available.
+Note that ``load_from_checkpoint`` won't necessarily work out of the box for all models as some models
+require more artifacts than just the checkpoint to be restored. 
+For these models, the user will have to override ``load_from_checkpoint`` if they wish to use it.
+
+It's highly recommended to use ``restore_from`` to load NeMo models.
+
 
 Experiment Manager
 ------------------

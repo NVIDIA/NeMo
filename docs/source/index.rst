@@ -3,12 +3,13 @@ NVIDIA NeMo Developer Guide
 
 .. toctree::
    :maxdepth: 2
-   :caption: Introduction
-   :name: Introduction
+   :caption: Start Here
+   :name: starthere
 
-   introduction/intro
-   introduction/core
-   introduction/tutorials
+   starthere/intro
+   starthere/tutorials
+   starthere/core
+
 
 .. toctree::
    :maxdepth: 2
@@ -16,6 +17,10 @@ NVIDIA NeMo Developer Guide
    :name: Automatic Speech Recognition
 
    asr/intro
+   asr/speech_classification/intro
+   asr/speaker_recognition/intro
+   
+
 
 .. toctree::
    :maxdepth: 2
