@@ -88,7 +88,7 @@ def istft_patch(
     normalized: bool = False,
     onesided: Optional[bool] = None,
     length: int = None,
-    return_complex: Optional[bool] = None,
+    return_complex: Optional[bool] = False,
 ):
     """
     Patch over torch.stft for PyTorch <= 1.6.
