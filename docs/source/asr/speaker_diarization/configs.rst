@@ -1,7 +1,7 @@
 NeMo Speaker Diarization Configuration Files
 ============================================
 
-Since speaker diarization model here is not a fully-trainble End-to-End model but a inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
+Since speaker diarization model here is not a fully-trainble End-to-End model but an inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
 
 The diarizer section will generally require information about the dataset(s) being
 used, models used in this pipline, as well as inference related parameters such as postprocessing of each models.
@@ -35,8 +35,7 @@ An example Speaker Diarization dataset configuration could look like:
     ...
     
 .. note::
-  Note we expect audio and corresponding RTTM have same base name and the name should be unique.
-
+  We expect audio and the corresponding RTTM to have the same base name and the name should be unique.
 
 
 Diarizer Architecture Configurations
