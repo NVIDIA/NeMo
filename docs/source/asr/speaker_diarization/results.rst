@@ -7,7 +7,7 @@ In speaker diarization, the diarizer would take care of model loading, you can l
 Loading Local Checkpoints
 ---------------------------
 
-load VAD model 
+Load VAD model
 
 .. code-block:: bash
 
@@ -17,7 +17,7 @@ load VAD model
   config.diarizer.vad.model_path=pretrained_vad_model
 
 
-load Speaker Embedding model
+Load Speaker Embedding model
 
 .. code-block:: bash
 

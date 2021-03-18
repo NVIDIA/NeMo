@@ -1,11 +1,11 @@
 Datasets
 ========
-Check out page :doc:`Speech Classification Datasets <../sc/datasets>` and :doc:`Speaker Recogniton Datasets <../speaker_recognition/datasets>` 
+Check out page :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recogniton Datasets <../speaker_recognition/datasets>` 
 for preparing datasets for training and validating VAD and speaker embedding models respectively.
 
 For Speaker Diarization inference, ``diarizer`` expects either list of paths to audio files or a file containing absolute paths to audio files. 
 
-For generating file that contains paths to audio files (which we call as ``scp file``), one can simply use ``find`` bash command as shown below:
+For generating file that contains paths to audio files (which we call as ``scp file``), you can simply use ``find`` bash command as shown below:
 
 .. code-block:: bash
 

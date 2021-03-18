@@ -1,9 +1,10 @@
 NeMo Speaker Diarization Configuration Files
+============================================
 
 Since speaker diarization model here is not a fully-trainble End-to-End model but a inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
 
 The diarizer section will generally require information about the dataset(s) being
-used, models used in this pipline , as well as inference ratled parameters such as postprocessing of each models.
+used, models used in this pipline, as well as inference related parameters such as postprocessing of each models.
 The sections on this page cover each of these in more detail.
 
 
@@ -19,7 +20,7 @@ Example configuration files for speaker diarization can be found in the
 Dataset Configuration
 -----------------------
 
-In contrast to other ASR related tasks or models, speaker diarization supported in NeMo now is a modular inference pipeline.
+In contrast to other ASR related tasks or models in NeMo, speaker diarization supported in NeMo is a modular inference pipeline.
 Datasets here denotes the data you would like to perform speaker diarization on. 
 
 An example Speaker Diarization dataset configuration could look like:
