@@ -3,8 +3,8 @@ pipeline {
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
-    // This is required if you want to clean before build
-    // skipDefaultCheckout(true)
+  // This is required if you want to clean before build
+  // skipDefaultCheckout(true)
   }
   stages {
     stage('Text denorm') {
@@ -26,7 +26,8 @@ pipeline {
 
         }
       }
-    
+    }
+
     stage('Text denorm2') {
       stages {
         stage('sparrowhawk test') {
@@ -41,7 +42,7 @@ pipeline {
             sh 'cd /work_dir/sparrowhawk/documentation/grammars && normalizer_main --config=sparrowhawk_configuration.ascii_proto --multi_line_text < /home/TestData/nlp/text_denorm/ci/test.txt > /home/TestData/nlp/text_denorm/output/test.sparrowhawk.txt'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
-          
+
         }
       }
     }
@@ -1151,7 +1152,7 @@ pipeline {
       }
 
     }
-  }
+    }
 
   post {
     always {
@@ -1165,7 +1166,7 @@ pipeline {
       }
     }
   }
-}
+  }
 // TODO:
 // - extract pytorch docker name into var and define at very top?
 // - parallel stages (pytorch and yang)
