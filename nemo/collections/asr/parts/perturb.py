@@ -119,6 +119,7 @@ class SpeedPerturbation(Perturbation):
             where `prob` is the global probability of a sample being augmented.
         rng: Random seed number.
     """
+
     def __init__(self, sr, resample_type, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, rng=None):
 
         min_rate = min(min_speed_rate, max_speed_rate)
@@ -187,6 +188,7 @@ class TimeStretchPerturbation(Perturbation):
         n_fft: Number of fft filters to be computed.
         rng: Random seed number.
     """
+
     def __init__(self, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, n_fft=512, rng=None):
 
         min_rate = min(min_speed_rate, max_speed_rate)
