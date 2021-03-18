@@ -27,7 +27,7 @@ pipeline {
           post {
             always {
                     sh 'chmod -R 777 .'
-                    cleanWs(deleteDirs: true, disableDeferredWipeout: false)
+                    cleanWs(deleteDirs: true, disableDeferredWipeout: true)
             }
           }
         }
