@@ -22,15 +22,15 @@ pipeline {
             sh 'cd nemo_tools/text_denormalization/export && cp *.grm /home/TestData/nlp/text_denorm/output/'
             sh 'ls -R /home/TestData/nlp/text_denorm/output/'
             sh 'cd nemo_tools/text_denormalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
-            sh 'pwd'
+            sh 'pwd && ls -l'
           }
 
           post {
             always {
-                    sh 'pwd'
+                    sh 'pwd && ls -l'
                     sh 'chmod -R 777 .'
                     cleanWs(deleteDirs: true, disableDeferredWipeout: true)
-                    sh 'pwd'
+                    sh 'pwd && ls -l'
             }
           }
         }
