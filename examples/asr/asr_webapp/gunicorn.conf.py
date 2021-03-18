@@ -16,8 +16,8 @@ import shutil
 
 # https://docs.gunicorn.org/en/stable/settings.html
 
-# NOTE: Do not add server hooks or import asr_service.py here
-# Gunicorn performs fork - and CUDA cannot be used in forked multiprocess.
+# NOTE: Do not import nemo / torch code here
+# Gunicorn creates forked processes - and CUDA cannot be used in forked multiprocessing environment.
 
 # General config
 bind = "0.0.0.0:8000"
