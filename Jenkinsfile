@@ -25,14 +25,6 @@ pipeline {
             sh 'pwd && ls -l'
           }
 
-          // post {
-          //   always {
-          //     sh 'pwd && ls -l'
-          //     sh 'chmod -R 777 .'
-          //     cleanWs(deleteDirs: true, disableDeferredWipeout: true)
-          //     sh 'pwd && ls -l'
-          //   }
-          // }
         }
         stage('sparrowhawk test') {
           agent {
@@ -41,7 +33,6 @@ pipeline {
                   args '--user 0:128 -v /home/TestData:/home/TestData --shm-size=8g'
                 }
           }
-
           options {
             skipDefaultCheckout true
           }
@@ -60,10 +51,6 @@ pipeline {
               image 'nvcr.io/nvidia/pytorch:21.02-py3'
               args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
-      }
-
-      options {
-        skipDefaultCheckout true
       }
 
       stages {
