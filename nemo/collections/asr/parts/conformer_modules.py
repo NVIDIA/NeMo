@@ -41,7 +41,6 @@ class ConformerLayer(torch.nn.Module):
         self_attention_model='rel_pos',
         n_heads=4,
         conv_kernel_size=31,
-        conv_norm_type="batch_norm",
         dropout=0.0,
         dropout_att=0.0,
         pos_bias_u=None,
@@ -59,7 +58,7 @@ class ConformerLayer(torch.nn.Module):
 
         # convolution module
         self.norm_conv = LayerNorm(d_model)
-        self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type)
+        self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size)
 
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
@@ -142,12 +141,7 @@ class ConformerConvolution(nn.Module):
             groups=d_model,
             bias=True,
         )
-        if norm_type == "batch_norm":
-            self.batch_norm = nn.BatchNorm1d(d_model)
-        elif norm_type == "group_norm":
-            self.batch_norm = nn.GroupNorm(num_groups=1, num_channels=d_model)
-        else:
-            raise ValueError(f"Not a valid conv_norm_type: {norm_type}!")
+        self.batch_norm = nn.BatchNorm1d(d_model)
 
         self.activation = Swish()
         self.pointwise_conv2 = nn.Conv1d(
