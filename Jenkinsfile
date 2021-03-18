@@ -683,7 +683,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification && \
             python token_classification_train.py \
-            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo \
+            pretrained_model=ner_en_bert \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
             model.train_ds.batch_size=2 \
             model.dataset.use_cache=false \
@@ -697,7 +697,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification && \
             python punctuation_capitalization_train.py \
-            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_BERT_base_uncased.nemo \
+            pretrained_model=punctuation_en_bert \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
@@ -871,7 +871,7 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('L2: NMT Training') {
+        stage('L2: NMT Training Post-LN') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
               python enc_dec_nmt.py \
@@ -892,6 +892,29 @@ pipeline {
             }
         }
 
+        stage('L2: NMT Training Pre-LN') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=aayn_base \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.encoder.pre_ln=true \
+              model.decoder.pre_ln=true \
+              trainer.gpus=[1] \
+              +trainer.fast_dev_run=true \
+              exp_manager=null \
+              '
+            }
+        }
+
         stage('L2: NMT Inference') {
             steps{
               sh 'cd examples/nlp/machine_translation && \
@@ -901,6 +924,70 @@ pipeline {
               --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
               --target_lang en \
               --source_lang de \
+              '
+            }
+        }
+      }
+    }
+
+    stage('L2: NMT with HuggingFace') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('L2: NMT Pretrained HF Encoder') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=huggingface \
+              model.shared_tokenizer=False \
+              model.encoder_tokenizer.library=huggingface \
+              model.encoder.library=huggingface \
+              model.encoder.model_name=bert-base-cased \
+              model.encoder.pretrained=true \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              trainer.gpus=[0] \
+              +trainer.fast_dev_run=true \
+              exp_manager=null \
+              '
+            }
+        }
+
+        stage('L2: NMT Custom HF Encoder') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=huggingface \
+              model.shared_tokenizer=True \
+              model.encoder_tokenizer.library=yttm \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.encoder.library=huggingface \
+              model.encoder.model_name=null \
+              model.encoder.pretrained=false \
+              +model.encoder._target_=transformers.BertConfig \
+              +model.encoder.hidden_size=1536 \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              trainer.gpus=[1] \
+              +trainer.fast_dev_run=true \
+              exp_manager=null \
               '
             }
         }

@@ -30,7 +30,7 @@ class DecoderModule(NeuralModule, ABC):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "decoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
             "encoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "encoder_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType(), optional=True),
+            "encoder_embeddings": NeuralType(('B', 'T', 'D'), ChannelType(), optional=True),
         }
 
     @property
