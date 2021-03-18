@@ -1167,6 +1167,4 @@ pipeline {
     }
   }
 }
-// TODO:
-// - extract pytorch docker name into var and define at very top?
-// - parallel stages (pytorch and yang)
+
