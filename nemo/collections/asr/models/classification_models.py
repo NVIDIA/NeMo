@@ -731,17 +731,5 @@ class EncDecRegressionModel(_EncDecBaseModel):
         predictions = super().transcribe(paths2audio_files, batch_size, logprobs=True)
         return [float(pred) for pred in predictions]
 
-    def _update_decoder_config(self, labels, cfg):
-
-        OmegaConf.set_struct(cfg, False)
-
-        if 'params' in cfg:
-            cfg.params.num_classes = 1
-        else:
-            cfg.num_classes = 1
-
-        OmegaConf.set_struct(cfg, True)
-
-
-class MatchboxNet(EncDecClassificationModel):
-    pass
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        return temporary_datalayer

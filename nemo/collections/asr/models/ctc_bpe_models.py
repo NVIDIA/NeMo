@@ -251,11 +251,3 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         OmegaConf.set_struct(self._cfg.decoder, True)
 
         logging.info(f"Changed tokenizer to {self.decoder.vocabulary} vocabulary.")
-
-
-class JasperNetBPE(EncDecCTCModelBPE):
-    pass
-
-
-class QuartzNetBPE(EncDecCTCModelBPE):
-    pass
