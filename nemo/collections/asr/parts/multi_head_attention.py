@@ -163,12 +163,15 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         Args:
             x (torch.Tensor): (batch, nheads, time, 2*time-1)
         """
-        x_size = x.size()
+        x_size = x.size()  # (b, h, t1, t2)
         qlen = x_size[-2]
         pos_len = x_size[-1]
-        x = torch.nn.functional.pad(x, pad=(1, 0, 0, 0))
-        x = x.view(*x.size()[:-2], pos_len + 1, qlen)
-        x = x[:, :, 1:].view(*x_size)
+
+        # need to add a column of zeros on the left side of last two dimensions to perform the relative shifting
+        x = torch.nn.functional.pad(x, pad=(1, 0, 0, 0))  # (b, h, t1, t2+1)
+        x = x.view(*x.size()[:-2], pos_len + 1, qlen)  # (b, h, t2+1, t1)
+        # need to drop the first row
+        x = x[:, :, 1:].view(*x_size)  # (b, h, t1, t2)
         return x
 
     def forward(self, query, key, value, mask, pos_emb):
@@ -204,6 +207,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # (batch, head, time1, time2)
         matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
         matrix_bd = self.rel_shift(matrix_bd)
+        # drops extra elements in the matrix_bd if there are any left from rel_shift() to match the matrix_ac's size
         matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
         scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
@@ -301,6 +305,8 @@ class RelPositionalEncoding(PositionalEncoding):
         needed_size = 2 * (length - 1) + 1
         if hasattr(self, 'pe') and self.pe.size(1) >= needed_size:
             return
+        # positions would be from negative numbers to positive
+        # positive positions would be used for left positions and negative for right positions
         positions = torch.arange(length - 1, -length, -1, dtype=torch.float32).unsqueeze(1)
         pe = self.create_pe(positions=positions)
         if not hasattr(self, 'pe'):
@@ -322,6 +328,9 @@ class RelPositionalEncoding(PositionalEncoding):
         if self.xscale:
             x = x * self.xscale
 
+        # center_pos would be the index of position 0
+        # negative positions would be used for right and positive for left tokens
+        # for input of length L, 2*L-1 positions are needed, positions from (L-1) to -(L-1)
         center_pos = self.pe.size(1) // 2
         start_pos = center_pos - x.size(1) + 1
         end_pos = center_pos + x.size(1)
