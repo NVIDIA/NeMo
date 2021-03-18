@@ -741,7 +741,3 @@ class EncDecRegressionModel(_EncDecBaseModel):
             cfg.num_classes = 1
 
         OmegaConf.set_struct(cfg, True)
-
-
-class MatchboxNet(EncDecClassificationModel):
-    pass
