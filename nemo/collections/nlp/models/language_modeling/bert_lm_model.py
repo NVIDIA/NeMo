@@ -29,7 +29,7 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
@@ -244,5 +244,28 @@ class BERTLMModel(ModelPT):
         return dl
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="bertbaseuncased",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/bertbaseuncased/versions/1.0.0rc1/files/bertbaseuncased.nemo",
+                description="The model was trained EN Wikipedia and BookCorpus on a sequence length of 512.",
+            )
+        )
+
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="bertlargeuncased",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/bertlargeuncased/versions/1.0.0rc1/files/bertlargeuncased.nemo",
+                description="The model was trained EN Wikipedia and BookCorpus on a sequence length of 512.",
+            )
+        )
+        return result
