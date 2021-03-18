@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import NEMO_NOT_SPACE, GraphFst, convert_space
+from pynini.lib import pynutil
 
 
 class WordFst(GraphFst):

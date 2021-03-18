@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import (
     NEMO_SIGMA,
@@ -26,6 +24,7 @@ from nemo_tools.text_denormalization.graph_utils import (
 )
 from nemo_tools.text_denormalization.taggers.cardinal import CardinalFst
 from nemo_tools.text_denormalization.taggers.decimal import DecimalFst
+from pynini.lib import pynutil
 
 cardinal = CardinalFst()
 decimal = DecimalFst()

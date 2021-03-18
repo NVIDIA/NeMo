@@ -14,11 +14,10 @@
 # limitations under the License.
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
 from nemo_tools.text_denormalization.verbalizers.cardinal import CardinalFst
 from nemo_tools.text_denormalization.verbalizers.decimal import DecimalFst
+from pynini.lib import pynutil
 
 decimal = DecimalFst()
 cardinal = CardinalFst()

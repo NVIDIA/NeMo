@@ -14,9 +14,8 @@
 # limitations under the License.
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst, delete_space
+from pynini.lib import pynutil
 
 
 class OrdinalFst(GraphFst):

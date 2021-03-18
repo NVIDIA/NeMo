@@ -16,7 +16,6 @@ from argparse import ArgumentParser
 from typing import List
 
 import regex as re
-
 from nemo_tools.text_denormalization.data_loader_utils import (
     EOS_TYPE,
     Instance,

@@ -14,12 +14,11 @@
 # limitations under the License.
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_tools.text_denormalization.verbalizers.punctuation import PunctuationFst
 from nemo_tools.text_denormalization.verbalizers.verbalize import VerbalizeFst
 from nemo_tools.text_denormalization.verbalizers.word import WordFst
+from pynini.lib import pynutil
 
 
 class VerbalizeFinalFst(GraphFst):

@@ -16,9 +16,9 @@
 import os
 import sys
 
-from pynini.export import export
 from nemo_tools.text_denormalization.taggers.tokenize_and_classify import ClassifyFst
 from nemo_tools.text_denormalization.verbalizers.verbalize import VerbalizeFst
+from pynini.export import export
 
 
 def _generator_main(file_name, graph, name):

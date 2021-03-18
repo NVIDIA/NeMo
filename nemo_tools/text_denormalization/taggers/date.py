@@ -13,11 +13,10 @@
 # limitations under the License.
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import NEMO_SIGMA, GraphFst, delete_extra_space, delete_space
 from nemo_tools.text_denormalization.taggers.ordinal import OrdinalFst
+from pynini.lib import pynutil
 
 
 def _get_month_graph():

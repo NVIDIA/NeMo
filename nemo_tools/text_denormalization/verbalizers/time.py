@@ -14,9 +14,8 @@
 # limitations under the License.
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.graph_utils import NEMO_CHAR, NEMO_DIGIT, GraphFst, delete_space, insert_space
+from pynini.lib import pynutil
 
 
 class TimeFst(GraphFst):

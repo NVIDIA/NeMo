@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.graph_utils import GraphFst, convert_space
+from pynini.lib import pynutil
 
 
 class PunctuationFst(GraphFst):

@@ -14,8 +14,6 @@
 
 
 import pynini
-from pynini.lib import pynutil
-
 from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import (
     GraphFst,
@@ -24,8 +22,9 @@ from nemo_tools.text_denormalization.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_tools.text_denormalization.utils import num_to_word
 from nemo_tools.text_denormalization.taggers.cardinal import CardinalFst
+from nemo_tools.text_denormalization.utils import num_to_word
+from pynini.lib import pynutil
 
 
 class TimeFst(GraphFst):

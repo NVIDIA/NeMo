@@ -15,8 +15,8 @@
 
 
 import pynini
+from nemo_tools.text_denormalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst, delete_space
 from pynini.lib import pynutil
-from nemo_tools.text_denormalization.graph_utils import GraphFst, delete_space, NEMO_CHAR, NEMO_SIGMA
 
 
 class WhiteListFst(GraphFst):

@@ -18,11 +18,10 @@ import string
 from pathlib import Path
 
 import pynini
+from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from pynini import Far
 from pynini.examples import plurals
 from pynini.lib import byte, pynutil, utf8
-
-from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 
 NEMO_CHAR = utf8.VALID_UTF8_CHAR
 
