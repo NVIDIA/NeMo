@@ -1156,6 +1156,9 @@ pipeline {
         }
       }
     }
+    cleanup{
+        deleteDir()
+    }
   }
 }
 // TODO:
