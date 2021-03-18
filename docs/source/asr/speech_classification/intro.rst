@@ -3,8 +3,6 @@ Speech Classification
 Speech Classification refers to a set of tasks or problems of getting a program to automatically classify input utterance or audio segment into categories, 
 such as Speech Command Recognition (multi-class), Voice Activity Detection (binary or multi-class), and Audio Sentiment Classification (typically multi-class), etc.
 
-
-
 **Speech Command Recognition** is the task of classifying an input audio pattern into a discrete set of classes. 
 It is a subset of Automatic Speech Recognition, sometimes referred to as Key Word Spotting, in which a model is constantly analyzing speech patterns to detect certain "command" classes. 
 Upon detection of these commands, a specific action can be taken by the system. 
@@ -16,29 +14,6 @@ It is an essential first step for a variety of speech-based applications includi
 It serves to determine which samples to be sent to the model and when to close the microphone.
 
 
-``Quick Start``
-
-.. note::
-  For model details and deep understanding, please refer to tutorials in ``<NeMo_git_root>/tutorials/asr/``.
-
-
-Transcribe speech command segment:
-
-.. code-block:: python 
-
-  mbn_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(model_name="<MODEL_NAME>")
-  mbn_model.transcribe(["<path to audio file>"])
-  # Learn how to fine tune on your own data or on subset classes in <NeMo_git_root>/tutorials/asr/03_Speech_Commands.ipynb
-
-
-Run VAD inference with below command:
-
-.. code-block:: bash 
-
-  python examples/speaker_recognition/vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
-  # Have a look at scripts under <NeMo-git-root>/scripts/voice_activity_detection for posterior processing and threshold tuning.
-
-  
 The full documentation tree is as follows:
 
 .. toctree::

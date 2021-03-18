@@ -63,3 +63,22 @@ Speaker Recognition Models
    :align: left
    :widths: 30, 30, 40
    :header-rows: 1
+
+
+   
+Inference
+----------
+
+The audio files should be 16KHz monochannel wav files.
+
+Write audio files to a ``manifest.json`` file with lines as in format:
+
+.. code-block:: json
+    
+    {"audio_filepath": "<absolute path to dataset>/audio_file.wav", "duration": "duration of file in sec", "label": "speaker_id"}
+      
+This python call will download best pretrained model from NGC and writes embeddings pickle file to current working directory
+
+.. code-block:: bash
+  
+    python examples/speaker_recognition/extract_speaker_embeddings.py --manifest=manifest.json
