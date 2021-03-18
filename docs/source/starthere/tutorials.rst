@@ -21,7 +21,7 @@ To run tutorials:
      - GitHub URL
    * - General
      - NeMo Getting Started. Prototyping Conversational AI Application
-     - `Voice swap app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_
+     - `Audio translator app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_
    * - General
      - Exploring NeMo Fundamentals
      - `NeMo primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_

@@ -261,6 +261,14 @@ class TimeStretchPerturbation(Perturbation):
 
 
 class GainPerturbation(Perturbation):
+    """
+    Applies random gain to the audio.
+    Args:
+        min_gain_dbfs (float): Min gain level in dB
+        max_gain_dbfs (float): Max gain level in dB
+        rng: Random number generator
+    """
+
     def __init__(self, min_gain_dbfs=-10, max_gain_dbfs=10, rng=None):
         self._min_gain_dbfs = min_gain_dbfs
         self._max_gain_dbfs = max_gain_dbfs
@@ -273,6 +281,16 @@ class GainPerturbation(Perturbation):
 
 
 class ImpulsePerturbation(Perturbation):
+    """
+    Convolves audio with a Room Impulse Response.
+
+    Args:
+        manifest_path (list): manifest file for RIRs
+        audio_tar_filepaths (list): tar files, if RIR audio files are tarred
+        shuffle_n (int): Shuffle parameter for shuffling buffered files from the tar files
+        shift_impulse (bool): Shift impulse response to adjust for delay at the beginning
+    """
+
     def __init__(self, manifest_path=None, rng=None, audio_tar_filepaths=None, shuffle_n=128, shift_impulse=False):
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
         self._audiodataset = None
@@ -309,6 +327,15 @@ class ImpulsePerturbation(Perturbation):
 
 
 class ShiftPerturbation(Perturbation):
+    """
+    Perturbs audio by shifting the audio in time by a random amount between min_shift_ms and max_shift_ms.
+    The final length of the audio is kept unaltered by padding the audio with zeros.
+    Args:
+        min_shift_ms (float): Minimum time in milliseconds by which audio will be shifted
+        max_shift_ms (float): Maximum time in milliseconds by which audio will be shifted
+        rng: random number generator
+    """
+
     def __init__(self, min_shift_ms=-5.0, max_shift_ms=5.0, rng=None):
         self._min_shift_ms = min_shift_ms
         self._max_shift_ms = max_shift_ms
@@ -330,6 +357,19 @@ class ShiftPerturbation(Perturbation):
 
 
 class NoisePerturbation(Perturbation):
+    """
+    Perturbation that adds noise to input audio
+    Args:
+        manifest_path (str): manifest file with paths to noise files
+        min_snr_db (float): Minimum SNR of audio after noise is added
+        max_snr_db (float): Maximum SNR of audio after noise is added
+        max_gain_db (float): Maximum gain that can be applied on the noise sample
+        audio_tar_filepaths (list) : tar files, if noise audio files are tarred
+        shuffle_n (int): Shuffle parameter for shuffling buffered files from the tar files
+        orig_sr (int): Original sampling rate of the noise files
+        rng: Random noise generator
+    """
+
     def __init__(
         self,
         manifest_path=None,
@@ -425,6 +465,14 @@ class NoisePerturbation(Perturbation):
 
 
 class WhiteNoisePerturbation(Perturbation):
+    """
+    Perturbation that adds white noise to an audio file in the training dataset
+    Args:
+        min_level (int): Minimum level in dB at which white noise should be added
+        max_level (int): Maximum level in dB at which white noise should be added
+        rng: random number generator
+    """
+
     def __init__(self, min_level=-90, max_level=-46, rng=None):
         self.min_level = int(min_level)
         self.max_level = int(max_level)
@@ -437,27 +485,7 @@ class WhiteNoisePerturbation(Perturbation):
 
 
 class RirAndNoisePerturbation(Perturbation):
-    def __init__(
-        self,
-        rir_manifest_path=None,
-        rir_prob=0.5,
-        noise_manifest_paths=None,
-        min_snr_db=0,
-        max_snr_db=50,
-        rir_tar_filepaths=None,
-        rir_shuffle_n=100,
-        noise_tar_filepaths=None,
-        apply_noise_rir=False,
-        orig_sample_rate=None,
-        max_additions=5,
-        max_duration=2.0,
-        bg_noise_manifest_paths=None,
-        bg_min_snr_db=10,
-        bg_max_snr_db=50,
-        bg_noise_tar_filepaths=None,
-        bg_orig_sample_rate=None,
-    ):
-        """
+    """
         RIR augmentation with additive foreground and background noise.
         In this implementation audio data is augmented by first convolving the audio with a Room Impulse Response
         and then adding foreground noise and background noise at various SNRs. RIR, foreground and background noises
@@ -485,7 +513,29 @@ class RirAndNoisePerturbation(Perturbation):
             bg_noise_tar_filepaths: tar files, if noise files are tarred
             bg_orig_sample_rate: original sampling rate of background noise audio
 
-        """
+    """
+
+    def __init__(
+        self,
+        rir_manifest_path=None,
+        rir_prob=0.5,
+        noise_manifest_paths=None,
+        min_snr_db=0,
+        max_snr_db=50,
+        rir_tar_filepaths=None,
+        rir_shuffle_n=100,
+        noise_tar_filepaths=None,
+        apply_noise_rir=False,
+        orig_sample_rate=None,
+        max_additions=5,
+        max_duration=2.0,
+        bg_noise_manifest_paths=None,
+        bg_min_snr_db=10,
+        bg_max_snr_db=50,
+        bg_noise_tar_filepaths=None,
+        bg_orig_sample_rate=None,
+    ):
+
         logging.info("Called Rir aug init")
         self._rir_prob = rir_prob
         self._rng = random.Random()
@@ -556,12 +606,15 @@ class RirAndNoisePerturbation(Perturbation):
 
 
 class TranscodePerturbation(Perturbation):
-    def __init__(self, rng=None):
-        """
+    """
         Audio codec augmentation. This implementation uses sox to transcode audio with low rate audio codecs,
         so users need to make sure that the installed sox version supports the codecs used here (G711 and amr-nb).
 
-        """
+        Args:
+            rng: random number generator
+    """
+
+    def __init__(self, rng=None):
         self._rng = np.random.RandomState() if rng is None else rng
         self._codecs = ["g711", "amr-nb"]
 
