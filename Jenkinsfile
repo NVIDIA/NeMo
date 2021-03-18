@@ -4,7 +4,7 @@ pipeline {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
     // This is required if you want to clean before build
-    skipDefaultCheckout(true)
+    // skipDefaultCheckout(true)
   }
   stages {
     stage('Text denorm') {
@@ -1147,21 +1147,21 @@ pipeline {
     }
   }
 
-  // post {
-  //   always {
-  //     node() {
-  //       script {
-  //         docker.image('nvcr.io/nvidia/pytorch:21.02-py3').inside("""--user 0:128 --entrypoint=''""") {
-  //           sh 'chmod -R 777 .'
-  //           cleanWs()
-  //         }
-  //       }
-  //     }
-  //   }
-  //   cleanup {
-  //       deleteDir()
-  //   }
-  // }
+  post {
+    always {
+      node() {
+        script {
+          docker.image('nvcr.io/nvidia/pytorch:21.02-py3').inside("""--user 0:128 --entrypoint=''""") {
+            sh 'chmod -R 777 .'
+            cleanWs()
+          }
+        }
+      }
+    }
+    cleanup {
+        deleteDir()
+    }
+  }
 }
 // TODO:
 // - extract pytorch docker name into var and define at very top?
