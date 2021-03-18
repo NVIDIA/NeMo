@@ -44,13 +44,10 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
-        self.global_rank = 0
+        # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
-        self.local_rank = 0
         if trainer is not None:
-            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
             self.world_size = trainer.num_nodes * trainer.num_gpus
-            self.local_rank = trainer.local_rank
 
         # Convert config to a DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -405,56 +402,64 @@ class EncDecClassificationModel(_EncDecBaseModel):
         Returns:
             List of available pre-trained models.
         """
-        result = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="MatchboxNet-3x1x64-v1",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x1x64-v1.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) which obtains 97.32% accuracy on test set.",
-        )
-        result.append(model)
+        results = []
 
         model = PretrainedModelInfo(
-            pretrained_model_name="MatchboxNet-3x2x64-v1",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x2x64-v1.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) which obtains 97.68% accuracy on test set.",
+            pretrained_model_name="vad_telephony_marblenet",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_telephony_marblenet/versions/1.0.0rc1/files/vad_telephony_marblenet.nemo",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="MatchboxNet-3x1x64-v2",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x1x64-v2.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 35 classes) which obtains 97.12% accuracy on test set.",
+            pretrained_model_name="vad_marblenet",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_marblenet/versions/1.0.0rc1/files/vad_marblenet.nemo",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="MatchboxNet-3x1x64-v2",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x1x64-v2.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 30 classes) which obtains 97.29% accuracy on test set.",
+            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v1",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v1",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v1/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v1.nemo",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="MatchboxNet-3x1x64-v2-subset-task",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x1x64-v2-subset-task.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) which obtains 98.2% accuracy on test set.",
+            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v1",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v1",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v1/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v1.nemo",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="MatchboxNet-3x2x64-v2-subset-task",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet-3x2x64-v2-subset-task.nemo",
-            description="MatchboxNet model trained on Google Speech Commands dataset (v2, 10+2 classes) which obtains 98.4% accuracy on test set.",
+            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v2",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v2/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v2.nemo",
         )
-        result.append(model)
+        results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="MatchboxNet-VAD-3x2",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/MatchboxNet_VAD_3x2.nemo",
-            description="Voice Activity Detection MatchboxNet model trained on google speech command (v2) and freesound background data, which obtains 0.992 accuracy on testset from same source and 0.852 TPR for FPR=0.315 on testset (ALL) of AVA movie data",
+            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v2",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v2/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v2.nemo",
         )
-        result.append(model)
-        return result
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="commandrecognition_en_matchboxnet3x1x64_v2_subset_task",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v2_subset_task",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x1x64_v2_subset_task/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x1x64_v2_subset_task.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="commandrecognition_en_matchboxnet3x2x64_v2_subset_task",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v2_subset_task",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/commandrecognition_en_matchboxnet3x2x64_v2_subset_task/versions/1.0.0rc1/files/commandrecognition_en_matchboxnet3x2x64_v2_subset_task.nemo",
+        )
+        results.append(model)
+        return results
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -467,17 +472,18 @@ class EncDecClassificationModel(_EncDecBaseModel):
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
+        self.log('train_loss', loss_value)
+        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         self._accuracy(logits=logits, labels=labels)
-        top_k = self._accuracy.compute()
-        for i, top_i in enumerate(top_k):
-            tensorboard_logs[f'training_batch_accuracy_top@{i}'] = top_i
+        topk_scores = self._accuracy.compute()
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        for top_k, score in zip(self._accuracy.top_k, topk_scores):
+            self.log('training_batch_accuracy_top@{}'.format(top_k), score)
+
+        return {
+            'loss': loss_value,
+        }
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
@@ -672,7 +678,8 @@ class EncDecRegressionModel(_EncDecBaseModel):
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
 
-        return {'loss': loss, 'log': tensorboard_logs}
+        self.log_dict(tensorboard_logs)
+        return {'loss': loss}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, targets, targets_len = batch

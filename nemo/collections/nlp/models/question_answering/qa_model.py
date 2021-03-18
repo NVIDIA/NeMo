@@ -59,6 +59,7 @@ class QAModel(NLPModel):
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
+            vocab_file=cfg.tokenizer.vocab_file,
         )
 
         self.classifier = TokenClassifier(
@@ -189,15 +190,16 @@ class QAModel(NLPModel):
     ):
         """
         Get prediction for unlabeled inference data
+
         Args:
             file: inference data
             batch_size: batch size to use during inference
             num_samples: number of samples to use of inference data. Default: -1 if all data should be used.
             output_nbest_file: optional output file for writing out nbest list
             output_prediction_file: optional output file for writing out predictions
+            
         Returns:
-            all_predictions: model predictions
-            all_nbest: model nbest list
+            model predictions, model nbest list
         """
         # store predictions for all queries in a single list
         all_predictions = []

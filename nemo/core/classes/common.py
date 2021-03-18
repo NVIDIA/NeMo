@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -506,12 +507,41 @@ class FileIO(ABC):
             raise NotImplementedError()
 
 
+@total_ordering
 @dataclass
 class PretrainedModelInfo:
     pretrained_model_name: str
     description: str
     location: str
     class_: 'Model' = None
+
+    def __repr__(self):
+        base = self.__class__.__name__
+        extras = (
+            "pretrained_model_name={pretrained_model_name},\n\t"
+            "description={description},\n\t"
+            "location={location}".format(**self.__dict__)
+        )
+
+        if self.class_ is not None:
+            extras = "{extras},\n\t" "class_={class_}".format(extras=extras, **self.__dict__)
+
+        representation = f"{base}(\n\t{extras}\n)"
+        return representation
+
+    def __hash__(self):
+        # assumes that locations are unique urls, and therefore their hashes
+        # should ideally also be unique
+        location_hash = hash(self.location)
+        return location_hash
+
+    def __eq__(self, other):
+        # another object is equal to self, iff
+        # if it's hash is equal to hash(self)
+        return hash(self) == hash(other) or self.pretrained_model_name == other.pretrained_model_name
+
+    def __lt__(self, other):
+        return self.pretrained_model_name < other.pretrained_model_name
 
 
 class Model(Typing, Serialization, FileIO):

@@ -45,8 +45,6 @@ def get_metrics(data_dir, model):
     model.setup_test_data(test_data_config=test_ds)
     metrics = trainer.test(model)[0]
 
-    if Path("./lightning_logs").exists():
-        rmtree('./lightning_logs')
     return metrics
 
 
@@ -54,15 +52,15 @@ def data_exists(data_dir):
     return os.path.exists(data_dir)
 
 
-class TestPretrainedModelPerformance(TestCase):
+class TestPretrainedModelPerformance:
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(
         not data_exists('/home/TestData/nlp/token_classification_punctuation/fisher'), reason='Not a Jenkins machine'
     )
-    def test_punct_capit_with_bert(self):
+    def test_punct_capit_with_bert(self, cleanup_local_folder):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
-        model = models.PunctuationCapitalizationModel.from_pretrained("Punctuation_Capitalization_with_BERT")
+        model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_bert")
         metrics = get_metrics(data_dir, model)
 
         assert abs(metrics['punct_precision'] - 52.3024) < 0.001
@@ -73,14 +71,19 @@ class TestPretrainedModelPerformance(TestCase):
         assert abs(metrics['capit_f1'] - 87.0707) < 0.001
         assert int(model.punct_class_report.total_examples) == 128
 
+        preds_512 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=512)[0]
+        assert preds_512 == 'What can I do for you today?'
+        preds_5 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=5)[0]
+        assert preds_5 == 'What can i'
+
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(
         not data_exists('/home/TestData/nlp/token_classification_punctuation/fisher'), reason='Not a Jenkins machine'
     )
-    def test_punct_capit_with_distilbert(self):
+    def test_punct_capit_with_distilbert(self, cleanup_local_folder):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
-        model = models.PunctuationCapitalizationModel.from_pretrained("Punctuation_Capitalization_with_DistilBERT")
+        model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_distilbert")
         metrics = get_metrics(data_dir, model)
 
         assert abs(metrics['punct_precision'] - 53.0826) < 0.001
@@ -93,9 +96,9 @@ class TestPretrainedModelPerformance(TestCase):
     @pytest.mark.skipif(
         not data_exists('/home/TestData/nlp/token_classification_punctuation/gmb'), reason='Not a Jenkins machine'
     )
-    def test_ner_model(self):
+    def test_ner_model(self, cleanup_local_folder):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/gmb'
-        model = models.TokenClassificationModel.from_pretrained("NERModel")
+        model = models.TokenClassificationModel.from_pretrained("ner_en_bert")
         metrics = get_metrics(data_dir, model)
 
         assert abs(metrics['precision'] - 96.0937) < 0.001

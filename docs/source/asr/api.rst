@@ -55,13 +55,20 @@ Modules
     :members:
 
 
+Parts
+-----
+
+.. autoclass:: nemo.collections.asr.parts.jasper.JasperBlock
+    :show-inheritance:
+    :members:
+
+
 Mixins
 ------
 
 .. autoclass:: nemo.collections.asr.parts.mixins.ASRBPEMixin
     :show-inheritance:
     :members:
-
 
 Datasets
 --------
@@ -91,3 +98,62 @@ Subword Encoding Datasets
 .. autoclass:: nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset
     :show-inheritance:
     :members:
+
+Audio Preprocessors
+-------------------
+
+.. autoclass:: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.AudioToMFCCPreprocessor
+    :show-inheritance:
+    :members:
+
+Audio Augmentors
+----------------
+
+.. autoclass:: nemo.collections.asr.modules.SpectrogramAugmentation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.CropOrPadSpectrogramAugmentation
+    :show-inheritance:
+    :members:
+
+Miscellaneous Classes
+---------------------
+
+RNNT Decoding
+~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.metrics.rnnt_wer.RNNTDecoding
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.metrics.rnnt_wer_bpe.RNNTBPEDecoding
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.rnnt_greedy_decoding.GreedyRNNTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.rnnt_greedy_decoding.GreedyBatchedRNNTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.rnnt_beam_decoding.BeamRNNTInfer
+    :show-inheritance:
+    :members:
+
+Hypotheses
+~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.rnnt_utils.Hypothesis
+    :show-inheritance:
+    :no-members:
+
+.. autoclass:: nemo.collections.asr.parts.rnnt_utils.NBestHypotheses
+    :show-inheritance:
+    :no-members:

@@ -19,7 +19,9 @@ import torch
 from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.collections.tts.models import *  # Avoid circular imports
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types.elements import AudioSignal
+from nemo.core.neural_types.neural_type import NeuralType
 
 
 class SpectrogramGenerator(ModelPT, ABC):
@@ -140,6 +142,10 @@ class GlowVocoder(Vocoder):
             bias_spect, _ = self.stft.transform(bias_audio)
             self.bias_spect = bias_spect[:, :, 0][:, :, None]
 
+    @typecheck(
+        input_types={"audio": NeuralType(('B', 'T'), AudioSignal()), "strength": NeuralType(optional=True)},
+        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+    )
     def denoise(self, audio: 'torch.tensor', strength: float = 0.01):
         self.check_children_attributes()  # Ensure self.n_mel and self.stft are defined
 

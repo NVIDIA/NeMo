@@ -13,12 +13,14 @@
 # limitations under the License.
 import os
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import List, Optional, Union
 
 import torch
+from omegaconf import OmegaConf
 
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
+from nemo.utils import model_utils
 
 __all__ = ['ASRModel']
 
@@ -50,6 +52,17 @@ class ASRModel(ModelPT, ABC):
         tensorboard_logs = {'test_loss': val_loss_mean, 'test_wer': wer_num / wer_denom}
         return {'test_loss': val_loss_mean, 'log': tensorboard_logs}
 
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        # recursively walk the subclasses to generate pretrained model info
+        list_of_models = model_utils.resolve_subclass_pretrained_model_info(cls)
+        return list_of_models
+
 
 class ExportableEncDecModel(Exportable):
     """
@@ -69,6 +82,6 @@ class ExportableEncDecModel(Exportable):
     def forward_for_export(self, input):
         return self.output_module(self.input_module(input))
 
-    def _prepare_for_export(self):
-        self.input_module._prepare_for_export()
-        self.output_module._prepare_for_export()
+    def _prepare_for_export(self, **kwargs):
+        self.input_module._prepare_for_export(**kwargs)
+        self.output_module._prepare_for_export(**kwargs)

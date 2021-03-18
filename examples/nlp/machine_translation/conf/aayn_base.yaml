@@ -8,6 +8,8 @@ model:
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
+  src_language: 'en'
+  tgt_language: 'de'
 
   train_ds:
     src_file_name: null
@@ -23,9 +25,6 @@ model:
     tokens_in_batch: 512
     clean: true
     max_seq_length: 512
-    cache_ids: true
-    cache_data_per_node: false
-    use_cache: true
     shuffle: true
     num_samples: -1
     drop_last: false
@@ -70,7 +69,7 @@ model:
       warmup_ratio: 0.1
 
   encoder_tokenizer:
-    tokenizer_name: yttm
+    library: yttm
     tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
@@ -78,7 +77,7 @@ model:
     special_tokens: null
 
   decoder_tokenizer:
-    tokenizer_name: yttm
+    library: yttm
     tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
@@ -86,6 +85,9 @@ model:
     special_tokens: null
 
   encoder:
+    library: nemo
+    model_name: null
+    pretrained: false
     max_sequence_length: 512
     num_token_types: 2
     embedding_dropout: 0.1
@@ -102,6 +104,9 @@ model:
     pre_ln: false
 
   decoder:
+    library: nemo
+    model_name: null
+    pretrained: false
     max_sequence_length: 512
     num_token_types: 2
     embedding_dropout: 0.1

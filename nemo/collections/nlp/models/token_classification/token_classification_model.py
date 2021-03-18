@@ -72,6 +72,7 @@ class TokenClassificationModel(NLPModel):
             config_file=cfg.language_model.config_file,
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
+            vocab_file=cfg.tokenizer.vocab_file,
         )
 
         self.classifier = TokenClassifier(
@@ -511,12 +512,9 @@ class TokenClassificationModel(NLPModel):
         """
         result = []
         model = PretrainedModelInfo(
-            pretrained_model_name="NERModel",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemonlpmodels/versions/1.0.0a5/files/NERModel.nemo",
+            pretrained_model_name="ner_en_bert",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ner_en_bert/versions/1.0.0rc1/files/ner_en_bert.nemo",
             description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and achieves 74.61 F1 Macro score.",
         )
         result.append(model)
         return result
-
-    def _prepare_for_export(self):
-        return self.bert_model._prepare_for_export()

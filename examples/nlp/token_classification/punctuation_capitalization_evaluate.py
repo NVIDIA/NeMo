@@ -41,11 +41,11 @@ For more details about the config files and different ways of model restoration,
 
     python punctuation_capitalization_evaluate.py \
     model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-    pretrained_model=Punctuation_Capitalization_with_BERT_base_uncased 
+    pretrained_model=punctuation_en_distilbert 
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained PunctuationCapitalizationModel model from list_available_models() or 
-                     path to a .nemo file, for example: Punctuation_Capitalization_with_BERT_base_uncased or your_model.nemo
+                     path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
 
 """
 
@@ -87,26 +87,25 @@ def main(cfg: DictConfig) -> None:
         )
 
     data_dir = cfg.model.dataset.get('data_dir', None)
-    if not data_dir:
-        raise ValueError(
-            'Specify a valid dataset directory that contains test_ds.text_file and test_ds.labels_file \
-            with "model.dataset.data_dir" argument'
+
+    if data_dir is None:
+        logging.error(
+            'No dataset directory provided. Skipping evaluation. '
+            'To run evaluation on a file, specify path to the directory that contains test_ds.text_file and test_ds.labels_file with "model.dataset.data_dir" argument.'
         )
-
-    if not os.path.exists(data_dir):
-        raise ValueError(f'{data_dir} is not found at')
-
-    model.update_data_dir(data_dir=data_dir)
-    model._cfg.dataset.use_cache = False
-
-    if not hasattr(cfg.model, 'test_ds'):
-        raise ValueError(f'model.test_ds was not found in the config, skipping evaluation')
+    elif not os.path.exists(data_dir):
+        logging.error(f'{data_dir} is not found, skipping evaluation on the test set.')
     else:
-        if model.prepare_test(trainer):
-            model.setup_test_data()
+        model.update_data_dir(data_dir=data_dir)
+        model._cfg.dataset = cfg.model.dataset
+
+        if not hasattr(cfg.model, 'test_ds'):
+            logging.error(f'model.test_ds was not found in the config, skipping evaluation')
+        elif model.prepare_test(trainer):
+            model.setup_test_data(cfg.model.test_ds)
             trainer.test(model)
         else:
-            raise ValueError('Terminating evaluation')
+            logging.error('Skipping the evaluation. The trainer is not setup properly.')
 
     # run an inference on a few examples
     queries = [
@@ -114,7 +113,8 @@ def main(cfg: DictConfig) -> None:
         'what can i do for you today',
         'how are you',
     ]
-    inference_results = model.add_punctuation_capitalization(queries)
+
+    inference_results = model.add_punctuation_capitalization(queries, batch_size=len(queries), max_seq_length=512)
 
     for query, result in zip(queries, inference_results):
         logging.info(f'Query : {query}')
