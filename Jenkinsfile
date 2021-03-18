@@ -1149,7 +1149,7 @@ pipeline {
 
   post {
     always {
-      node() {
+      node(null) {
         script {
           docker.image('nvcr.io/nvidia/pytorch:21.02-py3').inside("""--user 0:128 --entrypoint=''""") {
             sh 'chmod -R 777 .'
