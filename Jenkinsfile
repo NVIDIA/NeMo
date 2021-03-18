@@ -41,6 +41,10 @@ pipeline {
                   args '--user 0:128 -v /home/TestData:/home/TestData --shm-size=8g'
                 }
           }
+          
+          options {
+            skipDefaultCheckout true
+          }
           steps {
             sh 'cd /home/TestData/nlp/text_denorm/ci/ && bash setup_sparrowhawk.sh /home/TestData/nlp/text_denorm/output/ || exit 2'
             sh 'cd /work_dir/sparrowhawk/documentation/grammars && normalizer_main --config=sparrowhawk_configuration.ascii_proto --multi_line_text < /home/TestData/nlp/text_denorm/ci/test.txt > /home/TestData/nlp/text_denorm/output/test.sparrowhawk.txt'
@@ -57,6 +61,10 @@ pipeline {
               image 'nvcr.io/nvidia/pytorch:21.02-py3'
               args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
+      }
+      
+      options {
+        skipDefaultCheckout true
       }
 
       stages {
