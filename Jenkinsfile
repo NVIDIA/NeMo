@@ -28,7 +28,7 @@ pipeline {
             always {
                     sh 'chmod -R 777 .'
                     cleanWs(deleteDirs: true, disableDeferredWipeout: true)
-                    sh 'git clean -fdx'
+                    sh 'pwd'
             }
           }
         }
