@@ -118,10 +118,11 @@ class ConformerEncoder(NeuralModule, Exportable):
         subsampling_conv_channels=-1,
         ff_expansion_factor=4,
         self_attention_model='rel_pos',
-        pos_emb_max_len=5000,
         n_heads=4,
+        att_context_size=[-1, -1],
         xscaling=True,
         untie_biases=True,
+        pos_emb_max_len=5000,
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
@@ -133,6 +134,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.d_model = d_model
         self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
+        self.att_context_size = att_context_size
 
         if xscaling:
             self.xscale = math.sqrt(d_model)
@@ -220,12 +222,17 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         # Create the self-attention and padding masks
         pad_mask = self.make_pad_mask(length, max_time=xmax, device=audio_signal.device)
-        xx_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
-        xx_mask = ~(xx_mask & xx_mask.transpose(1, 2))
+        att_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
+        att_mask = att_mask & att_mask.transpose(1, 2)
+        if self.att_context_size[0] >= 0:
+            att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
+        if self.att_context_size[1] >= 0:
+            att_mask = att_mask.tril(diagonal=self.att_context_size[1])
+        att_mask = ~att_mask
         pad_mask = ~pad_mask
 
         for lth, layer in enumerate(self.layers):
-            audio_signal = layer(x=audio_signal, att_mask=xx_mask, pos_emb=pos_emb, pad_mask=pad_mask)
+            audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
