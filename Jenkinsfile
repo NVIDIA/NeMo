@@ -23,6 +23,13 @@ pipeline {
             sh 'ls -R /home/TestData/nlp/text_denorm/output/'
             sh 'cd nemo_tools/text_denormalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
           }
+
+          post {
+            always {
+                    sh 'chmod -R 777 .'
+                    cleanWs()
+            }
+          }
         }
         stage('sparrowhawk test') {
           agent {
@@ -35,6 +42,13 @@ pipeline {
             sh 'cd /home/TestData/nlp/text_denorm/ci/ && bash setup_sparrowhawk.sh /home/TestData/nlp/text_denorm/output/ || exit 2'
             sh 'cd /work_dir/sparrowhawk/documentation/grammars && normalizer_main --config=sparrowhawk_configuration.ascii_proto --multi_line_text < /home/TestData/nlp/text_denorm/ci/test.txt > /home/TestData/nlp/text_denorm/output/test.sparrowhawk.txt'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
+          }
+          
+          post {
+            always {
+                    sh 'chmod -R 777 .'
+                    cleanWs()
+            }
           }
         }
       }
@@ -1154,7 +1168,6 @@ pipeline {
           docker.image('nvcr.io/nvidia/pytorch:21.02-py3').inside("""--user 0:128 --entrypoint=''""") {
             sh 'chmod -R 777 .'
             cleanWs()
-            deleteDir()
           }
         }
       }
