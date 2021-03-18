@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shutil
+
 # https://docs.gunicorn.org/en/stable/settings.html
 
 # NOTE: Do not add server hooks or import asr_service.py here
@@ -25,3 +27,10 @@ workers = 2
 worker_connections = 1000
 timeout = 180  # 3 minutes of timeout
 
+
+def on_exit(server):
+    # delete tmp dir
+    print("Shutting down server ...")
+    print("Deleteing tmp directory ...")
+    shutil.rmtree('tmp/', ignore_errors=True)
+    print("Tmp directory deleted !")
