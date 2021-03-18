@@ -27,6 +27,35 @@ If you have a local ``.nemo`` checkpoint that you'd like to load, simply use the
 
 Where the model base class is the ASR model class of the original checkpoint, or the general `ASRModel` class.
 
+
+Transcribing/Inference
+-----------------------
+   
+The audio files should be 16KHz monochannel wav files.
+
+**Transcribe speech command segment:**
+  
+You may perform inference and transcribe a sample of speech after loading the model by using its 'transcribe()' method:
+
+.. code-block:: python 
+
+  mbn_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(model_name="<MODEL_NAME>")
+  mbn_model.transcribe([list of audio files],  batch_size=BATCH_SIZE, logprobs=False) 
+
+Setting argument ``logprobs`` to True would return the log probabilities instead of transcriptions. You may find more details in `Modules <../api.html#modules>`__.
+
+Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root>/tutorials/asr/03_Speech_Commands.ipynb``
+f
+
+**Run VAD inference:**
+
+.. code-block:: bash 
+
+  python examples/speaker_recognition/vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
+
+Have a look at scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for posterior processing and threshold tuning.
+
+
 NGC Pretrained Checkpoints
 --------------------------
 
@@ -73,33 +102,4 @@ Speech Classification Models
    :header-rows: 1
    :class: longtable
    :widths: 1 1 1
-
-
-
-Transcribing/Inference
------------------------
-   
-The audio files should be 16KHz monochannel wav files.
-
-**Transcribe speech command segment:**
-  
-You may perform inference and transcribe a sample of speech after loading the model by using its 'transcribe()' method:
-
-.. code-block:: python 
-
-  mbn_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(model_name="<MODEL_NAME>")
-  mbn_model.transcribe([list of audio files],  batch_size=BATCH_SIZE, logprobs=False) 
-
-Setting argument ``logprobs`` to True would return the log probabilities instead of transcriptions. You may find more details in `Modules <../api.html#modules>`__.
-
-Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root>/tutorials/asr/03_Speech_Commands.ipynb``
-f
-
-**Run VAD inference:**
-
-.. code-block:: bash 
-
-  python examples/speaker_recognition/vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
-
-Have a look at scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for posterior processing and threshold tuning.
 
