@@ -36,9 +36,9 @@ import json
 import logging
 import multiprocessing
 import os
-import tarfile
 import subprocess
 import sys
+import tarfile
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import List
