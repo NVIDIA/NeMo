@@ -85,6 +85,9 @@ class TrainerConfig:
     enable_pl_optimizer: Optional[bool] = None
     plugins: Optional[Any] = None  # Optional[Union[str, list]]
     move_metrics_to_cpu: bool = False
+    multiple_trainloader_mode: str = 'max_size_cycle'
+    limit_predict_batches: float = 1.0
+    stochastic_weight_avg: bool = False
 
 
 # Register the trainer config.

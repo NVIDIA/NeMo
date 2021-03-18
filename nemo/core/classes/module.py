@@ -28,7 +28,14 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
 
     @property
     def num_weights(self):
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+        """
+        Utility property that returns the total number of parameters of NeuralModule.
+        """
+        num: int = 0
+        for p in self.parameters():
+            if p.requires_grad:
+                num += p.numel()
+        return num
 
     def input_example(self):
         """

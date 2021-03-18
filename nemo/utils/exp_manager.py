@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -60,7 +60,9 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 
 @dataclass
 class CallbackParams:
-    filepath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    filepath: Optional[str] = None  # Deprecated
+    dirpath: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
+    filename: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     monitor: Optional[str] = "val_loss"
     verbose: Optional[bool] = True
     save_last: Optional[bool] = True
@@ -153,7 +155,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     """
     # Add rank information to logger
     # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_gpus + trainer.local_rank
+    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
     logging.rank = global_rank
 
     if cfg is None:
@@ -209,7 +211,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     trainer._default_root_dir = log_dir
 
     # Handle Loggers by creating file and handle DEBUG statements
-    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{trainer.local_rank}.txt'
+    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
     logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
@@ -226,10 +228,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.wandb_logger_kwargs,
         )
 
-    if is_global_rank_zero():
-        if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
+    if cfg.create_checkpoint_callback:
+        configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
 
+    if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
             for _file in cfg.files_to_copy:
@@ -274,7 +276,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             f"{cfg.create_wandb_logger} was set to True. These can only be used if trainer does not already have a"
             " logger."
         )
-    if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
+    if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
             "You are running multi-node without slurm. Please note that this is not tested in NeMo and could result in "
             "errors."
@@ -456,7 +458,7 @@ def get_log_dir(
         version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
         if version is None:
-            if trainer.is_slurm_managing_tasks:
+            if check_slurm(trainer):
                 logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
                 version = ""
             elif is_global_rank_zero():
@@ -578,8 +580,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         super().__init__(**kwargs)
 
     @rank_zero_only
-    def on_save_checkpoint(self, trainer, pl_module):
-        output = super().on_save_checkpoint(trainer, pl_module)
+    def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
 
         if not self.always_save_nemo:
             return output
@@ -617,7 +619,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: Dict,
+    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig',
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
@@ -635,10 +637,25 @@ def configure_checkpointing(
         )
 
     # Create the callback and attach it to trainer
-    if params.filepath is None:
-        params.filepath = Path(log_dir / 'checkpoints' / f'--{{{params.monitor}:.2f}}-{{epoch}}')
+    if "filepath" in params:
+        if params.filepath is not None:
+            logging.warning("filepath is deprecated. Please switch to dirpath and filename instead")
+            if params.dirpath is None:
+                params.dirpath = Path(params.filepath).parent
+            if params.filename is None:
+                params.filename = Path(params.filepath).name
+        with open_dict(params):
+            del params["filepath"]
+    if params.dirpath is None:
+        params.dirpath = Path(log_dir / 'checkpoints')
+    if params.filename is None:
+        params.filename = f'--{{{params.monitor}:.2f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
+
+    logging.debug(params.dirpath)
+    logging.debug(params.filename)
+    logging.debug(params.prefix)
 
     if "val" in params.monitor and trainer.max_epochs != -1 and trainer.max_epochs < trainer.check_val_every_n_epoch:
         logging.error(
@@ -650,3 +667,10 @@ def configure_checkpointing(
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
     trainer.callbacks.append(checkpoint_callback)
+
+
+def check_slurm(trainer):
+    try:
+        return trainer.is_slurm_managing_tasks
+    except AttributeError:
+        return False

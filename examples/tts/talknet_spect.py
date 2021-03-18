@@ -24,10 +24,8 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get('exp_manager', None))
-    model = TalkNetSpectModel(cfg=cfg.model, trainer=trainer)
-    lr_logger = pl.callbacks.LearningRateMonitor()
-    epoch_time_logger = LogEpochTimeCallback()
-    trainer.callbacks.extend([lr_logger, epoch_time_logger])
+    model = TalkNetSpectModel(cfg=cfg.model)
+    trainer.callbacks.extend([pl.callbacks.LearningRateMonitor(), LogEpochTimeCallback()])  # noqa
     trainer.fit(model)
 
 
