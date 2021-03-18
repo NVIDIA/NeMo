@@ -3,6 +3,8 @@ pipeline {
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
+    // This is required if you want to clean before build
+    skipDefaultCheckout(true)
   }
   stages {
     stage('Text denorm') {
@@ -1147,7 +1149,7 @@ pipeline {
 
   post {
     always {
-      node(null) {
+      node('docker') {
         script {
           docker.image('nvcr.io/nvidia/pytorch:21.02-py3').inside("""--user 0:128 --entrypoint=''""") {
             sh 'chmod -R 777 .'
