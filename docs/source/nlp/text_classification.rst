@@ -39,7 +39,7 @@ Dataset Conversion
 ------------------
 
 If your dataset is stored in another format, you need to convert it to NeMo's format to use this model.
-There are some conversion scripts available for datasets: SST2, IMDB, ChemProt, and THUCnews. They can to convert them from their original format to NeMo's format.
+There are some conversion scripts available for datasets: SST2 :cite:`nlp-textclassify-socher2013`, IMDB :cite:`nlp-textclassify-maas2011`, ChemProt :cite:`nlp-textclassify-lim2018chemical`, and THUCnews :cite:`nlp-textclassify-li2007scalable`. They can to convert them from their original format to NeMo's format.
 To convert the original datasets to NeMo's format, you can use 'examples/text_classification/data/import_datasets.py' script as the following example:
 
 .. code::
