@@ -41,8 +41,8 @@ class ConformerLayer(torch.nn.Module):
         self_attention_model='rel_pos',
         n_heads=4,
         conv_kernel_size=31,
-        dropout=0.0,
-        dropout_att=0.0,
+        dropout=0.1,
+        dropout_att=0.1,
         pos_bias_u=None,
         pos_bias_v=None,
     ):
@@ -69,7 +69,8 @@ class ConformerLayer(torch.nn.Module):
         elif self_attention_model == 'abs_pos':
             self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
         else:
-            raise ValueError(f"Not a valid value for 'self_attention_model': {self_attention_model}!")
+            raise ValueError(f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
+                             f"valid values can be from ['rel_pos', 'abs_pos']")
 
         # second feed forward module
         self.norm_feed_forward2 = LayerNorm(d_model)
