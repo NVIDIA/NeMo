@@ -14,7 +14,7 @@ Pretrained checkpoints for all of these models, as well as instructions on how t
 You can use the available checkpoints for immediate inference, or fine-tune them on your own datasets.
 The Checkpoints page also contains benchmark results for the available ASR models.
 
-.. _MatchboxNet-model:
+.. _MatchboxNet_model:
 
 MatchboxNet (Speech Commands) 
 ------------------------------
@@ -40,12 +40,12 @@ MatchboxNet models can be instantiated using the :class:`EncDecClassificationMod
 
 
 
-.. _MarbleNet-model:
+.. _MarbleNet_model:
 
 MarbleNet (VAD) 
 ------------------
 
-MarbleNet :cite:`sc-models-marblenet` an end-to-end neural network for speech command recognition based on :ref:`MatchboxNet-model`, 
+MarbleNet :cite:`sc-models-marblenet` an end-to-end neural network for speech command recognition based on :ref:`MatchboxNet_model`, 
 
 Similarly to MatchboxNet, the MarbleNet family of models are denoted as MarbleNet_[BxRxC] where B is the number of blocks, and R is the number of convolutional sub-blocks within a block, and C is the number of channels. Each sub-block contains a 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
