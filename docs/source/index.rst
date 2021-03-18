@@ -21,9 +21,6 @@ NVIDIA NeMo Developer Guide
    asr/speaker_recognition/intro
    asr/speaker_diarization/intro
 
-   
->>>>>>> 37c46b71... speaker diarization doc
-
 .. toctree::
    :maxdepth: 2
    :caption: Natural Language Processing
