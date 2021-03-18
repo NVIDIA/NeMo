@@ -73,16 +73,8 @@ Model Training
 You may find an example of a config file to be used for training of the text classification model at `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
 You can change any of these parameters directly from the config file or update them with the command line arguments.
 
-The config file contains three main sections:
-- trainer: Trainer section contains the configs for PTL training and you may find more info at
-:doc:`../../introduction/core.html#model-training` and
-`PTL Trainer class API <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-class-api>'.
-- exp_manager: the configs of experiment manager. You can find more info at :doc:`../../introduction/core.html#experiment-manager`
-- model: contains the configs of the datasets, model architecture, tokenizer, optimizer, scheduler, etc.
-
-Some sub-sections of the model section are shared among most of the NLP models. The details of these sections can be found at:
-- tokenizer and language_model: The configs of the tokenizer and encoder part and the :doc:`../nlp_model.html#important-parameters`
-- optim: the configs of the optimizer and scheduler :doc:`../../introduction/core.html`
+The config file of the Text Classification Model contains three main sections of trainer, exp_manager, and model.
+You may find more detail about the trainer and exp_manager at :doc:`../nlp_model.html`. Some sub-sections of the model section including tokenizer, language_model, optim are shared among most of the NLP models. The details of these sections can be found at :doc:`../nlp_model.html`.
 
 Example of a command for training a text classification model on two GPUs for 50 epochs:
 
@@ -102,7 +94,7 @@ By default, the final model after training is saved in the path specified by 'NE
 
 Model Arguments
 ^^^^^^^^^^^^^^^
-The following table lists some of the model's parameters you may use in the config files and set them from command line when training a model:
+The following table lists some of the model's parameters you may use in the config files or set them from command line when training a model:
 
 +-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 | **Parameter**                             | **Data Type**   |   **Default**                                  | **Description**                                                                                              |
