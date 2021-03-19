@@ -19,13 +19,13 @@ To run tutorials:
    * - Domain
      - Title
      - GitHub URL
-   * - NeMo
-     - Simple Application with NeMo
-     - `Voice swap app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_voice_swap_app.ipynb>`_
-   * - NeMo
+   * - General
+     - NeMo Getting Started. Prototyping Conversational AI Application
+     - `Voice swap app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_
+   * - General
      - Exploring NeMo Fundamentals
      - `NeMo primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
-   * - NeMo Models
+   * - General
      - Exploring NeMo Model Construction
      - `NeMo models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
