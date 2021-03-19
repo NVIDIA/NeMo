@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from .package_info import (
+from nemo.package_info import (
     __contact_emails__,
     __contact_names__,
     __description__,
@@ -26,4 +26,3 @@ from .package_info import (
     __shortversion__,
     __version__,
 )
-from nemo import collections, core, utils
