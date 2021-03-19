@@ -14,13 +14,22 @@
 
 from unittest import TestCase
 
+import pytest
+from nemo_tools.text_denormalization.denormalize import denormalize
 from nemo_tools.text_normalization.normalize import normalize
 from parameterized import parameterized
 from utils import parse_test_case_file
 
 
-class TestOrdinal(TestCase):
-    @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_ordinal.txt'))
+class TestWhitelist(TestCase):
+    @pytest.mark.unit
+    @parameterized.expand(parse_test_case_file('data_text_denormalization/test_cases_whitelist.txt'))
+    def test_denorm(self, test_input, expected):
+        pred = denormalize(test_input, verbose=False)
+        assert pred == expected
+
+    @pytest.mark.unit
+    @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_whitelist.txt'))
     def test_norm(self, test_input, expected):
         pred = normalize(test_input, verbose=False)
         assert pred == expected

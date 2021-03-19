@@ -129,7 +129,7 @@ class TokenParser:
         """
         ok = False
         for x in exp:
-            ok |= parse_char(x)
+            ok |= self.parse_char(x)
         return ok
 
     def parse_string_key(self) -> str:
