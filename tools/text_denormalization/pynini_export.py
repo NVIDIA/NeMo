@@ -28,7 +28,13 @@ def _generator_main(file_name, graph, name):
     print(f'Created {file_name}')
 
 
-def main(output_dir):
+def export_grammars(output_dir):
+    """
+    Exports tokenizer_and_classify and verbalize Fsts as .far files. 
+
+    Args:
+        output_dir: directory to export .far files to. Subdirectories will be created for tagger and verbalizer respectively.
+    """
     d = {}
     d['tokenize_and_classify'] = {'classify': ClassifyFst().fst}
     d['verbalize'] = {'verbalize': VerbalizeFst().fst}
@@ -41,4 +47,4 @@ def main(output_dir):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    export_grammars(sys.argv[1])
