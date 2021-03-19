@@ -69,7 +69,7 @@ def initialize_model():
         )
 
     # Load model into cache
-    model_api.initialize_model(model_name=model_name, upload_folder=app.config['UPLOAD_FOLDER'])
+    model_api.initialize_model(model_name=model_name)
 
     # update file banner
     reset_nemo_model_file_script = """
@@ -208,9 +208,7 @@ def transcribe():
 
     # transcribe file
     t1 = time.time()
-    transcriptions = model_api.transcribe_all(
-        files, model_name, upload_folder=app.config['UPLOAD_FOLDER'], use_gpu_if_available=use_gpu_if_available
-    )
+    transcriptions = model_api.transcribe_all(files, model_name, use_gpu_if_available=use_gpu_if_available)
     t2 = time.time()
 
     # delete all transcribed files immediately
@@ -228,7 +226,7 @@ def transcribe():
         toast = render_template(
             'toast_msg.html',
             toast_message=f"Failed to transcribe files due to unknown reason. "
-                          f"Please provide 16 KHz Monochannel wav files onle.",
+            f"Please provide 16 KHz Monochannel wav files onle.",
             timeout=5000,
         )
         transcriptions = ["" for _ in range(len(files))]
@@ -238,7 +236,7 @@ def transcribe():
         toast = render_template(
             'toast_msg.html',
             toast_message=f"Transcribed {len(files)} files using {model_name} (gpu={gpu_used}), "
-                          f"in {(t2 - t1): 0.2f} s",
+            f"in {(t2 - t1): 0.2f} s",
             timeout=5000,
         )
 
@@ -276,7 +274,7 @@ def remove_tmp_dir_at_exit():
 
 @app.route('/')
 def main():
-    nemo_model_names, local_model_names = model_api.get_model_names(app.config['UPLOAD_FOLDER'])
+    nemo_model_names, local_model_names = model_api.get_model_names()
     model_names = []
     model_names.extend(local_model_names)  # prioritize local models
     model_names.extend(nemo_model_names)  # attach all other pretrained models

@@ -36,9 +36,9 @@ MODEL_CACHE = {}
 TAG_ERROR_DURING_TRANSCRIPTION = "<ERROR_DURING_TRANSCRIPTION>"
 
 
-def get_model_names(upload_folder: str):
+def get_model_names():
     # Populate local copy of models
-    local_model_paths = glob.glob(os.path.join(upload_folder, 'models', "**", "*.nemo"), recursive=True)
+    local_model_paths = glob.glob(os.path.join('models', "**", "*.nemo"), recursive=True)
     local_model_names = list(sorted([os.path.basename(path) for path in local_model_paths]))
 
     # Populate with pretrained nemo checkpoint list
@@ -52,13 +52,13 @@ def get_model_names(upload_folder: str):
     return nemo_model_names, local_model_names
 
 
-def initialize_model(model_name, upload_folder: str):
+def initialize_model(model_name):
     # load model
     if model_name not in MODEL_CACHE:
         if '.nemo' in model_name:
             # use local model
             model_name_no_ext = os.path.splitext(model_name)[0]
-            model_path = os.path.join(upload_folder, 'models', model_name_no_ext, model_name)
+            model_path = os.path.join('models', model_name_no_ext, model_name)
 
             # Extract config
             model_cfg = nemo_asr.models.ASRModel.restore_from(restore_path=model_path, return_config=True)
@@ -82,12 +82,12 @@ def initialize_model(model_name, upload_folder: str):
     return model
 
 
-def transcribe_all(filepaths, model_name, upload_folder, use_gpu_if_available=True):
+def transcribe_all(filepaths, model_name, use_gpu_if_available=True):
     # instantiate model
     if model_name in MODEL_CACHE:
         model = MODEL_CACHE[model_name]
     else:
-        model = initialize_model(model_name, upload_folder=upload_folder)
+        model = initialize_model(model_name)
 
     if torch.cuda.is_available() and use_gpu_if_available:
         model = model.cuda()

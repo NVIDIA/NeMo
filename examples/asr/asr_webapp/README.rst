@@ -6,7 +6,11 @@ Usage
 
 A simple service that will load a pre-trained model from NeMo's ASR collection and after uploading some files, will transcribe them. Any pre-trained model can be selected and if the local / docker environment supports GPUs then it will be possible to transcribe the audio segments with GPU.
 
-Note: All uploaded files are immediately deleted after transcriptions are obtained.
+All uploaded files are immediately deleted after transcriptions are obtained.
+
+ .. note::
+
+    When using gunicorn, you might notice that each pretrained checkpoint takes a long time for the first transcription. This is because that worker is instantiating the model into memory and then moving the model onto the GPU. For large models, this step might take a significant amount of time. However, this step is cached, and subsequent transcription requests should be much faster (especially if a GPU is utilized).
 
 There are three options to run the ASR Service to transcribe audio -
 
@@ -38,3 +42,29 @@ The cleanest approach of the three, and requires simply building and running a d
 1) Build the docker by executing ``bash docker_container_build.sh``. This will build a container using the latest branch of nemo.
 
 2) Run the container by executing ``bash docker_container_run.sh``. This will run a detached container that can be used by visiting ``0.0.0.0:8000`` on a modern browser.
+
+Note About Uploading Models
+---------------------------
+
+Uploading models is a useful method to evaluate models quickly without having to write scripts.
+By design, models uploaded via the browser are visible to **all** users of the web app - so that there only needs
+to be one user who uploads the model and everyone else can evaluate with that model.
+
+This also means that models are uploaded indefinitely - and cannot be removed easily without explicitly deleting the ``models`` directory or by shutting down the container (if a container is used).
+
+There are several reasons this approach was taken -
+
+* It allows for easy evaluation amongst peers without duplicating model uploads (which may be very big).
+* When using ``gunicorn``, every worker has access to a central cache of models which can be loaded into memory.
+* Model upload mode is meant to be used in a local, protected environment.
+
+If you wish to disable model uploading, please open ``templates/main.html`` and comment out the following section:
+
+.. code-block:: html
+
+    <!-- Load .nemo checkpoint -->
+    <!-- Comment this section out to remove ability to upload files -->
+    <br>
+    NeMo File :
+    <input type = "file" name = "nemo_model" accept=".nemo" id="nemo_model_file" />
+    <!-- Comment out upto here to remove ability to upload models -->
