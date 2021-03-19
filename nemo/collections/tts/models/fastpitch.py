@@ -18,6 +18,7 @@ from typing import Any, Dict, List
 import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
+from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
@@ -26,7 +27,7 @@ from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import RegressionValuesType, TokenDurationType, TokenIndex
+from nemo.core.neural_types.elements import RegressionValuesType, TokenDurationType, TokenIndex, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.collections.asr.parts import parsers
 
@@ -48,8 +49,8 @@ class FastPitchModel(SpectrogramGenerator):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
-        self.parser = instantiate(cfg.parser)
         super().__init__(cfg=cfg, trainer=trainer)
+        self._parser = None
 
         schema = OmegaConf.structured(FastPitchConfig)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
@@ -79,6 +80,44 @@ class FastPitchModel(SpectrogramGenerator):
         )
         self.loss = FastPitchLoss()
 
+    @property
+    def parser(self):
+        if self._parser is not None:
+            return self._parser
+        if self._validation_dl is not None:
+            return self._validation_dl.dataset.parser
+        if self._test_dl is not None:
+            return self._test_dl.dataset.parser
+        if self._train_dl is not None:
+            return self._train_dl.dataset.parser
+
+        # Else construct a parser
+        # Try to get params from validation, test, and then train
+        params = {}
+        try:
+            params = self._cfg.validation_ds.dataset
+        except ConfigAttributeError:
+            pass
+        if params == {}:
+            try:
+                params = self._cfg.test_ds.dataset
+            except ConfigAttributeError:
+                pass
+        if params == {}:
+            try:
+                params = self._cfg.train_ds.dataset
+            except ConfigAttributeError:
+                pass
+
+        name = params.get('parser', None) or 'en'
+        unk_id = params.get('unk_index', None) or -1
+        blank_id = params.get('blank_index', None) or -1
+        do_normalize = params.get('normalize', None) or False
+        self._parser = parsers.make_parser(
+            labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
+        )
+        return self._parser
+
     def parse(self, str_input: str) -> torch.tensor:
         if str_input[-1] not in [".", "!", "?"]:
             str_input = str_input + "."
@@ -100,6 +139,7 @@ class FastPitchModel(SpectrogramGenerator):
     def forward(self, *, text, durs=None, pitch=None, speaker=0, pace=1.0):
         return self.fastpitch(text=text, durs=durs, pitch=pitch, speaker=speaker, pace=pace)
 
+    @typecheck(output_types={"spect": NeuralType(('B', 'T', 'C'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
         self.eval()
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
@@ -170,7 +210,13 @@ class FastPitchModel(SpectrogramGenerator):
 
     def _loader(self, cfg):
         parser = parsers.make_parser(
-            labels=self._cfg.labels, name='en', unk_id=-1, blank_id=-1, do_normalize=True, abbreviation_version="tts"
+            labels=self._cfg.labels,
+            name='en',
+            unk_id=-1,
+            blank_id=-1,
+            do_normalize=True,
+            abbreviation_version="tts",
+            make_table=False,
         )
 
         dataset = AudioToCharWithDursPitchDataset(

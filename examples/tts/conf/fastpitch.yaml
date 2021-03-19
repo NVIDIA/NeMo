@@ -24,8 +24,8 @@ model:
     parser: null
     drop_last: true
     shuffle: true
-    batch_size: 32
-    num_workers: 1
+    batch_size: 48
+    num_workers: 12
 
   validation_ds:
     manifest_filepath: ${validation_datasets}
@@ -36,13 +36,8 @@ model:
     parser: null
     drop_last: false
     shuffle: false
-    batch_size: 32
-    num_workers: 1
-
-  parser:
-    _target_: nemo.collections.tts.modules.fastpitch_parser.FastPitchParser
-    symbol_set: english_basic
-    text_cleaners: [english_cleaners]
+    batch_size: 48
+    num_workers: 8
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
