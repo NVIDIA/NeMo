@@ -59,23 +59,23 @@ pipeline {
           }
         }
 
-        stage('L0: Unit Tests GPU') {
-          steps {
-            sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
-          }
-        }
+        // stage('L0: Unit Tests GPU') {
+        //   steps {
+        //     sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
+        //   }
+        // }
 
-        stage('L0: Unit Tests CPU') {
-          when {
-            anyOf {
-              branch 'main'
-              changeRequest target: 'main'
-            }
-          }
-          steps {
-            sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
-          }
-        }
+        // stage('L0: Unit Tests CPU') {
+        //   when {
+        //     anyOf {
+        //       branch 'main'
+        //       changeRequest target: 'main'
+        //     }
+        //   }
+        //   steps {
+        //     sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu'
+        //   }
+        // }
 
         stage('L0: Computer Vision Integration') {
           when {
