@@ -266,7 +266,7 @@ setuptools.setup(
     # Add in any packaged data.
     include_package_data=True,
     exclude=['tools', 'tests'],
-    package_data={'nemo_tools': ['*.tsv', '*.txt']},
+    package_data={'': ['*.tsv', '*.txt']},
     zip_safe=False,
     # PyPI package information.
     keywords=__keywords__,
