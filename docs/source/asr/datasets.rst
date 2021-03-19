@@ -206,8 +206,8 @@ The tarred audio dataset classes in NeMo use `WebDataset <https://github.com/tmb
 To use an existing tarred dataset instead of a non-tarred dataset, you will need to set ``is_tarred: true`` in
 your experiment config file.
 Then, you will need to pass in the paths to all of your audio tarballs in ``tarred_audio_filepaths``, either as a list
-of filepaths (e.g. ``['/data/shard1.tar', '/data/shard2.tar']``), or in a single brace-expandable string (e.g.
-``'/data/shard_{1..64}.tar'``).
+of filepaths, e.g. ``['/data/shard1.tar', '/data/shard2.tar']``, or in a single brace-expandable string, e.g.
+``'/data/shard_{1..64}.tar'`` or ``'/data/shard__OP_1..64_CL_'`` (recommended, see note below).
 
 .. note::
   For brace expansion, there may be cases where ``{x..y}`` syntax cannot be used due to shell interference.
@@ -221,14 +221,14 @@ The dataloader will assume that the length of the manifest after filtering is th
 for reporting training progress.
 
 The ``tarred_shard_strategy`` field of the config file can be set if you have multiple shards and are running
-an experiment with multiprocessing.
-It defaults to ``scatter``, which preallocates a set of shards per node which do not change during runtime.
+an experiment with multiple workers.
+It defaults to ``scatter``, which preallocates a set of shards per worker which do not change during runtime.
 
 For more information about the individual tarred datasets and the parameters you can set, including shuffling options,
 see the corresponding class APIs on the `Datasets <./api.html#Datasets>`__ page.
 
 .. warning::
-  If using multiple processes the number of shards should be divisible by the number of workers to ensure an even
+  If using multiple workers the number of shards should be divisible by the world size to ensure an even
   split among workers.
   If it is not divisible, logging will give a warning but training will proceed, but likely hang at the last epoch.
   In addition, if using mutiprocessing, each shard must have the same number of entries after filtering is applied.
