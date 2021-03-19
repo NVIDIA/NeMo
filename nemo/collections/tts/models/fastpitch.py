@@ -20,7 +20,6 @@ from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursPitchDataset
 from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
