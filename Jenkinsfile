@@ -77,6 +77,18 @@ pipeline {
         //   }
         // }
 
+        
+        stage('pynini export') {
+          steps {
+            sh 'cd nemo_tools && bash setup.sh'
+            sh 'cd nemo_tools/text_denormalization/export && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 2'
+            sh 'cd nemo_tools/text_denormalization/export && cp *.grm /home/TestData/nlp/text_denorm/output/'
+            sh 'ls -R /home/TestData/nlp/text_denorm/output/'
+            sh 'cd nemo_tools/text_denormalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
+            sh 'pwd && ls -l'
+          }
+        }
+        
         stage('L0: Computer Vision Integration') {
           when {
             anyOf {
@@ -97,31 +109,15 @@ pipeline {
             }
           }
         }
+
+
+
+
       }
     }
 
     stage('Text denorm') {
       stages {
-        stage('pynini export') {
-          agent {
-                docker {
-                  image 'gitlab-master.nvidia.com:5005/yangzhang/text_normalization/pynini:latest'
-                  args '--user 0:128 -v /home/TestData:/home/TestData --shm-size=8g'
-                }
-          }
-          
-          options {
-            skipDefaultCheckout true
-          }
-          steps {
-            sh 'conda develop .'
-            sh 'cd nemo_tools/text_denormalization/export && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 2'
-            sh 'cd nemo_tools/text_denormalization/export && cp *.grm /home/TestData/nlp/text_denorm/output/'
-            sh 'ls -R /home/TestData/nlp/text_denorm/output/'
-            sh 'cd nemo_tools/text_denormalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
-            sh 'pwd && ls -l'
-          }
-        }
         stage('sparrowhawk test') {
           agent {
                 docker {
