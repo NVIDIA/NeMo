@@ -95,6 +95,7 @@ extras_require = {
     'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
+    'tools': req_file("requirements_tools.txt"),
 }
 
 extras_require['all'] = list(chain(extras_require.values()))
