@@ -35,6 +35,7 @@ For details, have a look at <NeMo_git_root>/tutorials/speaker_recognition/Speake
 
 seed_everything(42)
 
+
 @hydra_runner(config_path="conf", config_name="speaker_diarization.yaml")
 def main(cfg):
 
