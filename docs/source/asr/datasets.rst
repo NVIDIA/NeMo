@@ -231,7 +231,8 @@ see the corresponding class APIs on the `Datasets <./api.html#Datasets>`__ page.
   If using multiple workers the number of shards should be divisible by the world size to ensure an even
   split among workers.
   If it is not divisible, logging will give a warning but training will proceed, but likely hang at the last epoch.
-  In addition, if using mutiprocessing, each shard must have the same number of entries after filtering is applied.
+  In addition, if using distributed processing, each shard must have the same number of entries after filtering is
+  applied such that each worker ends up with the same number of files.
   We currently do not check for this in any dataloader, but your program may hang if the shards are uneven!
 
 Conversion to Tarred Datasets
