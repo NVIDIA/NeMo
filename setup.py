@@ -20,7 +20,6 @@
 import codecs
 import os
 import subprocess
-import sys
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
