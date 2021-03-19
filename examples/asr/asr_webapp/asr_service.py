@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import atexit
 import glob
+import os
 import shutil
+import time
+from html import unescape
+from uuid import uuid4
+
+import model_api
 import torch
 import werkzeug
-import atexit
-import time
-
-from uuid import uuid4
-from flask import Flask, json, request, render_template, url_for, make_response
+from flask import Flask, json, make_response, render_template, request, url_for
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-from html import unescape
 
 from nemo.utils import logging
-import model_api
 
 app = Flask(__name__)
 CORS(app)

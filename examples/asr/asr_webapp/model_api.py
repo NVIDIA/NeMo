@@ -12,23 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import contextlib
-import torch
 import glob
+import os
+
+import torch
 
 import nemo.collections.asr as nemo_asr
 from nemo.utils import logging, model_utils
-
 
 # setup AMP (optional)
 if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
     logging.info("AMP enabled!\n")
     autocast = torch.cuda.amp.autocast
 else:
+
     @contextlib.contextmanager
     def autocast():
         yield
+
 
 MODEL_CACHE = {}
 
