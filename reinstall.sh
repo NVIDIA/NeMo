@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-INSTALL_OPTION=${1:-"development"}
+INSTALL_OPTION=${1:-"dev"}
 
 
 PIP=pip
@@ -20,7 +20,7 @@ ${PIP} uninstall -y nemo_cv
 ${PIP} install -U setuptools
 
 echo 'Installing nemo'
-if [[ "$INSTALL_OPTION" == "development" ]]; then
+if [[ "$INSTALL_OPTION" == "dev" ]]; then
     ${PIP} install --editable ".[all]"
 else
     rm -rf dist/
