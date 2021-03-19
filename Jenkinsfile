@@ -65,11 +65,11 @@ pipeline {
           }
         }
 
-        // stage('L0: Unit Tests GPU') {
-        //   steps {
-        //     sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
-        //   }
-        // }
+        stage('L0: Unit Tests GPU') {
+          steps {
+            sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
+          }
+        }
 
         stage('L0: Unit Tests CPU') {
           when {
