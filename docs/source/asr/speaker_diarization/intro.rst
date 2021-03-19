@@ -45,7 +45,7 @@ NeMo includes preprocessing scripts for several common ASR datasets, and this pa
 those scripts.
 It also includes guidance for creating your own NeMo-compatible dataset, if you have your own data.
 
-Information about how to load model checkpoints (either local files or pretrained ones from NGC), as well as a list
+Information about how to load model checkpoints (either local files or pretrained ones from NGC), perform inference, as well as a list
 of the checkpoints available on NGC are located on the :doc:`Checkpoints <./results>` page.
 
 Documentation for configuration files specific to the ``nemo_asr`` models can be found on the
