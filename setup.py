@@ -29,21 +29,6 @@ import imp
 import setuptools
 
 
-def is_build_action():
-    if len(sys.argv) <= 1:
-        return False
-
-    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop", "style", "clean"]
-
-    if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
-        return True
-    else:
-        return False
-
-
-if is_build_action():
-    os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
-
 package_info = imp.load_source('package_info', 'nemo/package_info.py')
 from package_info import (
     __contact_emails__,
