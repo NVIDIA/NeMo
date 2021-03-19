@@ -13,21 +13,4 @@
 # limitations under the License.
 
 
-import os
-
-from .package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __shortversion__,
-    __version__,
-)
-
-if "NEMO_PACKAGE_BUILDING" not in os.environ:
-    from nemo import collections, core, utils
+from nemo import collections, core, utils

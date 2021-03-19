@@ -24,6 +24,7 @@ import sys
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
+import imp
 
 import setuptools
 
@@ -43,7 +44,8 @@ def is_build_action():
 if is_build_action():
     os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
 
-from nemo.package_info import (
+package_info = imp.load_source('package_info', 'nemo/package_info.py')
+from package_info import (
     __contact_emails__,
     __contact_names__,
     __description__,
