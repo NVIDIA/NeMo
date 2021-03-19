@@ -21,11 +21,11 @@ ARG BASE_IMAGE=nvcr.io/nvidia/nemo:1.0.0b3
 # image (by specifying build target as `nemo-deps`)
 FROM ${BASE_IMAGE} as nemo-deps
 
-# copy nemo source into a scratch image
+# copy asr service source into a temp directory
 WORKDIR /tmp/nemo-service
 COPY . .
 
-# override nemo version with dependency from requirements.txt
+# override nemo installation with dependency from requirements.txt
 RUN /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 RUN cd /tmp/nemo-service && pip install -r "requirements.txt"
 

@@ -100,10 +100,14 @@ def transcribe_all(filepaths, model_name, use_gpu_if_available=True):
                 transcriptions = model.transcribe(filepaths, batch_size=32)
 
     except RuntimeError:
-        logging.info("Ran out of memory on GPU - performing inference on CPU for now")
+        # Purge the cache to clear some memory
+        MODEL_CACHE.clear()
+
+        logging.info("Ran out of memory on device - performing inference on CPU for now")
 
         try:
             model = model.cpu()
+
             with torch.no_grad():
                 transcriptions = model.transcribe(filepaths, batch_size=32)
 

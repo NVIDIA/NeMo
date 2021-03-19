@@ -15,29 +15,29 @@
 -->
 
 <table class="transcript-view-table mdl-data-table mdl-js-data-table mdl-shadow--4dp">
-  <thead>
+    <thead>
     <tr>
-      <th class="mdl-data-table__cell--non-numeric">Filename</th>
-      <th class="mdl-data-table__cell--non-numeric">Transcript</th>
+        <th class="mdl-data-table__cell--non-numeric">Filename</th>
+        <th class="mdl-data-table__cell--non-numeric">Transcript</th>
     </tr>
-  </thead>
-  <tbody>
+    </thead>
+    <tbody>
     {% for transcript in transcripts %}
     <tr>
-      <td class="property-value-col mdl-data-table__cell--non-numeric" style="width: 10%">
-        <div class="col-value" style="overflow-x:auto;">
-          {{ transcript.filename }}
-        </div>
-      </td>
-      <td class="property-value-col mdl-data-table__cell--non-numeric">
-        <div class="col-value mdl-textfield mdl-js-textfield"
-             style="width: 100%; display: block;">
-          <textarea class="mdl-textfield__input" type="text" rows= "2" readonly >
+        <td class="property-value-col mdl-data-table__cell--non-numeric" style="width: 10%">
+            <div class="col-value" style="overflow-x:auto;">
+                {{ transcript.filename }}
+            </div>
+        </td>
+        <td class="property-value-col mdl-data-table__cell--non-numeric">
+            <div class="col-value mdl-textfield mdl-js-textfield"
+                 style="width: 100%; display: block;">
+          <textarea class="mdl-textfield__input" type="text" rows="2" readonly>
             {{ transcript.transcription }}
           </textarea>
-        </div>
-      </td>
+            </div>
+        </td>
     </tr>
     {% endfor %}
-  </tbody>
+    </tbody>
 </table>

@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shutil
-
 # https://docs.gunicorn.org/en/stable/settings.html
 
 # NOTE: Do not import nemo / torch code here
 # Gunicorn creates forked processes - and CUDA cannot be used in forked multiprocessing environment.
+
+import shutil
 
 # General config
 bind = "0.0.0.0:8000"
