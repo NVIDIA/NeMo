@@ -49,7 +49,7 @@ Diarizer Architecture Configurations
       model_path: null #.nemo local model path or pretrained model name or none
       window_length_in_sec: 0.15
       shift_length_in_sec: 0.01
-      threshold: 0.5 # tune threshold on dev set. Check scripts/vad_tune_threshold.py
+      threshold: 0.5 # tune threshold on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
       vad_decision_smoothing: True
       smoothing_params:
         method: "median" 

@@ -15,24 +15,6 @@ These speaker embeddings would then be clustered into clusters based on number o
 
 In NeMo we support both **oracle VAD** and **non-oracle VAD** diarization. 
 
-``Quick Start``
-
-.. note::
-  For model details and deep understanding, please refer to ``<NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb``.
-
-        
-Run and evaluate speaker diarizer with below command:
-
-.. code-block:: bash
-
-  python examples/speaker_recognition/speaker_diarize.py \
-  diarizer.paths2audio_files=<either list of audio file paths or file containing paths to audio files> \
-  diarizer.path2groundtruth_rttm_files=<(Optional) either list of rttm file paths or file containing paths to rttm files> \
-  diarizer.vad.model_path="vad_telephony_marblenet" \
-  diarizer.vad.threshold=0.7 \
-  diarizer.speaker_embeddings.model_path="speakerverification_speakernet" \
-  diarizer.out_dir="demo"
-
 
 The full documentation tree is as follows:
 

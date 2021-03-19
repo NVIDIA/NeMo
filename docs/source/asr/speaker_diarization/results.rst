@@ -27,9 +27,24 @@ Load Speaker Embedding model
   config.diarizer.speaker_embeddings.model_path=pretrained_speaker_model
 
 
-
 NeMo will automatically save checkpoints of a model you are training in a `.nemo` format.
 You can also manually save your models at any point using :code:`model.save_to(<checkpoint_path>.nemo)`.
+
+
+Inference
+----------
+
+.. note::
+  For details and deep understanding, please refer to ``<NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb``.
+
+Check out :doc:`Datasets <./datasets>` for preparing audio files and optional label files.
+
+Run and evaluate speaker diarizer with below command:
+
+.. code-block:: bash
+
+  # Have a look at the instruction inside the script and pass the arguments you might need. 
+  python <NeMo_git_root>/examples/speaker_recognition/speaker_diarize.py 
 
 
 NGC Pretrained Checkpoints
