@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import TestCase
-
 import pytest
 from nemo_tools.text_normalization.normalize import normalize
 from parameterized import parameterized
 from utils import parse_test_case_file
 
 
-class TestBoundary(TestCase):
+class TestBoundary:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_boundary.txt'))

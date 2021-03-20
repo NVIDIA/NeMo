@@ -14,7 +14,6 @@
 
 import os
 import tempfile
-from unittest import TestCase
 
 import pytest
 import torch
@@ -34,7 +33,7 @@ def do_export(model, name: str):
         model.export(tmp_file_name)
 
 
-class TestHuggingFace(TestCase):
+class TestHuggingFace:
     @pytest.mark.unit
     def test_list_pretrained_models(self):
         pretrained_lm_models = nemo_nlp.modules.get_pretrained_lm_models_list()
