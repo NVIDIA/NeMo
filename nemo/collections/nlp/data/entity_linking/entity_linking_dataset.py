@@ -1,3 +1,17 @@
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import ast
 import torch
@@ -13,13 +27,25 @@ from nemo.utils import logging
 from nemo.core.classes import Dataset
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import NeuralType, ChannelType, MaskType, LabelsType
-from nemo.collections.nlp.parts.utils_funcs import list2str, find_newlines, load_data_indices
-from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
+from nemo.collections.nlp.parts.utils_funcs import list2str
+from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats, find_newlines, load_data_indices
+
+__all__ = ['EntityLinkingDataset']
 
 
-class SelfAlignmentPretrainingDataset(Dataset):
+class EntityLinkingDataset(Dataset):
     """
-    Dataset for second stage pretraining of BERT based models for entity linking 
+    Dataset for second stage pretraining of BERT based encoder 
+    models for entity linking. 
+
+    Args:
+        tokenizer (obj): huggingface tokenizer,
+        data_file (str): path to tab separated column file where data 
+            pairs apear in the format 
+            concept_ID\tconcept_synonym1\tconcept_synonym2\n
+        pair_idx_file (str): path to pickle file containing location
+            of data_file newline characters
+        max_seq_length (int): maximum length of a concept in tokens
     """
 
     def __init__(
@@ -28,7 +54,6 @@ class SelfAlignmentPretrainingDataset(Dataset):
         data_file: str,
         pair_idx_file: Optional[str] = None,
         max_seq_length: Optional[int] = 512,
-        verbose: Optional[bool] = False,
         ):
 
         self.tokenizer = tokenizer
@@ -38,11 +63,14 @@ class SelfAlignmentPretrainingDataset(Dataset):
 
         # If pair indices file doesn't exists, generate and store them
         if pair_indices is None:
+            logging.info("Getting datafile newline indices")
+
             with open(data_file, "rb") as f:
                 contents = f.read()
                 newline_indices = find_newlines(contents)
                 newline_indices = array.array("I", newline_indices)
 
+            # Store data file indicies to avoid generating them again
             with open(pair_idx_file, "wb") as f:
                 pkl.dump(newline_indices, f)
 
@@ -64,6 +92,7 @@ class SelfAlignmentPretrainingDataset(Dataset):
         pair_offset = self.pair_indices[idx]
 
         with open(self.data_file, "rb") as f:
+            # Find data pair within datafile using byte offset
             f.seek(pair_offset)
             pair = f.readline()[:-1].decode("utf-8", errors="ignore")
             pair = pair.strip().split("\t")
@@ -77,8 +106,9 @@ class SelfAlignmentPretrainingDataset(Dataset):
 
     def _collate_fn(self, batch):
         """collate batch of input_ids, segment_ids, input_mask, and label
+
         Args:
-            batch:  A list of tuples of (input_ids, segment_ids, input_mask, label).
+            batch:  A list of tuples of format (concept_ID, concept_synonym1, concept_synonym2).
         """
 
         labels, sents1, sents2 = zip(*batch)
@@ -89,19 +119,6 @@ class SelfAlignmentPretrainingDataset(Dataset):
         sents = list(sents1)
         sents.extend(sents2)
 
-        batch = self.preprocess_batch(sents)
-
-        return (
-            torch.LongTensor(batch["input_ids"]),
-            torch.LongTensor(batch["token_type_ids"]),
-            torch.LongTensor(batch["attention_mask"]),
-            torch.LongTensor(labels),
-        )
-
-
-    def preprocess_batch(self, sents):
-        """Encode a list of sentences into a list of tuples of (input_ids, segment_ids, input_mask).
-           """
         batch = self.tokenizer(sents,
                           add_special_tokens = True,
                           padding = True,
@@ -111,25 +128,9 @@ class SelfAlignmentPretrainingDataset(Dataset):
                           return_attention_mask = True,
                           return_length = True)
 
-        if self.verbose:
-            logging.info("***Tokenzer Example***")
-            logging.info(f"example sentence: {sents[0]}")
-            logging.info("subtokens: %s" % " ".join(self.tokenizer.tokenize(sents[0])))
-            logging.info("input_ids: %s" % list2str(batch["input_ids"][0]))
-            logging.info("segment_ids: %s" % list2str(batch["token_type_ids"][0]))
-            logging.info("input_mask: %s" % list2str(batch["attention_mask"][0]))
-    
-        return batch
-
-
-    #TODO: Implement this correctly
-    #@typecheck()
-    #def output_types(self) -> Optional[Dict[str, NeuralType]]:
-    #    """Returns definitions of module output ports.
-    #           """
-    #    return {
-    #        'input_ids': NeuralType(('B', 'T'), ChannelType()),
-    #        'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-    #        'input_mask': NeuralType(('B', 'T'), MaskType()),
-    #        'label': NeuralType(('B',), LabelsType()),
-    #    }
+        return (
+            torch.LongTensor(batch["input_ids"]),
+            torch.LongTensor(batch["token_type_ids"]),
+            torch.LongTensor(batch["attention_mask"]),
+            torch.LongTensor(labels),
+        )
