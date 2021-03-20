@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 
 from nemo.core.classes import Dataset
-from nemo.collections.nlp.parts.utils_funcs import find_newlines, load_data_indices
+from nemo.collections.nlp.data.data_utils.data_preprocessing import find_newlines, load_data_indices
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataloader']
 
