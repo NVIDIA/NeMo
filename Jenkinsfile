@@ -20,6 +20,7 @@ pipeline {
             sh 'apt-get update'
             sh 'apt-get install -y bc'
             sh 'pip install -r requirements/requirements_test.txt'
+            sh 'which isort'
           }
         }
       }
