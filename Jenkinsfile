@@ -19,6 +19,7 @@ pipeline {
           steps {
             sh 'apt-get update'
             sh 'apt-get install -y bc'
+            sh 'pip install -r requirements/requirements_test.txt'
           }
         }
       }
@@ -42,14 +43,13 @@ pipeline {
 
         stage('Install test requirements') {
           steps {
-            sh 'pip install -r requirements/requirements_test.txt'
-            sh 'export PATH="$PATH:/.local/bin"'
+            sh 'echo "$PATH"'
+            sh 'ls /opt/conda/bin'
           }
         }
 
         stage('Copyright Headers check') {
           steps {
-            sh 'echo "$PATH"'
             sh 'python /home/TestData/check_copyright_header.py --dir .'
           }
         }
