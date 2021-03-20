@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import pytest
 from nemo_tools.text_denormalization.denormalize import denormalize
 from parameterized import parameterized
 from utils import parse_test_case_file
 
 
-class TestWord:
+class TestDecimal:
+    @parameterized.expand(parse_test_case_file('data_text_denormalization/test_cases_decimal.txt'))
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    @parameterized.expand(parse_test_case_file('data_text_denormalization/test_cases_word.txt'))
     def test_denorm(self, test_input, expected):
         pred = denormalize(test_input, verbose=False)
         assert pred == expected
