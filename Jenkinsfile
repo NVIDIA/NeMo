@@ -6,16 +6,12 @@ pipeline {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
   }
-  environment {
-    UID = sh (returnStdout: true, script: 'id -u').trim()
-    GID = sh (returnStdout: true, script: 'id -g').trim()
-  }
   stages {
     stage('PyTorch Container') {
       agent {
         docker {
               image "${pytorch_container}"
-              args '--device=/dev/nvidia0 --gpus all --user ${UID}:${GID} -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+              args '--device=/dev/nvidia0 --gpus all -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
       }
 
