@@ -17,22 +17,22 @@ pipeline {
       }
       stages {
         stage('Install test requirements') {
-          script {
-            docker.image("${pytorch_container}").inside("""--user 0:128 --entrypoint=''""") {
-              sh 'apt-get update'
-              sh 'apt-get install -y bc'
-              sh 'pip install -r requirements/requirements_test.txt'
+          steps {
+            script {
+              docker.image("${pytorch_container}").inside("""--user 0:128 --entrypoint=''""") {
+                sh 'apt-get update'
+                sh 'apt-get install -y bc'
+                sh 'pip install -r requirements/requirements_test.txt'
+              }
             }
           }
         }
 
         stage('PyTorch version') {
           steps {
-            sh 'su root'
             sh 'python -c "import torch; print(torch.__version__)"'
             sh 'python -c "import torchtext; print(torchtext.__version__)"'
             sh 'python -c "import torchvision; print(torchvision.__version__)"'
-            sh 'su root'
           }
         }
 
