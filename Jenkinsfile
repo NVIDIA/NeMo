@@ -19,8 +19,6 @@ pipeline {
           steps {
             sh 'apt-get update'
             sh 'apt-get install -y bc'
-            sh 'pip install -r requirements/requirements_test.txt'
-            sh 'rm -rf /.cache'
           }
         }
       }
@@ -39,6 +37,12 @@ pipeline {
             sh 'python -c "import torch; print(torch.__version__)"'
             sh 'python -c "import torchtext; print(torchtext.__version__)"'
             sh 'python -c "import torchvision; print(torchvision.__version__)"'
+          }
+        }
+
+        stage('Install test requirements') {
+          steps {
+            sh 'pip install -r requirements/requirements_test.txt'
           }
         }
 
