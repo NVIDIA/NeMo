@@ -7,34 +7,24 @@ pipeline {
     disableConcurrentBuilds()
   }
   stages {
-    stage('Docker init') {
+    stage('PyTorch Container') {
       agent {
         docker {
               image "${pytorch_container}"
-              args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+              args '--device=/dev/nvidia0 --gpus all -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+              // args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
       }
       stages {
         stage('Install test requirements') {
           steps {
+            sh 'su root'
             sh 'apt-get update'
             sh 'apt-get install -y bc'
             sh 'pip install -r requirements/requirements_test.txt'
-            sh 'realpath /opt/conda/bin'
-            sh 'realpath /opt/conda/bin/isort'
           }
         }
-      }
-    }
-    stage('PyTorch Container') {
-      agent {
-        docker {
-              image "${pytorch_container}"
-              args '--device=/dev/nvidia0 --gpus all --mount type=tmpfs,destination=/.cache --mount type=tmpfs,destination=/.local -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
-        }
-      }
 
-      stages {
         stage('PyTorch version') {
           steps {
             sh 'python -c "import torch; print(torch.__version__)"'
