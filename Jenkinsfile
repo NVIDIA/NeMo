@@ -21,6 +21,7 @@ pipeline {
             sh 'apt-get install -y bc'
             sh 'pip install -r requirements/requirements_test.txt'
             sh 'which isort'
+            sh 'realpath /opt/conda/bin'
           }
         }
       }
@@ -45,6 +46,7 @@ pipeline {
         stage('Install test requirements') {
           steps {
             sh 'echo "$PATH"'
+            sh 'realpath /opt/conda/bin'
             sh 'ls /opt/conda/bin'
           }
         }
