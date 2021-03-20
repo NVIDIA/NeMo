@@ -5,8 +5,6 @@ pipeline {
   options {
     timeout(time: 1, unit: 'HOURS')
     disableConcurrentBuilds()
-  // This is required if you want to clean before build
-  // skipDefaultCheckout(true)
   }
   stages {
     stage('PyTorch Container') {
