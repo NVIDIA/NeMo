@@ -14,6 +14,9 @@ pipeline {
               args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
       }
+      steps {
+        sh 'echo "Initializing docker image as root"'
+      }
     }
     stage('PyTorch Container') {
       agent {
