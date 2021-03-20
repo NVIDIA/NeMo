@@ -19,7 +19,6 @@ pipeline {
           steps {
             sh 'apt-get update'
             sh 'apt-get install -y bc'
-            sh 'pip install -r requirements/requirements_test.txt'
           }
         }
       }
@@ -41,11 +40,12 @@ pipeline {
           }
         }
 
-        // stage('Install test requirements') {
-        //   steps {
-        //     sh 'export PATH="$PATH:/.local/bin"'
-        //   }
-        // }
+        stage('Install test requirements') {
+          steps {
+            sh 'pip install -r requirements/requirements_test.txt'
+            sh 'export PATH="$PATH:/.local/bin"'
+          }
+        }
 
         stage('Copyright Headers check') {
           steps {
