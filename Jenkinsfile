@@ -14,8 +14,12 @@ pipeline {
               args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
       }
-      steps {
-        sh 'echo "Initializing docker image as root"'
+      stages {
+        stage('Install test requirements') {
+          steps {
+            sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
+          }
+        }
       }
     }
     stage('PyTorch Container') {
@@ -32,12 +36,6 @@ pipeline {
             sh 'python -c "import torch; print(torch.__version__)"'
             sh 'python -c "import torchtext; print(torchtext.__version__)"'
             sh 'python -c "import torchvision; print(torchvision.__version__)"'
-          }
-        }
-
-        stage('Install test requirements') {
-          steps {
-            sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
           }
         }
 
