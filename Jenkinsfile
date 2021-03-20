@@ -17,7 +17,10 @@ pipeline {
       stages {
         stage('Install test requirements') {
           steps {
-            sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
+            sh 'apt-get update'
+            sh 'apt-get install -y bc'
+            sh 'pip install -r requirements/requirements_test.txt'
+            sh 'rm -rf .cache'
           }
         }
       }
