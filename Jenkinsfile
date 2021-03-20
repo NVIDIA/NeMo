@@ -49,6 +49,7 @@ pipeline {
 
         stage('Copyright Headers check') {
           steps {
+            sh 'echo "$PATH"'
             sh 'python /home/TestData/check_copyright_header.py --dir .'
           }
         }
