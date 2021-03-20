@@ -11,26 +11,28 @@ pipeline {
       agent {
         docker {
               image "${pytorch_container}"
-              args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
-              // args '--device=/dev/nvidia0 --gpus all -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+              // args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+              args '--device=/dev/nvidia0 --gpus all -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
       }
       stages {
         stage('Install test requirements') {
-          steps {
-            sh 'apt-get update'
-            sh 'apt-get install -y bc'
-            sh 'pip install -r requirements/requirements_test.txt'
+          script {
+            docker.image("${pytorch_container}").inside("""--user 0:128 --entrypoint=''""") {
+              sh 'apt-get update'
+              sh 'apt-get install -y bc'
+              sh 'pip install -r requirements/requirements_test.txt'
+            }
           }
         }
 
         stage('PyTorch version') {
           steps {
-            sh 'su 1001'
+            sh 'su root'
             sh 'python -c "import torch; print(torch.__version__)"'
             sh 'python -c "import torchtext; print(torchtext.__version__)"'
             sh 'python -c "import torchvision; print(torchvision.__version__)"'
-            sh 'false'
+            sh 'su root'
           }
         }
 
