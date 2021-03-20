@@ -33,14 +33,6 @@ pipeline {
           }
         }
 
-        stage('Install test requirements') {
-          steps {
-            sh 'echo "$PATH"'
-            sh 'realpath /opt/conda/bin'
-            sh 'ls /opt/conda/bin'
-          }
-        }
-
         stage('Copyright Headers check') {
           steps {
             sh 'python /home/TestData/check_copyright_header.py --dir .'
