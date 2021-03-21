@@ -3,7 +3,18 @@
 Model NLP
 =========
 
-Base class for the rest of the models.
+The config file of NLP models contain three main sections:
+
+    - trainer: Trainer section contains the configs for PTL training and you may find more info at :doc:`../../introduction/core.html#model-training` and `PTL Trainer class API <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-class-api>'.
+    - exp_manager: the configs of experiment manager. You can find more info at :doc:`../../introduction/core.html#experiment-manager`
+    - model: contains the configs of the datasets, model architecture, tokenizer, optimizer, scheduler, etc.
+
+The following sub-sections of the model section are shared among most of the NLP models.
+    - tokenizer: specifies the tokenizer
+    - language_model: specifies the underlying model to be used as the encoder
+    - optim: the configs of the optimizer and scheduler :doc:`../../introduction/core.html`
+
+The 'tokenizer' and 'language_model' sections have the following parameters:
 
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 | **Parameter**                             | **Data Type**   |  **Description**                                                                                             |
@@ -23,22 +34,8 @@ Base class for the rest of the models.
 | model.language_model.config               | dictionary      | Config of the pre-trained language model                                                                     |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 
-Important Parameters
-^^^^^^^^^^^^^^^^^^^^
-
-Below is the list of parameters could help improve your MLP model:
-
-- language model (`model.language_model.pretrained_model_name`)
-    - pre-trained language model name, such as:
+The parameter `model.language_model.pretrained_model_name` can be one of the following:
     - `megatron-bert-345m-uncased`, `megatron-bert-345m-cased`, `biomegatron-bert-345m-uncased`, `biomegatron-bert-345m-cased`, `bert-base-uncased`, `bert-large-uncased`, `bert-base-cased`, `bert-large-cased`
     - `distilbert-base-uncased`, `distilbert-base-cased`,
     - `roberta-base`, `roberta-large`, `distilroberta-base`
     - `albert-base-v1`, `albert-large-v1`, `albert-xlarge-v1`, `albert-xxlarge-v1`, `albert-base-v2`, `albert-large-v2`, `albert-xlarge-v2`, `albert-xxlarge-v2`
-
-- classification head parameters:
-    - the number of layers in the classification head (`model.head.num_fc_layers`)
-    - dropout value between layers (`model.head.fc_dropout`)
-
-- optimizer (`model.optim.name`, for example, `adam`)
-- learning rate (`model.optim.lr`, for example, `5e-5`)
-
