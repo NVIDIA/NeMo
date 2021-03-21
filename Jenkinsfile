@@ -52,8 +52,10 @@ pipeline {
                 sh 'apt-get update'
                 sh 'apt-get install -y bc'
                 sh 'pip install -r requirements/requirements_test.txt'
+                sh 'ls /opt/conda/bin | grep isort'
               }
             }
+            sh 'ls /opt/conda/bin | grep isort'
             // }
           }
         }
