@@ -7,7 +7,7 @@ pipeline {
     disableConcurrentBuilds()
   }
   stages {
-    stage('PyTorch Container') {
+    stage('PyTorch Container Setup') {
       agent {
         docker {
           image "${pytorch_container}"
