@@ -55,7 +55,7 @@ pipeline {
             //     sh 'ls /opt/conda/bin | grep isort'
             //   }
             // }
-            sh 'ls /opt/conda/bin | grep isort'
+            // sh 'ls /opt/conda/bin | grep isort'
           }
         }
         stage('PyTorch version') {
@@ -91,7 +91,7 @@ pipeline {
 
         stage('Install nemo_tools requirements') {
           steps {
-            sh 'bash nemo_tools/setup.sh'
+            sh 'docker exec --user 0:128 $(docker ps -q) bash nemo_tools/setup.sh'
           }
         }
 
