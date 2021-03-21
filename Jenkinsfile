@@ -11,28 +11,34 @@ pipeline {
       agent {
         docker {
           image "${pytorch_container}"
-          // args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
-          args '--device=/dev/nvidia0 --gpus all -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+          args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+          // args '--device=/dev/nvidia0 --gpus all -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+          reuseNode true
         }
       }
       stages {
         stage('Install test requirements') {
-          agent {
-            docker {
-              image "${pytorch_container}"
-              args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
-              // args '--device=/dev/nvidia0 --gpus all -v /var/run/docker.sock:/var/run/docker.sock -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
-            }
-          }
           steps {
             sh 'apt-get update'
             sh 'apt-get install -y bc'
             sh 'pip install -r requirements/requirements_test.txt'
           }
         }
-
+      }
+    }
+    stage('PyTorch Container') {
+      agent {
+        docker {
+          image "${pytorch_container}"
+          // args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+          args '--device=/dev/nvidia0 --gpus all -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+          reuseNode true
+        }
+      }
+      stages {
         stage('PyTorch version') {
           steps {
+            sh 'which isort'
             sh 'python -c "import torch; print(torch.__version__)"'
             sh 'python -c "import torchtext; print(torchtext.__version__)"'
             sh 'python -c "import torchvision; print(torchvision.__version__)"'
