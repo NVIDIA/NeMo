@@ -35,7 +35,6 @@ pipeline {
           image "${pytorch_container}"
           // args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
           args '--device=/dev/nvidia0 --gpus all --group-add 999 --mount type=tmpfs,destination=/.cache --mount type=tmpfs,destination=/.local -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch -v /var/run/docker.sock:/var/run/docker.sock -v /usr/bin/docker:/usr/bin/docker --shm-size=8g'
-          reuseNode true
         }
       }
       stages {
@@ -44,19 +43,18 @@ pipeline {
             sh 'ls -ltrh /var/run/docker.sock'
             sh 'id'
             sh 'env'
-            sh 'docker ps'
+            sh 'docker ps -q'
+            sh 'docker ps -qf ${pytorch_container}'
             // sh 'docker exec --user 0:128 -it $BUILD_CONTAINER_ID apt-get update'
-            // node(null) {
-            script {
-              docker.image("${pytorch_container}").inside("--user 0:128") {
-                sh 'apt-get update'
-                sh 'apt-get install -y bc'
-                sh 'pip install -r requirements/requirements_test.txt'
-                sh 'ls /opt/conda/bin | grep isort'
-              }
-            }
-            sh 'ls /opt/conda/bin | grep isort'
+            // script {
+            //   docker.image("${pytorch_container}").inside("--user 0:128") {
+            //     sh 'apt-get update'
+            //     sh 'apt-get install -y bc'
+            //     sh 'pip install -r requirements/requirements_test.txt'
+            //     sh 'ls /opt/conda/bin | grep isort'
+            //   }
             // }
+            sh 'ls /opt/conda/bin | grep isort'
           }
         }
         stage('PyTorch version') {
