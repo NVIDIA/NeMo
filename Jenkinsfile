@@ -43,8 +43,9 @@ pipeline {
           steps {
             sh 'ls -ltrh /var/run/docker.sock'
             sh 'id'
+            sh 'env'
             sh 'docker ps'
-            sh 'docker exec --user 0:128 -it $BUILD_CONTAINER_ID apt-get update'
+            // sh 'docker exec --user 0:128 -it $BUILD_CONTAINER_ID apt-get update'
             // node(null) {
               // script {
               //   docker.image("${pytorch_container}").inside("--user 0:128") {
