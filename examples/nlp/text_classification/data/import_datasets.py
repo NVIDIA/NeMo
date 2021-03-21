@@ -13,16 +13,18 @@
 # limitations under the License.
 
 """
-This script can be used to process and import IMDB, chemprot, sst-2, and thucnews datasets into NeMo's format.
-You may run it as t
+This script can be used to process and import IMDB, ChemProt, SST-2, and THUCnews datasets into NeMo's format.
+You may run it as the following:
 
 python import_datasets.py \
-        --dataset_name thucnews \
-        --source_data_dir "./thucnews_orig_data/" \
-        --target_data_dir "./thucnews/"
+        --dataset_name DATASET_NAME \
+        --target_data_dir TARGET_PATH \
+        --source_data_dir SOURCE_PATH
 
-It reads the data from "source_data_dir" folder, processes and converts the data into NeMo's format.
-Then writes the results into "target_data_dir" folder.
+The dataset should be specified by "DATASET_NAME" which can be from ["sst-2", "chemprot", "imdb", "thucnews"].
+It reads the data from "SOURCE_PATH" folder, processes and converts the data into NeMo's format.
+Then writes the results into "TARGET_PATH" folder.
+
 """
 
 import argparse
@@ -230,6 +232,8 @@ if __name__ == "__main__":
         process_thucnews(source_dir, target_dir)
     elif dataset_name == "chemprot":
         process_chemprot(source_dir, target_dir, do_lower_case)
+    elif dataset_name == "sst-2":
+        process_sst2(source_dir, target_dir, do_lower_case)
     else:
         raise ValueError(
             f'Dataset {dataset_name} is not supported.'
