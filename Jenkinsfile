@@ -47,8 +47,8 @@ pipeline {
             sh 'docker exec --user 0:128 $(docker ps -q) apt-get update'
             sh 'docker exec --user 0:128 $(docker ps -q) apt-get install -y bc'
             sh 'docker exec --user 0:128 $(docker ps -q) pip install -r requirements/requirements_test.txt'
-            // sh 'docker exec --user 0:128 $(docker ps -q) chmod -R 777 /opt/conda'
-            sh 'docker exec --user 0:128 $(docker ps -q) chmod -R 777 /.conda'
+            sh 'docker exec --user 0:128 $(docker ps -q) chmod 777 -R /opt/conda/bin'
+            sh 'docker exec --user 0:128 $(docker ps -q) chmod 777 /'
             // script {
             //   docker.image("${pytorch_container}").inside("--user 0:128") {
             //     sh 'apt-get update'
