@@ -26,6 +26,9 @@ pipeline {
     //   }
     // }
     stage('PyTorch Container') {
+      environment {
+        PATH = "$PATH:/.local/bin"
+      }
       agent {
         docker {
           image "${pytorch_container}"
@@ -33,14 +36,12 @@ pipeline {
           args '--device=/dev/nvidia0 --gpus all --mount type=tmpfs,destination=/.cache --mount type=tmpfs,destination=/.local -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
       }
-      environment {
-        PATH = "$PATH:/.local/bin"
-      }
       stages {
         stage('Install test requirements') {
           steps {
             // sh 'apt-get update'
             // sh 'apt-get install -y bc'
+            sh 'echo "$PATH"'
             sh 'pip install -r requirements/requirements_test.txt'
           }
         }
