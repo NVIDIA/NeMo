@@ -44,9 +44,9 @@ pipeline {
             // sh 'id'
             // sh 'env'
             // sh 'docker ps -q'
-            sh 'docker exec --user 0:128 -it $(docker ps -q) apt-get update'
-            sh 'docker exec --user 0:128 -it $(docker ps -q) apt-get install -y bc'
-            sh 'docker exec --user 0:128 -it $(docker ps -q) pip install -r requirements/requirements_test.txt'
+            sh 'docker exec --user 0:128 $(docker ps -q) apt-get update'
+            sh 'docker exec --user 0:128 $(docker ps -q) apt-get install -y bc'
+            sh 'docker exec --user 0:128 $(docker ps -q) pip install -r requirements/requirements_test.txt'
             // script {
             //   docker.image("${pytorch_container}").inside("--user 0:128") {
             //     sh 'apt-get update'
