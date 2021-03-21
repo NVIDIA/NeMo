@@ -40,8 +40,8 @@ pipeline {
       stages {
         stage('Install test requirements') {
           steps {
-            sh 'echo $BUILD_CONTAINER_ID'
-            sh 'docker exec -it $BUILD_CONTAINER_ID apt-get update'
+            sh 'docker ps'
+            sh 'docker exec --user 0:128 -it $BUILD_CONTAINER_ID apt-get update'
             // node(null) {
               // script {
               //   docker.image("${pytorch_container}").inside("--user 0:128") {
