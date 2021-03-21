@@ -42,7 +42,7 @@ pipeline {
           steps {
             node(null) {
               script {
-                docker.image("${pytorch_container}").inside("""--user 0:128 --entrypoint=''""") {
+                docker.image("${pytorch_container}").inside("--user 0:128") {
                   sh 'apt-get update'
                   sh 'apt-get install -y bc'
                   sh 'pip install -r requirements/requirements_test.txt'
