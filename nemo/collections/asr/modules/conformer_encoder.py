@@ -79,7 +79,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             A tuple of input examples.
         """
         input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        return tuple([input_example])
+        input_example_length = torch.randint(0, 256, (16,)).to(next(self.parameters()).device)
+        return tuple([input_example, input_example_length])
 
     @property
     def input_types(self):
@@ -114,10 +115,11 @@ class ConformerEncoder(NeuralModule, Exportable):
         subsampling_conv_channels=-1,
         ff_expansion_factor=4,
         self_attention_model='rel_pos',
-        pos_emb_max_len=5000,
         n_heads=4,
+        att_context_size=None,
         xscaling=True,
         untie_biases=True,
+        pos_emb_max_len=5000,
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
@@ -127,7 +129,12 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
+        self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
+        if att_context_size:
+            self.att_context_size = att_context_size
+        else:
+            self.att_context_size = [-1, -1]
 
         if xscaling:
             self.xscale = math.sqrt(d_model)
@@ -182,9 +189,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             layer = ConformerLayer(
                 d_model=d_model,
                 d_ff=d_ff,
-                conv_kernel_size=conv_kernel_size,
                 self_attention_model=self_attention_model,
                 n_heads=n_heads,
+                conv_kernel_size=conv_kernel_size,
                 dropout=dropout,
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
@@ -200,7 +207,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
 
     @typecheck()
-    def forward(self, audio_signal, length):
+    def forward(self, audio_signal, length=None):
+        if length is None:
+            length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, ConvSubsampling):
@@ -213,12 +222,17 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         # Create the self-attention and padding masks
         pad_mask = self.make_pad_mask(length, max_time=xmax, device=audio_signal.device)
-        xx_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
-        xx_mask = ~(xx_mask & xx_mask.transpose(1, 2))
+        att_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
+        att_mask = att_mask & att_mask.transpose(1, 2)
+        if self.att_context_size[0] >= 0:
+            att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
+        if self.att_context_size[1] >= 0:
+            att_mask = att_mask.tril(diagonal=self.att_context_size[1])
+        att_mask = ~att_mask
         pad_mask = ~pad_mask
 
         for lth, layer in enumerate(self.layers):
-            audio_signal = layer(x=audio_signal, att_mask=xx_mask, pos_emb=pos_emb, pad_mask=pad_mask)
+            audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
