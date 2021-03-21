@@ -34,7 +34,7 @@ pipeline {
           image "${pytorch_container}"
           // args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
           args '--device=/dev/nvidia0 --gpus all --mount type=tmpfs,destination=/.cache --mount type=tmpfs,destination=/.local -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
-          reuseNode true
+          // reuseNode true
         }
       }
       stages {
