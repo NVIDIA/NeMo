@@ -41,13 +41,13 @@ pipeline {
         stage('Install test requirements') {
           steps {
             // node(null) {
-            //   script {
+              script {
                 docker.image("${pytorch_container}").inside("--user 0:128") {
                   sh 'apt-get update'
                   sh 'apt-get install -y bc'
                   sh 'pip install -r requirements/requirements_test.txt'
                 }
-            //   }
+              }
             // }
           }
         }
