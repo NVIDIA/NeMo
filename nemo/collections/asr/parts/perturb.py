@@ -90,36 +90,38 @@ class Perturbation(object):
 
 
 class SpeedPerturbation(Perturbation):
+    """
+    Performs Speed Augmentation by re-sampling the data to a different sampling rate,
+    which does not preserve pitch.
+
+    Note: This is a very slow operation for online augmentation. If space allows,
+    it is preferable to pre-compute and save the files to augment the dataset.
+
+    Args:
+        sr: Original sampling rate.
+        resample_type: Type of resampling operation that will be performed.
+            For better speed using `resampy`'s fast resampling method, use `resample_type='kaiser_fast'`.
+            For high-quality resampling, set `resample_type='kaiser_best'`.
+            To use `scipy.signal.resample`, set `resample_type='fft'` or `resample_type='scipy'`
+        min_speed_rate: Minimum sampling rate modifier.
+        max_speed_rate: Maximum sampling rate modifier.
+        num_rates: Number of discrete rates to allow. Can be a positive or negative
+            integer.
+            If a positive integer greater than 0 is provided, the range of
+            speed rates will be discretized into `num_rates` values.
+            If a negative integer or 0 is provided, the full range of speed rates
+            will be sampled uniformly.
+            Note: If a positive integer is provided and the resultant discretized
+            range of rates contains the value '1.0', then those samples with rate=1.0,
+            will not be augmented at all and simply skipped. This is to unnecessary
+            augmentation and increase computation time. Effective augmentation chance
+            in such a case is = `prob * (num_rates - 1 / num_rates) * 100`% chance
+            where `prob` is the global probability of a sample being augmented.
+        rng: Random seed number.
+    """
+
     def __init__(self, sr, resample_type, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, rng=None):
-        """
-        Performs Speed Augmentation by re-sampling the data to a different sampling rate,
-        which does not preserve pitch.
 
-        Note: This is a very slow operation for online augmentation. If space allows,
-        it is preferable to pre-compute and save the files to augment the dataset.
-
-        Args:
-            sr: Original sampling rate.
-            resample_type: Type of resampling operation that will be performed.
-                For better speed using `resampy`'s fast resampling method, use `resample_type='kaiser_fast'`.
-                For high-quality resampling, set `resample_type='kaiser_best'`.
-                To use `scipy.signal.resample`, set `resample_type='fft'` or `resample_type='scipy'`
-            min_speed_rate: Minimum sampling rate modifier.
-            max_speed_rate: Maximum sampling rate modifier.
-            num_rates: Number of discrete rates to allow. Can be a positive or negative
-                integer.
-                If a positive integer greater than 0 is provided, the range of
-                speed rates will be discretized into `num_rates` values.
-                If a negative integer or 0 is provided, the full range of speed rates
-                will be sampled uniformly.
-                Note: If a positive integer is provided and the resultant discretized
-                range of rates contains the value '1.0', then those samples with rate=1.0,
-                will not be augmented at all and simply skipped. This is to unnecessary
-                augmentation and increase computation time. Effective augmentation chance
-                in such a case is = `prob * (num_rates - 1 / num_rates) * 100`% chance
-                where `prob` is the global probability of a sample being augmented.
-            rng: Random seed number.
-        """
         min_rate = min(min_speed_rate, max_speed_rate)
         if min_rate < 0.0:
             raise ValueError("Minimum sampling rate modifier must be > 0.")
@@ -155,38 +157,40 @@ class SpeedPerturbation(Perturbation):
 
 
 class TimeStretchPerturbation(Perturbation):
+    """
+    Time-stretch an audio series by a fixed rate while preserving pitch, based on [1, 2].
+
+    Note:
+    This is a simplified implementation, intended primarily for reference and pedagogical purposes.
+    It makes no attempt to handle transients, and is likely to produce audible artifacts.
+
+    Reference
+    [1] [Ellis, D. P. W. “A phase vocoder in Matlab.” Columbia University, 2002.]
+    (http://www.ee.columbia.edu/~dpwe/resources/matlab/pvoc/)
+    [2] [librosa.effects.time_stretch]
+    (https://librosa.github.io/librosa/generated/librosa.effects.time_stretch.html)
+
+    Args:
+        min_speed_rate: Minimum sampling rate modifier.
+        max_speed_rate: Maximum sampling rate modifier.
+        num_rates: Number of discrete rates to allow. Can be a positive or negative
+            integer.
+            If a positive integer greater than 0 is provided, the range of
+            speed rates will be discretized into `num_rates` values.
+            If a negative integer or 0 is provided, the full range of speed rates
+            will be sampled uniformly.
+            Note: If a positive integer is provided and the resultant discretized
+            range of rates contains the value '1.0', then those samples with rate=1.0,
+            will not be augmented at all and simply skipped. This is to avoid unnecessary
+            augmentation and increase computation time. Effective augmentation chance
+            in such a case is = `prob * (num_rates - 1 / num_rates) * 100`% chance
+            where `prob` is the global probability of a sample being augmented.
+        n_fft: Number of fft filters to be computed.
+        rng: Random seed number.
+    """
+
     def __init__(self, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, n_fft=512, rng=None):
-        """
-        Time-stretch an audio series by a fixed rate while preserving pitch, based on [1, 2].
 
-        Note:
-        This is a simplified implementation, intended primarily for reference and pedagogical purposes.
-        It makes no attempt to handle transients, and is likely to produce audible artifacts.
-
-        Reference
-        [1] [Ellis, D. P. W. “A phase vocoder in Matlab.” Columbia University, 2002.]
-        (http://www.ee.columbia.edu/~dpwe/resources/matlab/pvoc/)
-        [2] [librosa.effects.time_stretch]
-        (https://librosa.github.io/librosa/generated/librosa.effects.time_stretch.html)
-
-        Args:
-            min_speed_rate: Minimum sampling rate modifier.
-            max_speed_rate: Maximum sampling rate modifier.
-            num_rates: Number of discrete rates to allow. Can be a positive or negative
-                integer.
-                If a positive integer greater than 0 is provided, the range of
-                speed rates will be discretized into `num_rates` values.
-                If a negative integer or 0 is provided, the full range of speed rates
-                will be sampled uniformly.
-                Note: If a positive integer is provided and the resultant discretized
-                range of rates contains the value '1.0', then those samples with rate=1.0,
-                will not be augmented at all and simply skipped. This is to avoid unnecessary
-                augmentation and increase computation time. Effective augmentation chance
-                in such a case is = `prob * (num_rates - 1 / num_rates) * 100`% chance
-                where `prob` is the global probability of a sample being augmented.
-            n_fft: Number of fft filters to be computed.
-            rng: Random seed number.
-        """
         min_rate = min(min_speed_rate, max_speed_rate)
         if min_rate < 0.0:
             raise ValueError("Minimum sampling rate modifier must be > 0.")
@@ -263,6 +267,7 @@ class TimeStretchPerturbation(Perturbation):
 class GainPerturbation(Perturbation):
     """
     Applies random gain to the audio.
+
     Args:
         min_gain_dbfs (float): Min gain level in dB
         max_gain_dbfs (float): Max gain level in dB
@@ -285,8 +290,8 @@ class ImpulsePerturbation(Perturbation):
     Convolves audio with a Room Impulse Response.
 
     Args:
-        manifest_path (list): manifest file for RIRs
-        audio_tar_filepaths (list): tar files, if RIR audio files are tarred
+        manifest_path (list): Manifest file for RIRs
+        audio_tar_filepaths (list): Tar files, if RIR audio files are tarred
         shuffle_n (int): Shuffle parameter for shuffling buffered files from the tar files
         shift_impulse (bool): Shift impulse response to adjust for delay at the beginning
     """
@@ -330,10 +335,12 @@ class ShiftPerturbation(Perturbation):
     """
     Perturbs audio by shifting the audio in time by a random amount between min_shift_ms and max_shift_ms.
     The final length of the audio is kept unaltered by padding the audio with zeros.
+
+
     Args:
         min_shift_ms (float): Minimum time in milliseconds by which audio will be shifted
         max_shift_ms (float): Maximum time in milliseconds by which audio will be shifted
-        rng: random number generator
+        rng: Random number generator
     """
 
     def __init__(self, min_shift_ms=-5.0, max_shift_ms=5.0, rng=None):
@@ -358,16 +365,17 @@ class ShiftPerturbation(Perturbation):
 
 class NoisePerturbation(Perturbation):
     """
-    Perturbation that adds noise to input audio
+    Perturbation that adds noise to input audio.
+
     Args:
-        manifest_path (str): manifest file with paths to noise files
+        manifest_path (str): Manifest file with paths to noise files
         min_snr_db (float): Minimum SNR of audio after noise is added
         max_snr_db (float): Maximum SNR of audio after noise is added
         max_gain_db (float): Maximum gain that can be applied on the noise sample
-        audio_tar_filepaths (list) : tar files, if noise audio files are tarred
+        audio_tar_filepaths (list) : Tar files, if noise audio files are tarred
         shuffle_n (int): Shuffle parameter for shuffling buffered files from the tar files
         orig_sr (int): Original sampling rate of the noise files
-        rng: Random noise generator
+        rng: Random number generator
     """
 
     def __init__(
@@ -466,11 +474,12 @@ class NoisePerturbation(Perturbation):
 
 class WhiteNoisePerturbation(Perturbation):
     """
-    Perturbation that adds white noise to an audio file in the training dataset
+    Perturbation that adds white noise to an audio file in the training dataset.
+
     Args:
         min_level (int): Minimum level in dB at which white noise should be added
         max_level (int): Maximum level in dB at which white noise should be added
-        rng: random number generator
+        rng: Random number generator
     """
 
     def __init__(self, min_level=-90, max_level=-46, rng=None):
@@ -496,22 +505,22 @@ class RirAndNoisePerturbation(Perturbation):
         target sampling rate of 16 kHz, one would want to augment 8 kHz data with 8 kHz noise rather than 16 kHz noise.
 
         Args:
-            rir_manifest_path: manifest file for RIRs
-            rir_tar_filepaths: tar files, if RIR audio files are tarred
-            rir_prob: probability of applying a RIR
-            noise_manifest_paths: foreground noise manifest path
-            min_snr_db: min SNR for foreground noise
-            max_snr_db: max SNR for background noise,
-            noise_tar_filepaths: tar files, if noise files are tarred
-            apply_noise_rir: whether to convolve foreground noise with a a random RIR
-            orig_sample_rate: original sampling rate of foreground noise audio
-            max_additions: max number of times foreground noise is added to an utterance,
-            max_duration: max duration of foreground noise
-            bg_noise_manifest_paths: background noise manifest path
-            bg_min_snr_db: min SNR for background noise
-            bg_max_snr_db: max SNR for background noise
-            bg_noise_tar_filepaths: tar files, if noise files are tarred
-            bg_orig_sample_rate: original sampling rate of background noise audio
+            rir_manifest_path: Manifest file for RIRs
+            rir_tar_filepaths: Tar files, if RIR audio files are tarred
+            rir_prob: Probability of applying a RIR
+            noise_manifest_paths: Foreground noise manifest path
+            min_snr_db: Min SNR for foreground noise
+            max_snr_db: Max SNR for background noise,
+            noise_tar_filepaths: Tar files, if noise files are tarred
+            apply_noise_rir: Whether to convolve foreground noise with a a random RIR
+            orig_sample_rate: Original sampling rate of foreground noise audio
+            max_additions: Max number of times foreground noise is added to an utterance,
+            max_duration: Max duration of foreground noise
+            bg_noise_manifest_paths: Background noise manifest path
+            bg_min_snr_db: Min SNR for background noise
+            bg_max_snr_db: Max SNR for background noise
+            bg_noise_tar_filepaths: Tar files, if noise files are tarred
+            bg_orig_sample_rate: Original sampling rate of background noise audio
 
     """
 
@@ -611,7 +620,7 @@ class TranscodePerturbation(Perturbation):
         so users need to make sure that the installed sox version supports the codecs used here (G711 and amr-nb).
 
         Args:
-            rng: random number generator
+            rng: Random number generator
     """
 
     def __init__(self, rng=None):
