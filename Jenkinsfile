@@ -47,13 +47,13 @@ pipeline {
             sh 'docker ps'
             // sh 'docker exec --user 0:128 -it $BUILD_CONTAINER_ID apt-get update'
             // node(null) {
-              // script {
-              //   docker.image("${pytorch_container}").inside("--user 0:128") {
-              //     sh 'apt-get update'
-              //     sh 'apt-get install -y bc'
-              //     sh 'pip install -r requirements/requirements_test.txt'
-              //   }
-              // }
+            script {
+              docker.image("${pytorch_container}").inside("--user 0:128") {
+                sh 'apt-get update'
+                sh 'apt-get install -y bc'
+                sh 'pip install -r requirements/requirements_test.txt'
+              }
+            }
             // }
           }
         }
