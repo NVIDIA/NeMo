@@ -40,11 +40,10 @@ pipeline {
       stages {
         stage('Install test requirements') {
           steps {
-            sh 'ls -ltrh /var/run/docker.sock'
-            sh 'id'
-            sh 'env'
-            sh 'docker ps -q'
-            sh 'docker ps -qf ${pytorch_container}'
+            // sh 'ls -ltrh /var/run/docker.sock'
+            // sh 'id'
+            // sh 'env'
+            // sh 'docker ps -q'
             sh 'docker exec --user 0:128 -it $(docker ps -q) apt-get update'
             sh 'docker exec --user 0:128 -it $(docker ps -q) apt-get install -y bc'
             sh 'docker exec --user 0:128 -it $(docker ps -q) pip install -r requirements/requirements_test.txt'
