@@ -23,7 +23,7 @@ from enum import Enum
 from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-
+import os
 import hydra
 import wrapt
 from omegaconf import DictConfig, OmegaConf
@@ -663,12 +663,15 @@ class Model(Typing, Serialization, FileIO):
             )
         filename = location_in_the_cloud.split("/")[-1]
         url = location_in_the_cloud.replace(filename, "")
-        cache_dir = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}/{filename[:-5]}')
+        if os.getenv('NEMO_CACHE_DIR') is not None and os.path.isdir(os.getenv('NEMO_CACHE_DIR')):
+            cache_dir = Path.joinpath(Path(os.getenv('NEMO_CACHE_DIR')), f'.cache/torch/NeMo/NeMo_{nemo.__version__}/{filename[:-5]}')
+        else:
+            cache_dir = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}/{filename[:-5]}')
         # If either description and location in the cloud changes, this will force re-download
-        cache_subfolder = hashlib.md5((location_in_the_cloud + description).encode('utf-8')).hexdigest()
+        #cache_subfolder = hashlib.md5((location_in_the_cloud + description).encode('utf-8')).hexdigest()
         # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
         nemo_model_file_in_cache = maybe_download_from_cloud(
-            url=url, filename=filename, cache_dir=cache_dir, subfolder=cache_subfolder, refresh_cache=refresh_cache
+            url=url, filename=filename, cache_dir=cache_dir, subfolder=None, refresh_cache=refresh_cache
         )
         logging.info("Instantiating model from pre-trained checkpoint")
         if class_ is None:
