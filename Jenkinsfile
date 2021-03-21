@@ -27,13 +27,14 @@ pipeline {
     // }
     stage('PyTorch Container') {
       environment {
-        PATH = "$PATH:/.local/bin"
+        UID = sh (returnStdout: true, script: 'id -u').trim()
+        GID = sh (returnStdout: true, script: 'id -g').trim()
       }
       agent {
         docker {
           image "${pytorch_container}"
           // args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
-          args '--device=/dev/nvidia0 --gpus all --user mrjenkins:jenkins --mount type=tmpfs,destination=/.cache --mount type=tmpfs,destination=/.local -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock -v /usr/bin/docker:/usr/bin/docker --shm-size=8g'
+          args '--device=/dev/nvidia0 --gpus all --mount type=tmpfs,destination=/.cache --mount type=tmpfs,destination=/.local -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch -v /var/run/docker.sock:/var/run/docker.sock -v /usr/bin/docker:/usr/bin/docker --shm-size=8g'
           // reuseNode true
         }
       }
@@ -41,6 +42,7 @@ pipeline {
         stage('Install test requirements') {
           steps {
             sh 'ls -ltrh /var/run/docker.sock'
+            sh 'id'
             sh 'docker ps'
             sh 'docker exec --user 0:128 -it $BUILD_CONTAINER_ID apt-get update'
             // node(null) {
