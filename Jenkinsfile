@@ -40,6 +40,7 @@ pipeline {
       stages {
         stage('Install test requirements') {
           steps {
+            sh 'ls -ltrh /var/run/docker.sock'
             sh 'docker ps'
             sh 'docker exec --user 0:128 -it $BUILD_CONTAINER_ID apt-get update'
             // node(null) {
