@@ -8,7 +8,6 @@
 
 
 import os
-
 from pytorch_lightning import Trainer
 from omegaconf import DictConfig, OmegaConf
 from nemo.core.config import hydra_runner
@@ -16,8 +15,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 from self_alignment_pretraining_model_no_pretokenization import SelfAlignmentPretrainingModel
 
-#TODO: Change config location to /conf to match other nemo exaples
-@hydra_runner(config_path="../configs", config_name="full_biomegatron_sap_config1.yaml")
+@hydra_runner(config_path="../conf", config_name="umls_sap_config.yaml")
 def main(cfg: DictConfig) -> None:
     logging.info(f"\nConfig Params:\n{cfg.pretty()}")
     trainer = Trainer(**cfg.trainer)

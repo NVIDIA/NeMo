@@ -37,6 +37,9 @@ def process_umls_data(data_path, save_name, headers):
             
                 # Keep up to max pairs number pairs for any one concept
                 for pair in pairs[:max_pairs]:
+
+                    # Removing leading C to convert label string to int
+                    cui = cui[1:]
                     outfile.write(f'{cui}\t{pair[0]}\t{pair[1]}\n')
                 
                 # Switch to next concept

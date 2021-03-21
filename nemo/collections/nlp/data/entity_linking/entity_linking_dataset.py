@@ -35,34 +35,37 @@ __all__ = ['EntityLinkingDataset']
 
 class EntityLinkingDataset(Dataset):
     """
-    Dataset for second stage pretraining of BERT based encoder 
-    models for entity linking. 
+    Parent class for entity linking encoder training and index
+    datasets
 
     Args:
         tokenizer (obj): huggingface tokenizer,
         data_file (str): path to tab separated column file where data 
             pairs apear in the format 
             concept_ID\tconcept_synonym1\tconcept_synonym2\n
-        pair_idx_file (str): path to pickle file containing location
+        newline_idx_file (str): path to pickle file containing location
             of data_file newline characters
         max_seq_length (int): maximum length of a concept in tokens
+        is_index_data (bool): Whether dataset will be used for building
+                            a nearest neighbors index
     """
 
     def __init__(
         self,
         tokenizer: object,
         data_file: str,
-        pair_idx_file: Optional[str] = None,
+        newline_idx_file: Optional[str] = None,
         max_seq_length: Optional[int] = 512,
+        is_index_data: bool = False,
         ):
 
         self.tokenizer = tokenizer
 
         # Try and load pair indices file if already exists
-        pair_indices, pair_idx_file = load_data_indices(pair_idx_file, "pair_indices")
+        newline_indices, newline_idx_file = load_data_indices(newline_idx_file, "newline_indices")
 
         # If pair indices file doesn't exists, generate and store them
-        if pair_indices is None:
+        if newline_indices is None:
             logging.info("Getting datafile newline indices")
 
             with open(data_file, "rb") as f:
@@ -71,37 +74,39 @@ class EntityLinkingDataset(Dataset):
                 newline_indices = array.array("I", newline_indices)
 
             # Store data file indicies to avoid generating them again
-            with open(pair_idx_file, "wb") as f:
+            with open(newline_idx_file, "wb") as f:
                 pkl.dump(newline_indices, f)
 
-            pair_indices = newline_indices
+            newline_indices = newline_indices
 
-        self.pair_indices = pair_indices
+        self.newline_indices = newline_indices
         self.data_file = data_file
-        self.num_pairs = len(pair_indices)
+        self.num_lines = len(newline_indices)
         self.max_seq_length = max_seq_length
-        self.verbose = verbose
+        self.is_index_data = is_index_data
 
         logging.info(f"Loaded dataset with {self.num_pairs} pairs")
 
     def __len__(self):
-        return self.num_pairs
+        return self.num_lines
 
     def __getitem__(self, idx):
 
-        pair_offset = self.pair_indices[idx]
+        concept_offset = self.newline_indices[idx]
 
         with open(self.data_file, "rb") as f:
             # Find data pair within datafile using byte offset
-            f.seek(pair_offset)
-            pair = f.readline()[:-1].decode("utf-8", errors="ignore")
-            pair = pair.strip().split("\t")
-            cui, sent1, sent2 = pair
-    
-            # Removing leading C to convert label string to int
-            cui = int(cui[1:])
+            f.seek(concept_offset)
+            concept = f.readline()[:-1].decode("utf-8", errors="ignore")
+            concept = concept.strip().split("\t")
 
-        return (cui, sent1, sent2)
+            if self.is_index_data:
+                concept_id, concept = concept
+                return (int(concept_id), concept))
+
+            else:
+                concept_id, concept1, concept2 = concept
+                return (int(concept_id), concept1, concept2)
 
 
     def _collate_fn(self, batch):
@@ -110,16 +115,19 @@ class EntityLinkingDataset(Dataset):
         Args:
             batch:  A list of tuples of format (concept_ID, concept_synonym1, concept_synonym2).
         """
+        if self.is_index_data:
+            concept_ids, concepts = zip(*batch)
+            concept_ids = list(concept_ids)
+            concepts = list(concepts)
 
-        labels, sents1, sents2 = zip(*batch)
+        else:
+            concept_ids, concepts1, concepts2 = zip(*batch)
+            concept_ids = list(concept_ids) 
+            concept_ids.extend(concept_ids) # Need to double label list to match each concept
+            concepts = list(concepts1)
+            concepts.extend(concepts2)
 
-        labels = list(labels) 
-        labels.extend(labels) # Need to double label list to match each sent
-
-        sents = list(sents1)
-        sents.extend(sents2)
-
-        batch = self.tokenizer(sents,
+        batch = self.tokenizer(concepts,
                           add_special_tokens = True,
                           padding = True,
                           truncation = True,
@@ -132,5 +140,5 @@ class EntityLinkingDataset(Dataset):
             torch.LongTensor(batch["input_ids"]),
             torch.LongTensor(batch["token_type_ids"]),
             torch.LongTensor(batch["attention_mask"]),
-            torch.LongTensor(labels),
+            torch.LongTensor(concept_ids),
         )
