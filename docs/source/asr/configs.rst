@@ -88,28 +88,8 @@ Augmentation Configurations
 There are a few on-the-fly spectrogram augmentation options for NeMo ASR, which can be specified by the
 configuration file using a ``spec_augment`` section.
 
-The options for `Cutout <https://arxiv.org/abs/1708.04552>`_ and `SpecAugment <https://arxiv.org/abs/1904.08779>`_
-available via the ``SpectrogramAugmentation`` module are detailed in the following table.
-
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| **Parameter**           | **Datatype**     | **Description**                                                                                                          | **Supported Values**         |
-+=========================+==================+==========================================================================================================================+==============================+
-| :code:`rect_masks`      | int              | How many rectangular masks should be cut (Cutout). Defaults to 5.                                                        |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`rect_freq`       | int              | Should only be set if :code:`rect_masks` was set. Maximum size of cut rectangles along the frequency dimension.          |                              |
-|                         |                  | Defaults to 5.                                                                                                           |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`rect_time`       | int              | Should only be set if :code:`rect_masks` was set. Maximum size of cut rectangles along the time dimension.               |                              |
-|                         |                  | Defaults to 25.                                                                                                          |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`freq_masks`      | int              | How many frequency segments should be cut (SpecAugment). Defaults to 0.                                                  |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`freq_width`      | int              | Should only be set if :code:`freq_masks` is set. Maximum number of frequencies to be cut in one segment. Defaults to 10. |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`time_masks`      | int              | How many time segments should be cut (SpecAugment). Defaults to 0.                                                       |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
-| :code:`time_width`      | int              | Should only be set if :code:`time_masks` is set. Maximum number of time steps to be cut in one segment. Defaults to 10.  |                              |
-+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------+------------------------------+
+For example, there are options for `Cutout <https://arxiv.org/abs/1708.04552>`_ and
+`SpecAugment <https://arxiv.org/abs/1904.08779>`_ available via the ``SpectrogramAugmentation`` module.
 
 The following example sets up both Cutout (via the ``rect_*`` parameters) and SpecAugment (via the ``freq_*``
 and ``time_*`` parameters).
@@ -132,7 +112,64 @@ and ``time_*`` parameters).
 
 You can use any combination of Cutout, frequency/time SpecAugment, or none of them.
 
+With NeMo ASR one can also add augmentation pipelines that can be used to simulate various kinds of noise
+added to audio in the channel. Augmentors in a pipeline are applied on the audio data read in the data layer. Online
+augmentors can be specified in the config file using an ``augmentor`` section in ``train_ds``. The following example
+adds an augmentation pipeline that first adds white noise to an audio sample with a probability of 0.5 and at a level
+randomly picked between -50 dB and -10 dB and then pass the resultant samples through a room impulse response randomly
+picked from the manifest file provided for ``impulse`` augmentation in the config file.
+
+.. code-block:: yaml
+
+  model:
+    ...
+    train_ds:
+    ...
+        augmentor:
+            white_noise:
+                prob: 0.5
+                min_level: -50
+                max_level: -10
+            impulse:
+                prob: 0.3
+                manifest_path: /path/to/impulse_manifest.json
+
 See the `Audio Augmentors <./api.html#Audio Augmentors>`__ API section for more details.
+
+Tokenizer Configurations
+------------------------
+
+Some models utilize sub-word encoding via an external tokenizer instead of explicitly defining their vocabulary.
+
+For such models, a ``tokenizer`` section is added  to the model config. ASR Models currently support two types of
+custom tokenizers - Google Sentencepiece tokenizers (tokenizer type of ``bpe`` in the config) or HuggingFace WordPiece tokenizers (tokenizer type of ``wpe`` in the config).
+
+In order to build custom tokenizers, please refer to the ``ASR_with_Subword_Tokenization`` notebook available in the
+ASR tutorials directory.
+
+The following example sets up a ``SentencePiece Tokenizer`` at a path specified by the user:
+
+.. code-block:: yaml
+
+  model:
+    ...
+    tokenizer:
+      dir: "<path to the directory that contains the custom tokenizer files>"
+      type: "bpe"  # can be "bpe" or "wpe"
+
+For models which utilize sub-word tokenization, we share the decoder module (``ConvASRDecoder``) with character tokenization models. All parameters are shared, but for models which utilize sub-word encoding, there are minor differences when setting up the config. For such models, the tokenizer is utilized to fill in the missing information when the model is constructed automatically.
+
+For example, a decoder config corresponding to a sub-word tokenization model would look like this:
+
+.. code-block:: yaml
+
+  model:
+    ...
+    decoder:
+      _target_: nemo.collections.asr.modules.ConvASRDecoder
+      feat_in: *enc_final
+      num_classes: -1  # filled with vocabulary size from tokenizer at runtime
+      vocabulary: []  # filled with vocabulary from tokenizer at runtime
 
 
 Model Architecture Configurations
@@ -276,3 +313,106 @@ For example, a decoder config corresponding to the encoder above would look like
       feat_in: *enc_filters
       vocabulary: *labels
       num_classes: 28   # Length of the vocabulary list
+
+Citrinet
+~~~~~~~~
+
+The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in contrast to QuartzNet. Depending on the dataset, we utilize different tokenizers. For Librispeech, we utilize the HuggingFace WordPiece tokenizer, and for all other datasets we utilize the Google Sentencepiece tokenizer - usually the ``unigram`` tokenizer type.
+
+Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed above.
+The encoder parameters include details about the Citrinet-C encoder architecture, including how many
+filters are used per channel (C). The Citrinet-C configuration is a shortform notation for Citrinet-21x5xC, such that B = 21 and R = 5 are the default and should generally not be changed.
+
+To use Citrinet instead of QuartzNet, please refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet`` directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.jasper.JasperBlock` as ``Jasper`` or ``QuartzNet`.
+
+While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Please refer to the ``JasperBlock`` documentation for the meaning of these arguments.
+
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
++=========================+==================+===============================================================================================================+=================================+
+| :code:`se`              | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                     | :code:`true` or :code:`false`   |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`se_context_size` | int              | SE context size. -1 means global context.                                                                     | :code:`-1` or :code:`+ve int`   |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`stride_last`     | bool             | Stride on the final repeated block or all repeated blocks.                                                    | :code:`true` or :code:`false`   |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`residual_mode`   | str              | | Type of residual branch to construct.                                                                       | :code:`"add"` or                |
+|                         |                  | | Can be pointwise residual addition or pointwise strided residual attention                                  | :code:`"stride_add"`            |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+
+A Citrinet-512 config might look like below.
+
+.. code-block:: yaml
+
+  model:
+    ...
+    # Specify some defaults across the entire model
+    model_defaults:
+      repeat: 5
+      dropout: 0.1
+      separable: true
+      se: true
+      se_context_size: -1
+    ...
+    encoder:
+      _target_: nemo.collections.asr.modules.ConvASREncoder
+      feat_in: *n_mels  # Should match "features" in the preprocessor.
+      activation: relu
+      conv_mask: true
+
+      jasper:   # This field name should be "jasper" for the JasperBlock (which constructs Citrinet).
+
+      # Prologue block
+      - filters: 512
+        repeat: 1
+        kernel: [5]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: false
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      # Block 1
+      - filters: 512
+        repeat: ${model.model_defaults.repeat}
+        kernel: [11]
+        stride: [2]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
+
+      ... # Entries for blocks 2~21
+
+      # Block 22
+      - filters: 512
+        repeat: ${model.model_defaults.repeat}
+        kernel: [39]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+      # Epilogue block
+
+      - filters: &enc_final 640
+        repeat: 1
+        kernel: [41]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: false
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+
+As discussed above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be changed slightly as Citrinet is utilizes sub-word tokenization.
