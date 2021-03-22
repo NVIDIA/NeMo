@@ -152,6 +152,8 @@ pipeline {
             sh 'ls -R /home/TestData/nlp/text_denorm/output/'
             sh 'cd nemo_tools/text_denormalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_pynini.txt || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
+          }
           }
         }
       }
