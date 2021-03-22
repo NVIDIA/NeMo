@@ -19,6 +19,7 @@ import os
 import pickle
 import tarfile
 import tempfile
+from joblib import Parallel, delayed
 
 import youtokentome as yttm
 from pytorch_lightning import Trainer
@@ -269,6 +270,14 @@ class MTDataPreproc:
                     f'Tarred dataset {tar_file_path} and metadata file {metadata_path} exists and will be used. Remove if reprocessing.'
                 )
             else:
+                filenames = [src_fname, tgt_fname]
+                # get number of lines so that we can create a partition of the lines of the text file
+                num_src_lines, num_tgt_lines = Parallel(n_jobs=2)(
+                    delayed(MTDataPreproc._get_num_lines)(filename) for filename in filenames
+                )
+                logging.info(f'Found {num_src_lines} source lines and  {num_tgt_lines} target lines.')
+                assert num_src_lines == num_tgt_lines, 'Number of source lines should equal number of target lines.'
+
                 tar_file_ptr = tarfile.open(tar_file_path, 'w')
                 with open(src_fname, 'r') as f_src, open(tgt_fname) as f_tgt:
                     for src_line, tgt_line in zip(f_src, f_tgt):
@@ -365,6 +374,24 @@ class MTDataPreproc:
             )
 
         return tar_file_paths, metadata_path
+
+    @staticmethod
+    def _get_num_lines(filename):
+        with open(filename) as f:
+            for i, l in enumerate(f):
+                pass
+        return i + 1
+
+    @staticmethod
+    def _get_lines_partition(num_lines, lines_per_dataset_fragment):
+        # create partition based on fragment size
+        fragment_indices = []
+        for i in range(0, num_lines, lines_per_dataset_fragment):
+            fragment_indices.append([i, i + lines_per_dataset_fragment])
+        # remove last indices if needed
+        if fragment_indices[-1][1] >= num_lines:
+            fragment_indices.pop()
+        return fragment_indices
 
     @staticmethod
     def preprocess_monolingual_dataset(
