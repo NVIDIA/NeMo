@@ -296,9 +296,11 @@ class MTDataPreproc:
                     )
                     total_batches += num_batches_from_fragment
 
+                json.dump({'num_batches': total_batches}, open(metadata_path, 'w'))
+
+                # TODO: dump tar_file_paths to metadata_path
+
         tar_file_paths = glob.glob(f'{out_dir}/*.tar')
-        # TODO: dump tar_file_paths to metadata_path
-        json.dump({'num_batches': total_batches}, open(metadata_path, 'w'))
 
         num_tar_files = len(tar_file_paths)
         if num_tar_files < world_size:
