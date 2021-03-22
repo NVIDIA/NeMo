@@ -164,6 +164,9 @@ class MegatronBertEncoder(BertModule):
         if 'checkpoint_version' in state_dict:
             if state_dict['checkpoint_version'] is not None:
                 set_checkpoint_version(state_dict['checkpoint_version'])
+                logging.info(
+                    f"Megatron-lm checkpoint version found. Setting checkpoint_version to {state_dict['checkpoint_version']}."
+                )
         else:
             logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
             set_checkpoint_version(0)
