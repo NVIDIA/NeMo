@@ -19,8 +19,18 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 """
-Basic run 
-python speaker_diarize.py
+This script demonstrates how to use run speaker diarization.
+Usage:
+  python speaker_diarize.py \
+  diarizer.paths2audio_files=<either list of audio file paths or file containing paths to audio files> \
+  diarizer.path2groundtruth_rttm_files=<(Optional) either list of rttm file paths or file containing paths to rttm files> \
+  diarizer.vad.model_path="vad_telephony_marblenet" \
+  diarizer.vad.threshold=0.7 \
+  diarizer.speaker_embeddings.model_path="speakerverification_speakernet" \
+  diarizer.out_dir="demo"
+
+Check out whole parameters in ./conf/speaker_diarization.yaml and their meanings.
+For details, have a look at <NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb
 """
 
 seed_everything(42)

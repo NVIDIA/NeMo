@@ -522,7 +522,3 @@ class EncDecClassificationModel(ASRModel, ExportableEncDecModel):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
-
-
-class MatchboxNet(EncDecClassificationModel):
-    pass
