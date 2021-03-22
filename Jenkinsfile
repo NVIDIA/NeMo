@@ -147,8 +147,8 @@ pipeline {
       parallel {
         stage('L2: pynini export') {
           steps {
-            sh 'cd tools/text_denormalization && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
-            sh 'cd tools/text_denormalization && cp *.grm /home/TestData/nlp/text_denorm/output/'
+            sh 'cd nemo_tools/text_denormalization && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd nemo_tools/text_denormalization && cp *.grm /home/TestData/nlp/text_denorm/output/'
             sh 'ls -R /home/TestData/nlp/text_denorm/output/'
             sh 'cd nemo_tools/text_denormalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_pynini.txt || exit 1'
