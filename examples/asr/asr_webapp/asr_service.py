@@ -23,7 +23,7 @@ from uuid import uuid4
 import model_api
 import torch
 import werkzeug
-from flask import Flask, json, make_response, render_template, request, url_for
+from flask import Flask, make_response, render_template, request, url_for
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -343,7 +343,6 @@ def remove_tmp_dir_at_exit():
         # Working outside of request context (probably shutdown)
         # simply delete entire tmp folder
         shutil.rmtree(app.config[f'UPLOAD_FOLDER'], ignore_errors=True)
-        pass
 
 
 @app.route('/')
