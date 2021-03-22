@@ -83,19 +83,18 @@ class MegatronBertEncoder(BertModule):
             os.environ["RANK"] = str(self._model_parallel_rank)
 
             # used to set model_parallel_size in megatron-lm argparser
-            def _update_model_parallel_arg(parser):
+            def _update_megatron_args(parser):
                 parser.set_defaults(model_parallel_size=self._model_parallel_size)
+                parser.set_defaults(micro_batch_size=1)
 
         else:
             # megatron expects batch size is not None
-            config['micro_batch_size'] = 1
-            # used to set model_parallel_size in megatron-lm argparser
-            def _update_model_parallel_arg(parser):
+            def _update_megatron_args(parser):
                 parser.set_defaults(micro_batch_size=1)
 
                 return parser
 
-        extra_args_provider = _update_model_parallel_arg
+        extra_args_provider = _update_megatron_args
 
         # configure globals for megatron
         set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo

@@ -354,6 +354,7 @@ class NLPModel(ModelPT, Exportable):
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
             # else:
+            #  This is getting called before DDP is initialized
             #     # Megatron without model parallelism
             #     self.complete_megatron_init()
         else:
