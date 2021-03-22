@@ -36,7 +36,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging, model_utils
 
-__all__ = ['EncDecClassificationModel', 'EncDecRegressionModel', 'MatchboxNet']
+__all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
 
 
 class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
@@ -741,7 +741,3 @@ class EncDecRegressionModel(_EncDecBaseModel):
             cfg.num_classes = 1
 
         OmegaConf.set_struct(cfg, True)
-
-
-class MatchboxNet(EncDecClassificationModel):
-    pass
