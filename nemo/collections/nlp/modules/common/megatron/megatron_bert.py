@@ -21,7 +21,12 @@ from megatron import get_args, initialize_megatron
 from megatron.checkpointing import set_checkpoint_version
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-from megatron.mpu import get_model_parallel_group, model_parallel_is_initialized
+from megatron.mpu import (
+    get_model_parallel_group,
+    model_parallel_is_initialized,
+    set_pipeline_model_parallel_rank,
+    set_pipeline_model_parallel_world_size,
+)
 from omegaconf import OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
@@ -80,11 +85,21 @@ class MegatronBertEncoder(BertModule):
             # used to set model_parallel_size in megatron-lm argparser
             def _update_model_parallel_arg(parser):
                 parser.set_defaults(model_parallel_size=self._model_parallel_size)
+
+        else:
+            # megatron expects batch size is not None
+            config['micro_batch_size'] = 1
+            # used to set model_parallel_size in megatron-lm argparser
+            def _update_model_parallel_arg(parser):
+                parser.set_defaults(micro_batch_size=1)
+
                 return parser
 
-            extra_args_provider = _update_model_parallel_arg
-        else:
-            extra_args_provider = None
+        extra_args_provider = _update_model_parallel_arg
+
+        # configure globals for megatron
+        set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
+        set_pipeline_model_parallel_world_size(1)  # pipeline model parallelism not implemented in NeMo
 
         # Initialize part of Megatron global state that is needed for its constructor.
         # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
