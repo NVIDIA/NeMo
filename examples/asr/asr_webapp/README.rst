@@ -1,18 +1,18 @@
-**ASR SERVICE **
-================
+**ASR EVALUATION SERVICE **
+===========================
 
 Usage
 -----
 
-A simple service that will load a pre-trained model from NeMo's ASR collection and after uploading some files, will transcribe them. Any pre-trained model can be selected and if the local / docker environment supports GPUs then it will be possible to transcribe the audio segments with GPU.
+A simple service that will load a pre-trained model from NeMo's ASR collection and after uploading some files, will transcribe them. Any pre-trained model (or model which has been uploaded to the service) can be selected and if the local / docker environment supports GPUs then it will be possible to transcribe the audio segments with GPU.
 
 All uploaded files are immediately deleted after transcriptions are obtained.
 
  .. note::
 
-    When using gunicorn, you might notice that each pretrained checkpoint takes a long time for the first transcription. This is because that worker is instantiating the model into memory and then moving the model onto the GPU. For large models, this step might take a significant amount of time. However, this step is cached, and subsequent transcription requests should be much faster (especially if a GPU is utilized).
+    When using `Gunicorn <https://gunicorn.org/>`_, you might notice that each pretrained checkpoint takes a long time for the first transcription. This is because that worker is instantiating the model into memory and then moving the model onto the GPU. For large models, this step might take a significant amount of time. However, this step is cached, and subsequent transcription requests should be much faster (especially if a GPU is utilized).
 
-There are three options to run the ASR Service to transcribe audio -
+From inside the ``asr_webapp`` directory, there are three options to run the ASR Service to transcribe audio -
 
 Local Setup
 -----------
@@ -26,7 +26,7 @@ Local Setup
 Gunicorn Setup
 --------------
 
-1) Follow above steps for ``Local Setup``
+1) Follow Step (1) of the ``Local Setup`` section.
 
 2) Edit the configuration of ``gunicorn`` inside ``gunicorn.conf.py`` if you wish to change the port or number of workers (though this can be achieved via command line overrides as well).
 
@@ -47,8 +47,7 @@ Note About Uploading Models
 ---------------------------
 
 Uploading models is a useful method to evaluate models quickly without having to write scripts.
-By design, models uploaded via the browser are visible to **all** users of the web app - so that there only needs
-to be one user who uploads the model and everyone else can evaluate with that model.
+By design, models uploaded via the browser are visible to **all** users who have access to the web app - so that there only needs to be one user who uploads the model and everyone else who can access this service will be able to evaluate with that model.
 
 This also means that models are uploaded indefinitely - and cannot be removed easily without explicitly deleting the ``models`` directory or by shutting down the container (if a container is used).
 
