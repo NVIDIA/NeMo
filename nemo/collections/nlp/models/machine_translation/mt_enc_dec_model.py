@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import pickle
 import random
 from pathlib import Path
@@ -316,8 +317,12 @@ class MTEncDecModel(EncDecNLPModel):
             dataset = pickle.load(open(cfg.src_file_name, 'rb'))
             dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
         elif cfg.get("use_tarred_dataset", False):
-            if cfg.get('tar_files') is None:
-                raise FileNotFoundError("Could not find tarred dataset.")
+            if cfg.get('tar_files') is None and cfg.get('metadata_file', None) is not None:
+                metadata = json.load(cfg.get('metadata_file', None))
+                if metadata.get('train_tar_files', None):
+                    tar_files = metadata.get('train_tar_files', None)
+                else:
+                    raise FileNotFoundError("Could not find tarred dataset.")
             logging.info(f'Loading from tarred dataset {cfg.get("tar_files")}')
             if cfg.get("metadata_file", None) is None:
                 raise FileNotFoundError("Could not find metadata path in config")

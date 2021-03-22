@@ -150,11 +150,18 @@ class MTDataPreproc:
                         world_size=self.world_size,
                     )
                     # update config
-                    self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
+                    # self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
+                    # self._cfg.train_ds.tar_files = self.train_tar_files
                     self._cfg.train_ds.metadata_file = self.train_metadata_file
                     logging.info(
-                        f"Using tarred dataset created at {self._cfg.train_ds.tar_files} and metadata created at {self._cfg.train_ds.metadata_file}"
+                        f"Using tarred dataset created at {self.train_tar_files} and metadata created at {self._cfg.train_ds.metadata_file}"
                     )
+                elif cfg.train_ds.get('tar_files') is None and cfg.train_ds.get('metadata_file') is not None:
+                    metadata = json.load(cfg.train_ds.get('metadata_file'))
+                    if metadata['train_tar_files']:
+                        logging.info(f"Using tarred dataset: {metadata['train_tar_files']}")
+                    else:
+                        raise ValueError(f'tar_files not provided and metadata does not have tar files')
                 else:
                     self.train_tar_files = cfg.train_ds.get('tar_files')
                     self.train_metadata_file = cfg.train_ds.get('metadata_file')
@@ -298,7 +305,8 @@ class MTDataPreproc:
 
                 json.dump({'num_batches': total_batches}, open(metadata_path, 'w'))
 
-                # TODO: dump tar_file_paths to metadata_path
+                tar_file_paths = glob.glob(f'{out_dir}/*.tar')
+                json.dump({'tar_file_paths': tar_file_paths}, open(metadata_path, 'a+'))
 
         tar_file_paths = glob.glob(f'{out_dir}/*.tar')
 
