@@ -253,7 +253,7 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
             emb = embeddings[uniq_key]
             emb = np.asarray(emb)
 
-            cluster_method = SpectralClusterer(min_clusters=1, max_clusters=NUM_speakers)
+            cluster_method = SpectralClusterer(min_clusters=2, max_clusters=NUM_speakers)
             cluster_labels = cluster_method.predict(emb)
 
             lines = time_stamps[uniq_key]
