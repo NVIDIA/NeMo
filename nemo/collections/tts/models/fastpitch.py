@@ -21,7 +21,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursPitchDataset
+from nemo.collections.asr.data.audio_to_text import FastPitchDataset
 from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -214,11 +214,11 @@ class FastPitchModel(SpectrogramGenerator):
             unk_id=-1,
             blank_id=-1,
             do_normalize=True,
-            abbreviation_version="tts",
+            abbreviation_version="fastpitch",
             make_table=False,
         )
 
-        dataset = AudioToCharWithDursPitchDataset(
+        dataset = FastPitchDataset(
             manifest_filepath=cfg['manifest_filepath'],
             parser=parser,
             sample_rate=cfg['sample_rate'],

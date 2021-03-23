@@ -87,7 +87,7 @@ ABBREVIATIONS_EXPANDED = [
     ]
 ]
 
-ABBREVIATIONS_TTS = [
+ABBREVIATIONS_TTS_FASTPITCH = [
     (re.compile('\\b%s\\.' % x[0]), x[1])
     for x in [
         ("ms", "miss"),
@@ -167,8 +167,8 @@ def clean_numbers(string):
 
 def clean_abbreviations(string, version=None):
     abbbreviations = ABBREVIATIONS_COMMON
-    if version == "tts":
-        abbbreviations = ABBREVIATIONS_TTS
+    if version == "fastpitch":
+        abbbreviations = ABBREVIATIONS_TTS_FASTPITCH
     elif version == "expanded":
         abbbreviations.extend = ABBREVIATIONS_EXPANDED
     for regex, replacement in abbbreviations:

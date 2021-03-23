@@ -472,7 +472,12 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         )
 
 
-class AudioToCharWithDursPitchDataset(_AudioTextDataset):
+class FastPitchDataset(_AudioTextDataset):
+    """
+    Dataset used for FastPitch that has both duration and pitch information per input char.
+    See https://github.com/NVIDIA/NeMo/pull/1799 for information on how to extract duration and pitch information.
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
