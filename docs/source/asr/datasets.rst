@@ -267,7 +267,7 @@ The files in the target directory will look like:
   └── tarred_audio_manifest.json
 
 Note that file structures will be flattened such that all audio files are at the top level in each tarball, so to
-ensure that filenames are unique in the tarred dataset, forward slashes in each ``audio_filepath`` are simply
+ensure that filenames are unique in the tarred dataset and the filepaths do not contain "-sub", forward slashes in each ``audio_filepath`` are simply
 converted to underscores.
 For example, a manifest entry for ``/data/directory1/file.wav`` would be ``_data_directory1_file.wav`` in the tarred
 dataset manifest, and ``/data/directory2/file.wav`` would be converted to ``_data_directory2_file.wav``.

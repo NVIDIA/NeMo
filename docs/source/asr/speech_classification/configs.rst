@@ -54,7 +54,7 @@ An example Speech Classification train and validation configuration could look l
       batch_size: 128
       shuffle: False # No need to shuffle the validation data
 
-If you want to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
+If you would like to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
 
 
 Preprocessor Configuration

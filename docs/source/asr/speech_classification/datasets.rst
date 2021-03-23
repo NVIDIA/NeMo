@@ -121,3 +121,11 @@ Preparing Custom Speech Classification Data
 Preparing Custom Speech Classification Data is almost identical to `Preparing Custom ASR Data <../datasets.html#preparing-custom-asr-data>`__.
 
 Instead of :code:`text` entry in manifest, you need :code:`label` to determine class of this sample
+
+
+Tarred Datasets
+---------------
+
+Similarly to ASR, you can tar your audio files and use ASR Dataset class ``TarredAudioToClassificationLabelDataset`` (corresponding to the ``AudioToClassificationLabelDataset``) for this case.
+
+If you would like to use tarred dataset, have a look at `ASR Tarred Datasets <../datasets.html#tarred-datasets>`__.
