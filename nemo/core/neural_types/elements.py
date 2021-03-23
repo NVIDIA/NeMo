@@ -54,6 +54,7 @@ __all__ = [
     'NormalDistributionSamplesType',
     'NormalDistributionMeanType',
     'NormalDistributionLogVarianceType',
+    'TokenDurationType',
     'TokenLogDurationType',
     'LogDeterminantType',
     'SequenceToSequenceAlignmentType',
@@ -305,6 +306,10 @@ class NormalDistributionMeanType(ElementType):
 
 class NormalDistributionLogVarianceType(ElementType):
     """Element to represent the log variance of a normal distribution"""
+
+
+class TokenDurationType(ElementType):
+    """Element for representing the duration of a token"""
 
 
 class TokenLogDurationType(ElementType):

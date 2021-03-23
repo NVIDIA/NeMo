@@ -103,7 +103,7 @@ class ENCharParser(CharParser):
 
     PUNCTUATION_TO_REPLACE = frozendict.frozendict({'+': 'plus', '&': 'and', '%': 'percent'})
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, abbreviation_version=None, make_table=True, *args, **kwargs):
         """Creates english-specific mapping char parser.
 
         This class overrides normalizing implementation.
@@ -115,7 +115,10 @@ class ENCharParser(CharParser):
 
         super().__init__(*args, **kwargs)
 
-        self._table = self.__make_trans_table()
+        self._table = None
+        if make_table:
+            self._table = self.__make_trans_table()
+        self.abbreviation_version = abbreviation_version
 
     def __make_trans_table(self):
         punctuation = string.punctuation
@@ -134,7 +137,10 @@ class ENCharParser(CharParser):
         # noinspection PyBroadException
         try:
             text = cleaners.clean_text(
-                string=text, table=self._table, punctuation_to_replace=self.PUNCTUATION_TO_REPLACE,
+                string=text,
+                table=self._table,
+                punctuation_to_replace=self.PUNCTUATION_TO_REPLACE,
+                abbreviation_version=self.abbreviation_version,
             )
         except Exception:
             return None

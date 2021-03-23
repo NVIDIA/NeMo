@@ -87,16 +87,68 @@ ABBREVIATIONS_EXPANDED = [
     ]
 ]
 
+ABBREVIATIONS_TTS_FASTPITCH = [
+    (re.compile('\\b%s\\.' % x[0]), x[1])
+    for x in [
+        ("ms", "miss"),
+        ("mrs", "misess"),
+        ("mr", "mister"),
+        ("dr", "doctor"),
+        ("drs", "doctors"),
+        ("st", "saint"),
+        ("co", "company"),
+        ("jr", "junior"),
+        ("sr", "senior"),
+        ("rev", "reverend"),
+        ("hon", "honorable"),
+        ("sgt", "sergeant"),
+        ("capt", "captain"),
+        ("maj", "major"),
+        ("col", "colonel"),
+        ("lt", "lieutenant"),
+        ("gen", "general"),
+        ("prof", "professor"),
+        ("lb", "pounds"),
+        ("rep", "representative"),
+        ("st", "street"),
+        ("ave", "avenue"),
+        ("jan", "january"),
+        ("feb", "february"),
+        ("mar", "march"),
+        ("apr", "april"),
+        ("jun", "june"),
+        ("jul", "july"),
+        ("aug", "august"),
+        ("sep", "september"),
+        ("oct", "october"),
+        ("nov", "november"),
+        ("dec", "december"),
+        ("ltd", "limited"),
+        ("fig", "figure"),
+        ("figs", "figures"),
+        ("gent", "gentlemen"),
+        ("ft", "fort"),
+        ("esq", "esquire"),
+        ("prep", "preperation"),
+        ("bros", "brothers"),
+        ("ind", "independent"),
+        ("mme", "madame"),
+        ("pro", "professional"),
+        ("vs", "versus"),
+    ]
+]
+
+
 inflect = inflect.engine()
 
 
-def clean_text(string, table, punctuation_to_replace):
+def clean_text(string, table, punctuation_to_replace, abbreviation_version=None):
     warn_common_chars(string)
     string = unidecode(string)
     string = string.lower()
     string = re.sub(r'\s+', " ", string)
     string = clean_numbers(string)
-    string = clean_abbreviations(string)
+    string = clean_abbreviations(string, version=abbreviation_version)
     string = clean_punctuations(string, table, punctuation_to_replace)
     string = re.sub(r'\s+', " ", string).strip()
     return string
@@ -113,19 +165,22 @@ def clean_numbers(string):
     return string
 
 
-def clean_abbreviations(string, expanded=False):
-    for regex, replacement in ABBREVIATIONS_COMMON:
+def clean_abbreviations(string, version=None):
+    abbbreviations = ABBREVIATIONS_COMMON
+    if version == "fastpitch":
+        abbbreviations = ABBREVIATIONS_TTS_FASTPITCH
+    elif version == "expanded":
+        abbbreviations.extend = ABBREVIATIONS_EXPANDED
+    for regex, replacement in abbbreviations:
         string = re.sub(regex, replacement, string)
-    if expanded:
-        for regex, replacement in ABBREVIATIONS_EXPANDED:
-            string = re.sub(regex, replacement, string)
     return string
 
 
 def clean_punctuations(string, table, punctuation_to_replace):
     for punc, replacement in punctuation_to_replace.items():
         string = re.sub('\\{}'.format(punc), " {} ".format(replacement), string)
-    string = string.translate(table)
+    if table:
+        string = string.translate(table)
     return string
 
 
