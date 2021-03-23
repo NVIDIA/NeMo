@@ -82,25 +82,10 @@ class MegatronBertEncoder(BertModule):
             os.environ["WORLD_SIZE"] = str(app_state.world_size)
             os.environ["RANK"] = str(self._model_parallel_rank)
 
-            # used to set model_parallel_size in megatron-lm argparser
-            def _update_megatron_args(parser):
-                parser.set_defaults(model_parallel_size=self._model_parallel_size)
-                parser.set_defaults(micro_batch_size=1)
-                parser.set_defaults(scaled_masked_softmax_fusion=False)
-                parser.set_defaults(bias_gelu_fusion=False)
-                parser.set_defaults(bias_dropout_fusion=False)
+            extra_args_provider = self._update_megatron_args(tensor_model_parallel_size=self._model_parallel_size)
 
         else:
-            # megatron expects batch size is not None
-            def _update_megatron_args(parser):
-                parser.set_defaults(micro_batch_size=1)
-                parser.set_defaults(scaled_masked_softmax_fusion=False)
-                parser.set_defaults(bias_gelu_fusion=False)
-                parser.set_defaults(bias_dropout_fusion=False)
-
-                return parser
-
-        extra_args_provider = _update_megatron_args
+            extra_args_provider = self._update_megatron_args()
 
         # configure globals for megatron
         set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
@@ -127,6 +112,25 @@ class MegatronBertEncoder(BertModule):
         self.config = OmegaConf.create(config)
         # key used for checkpoints
         self._hidden_size = self.language_model.hidden_size
+
+    def _update_megatron_args(
+        self,
+        micro_batch_size=1,
+        tensor_model_parallel_size=1,
+        scaled_masked_softmax_fusion=False,
+        bias_gelu_fusion=False,
+        bias_dropout_fusion=False,
+    ):
+        def extra_args_provider(parser):
+            parser.set_defaults(micro_batch_size=micro_batch_size)
+            parser.set_defaults(tensor_model_parallel_size=tensor_model_parallel_size)
+            parser.set_defaults(scaled_masked_softmax_fusion=scaled_masked_softmax_fusion)
+            parser.set_defaults(bias_gelu_fusion=bias_gelu_fusion)
+            parser.set_defaults(bias_dropout_fusion=bias_dropout_fusion)
+
+            return parser
+
+        return extra_args_provider
 
     def complete_lazy_init(self):
         # finish megatron-lm initialization
