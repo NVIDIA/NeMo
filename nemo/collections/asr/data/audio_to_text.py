@@ -46,30 +46,24 @@ def _speech_collate_fn(batch, pad_id):
     """
     _, audio_lengths, _, tokens_lengths = zip(*batch)
     max_audio_len = 0
-    has_audio = audio_lengths[0] is not None
-    if has_audio:
-        max_audio_len = max(audio_lengths).item()
+    max_audio_len = max(audio_lengths).item()
     max_tokens_len = max(tokens_lengths).item()
 
     audio_signal, tokens = [], []
     for sig, sig_len, tokens_i, tokens_i_len in batch:
-        if has_audio:
-            sig_len = sig_len.item()
-            if sig_len < max_audio_len:
-                pad = (0, max_audio_len - sig_len)
-                sig = torch.nn.functional.pad(sig, pad)
-            audio_signal.append(sig)
+        sig_len = sig_len.item()
+        if sig_len < max_audio_len:
+            pad = (0, max_audio_len - sig_len)
+            sig = torch.nn.functional.pad(sig, pad)
+        audio_signal.append(sig)
         tokens_i_len = tokens_i_len.item()
         if tokens_i_len < max_tokens_len:
             pad = (0, max_tokens_len - tokens_i_len)
             tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
         tokens.append(tokens_i)
 
-    if has_audio:
-        audio_signal = torch.stack(audio_signal)
-        audio_lengths = torch.stack(audio_lengths)
-    else:
-        audio_signal, audio_lengths = None, None
+    audio_signal = torch.stack(audio_signal)
+    audio_lengths = torch.stack(audio_lengths)
     tokens = torch.stack(tokens)
     tokens_lengths = torch.stack(tokens_lengths)
 
@@ -99,8 +93,6 @@ class _AudioTextDataset(Dataset):
         normalize: whether to normalize transcript text (default): True
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
-        load_audio: Boolean flag indicate whether do or not load audio
-        add_misc: True if add additional info dict.
     """
 
     @property
@@ -108,12 +100,7 @@ class _AudioTextDataset(Dataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)  # TODO: self._sample_rate is not defined anywhere
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -133,8 +120,6 @@ class _AudioTextDataset(Dataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
-        load_audio: bool = True,
-        add_misc: bool = False,
     ):
         self.parser = parser
 
@@ -151,23 +136,18 @@ class _AudioTextDataset(Dataset):
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.pad_id = pad_id
-        self.load_audio = load_audio
-        self._add_misc = add_misc
 
     def __getitem__(self, index):
         sample = self.collection[index]
-        if self.load_audio:
-            offset = sample.offset
+        offset = sample.offset
 
-            if offset is None:
-                offset = 0
+        if offset is None:
+            offset = 0
 
-            features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr
-            )
-            f, fl = features, torch.tensor(features.shape[0]).long()
-        else:
-            f, fl = None, None
+        features = self.featurizer.process(
+            sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr
+        )
+        f, fl = features, torch.tensor(features.shape[0]).long()
 
         t, tl = sample.text_tokens, len(sample.text_tokens)
         if self.bos_id is not None:
@@ -178,13 +158,6 @@ class _AudioTextDataset(Dataset):
             tl += 1
 
         output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
-
-        if self._add_misc:
-            misc = dict()
-            misc['id'] = sample.id
-            misc['text_raw'] = sample.text_raw
-            misc['speaker'] = sample.speaker
-            output = (output, misc)
 
         return output
 
@@ -223,8 +196,6 @@ class AudioToCharDataset(_AudioTextDataset):
         normalize: whether to normalize transcript text (default): True
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
-        load_audio: Boolean flag indicate whether do or not load audio
-        add_misc: True if add additional info dict.
     """
 
     @property
@@ -232,12 +203,7 @@ class AudioToCharDataset(_AudioTextDataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio_signal': NeuralType(('B', 'T')),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -260,9 +226,7 @@ class AudioToCharDataset(_AudioTextDataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
-        load_audio: bool = True,
         parser: Union[str, Callable] = 'en',
-        add_misc: bool = False,
     ):
         self.labels = labels
 
@@ -283,8 +247,6 @@ class AudioToCharDataset(_AudioTextDataset):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
-            load_audio=load_audio,
-            add_misc=add_misc,
         )
 
 
@@ -326,12 +288,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio': NeuralType(('B', 'T'), AudioSignal()),
             'audio_len': NeuralType(('B',), LengthsType()),
             'text': NeuralType(('B', 'T'), LabelsType()),
             'text_len': NeuralType(('B',), LengthsType()),
@@ -563,8 +520,6 @@ class AudioToBPEDataset(_AudioTextDataset):
             in dataset
         max_utts: Limit number of utterances
         trim: Whether to trim silence segments
-        load_audio: Boolean flag indicate whether do or not load audio
-        add_misc: True if add additional info dict.
         use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
             tokens to beginning and ending of speech respectively.
     """
@@ -574,12 +529,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -596,8 +546,6 @@ class AudioToBPEDataset(_AudioTextDataset):
         min_duration: Optional[int] = None,
         max_utts: int = 0,
         trim: bool = False,
-        load_audio: bool = True,
-        add_misc: bool = False,
         use_start_end_token: bool = True,
     ):
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
@@ -636,8 +584,6 @@ class AudioToBPEDataset(_AudioTextDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             trim=trim,
-            load_audio=load_audio,
-            add_misc=add_misc,
         )
 
 
@@ -743,7 +689,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         trim: bool = False,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
-        add_misc: bool = False,
         pad_id: int = 0,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
@@ -763,7 +708,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.pad_id = pad_id
-        self._add_misc = add_misc
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
@@ -1001,7 +945,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         parser: Optional[str] = 'en',
-        add_misc: bool = False,
         pad_id: int = 0,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
@@ -1027,7 +970,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             trim=trim,
             bos_id=bos_id,
             eos_id=eos_id,
-            add_misc=add_misc,
             pad_id=pad_id,
             shard_strategy=shard_strategy,
             global_rank=global_rank,
@@ -1119,7 +1061,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         max_duration: Optional[float] = None,
         max_utts: int = 0,
         trim: bool = False,
-        add_misc: bool = False,
         use_start_end_token: bool = True,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
@@ -1162,7 +1103,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             trim=trim,
             bos_id=bos_id,
             eos_id=eos_id,
-            add_misc=add_misc,
             pad_id=pad_id,
             shard_strategy=shard_strategy,
             global_rank=global_rank,
