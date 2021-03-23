@@ -1,9 +1,9 @@
-NVIDIA NeMo Developer Guide
-===========================
+NVIDIA NeMo User Guide
+======================
 
 .. toctree::
    :maxdepth: 2
-   :caption: Start Here
+   :caption: Getting Started
    :name: starthere
 
    starthere/intro
