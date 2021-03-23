@@ -22,13 +22,13 @@ from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursPitchDataset
+from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import RegressionValuesType, TokenDurationType, TokenIndex, MelSpectrogramType
+from nemo.core.neural_types.elements import MelSpectrogramType, RegressionValuesType, TokenDurationType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.asr.parts import parsers
 
 
 @dataclass

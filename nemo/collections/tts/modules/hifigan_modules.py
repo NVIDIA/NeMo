@@ -176,13 +176,13 @@ class ResBlock2(torch.nn.Module):
 class Generator(NeuralModule):
     def __init__(
         self,
+        input_size=80,
         resblock,
         upsample_rates,
         upsample_kernel_sizes,
         upsample_initial_channel,
         resblock_kernel_sizes,
         resblock_dilation_sizes,
-        input_size,
     ):
         super(Generator, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)

@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import copy
-from apex.optimizers import FusedLAMB
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
 import hydra
 import torch.optim as optim
+from apex.optimizers import FusedLAMB
 from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
