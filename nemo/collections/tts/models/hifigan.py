@@ -302,7 +302,7 @@ class HifiGanModel(Vocoder):
         model = PretrainedModelInfo(
             pretrained_model_name="tts_hifigan",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_hifigan/versions/1.0.0rc1/files/tts_hifigan.nemo",
-            description="This model is trained on LJSpeech sampled at 22050Hz. Trained on ground-truth mel-spectrograms, should not be used on synthetic mel-spectrograms.",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Tacotron2, TalkNet, and FastPitch. This model has been tested on generating female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)

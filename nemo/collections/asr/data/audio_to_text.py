@@ -662,7 +662,7 @@ class _TarredAudioToTextDataset(IterableDataset):
 
     See the WebDataset documentation for more information about accepted data and input formats.
 
-    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    If using multiple workers the number of shards should be divisible by world_size to ensure an
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
@@ -914,7 +914,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
 
     See the WebDataset documentation for more information about accepted data and input formats.
 
-    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    If using multiple workers the number of shards should be divisible by world_size to ensure an
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
@@ -1050,7 +1050,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
 
     See the WebDataset documentation for more information about accepted data and input formats.
 
-    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    If using multiple workers the number of shards should be divisible by world_size to ensure an
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
