@@ -15,7 +15,6 @@ from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
 
 import torch
-from torch_stft import STFT
 
 from nemo.collections.common.parts.patch_utils import istft_patch, stft_patch
 from nemo.collections.tts.helpers.helpers import OperationMode
