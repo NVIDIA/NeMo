@@ -253,7 +253,7 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
             emb = embeddings[uniq_key]
             emb = np.asarray(emb)
 
-            cluster_method = SpectralClusterer(min_clusters=NUM_speakers, max_clusters=NUM_speakers)
+            cluster_method = SpectralClusterer(min_clusters=2, max_clusters=NUM_speakers)
             cluster_labels = cluster_method.predict(emb)
 
             lines = time_stamps[uniq_key]
@@ -329,7 +329,7 @@ def perform_diarization(
     embeddings, time_stamps, speakers = get_time_stamps(
         embeddings_file, reco2num, manifest_path, sample_rate, window, shift
     )
-
+    logging.info("Performing Clustering")
     all_reference, all_hypothesis = perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir)
 
     if len(all_reference) and len(all_hypothesis):
