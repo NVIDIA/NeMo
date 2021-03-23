@@ -1016,6 +1016,20 @@ pipeline {
             ~trainer.check_val_every_n_epoch'
           }
         }
+        stage('FastPitch') {
+          steps {
+            sh 'python examples/tts/fastpitch.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[0]" \
+            +trainer.fast_dev_run=True \
+            trainer.accelerator=null \
+            trainer.max_epochs=-1 \
+            model.train_ds.dataloader_params.batch_size=12 \
+            model.validation_ds.dataloader_params.batch_size=12 \
+            ~trainer.check_val_every_n_epoch'
+          }
+        }
         stage('WaveGlow') {
           steps {
             sh 'python examples/tts/waveglow.py \
