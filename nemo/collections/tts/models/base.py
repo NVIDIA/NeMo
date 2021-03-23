@@ -17,7 +17,7 @@ from contextlib import ExitStack, contextmanager
 import torch
 from torch_stft import STFT
 
-from nemo.collections.common.parts.patch_utils import stft_patch, istft_patch
+from nemo.collections.common.parts.patch_utils import istft_patch, stft_patch
 from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.collections.tts.models import *  # Avoid circular imports
 from nemo.core.classes import ModelPT

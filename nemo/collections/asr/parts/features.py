@@ -45,7 +45,7 @@ from torch_stft import STFT
 
 from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
-from nemo.collections.common.parts.patch_utils import stft_patch, istft_patch
+from nemo.collections.common.parts.patch_utils import istft_patch, stft_patch
 from nemo.utils import logging
 
 CONSTANT = 1e-5
