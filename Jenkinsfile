@@ -1026,9 +1026,9 @@ pipeline {
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.batch_size=12 \
-            model.train_ds.workers=1 \
+            model.train_ds.num_workers=1 \
             model.validation_ds.batch_size=12 \
-            model.validation_ds.batch_size=1 \
+            model.validation_ds.num_workers=1 \
             ~trainer.check_val_every_n_epoch'
           }
         }
