@@ -1025,8 +1025,10 @@ pipeline {
             +trainer.fast_dev_run=True \
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
-            model.train_ds.dataloader_params.batch_size=12 \
-            model.validation_ds.dataloader_params.batch_size=12 \
+            model.train_ds.batch_size=12 \
+            model.train_ds.workers=1 \
+            model.validation_ds.batch_size=12 \
+            model.validation_ds.batch_size=1 \
             ~trainer.check_val_every_n_epoch'
           }
         }
