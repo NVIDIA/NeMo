@@ -525,7 +525,6 @@ class _TarredAudioLabelDataset(IterableDataset):
         trim(bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-
         time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task
         shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
