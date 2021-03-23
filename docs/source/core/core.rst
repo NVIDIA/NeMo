@@ -565,7 +565,8 @@ It's highly recommended to use ``restore_from`` to load NeMo models.
 
 
 Experiment Manager
-------------------
+==================
+
 NeMo's Experiment Manager leverages PyTorch Lightning for model checkpointing, 
 TensorBoard Logging, and Weights and Biases logging. The Experiment Manager is included by default
 in all NeMo example scripts.
@@ -631,18 +632,35 @@ To auto-resume training set the following via YAML or CLI:
         exp_manager.version: my_experiment_version
 
 
+Neural Types
+============
+
+Neural Types describe the semantics, axis order, and dimensions of a tensor.
+The purpose of this type system is to catch semantic and dimensionality errors during
+model creation and facilitate module re-use.
+
+Motivation
+----------
+
+.. image:: whyntypes.gif
+  :width: 900
+  :alt: Neural Types Motivation
+
+
+.. autoclass:: nemo.core.neural_types.NeuralType
+
+
+Neural Types perform semantic checks for modules and models inputs/outputs. They contain information about:
+
+    - Semantics of what is stored in the tensors. For example, logits, logprobs, audiosignal, embeddings, etc.
+    - Axes layout, semantic and (optionally) dimensionality. For example: [Batch, Time, Channel]
+
+
 Neural Module
--------------
+=============
 Neural Modules are building blocks for Models.
 They accept (typed) inputs and return (typed) outputs. *All Neural Modules inherit from ``torch.nn.Module`` and, therefore, compatible with PyTorch ecosystem.* There are 3 types on Neural Modules:
 
     - Regular modules
     - Dataset/IterableDataset
     - Losses
-
-Neural Types
-------------
-Neural Types perform semantic checks for modules and models inputs/outputs. They contain information about:
-
-    - Semantics of what is stored in the tensors. For example, logits, logprobs, audiosignal, embeddings, etc.
-    - Axes layout, semantic and (optionally) dimensionality. For example: [Batch, Time, Channel]
