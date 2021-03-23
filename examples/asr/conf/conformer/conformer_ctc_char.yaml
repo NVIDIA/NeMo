@@ -57,7 +57,7 @@ model:
     pad_to: 0
     stft_conv: false
     pad_value: 0.0
-    stft_exact_pad: true
+    stft_exact_pad: false
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
