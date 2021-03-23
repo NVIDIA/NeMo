@@ -48,7 +48,7 @@ An example SpeakerNet train and validation configuration could look like:
       shuffle: False    # No need to shuffle the validation data
 
       
-If you want to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
+If you would like to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
 
 
 Preprocessor Configuration
