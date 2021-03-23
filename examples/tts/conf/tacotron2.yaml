@@ -23,7 +23,7 @@ model:
       min_duration: 0.1
       trim: false
       int_values: false
-      normalize: false
+      normalize: true
       sample_rate: ${sample_rate}
       # bos_id: 66
       # eos_id: 67
@@ -42,7 +42,7 @@ model:
       max_duration: null
       min_duration: 0.1
       int_values: false
-      normalize: false
+      normalize: true
       sample_rate: ${sample_rate}
       trim: false
       # bos_id: 66
