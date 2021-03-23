@@ -1,5 +1,5 @@
-NVIDIA NeMo Developer Guide
-===========================
+NVIDIA NeMo User Guide
+======================
 
 .. toctree::
    :maxdepth: 2
