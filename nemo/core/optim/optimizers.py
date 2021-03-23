@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import hydra
 import torch.optim as optim
+from apex.optimizers import FusedLAMB
 from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
@@ -33,6 +34,7 @@ AVAILABLE_OPTIMIZERS = {
     'adadelta': adadelta.Adadelta,
     'adamax': adamax.Adamax,
     'adagrad': adagrad.Adagrad,
+    'lamb': FusedLAMB,
     'rmsprop': rmsprop.RMSprop,
     'rprop': rprop.Rprop,
     'novograd': Novograd,
