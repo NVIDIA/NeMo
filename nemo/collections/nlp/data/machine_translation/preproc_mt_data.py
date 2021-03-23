@@ -303,10 +303,12 @@ class MTDataPreproc:
                     )
                     total_batches += num_batches_from_fragment
 
-                json.dump({'num_batches': total_batches}, open(metadata_path, 'w'))
-
+                # dump metadata to json
+                metadata = {}
+                metadata['num_batches'] = total_batches
                 tar_file_paths = glob.glob(f'{out_dir}/*.tar')
-                json.dump({'tar_file_paths': tar_file_paths}, open(metadata_path, 'a+'))
+                metadata['tar_files'] = tar_file_paths
+                json.dump(metadata, open(metadata_path, 'w'))
 
         tar_file_paths = glob.glob(f'{out_dir}/*.tar')
 

@@ -317,18 +317,27 @@ class MTEncDecModel(EncDecNLPModel):
             dataset = pickle.load(open(cfg.src_file_name, 'rb'))
             dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
         elif cfg.get("use_tarred_dataset", False):
-            if cfg.get('tar_files') is None and cfg.get('metadata_file', None) is not None:
-                metadata = json.load(cfg.get('metadata_file', None))
-                if metadata.get('train_tar_files', None):
-                    tar_files = metadata.get('train_tar_files', None)
+            if cfg.get("metadata_file") is None:
+                raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
+            else:
+                metadata_file = cfg.get('metadata_file')
+                with open(metadata_file) as metadata_reader:
+                    metadata = json.load(metadata_reader)
+                if cfg.get('tar_files') is None:
+                    tar_files = metadata.get('tar_files')
+                    if tar_files is not None:
+                        logging.info(f'Loading from tarred dataset {tar_files}')
+                    else:
+                        raise FileNotFoundError("Could not find tarred dataset in config or metadata.")
                 else:
-                    raise FileNotFoundError("Could not find tarred dataset.")
-            logging.info(f'Loading from tarred dataset {cfg.get("tar_files")}')
-            if cfg.get("metadata_file", None) is None:
-                raise FileNotFoundError("Could not find metadata path in config")
+                    tar_files = cfg.get('tar_files')
+                    if metadata_file.get('tar_files') is not None:
+                        raise ValueError(
+                            'Tar files specified in config and in metadata file. Tar files should only be specified once.'
+                        )
             dataset = TarredTranslationDataset(
-                text_tar_filepaths=cfg.tar_files,
-                metadata_path=cfg.metadata_file,
+                text_tar_filepaths=tar_files,
+                metadata_path=metadata_file,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
                 shuffle_n=cfg.get("tar_shuffle_n", 100),
