@@ -635,25 +635,38 @@ To auto-resume training set the following via YAML or CLI:
 Neural Types
 ============
 
+Motivation
+----------
+
 Neural Types describe the semantics, axis order, and dimensions of a tensor.
 The purpose of this type system is to catch semantic and dimensionality errors during
 model creation and facilitate module re-use.
 
-Motivation
-----------
 
 .. image:: whyntypes.gif
   :width: 900
   :alt: Neural Types Motivation
 
-
-.. autoclass:: nemo.core.neural_types.NeuralType
-
+NeuralType class
+----------------
 
 Neural Types perform semantic checks for modules and models inputs/outputs. They contain information about:
 
     - Semantics of what is stored in the tensors. For example, logits, logprobs, audiosignal, embeddings, etc.
     - Axes layout, semantic and (optionally) dimensionality. For example: [Batch, Time, Channel]
+
+Types are implemented in `nemo.core.neural_types.NeuralType` class. When you instantiate an instance of this class you
+are expected to include both *axes* information and *element type* information.
+
+.. autoclass:: nemo.core.neural_types.NeuralType
+
+Type Comparison Results
+-----------------------
+
+When comparing two neural types the following comparison results can be generated.
+
+.. autoclass:: nemo.core.neural_types.NeuralTypeComparisonResult
+
 
 
 Neural Module
