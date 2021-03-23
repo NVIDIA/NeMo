@@ -112,6 +112,28 @@ and ``time_*`` parameters).
 
 You can use any combination of Cutout, frequency/time SpecAugment, or none of them.
 
+With NeMo ASR one can also add augmentation pipelines that can be used to simulate various kinds of noise
+added to audio in the channel. Augmentors in a pipeline are applied on the audio data read in the data layer. Online
+augmentors can be specified in the config file using an ``augmentor`` section in ``train_ds``. The following example
+adds an augmentation pipeline that first adds white noise to an audio sample with a probability of 0.5 and at a level
+randomly picked between -50 dB and -10 dB and then pass the resultant samples through a room impulse response randomly
+picked from the manifest file provided for ``impulse`` augmentation in the config file.
+
+.. code-block:: yaml
+
+  model:
+    ...
+    train_ds:
+    ...
+        augmentor:
+            white_noise:
+                prob: 0.5
+                min_level: -50
+                max_level: -10
+            impulse:
+                prob: 0.3
+                manifest_path: /path/to/impulse_manifest.json
+
 See the `Audio Augmentors <./api.html#Audio Augmentors>`__ API section for more details.
 
 Tokenizer Configurations

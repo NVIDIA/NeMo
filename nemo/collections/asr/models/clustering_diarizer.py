@@ -110,7 +110,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
-                model_path = "speakerverification_speakernet"
+                model_path = "speakerdiarization_speakernet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name=model_path)
 
@@ -131,7 +131,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
-                model_path = "MatchboxNet-VAD-3x2"
+                model_path = "vad_telephony_marblenet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
 
@@ -353,7 +353,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
-            # tar.add(source_dir, arcname=path.basename(source_dir))
             tar.add(source_dir, arcname="./")
 
     @rank_zero_only
@@ -369,11 +368,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         Args:
             save_path: Path to .nemo file where model instance should be saved
         """
-
-        # if not self.has_vad_model:
-        #     NotImplementedError(
-        #         "Saving a clustering based speaker diarization model without a VAD model is not" "supported"
-        #     )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -427,7 +421,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 conf.diarizer.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
                 conf.restore_map_location = map_location
                 OmegaConf.set_struct(conf, True)
-                # instance = cls.from_config_dict(config=conf)
                 instance = cls(cfg=conf)
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
