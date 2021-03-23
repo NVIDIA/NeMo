@@ -87,12 +87,16 @@ class MegatronBertEncoder(BertModule):
                 parser.set_defaults(model_parallel_size=self._model_parallel_size)
                 parser.set_defaults(micro_batch_size=1)
                 parser.set_defaults(scaled_masked_softmax_fusion=False)
+                parser.set_defaults(bias_gelu_fusion=False)
+                parser.set_defaults(bias_dropout_fusion=False)
 
         else:
             # megatron expects batch size is not None
             def _update_megatron_args(parser):
                 parser.set_defaults(micro_batch_size=1)
                 parser.set_defaults(scaled_masked_softmax_fusion=False)
+                parser.set_defaults(bias_gelu_fusion=False)
+                parser.set_defaults(bias_dropout_fusion=False)
 
                 return parser
 
