@@ -64,7 +64,7 @@ def get_padding(kernel_size, dilation=1):
 
 class ResBlock1(torch.nn.Module):
     def __init__(self, channels, kernel_size, dilation):
-        super(ResBlock1, self).__init__()
+        super().__init__()
         self.convs1 = nn.ModuleList(
             [
                 weight_norm(
@@ -134,7 +134,7 @@ class ResBlock1(torch.nn.Module):
 
 class ResBlock2(torch.nn.Module):
     def __init__(self, channels, kernel_size, dilation):
-        super(ResBlock2, self).__init__()
+        super().__init__()
         self.convs = nn.ModuleList(
             [
                 weight_norm(
@@ -176,15 +176,15 @@ class ResBlock2(torch.nn.Module):
 class Generator(NeuralModule):
     def __init__(
         self,
-        input_size=80,
         resblock,
         upsample_rates,
         upsample_kernel_sizes,
         upsample_initial_channel,
         resblock_kernel_sizes,
         resblock_dilation_sizes,
+        input_size=80,
     ):
-        super(Generator, self).__init__()
+        super().__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
         self.conv_pre = weight_norm(Conv1d(input_size, upsample_initial_channel, 7, 1, padding=3))
@@ -257,7 +257,7 @@ class Generator(NeuralModule):
 
 class DiscriminatorP(NeuralModule):
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
-        super(DiscriminatorP, self).__init__()
+        super().__init__()
         self.period = period
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList(
@@ -309,7 +309,7 @@ class DiscriminatorP(NeuralModule):
 
 class MultiPeriodDiscriminator(NeuralModule):
     def __init__(self):
-        super(MultiPeriodDiscriminator, self).__init__()
+        super().__init__()
         self.discriminators = nn.ModuleList(
             [DiscriminatorP(2), DiscriminatorP(3), DiscriminatorP(5), DiscriminatorP(7), DiscriminatorP(11),]
         )
@@ -349,7 +349,7 @@ class MultiPeriodDiscriminator(NeuralModule):
 
 class DiscriminatorS(NeuralModule):
     def __init__(self, use_spectral_norm=False):
-        super(DiscriminatorS, self).__init__()
+        super().__init__()
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList(
             [
@@ -393,7 +393,7 @@ class DiscriminatorS(NeuralModule):
 
 class MultiScaleDiscriminator(NeuralModule):
     def __init__(self):
-        super(MultiScaleDiscriminator, self).__init__()
+        super().__init__()
         self.discriminators = nn.ModuleList(
             [DiscriminatorS(use_spectral_norm=True), DiscriminatorS(), DiscriminatorS(),]
         )
