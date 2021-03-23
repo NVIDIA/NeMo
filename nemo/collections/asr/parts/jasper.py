@@ -327,7 +327,7 @@ class SqueezeExciteAttention(nn.Module):
         quantize: bool = False,
     ):
         """
-        Module that computes weights for scaling features from the input, 
+        Module that computes weights for scaling features from the input,
         Squeeze-and-Excitation style.
 
         Args:
@@ -867,13 +867,13 @@ class ParallelBlock(nn.Module):
               weighted_output = scaling_weights[:, i, :, :] * output[-1]
 
             if result is None:
-                result = weighted_output 
+                result = weighted_output
             else:
-                result = result + weighted_output 
+                result = result + weighted_output
 
             if max_mask is None:
                 max_mask = mask
             else:
                 max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
-        result = result + input_feat 
+        result = result + input_feat
         return [result], max_mask
