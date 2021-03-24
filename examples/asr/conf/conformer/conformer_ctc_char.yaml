@@ -51,9 +51,11 @@ model:
     window: "hann"
     features: 80
     n_fft: 512
+    log: true
     frame_splicing: 1
     dither: 0.00001
     pad_to: 0
+    pad_value: 0.0
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
