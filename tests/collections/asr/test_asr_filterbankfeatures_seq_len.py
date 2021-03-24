@@ -14,9 +14,9 @@
 
 import random
 
+import librosa
 import pytest
 import torch
-import librosa
 
 from nemo.collections.asr.parts.features import FilterbankFeatures
 
@@ -57,4 +57,3 @@ class TestFilterbankFeatures:
             assert (
                 spec.shape[1] == result.shape[2]
             ), f"{result.shape} != {spec.shape}: {nfft}, {window_size}, {hop_size}, {audio_length}"
-
