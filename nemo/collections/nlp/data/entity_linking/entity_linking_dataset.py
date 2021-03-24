@@ -62,7 +62,7 @@ class EntityLinkingDataset(Dataset):
         self.tokenizer = tokenizer
 
         # Try and load pair indices file if already exists
-        newline_indices, newline_idx_file = load_data_indices(newline_idx_file, "newline_indices")
+        newline_indices, newline_idx_file = load_data_indices(newline_idx_file, data_file, "newline_indices")
 
         # If pair indices file doesn't exists, generate and store them
         if newline_indices is None:
@@ -85,7 +85,7 @@ class EntityLinkingDataset(Dataset):
         self.max_seq_length = max_seq_length
         self.is_index_data = is_index_data
 
-        logging.info(f"Loaded dataset with {self.num_pairs} pairs")
+        logging.info(f"Loaded dataset with {self.num_lines} examples")
 
     def __len__(self):
         return self.num_lines
@@ -102,7 +102,7 @@ class EntityLinkingDataset(Dataset):
 
             if self.is_index_data:
                 concept_id, concept = concept
-                return (int(concept_id), concept))
+                return (int(concept_id), concept)
 
             else:
                 concept_id, concept1, concept2 = concept
