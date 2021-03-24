@@ -64,6 +64,7 @@ def main():
     )
     parser.add_argument('--sensitivity', action="store_true", help="Perform sensitivity analysis")
     parser.add_argument('--onnx', action="store_true", help="Export to ONNX")
+    parser.add_argument('--quant-disable-keyword', type=str, nargs='+', help='disable quantizers by keyword')
     args = parser.parse_args()
     torch.set_grad_enabled(False)
 
@@ -94,6 +95,15 @@ def main():
     if can_gpu:
         asr_model = asr_model.cuda()
     asr_model.eval()
+
+    if args.quant_disable_keyword:
+        for name, module in asr_model.named_modules():
+            if isinstance(module, quant_nn.TensorQuantizer):
+                for keyword in args.quant_disable_keyword:
+                    if keyword in name:
+                        logging.warning(F"Disable {name}")
+                        module.disable()
+
     labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
     wer = WER(vocabulary=asr_model.decoder.vocabulary)
     wer_quant = evaluate(asr_model, labels_map, wer)
