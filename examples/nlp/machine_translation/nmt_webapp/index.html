@@ -29,7 +29,7 @@
     $( "#translate_button" ).button();
     $( "#translate_button" ).click( function( event ) {
         $.ajax({
-          url: "http://10.110.40.187:5000/translate",
+          url: "http://127.0.0.1:5000/translate",
           type: "GET",                    
           data: {
             text: $( "#src_text" ).val(),
