@@ -152,7 +152,6 @@ class MTDataPreproc:
                         lines_per_dataset_fragment=cfg.train_ds.get('lines_per_dataset_fragment', 1000000),
                         num_batches_per_tarfile=cfg.train_ds.get('num_batches_per_tarfile', 1000),
                         min_seq_length=1,
-                        pkl_file_prefix=cfg.train_ds.get('pkl_file_preifx', 'parallel'),
                         global_rank=self.global_rank,
                         world_size=self.world_size,
                     )
@@ -322,23 +321,6 @@ class MTDataPreproc:
                     for fragment_index, lines_indices in enumerate(lines_partition)
                 )
                 total_batches = sum(total_batches_list)
-
-                # for fragment_index, lines_indices in enumerate(lines_partition):
-                #     num_batches_from_fragment = MTDataPreproc._process_fragment(
-                #         src_filename=src_fname,
-                #         tgt_filename=tgt_fname,
-                #         lines_indices=lines_indices,
-                #         out_dir=out_dir,
-                #         num_batches_per_tarfile=num_batches_per_tarfile,
-                #         clean=clean,
-                #         max_seq_length=max_seq_length,
-                #         min_seq_length=min_seq_length,
-                #         tokens_in_batch=tokens_in_batch,
-                #         encoder_tokenizer=encoder_tokenizer,
-                #         decoder_tokenizer=decoder_tokenizer,
-                #         pkl_file_prefix=fragment_index,
-                #     )
-                #     total_batches += num_batches_from_fragment
 
                 # dump metadata to json
                 metadata = {}
