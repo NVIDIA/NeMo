@@ -577,6 +577,7 @@ class AudioToMelSpectrogramPreprocessorConfig:
     dither: float = 1e-5
     pad_to: int = 16
     frame_splicing: int = 1
+    exact_pad: bool = False
     stft_exact_pad: bool = False
     stft_conv: bool = False
     pad_value: int = 0
