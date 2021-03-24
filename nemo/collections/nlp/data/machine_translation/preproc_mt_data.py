@@ -133,6 +133,7 @@ class MTDataPreproc:
                         logging.info(
                             f"Using tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
+                    # TODO: have to get tokenizers instide .preprocess_parallel because they can't be pickled
                     self.train_tar_files, self.train_metadata_file = MTDataPreproc.preprocess_parallel_dataset(
                         clean=cfg.train_ds.clean,
                         src_fname=cfg.train_ds.get('src_file_name'),
@@ -285,9 +286,9 @@ class MTDataPreproc:
                 lines_partition = MTDataPreproc._get_lines_partition(num_src_lines, lines_per_dataset_fragment)
 
                 # create tarfiles for each fragment in parallel
-                total_batches = 0
-                for fragment_index, lines_indices in tqdm(enumerate(lines_partition)):
-                    num_batches_from_fragment = MTDataPreproc._process_fragment(
+                # total_batches = 0
+                total_batches_list = Parallel(n_jobs=2)(
+                    delayed(MTDataPreproc._process_fragment)(
                         src_filename=src_fname,
                         tgt_filename=tgt_fname,
                         lines_indices=lines_indices,
@@ -301,7 +302,26 @@ class MTDataPreproc:
                         decoder_tokenizer=decoder_tokenizer,
                         pkl_file_prefix=fragment_index,
                     )
-                    total_batches += num_batches_from_fragment
+                    for fragment_index, lines_indices in enumerate(lines_partition)
+                )
+                total_batches = sum(total_batches_list)
+
+                # for fragment_index, lines_indices in enumerate(lines_partition):
+                #     num_batches_from_fragment = MTDataPreproc._process_fragment(
+                #         src_filename=src_fname,
+                #         tgt_filename=tgt_fname,
+                #         lines_indices=lines_indices,
+                #         out_dir=out_dir,
+                #         num_batches_per_tarfile=num_batches_per_tarfile,
+                #         clean=clean,
+                #         max_seq_length=max_seq_length,
+                #         min_seq_length=min_seq_length,
+                #         tokens_in_batch=tokens_in_batch,
+                #         encoder_tokenizer=encoder_tokenizer,
+                #         decoder_tokenizer=decoder_tokenizer,
+                #         pkl_file_prefix=fragment_index,
+                #     )
+                #     total_batches += num_batches_from_fragment
 
                 # dump metadata to json
                 metadata = {}
