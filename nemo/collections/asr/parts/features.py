@@ -349,7 +349,8 @@ class FilterbankFeatures(nn.Module):
         else:
             # Assuming that center is True is stft_pad_amount = 0
             pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount > 0 else self.n_fft // 2 * 2
-        return torch.ceil((seq_len + pad_amount - self.win_length) / self.hop_length).to(dtype=torch.long)
+        seq_len = torch.floor((seq_len + pad_amount - self.n_fft) / self.hop_length) + 1
+        return seq_len.to(dtype=torch.long)
 
     @property
     def filter_banks(self):
