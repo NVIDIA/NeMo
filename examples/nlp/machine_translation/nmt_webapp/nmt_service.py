@@ -17,15 +17,16 @@ import time
 import flask
 import torch
 from flask import Flask, json, request
+from flask_cors import CORS
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.utils import logging
 
-PATH2NEMO_FILE = '[PATH TO YOUR NMT MODEL .nemo FILE]'
 MODELS_DICT = {}
 
 model = None
 api = Flask(__name__)
+CORS(api)
 
 
 def initialize(config_file_path: str):
@@ -35,6 +36,8 @@ def initialize(config_file_path: str):
     __MODELS_DICT = None
 
     logging.info("Starting NMT service")
+    logging.info(f"I will attempt to load all the models listed in {config_file_path}.")
+    logging.info(f"Edit {config_file_path} to disable models you don't need.")
     if torch.cuda.is_available():
         logging.info("CUDA is available. Running on GPU")
     else:
@@ -47,7 +50,10 @@ def initialize(config_file_path: str):
     if __MODELS_DICT is not None:
         for key, value in __MODELS_DICT.items():
             logging.info(f"Loading model for {key} from file: {value}")
-            model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=value)
+            if value.startswith("NGC/"):
+                model = nemo_nlp.models.machine_translation.MTEncDecModel.from_pretrained(model_name=value[4:])
+            else:
+                model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=value)
             if torch.cuda.is_available():
                 model = model.cuda()
             MODELS_DICT[key] = model
@@ -91,4 +97,4 @@ def get_translation():
 
 if __name__ == '__main__':
     initialize('config.json')
-    api.run()
+    api.run(host='0.0.0.0')
