@@ -22,6 +22,7 @@ model:
     num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
     shard_strategy: scatter # tarred dataset shard distribution strategy
+    n_preproc_jobs: -2 # number of processes to use for data preprocessing (-2 means all but 2)
     tokens_in_batch: 512
     clean: true
     max_seq_length: 512

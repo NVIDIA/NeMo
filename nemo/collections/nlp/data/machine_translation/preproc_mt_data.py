@@ -154,6 +154,7 @@ class MTDataPreproc:
                         min_seq_length=1,
                         global_rank=self.global_rank,
                         world_size=self.world_size,
+                        n_jobs=cfg.train_ds.get('n_preproc_jobs', -2),
                     )
                     # update config
                     # self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
@@ -255,6 +256,7 @@ class MTDataPreproc:
         num_batches_per_tarfile,
         global_rank,
         world_size,
+        n_jobs=-2,
     ):
         """Create tarred dataset from large paired translation data.
 
@@ -270,6 +272,7 @@ class MTDataPreproc:
             tokens_in_batch (int): tokens per batch per GPU, effectively batch size 
             lines_per_dataset_fragment (int): number of lines to consider for bucketing and padding
             num_batches_per_tarfile (int): number of batches (pickle files) within each tarfile
+            n_jobs (int): number of processes to use for data processing (-2 to use all but 2)
         """
 
         os.makedirs(out_dir, exist_ok=True)
@@ -297,7 +300,7 @@ class MTDataPreproc:
 
                 # create tarfiles for each fragment in parallel
                 # total_batches = 0
-                total_batches_list = Parallel(n_jobs=2)(
+                total_batches_list = Parallel(n_jobs=n_jobs)(
                     delayed(MTDataPreproc._process_fragment)(
                         src_filename=src_fname,
                         tgt_filename=tgt_fname,
