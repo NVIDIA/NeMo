@@ -297,7 +297,7 @@ class MTDataPreproc:
 
                 # create a partition of lines that we can parallelize over
                 lines_partition = MTDataPreproc._get_lines_partition(num_src_lines, lines_per_dataset_fragment)
-
+                logging.info(f"Found {len(lines_partition)} fragments to parallelize over.")
                 # create tarfiles for each fragment in parallel
                 # total_batches = 0
                 total_batches_list = Parallel(n_jobs=n_jobs)(
@@ -361,9 +361,12 @@ class MTDataPreproc:
         fragment_indices = []
         for i in range(0, num_lines, lines_per_dataset_fragment):
             fragment_indices.append([i, i + lines_per_dataset_fragment])
-        # remove last indices if needed
-        if fragment_indices[-1][1] >= num_lines:
-            fragment_indices.pop()
+        # modify last indices
+        last_indices = fragment_indices.pop()
+        last_indices[1] = -1
+        fragment_indices.append(last_indices)
+        # if fragment_indices[-1][1] >= num_lines:
+        #     fragment_indices.pop()
         return fragment_indices
 
     @staticmethod
