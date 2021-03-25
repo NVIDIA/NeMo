@@ -445,18 +445,5 @@ Some components of the configs of `Conformer-CTC <./models.html#Conformer-CTC>`_
 datasets (train_ds, validation_ds, and test_ds), opimizer (optim), augmentation (spec_augment), decoder, trainer, and exp_manager are
 similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section which you may specify the tokenizer if you want to use word-piece encoding instead of character-based encoding.
 
-The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more info in the following table:
-
-+-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
-+=========================+==================+===============================================================================================================+=================================+
-| :code:`se`              | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                     | :code:`true` or :code:`false`   |
-+-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`se_context_size` | int              | SE context size. -1 means global context.                                                                     | :code:`-1` or :code:`+ve int`   |
-+-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`stride_last`     | bool             | Stride on the final repeated block or all repeated blocks.                                                    | :code:`true` or :code:`false`   |
-+-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`residual_mode`   | str              | | Type of residual branch to construct.                                                                       | :code:`"add"` or                |
-|                         |                  | | Can be pointwise residual addition or pointwise strided residual attention                                  | :code:`"stride_add"`            |
-+-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-
+The encoder section includes the details about the Conformer-CTC encoder architecture.
+You may find more info on this section in the config files and also here :doc:`./api.html#nemo.collections.asr.modules.ConformerEncoder`.
