@@ -565,7 +565,8 @@ It's highly recommended to use ``restore_from`` to load NeMo models.
 
 
 Experiment Manager
-------------------
+==================
+
 NeMo's Experiment Manager leverages PyTorch Lightning for model checkpointing, 
 TensorBoard Logging, and Weights and Biases logging. The Experiment Manager is included by default
 in all NeMo example scripts.
@@ -630,19 +631,280 @@ To auto-resume training set the following via YAML or CLI:
         # we can set our own version with
         exp_manager.version: my_experiment_version
 
+Neural Modules
+==============
+NeMo is built around Neural Modules, conceptual blocks of neural networks that take typed inputs
+and produce typed outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
+NeMo makes it easy to combine and re-use these building blocks while providing a level of semantic correctness checking via its neural type system.
 
-Neural Module
--------------
-Neural Modules are building blocks for Models.
-They accept (typed) inputs and return (typed) outputs. *All Neural Modules inherit from ``torch.nn.Module`` and, therefore, compatible with PyTorch ecosystem.* There are 3 types on Neural Modules:
+.. note:: *All Neural Modules inherit from ``torch.nn.Module`` and are therefore compatible with the PyTorch ecosystem.*
+
+There are 3 types on Neural Modules:
 
     - Regular modules
     - Dataset/IterableDataset
     - Losses
 
+Every Neural Module in NeMo must inherit from `nemo.core.classes.module.NeuralModule` class.
+
+.. autoclass:: nemo.core.classes.module.NeuralModule
+
+Every Neural Modules inherits the `nemo.core.classes.common.Typing` interface and needs to define neural types for its inputs and outputs.
+This is done by defining two properties: `input_types` and `output_types`.
+Each property should return an ordered dictionary of "port name"->"port neural type" pairs.
+This is the example from :class:`~nemo.collections.asr.modules.ConvASREncoder` class:
+
+.. code-block:: python
+
+    @property
+    def input_types(self):
+        return OrderedDict(
+            {
+                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+                "length": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
+
+    @property
+    def output_types(self):
+        return OrderedDict(
+            {
+                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
+
+    @typecheck()
+    def forward(self, audio_signal, length=None):
+        ...
+
+The code snippet above means that `nemo.collections.asr.modules.conv_asr.ConvASREncoder` expects two arguments:
+    * First one, named `audio_signal` of shape [batch, dimension, time] with elements representing spectrogram values.
+    * Second one, named `length` of shape [batch] with elements representing lengths of corresponding signals.
+It also means that `.forward(...)` and `__call__(...)` methods each produce two outputs:
+    * First one, of shape [batch, dimension, time] but with elements representing encoded representation (AcousticEncodedRepresentation class)
+    * Second one, of shape [batch], corresponding to their lengths.
+
+.. tip:: It is a good practice to define types and add `@typecheck()` decorator to your `.forward()` method once your module is ready for use by others.
+
+.. note:: The outputs of `.forward(...)` method will always be of type `torch.Tensor` or container of tensors and will work with any other Pytorch code. The type information will be attached to every output tensor.
+If tensors without types will be passed to your module it will not fail but types will not be checked. Thus it is recommended to define input/output types for all your modules, starting with
+data layers and add @typecheck() decorator to them.
+
+.. note:: To temporarily disable typechecking you can enclose your code in ```with typecheck.disable_checks():``` statement.
+
 Neural Types
-------------
+============
+
+Motivation
+----------
+
+Neural Types describe the semantics, axis order, and dimensions of a tensor.
+The purpose of this type system is to catch semantic and dimensionality errors during
+model creation and facilitate module re-use.
+
+
+.. image:: whyntypes.gif
+  :width: 900
+  :alt: Neural Types Motivation
+
+NeuralType class
+----------------
+
 Neural Types perform semantic checks for modules and models inputs/outputs. They contain information about:
 
     - Semantics of what is stored in the tensors. For example, logits, logprobs, audiosignal, embeddings, etc.
     - Axes layout, semantic and (optionally) dimensionality. For example: [Batch, Time, Channel]
+
+Types are implemented in `nemo.core.neural_types.NeuralType` class. When you instantiate an instance of this class you
+are expected to include both *axes* information and *element type* information.
+
+.. autoclass:: nemo.core.neural_types.NeuralType
+
+Type Comparison Results
+-----------------------
+
+When comparing two neural types the following comparison results can be generated.
+
+.. autoclass:: nemo.core.neural_types.NeuralTypeComparisonResult
+
+
+Examples
+--------
+
+Long vs short notation
+~~~~~~~~~~~~~~~~~~~~~~
+NeMo's NeuralType class allows you to express axis semantics information in long and short form.
+Consider these two equivalent types. Both encoder 3 dimensional tensors and both contain elements of type `AcousticEncodedRepresentation` (this type is a typical output of ASR encoders).
+
+.. code-block:: python
+
+    long_version = NeuralType(
+            axes=(AxisType(AxisKind.Batch, None), AxisType(AxisKind.Dimension, None), AxisType(AxisKind.Time, None)),
+            elements_type=AcousticEncodedRepresentation(),
+        )
+    short_version = NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
+    assert long_version.compare(short_version) == NeuralTypeComparisonResult.SAME
+
+
+
+Transpose same
+~~~~~~~~~~~~~~
+Often it is useful to know if a simple transposition will solve type incompatibility.
+This is the case if the comparison result of two types equals `nemo.core.neural_types.NeuralTypeComparisonResult.TRANSPOSE_SAME`.
+
+.. code-block:: python
+
+    type1 = NeuralType(axes=('B', 'T', 'C'))
+    type2 = NeuralType(axes=('T', 'B', 'C'))
+    assert type1.compare(type2) == NeuralTypeComparisonResult.TRANSPOSE_SAME
+    assert type2.compare(type1) == NeuralTypeComparisonResult.TRANSPOSE_SAME
+
+Note that in this example, we dropped `elements_type` argument of `NeuralType` constructor.
+If not supplied, the element type would be VoidType.
+
+VoidType for elements
+~~~~~~~~~~~~~~~~~~~~~
+Sometimes it is useful to express that elements' types don't matter but axes layout does.
+VoidType for elements can be used to express this.
+
+.. note::
+    VoidType is compatible with every other elements' type but not the other way around. See code snippet below for details.
+
+.. code-block:: python
+
+        btc_spctr = NeuralType(('B', 'T', 'C'), SpectrogramType())
+        btc_spct_bad = NeuralType(('B', 'T'), SpectrogramType())
+        # Note the VoidType for elements here
+        btc_void = NeuralType(('B', 'T', 'C'), VoidType())
+
+        # This is true because VoidType is compatible with every other element type (SpectrogramType in this case)
+        # And axes layout between btc_void and btc_spctr is the same
+        assert btc_void.compare(btc_spctr) == NeuralTypeComparisonResult.SAME
+        # These two types are incompatible because even though VoidType is used for elements on one side,
+        # the axes layout is different
+        assert btc_void.compare(btc_spct_bad) == NeuralTypeComparisonResult.INCOMPATIBLE
+        # Note that even though VoidType is compatible with every other type, other types are not compatible with VoidType!
+        # It is one-way compatibility
+        assert btc_spctr.compare(btc_void) == NeuralTypeComparisonResult.INCOMPATIBLE
+
+Element type inheritance
+~~~~~~~~~~~~~~~~~~~~~~~~
+Neural types in NeMo support Python inheritance between element types.
+Consider an example where you want to develop a Neural Module which performs data augmentation for all kinds of spectrograms.
+In ASR two types of spectrograms are frequently used: mel and mfcc. To express this we will create two 3 classes to express
+element's types: `SpectrogramType`, `MelSpectrogramType(SpectrogramType)`, `MFCCSpectrogramType(SpectrogramType)`.
+
+.. code-block:: python
+
+        input = NeuralType(('B', 'D', 'T'), SpectrogramType())
+        out1 = NeuralType(('B', 'D', 'T'), MelSpectrogramType())
+        out2 = NeuralType(('B', 'D', 'T'), MFCCSpectrogramType())
+
+        # MelSpectrogram and MFCCSpectrogram are not interchangeable.
+        assert out1.compare(out2) == NeuralTypeComparisonResult.INCOMPATIBLE
+        assert out2.compare(out1) == NeuralTypeComparisonResult.INCOMPATIBLE
+        # Type comparison detects that MFCC/MelSpectrogramType is a kind of SpectrogramType and can be accepted.
+        assert input.compare(out1) == NeuralTypeComparisonResult.GREATER
+        assert input.compare(out2) == NeuralTypeComparisonResult.GREATER
+
+Custom element types
+~~~~~~~~~~~~~~~~~~~~
+It is possible to create user-defined element types to express the semantics of elements in your tensors.
+To do so, you need to inherit and implement abstract methods of `nemo.core.neural_types.elements.ElementType` class
+
+.. autoclass:: nemo.core.neural_types.elements.ElementType
+
+Note that element types can be parametrized. Consider this example where it distinguishes between audio sampled at 8Khz and 16Khz.
+
+.. code-block:: python
+
+    audio16K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(16000))
+    audio8K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(8000))
+
+    assert audio8K.compare(audio16K) == NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
+    assert audio16K.compare(audio8K) == NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
+
+Enforcing dimensions
+~~~~~~~~~~~~~~~~~~~~
+In addition to specifying tensor layout and elements' semantics, neural types also allow you to enforce tensor dimensions.
+You will have to use long notation to specify dimensions. Short notation only allows you to specify axes semantics and assumes
+arbitrary dimensions.
+
+.. code-block:: python
+
+        type1 = NeuralType(
+        (AxisType(AxisKind.Batch, 64), AxisType(AxisKind.Time, 10), AxisType(AxisKind.Dimension, 128)),
+        SpectrogramType(),
+        )
+        type2 = NeuralType(('B', 'T', 'C'), SpectrogramType())
+
+        # type2 will accept elements of type1 because their axes semantics match and type2 does not care about dimensions
+        assert type2.compare(type1), NeuralTypeComparisonResult.SAME
+        # type1 will not accept elements of type2 because it need dimensions to match strictly.
+        assert type1.compare(type2), NeuralTypeComparisonResult.DIM_INCOMPATIBLE
+
+Generic Axis kind
+~~~~~~~~~~~~~~~~~
+Sometimes (especially in the case of loss modules) it is useful to be able to specify a "generic" axis kind which will make it
+compatible with any other kind of axis. This is easy to express with Neural Types by using `nemo.core.neural_types.axes.AxisKind.Any` for axes.
+
+.. code-block:: python
+
+        type1 = NeuralType(('B', 'Any', 'Any'), SpectrogramType())
+        type2 = NeuralType(('B', 'T', 'C'), SpectrogramType())
+        type3 = NeuralType(('B', 'C', 'T'), SpectrogramType())
+
+        # type1 will accept elements of type2 and type3 because it only cares about element kind (SpectrogramType)
+        # number of axes (3) and that first one corresponds to batch
+        assert type1.compare(type2) == NeuralTypeComparisonResult.SAME
+        assert type1.compare(type3) == NeuralTypeComparisonResult.INCOMPATIBLE
+
+
+
+Container types
+~~~~~~~~~~~~~~~
+NeMo type system understands Python containers (lists). If your module returns a nested list of typed tensors, the way to express it is by
+using Python list notation and Neural Types together when defining your input/output types:
+
+An example below shows how to express that your module returns single output ("out") which is list of lists of two dimensional tensors of shape [batch, dimension] containing logits.
+
+.. code-block:: python
+
+    @property
+    def output_types(self):
+        return {
+            "out": [[NeuralType(('B', 'D'), LogitsType())]],
+        }
+
+
+Core APIs
+=========
+
+Base class for all NeMo models
+------------------------------
+
+.. autoclass:: nemo.core.ModelPT
+    :show-inheritance:
+    :members:
+    :undoc-members: cfg, num_weights
+    :exclude-members: set_eff_save, use_eff_save, teardown
+    :member-order: bysource
+
+
+Base Neural Module class
+------------------------
+
+.. automodule:: nemo.core.NeuralModule
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Neural Type class
+-----------------
+
+.. automodule:: nemo.core.neural_types.neural_type
+    :members:
+    :undoc-members:
+    :show-inheritance:
