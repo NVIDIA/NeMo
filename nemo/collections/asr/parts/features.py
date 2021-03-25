@@ -336,7 +336,11 @@ class FilterbankFeatures(nn.Module):
             return self.log_zero_guard_value
 
     def get_seq_len(self, seq_len):
-        return torch.ceil(seq_len / self.hop_length).to(dtype=torch.long)
+        rough_seq_len = seq_len / self.hop_length
+        if self.stft_exact_pad:
+            # it is not correct?
+            return torch.floor(rough_seq_len / self.hop_length).to(dtype=torch.long)
+        return torch.floor(rough_seq_len + 1).to(dtype=torch.long)
 
     @property
     def filter_banks(self):

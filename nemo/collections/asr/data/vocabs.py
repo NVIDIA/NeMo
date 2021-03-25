@@ -53,19 +53,33 @@ class Base(abc.ABC):
     # fmt: on
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
 
-    def __init__(self, labels, *, pad=PAD, blank=BLANK, oov=OOV, sep=''):
+    def __init__(self, labels, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at="last_but_one"):
         super().__init__()
 
         labels = list(labels)
         self.pad, labels = len(labels), labels + [pad]  # Padding
-        self.blank, labels = len(labels), labels + [blank]  # Reserved for blank from QN
+
+        if add_blank_at is not None:
+            self.blank, labels = len(labels), labels + [blank]  # Reserved for blank from QN
+        else:
+            # use add_blank_at=None only for ASR where blank is added automatically
+            self.blank = -1
+
         self.oov, labels = len(labels), labels + [oov]  # Out Of Vocabulary
+
+        if add_blank_at == "last":
+            labels[-1], labels[-2] = labels[-2], labels[-1]
+            self.oov, self.blank = self.blank, self.oov
+
         self.labels = labels
         self.sep = sep
 
         self._util_ids = {self.pad, self.blank, self.oov}
         self._label2id = {l: i for i, l in enumerate(labels)}
         self._id2label = labels
+
+    def __call__(self, text: str) -> List[int]:
+        return self.encode(text)
 
     @abc.abstractmethod
     def encode(self, text: str) -> List[int]:
@@ -80,7 +94,13 @@ class Base(abc.ABC):
 class Chars(Base):
     """Chars vocabulary."""
 
-    def __init__(self, punct=True, spaces=False, apostrophe=True):
+    def __init__(
+        self,
+        punct=True,
+        spaces=False,
+        apostrophe=True,
+        add_blank_at="last_but_one",
+    ):
         labels = []
         self.space, labels = len(labels), labels + [' ']  # Space
         labels.extend(string.ascii_lowercase)
@@ -90,7 +110,7 @@ class Chars(Base):
         if punct:
             labels.extend(self.PUNCT)
 
-        super().__init__(labels)
+        super().__init__(labels, add_blank_at=add_blank_at)
 
         self.punct = punct
         self.spaces = spaces
@@ -137,6 +157,7 @@ class Phonemes(Base):
         apostrophe=True,
         oov=Base.OOV,
         sep='|',  # To be able to distinguish between 2/3 letters codes.
+        add_blank_at="last_but_one",
     ):
         labels = []
         self.space, labels = len(labels), labels + [space]  # Space
@@ -153,7 +174,7 @@ class Phonemes(Base):
         if punct:
             labels.extend(self.PUNCT)
 
-        super().__init__(labels, oov=oov, sep=sep)
+        super().__init__(labels, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
         self.punct = punct
         self.stresses = stresses
