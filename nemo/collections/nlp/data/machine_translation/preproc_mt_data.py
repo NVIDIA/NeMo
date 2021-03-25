@@ -19,10 +19,9 @@ import os
 import pickle
 import tarfile
 import tempfile
-from joblib import Parallel, delayed
-from tqdm import tqdm
 
 import youtokentome as yttm
+from joblib import Parallel, delayed
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
