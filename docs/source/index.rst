@@ -1,9 +1,9 @@
-NVIDIA NeMo Developer Guide
-===========================
+NVIDIA NeMo User Guide
+======================
 
 .. toctree::
    :maxdepth: 2
-   :caption: Start Here
+   :caption: Getting Started
    :name: starthere
 
    starthere/intro
@@ -17,7 +17,10 @@ NVIDIA NeMo Developer Guide
    :name: Automatic Speech Recognition
 
    asr/intro
-
+   asr/speech_classification/intro
+   asr/speaker_recognition/intro
+   asr/speaker_diarization/intro
+   
 .. toctree::
    :maxdepth: 2
    :caption: Natural Language Processing
