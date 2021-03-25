@@ -255,9 +255,7 @@ class ASRTarredDatasetBuilder:
             )
 
         # Flatten the list of list of entries to a list of entries
-        new_entries = []
-        for new_entry_sublist in new_entries_list:
-            new_entries.extend(new_entry_sublist)
+        new_entries = [sample for manifest in new_entries_list for sample in manifest]
         del new_entries_list
 
         print("Total number of files in manifest :", len(new_entries))
@@ -365,7 +363,6 @@ class ASRTarredDatasetBuilder:
         )
 
         # Create shards and updated manifest entries
-        new_entries = []
         num_added_shards = len(entries) // num_samples_per_shard
 
         print(f"Number of samples in base dataset : {len(base_entries)}")
@@ -394,9 +391,7 @@ class ASRTarredDatasetBuilder:
             )
 
         # Flatten the list of list of entries to a list of entries
-        new_entries = []
-        for new_entry_sublist in new_entries_list:
-            new_entries.extend(new_entry_sublist)
+        new_entries = [sample for manifest in new_entries_list for sample in manifest]
         del new_entries_list
 
         # Write manifest
