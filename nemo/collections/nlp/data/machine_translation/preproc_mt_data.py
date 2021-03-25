@@ -398,11 +398,7 @@ class MTDataPreproc:
         tmp_f_tgt = tempfile.NamedTemporaryFile(delete=False, mode='w')
 
         with open(src_filename, 'r') as src_in, open(tgt_filename) as tgt_in:
-            src_line = next(src_in)
-            tgt_line = next(tgt_in)
-            for line_number, lines in enumerate(zip(src_in, tgt_in)):
-                src_line = lines[0]
-                tgt_line = lines[1]
+            for line_number, (src_line, tgt_line) in enumerate(zip(src_in, tgt_in)):
                 if start <= line_number and line_number < stop:
                     if src_line and tgt_line:
                         tmp_f_src.write(src_line)
