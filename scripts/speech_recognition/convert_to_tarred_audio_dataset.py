@@ -604,19 +604,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-"""
-# Create new tarred dataset
-
-python convert_to_tarred_audio_dataset.py \
-    --manifest_path="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/train_clean_100.json" \
-    --target_dir="/media/smajumdar/data/Datasets/tmp_tarred/" \
-    --num_shards=128 \
-    --max_duration=16.7 \
-    --min_duration=0.1 \
-    --shuffle --shuffle_seed=0 \
-    --workers=1
-    
-
-"""
