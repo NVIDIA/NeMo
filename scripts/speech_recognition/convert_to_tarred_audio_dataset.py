@@ -230,7 +230,6 @@ class ASRTarredDatasetBuilder:
             random.shuffle(entries)
 
         # Create shards and updated manifest entries
-        # new_entries = []
         print(f"Number of samples added : {len(entries)}")
         print(f"Remainder: {len(entries) % config.num_shards}")
 
@@ -599,6 +598,7 @@ def main():
             manifest_paths=concat_manifest_paths,
             metadata=metadata,
             target_dir=target_dir,
+            num_workers=num_workers,
         )
 
 
