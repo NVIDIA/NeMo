@@ -876,3 +876,35 @@ An example below shows how to express that your module returns single output ("o
         return {
             "out": [[NeuralType(('B', 'D'), LogitsType())]],
         }
+
+
+Core APIs
+=========
+
+Base class for all NeMo models
+------------------------------
+
+.. autoclass:: nemo.core.ModelPT
+    :show-inheritance:
+    :members:
+    :undoc-members: cfg, num_weights
+    :exclude-members: set_eff_save, use_eff_save, teardown
+    :member-order: bysource
+
+
+Base Neural Module class
+------------------------
+
+.. automodule:: nemo.core.NeuralModule
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Neural Type class
+-----------------
+
+.. automodule:: nemo.core.neural_types.neural_type
+    :members:
+    :undoc-members:
+    :show-inheritance:

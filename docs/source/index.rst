@@ -55,11 +55,3 @@ NVIDIA NeMo User Guide
    :name: Tools
 
    tools/intro
-
-.. toctree::
-   :maxdepth: 2
-   :caption: API
-   :name: API
-
-   api-docs/nemo
-   
