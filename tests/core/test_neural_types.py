@@ -40,7 +40,6 @@ class TestNeuralTypeSystem:
             elements_type=AcousticEncodedRepresentation(),
         )
         short_version = NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
-
         assert long_version.compare(short_version) == NeuralTypeComparisonResult.SAME
         assert short_version.compare(long_version) == NeuralTypeComparisonResult.SAME
 
