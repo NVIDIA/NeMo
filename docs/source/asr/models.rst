@@ -59,6 +59,27 @@ obtain highly accurate audio transcripts while utilizing a non-autoregressive CT
 
 Citrinet models can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class.
 
+
+.. _Conformer-CTC_model:
+
+Conformer-CTC
+-------------
+
+Conformer-CTC is a CTC-based variant of Conformer model introduced in :cite:`asr-models-gulati2020conformer`.
+Conformer-CTC used similar encoder as original Conformer but employs CTC loss and decoding instead of RNNT which makes it a non-autoregressive model.
+We also drops the LSTM decoder and instead use a linear decoder on the top of the encoder.
+This model uses the combination of self-attention and convolution modules to achieve the best of the two approaches, the self-attention layers may learn the global interaction while the convolutions efficiently capture the local correlations.
+The self-attention modules support both regular self-attention with absolute positional encoding, and also Transformer-XL's self-attention with relative positional encodings.
+
+You may find the config files for character-based encoding and word-piece encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` respectively.
+
+    .. image:: images/conformer_ctc.png
+        :align: center
+        :alt: Conformer-CTC Model
+        :scale: 50%
+
+Conformer-CTC with word-piece encoding is a BPE-based model which can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class, while the character-based model is based on :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>`.
+
 References
 ----------
 
