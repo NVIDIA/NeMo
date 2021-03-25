@@ -442,4 +442,4 @@ datasets (train_ds, validation_ds, and test_ds), opimizer (optim), augmentation 
 similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section which you may specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
 
 The encoder section includes the details about the Conformer-CTC encoder architecture.
-You may find more info on this section in the config files and also here :doc:`./api.html#nemo.collections.asr.modules.ConformerEncoder`.
+You may find more info on this section in the config files and also here :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
