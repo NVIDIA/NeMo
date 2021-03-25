@@ -15,9 +15,6 @@
 #  | Large (121M)|   512   |    8   |    18     |     10     |
 #  +----------------------------------------------------------
 
-
-model.encoder.d_model
-
 name: "Conformer-CTC-BPE"
 
 model:
