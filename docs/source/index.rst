@@ -8,7 +8,14 @@ NVIDIA NeMo User Guide
 
    starthere/intro
    starthere/tutorials
-   starthere/core
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: NeMo Core
+   :name: core
+
+   core/core
 
 
 .. toctree::
@@ -48,11 +55,3 @@ NVIDIA NeMo User Guide
    :name: Tools
 
    tools/intro
-
-.. toctree::
-   :maxdepth: 2
-   :caption: API
-   :name: API
-
-   api-docs/nemo
-   
