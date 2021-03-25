@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,11 +91,14 @@ class PositionwiseConvFF(nn.Module):
         self.d_inner = d_inner
         self.dropout = dropout
 
+        if type(kernel_size) is not tuple:
+            kernel_size = (kernel_size, kernel_size)
+
         self.CoreNet = nn.Sequential(
-            nn.Conv1d(d_model, d_inner, kernel_size, 1, (kernel_size // 2)),
+            nn.Conv1d(d_model, d_inner, kernel_size[0], 1, (kernel_size[0] // 2)),
             nn.ReLU(),
             # nn.Dropout(dropout),  # worse convergence
-            nn.Conv1d(d_inner, d_model, kernel_size, 1, (kernel_size // 2)),
+            nn.Conv1d(d_inner, d_model, kernel_size[1], 1, (kernel_size[1] // 2)),
             nn.Dropout(dropout),
         )
         self.layer_norm = nn.LayerNorm(d_model)
