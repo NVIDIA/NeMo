@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
 
 import torch
+from torch_stft import STFT
 
 from nemo.collections.common.parts.patch_utils import istft_patch, stft_patch
 from nemo.collections.tts.helpers.helpers import OperationMode
@@ -138,6 +139,14 @@ class GlowVocoder(Vocoder):
                 self.n_mel = self.audio_to_melspec_precessor.nfilt
 
             except AttributeError as e:
+                if isinstance(self.audio_to_melspec_precessor.stft, STFT):
+                    self.n_fft = self.audio_to_melspec_precessor.stft.filter_length
+                    self.hop_length = self.audio_to_melspec_precessor.stft.hop_length
+                    self.win_length = self.audio_to_melspec_precessor.stft.win_length
+                    self.window = self.audio_to_melspec_precessor.stft.window
+                    if self.n_mel is None:
+                        self.n_mel = 80
+                    pass
                 raise AttributeError(
                     f"{self} could not find an audio_to_melspec_precessor. GlowVocoder requires child class to have"
                     "audio_to_melspec_precessor defined to obtain stft parameters. audio_to_melspec_precessor "
