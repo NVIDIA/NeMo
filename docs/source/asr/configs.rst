@@ -48,6 +48,8 @@ An example ASR train and validation configuration could look like:
       is_tarred: False  # If set to true, uses the tarred version of the Dataset
       tarred_audio_filepaths: null      # Not used if is_tarred is false
       tarred_shard_strategy: "scatter"  # Not used if is_tarred is false
+      num_workers: 8
+      pin_memory: true
 
     validation_ds:
       manifest_filepath: ???
@@ -55,6 +57,8 @@ An example ASR train and validation configuration could look like:
       labels: *labels   # Uses the labels above
       batch_size: 32
       shuffle: False    # No need to shuffle the validation data
+      num_workers: 8
+      pin_memory: true
 
 
 Preprocessor Configuration
@@ -178,6 +182,17 @@ Model Architecture Configurations
 Each configuration file should describe the model architecture being used for the experiment.
 Models in the NeMo ASR collection need a ``encoder`` section and a ``decoder`` section, with the ``_target_`` field
 specifying the module to use for each.
+
+Here is the list of the parameters in the model section which are shared among most of the ASR models:
+
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
++=========================+==================+===============================================================================================================+=================================+
+| :code:`log_prediction`  | bool             | Whether a random sample should be printed in the output at each step, along with its predicted transcript     |                                 |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
+| :code:`ctc_reduction`   | string           | Specifies the reduction type of CTC loss. Defaults to 'mean_batch' which would take average over the batch    | :code:`none`, :code:`mean_batch`|
+|                         |                  | after taking the average over the length of each sample.                                                      | :code:`mean`, :code:`sum`       |
++-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 The following sections go into more detail about the specific configurations of each model architecture.
 
@@ -416,3 +431,15 @@ A Citrinet-512 config might look like below.
         se_context_size: ${model.model_defaults.se_context_size}
 
 As discussed above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be changed slightly as Citrinet is utilizes sub-word tokenization.
+
+
+Conformer-CTC
+~~~~~~~~~~~~~
+
+You may find the config files for Conformer-CTC model with character-based encoding and sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` respectively.
+Some components of the configs of `Conformer-CTC <./models.html#Conformer-CTC>`__ including
+datasets (train_ds, validation_ds, and test_ds), opimizer (optim), augmentation (spec_augment), decoder, trainer, and exp_manager are
+similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section which you may specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
+
+The encoder section includes the details about the Conformer-CTC encoder architecture.
+You may find more info on this section in the config files and also here :doc:`./api.html#nemo.collections.asr.modules.ConformerEncoder`.
