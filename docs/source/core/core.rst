@@ -637,7 +637,7 @@ NeMo is built around Neural Modules, conceptual blocks of neural networks that t
 and produce typed outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 NeMo makes it easy to combine and re-use these building blocks while providing a level of semantic correctness checking via its neural type system.
 
-.. note:: *All Neural Modules inherit from ``torch.nn.Module`` and, therefore, compatible with PyTorch ecosystem.*
+.. note:: *All Neural Modules inherit from ``torch.nn.Module`` and are therefore compatible with the PyTorch ecosystem.*
 
 There are 3 types on Neural Modules:
 
@@ -649,7 +649,7 @@ Every Neural Module in NeMo must inherit from `nemo.core.classes.module.NeuralMo
 
 .. autoclass:: nemo.core.classes.module.NeuralModule
 
-Every Neural Modules inherits `nemo.core.classes.common.Typing` interface and needs to define neural types of it's inputs and outputs.
+Every Neural Modules inherits the `nemo.core.classes.common.Typing` interface and needs to define neural types for its inputs and outputs.
 This is done by defining two properties: `input_types` and `output_types`.
 Each property should return an ordered dictionary of "port name"->"port neural type" pairs.
 This is the example from `nemo.collections.asr.modules.conv_asr.ConvASREncoder` class:
@@ -681,14 +681,14 @@ This is the example from `nemo.collections.asr.modules.conv_asr.ConvASREncoder` 
 The code snippet above means that `nemo.collections.asr.modules.conv_asr.ConvASREncoder` expects two arguments:
     * First one, named `audio_signal` of shape [batch, dimension, time] with elements representing spectrogram values.
     * Second one, named `length` of shape [batch] with elements representing lengths of corresponding signals.
-It also means that `.foraward(...)` and `__call__(...)` methods each produce two outputs:
+It also means that `.forward(...)` and `__call__(...)` methods each produce two outputs:
     * First one, of shape [batch, dimension, time] but with elements representing encoded representation (AcousticEncodedRepresentation class)
     * Second one, of shape [batch], corresponding to their lengths.
 
 .. tip:: It is a good practice to define types and add `@typecheck()` decorator to your `.forward()` method once your module is ready for use by others.
 
 .. note:: The output of `.forward(...)` method will always be of type `torch.Tensor`, so it will work with any other Pytorch code. The type information will be carried with every tensor.
-If tensors without types will be passed to your module it will not fail but types will note be checked. Thus it is recommended to define input/output types for all your modules, starting with
+If tensors without types will be passed to your module it will not fail but types will not be checked. Thus it is recommended to define input/output types for all your modules, starting with
 data layers and add @typecheck() decorator to them.
 
 .. note:: To temporarily disable typechecking you can enclose your code in ```with typecheck.disable_checks():``` statement.
@@ -761,7 +761,7 @@ This is the case if the comparison result of two types equals `nemo.core.neural_
     assert type2.compare(type1) == NeuralTypeComparisonResult.TRANSPOSE_SAME
 
 Note that in this example, we dropped `elements_type` argument of `NeuralType` constructor.
-If note supplied, the element type would be VoidType.
+If not supplied, the element type would be VoidType.
 
 VoidType for elements
 ~~~~~~~~~~~~~~~~~~~~~
@@ -864,8 +864,8 @@ compatible with any other kind of axis. This is easy to express with Neural Type
 
 Container types
 ~~~~~~~~~~~~~~~
-NeMo type system understands Python containers (lists). So if your module returns a list of typed tensors, the way to express it by
-using Python list notation and Neural Types together like in the example below when defining your input/output types:
+NeMo type system understands Python containers (lists). If your module returns a list of typed tensors, the way to express it is by
+using Python list notation and Neural Types together when defining your input/output types:
 
 An example below shows how to express that your module returns single output ("out") which is list of lists of two dimensional tensors of shape [batch, dimension] containing logits.
 
