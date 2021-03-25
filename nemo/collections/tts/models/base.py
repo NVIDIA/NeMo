@@ -131,27 +131,27 @@ class GlowVocoder(Vocoder):
 
     def check_children_attributes(self):
         if self.n_fft is None:
-            try:
-                self.n_fft = self.audio_to_melspec_precessor.n_fft
-                self.hop_length = self.audio_to_melspec_precessor.hop_length
-                self.win_length = self.audio_to_melspec_precessor.win_length
-                self.window = self.audio_to_melspec_precessor.window
-                self.n_mel = self.audio_to_melspec_precessor.nfilt
+            if isinstance(self.audio_to_melspec_precessor.stft, STFT):
+                self.n_fft = self.audio_to_melspec_precessor.stft.filter_length
+                self.hop_length = self.audio_to_melspec_precessor.stft.hop_length
+                self.win_length = self.audio_to_melspec_precessor.stft.win_length
+                self.window = self.audio_to_melspec_precessor.stft.window
+                if self.n_mel is None:
+                    self.n_mel = 80
+            else:
+                try:
+                    self.n_fft = self.audio_to_melspec_precessor.n_fft
+                    self.hop_length = self.audio_to_melspec_precessor.hop_length
+                    self.win_length = self.audio_to_melspec_precessor.win_length
+                    self.window = self.audio_to_melspec_precessor.window
+                    self.n_mel = self.audio_to_melspec_precessor.nfilt
 
-            except AttributeError as e:
-                if isinstance(self.audio_to_melspec_precessor.stft, STFT):
-                    self.n_fft = self.audio_to_melspec_precessor.stft.filter_length
-                    self.hop_length = self.audio_to_melspec_precessor.stft.hop_length
-                    self.win_length = self.audio_to_melspec_precessor.stft.win_length
-                    self.window = self.audio_to_melspec_precessor.stft.window
-                    if self.n_mel is None:
-                        self.n_mel = 80
-                    pass
-                raise AttributeError(
-                    f"{self} could not find an audio_to_melspec_precessor. GlowVocoder requires child class to have"
-                    "audio_to_melspec_precessor defined to obtain stft parameters. audio_to_melspec_precessor "
-                    "requires n_fft, hop_length, win_length, window, and nfilt to be defined."
-                ) from e
+                except AttributeError as e:
+                    raise AttributeError(
+                        f"{self} could not find an audio_to_melspec_precessor. GlowVocoder requires child class to have"
+                        "audio_to_melspec_precessor defined to obtain stft parameters. audio_to_melspec_precessor "
+                        "requires n_fft, hop_length, win_length, window, and nfilt to be defined."
+                    ) from e
 
     def update_bias_spect(self):
         self.check_children_attributes()  # Ensure stft parameters are defined
