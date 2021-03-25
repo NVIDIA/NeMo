@@ -116,8 +116,8 @@ Use this installation mode if you are contributing to NeMo.
     cd NeMo
     ./reinstall.sh
 
-Docker containers:
-~~~~~~~~~~~~~~~~~~
+Docker containers
+~~~~~~~~~~~~~~~~~
 The easiest way to start training with NeMo is by using `NeMo's container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_.
 It has all requirements and NeMo 1.0.0b3 already installed.
 
@@ -145,7 +145,7 @@ Have a look at our `Discussions board <https://github.com/NVIDIA/NeMo/discussion
 Contributing
 ------------
 
-We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/main/CONTRIBUTING.md>`_ CONTRIBUTING.md for the process.
+We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/main/CONTRIBUTING.md>`_  for the process.
 
 License
 -------
