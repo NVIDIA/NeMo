@@ -1,0 +1,104 @@
+name: &name FastSpeech2
+sample_rate: &sr 22050
+n_fft: &n_fft 1024
+n_mels: &n_mels 80
+fmax: &fmax 8000
+n_stride: &n_window_stride 256
+pad_value: &pad_value -11.52
+train_dataset: ???
+validation_datasets: ???
+supplementary_dir: ???
+ignore_file: ???
+
+model:
+  add_energy_predictor: True
+  add_pitch_predictor: True
+  duration_coeff: 0.25
+  train_ds:
+    dataset:
+      _target_: "nemo.collections.tts.data.datalayers.FastSpeechWithDurs"
+      manifest_filepath: ${train_dataset}
+      sample_rate: *sr
+      supplementary_dir: ${supplementary_dir}
+      max_duration: null
+      min_duration: 0.1
+      ignore_file: ${ignore_file}
+      trim: false
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 64
+      num_workers: 4
+
+
+  validation_ds:
+    dataset:
+      _target_: "nemo.collections.tts.data.datalayers.FastSpeechWithDurs"
+      manifest_filepath: ${validation_datasets}
+      sample_rate: *sr
+      supplementary_dir: ${supplementary_dir}
+      max_duration: null
+      min_duration: 0.1
+      ignore_file: ${ignore_file}
+      trim: false
+      load_supplementary_values: false
+    dataloader_params:
+      drop_last: false
+      shuffle: false
+      batch_size: 64
+      num_workers: 4
+
+  preprocessor:
+    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    dither: 0.0
+    nfilt: *n_mels
+    frame_splicing: 1
+    highfreq: *fmax
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    lowfreq: 0
+    mag_power: 1.0
+    n_fft: *n_fft
+    n_window_size: 1024
+    n_window_stride: *n_window_stride
+    normalize: null
+    pad_to: 16
+    pad_value: *pad_value
+    preemph: null
+    sample_rate: *sr
+    stft_conv: true
+    window: hann
+
+  optim:
+    name: adam
+    betas: [0.9,0.98]
+    lr: 1e-3
+    weight_decay: 1e-6
+    # TODO: add warmup, decrease learning rate
+    # scheduler setup
+    sched:
+      name: NoamAnnealing
+      warmup_steps: 4000
+      min_lr: 1e-5
+      d_model: 256
+
+
+trainer:
+  gpus: 1 # number of gpus
+  max_epochs: ???
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+  # gradient_clip_val: 1.0
+  flush_logs_every_n_steps: 1000
+  log_every_n_steps: 200
+  check_val_every_n_epoch: 25
+
+exp_manager:
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True

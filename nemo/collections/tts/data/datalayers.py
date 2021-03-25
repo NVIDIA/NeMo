@@ -35,15 +35,20 @@
 # SOFTWARE.
 
 
+import collections as py_collections
 import json
 import logging
 import math
 import os
+import pickle
 import random
 import shutil
 import sys
+import math
+import random
+from os.path import expanduser
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 import librosa
 import numpy as np
@@ -53,10 +58,12 @@ from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
 from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.core.classes import Dataset
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 
 DataDict = Dict[str, Any]
 
@@ -515,3 +522,385 @@ def preprocess_linear_specs_dataset(valid_filelist, train_filelist, n_fft, hop_l
             raise EOFError("Dataset initialization failed. No files to preprocess validation dataset")
 
     return tar_dir
+
+
+class FastSpeechWithDurs(Dataset):
+    """
+    LJSpeech stats not counting files inside of wavs_to_ignore_v4
+    pitch_min = tensor(80.5247)
+    pitch_max = tensor(783.9908)
+    energy_min = 0.017866515
+    energy_max = 314.96185
+    duration_min = 0
+    duration_max = 101
+    """
+
+    # @property
+    # def output_types(self) -> Optional[Dict[str, NeuralType]]:
+    #     """Returns definitions of module output ports."""
+    #     return {
+    #         'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
+    #         'a_sig_length': NeuralType(('B'), LengthsType()),
+    #         'transcripts': NeuralType(('B', 'T'), LabelsType()),
+    #         'transcript_length': NeuralType(('B'), LengthsType()),
+    #     }
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        sample_rate: int,
+        supplementary_dir: str,
+        # int_values: bool = False,
+        # augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        ignore_file: Optional[str] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        load_supplementary_values: bool = True,  # NOTE: Val files do not have some sup files, this param is also kinda hacky
+        # bos_id: Optional[int] = None,
+        # eos_id: Optional[int] = None,
+        # pad_id: int = 0,
+        # load_audio: bool = True,
+        # add_misc: bool = False,
+    ):
+        super().__init__()
+
+        self.mapping = {
+            0: {'count': 39, 'symbol': '!'},
+            1: {'count': 141, 'symbol': "'"},
+            2: {'count': 706, 'symbol': '"'},
+            3: {'count': 11043, 'symbol': ','},
+            4: {'count': 7565, 'symbol': '.'},
+            5: {'count': 141, 'symbol': ':'},
+            6: {'count': 520, 'symbol': ';'},
+            7: {'count': 70, 'symbol': '?'},
+            8: {'count': 170543, 'symbol': ' '},
+            14: {'count': 1316, 'symbol': '-'},
+            16: {'count': 3, 'symbol': '['},
+            17: {'count': 3, 'symbol': ']'},
+            18: {'count': 50, 'symbol': '('},
+            19: {'count': 50, 'symbol': ')'},
+            102: {'count': 225, 'symbol': '@AA0'},
+            103: {'count': 11880, 'symbol': '@AA1'},
+            104: {'count': 658, 'symbol': '@AA2'},
+            106: {'count': 435, 'symbol': '@AE0'},
+            107: {'count': 15084, 'symbol': '@AE1'},
+            108: {'count': 827, 'symbol': '@AE2'},
+            110: {'count': 59710, 'symbol': '@AH0'},
+            111: {'count': 14996, 'symbol': '@AH1'},
+            112: {'count': 339, 'symbol': '@AH2'},
+            114: {'count': 1145, 'symbol': '@AO0'},
+            115: {'count': 10623, 'symbol': '@AO1'},
+            116: {'count': 706, 'symbol': '@AO2'},
+            118: {'count': 16, 'symbol': '@AW0'},
+            119: {'count': 2962, 'symbol': '@AW1'},
+            120: {'count': 255, 'symbol': '@AW2'},
+            122: {'count': 273, 'symbol': '@AY0'},
+            123: {'count': 8205, 'symbol': '@AY1'},
+            124: {'count': 854, 'symbol': '@AY2'},
+            125: {'count': 11763, 'symbol': '@B'},
+            126: {'count': 3567, 'symbol': '@CH'},
+            127: {'count': 33358, 'symbol': '@D'},
+            128: {'count': 22814, 'symbol': '@DH'},
+            130: {'count': 735, 'symbol': '@EH0'},
+            131: {'count': 18100, 'symbol': '@EH1'},
+            132: {'count': 1549, 'symbol': '@EH2'},
+            134: {'count': 12579, 'symbol': '@ER0'},
+            135: {'count': 5202, 'symbol': '@ER1'},
+            136: {'count': 117, 'symbol': '@ER2'},
+            138: {'count': 535, 'symbol': '@EY0'},
+            139: {'count': 12971, 'symbol': '@EY1'},
+            140: {'count': 1157, 'symbol': '@EY2'},
+            141: {'count': 12972, 'symbol': '@F'},
+            142: {'count': 4416, 'symbol': '@G'},
+            143: {'count': 10564, 'symbol': '@HH'},
+            145: {'count': 19161, 'symbol': '@IH0'},
+            146: {'count': 19879, 'symbol': '@IH1'},
+            147: {'count': 2485, 'symbol': '@IH2'},
+            149: {'count': 10160, 'symbol': '@IY0'},
+            150: {'count': 11012, 'symbol': '@IY1'},
+            151: {'count': 754, 'symbol': '@IY2'},
+            152: {'count': 3707, 'symbol': '@JH'},
+            153: {'count': 21486, 'symbol': '@K'},
+            154: {'count': 24768, 'symbol': '@L'},
+            155: {'count': 18003, 'symbol': '@M'},
+            156: {'count': 52522, 'symbol': '@N'},
+            157: {'count': 5529, 'symbol': '@NG'},
+            159: {'count': 1090, 'symbol': '@OW0'},
+            160: {'count': 6331, 'symbol': '@OW1'},
+            161: {'count': 428, 'symbol': '@OW2'},
+            163: {'count': 3, 'symbol': '@OY0'},
+            164: {'count': 597, 'symbol': '@OY1'},
+            165: {'count': 40, 'symbol': '@OY2'},
+            166: {'count': 15440, 'symbol': '@P'},
+            167: {'count': 30768, 'symbol': '@R'},
+            168: {'count': 33268, 'symbol': '@S'},
+            169: {'count': 6225, 'symbol': '@SH'},
+            170: {'count': 50815, 'symbol': '@T'},
+            171: {'count': 2727, 'symbol': '@TH'},
+            173: {'count': 22, 'symbol': '@UH0'},
+            174: {'count': 2086, 'symbol': '@UH1'},
+            175: {'count': 94, 'symbol': '@UH2'},
+            177: {'count': 894, 'symbol': '@UW0'},
+            178: {'count': 10345, 'symbol': '@UW1'},
+            179: {'count': 477, 'symbol': '@UW2'},
+            180: {'count': 15056, 'symbol': '@V'},
+            181: {'count': 15645, 'symbol': '@W'},
+            182: {'count': 3400, 'symbol': '@Y'},
+            183: {'count': 21323, 'symbol': '@Z'},
+            184: {'count': 483, 'symbol': '@ZH'},
+        }
+
+        for i, key in enumerate(self.mapping):
+            self.mapping[key]["symbol"] = i
+
+        # Load data from manifests
+        audio_files = []
+        total_duration = 0
+        if isinstance(manifest_filepath, str):
+            manifest_filepath = [manifest_filepath]
+        for manifest_file in manifest_filepath:
+            with open(expanduser(manifest_file), 'r') as f:
+                logging.info(f"Loading dataset from {manifest_file}.")
+                for line in f:
+                    item = json.loads(line)
+                    audio_files.append({"audio_filepath": item["audio_filepath"], "duration": item["duration"]})
+                    total_duration += item["duration"]
+
+        # Prune data according to max/min_duration and ignore_file
+        total_dataset_len = len(audio_files)
+        logging.info(f"Loaded dataset with {total_dataset_len} files totalling {total_duration/3600:.2f} hours.")
+        self.data = []
+        if load_supplementary_values:
+            dataitem = py_collections.namedtuple(
+                typename='AudioTextEntity', field_names='audio_file duration text_tokens pitches energies'
+            )
+        else:
+            dataitem = py_collections.namedtuple(
+                typename='AudioTextEntity', field_names='audio_file duration text_tokens'
+            )
+
+        if ignore_file:
+            logging.info(f"using {ignore_file} to prune dataset.")
+            with open(ignore_file, "rb") as f:
+                wavs_to_ignore = pickle.load(f)
+
+        pruned_duration = 0
+        pruned_items = 0
+        # error = []
+        for item in audio_files:
+            LJ_id = item["audio_filepath"].split("/")[-1].split(".")[0]
+
+            # Prune according to duration & the ignore file
+            if (min_duration and item["duration"] < min_duration) or (
+                max_duration and item["duration"] > max_duration
+            ):
+                pruned_duration += item["duration"]
+                pruned_items += 1
+                continue
+            if ignore_file:
+                found_id = False
+                for i, wav_id in enumerate(wavs_to_ignore):
+                    if LJ_id == wav_id:
+                        pruned_duration += item["duration"]
+                        wavs_to_ignore.pop(i)
+                        pruned_items += 1
+                        found_id = True
+                        break
+                if found_id:
+                    continue
+            # Else not pruned, load durations file
+            durations = torch.load(Path(supplementary_dir) / f"{LJ_id}_mfa_adjusted_enctxt_tkndur.pt")
+
+            # Get text tokens from lookup to match with durations
+            text_tokens = [self.mapping[int(i)]["symbol"] for i in durations["text_encoded"]]
+            if load_supplementary_values:
+                # Load pitch file (F0s)
+                pitches = torch.load(Path(supplementary_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
+
+                # Load energy file (L2-norm of the amplitude of each STFT frame of an utterance)
+                energies = torch.from_numpy(np.load(Path(supplementary_dir) / f"{LJ_id}_l2_stft_energy.npy"))
+                self.data.append(
+                    dataitem(
+                        audio_file=item["audio_filepath"],
+                        duration=durations["token_duration"],
+                        pitches=torch.clamp(pitches['f0'], min=1e-5),
+                        energies=energies,
+                        text_tokens=text_tokens,
+                    )
+                )
+            else:
+                self.data.append(
+                    dataitem(
+                        audio_file=item["audio_filepath"],
+                        duration=durations["token_duration"],
+                        text_tokens=text_tokens,
+                    )
+                )
+
+        logging.info(f"Pruned {pruned_items} files and {pruned_duration/3600:.2f} hours.")
+        logging.info(
+            f"Final dataset contains {len(self.data)} files and {(total_duration-pruned_duration)/3600:.2f} hours."
+        )
+
+        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate)
+        self.trim = trim
+        self.load_supplementary_values = load_supplementary_values
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+
+        features = self.featurizer.process(sample.audio_file, trim=self.trim)
+        f, fl = features, torch.tensor(features.shape[0]).long()
+        t, tl = torch.tensor(sample.text_tokens).long(), torch.tensor(len(sample.text_tokens)).long()
+
+        if self.load_supplementary_values:
+            return f, fl, t, tl, sample.duration, sample.pitches, sample.energies
+        else:
+            return f, fl, t, tl, sample.duration
+
+    def __len__(self):
+        return len(self.data)
+
+    def _collate_fn(self, batch):
+        pad_id = len(self.mapping)
+        if self.load_supplementary_values:
+            _, audio_lengths, _, tokens_lengths, duration, pitches, energies = zip(*batch)
+        else:
+            _, audio_lengths, _, tokens_lengths, duration = zip(*batch)
+        max_audio_len = 0
+        max_audio_len = max(audio_lengths).item()
+        max_tokens_len = max(tokens_lengths).item()
+        max_durations_len = max([len(i) for i in duration])
+        max_duration_sum = max([sum(i) for i in duration])
+        if self.load_supplementary_values:
+            max_pitches_len = max([i.shape[1] for i in pitches])  # Note pitch is 1, Length, so len(i) doesn't work
+            max_energies_len = max([len(i) for i in energies])
+            if max_pitches_len != max_energies_len or max_pitches_len != max_duration_sum:
+                logging.warning(
+                    f"max_pitches_len: {max_pitches_len} != max_energies_len: {max_energies_len} != "
+                    f"max_duration_sum:{max_duration_sum}. Your training run will error out!"
+                )
+
+        # Add padding where necessary
+        audio_signal, tokens, duration_batched, pitches_batched, energies_batched = [], [], [], [], []
+        for sample_tuple in batch:
+            if self.load_supplementary_values:
+                sig, sig_len, tokens_i, tokens_i_len, duration, pitch, energy = sample_tuple
+            else:
+                sig, sig_len, tokens_i, tokens_i_len, duration = sample_tuple
+            # TODO: Refactoring -- write general padding utility function for cleanliness
+            sig_len = sig_len.item()
+            if sig_len < max_audio_len:
+                pad = (0, max_audio_len - sig_len)
+                sig = torch.nn.functional.pad(sig, pad)
+            audio_signal.append(sig)
+            tokens_i_len = tokens_i_len.item()
+            if tokens_i_len < max_tokens_len:
+                pad = (0, max_tokens_len - tokens_i_len)
+                tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
+            tokens.append(tokens_i)
+            if len(duration) < max_durations_len:
+                pad = (0, max_durations_len - len(duration))
+                duration = torch.nn.functional.pad(duration, pad)
+            duration_batched.append(duration)
+
+            if self.load_supplementary_values:
+                pitch = pitch.squeeze(0)
+                if len(pitch) < max_pitches_len:
+                    pad = (0, max_pitches_len - len(pitch))
+                    pitch = torch.nn.functional.pad(pitch.squeeze(0), pad)
+                pitches_batched.append(pitch)
+
+                if len(energy) < max_energies_len:
+                    pad = (0, max_energies_len - len(energy))
+                    energy = torch.nn.functional.pad(energy, pad)
+                energies_batched.append(energy)
+
+        # TODO: Need to make sure that the mel spec, duration, pitches, and energy all have the same length
+        audio_signal = torch.stack(audio_signal)
+        audio_lengths = torch.stack(audio_lengths)
+        tokens = torch.stack(tokens)
+        tokens_lengths = torch.stack(tokens_lengths)
+        duration_batched = torch.stack(duration_batched)
+        if self.load_supplementary_values:
+            pitches_batched = torch.stack(pitches_batched)
+            energies_batched = torch.stack(energies_batched)
+
+            return (
+                audio_signal,
+                audio_lengths,
+                tokens,
+                tokens_lengths,
+                duration_batched,
+                pitches_batched,
+                energies_batched,
+            )
+        return (
+            audio_signal,
+            audio_lengths,
+            tokens,
+            tokens_lengths,
+            duration_batched,
+        )
+
+
+class MelAudioDataset(Dataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "audio_length": NeuralType(tuple("B"), LengthsType()),
+            "melspec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+        }
+
+    def __init__(
+        self,
+        manifest_filepath: Union[str, "pathlib.Path"],
+        n_segments: int,
+        max_duration: Optional[float] = float("inf"),
+        min_duration: Optional[float] = 0,
+        mel_hop_size=256,
+        mel_load_func=np.load,
+    ):
+        """
+        `manifest_filepath` should point to a file with the following structure:
+        {"audio_filepath": "/path/to/audio.wav", "mel_filepath": "/path/to/mel.npy", "duration": 23.147}
+        where `mel.npy` is a pre-computed tensor of a melspectrogram.
+        this dataset class is used for fine-tuning vocoders with pre-computed mel-spectrograms.
+        """
+        self.collection = [json.loads(line) for line in open(manifest_filepath, "r")]
+        self.collection = list(filter(lambda item: min_duration <= item["duration"] <= max_duration, self.collection))
+        self.n_segments = n_segments
+        self.mel_hop_size = mel_hop_size
+        self.mel_load_func = mel_load_func
+
+    def __getitem__(self, index):
+        """
+        Given a index, returns audio and audio_length of the corresponding element. Audio clips of n_segments are
+        randomly chosen if the audio is longer than n_segments.
+        """
+        example = self.collection[index]
+        audio_file = example["audio_filepath"]
+        mel_file = example["mel_filepath"]
+
+        audio, sr = sf.read(audio_file)
+        audio = torch.FloatTensor(audio).unsqueeze(0)
+        mel = self.mel_load_func(mel_file)
+
+        if audio.shape[1] > self.n_segments:
+            frames = math.ceil(self.n_segments / self.mel_hop_size)
+            start = random.randint(0, mel.shape[1] - frames - 1)
+            mel = mel[:, start : start + frames]
+            audio = audio[:, start * self.mel_hop_size : (start + frames) * self.mel_hop_size]
+        else:
+            mel = torch.nn.functional.pad(mel, (0, frames - mel.shape[1]))
+            audio = torch.nn.functional.pad(audio, (0, self.n_segments - audio.shape[1]))
+
+        return audio.squeeze(0), audio.shape[1], mel
+
+    def __len__(self):
+        return len(self.collection)
