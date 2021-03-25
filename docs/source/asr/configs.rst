@@ -437,10 +437,6 @@ Conformer-CTC
 ~~~~~~~~~~~~~
 
 You may find the config files for Conformer-CTC model with character-based encoding and word-piece encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` respectively.
-
-
-The word-piece encoding supports both the HuggingFace WordPiece tokenizer, and Google Sentencepiece tokenizer.
-
 Some components of the configs of `Conformer-CTC <./models.html#Conformer-CTC>`__ including
 datasets (train_ds, validation_ds, and test_ds), opimizer (optim), augmentation (spec_augment), decoder, trainer, and exp_manager are
 similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section which you may specify the tokenizer if you want to use word-piece encoding instead of character-based encoding.
