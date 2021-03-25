@@ -33,7 +33,7 @@ Quick Start
     QAModel.list_available_models()
 
     # Download and load the pre-trained BERT-based model
-    model = QAModel.from_pretrained("qa_squadv1_1_bertbase")
+    model = QAModel.from_pretrained("qa_squadv1.1_bertbase")
 
     # try the model on a few examples
     model.inference(test_file)
@@ -62,21 +62,21 @@ Available Models
 
    * - Model
      - Pretrained Checkpoint
-   * - qa_squadv1_1_bertbase
+   * - qa_squadv1.1_bertbase
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv1_1_bertbase
-   * - qa_squadv2_0_bertbase
+   * - qa_squadv2.0_bertbase
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv2_0_bertbase
-   * - qa_squadv1_1_bertlarge
+   * - qa_squadv1.1_bertlarge
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv1_1_bertlarge
-   * - qa_squadv2_0_bertlarge
+   * - qa_squadv2.0_bertlarge
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv2_0_bertlarge
-   * - qa_squadv1_1_megatron_cased
+   * - qa_squadv1.1_megatron_cased
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv1_1_megatron_cased
-   * - qa_squadv2_0_megatron_cased
+   * - qa_squadv2.0_megatron_cased
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv2_0_megatron_cased
-   * - qa_squadv1_1_megatron_uncased
+   * - qa_squadv1.1_megatron_uncased
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv1_1_megatron_uncased
-   * - qa_squadv2_0_megatron_uncased
+   * - qa_squadv2.0_megatron_uncased
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:qa_squadv2_0_megatron_uncased
 
 
