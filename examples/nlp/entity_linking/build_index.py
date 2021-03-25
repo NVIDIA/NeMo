@@ -25,50 +25,40 @@ def build_index(cfg: DictConfig, model: object):
     Args:
         cfg: Config file specifying index parameters
     """
-    if os.path.isfile(cfg.index_save_name):
-        logging.info("Index file already exists, try loading the index instead")
-        return
-
     # Get index dataset embeddings 
-    if os.path.isfile(cfg.embedding_save_name) and os.path.isfile(cfg.concept_id_save_name):
+    # PCA model exists and index embeddings have already been PCAed, no need to re-extract/PCA them
+    if cfg.apply_pca and os.path.isfile(cfg.pca.pca_save_name) and os.path.isfile(cfg.pca_embeddings_save_name):
+        logging.info("Loading reduced dimensionality embeddings")
+        embeddings = h5py.File(cfg.pca_embeddings_save_name, "r")
+        embeddings = embeddings[cfg.dataset.name][:] 
+
+    elif os.path.isfile(cfg.embedding_save_name):
         logging.info("Loading previously extracted index dataset embeddings")
         embeddings = h5py.File(cfg.embedding_save_name, "r")
         embeddings = embeddings[cfg.dataset.name][:]
-        concept_ids = pkl.load(open(cfg.concept_id_save_name, "rb"))
 
     else:
         logging.info("Encoding index dataset, this may take a while")
         index_dataloader = model.setup_dataloader(cfg.dataset, is_index_data=True)
         embeddings, concept_ids = get_index_embeddings(cfg, index_dataloader, model)
 
-    # Map each index dataset example to its unique index
-    if not os.path.isfile(cfg.idx_to_id):
-        logging.info("Mapping concept_ids to their unique indices")
-        idx2id = {idx : cui for idx, cui in tqdm(enumerate(concept_ids), total=len(concept_ids))}
-        pkl.dump(idx2id, open(cfg.idx_to_id, "wb"))
 
     # Create pca model to reduce dimensionality of index dataset and decrease memory footprint
-    if cfg.apply_pca and not os.path.isfile(cfg.pca_embeddings_save_name):
+    if cfg.apply_pca:
+
+        # Need to train PCA model and apply PCA transformation with newly trained model
         if not os.path.isfile(cfg.pca.pca_save_name):
             logging.info("Fitting PCA model for embedding dimensionality reduction")
             pca_train_set = random.sample(list(embeddings), k=int(len(embeddings)*cfg.pca.sample_fraction))
             pca = PCA(n_components=cfg.pca.output_dim)
             pca.fit(pca_train_set)
             pkl.dump(pca, open(cfg.pca.pca_save_name, "wb"))
+            embeddings = reduce_embedding_dim(pca, embeddings, cfg)
         
-        else:
+        #PCA model already trained, just need to reduce dimensionality of all embeddings
+        elif not os.path.isfile(cfg.pca_embeddings_save_name):
             pca = pkl.load(open(cfg.pca.pca_save_name, "rb"))
-
-        logging.info("Applying PCA transformation to entire index dataset")
-        embeddings = np.array(pca.transform(embeddings), dtype=np.float32)
-        emb_file = h5py.File(cfg.pca_embeddings_save_name, "w")
-        emb_file.create_dataset(cfg.dataset.name, data=embeddings)
-        emb_file.close()
-
-    elif cfg.apply_pca:
-        logging.info("Loading reduced dimensionality embeddings")
-        embeddings = h5py.File(cfg.pca_embeddings_save_name, "r")
-        embeddings = embeddings[cfg.dataset.name][:] 
+            embeddings = reduce_embedding_dim(pca, embeddings, cfg)
 
 
     # Build faiss index from embeddings
@@ -84,11 +74,46 @@ def build_index(cfg: DictConfig, model: object):
 
     logging.info("Saving index")
     faiss.write_index(faiss.index_gpu_to_cpu(index), cfg.index_save_name)
-
     logging.info("Index built and saved")
 
 
+def map_idx_to_ids(cfg: DictConfig):
+    """Map each index dataset example to its unique index"""
+    if not os.path.isfile(cfg.concept_id_save_name):
+        logging.info("Collecting concept ids from data file")
+        save_concept_ids(cfg)
+
+    concept_ids = pkl.load(open(cfg.concept_id_save_name, "rb"))
+    logging.info("Mapping concept_ids to their unique indices")
+    idx2id = {idx : cui for idx, cui in tqdm(enumerate(concept_ids), total=len(concept_ids))}
+    pkl.dump(idx2id, open(cfg.idx_to_id, "wb"))
+
+
+def save_concept_ids(cfg: DictConfig):
+    """Saves ordered concept ids in a pickle file"""
+    concept_ids = []
+    with open(cfg.dataset.data_file, "r") as data_file:
+        for line in tqdm(data_file.readlines()):
+            concept_id = line.split("\t")[0]
+            concept_ids.append(concept_id)
+
+    pkl.dump(concept_ids, open(cfg.concept_id_save_name, "wb"))
+
+
+def reduce_embedding_dim(pca, embeddings, cfg):
+    """Apply PCA transformation to index dataset embeddings"""
+
+    logging.info("Applying PCA transformation to entire index dataset")
+    embeddings = np.array(pca.transform(embeddings), dtype=np.float32)
+    emb_file = h5py.File(cfg.pca_embeddings_save_name, "w")
+    emb_file.create_dataset(cfg.dataset.name, data=embeddings)
+    emb_file.close()
+
+    return embeddings
+
+
 def get_index_embeddings(cfg: DictConfig, dataloader, model: object):
+    """Use entity linking encoder to get embeddings for full index dataset"""
     embeddings = []
     concept_ids = []
                     
@@ -115,6 +140,7 @@ def get_index_embeddings(cfg: DictConfig, dataloader, model: object):
 
 
 def get_query_embedding(query, model):
+    """Use entity linking encoder to get embedding for index query"""
     model_input = model.tokenizer(query,
                                 add_special_tokens = True,
                                 padding = True,
@@ -208,13 +234,17 @@ def main(cfg: DictConfig, top_n: int, restore: bool):
 
     model = model.to(device)
 
-    if not os.path.isfile(cfg.index.index_save_name):
+    if not os.path.isfile(cfg.index.index_save_name) or \
+          (cfg.apply_pca and not os.path.isfile(cfg.index.pca.pca_save_name)):
         build_index(cfg.index, model)
+
+    if not os.path.isfile(cfg.index.idx_to_id):
+        map_idx_to_ids(cfg.index)
 
     logging.info("Loading index and associated files")
     index = faiss.read_index(cfg.index.index_save_name)
     idx2id = pkl.load(open(cfg.index.idx_to_id, "rb"))
-    id2string = pkl.load(open(cfg.index.id_to_string, "rb"))
+    id2string = pkl.load(open(cfg.index.id_to_string, "rb")) # Should be created during dataset prep
 
     if cfg.index.apply_pca:
         pca = pkl.load(open(cfg.index.pca.pca_save_name, "rb"))
