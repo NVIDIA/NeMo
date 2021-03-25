@@ -21,9 +21,10 @@ from nemo.collections.common.parts.patch_utils import istft_patch, stft_patch
 from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.collections.tts.models import *  # Avoid circular imports
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 
 
 class SpectrogramGenerator(ModelPT, ABC):
@@ -102,12 +103,10 @@ class GlowVocoder(Vocoder):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._mode = OperationMode.infer
-        self.bias_spect = None
-        self.n_fft = None
-        self.hop_length = None
-        self.win_length = None
-        self.window = None
+        self.stft = None
+        self.istft = None
         self.n_mel = None
+        self.bias_spect = None
 
     @property
     def mode(self):
@@ -130,28 +129,46 @@ class GlowVocoder(Vocoder):
             yield
 
     def check_children_attributes(self):
-        if self.n_fft is None:
+        if self.stft is None:
             if isinstance(self.audio_to_melspec_precessor.stft, STFT):
-                self.n_fft = self.audio_to_melspec_precessor.stft.filter_length
-                self.hop_length = self.audio_to_melspec_precessor.stft.hop_length
-                self.win_length = self.audio_to_melspec_precessor.stft.win_length
-                self.window = self.audio_to_melspec_precessor.stft.window
-                if self.n_mel is None:
-                    self.n_mel = 80
+                logging.warning(
+                    "torch_stft is deprecated. Please change your model to use torch.stft and torch.istft instead."
+                )
+                self.stft = self.audio_to_melspec_precessor.stft.transform
+                self.istft = self.audio_to_melspec_precessor.stft.inverse
             else:
                 try:
-                    self.n_fft = self.audio_to_melspec_precessor.n_fft
-                    self.hop_length = self.audio_to_melspec_precessor.hop_length
-                    self.win_length = self.audio_to_melspec_precessor.win_length
-                    self.window = self.audio_to_melspec_precessor.window
-                    self.n_mel = self.audio_to_melspec_precessor.nfilt
-
+                    n_fft = self.audio_to_melspec_precessor.n_fft
+                    hop_length = self.audio_to_melspec_precessor.hop_length
+                    win_length = self.audio_to_melspec_precessor.win_length
+                    window = self.audio_to_melspec_precessor.window.to(self.audio_to_melspec_precessor.device)
                 except AttributeError as e:
                     raise AttributeError(
-                        f"{self} could not find an audio_to_melspec_precessor. GlowVocoder requires child class to have"
-                        "audio_to_melspec_precessor defined to obtain stft parameters. audio_to_melspec_precessor "
-                        "requires n_fft, hop_length, win_length, window, and nfilt to be defined."
+                        f"{self} could not find a valid audio_to_melspec_precessor. GlowVocoder requires child class "
+                        "to have audio_to_melspec_precessor defined to obtain stft parameters. "
+                        "audio_to_melspec_precessor requires n_fft, hop_length, win_length, window, and nfilt to be "
+                        "defined."
                     ) from e
+                self.stft = lambda x: stft_patch(
+                    x, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window,
+                )
+                self.istft = lambda x, y: istft_patch(
+                    torch.complex(x * torch.cos(y), x * torch.sin(y)),
+                    n_fft=n_fft,
+                    hop_length=hop_length,
+                    win_length=win_length,
+                    window=window,
+                )
+
+        if self.n_mel is None:
+            try:
+                self.n_mel = self.audio_to_melspec_precessor.nfilt
+            except AttributeError as e:
+                raise AttributeError(
+                    f"{self} could not find a valid audio_to_melspec_precessor. GlowVocoder requires child class to "
+                    "have audio_to_melspec_precessor defined to obtain stft parameters. audio_to_melspec_precessor "
+                    "requires nfilt to be defined."
+                ) from e
 
     def update_bias_spect(self):
         self.check_children_attributes()  # Ensure stft parameters are defined
@@ -159,13 +176,7 @@ class GlowVocoder(Vocoder):
         with self.nemo_infer():
             spect = torch.zeros((1, self.n_mel, 88)).to(self.device)
             bias_audio = self.convert_spectrogram_to_audio(spec=spect, sigma=0.0, denoise=False)
-            spect = stft_patch(
-                bias_audio,
-                n_fft=self.n_fft,
-                hop_length=self.hop_length,
-                win_length=self.win_length,
-                window=self.window.to(bias_audio.device),
-            )
+            spect = self.stft(bias_audio)
             if spect.dtype in [torch.cfloat, torch.cdouble]:
                 spect = torch.view_as_real(spect)
             bias_spect = torch.sqrt(spect.pow(2).sum(-1))
@@ -180,28 +191,14 @@ class GlowVocoder(Vocoder):
 
         if self.bias_spect is None:
             self.update_bias_spect()
-        spect = stft_patch(
-            audio,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            win_length=self.win_length,
-            window=self.window.to(audio.device),
-        )
+        spect = self.stft(audio)
         if spect.dtype in [torch.cfloat, torch.cdouble]:
             spect = torch.view_as_real(spect)
         audio_spect = torch.sqrt(spect.pow(2).sum(-1))
         audio_angles = torch.atan2(spect[..., -1], spect[..., 0])
         audio_spect_denoised = audio_spect - self.bias_spect.to(audio.device) * strength
         audio_spect_denoised = torch.clamp(audio_spect_denoised, 0.0)
-        audio_denoised = istft_patch(
-            torch.complex(
-                audio_spect_denoised * torch.cos(audio_angles), audio_spect_denoised * torch.sin(audio_angles)
-            ),
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            win_length=self.win_length,
-            window=torch.ones(self.win_length).to(audio_spect_denoised.device),
-        )
+        audio_denoised = self.istft(audio_spect_denoised, audio_angles)
         return audio_denoised
 
 

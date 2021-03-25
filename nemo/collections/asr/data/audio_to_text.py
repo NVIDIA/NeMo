@@ -439,12 +439,7 @@ class FastPitchDataset(_AudioTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio': NeuralType(('B', 'T'), AudioSignal()),
             'audio_len': NeuralType(('B',), LengthsType()),
             'text': NeuralType(('B', 'T'), LabelsType()),
             'text_len': NeuralType(('B',), LengthsType()),
