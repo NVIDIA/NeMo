@@ -652,7 +652,7 @@ Every Neural Module in NeMo must inherit from `nemo.core.classes.module.NeuralMo
 Every Neural Modules inherits the `nemo.core.classes.common.Typing` interface and needs to define neural types for its inputs and outputs.
 This is done by defining two properties: `input_types` and `output_types`.
 Each property should return an ordered dictionary of "port name"->"port neural type" pairs.
-This is the example from `nemo.collections.asr.modules.conv_asr.ConvASREncoder` class:
+This is the example from :class:`~nemo.collections.asr.modules.ConvASREncoder` class:
 
 .. code-block:: python
 
@@ -687,7 +687,7 @@ It also means that `.forward(...)` and `__call__(...)` methods each produce two 
 
 .. tip:: It is a good practice to define types and add `@typecheck()` decorator to your `.forward()` method once your module is ready for use by others.
 
-.. note:: The output of `.forward(...)` method will always be of type `torch.Tensor`, so it will work with any other Pytorch code. The type information will be carried with every tensor.
+.. note:: The outputs of `.forward(...)` method will always be of type `torch.Tensor` or container of tensors and will work with any other Pytorch code. The type information will be attached to every output tensor.
 If tensors without types will be passed to your module it will not fail but types will not be checked. Thus it is recommended to define input/output types for all your modules, starting with
 data layers and add @typecheck() decorator to them.
 
@@ -864,7 +864,7 @@ compatible with any other kind of axis. This is easy to express with Neural Type
 
 Container types
 ~~~~~~~~~~~~~~~
-NeMo type system understands Python containers (lists). If your module returns a list of typed tensors, the way to express it is by
+NeMo type system understands Python containers (lists). If your module returns a nested list of typed tensors, the way to express it is by
 using Python list notation and Neural Types together when defining your input/output types:
 
 An example below shows how to express that your module returns single output ("out") which is list of lists of two dimensional tensors of shape [batch, dimension] containing logits.
