@@ -27,7 +27,7 @@ from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
@@ -110,7 +110,10 @@ class HifiGanModel(Vocoder):
         """
         return self.generator(x=spec)
 
-    @typecheck(output_types={"audio": NeuralType(('B', 'T'), AudioSignal())})
+    @typecheck(
+        input_types={"spec": NeuralType(('B', 'C', 'T'), MelSpectrogramType())},
+        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+    )
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
         return self(spec=spec).squeeze(1)
 
@@ -295,5 +298,12 @@ class HifiGanModel(Vocoder):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        # TODO
-        pass
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_hifigan",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_hifigan/versions/1.0.0rc1/files/tts_hifigan.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Tacotron2, TalkNet, and FastPitch. This model has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+        return list_of_models

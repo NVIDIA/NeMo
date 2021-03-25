@@ -4,7 +4,9 @@ Datasets
 NeMo has scripts to convert several common ASR datasets into the format expected by the `nemo_asr` collection.
 You can get started with those datasets by following the instructions to run those scripts in the section appropriate to each dataset below.
 
-If you have your own data and want to preprocess it to use with NeMo ASR models, check out the `Preparing Custom ASR Data`_ section at the bottom of the page.
+If you have your own data and want to preprocess it to use with NeMo ASR models, check out the `Preparing Custom ASR Data`_ section.
+
+If you already have a dataset that you want to convert to a tarred format, please read the `Tarred Datasets`_ section.
 
 .. _LibriSpeech_dataset:
 
@@ -190,3 +192,82 @@ in the same directory as the manifest, or even in any specific directory structu
 
 Once you have a manifest that describes each audio file in your dataset, you can then use the dataset by passing
 in the manifest file path in your experiment config file, e.g. as `training_ds.manifest_filepath=<path/to/manifest,json>`.
+
+Tarred Datasets
+---------------
+
+If you are running experiments on a cluster with datasets stored on a distributed file system, you will likely
+want to avoid constantly reading many small files and would prefer tarring your audio files.
+There are tarred versions of some NeMo ASR Dataset classes for this case, such as the ``TarredAudioToCharDataset``
+(corresponding to the ``AudioToCharDataset``) and the ``TarredAudioToBPEDataset`` (corresponding to the
+``AudioToBPEDataset``).
+The tarred audio dataset classes in NeMo use `WebDataset <https://github.com/tmbdev/webdataset>`_.
+
+To use an existing tarred dataset instead of a non-tarred dataset, you will need to set ``is_tarred: true`` in
+your experiment config file.
+Then, you will need to pass in the paths to all of your audio tarballs in ``tarred_audio_filepaths``, either as a list
+of filepaths, e.g. ``['/data/shard1.tar', '/data/shard2.tar']``, or in a single brace-expandable string, e.g.
+``'/data/shard_{1..64}.tar'`` or ``'/data/shard__OP_1..64_CL_'`` (recommended, see note below).
+
+.. note::
+  For brace expansion, there may be cases where ``{x..y}`` syntax cannot be used due to shell interference.
+  This occurs most commonly inside SLURM scripts. Therefore we provide a few equivalent replacements.
+  Supported opening braces (equivalent to ``{``) are ``(``, ``[``, ``<`` and the special tag ``_OP_``.
+  Supported closing braces (equivalent to ``}``) are ``)``, ``]``, ``>`` and the special tag ``_CL_``.
+  For SLURM based tasks, we suggest the use of the special tags for ease of use.
+
+As with non-tarred datasets, the manifest file should be passed in ``manifest_filepath``.
+The dataloader will assume that the length of the manifest after filtering is the correct size of the dataset
+for reporting training progress.
+
+The ``tarred_shard_strategy`` field of the config file can be set if you have multiple shards and are running
+an experiment with multiple workers.
+It defaults to ``scatter``, which preallocates a set of shards per worker which do not change during runtime.
+
+For more information about the individual tarred datasets and the parameters you can set, including shuffling options,
+see the corresponding class APIs on the `Datasets <./api.html#Datasets>`__ page.
+
+.. warning::
+  If using multiple workers the number of shards should be divisible by the world size to ensure an even
+  split among workers.
+  If it is not divisible, logging will give a warning but training will proceed, but likely hang at the last epoch.
+  In addition, if using distributed processing, each shard must have the same number of entries after filtering is
+  applied such that each worker ends up with the same number of files.
+  We currently do not check for this in any dataloader, but your program may hang if the shards are uneven!
+
+Conversion to Tarred Datasets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can easily convert your existing NeMo-compatible ASR datasets using the
+`conversion script here <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/scripts/speech_recognition/convert_to_tarred_audio_dataset.py>`_.
+
+.. code::
+
+  python convert_to_tarred_audio_dataset.py \
+    --manifest_path=<path to the manifest file> \
+    --target_dir=<path to output directory> \
+    --num_shards=<number of tarfiles that will contain the audio>
+    --max_duration=<float representing maximum duration of audio samples> \
+    --min_duration=<float representing minimum duration of audio samples> \
+    --shuffle --shuffle_seed=0
+
+This script will shuffle the entries in the given manifest (if ``--shuffle`` is set, which we recommend), filter
+audio files according to ``min_duration`` and ``max_duration``, and tar the remaining audio files to the directory
+``--target_dir`` in ``n`` shards, along with separate manifest and metadata files.
+
+The files in the target directory will look like:
+
+.. code::
+
+  target_dir/
+  ├── audio_1.tar
+  ├── audio_2.tar
+  ├── ...
+  ├── metadata.yaml
+  └── tarred_audio_manifest.json
+
+Note that file structures will be flattened such that all audio files are at the top level in each tarball, so to
+ensure that filenames are unique in the tarred dataset and the filepaths do not contain "-sub", forward slashes in each ``audio_filepath`` are simply
+converted to underscores.
+For example, a manifest entry for ``/data/directory1/file.wav`` would be ``_data_directory1_file.wav`` in the tarred
+dataset manifest, and ``/data/directory2/file.wav`` would be converted to ``_data_directory2_file.wav``.

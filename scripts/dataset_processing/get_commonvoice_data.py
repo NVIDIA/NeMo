@@ -36,13 +36,14 @@ import json
 import logging
 import multiprocessing
 import os
+import subprocess
+import sys
 import tarfile
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import List
 
 import sox
-import wget
 from sox import Transformer
 from tqdm import tqdm
 
@@ -137,7 +138,18 @@ def main():
     else:
         logging.info("Could not find Common Voice, Downloading corpus...")
 
-        filename = wget.download(COMMON_VOICE_URL, data_root)
+        commands = [
+            'wget',
+            '--user-agent',
+            '"Mozilla/5.0 (Windows NT 10.0; WOW64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"',
+            '-P',
+            data_root,
+            f'{COMMON_VOICE_URL}',
+        ]
+        commands = " ".join(commands)
+        subprocess.run(commands, shell=True, stderr=sys.stderr, stdout=sys.stdout, capture_output=False)
+        filename = f"{args.language}.tar.gz"
         target_file = os.path.join(data_root, os.path.basename(filename))
 
         os.makedirs(target_unpacked_dir, exist_ok=True)

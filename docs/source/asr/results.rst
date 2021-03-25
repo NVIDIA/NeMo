@@ -63,6 +63,19 @@ If you would like to programatically list the models available for a particular 
   nemo_asr.models.<MODEL_BASE_CLASS>.list_available_models()
 
 
+Transcribing/Inference
+^^^^^^^^^^^^^^^^^^^^^^
+
+You may perform inference and transcribe a sample of speech after loading the model by using its 'transcribe()' method:
+
+.. code-block:: python
+
+    model.transcribe(paths2audio_files=[list of audio files], batch_size=BATCH_SIZE, logprobs=False)
+
+Setting argument 'logprobs' to True would return the log probabilities instead of transcriptions. You may find more detail here: :doc:`./api.html#modules`
+The audio files should be 16KHz monochannel wav files.
+
+
 Automatic Speech Recognition Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -72,26 +85,17 @@ Automatic Speech Recognition Models
    :widths: 30, 30, 40
    :header-rows: 1
 
-Speech Classification Models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. csv-table::
-   :file: data/classification_results.csv
-   :align: left
-   :widths: 30, 30, 40
-   :header-rows: 1
-
------------------------------
-
-Speech Recognition Benchmarks
------------------------------
+   
+Speech Recognition (Languages)
+------------------------------
 
 English
 ^^^^^^^
 .. csv-table::
    :file: data/benchmark_en.csv
    :align: left
-   :widths: 40, 40, 10, 10
+   :widths: 40, 10, 50
    :header-rows: 1
 
 -----------------------------
@@ -101,7 +105,7 @@ Mandarin
 .. csv-table::
    :file: data/benchmark_zh.csv
    :align: left
-   :widths: 40, 40, 10, 10
+   :widths: 40, 10, 50
    :header-rows: 1
 
 -----------------------------
@@ -111,7 +115,7 @@ German
 .. csv-table::
    :file: data/benchmark_de.csv
    :align: left
-   :widths: 40, 40, 10, 10
+   :widths: 40, 10, 50
    :header-rows: 1
 
 -----------------------------
@@ -121,7 +125,7 @@ Polish
 .. csv-table::
    :file: data/benchmark_pl.csv
    :align: left
-   :widths: 40, 40, 10, 10
+   :widths: 40, 10, 50
    :header-rows: 1
 
 -----------------------------
@@ -131,7 +135,7 @@ Italian
 .. csv-table::
    :file: data/benchmark_it.csv
    :align: left
-   :widths: 40, 40, 10, 10
+   :widths: 40, 10, 50
    :header-rows: 1
 
 -----------------------------
@@ -141,7 +145,7 @@ Russian
 .. csv-table::
    :file: data/benchmark_ru.csv
    :align: left
-   :widths: 40, 40, 10, 10
+   :widths: 40, 10, 50
    :header-rows: 1
 
 -----------------------------
@@ -151,7 +155,7 @@ Spanish
 .. csv-table::
    :file: data/benchmark_es.csv
    :align: left
-   :widths: 40, 40, 10, 10
+   :widths: 40, 10, 50
    :header-rows: 1
 
 
@@ -162,7 +166,7 @@ Catalan
 .. csv-table::
    :file: data/benchmark_ca.csv
    :align: left
-   :widths: 40, 40, 10, 10
+   :widths: 40, 10, 50
    :header-rows: 1
 
 

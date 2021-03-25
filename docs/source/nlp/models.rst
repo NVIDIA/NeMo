@@ -1,15 +1,24 @@
+..nlp_models:
+
 Models
 ======
 
 NeMo's NLP collection supports the following models:
 
-* BERT pretraining
-* GLUE Benchmark
-* Joint Intent and Slot Classification
-* Text Classification
-* Name Entity Recognition (NER)
-* Punctuation and Capitalization
-* Question Answering
+.. toctree::
+   :maxdepth: 1
 
-Scripts for running these models, could be found under ``NeMo/example/nlp/``.
-NLP tutorials are located under ``NeMo/tutorials/nlp/``.
+   punctuation_and_capitalization
+   token_classification
+   joint_intent_slot
+   text_classification
+   bert_pretraining
+   language_modeling
+   question_answering
+   sgd_qa
+   glue_benchmark
+   information_retrieval
+   nmt
+   nlp_model
+   
+
