@@ -54,6 +54,10 @@ Modules
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.modules.ConformerEncoder
+    :show-inheritance:
+    :members:
+
 
 Parts
 -----

@@ -1,6 +1,19 @@
-# It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and word-piece vocabulary.
+# It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and sub-word encoding.
 # Default learning parameters in this config are set for effective batch size of 2K.
 # To train it with smaller effective batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+
+# Here are the recommended configs for different variants of Conformer-CTC, other parameters are the same as in this config file.
+# One extra layer (compared to original paper) is added to the medium and large variants to compensate for replacing the LSTM decoder with a linear one.
+
+#  +-------------+---------+---------+----------+------------+
+#  | Model       | d_model | n_heads | n_layers | time_masks |
+#  +=============+=========+========+===========+============+
+#  | Small  (13M)|   176   |    4   |    16     |     5      |
+#  +-------------+---------+--------+-----------+------------+
+#  | Medium (30M)|   256   |    4   |    17     |     10     |
+#  +-------------+---------+--------+-----------+------------+
+#  | Large (121M)|   512   |    8   |    18     |     10     |
+#  +----------------------------------------------------------
 
 name: "Conformer-CTC-BPE"
 
@@ -39,6 +52,7 @@ model:
     pin_memory: true
     use_start_end_token: false
 
+  # recommend small vocab size of 128 or 256 with 4x sub-sampling
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
     type: wpe  # Can be either bpe (sentencepiece tokenizer) or wpe (wordpiece tokenizer)
@@ -63,7 +77,7 @@ model:
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     freq_masks: 2 # set to zero to disable it
-    # you may use lower time_masks for smaller datasets or to have faster convergence
+    # you may use lower time_masks for smaller models to have a faster convergence
     time_masks: 10 # set to zero to disable it
     freq_width: 27
     time_width: 0.05
