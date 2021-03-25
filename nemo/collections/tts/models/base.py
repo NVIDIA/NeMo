@@ -134,7 +134,7 @@ class GlowVocoder(Vocoder):
                 logging.warning(
                     "torch_stft is deprecated. Please change your model to use torch.stft and torch.istft instead."
                 )
-                self.stft = self.audio_to_melspec_precessor.stft.transform
+                self.stft = self.audio_to_melspec_precessor.stft
                 self.istft = self.audio_to_melspec_precessor.stft.inverse
             else:
                 try:
