@@ -121,6 +121,42 @@ Audio Augmentors
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.perturb.SpeedPerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.perturb.TimeStretchPerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.perturb.GainPerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.perturb.ImpulsePerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.perturb.ShiftPerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.perturb.NoisePerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.perturb.WhiteNoisePerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.perturb.RirAndNoisePerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.perturb.TranscodePerturbation
+    :show-inheritance:
+    :members:
+
 Miscellaneous Classes
 ---------------------
 
