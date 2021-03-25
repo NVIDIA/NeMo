@@ -180,7 +180,7 @@ class GlowVocoder(Vocoder):
             if spect.dtype in [torch.cfloat, torch.cdouble]:
                 spect = torch.view_as_real(spect)
             bias_spect = torch.sqrt(spect.pow(2).sum(-1))
-            self.bias_spect = bias_spect[:, :, 0][:, :, None]
+            self.bias_spect = bias_spect[..., 0][..., None]
 
     @typecheck(
         input_types={"audio": NeuralType(('B', 'T'), AudioSignal()), "strength": NeuralType(optional=True)},
