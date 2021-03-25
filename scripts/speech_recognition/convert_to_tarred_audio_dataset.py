@@ -383,7 +383,7 @@ class ASRTarredDatasetBuilder:
             end_indices.append(end_idx)
             shard_indices.append(shard_idx)
 
-        with Parallel(n_jobs=num_workers, verbose=config.num_shards) as parallel:
+        with Parallel(n_jobs=num_workers, verbose=num_added_shards) as parallel:
             # Call parallel tarfile construction
             new_entries_list = parallel(
                 delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, shard_idx)
