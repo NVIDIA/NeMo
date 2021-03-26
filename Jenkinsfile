@@ -158,8 +158,6 @@ pipeline {
             +model.train_ds.use_dali=True \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             +model.validation_ds.use_dali=True \
-            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params={} \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_results'
@@ -173,8 +171,7 @@ pipeline {
             +model.train_ds.use_dali=True \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             +model.validation_ds.use_dali=True \
-            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-            model.preprocessor.params={} \
+            model.preprocessor.__target__=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_results'
