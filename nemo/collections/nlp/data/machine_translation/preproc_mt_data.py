@@ -256,6 +256,7 @@ class MTDataPreproc:
         global_rank,
         world_size,
         n_jobs=-2,
+        tar_file_prefix='parallel',
     ):
         """Create tarred dataset from large paired translation data.
 
@@ -271,6 +272,7 @@ class MTDataPreproc:
             tokens_in_batch (int): tokens per batch per GPU, effectively batch size 
             lines_per_dataset_fragment (int): number of lines to consider for bucketing and padding
             num_batches_per_tarfile (int): number of batches (pickle files) within each tarfile
+            tar_file_prefix (str) : add string prefix to tar files 
             n_jobs (int): number of processes to use for data processing (-2 to use all but 2)
         """
 
@@ -318,7 +320,7 @@ class MTDataPreproc:
                         decoder_tokenizer_model=decoder_tokenizer_model,
                         decoder_bpe_dropout=decoder_bpe_dropout,
                         decoder_model_name=decoder_model_name,
-                        pkl_file_prefix=fragment_index,
+                        fragment_index=fragment_index,
                     )
                     for fragment_index, lines_indices in enumerate(lines_partition)
                 )
@@ -366,7 +368,9 @@ class MTDataPreproc:
                 # rename tar files so they can be more easily used with CLI and YAML
                 tar_file_paths = glob.glob(f'{out_dir}/*.tar')
                 for index, path in enumerate(tar_file_paths):
-                    os.rename(path, os.path.join(out_dir, f'batches.tokens.{tokens_in_batch}.{index}.tar'))
+                    os.rename(
+                        path, os.path.join(out_dir, f'{tar_file_prefix}.batches.tokens.{tokens_in_batch}.{index}.tar')
+                    )
 
                 # add tar files to manifest
                 tar_file_paths = glob.glob(f'{out_dir}/*.tar')
@@ -429,7 +433,7 @@ class MTDataPreproc:
         decoder_tokenizer_model,
         decoder_bpe_dropout,
         decoder_model_name,
-        pkl_file_prefix,
+        fragment_index,
     ):
         start = lines_indices[0]
         stop = lines_indices[1]
@@ -465,7 +469,7 @@ class MTDataPreproc:
             decoder_tokenizer_model=decoder_tokenizer_model,
             decoder_bpe_dropout=decoder_bpe_dropout,
             decoder_model_name=decoder_model_name,
-            pkl_file_prefix=pkl_file_prefix,
+            fragment_index=fragment_index,
         )
 
         os.remove(tmp_f_src.name)
@@ -705,7 +709,7 @@ class MTDataPreproc:
         decoder_tokenizer_model,
         decoder_bpe_dropout,
         decoder_model_name,
-        pkl_file_prefix,
+        fragment_index,
     ):
         """
         Writes current fragment of the overall parallel corpus to tarfiles by:
@@ -741,7 +745,7 @@ class MTDataPreproc:
 
         tar_file_ctr = 0
         tar_file_path = os.path.join(
-            out_dir, 'fragment-%s-batches.tokens.%d.%d.tar' % (pkl_file_prefix, num_tokens, tar_file_ctr)
+            out_dir, 'fragment-%s-batches.tokens.%d.%d.tar' % (fragment_index, num_tokens, tar_file_ctr)
         )
         tar_file_ptr = tarfile.open(tar_file_path, 'w')
         total_batch_ctr = 0
@@ -750,16 +754,16 @@ class MTDataPreproc:
             total_batch_ctr += 1
             batch_ctr += 1
             pickle.dump(
-                batch, open(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (pkl_file_prefix, batch_ctr)), 'wb'),
+                batch, open(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)), 'wb'),
             )
-            tar_file_ptr.add(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (pkl_file_prefix, batch_ctr)))
-            os.remove(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (pkl_file_prefix, batch_ctr)))
+            tar_file_ptr.add(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)))
+            os.remove(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)))
 
             if batch_ctr == num_batches_per_tarfile:
                 tar_file_ctr += 1
                 tar_file_ptr.close()
                 tar_file_path = os.path.join(
-                    out_dir, 'fragment-%s-batches.tokens.%d.%d.tar' % (pkl_file_prefix, num_tokens, tar_file_ctr)
+                    out_dir, 'fragment-%s-batches.tokens.%d.%d.tar' % (fragment_index, num_tokens, tar_file_ctr)
                 )
                 tar_file_ptr = tarfile.open(tar_file_path, 'w',)
                 batch_ctr = 0

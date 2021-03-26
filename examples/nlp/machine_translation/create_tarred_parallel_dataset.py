@@ -21,7 +21,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NMT dataset pre-processing')
     parser.add_argument('--shared_tokenizer', action="store_true", help='Whether to share encoder/decoder tokenizers')
     parser.add_argument('--clean', action="store_true", help='Whether to clean dataset based on length diff')
-    parser.add_argument('--pkl_file_prefix', type=str, default='parallel', help='Prefix for tar and pickle files')
+    parser.add_argument('--tar_file_prefix', type=str, default='parallel', help='Prefix for tar files')
     parser.add_argument('--bpe_dropout', type=float, default=0.1, help='Whether to share encoder/decoder tokenizers')
     parser.add_argument('--src_fname', type=str, required=True, help='Path to the source file')
     parser.add_argument('--tgt_fname', type=str, required=True, help='Path to the target file')
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         tokens_in_batch=args.tokens_in_batch,
         lines_per_dataset_fragment=args.lines_per_dataset_fragment,
         num_batches_per_tarfile=args.num_batches_per_tarfile,
-        pkl_file_prefix=args.pkl_file_prefix,
+        tar_file_prefix=args.pkl_file_prefix,
         global_rank=0,
         world_size=1,
         n_jobs=args.n_preproc_jobs,
