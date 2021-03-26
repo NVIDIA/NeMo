@@ -26,18 +26,6 @@ from nemo.core.config import OptimizerParams, get_optimizer_config, register_opt
 from nemo.core.optim.novograd import Novograd
 from nemo.utils import logging
 
-HAVE_APEX = False
-
-try:
-    from apex.optimizers import FusedLAMB
-
-    HAVE_APEX = True
-except ModuleNotFoundError:
-    logging.warning("Apex was not found. Using the lamb optimizer will error out.")
-
-__all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
-
-
 AVAILABLE_OPTIMIZERS = {
     'sgd': optim.SGD,
     'adam': optim.Adam,
@@ -45,11 +33,19 @@ AVAILABLE_OPTIMIZERS = {
     'adadelta': adadelta.Adadelta,
     'adamax': adamax.Adamax,
     'adagrad': adagrad.Adagrad,
-    'lamb': FusedLAMB,
     'rmsprop': rmsprop.RMSprop,
     'rprop': rprop.Rprop,
     'novograd': Novograd,
 }
+
+try:
+    from apex.optimizers import FusedLAMB
+
+    AVAILABLE_OPTIMIZERS['lamb'] = FusedLAMB
+except ModuleNotFoundError:
+    logging.warning("Apex was not found. Using the lamb optimizer will error out.")
+
+__all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
 
 def parse_optimizer_args(
