@@ -264,7 +264,9 @@ def create_spt_model(
         eos: when True, eos token "</s>" is added to the vocabulary.
         pad: when True, pad token "<pad>" is added to the vocabulary.
         control_symbols: control symbols to add to tokenizer, as defined by sentencepiece.
+            These tokens get removed at decode time and are not encoded from the text - can only be added to the input programatically.
         user_defined_symbols: user symbols to add to tokenizer, as defined by sentencepiece.
+            These tokens remain in the decoded text and are encoded automatically when present in the input text.
     """
 
     if not data_file or not os.path.exists(data_file):
