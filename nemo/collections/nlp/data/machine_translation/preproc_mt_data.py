@@ -297,9 +297,9 @@ class MTDataPreproc:
                 # create a partition of lines that we can parallelize over
                 lines_partition = MTDataPreproc._get_lines_partition(num_src_lines, lines_per_dataset_fragment)
                 logging.info(f"Found {len(lines_partition)} fragments to parallelize over.")
+
                 # create tarfiles for each fragment in parallel
-                # total_batches = 0
-                total_batches_list = Parallel(n_jobs=n_jobs)(
+                results_list = Parallel(n_jobs=n_jobs)(
                     delayed(MTDataPreproc._process_fragment)(
                         src_filename=src_fname,
                         tgt_filename=tgt_fname,
@@ -322,11 +322,49 @@ class MTDataPreproc:
                     )
                     for fragment_index, lines_indices in enumerate(lines_partition)
                 )
-                total_batches = sum(total_batches_list)
+
+                # compute total batches so far
+                total_batches = sum([batch_count for batch_count, _ in results_list])
+
+                # save batches from tar files containing the left over batches (if there's enough batches)
+                remainder_tar_file_ctr = 0
+                remainder_tar_file_path = os.path.join(
+                    out_dir, f'remainder-batches.tokens.{tokens_in_batch}.tar_file_{remainder_tar_file_ctr}.tar'
+                )
+                remainder_tar_file_ptr = tarfile.open(remainder_tar_file_path, 'w')
+                batch_in_tar_ctr = 0
+                for _, tar_file_path in results_list:
+                    tar_file_ptr = tarfile.open(tar_file_path, 'r')
+                    for member in tar_file_ptr.getmembers():
+                        remainder_tar_file_ptr.addfile(member, tar_file_ptr.extractfile(member.name))
+                        batch_in_tar_ctr += 1
+                        total_batches += 1
+                        if batch_in_tar_ctr == num_batches_per_tarfile:
+                            remainder_tar_file_ctr += 1
+                            remainder_tar_file_ptr.close()
+                            remainder_tar_file_path = os.path.join(
+                                out_dir,
+                                f'remainder-batches.tokens.{tokens_in_batch}.tar_file_{remainder_tar_file_ctr}.tar',
+                            )
+                            remainder_tar_file_ptr = tarfile.open(remainder_tar_file_path, 'w',)
+                            batch_in_tar_ctr = 0
+                    tar_file_ptr.close()
+                    os.remove(tar_file_path)
+
+                # log the number of batches remaining as they will be discarded
+                num_batches_discarded = len(remainder_tar_file_ptr.getmembers())
+                total_batches -= num_batches_discarded
+                logging.info(
+                    f'Number of batches discarded: {num_batches_discarded}, total batches kept: {total_batches}'
+                )
+                remainder_tar_file_ptr.close()
+                os.remove(remainder_tar_file_path)
 
                 # dump metadata to json
                 metadata = {}
                 metadata['num_batches'] = total_batches
+
+                # TODO: rename tar files so they can be more easily used with CLI and YAML
                 tar_file_paths = glob.glob(f'{out_dir}/*.tar')
                 metadata['tar_files'] = tar_file_paths
                 json.dump(metadata, open(metadata_path, 'w'))
@@ -406,7 +444,7 @@ class MTDataPreproc:
         tmp_f_src.close()
         tmp_f_tgt.close()
 
-        num_batches_from_fragment = MTDataPreproc.write_parallel_batches_to_tarfiles(
+        num_batches_from_fragment, remainder_tar_file_path = MTDataPreproc.write_parallel_batches_to_tarfiles(
             out_dir=out_dir,
             num_batches_per_tarfile=num_batches_per_tarfile,
             clean=clean,
@@ -429,7 +467,7 @@ class MTDataPreproc:
         os.remove(tmp_f_src.name)
         os.remove(tmp_f_tgt.name)
 
-        return num_batches_from_fragment
+        return num_batches_from_fragment, remainder_tar_file_path
 
     @staticmethod
     def preprocess_monolingual_dataset(
@@ -727,10 +765,11 @@ class MTDataPreproc:
         logging.info(f'Total number of batches from fragment {pkl_file_prefix}: {total_batch_ctr}.')
         num_batches_to_discard = len(tar_file_ptr.getmembers())
         logging.info(f'Number of batches to be discarded from fragment {pkl_file_prefix}: {num_batches_to_discard}.')
+        remainder_tar_file_path = tar_file_ptr.name
         tar_file_ptr.close()
-        os.remove(tar_file_path)
+        # os.remove(tar_file_path)
         num_batches_from_fragment = total_batch_ctr - num_batches_to_discard
-        return num_batches_from_fragment
+        return num_batches_from_fragment, remainder_tar_file_path
 
     @staticmethod
     def write_monolingual_batches_to_tarfiles(
