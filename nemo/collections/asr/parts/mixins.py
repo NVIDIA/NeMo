@@ -65,7 +65,9 @@ class ASRBPEMixin(ABC):
                 special_tokens = None
 
             # Update special tokens
-            self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path, special_tokens=special_tokens)
+            self.tokenizer = tokenizers.SentencePieceTokenizer(
+                model_path=model_path, special_tokens=special_tokens, legacy=True
+            )
 
             vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
             vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
