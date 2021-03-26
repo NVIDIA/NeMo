@@ -130,7 +130,7 @@ if __name__ == '__main__':
         tokens_in_batch=args.tokens_in_batch,
         lines_per_dataset_fragment=args.lines_per_dataset_fragment,
         num_batches_per_tarfile=args.num_batches_per_tarfile,
-        tar_file_prefix=args.pkl_file_prefix,
+        tar_file_prefix=args.tar_file_prefix,
         global_rank=0,
         world_size=1,
         n_jobs=args.n_preproc_jobs,
