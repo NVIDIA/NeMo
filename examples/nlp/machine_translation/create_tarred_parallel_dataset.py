@@ -21,11 +21,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NMT dataset pre-processing')
     parser.add_argument('--shared_tokenizer', action="store_true", help='Whether to share encoder/decoder tokenizers')
     parser.add_argument('--clean', action="store_true", help='Whether to clean dataset based on length diff')
-    parser.add_argument('--pkl_file_prefix', type=str, default='parallel', help='Prefix for tar and pickle files')
+    parser.add_argument('--tar_file_prefix', type=str, default='parallel', help='Prefix for tar files')
     parser.add_argument('--bpe_dropout', type=float, default=0.1, help='Whether to share encoder/decoder tokenizers')
     parser.add_argument('--src_fname', type=str, required=True, help='Path to the source file')
     parser.add_argument('--tgt_fname', type=str, required=True, help='Path to the target file')
     parser.add_argument('--out_dir', type=str, required=True, help='Path to store dataloader and tokenizer models')
+    parser.add_argument('--encoder_model_name', type=str, default=None, help='For use with pretrained encoders')
+    parser.add_argument(
+        '--decoder_model_name', type=str, default=None, help='For use with pretrained decoders (not yet supported)'
+    )
     parser.add_argument(
         '--encoder_tokenizer_model', type=str, default='None', help='Path to pre-trained encoder tokenizer model'
     )
@@ -63,6 +67,9 @@ if __name__ == '__main__':
         type=int,
         default=1000,
         help='Number of batches (pickle files) within each tarfile',
+    )
+    parser.add_argument(
+        '--n_preproc_jobs', type=int, default=-2, help='Number of processes to use for creating the tarred dataset.',
     )
 
     args = parser.parse_args()
@@ -116,14 +123,21 @@ if __name__ == '__main__':
         src_fname=args.src_fname,
         tgt_fname=args.tgt_fname,
         out_dir=args.out_dir,
-        encoder_tokenizer=encoder_tokenizer,
-        decoder_tokenizer=decoder_tokenizer,
+        encoder_tokenizer_name=args.encoder_tokenizer_name,
+        encoder_model_name=args.encoder_model_name,
+        encoder_tokenizer_model=encoder_tokenizer_model,
+        encoder_bpe_dropout=args.encoder_tokenizer_bpe_dropout,
+        decoder_tokenizer_name=args.decoder_tokenizer_name,
+        decoder_model_name=args.decoder_model_name,
+        decoder_tokenizer_model=decoder_tokenizer_model,
+        decoder_bpe_dropout=args.decoder_tokenizer_bpe_dropout,
         max_seq_length=args.max_seq_length,
         min_seq_length=args.min_seq_length,
         tokens_in_batch=args.tokens_in_batch,
         lines_per_dataset_fragment=args.lines_per_dataset_fragment,
         num_batches_per_tarfile=args.num_batches_per_tarfile,
-        pkl_file_prefix=args.pkl_file_prefix,
+        tar_file_prefix=args.tar_file_prefix,
         global_rank=0,
         world_size=1,
+        n_jobs=args.n_preproc_jobs,
     )
