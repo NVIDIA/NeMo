@@ -81,17 +81,18 @@ class FastSpeech2Encoder(NeuralModule):
 
     @property
     def input_types(self):  # phonemes
-        return {"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())}
+        return {"text": NeuralType(('B', 'T'), TokenIndex()), "text_length": NeuralType(('B'), LengthsType())}
 
     @property
     def output_types(self):
         return {
-            "encoder_embedding": NeuralType(('B', 'T', 'D'), EmbeddedTextType()),
+            "out": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "mask": NeuralType(('B', 'T', 'D'), MaskType()),
         }
 
     @typecheck()
-    def forward(self, *, text, text_lengths):
-        return self.encoder(text, seq_lens=text_lengths)
+    def forward(self, *, text, text_length):
+        return self.encoder(text, seq_lens=text_length)
 
 
 @experimental
@@ -116,7 +117,6 @@ class VarianceAdaptor(NeuralModule):
         energy_min=0.0,
         energy_max=600.0,
         vocab=None,
-        # use_guassian_embed=False,
     ):
         """
         FastSpeech 2 variance adaptor, which adds information like duration, pitch, etc. to the phoneme encoding.
@@ -190,14 +190,22 @@ class VarianceAdaptor(NeuralModule):
     @property
     def input_types(self):
         return {
-            "encoder_embedding": NeuralType(('B', 'T', 'D'), EmbeddedTextType()),
+            "x": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "x_len": NeuralType(('B'), LengthsType()),
+            "dur_target": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
+            "pitch_target": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "energy_target": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "spec_len": NeuralType(('B'), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self):
         return {
-            # Might need a better name and type for this
-            "variance_embedding": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "out": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "log_dur_preds": NeuralType(('B', 'T'), TokenDurationType()),
+            "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
+            "energy_preds": NeuralType(('B', 'T'), RegressionValuesType()),
+            "spec_len": NeuralType(('B'), LengthsType()),
         }
 
     @typecheck()
@@ -341,13 +349,14 @@ class MelSpecDecoder(NeuralModule):
 
     @property
     def input_types(self):
-        # TODO
-        pass
+        return {
+            "decoder_input": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
+            "lengths": NeuralType(('B'), LengthsType()),
+        }
 
     @property
     def output_types(self):
-        # TODO
-        pass
+        return {"mel_spec": NeuralType(('B', 'T', 'C'), MelSpectrogramType())}
 
     @typecheck()
     def forward(self, *, decoder_input, lengths):
@@ -356,6 +365,7 @@ class MelSpecDecoder(NeuralModule):
         return mel_out
 
 
+# NOTE: The WaveformDecoder is not used right now, it is for FastSpeech 2s in the future.
 @experimental
 class WaveformDecoder(NeuralModule):
     def __init__(
@@ -377,7 +387,7 @@ class WaveformDecoder(NeuralModule):
         dis_relu_alpha=0.2,
     ):
         """
-        FastSpeech 2 waveform decoder. Converts adapted hidden sequence to a waveform sequence.
+        FastSpeech 2s waveform decoder. Converts adapted hidden sequence to a waveform sequence.
         Consists of one transposed conv1d layer, and 30 layers of dilated residual conv blocks.
 
         Args:

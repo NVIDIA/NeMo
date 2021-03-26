@@ -16,7 +16,7 @@ model:
   duration_coeff: 0.25
   train_ds:
     dataset:
-      _target_: "nemo.collections.tts.data.datalayers.FastSpeechWithDurs"
+      _target_: "nemo.collections.tts.data.datalayers.AudioWithSupplementaryDataset"
       manifest_filepath: ${train_dataset}
       sample_rate: *sr
       supplementary_dir: ${supplementary_dir}
@@ -33,7 +33,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.tts.data.datalayers.FastSpeechWithDurs"
+      _target_: "nemo.collections.tts.data.datalayers.AudioWithSupplementaryDataset"
       manifest_filepath: ${validation_datasets}
       sample_rate: *sr
       supplementary_dir: ${supplementary_dir}

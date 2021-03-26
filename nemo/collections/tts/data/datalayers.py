@@ -524,9 +524,9 @@ def preprocess_linear_specs_dataset(valid_filelist, train_filelist, n_fft, hop_l
     return tar_dir
 
 
-class FastSpeechWithDurs(Dataset):
+class AudioWithSupplementaryDataset(Dataset):
     """
-    LJSpeech stats not counting files inside of wavs_to_ignore_v4
+    LJSpeech stats not counting files inside of wavs_to_ignore
     pitch_min = tensor(80.5247)
     pitch_max = tensor(783.9908)
     energy_min = 0.017866515
@@ -535,34 +535,30 @@ class FastSpeechWithDurs(Dataset):
     duration_max = 101
     """
 
-    # @property
-    # def output_types(self) -> Optional[Dict[str, NeuralType]]:
-    #     """Returns definitions of module output ports."""
-    #     return {
-    #         'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-    #         'a_sig_length': NeuralType(('B'), LengthsType()),
-    #         'transcripts': NeuralType(('B', 'T'), LabelsType()),
-    #         'transcript_length': NeuralType(('B'), LengthsType()),
-    #     }
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports."""
+        return {
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
+            'a_sig_length': NeuralType(('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), TokenIndex()),
+            'transcript_length': NeuralType(('B'), LengthsType()),
+            'durations': NeuralType(('B', 'T'), TokenDurationType()),
+            'pitches': NeuralType(('B', 'T'), RegressionValuesType()),
+            'energies': NeuralType(('B', 'T'), RegressionValuesType()),
+        }
 
     def __init__(
         self,
         manifest_filepath: str,
         sample_rate: int,
         supplementary_dir: str,
-        # int_values: bool = False,
-        # augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         ignore_file: Optional[str] = None,
         max_utts: int = 0,
         trim: bool = False,
         load_supplementary_values: bool = True,  # NOTE: Val files do not have some sup files, this param is also kinda hacky
-        # bos_id: Optional[int] = None,
-        # eos_id: Optional[int] = None,
-        # pad_id: int = 0,
-        # load_audio: bool = True,
-        # add_misc: bool = False,
     ):
         super().__init__()
 
@@ -758,7 +754,7 @@ class FastSpeechWithDurs(Dataset):
         if self.load_supplementary_values:
             return f, fl, t, tl, sample.duration, sample.pitches, sample.energies
         else:
-            return f, fl, t, tl, sample.duration
+            return f, fl, t, tl, sample.duration, None, None
 
     def __len__(self):
         return len(self.data)
@@ -768,7 +764,7 @@ class FastSpeechWithDurs(Dataset):
         if self.load_supplementary_values:
             _, audio_lengths, _, tokens_lengths, duration, pitches, energies = zip(*batch)
         else:
-            _, audio_lengths, _, tokens_lengths, duration = zip(*batch)
+            _, audio_lengths, _, tokens_lengths, duration, _, _ = zip(*batch)
         max_audio_len = 0
         max_audio_len = max(audio_lengths).item()
         max_tokens_len = max(tokens_lengths).item()
@@ -789,7 +785,7 @@ class FastSpeechWithDurs(Dataset):
             if self.load_supplementary_values:
                 sig, sig_len, tokens_i, tokens_i_len, duration, pitch, energy = sample_tuple
             else:
-                sig, sig_len, tokens_i, tokens_i_len, duration = sample_tuple
+                sig, sig_len, tokens_i, tokens_i_len, duration, _, _ = sample_tuple
             # TODO: Refactoring -- write general padding utility function for cleanliness
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
@@ -843,6 +839,8 @@ class FastSpeechWithDurs(Dataset):
             tokens,
             tokens_lengths,
             duration_batched,
+            None,
+            None
         )
 
 
