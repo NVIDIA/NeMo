@@ -73,7 +73,7 @@ class EntityLinkingModel(NLPModel, Exportable):
         """
         input_ids, token_type_ids, attention_mask, concept_ids = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
-        train_loss = self.loss(logits=logits, concept_ids=concept_ids)
+        train_loss = self.loss(logits=logits, labels=concept_ids)
 
         # No hard examples found in batch, 
         # shouldn't use this batch to update model weights
@@ -96,7 +96,7 @@ class EntityLinkingModel(NLPModel, Exportable):
         input_ids, input_type_ids, input_mask, concept_ids = batch
         with torch.no_grad():
             logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-            val_loss = self.loss(logits=logits, concept_ids=concept_ids)
+            val_loss = self.loss(logits=logits, labels=concept_ids)
 
         # No hard examples found in batch, 
         # shouldn't use this batch to update model weights
@@ -125,7 +125,7 @@ class EntityLinkingModel(NLPModel, Exportable):
 
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        if not train_data_config or not train_data_config.file_path:
+        if not train_data_config or not train_data_config.data_file:
             logging.info(
                 f"Dataloader config or file_path or processed data path for the train dataset is missing, \
                         so no data loader for train is created!"
@@ -137,7 +137,7 @@ class EntityLinkingModel(NLPModel, Exportable):
         self._train_dl = self.setup_dataloader(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        if not val_data_config or not val_data_config.file_path:
+        if not val_data_config or not val_data_config.data_file:
             logging.info(
                 f"Dataloader config or file_path or processed data path for the val dataset is missing, \
                         so no data loader for validation is created!"
