@@ -148,13 +148,13 @@ class TestSentencePieceTokenizer:
         assert text == result
 
     @pytest.mark.unit
-    def test_text_to_tokens(self, test_data_dir):
+    def test_text_to_ids(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
 
         # <cls> is user_defined_symbol in the test tokenizer model
         # <unk>, <sep>, <s>, and </s> are control symbols
         text = "<cls> a b c <sep> e f g h i </s>"
-        tokens = tokenizer.text_to_tokens(text)
+        tokens = tokenizer.text_to_ids(text)
 
         assert tokens.count(tokenizer.token_to_id("<cls>")) == 1
         assert tokens.count(tokenizer.token_to_id("<sep>")) == 0
@@ -221,11 +221,11 @@ class TestYouTokenToMeTokenizer:
         assert text == result
 
     @pytest.mark.unit
-    def test_text_to_tokens(self, test_data_dir):
+    def test_text_to_ids(self, test_data_dir):
         tokenizer = YouTokenToMeTokenizer(test_data_dir + self.model_name)
 
         text = "<BOS> a b c <UNK> e f g h i <EOS>"
-        tokens = tokenizer.text_to_tokens(text)
+        tokens = tokenizer.text_to_ids(text)
 
         assert tokens.count(tokenizer.bos_id) == 0
         assert tokens.count(tokenizer.unk_id) == 0
