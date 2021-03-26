@@ -26,8 +26,8 @@ class L1MelLoss(Loss):
     @property
     def input_types(self):
         return {
-            "spec_pred": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spec_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec_pred": NeuralType(('B', 'T', 'C'), MelSpectrogramType()), # Transposed from target!
+            "spec_target": NeuralType(('B', 'C', 'T'), MelSpectrogramType()),
             "spec_target_len": NeuralType(('B'), LengthsType()),
             "pad_value": NeuralType(),
         }
@@ -70,8 +70,8 @@ class L2MelLoss(Loss):
     @property
     def input_types(self):
         return {
-            "spec_pred": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spec_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec_pred": NeuralType(('B', 'T', 'C'), MelSpectrogramType()), # Transposed from target!
+            "spec_target": NeuralType(('B', 'C', 'T'), MelSpectrogramType()),
             "spec_target_len": NeuralType(('B'), LengthsType()),
             "pad_value": NeuralType(),
         }

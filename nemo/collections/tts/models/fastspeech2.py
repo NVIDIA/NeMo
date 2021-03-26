@@ -26,6 +26,8 @@ from nemo.collections.tts.losses.fastspeech2loss import L2MelLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastspeech2 import FastSpeech2Encoder, MelSpecDecoder, VarianceAdaptor
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types.elements import *
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
 
@@ -91,29 +93,41 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.log_train_images = False
 
-    # @property
-    # def input_types(self):
-    #     return {"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())}
+    @property
+    def input_types(self):
+        return {
+            "spec_len": NeuralType(('B'), LengthsType()),
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "text_length": NeuralType(('B'), LengthsType()),
+            "durations": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "energies": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+        }
 
-    # @property
-    # def output_types(self):
-    #     # May need to condition on OperationMode.training vs OperationMode.validation
-    #     pass
+    @property
+    def output_types(self):
+        return {
+            "mel_spec": NeuralType(('B', 'T', 'C'), MelSpectrogramType()),
+            "log_dur_preds": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
+            "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "energy_preds": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "encoded_text_mask": NeuralType(('B', 'T', 'D'), MaskType()),
+        }
 
     @typecheck()
     def forward(self, *, spec_len, text, text_length, durations=None, pitch=None, energies=None):
-        with typecheck.disable_checks():
-            encoded_text, encoded_text_mask = self.encoder(text=text, text_lengths=text_length)
-            aligned_text, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
-                x=encoded_text,
-                x_len=text_length,
-                dur_target=durations,
-                pitch_target=pitch,
-                energy_target=energies,
-                spec_len=spec_len
-            )
-            mel = self.mel_decoder(decoder_input=aligned_text, lengths=spec_len)
-            return mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
+        #with typecheck.disable_checks(): # TODO: remove
+        encoded_text, encoded_text_mask = self.encoder(text=text, text_length=text_length)
+        aligned_text, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
+            x=encoded_text,
+            x_len=text_length,
+            dur_target=durations,
+            pitch_target=pitch,
+            energy_target=energies,
+            spec_len=spec_len
+        )
+        mel = self.mel_decoder(decoder_input=aligned_text, lengths=spec_len)
+        return mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx):
         if self.vocab is None:
@@ -141,15 +155,6 @@ class FastSpeech2Model(SpectrogramGenerator):
             total_loss += energy_loss
             self.log(name="train_energy_loss", value=energy_loss)
         self.log(name="train_loss", value=total_loss)
-        # if (self.global_step + 1) % 200 == 0:
-        #     logging.info(f"train_loss: {total_loss}")
-        #     logging.info(f"train_mel_loss: {loss}")
-        #     if self.duration:
-        #         logging.info(f"train_dur_loss: {dur_loss}")
-        #     if self.pitch:
-        #         logging.info(f"train_pitch_loss: {pitch_loss}")
-        #     if self.energy:
-        #         logging.info(f"train_energy_loss: {energy_loss}")
         return {"loss": total_loss, "outputs": [spec, mel]}
 
     def training_epoch_end(self, training_step_outputs):
@@ -174,10 +179,7 @@ class FastSpeech2Model(SpectrogramGenerator):
             self.log_train_images = False
 
     def validation_step(self, batch, batch_idx):
-        if self.vocab is None:
-            f, fl, t, tl, _ = batch
-        else:
-            f, fl, t, tl, _, _, _ = batch
+        f, fl, t, tl, _, _, _ = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
         mel, log_dur_preds, _, _, _ = self(spec_len=spec_len, text=t, text_length=tl)
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
@@ -211,17 +213,14 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.log_train_images = True
 
-    # @typecheck(
-    #     input_types={"text": NeuralType(('B', 'T'), TokenIndex()), "text_lengths": NeuralType(('B'), LengthsType())},
-    #     output_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType())},
-    # )
+    #@typecheck(output_types={"spect": NeuralType(('B', 'T', 'C'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: torch.Tensor) -> torch.Tensor:
         # TODO
-        pass
+        raise NotImplementedError
 
     def parse(self, str_input: str) -> torch.Tensor:
         # TODO
-        pass
+        raise NotImplementedError
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
