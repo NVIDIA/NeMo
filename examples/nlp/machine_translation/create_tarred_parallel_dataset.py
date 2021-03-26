@@ -26,6 +26,10 @@ if __name__ == '__main__':
     parser.add_argument('--src_fname', type=str, required=True, help='Path to the source file')
     parser.add_argument('--tgt_fname', type=str, required=True, help='Path to the target file')
     parser.add_argument('--out_dir', type=str, required=True, help='Path to store dataloader and tokenizer models')
+    parser.add_argument('--encoder_model_name', type=str, default=None, help='For use with pretrained encoders')
+    parser.add_argument(
+        '--decoder_model_name', type=str, default=None, help='For use with pretrained decoders (not yet supported)'
+    )
     parser.add_argument(
         '--encoder_tokenizer_model', type=str, default='None', help='Path to pre-trained encoder tokenizer model'
     )
@@ -120,9 +124,11 @@ if __name__ == '__main__':
         tgt_fname=args.tgt_fname,
         out_dir=args.out_dir,
         encoder_tokenizer_name=args.encoder_tokenizer_name,
+        encoder_model_name=args.encoder_model_name,
         encoder_tokenizer_model=encoder_tokenizer_model,
         encoder_bpe_dropout=args.encoder_tokenizer_bpe_dropout,
         decoder_tokenizer_name=args.decoder_tokenizer_name,
+        decoder_model_name=args.decoder_model_name,
         decoder_tokenizer_model=decoder_tokenizer_model,
         decoder_bpe_dropout=args.decoder_tokenizer_bpe_dropout,
         max_seq_length=args.max_seq_length,
