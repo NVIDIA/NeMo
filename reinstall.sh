@@ -24,7 +24,6 @@ ${PIP} uninstall -y nemo_simple_gan
 ${PIP} install -U setuptools
 
 echo 'Installing stuff'
-# ${PIP} install numba --upgrade --ignore-installed
 ${PIP} install ${PIP_INSTALL_OPTION} ".[all]"
 
 echo 'All done!'

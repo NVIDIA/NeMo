@@ -49,6 +49,8 @@ def rnnt_loss_cpu(
     """
     Wrapper method for accessing CPU RNNT loss.
 
+    CPU implementation ported from [HawkAaron/warp-transducer](https://github.com/HawkAaron/warp-transducer).
+
     Args:
         acts: Activation tensor of shape [B, T, U, V+1].
         labels: Ground truth labels of shape [B, U].
@@ -138,6 +140,8 @@ def rnnt_loss_gpu(
 ):
     """
     Wrapper method for accessing GPU RNNT loss.
+
+    CUDA implementation ported from [HawkAaron/warp-transducer](https://github.com/HawkAaron/warp-transducer).
 
     Args:
         acts: Activation tensor of shape [B, T, U, V+1].

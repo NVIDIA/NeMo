@@ -123,11 +123,11 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
     loss_kwargs = {} if loss_kwargs is None else loss_kwargs
 
     if loss_name == 'warprnnt':
-        loss_func = warprnnt.RNNTLoss(blank=blank_idx, reduction=loss_kwargs.pop('reduction', 'none'))
+        loss_func = warprnnt.RNNTLoss(blank=blank_idx, reduction='none')
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'warprnnt_numba':
-        loss_func = RNNTLossNumba(blank=blank_idx, reduction=loss_kwargs.pop('reduction', 'none'))
+        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none')
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     else:
