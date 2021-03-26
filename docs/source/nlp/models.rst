@@ -20,5 +20,4 @@ NeMo's NLP collection supports the following models:
    information_retrieval
    nmt
    nlp_model
-   
-
+   machine_translation

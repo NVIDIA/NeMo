@@ -80,11 +80,11 @@ Data Cleaning, Normalization & Tokenization
 
 We recommend applying the following steps to clean, normalize and tokenize your data. All pre-trained models released apply these data pre-processing steps.
 
-#. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language.
-For example, many datasets contain examples where source and target sentences are in the same language . You can use a pre-trained language ID classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`.
+1. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language.
+For example, many datasets contain examples where source and target sentences are in the same language . You can use a pre-trained language ID classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__.
 You can then run our script using the `lid.176.bin` model downloaded from the fastText website.
 
-..code ::
+.. code ::
 
     python NeMo/scripts/neural_machine_translation/filter_by_language.py \
       --input-src train.en \
@@ -97,16 +97,16 @@ You can then run our script using the `lid.176.bin` model downloaded from the fa
       --removed-tgt train_noise.de \
       --fasttext-model lid.176.bin
 
-#. Length filtering - We filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250).
+2. Length filtering - We filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250).
 We also filter out sentences where the ratio between source and target lengths exceeds 1.3 except for English <-> Chinese models.
-`Moses <https://github.com/moses-smt/mosesdecoder>` is a statistical machine translation toolkit that contains many useful pre-processing scripts.
+`Moses <https://github.com/moses-smt/mosesdecoder>`__ is a statistical machine translation toolkit that contains many useful pre-processing scripts.
 
-..code ::
+.. code ::
 
     perl mosesdecoder/scripts/training/clean-corpus-n.perl -ratio 1.3 train en es train.filter 1 250
 
-#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many puncutations, it does not help in cases where the translations are potentially incorrect, disfluent or incomplete.
-We use `bicleaner <https://github.com/bitextor/bicleaner>` a tool to identify such sentences. It trains a classifier based on many features included pre-trained language model fluency, word alignment scores from a word-alignment model like `Giza++ <https://github.com/moses-smt/giza-pp>` etc.
+3. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many puncutations, it does not help in cases where the translations are potentially incorrect, disfluent or incomplete.
+We use `bicleaner <https://github.com/bitextor/bicleaner>`__ a tool to identify such sentences. It trains a classifier based on many features included pre-trained language model fluency, word alignment scores from a word-alignment model like `Giza++ <https://github.com/moses-smt/giza-pp>`__ etc.
 We use their available pre-trained models wherever possible and train models ourselves using their framework for remaining languages. The following script will apply a pre-trained bicleaner model to the data and pick sentences that are clean with probability > 0.5.
 
 .. code ::
@@ -115,152 +115,137 @@ We use their available pre-trained models wherever possible and train models our
     | paste -d "\t" - train.filter.en train.filter.es \
     | bicleaner-classify - - </path/to/bicleaner.yaml> > train.en-es.bicleaner.score
 
-    awk -F "\t" '{ if ($5>0.5) {print $3}}' train.en-es.bicleaner.score > train.bicleaner.en
-    awk -F "\t" '{ if ($5>0.5) {print $4}}' train.en-es.bicleaner.score > train.bicleaner.es
+4. Data deduplication - We use `bifixer <https://github.com/bitextor/bifixer>`__ (which uses xxHash) to hash the source and target sentences based on which we remove duplicate entries from the file.
+You may want to do something similar to remove training examples that are in the test dataset.
 
-#. Data deduplication - paste -d " " train.bicleaner.en train.bicleaner.es | awk -F "\t" '!seen[$1]++' - > 
+.. code ::
 
-#. Punctuation Normalization - Punctuation, especially things like quotes can be written in different ways and its often useful to normalize the way they appear in text. We use the moses punctuation normalizer on all languages except Chinese.
+    cat train.en-es.bicleaner.score \
+      | parallel -j 25 --pipe -k -l 30000 python bifixer.py --ignore-segmentation -q - - en es \
+      > train.en-es.bifixer.score
+    
+    awk -F awk -F "\t" '!seen[$6]++' train.en-es.bifixer.score > train.en-es.bifixer.dedup.score
 
-..code ::
 
-    perl mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l es < train.bicleaner.es > train.normalized.es
-    perl mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l en < train.bicleaner.en > train.normalized.en
+Filter out data that bifixer assigns probability < 0.5 to.
+
+.. code ::
+
+    awk -F "\t" '{ if ($5>0.5) {print $3}}' train.en-es.bifixer.dedup.score > train.cleaned.en
+    awk -F "\t" '{ if ($5>0.5) {print $4}}' train.en-es.bifixer.dedup.score > train.cleaned.es
+
+
+5. Punctuation Normalization - Punctuation, especially things like quotes can be written in different ways and its often useful to normalize the way they appear in text. We use the moses punctuation normalizer on all languages except Chinese.
+
+.. code ::
+
+    perl mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l es < train.cleaned.es > train.normalized.es
+    perl mosesdecoder/scripts/tokenizer/normalize-punctuation.perl -l en < train.cleaned.en > train.normalized.en
 
 Example:
 
-..code ::
+.. code ::
+
     Before - Aquí se encuentran joyerías como Tiffany`s entre negocios tradicionales suizos como la confitería Sprüngli.
     After  - Aquí se encuentran joyerías como Tiffany's entre negocios tradicionales suizos como la confitería Sprüngli.
 
-#. Tokenization and word segmentation for Chinese
+6. Tokenization and word segmentation for Chinese
 
 Naturally written text often contains punctuation markers like commas, full-stops and apostrophes that are attached to words. Tokenization by just splitting a string on spaces will result in separate token IDs for very similar items like "NeMo" and "NeMo.".
 Tokenization splits punctuation from the word to create two separate tokens. In the previous example "NeMo." becomes "NeMo ." which when split by space results in two tokens and adressess the earlier problem. Example:
 
-..code ::
+.. code ::
+
     Before - Especialmente porque se enfrentará "a Mathieu (Debuchy), Yohan (Cabaye) y Adil (Rami) ", recuerda.
     After  - Especialmente porque se enfrentará " a Mathieu ( Debuchy ) , Yohan ( Cabaye ) y Adil ( Rami ) " , recuerda .
 
 We use the Moses tokenizer for all languages except Chinese.
 
-..code ::
+.. code ::
 
-    perl mosesdecoder/scripts/tokenizer/tokenizer.perl -l es -no-escape < train.bicleaner.es > train.tokenized.es
-    perl mosesdecoder/scripts/tokenizer/tokenizer.perl -l en -no-escape < train.bicleaner.en > train.tokenized.en
+    perl mosesdecoder/scripts/tokenizer/tokenizer.perl -l es -no-escape < train.normalized.es > train.tokenized.es
+    perl mosesdecoder/scripts/tokenizer/tokenizer.perl -l en -no-escape < train.normalized.en > train.tokenized.en
 
-For languages like Chinese where there is no explicit marker like spaces that separate words, we use `Jieba <https://github.com/fxsjy/jieba>` to segment a string into words that are space separated. Example:
+For languages like Chinese where there is no explicit marker like spaces that separate words, we use `Jieba <https://github.com/fxsjy/jieba>`__ to segment a string into words that are space separated. Example:
 
-..code ::
+.. code ::
+
     Before - 同时，卫生局认为有必要接种的其他人员，包括公共部门，卫生局将主动联络有关机构取得名单后由卫生中心安排接种。
     After  - 同时 ， 卫生局 认为 有 必要 接种 的 其他 人员 ， 包括 公共部门 ， 卫生局 将 主动 联络 有关 机构 取得 名单 后 由 卫生 中心 安排 接种 。
 
 
-BPE Tokenization
+Training a BPE Tokenization
 ------------------
 Byte-pair encoding (BPE) :cite:`nlp-machine_translation-sennrich2015neural` is a sub-word tokenization algorithm that is commonly used to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words.
-Currently, Machine Translation only supports the `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>` BPE tokenizer. One can set the tokenization configuration as follows:
+Currently, Machine Translation only supports the `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>`__ BPE tokenizer. One can set the tokenization configuration as follows:
 
-Model Arguments
-^^^^^^^^^^^^^^^
-The following table lists some of the model's parameters you may use in the config files or set them from command line when training a model:
-
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                                                | **Data Type**   |   **Default**  | **Description**                                                                                |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.{encoder_tokenizer,decoder_tokenizer}.library          | str             | yttm           | BPE library name. Only supports yttm for now.                                                  |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.{encoder_tokenizer,decoder_tokenizer}.tokenizer_model  | str             | null           | Path to an existing YTTM BPE model. If null, will train one from scratch on the provided data. |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.{encoder_tokenizer,decoder_tokenizer}.vocab_size       | int             | null           | Desired vocabulary size after BPE tokenization                                                 |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.{encoder_tokenizer,decoder_tokenizer}.bpe_dropout      | float           | null           | BPE dropout probability. :cite:`nlp-machine_translation-provilkov2019bpe`                      |                                                  |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.{encoder_tokenizer,decoder_tokenizer}.vocab_file       | str             | null           | Path to    |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| **Parameter**                                               | **Data Type**   |   **Default**  | **Description**                                                                                |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{encoder_tokenizer,decoder_tokenizer}.tokenizer_name  | str             | yttm           | BPE library name. Only supports yttm for now.                                                  |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{encoder_tokenizer,decoder_tokenizer}.tokenizer_model | str             | null           | Path to an existing YTTM BPE model. If null, will train one from scratch on the provided data. |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{encoder_tokenizer,decoder_tokenizer}.vocab_size      | int             | null           | Desired vocabulary size after BPE tokenization                                                 |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{encoder_tokenizer,decoder_tokenizer}.bpe_dropout     | float           | null           | BPE dropout probability. :cite:`nlp-machine_translation-provilkov2019bpe`                      |   
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{encoder_tokenizer,decoder_tokenizer}.vocab_file      | str             | null           | Path to pre-computed vocab file if exists                                                      |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.shared_tokenizer                                      | bool            | True           | Whether to share the tokenizer between the encoder and decoder                                 |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
 
 
-Once we've pre-processed our parallel corpus, we can instantiate a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>` object from it. 
+Applying BPE Tokenization, batching, bucketing and padding
+------------------
+Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
+
+1. Text to IDs - This performs subword tokenization with the BPE model on an input string and maps it to a sequence of tokens for the source and target text.
+
+2. Bucketing - Sentences vary in length and when creating minibatches, we'd like sentences in them have roughly the same length to minimize the number of <pad> tokens, to maximize computational efficiency. This step groups sentences on roughly the same length into buckets.
+
+3. Batching and padding - Creates minibatches of with a maximum number of tokens specified by `model.{train_ds,validation_ds,test_ds}.tokens_in_batch` from buckets and pads the sequences to pack them so they can be packed into a tensor.
+
+Datasets can be configured as follows
+
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| **Parameter**                                               | **Data Type**   |   **Default**  | **Description**                                                                                |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.src_file_name        | str             | null           | Path to the source language file                                                               |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.tgt_file_name        | str             | null           | Path to the target language file                                                               |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.tokens_in_batch      | int             | 512            | Maximum number of tokens per minibatch                                                         |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.clean                | bool            | true           | Whether to clean the dataset by discarding examples that are greater than max_seq_length       |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.max_seq_length       | int             | 512            | Path to pre-computed vocab file if exists                                                      |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.cache_ids            | bool            | true           | Whether to cache IDs to avoid re-tokenizing data                                               |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.cache_data_per_node  | bool            | false          | Whether to cache IDs in each of the nodes in multi-node training                               |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.use_cache            | bool            | true           | Whether to use the cache if available                                                          |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.shuffle              | bool            | true           | Whether to shuffle minibatches in the PyTorch DataLoader                                       |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.num_samples          | int             | -1             | Number of samples to use. -1 for the entire dataset                                            |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.drop_last            | bool            | false          | Drop last minibatch if it is not of equal size to the others                                   |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.pin_memory           | bool            | false          | Whether to pin memory in the PyTorch DataLoader                                                |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.num_workers          | int             | 8              | Number of workers for the PyTorch DataLoader                                                   |
++-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
 
 
 Tarred Datasets for Large Corpora
 ------------------
-When working with 
-
-Model Training
---------------
-
-.. code::
-
-    python examples/nlp/text_classification/text_classification_with_bert.py \
-        model.training_ds.file_path=<TRAIN_FILE_PATH> \
-        model.validation_ds.file_path=<VALIDATION_FILE_PATH> \
-        trainer.max_epochs=50 \
-        trainer.gpus=[0,1] \
-        optim.name=adam \
-        optim.lr=0.0001 \
-        model.nemo_path=<NEMO_FILE_PATH>
-
-Model Arguments
-^^^^^^^^^^^^^^^
-The following table lists some of the model's parameters you may use in the config files or set them from command line when training a model:
-
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |   **Default**                                  | **Description**                                                                                              |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.class_labels.class_labels_file      | string          | null                                           | Path to an optional file containing the labels; each line is the string label corresponding to a label       |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.dataset.num_classes                 | int             | ?                                              | Number of the categories or classes, 0 < Label <num_classes                                                  |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.dataset.do_lower_case               | boolean         | true for uncased models, false for cased       | Specifies if inputs should be made lower case, would be set automatically if pre-trained model is used       |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.dataset.max_seq_length              | int             | 256                                            | Maximum length of the input sequences.                                                                       |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.dataset.class_balancing             | string          | null                                           | null or 'weighted_loss'. 'weighted_loss' enables the weighted class balancing to handle unbalanced classes   |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.dataset.use_cache                   | boolean         | false                                          | uses a cache to store the processed dataset, you may use it for large datasets for speed up                  |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.classifier_head.num_output_layers   | integer         | 2                                              | Number of fully connected layers of the Classifier on top of Bert model                                      |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| model.classifier_head.fc_dropout          | float           | 0.1                                            | Dropout ratio of the fully connected layers                                                                  |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| {training,validation,test}_ds.file_path   | string          | ??                                             | Path of the training '.tsv file                                                                              |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------------+
-| {training,validation,test}_ds.batch_size  | integer         | 32                                             | Data loader's batch size                                                                                     |
-+-------------------------------------------+-----------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------------+
-| {training,validation,test}_ds.num_workers | integer         | 2                                              | Number of worker threads for data loader                                                                     |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| {training,validation,test}_ds.shuffle     | boolean         | true (training), false (test and validation)   | Shuffles data for each epoch                                                                                 |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| {training,validation,test}_ds.drop_last   | boolean         | false                                          | Specifies if last batch of data needs to get dropped if it is smaller than batch size                        |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| {training,validation,test}_ds.pin_memory  | boolean         | false                                          | Enables pin_memory of PyTorch's data loader to enhance speed                                                 |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-| {training,validation,test}_ds.num_samples | integer         | -1                                             | Number of samples to be used from the dataset; -1 means all samples                                          |
-+-------------------------------------------+-----------------+------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
-
-
-Training Procedure
-^^^^^^^^^^^^^^^^^^
-
-After each epoch, you should see a summary table of metrics on the validation set which include the following metrics:
-
-* :code:`Precision`
-* :code:`Recall`
-* :code:`F1`
-
-At the end of training, NeMo will save the last checkpoint at the path specified in '.nemo' format.
-
-Model Evaluation and Inference
-------------------------------
-
-After saving the model in '.nemo' format, you may load the model and perform evaluation or inference on the model.
-You may find some example in the example script: `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/text_classification_with_bert.py>`__
 
 References
 ----------
 
 .. bibliography:: nlp_all.bib
     :style: plain
-    :labelprefix: machine_translation
-    :keyprefix: machine_translation-
+    :labelprefix: nlp-machine_translation
+    :keyprefix: nlp-machine_translation-
