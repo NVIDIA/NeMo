@@ -15,6 +15,7 @@
 import random
 
 import librosa
+import numpy as np
 import pytest
 import torch
 
@@ -73,9 +74,9 @@ class TestFilterbankFeatures:
                 result.shape[2] == result_len[0]
             ), f"{result.shape} != {result_len}: {nfft}, {window_size}, {hop_size}, {audio_length}"
 
-            spec = librosa.stft(
-                test_1.cpu().detach().numpy().squeeze(), n_fft=nfft, hop_length=hop_size, win_length=window_size
-            )
+            test_2 = test_1.cpu().detach().numpy().squeeze()
+            test_2 = np.pad(test_2, int((window_size - hop_size) // 2), mode="reflect")
+            spec = librosa.stft(test_2, n_fft=nfft, hop_length=hop_size, win_length=window_size, center=False,)
 
             assert (
                 spec.shape[1] == result.shape[2]
