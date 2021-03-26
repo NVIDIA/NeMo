@@ -62,10 +62,10 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/
 
-.. |v1.0.0b1| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.0b1
+.. |stable| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/
+  :target:  https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/
 
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 | Version | Status      | Description                                                                                                                      |
@@ -74,7 +74,7 @@ Documentation
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 | Next    | |r1.0.0rc1| | `Documentation of the next release (i.e. r1.0.0rc1). <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/>`_ |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Stable  | |v1.0.0b1|  | `Documentation of the stable (i.e. v1.0.0b1) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/>`_  |
+| Stable  | |stable|    | `Documentation of the stable (i.e. stable) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_      |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 
 Tutorials
