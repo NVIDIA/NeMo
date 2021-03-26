@@ -16,6 +16,7 @@ import os
 import re
 from typing import Dict, List, Optional, Union
 
+import numpy as np
 import sentencepiece
 
 from nemo.collections.common.parts.utils import if_exist
@@ -30,7 +31,9 @@ class SentencePieceTokenizer(TokenizerSpec):
     Sentencepiecetokenizer https://github.com/google/sentencepiece.
     '''
 
-    def __init__(self, model_path: str, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None):
+    def __init__(
+        self, model_path: str, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None, legacy: bool = False
+    ):
         """
         Args:
             model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
@@ -42,84 +45,105 @@ class SentencePieceTokenizer(TokenizerSpec):
         self.tokenizer.Load(model_path)
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
+        self.legacy = legacy
         self.special_token_to_id = {}
         self.id_to_special_token = {}
         if special_tokens:
+            if not self.legacy:
+                raise ValueError(
+                    "Special tokens cannot be non-None when legacy is set to False. Provide special tokens at train time, or set legacy=True."
+                )
             self.add_special_tokens(special_tokens)
 
     def text_to_tokens(self, text):
-        tokens = []
-        idx = 0
-        last_idx = 0
+        if self.legacy:
+            tokens = []
+            idx = 0
+            last_idx = 0
 
-        while 1:
-            indices = {}
+            while 1:
+                indices = {}
 
-            for token in self.special_token_to_id:
-                try:
-                    indices[token] = text[idx:].index(token)
-                except ValueError:
-                    continue
+                for token in self.special_token_to_id:
+                    try:
+                        indices[token] = text[idx:].index(token)
+                    except ValueError:
+                        continue
 
-            if len(indices) == 0:
-                break
+                if len(indices) == 0:
+                    break
 
-            next_token = min(indices, key=indices.get)
-            next_idx = idx + indices[next_token]
+                next_token = min(indices, key=indices.get)
+                next_idx = idx + indices[next_token]
 
-            tokens.extend(self.tokenizer.encode_as_pieces(text[idx:next_idx]))
-            tokens.append(next_token)
-            idx = next_idx + len(next_token)
+                tokens.extend(self.tokenizer.encode_as_pieces(text[idx:next_idx]))
+                tokens.append(next_token)
+                idx = next_idx + len(next_token)
 
-        tokens.extend(self.tokenizer.encode_as_pieces(text[idx:]))
-        return tokens
+            tokens.extend(self.tokenizer.encode_as_pieces(text[idx:]))
+            return tokens
+
+        return self.tokenizer.encode_as_pieces(text)
 
     def text_to_ids(self, text):
-        ids = []
-        idx = 0
-        last_idx = 0
+        if self.legacy:
+            ids = []
+            idx = 0
+            last_idx = 0
 
-        while 1:
-            indices = {}
+            while 1:
+                indices = {}
 
-            for token in self.special_token_to_id:
-                try:
-                    indices[token] = text[idx:].index(token)
-                except ValueError:
-                    continue
+                for token in self.special_token_to_id:
+                    try:
+                        indices[token] = text[idx:].index(token)
+                    except ValueError:
+                        continue
 
-            if len(indices) == 0:
-                break
+                if len(indices) == 0:
+                    break
 
-            next_token = min(indices, key=indices.get)
-            next_idx = idx + indices[next_token]
+                next_token = min(indices, key=indices.get)
+                next_idx = idx + indices[next_token]
 
-            ids.extend(self.tokenizer.encode_as_ids(text[idx:next_idx]))
-            ids.append(self.special_token_to_id[next_token])
-            idx = next_idx + len(next_token)
+                ids.extend(self.tokenizer.encode_as_ids(text[idx:next_idx]))
+                ids.append(self.special_token_to_id[next_token])
+                idx = next_idx + len(next_token)
 
-        ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
-        return ids
+            ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
+            return ids
+
+        return self.tokenizer.encode_as_ids(text)
 
     def tokens_to_text(self, tokens):
+        if isinstance(tokens, np.ndarray):
+            tokens = tokens.tolist()
+
         return self.tokenizer.decode_pieces(tokens)
 
     def ids_to_text(self, ids):
-        text = ""
-        last_i = 0
+        if isinstance(ids, np.ndarray):
+            ids = ids.tolist()
 
-        for i, id in enumerate(ids):
-            if id in self.id_to_special_token:
-                text += self.tokenizer.decode_ids(ids[last_i:i]) + " "
-                text += self.id_to_special_token[id] + " "
-                last_i = i + 1
+        if self.legacy:
+            text = ""
+            last_i = 0
 
-        text += self.tokenizer.decode_ids(ids[last_i:])
-        return text.strip()
+            for i, id in enumerate(ids):
+                if id in self.id_to_special_token:
+                    text += self.tokenizer.decode_ids(ids[last_i:i]) + " "
+                    text += self.id_to_special_token[id] + " "
+                    last_i = i + 1
+
+            text += self.tokenizer.decode_ids(ids[last_i:])
+            return text.strip()
+
+        return self.tokenizer.decode_ids(ids)
 
     def token_to_id(self, token):
-        if token in self.special_token_to_id:
+        if self.legacy and token in self.special_token_to_id:
             return self.special_token_to_id[token]
+
         return self.tokenizer.piece_to_id(token)
 
     def ids_to_tokens(self, ids):
@@ -140,6 +164,9 @@ class SentencePieceTokenizer(TokenizerSpec):
         return ids
 
     def add_special_tokens(self, special_tokens):
+        if not self.legacy:
+            raise AttributeError("Special Token addition does not work when legacy is set to False.")
+
         if isinstance(special_tokens, list):
             for token in special_tokens:
                 if (
@@ -162,23 +189,45 @@ class SentencePieceTokenizer(TokenizerSpec):
 
     @property
     def pad_id(self):
-        return self.tokens_to_ids([self.pad_token])[0]
+        if self.legacy:
+            pad_id = self.tokens_to_ids([self.pad_token])[0]
+        else:
+            pad_id = self.tokenizer.pad_id()
+        return pad_id
 
     @property
     def bos_id(self):
-        return self.tokens_to_ids([self.bos_token])[0]
+        if self.legacy:
+            bos_id = self.tokens_to_ids([self.bos_token])[0]
+        else:
+            bos_id = self.tokenizer.bos_id()
+        return bos_id
 
     @property
     def eos_id(self):
-        return self.tokens_to_ids([self.eos_token])[0]
+        if self.legacy:
+            eos_id = self.tokens_to_ids([self.eos_token])[0]
+        else:
+            eos_id = self.tokenizer.eos_id()
+        return eos_id
 
     @property
     def sep_id(self):
-        return self.tokens_to_ids([self.sep_token])[0]
+        if self.legacy:
+            return self.tokens_to_ids([self.sep_token])[0]
+        else:
+            raise NameError("Use function token_to_id to retrieve special tokens other than unk, pad, bos, and eos.")
 
     @property
     def cls_id(self):
-        return self.tokens_to_ids([self.cls_token])[0]
+        if self.legacy:
+            return self.tokens_to_ids([self.cls_token])[0]
+        else:
+            raise NameError("Use function token_to_id to retrieve special tokens other than unk, pad, bos, and eos.")
+
+    @property
+    def unk_id(self):
+        return self.tokenizer.unk_id()
 
 
 def create_spt_model(
@@ -191,6 +240,11 @@ def create_spt_model(
     character_coverage: float = 1.0,
     train_extremely_large_corpus: bool = False,
     max_sentencepiece_length: int = -1,
+    bos: bool = False,
+    eos: bool = False,
+    pad: bool = False,
+    control_symbols: List[str] = None,
+    user_defined_symbols: List[str] = None,
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -206,6 +260,11 @@ def create_spt_model(
             to build the tokenizer.
         max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
             By default, no limit is placed.
+        bos: when True, bos token "<s>" is added to the vocabulary.
+        eos: when True, eos token "</s>" is added to the vocabulary.
+        pad: when True, pad token "<pad>" is added to the vocabulary.
+        control_symbols: control symbols to add to tokenizer, as defined by sentencepiece.
+        user_defined_symbols: user symbols to add to tokenizer, as defined by sentencepiece.
     """
 
     if not data_file or not os.path.exists(data_file):
@@ -225,9 +284,29 @@ def create_spt_model(
         f"--vocab_size={vocab_size} "
         f"--shuffle_input_sentence=true --hard_vocab_limit=false "
         f"--model_type={tokenizer_type} "
-        f"--character_coverage={character_coverage} "
-        f"--bos_id=-1 --eos_id=-1"
+        f"--character_coverage={character_coverage}"
     )
+
+    pad_id = 3
+    if not bos:
+        pad_id -= 1
+        cmd += " --bos_id=-1"
+
+    if not eos:
+        pad_id -= 1
+        cmd += " --eos_id=-1"
+
+    if pad:
+        cmd += f" --pad_id={pad_id}"
+
+    if control_symbols:
+        control_string = (",").join(control_symbols)
+        cmd += f" --control_symbols={control_string}"
+
+    if user_defined_symbols:
+        user_string = (",").join(user_defined_symbols)
+        cmd += f" --user_defined_symbols={user_string}"
+
     if do_lower_case:
         cmd += " --normalization_rule_name=nmt_nfkc_cf"
 
@@ -244,13 +323,16 @@ def create_spt_model(
 
     # Add BERT control symbols
     tokens = []
+    special_tokens = ["<s>", "</s>", "<pad>", "<unk>"]
+    special_tokens += control_symbols + user_defined_symbols
 
     with open(f"{output_dir}/tokenizer.vocab", "r") as f:
-        f.readline()  # skip first <unk> token
-
         # Read tokens from each line and parse for vocab
         for line in f:
             piece = line.split("\t")[0]
+            if piece in special_tokens:
+                # skip special tokens
+                continue
             token = piece[1:] if piece.startswith("▁") else f"##{piece}"
 
             if len(token) > 0:
