@@ -64,6 +64,9 @@ if __name__ == '__main__':
         default=1000,
         help='Number of batches (pickle files) within each tarfile',
     )
+    parser.add_argument(
+        '--n_preproc_jobs', type=int, default=-2, help='Number of processes to use for creating the tarred dataset.',
+    )
 
     args = parser.parse_args()
     if not os.path.exists(args.out_dir):
@@ -116,8 +119,12 @@ if __name__ == '__main__':
         src_fname=args.src_fname,
         tgt_fname=args.tgt_fname,
         out_dir=args.out_dir,
-        encoder_tokenizer=encoder_tokenizer,
-        decoder_tokenizer=decoder_tokenizer,
+        encoder_tokenizer_name=args.encoder_tokenizer_name,
+        encoder_tokenizer_model=encoder_tokenizer_model,
+        encoder_bpe_dropout=args.encoder_tokenizer_bpe_dropout,
+        decoder_tokenizer_name=args.decoder_tokenizer_name,
+        decoder_tokenizer_model=decoder_tokenizer_model,
+        decoder_bpe_dropout=args.decoder_tokenizer_bpe_dropout,
         max_seq_length=args.max_seq_length,
         min_seq_length=args.min_seq_length,
         tokens_in_batch=args.tokens_in_batch,
@@ -126,4 +133,5 @@ if __name__ == '__main__':
         pkl_file_prefix=args.pkl_file_prefix,
         global_rank=0,
         world_size=1,
+        n_jobs=args.n_preproc_jobs,
     )
