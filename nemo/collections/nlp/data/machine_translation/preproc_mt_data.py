@@ -364,7 +364,12 @@ class MTDataPreproc:
                 metadata = {}
                 metadata['num_batches'] = total_batches
 
-                # TODO: rename tar files so they can be more easily used with CLI and YAML
+                # rename tar files so they can be more easily used with CLI and YAML
+                tar_file_paths = glob.glob(f'{out_dir}/*.tar')
+                for index, path in enumerate(tar_file_paths):
+                    os.rename(path, f'batches.tokens.{tokens_in_batch}.{index}.tar')
+
+                # add tar files to manifest
                 tar_file_paths = glob.glob(f'{out_dir}/*.tar')
                 metadata['tar_files'] = tar_file_paths
                 json.dump(metadata, open(metadata_path, 'w'))
@@ -762,14 +767,16 @@ class MTDataPreproc:
 
         # log or possibly return left-over batches remaining in the last tar file for this fragment
         # for now, we are discarding the left-over batches
-        logging.info(f'Total number of batches from fragment {pkl_file_prefix}: {total_batch_ctr}.')
-        num_batches_to_discard = len(tar_file_ptr.getmembers())
-        logging.info(f'Number of batches to be discarded from fragment {pkl_file_prefix}: {num_batches_to_discard}.')
+        # logging.info(f'Total number of batches from fragment {pkl_file_prefix}: {total_batch_ctr}.')
+        # num_batches_to_discard = len(tar_file_ptr.getmembers())
+        # logging.info(f'Number of batches to be discarded from fragment {pkl_file_prefix}: {num_batches_to_discard}.')
+
+        # return tar files paths that have batches remaining
         remainder_tar_file_path = tar_file_ptr.name
         tar_file_ptr.close()
         # os.remove(tar_file_path)
-        num_batches_from_fragment = total_batch_ctr - num_batches_to_discard
-        return num_batches_from_fragment, remainder_tar_file_path
+        # num_batches_from_fragment = total_batch_ctr
+        return total_batch_ctr, remainder_tar_file_path
 
     @staticmethod
     def write_monolingual_batches_to_tarfiles(
