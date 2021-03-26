@@ -1,4 +1,3 @@
-apex
 matplotlib
 pypinyin
 attrdict
