@@ -97,7 +97,7 @@ For more information about the SpeakerNet Encoder models, see the :doc:`Models <
 Decoder Configurations
 ------------------------
 
-After features have been computed from speakernet encoder, we pass these features to thedecoder to compute embeddings and then to compute log probabilities
+After features have been computed from speakernet encoder, we pass these features to the decoder to compute embeddings and then to compute log probabilities
 for training models.
 
 .. code-block:: yaml
