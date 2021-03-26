@@ -18,13 +18,22 @@ from typing import Any, Dict, List, Optional, Union
 
 import hydra
 import torch.optim as optim
-from apex.optimizers import FusedLAMB
 from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.novograd import Novograd
+from nemo.utils import logging
+
+HAVE_APEX = False
+
+try:
+    from apex.optimizers import FusedLAMB
+
+    HAVE_APEX = True
+except ModuleNotFoundError:
+    logging.warning("Apex was not found. Using the lamb optimizer will error out.")
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
