@@ -51,7 +51,7 @@ class SentencePieceTokenizer(TokenizerSpec):
         if special_tokens:
             if not self.legacy:
                 raise ValueError(
-                    "Special tokens cannot be non-None when legacy is set to False. Provide special tokens at train time, or set legacy=True."
+                    "Special tokens must be None when legacy is set to False. Provide special tokens at train time, or set legacy=True."
                 )
             self.add_special_tokens(special_tokens)
 
