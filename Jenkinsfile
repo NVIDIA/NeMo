@@ -1006,6 +1006,7 @@ pipeline {
               python enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
+              do_training=false \
               model.preproc_out_dir=$PWD/preproc_out_dir \
               model.train_ds.use_tarred_dataset=true \
               model.train_ds.n_preproc_jobs=2 \

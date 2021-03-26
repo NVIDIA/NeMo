@@ -154,6 +154,7 @@ class MTDataPreproc:
                         global_rank=self.global_rank,
                         world_size=self.world_size,
                         n_jobs=cfg.train_ds.get('n_preproc_jobs', -2),
+                        tar_file_prefix=cfg.train_ds.get('tar_file_prefix', 'parallel'),
                     )
                     # update config
                     # self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
