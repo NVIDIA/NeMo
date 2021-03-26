@@ -125,10 +125,10 @@ class TalkNetPitchModel(ModelPT):
         return f0_sil, f0_body
 
     # F0_MEAN, F0_STD = 150.23434143088116, 42.795667026124704 # from stas (libri_tts, all?)
-    F0_MEAN, F0_STD = 178.7767791748047, 33.51659393310547 # lj_speech, train
+    # F0_MEAN, F0_STD = 178.7767791748047, 33.51659393310547 # lj_speech, train
     # F0_MEAN, F0_STD = 136.86508178710938, 36.010013580322266 # hi-fi multi-tts(evelina ds), speaker=9017, train
     # F0_MEAN, F0_STD = 186.96742248535156, 34.70537185668945  # hi-fi multi-tts(evelina ds), speaker=92, train
-    # F0_MEAN, F0_STD = 183.02639770507812, 33.22303771972656 # hi-fi multi-tts(evelina ds), speaker=1259, train
+    F0_MEAN, F0_STD = 183.02639770507812, 33.22303771972656 # hi-fi multi-tts(evelina ds), speaker=1259, train
 
     def _metrics(self, true_f0, true_f0_mask, pred_f0_sil, pred_f0_body):
         sil_mask = true_f0 < 1e-5

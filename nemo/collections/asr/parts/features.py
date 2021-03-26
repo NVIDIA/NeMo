@@ -85,10 +85,8 @@ def normalize_batch(x, seq_len, normalize_type):
 
 def splice_frames(x, frame_splicing):
     """ Stacks frames together across feature dim
-
     input is batch_size, feature_dim, num_frames
     output is batch_size, feature_dim*frame_splicing, num_frames
-
     """
     seq = [x]
     for n in range(1, frame_splicing):
@@ -186,8 +184,8 @@ class STFTExactPad(STFTPatch):
             # scale by hop ratio
             inverse_transform *= self.filter_length / self.hop_length
 
-        inverse_transform = inverse_transform[..., self.pad_amount :]
-        inverse_transform = inverse_transform[..., : -self.pad_amount :]
+        inverse_transform = inverse_transform[..., self.pad_amount:]
+        inverse_transform = inverse_transform[..., : -self.pad_amount:]
         inverse_transform = inverse_transform.squeeze(1)
 
         return inverse_transform
@@ -199,39 +197,46 @@ class FilterbankFeatures(nn.Module):
     """
 
     def __init__(
-        self,
-        sample_rate=16000,
-        n_window_size=320,
-        n_window_stride=160,
-        window="hann",
-        normalize="per_feature",
-        n_fft=None,
-        preemph=0.97,
-        nfilt=64,
-        lowfreq=0,
-        highfreq=None,
-        log=True,
-        log_zero_guard_type="add",
-        log_zero_guard_value=2 ** -24,
-        dither=CONSTANT,
-        pad_to=16,
-        max_duration=16.7,
-        frame_splicing=1,
-        stft_exact_pad=False,
-        stft_conv=False,
-        pad_value=0,
-        mag_power=2.0,
-        use_grads=False,
+            self,
+            sample_rate=16000,
+            n_window_size=320,
+            n_window_stride=160,
+            window="hann",
+            normalize="per_feature",
+            n_fft=None,
+            preemph=0.97,
+            nfilt=64,
+            lowfreq=0,
+            highfreq=None,
+            log=True,
+            log_zero_guard_type="add",
+            log_zero_guard_value=2 ** -24,
+            dither=CONSTANT,
+            pad_to=16,
+            max_duration=16.7,
+            frame_splicing=1,
+            exact_pad=False,
+            stft_exact_pad=False,  # TODO: Remove this in 1.1.0
+            stft_conv=False,  # TODO: Remove this in 1.1.0
+            pad_value=0,
+            mag_power=2.0,
+            use_grads=False,
     ):
         super().__init__()
+        if stft_conv or stft_exact_pad:
+            logging.warning(
+                "Using torch_stft is deprecated and will be removed in 1.1.0. Please set stft_conv and stft_exact_pad "
+                "to False for FilterbankFeatures and AudioToMelSpectrogramPreprocessor. Please set exact_pad to True "
+                "as needed."
+            )
         self.log_zero_guard_value = log_zero_guard_value
         if (
-            n_window_size is None
-            or n_window_stride is None
-            or not isinstance(n_window_size, int)
-            or not isinstance(n_window_stride, int)
-            or n_window_size <= 0
-            or n_window_stride <= 0
+                n_window_size is None
+                or n_window_stride is None
+                or not isinstance(n_window_size, int)
+                or not isinstance(n_window_stride, int)
+                or n_window_size <= 0
+                or n_window_stride <= 0
         ):
             raise ValueError(
                 f"{self} got an invalid value for either n_window_size or "
@@ -242,6 +247,7 @@ class FilterbankFeatures(nn.Module):
         self.win_length = n_window_size
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
+        self.stft_pad_amount = (self.win_length - self.hop_length) // 2 if exact_pad else 0
         self.stft_exact_pad = stft_exact_pad
         self.stft_conv = stft_conv
 
@@ -269,7 +275,7 @@ class FilterbankFeatures(nn.Module):
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
                 win_length=self.win_length,
-                center=False if stft_exact_pad else True,
+                center=False if exact_pad else True,
                 window=self.window.to(dtype=torch.float),
                 return_complex=False,
             )
@@ -336,11 +342,13 @@ class FilterbankFeatures(nn.Module):
             return self.log_zero_guard_value
 
     def get_seq_len(self, seq_len):
-        rough_seq_len = seq_len / self.hop_length
-        if self.stft_exact_pad:
-            # it is not correct?
-            return torch.floor(rough_seq_len / self.hop_length).to(dtype=torch.long)
-        return torch.floor(rough_seq_len + 1).to(dtype=torch.long)
+        if isinstance(self.stft, STFT):
+            pad_amount = self.stft.pad_amount * 2
+        else:
+            # Assuming that center is True is stft_pad_amount = 0
+            pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount > 0 else self.n_fft // 2 * 2
+        seq_len = torch.floor((seq_len + pad_amount - self.n_fft) / self.hop_length) + 1
+        return seq_len.to(dtype=torch.long)
 
     @property
     def filter_banks(self):
@@ -349,9 +357,10 @@ class FilterbankFeatures(nn.Module):
     def forward(self, x, seq_len):
         seq_len = self.get_seq_len(seq_len.float())
 
-        if self.stft_exact_pad and not self.stft_conv:
-            p = (self.n_fft - self.hop_length) // 2
-            x = torch.nn.functional.pad(x.unsqueeze(1), (p, p), "reflect").squeeze(1)
+        if self.stft_pad_amount > 0:
+            x = torch.nn.functional.pad(
+                x.unsqueeze(1), (self.stft_pad_amount, self.stft_pad_amount), "reflect"
+            ).squeeze(1)
 
         # dither
         if self.dither > 0:
@@ -369,6 +378,8 @@ class FilterbankFeatures(nn.Module):
         if not self.stft_conv:
             # guard is needed for sqrt if grads are passed through
             guard = 0 if not self.use_grads else CONSTANT
+            if x.dtype in [torch.cfloat, torch.cdouble]:
+                x = torch.view_as_real(x)
             x = torch.sqrt(x.pow(2).sum(-1) + guard)
 
         # get power spectrum
@@ -395,8 +406,7 @@ class FilterbankFeatures(nn.Module):
         if self.normalize:
             x = normalize_batch(x, seq_len, normalize_type=self.normalize)
 
-        # mask to zero any values beyond seq_len in batch, pad to multiple of
-        # `pad_to` (for efficiency)
+        # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
         mask = torch.arange(max_len).to(x.device)
         mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
