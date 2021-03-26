@@ -35,12 +35,35 @@ class TestFilterbankFeatures:
 
     @pytest.mark.unit
     def test_random_stft_sizes(self):
-        for _ in range(10):
+        for _ in range(5):
             nfft = random.randint(128, 2048)
             window_size = random.randint(128, nfft)
             hop_size = random.randint(64, window_size)
             fb_module = FilterbankFeatures(
                 exact_pad=False, pad_to=1, n_fft=nfft, n_window_size=window_size, n_window_stride=hop_size
+            )
+            audio_length = random.randint(window_size, 2 ** 16)
+            test_1 = torch.randn(1, audio_length)
+            test_1_len = torch.tensor([audio_length])
+            result, result_len = fb_module(test_1, test_1_len)
+            assert (
+                result.shape[2] == result_len[0]
+            ), f"{result.shape} != {result_len}: {nfft}, {window_size}, {hop_size}, {audio_length}"
+
+            spec = librosa.stft(
+                test_1.cpu().detach().numpy().squeeze(), n_fft=nfft, hop_length=hop_size, win_length=window_size
+            )
+
+            assert (
+                spec.shape[1] == result.shape[2]
+            ), f"{result.shape} != {spec.shape}: {nfft}, {window_size}, {hop_size}, {audio_length}"
+
+        for _ in range(5):
+            nfft = random.randint(128, 2048)
+            window_size = random.randint(128, nfft)
+            hop_size = random.randint(64, window_size)
+            fb_module = FilterbankFeatures(
+                exact_pad=True, pad_to=1, n_fft=nfft, n_window_size=window_size, n_window_stride=hop_size
             )
             audio_length = random.randint(window_size, 2 ** 16)
             test_1 = torch.randn(1, audio_length)

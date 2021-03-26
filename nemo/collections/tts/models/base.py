@@ -134,7 +134,7 @@ class GlowVocoder(Vocoder):
                 logging.warning(
                     "torch_stft is deprecated. Please change your model to use torch.stft and torch.istft instead."
                 )
-                self.stft = self.audio_to_melspec_precessor.stft
+                self.stft = self.audio_to_melspec_precessor.stft.transform
                 self.istft = self.audio_to_melspec_precessor.stft.inverse
             else:
                 try:
@@ -149,7 +149,14 @@ class GlowVocoder(Vocoder):
                         "audio_to_melspec_precessor requires n_fft, hop_length, win_length, window, and nfilt to be "
                         "defined."
                     ) from e
-                self.stft = lambda x: stft_patch(
+
+                def yet_another_patch(audio, n_fft, hop_length, win_length, window):
+                    spec = stft_patch(audio, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window)
+                    if spec.dtype in [torch.cfloat, torch.cdouble]:
+                        spec = torch.view_as_real(spec)
+                    return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
+
+                self.stft = lambda x: yet_another_patch(
                     x, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window,
                 )
                 self.istft = lambda x, y: istft_patch(
@@ -176,10 +183,7 @@ class GlowVocoder(Vocoder):
         with self.nemo_infer():
             spect = torch.zeros((1, self.n_mel, 88)).to(self.device)
             bias_audio = self.convert_spectrogram_to_audio(spec=spect, sigma=0.0, denoise=False)
-            spect = self.stft(bias_audio)
-            if spect.dtype in [torch.cfloat, torch.cdouble]:
-                spect = torch.view_as_real(spect)
-            bias_spect = torch.sqrt(spect.pow(2).sum(-1))
+            bias_spect, _ = self.stft(bias_audio)
             self.bias_spect = bias_spect[..., 0][..., None]
 
     @typecheck(
@@ -191,11 +195,7 @@ class GlowVocoder(Vocoder):
 
         if self.bias_spect is None:
             self.update_bias_spect()
-        spect = self.stft(audio)
-        if spect.dtype in [torch.cfloat, torch.cdouble]:
-            spect = torch.view_as_real(spect)
-        audio_spect = torch.sqrt(spect.pow(2).sum(-1))
-        audio_angles = torch.atan2(spect[..., -1], spect[..., 0])
+        audio_spect, audio_angles = self.stft(audio)
         audio_spect_denoised = audio_spect - self.bias_spect.to(audio.device) * strength
         audio_spect_denoised = torch.clamp(audio_spect_denoised, 0.0)
         audio_denoised = self.istft(audio_spect_denoised, audio_angles)
