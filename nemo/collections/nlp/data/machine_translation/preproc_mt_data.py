@@ -21,6 +21,7 @@ import tarfile
 import tempfile
 
 import youtokentome as yttm
+from joblib import Parallel, delayed
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
@@ -131,28 +132,43 @@ class MTDataPreproc:
                         logging.info(
                             f"Using tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
+                    # TODO: have to get tokenizers instide .preprocess_parallel because they can't be pickled
                     self.train_tar_files, self.train_metadata_file = MTDataPreproc.preprocess_parallel_dataset(
                         clean=cfg.train_ds.clean,
                         src_fname=cfg.train_ds.get('src_file_name'),
                         tgt_fname=cfg.train_ds.get('tgt_file_name'),
                         out_dir=cfg.get('preproc_out_dir'),
-                        encoder_tokenizer=self.encoder_tokenizer,
-                        decoder_tokenizer=self.decoder_tokenizer,
+                        encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
+                        encoder_model_name=cfg.encoder.get('model_name'),
+                        encoder_tokenizer_model=self.encoder_tokenizer_model,
+                        encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+                        decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
+                        decoder_model_name=cfg.decoder.get('model_name'),
+                        decoder_tokenizer_model=self.decoder_tokenizer_model,
+                        decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
                         max_seq_length=cfg.train_ds.get('max_seq_length', 512),
                         tokens_in_batch=cfg.train_ds.get('tokens_in_batch', 8192),
                         lines_per_dataset_fragment=cfg.train_ds.get('lines_per_dataset_fragment', 1000000),
                         num_batches_per_tarfile=cfg.train_ds.get('num_batches_per_tarfile', 1000),
                         min_seq_length=1,
-                        pkl_file_prefix=cfg.train_ds.get('pkl_file_preifx', 'parallel'),
                         global_rank=self.global_rank,
                         world_size=self.world_size,
+                        n_jobs=cfg.train_ds.get('n_preproc_jobs', -2),
+                        tar_file_prefix=cfg.train_ds.get('tar_file_prefix', 'parallel'),
                     )
                     # update config
-                    self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
+                    # self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
+                    # self._cfg.train_ds.tar_files = self.train_tar_files
                     self._cfg.train_ds.metadata_file = self.train_metadata_file
                     logging.info(
-                        f"Using tarred dataset created at {self._cfg.train_ds.tar_files} and metadata created at {self._cfg.train_ds.metadata_file}"
+                        f"Using tarred dataset created at {self.train_tar_files} and metadata created at {self._cfg.train_ds.metadata_file}"
                     )
+                elif cfg.train_ds.get('tar_files') is None and cfg.train_ds.get('metadata_file') is not None:
+                    metadata = json.load(cfg.train_ds.get('metadata_file'))
+                    if metadata['train_tar_files']:
+                        logging.info(f"Using tarred dataset: {metadata['train_tar_files']}")
+                    else:
+                        raise ValueError(f'tar_files not provided and metadata does not have tar files')
                 else:
                     self.train_tar_files = cfg.train_ds.get('tar_files')
                     self.train_metadata_file = cfg.train_ds.get('metadata_file')
@@ -225,16 +241,23 @@ class MTDataPreproc:
         src_fname,
         tgt_fname,
         out_dir,
-        encoder_tokenizer,
-        decoder_tokenizer,
+        encoder_tokenizer_name,
+        encoder_tokenizer_model,
+        encoder_bpe_dropout,
+        encoder_model_name,
+        decoder_tokenizer_name,
+        decoder_tokenizer_model,
+        decoder_bpe_dropout,
+        decoder_model_name,
         max_seq_length,
         min_seq_length,
         tokens_in_batch,
         lines_per_dataset_fragment,
         num_batches_per_tarfile,
-        pkl_file_prefix,
         global_rank,
         world_size,
+        n_jobs=-2,
+        tar_file_prefix='parallel',
     ):
         """Create tarred dataset from large paired translation data.
 
@@ -250,107 +273,112 @@ class MTDataPreproc:
             tokens_in_batch (int): tokens per batch per GPU, effectively batch size 
             lines_per_dataset_fragment (int): number of lines to consider for bucketing and padding
             num_batches_per_tarfile (int): number of batches (pickle files) within each tarfile
+            tar_file_prefix (str) : add string prefix to tar files 
+            n_jobs (int): number of processes to use for data processing (-2 to use all but 2)
         """
 
         os.makedirs(out_dir, exist_ok=True)
 
-        tar_file_ctr = 1
-        num_files_in_tar = 0
-        num_lines = 0
-        shard_num = 0
-        global_batch_ctr = 0
-        tmp_f_src = tempfile.NamedTemporaryFile(delete=False, mode='w')
-        tmp_f_tgt = tempfile.NamedTemporaryFile(delete=False, mode='w')
-        tar_file_path = os.path.join(out_dir, '%s-batches.tokens.%d.%d.tar' % (pkl_file_prefix, tokens_in_batch, 1))
         metadata_path = os.path.join(out_dir, f'metadata.tokens.{tokens_in_batch}.json')
+
         if global_rank == 0:
-            if os.path.isfile(tar_file_path) and os.path.isfile(metadata_path):
+            tar_files_in_out_dir = glob.glob(f'{out_dir}/*.tar')
+            if tar_files_in_out_dir:
                 logging.info(
-                    f'Tarred dataset {tar_file_path} and metadata file {metadata_path} exists and will be used. Remove if reprocessing.'
+                    f'Tarred dataset detected: {tar_files_in_out_dir} and will be used. Remove if reprocessing.'
                 )
             else:
-                tar_file_ptr = tarfile.open(tar_file_path, 'w')
-                with open(src_fname, 'r') as f_src, open(tgt_fname) as f_tgt:
-                    for src_line, tgt_line in zip(f_src, f_tgt):
-                        tmp_f_src.write(src_line)
-                        tmp_f_tgt.write(tgt_line)
-                        num_lines += 1
+                filenames = [src_fname, tgt_fname]
 
-                        if num_lines == lines_per_dataset_fragment:
-                            tmp_f_src.close()
-                            tmp_f_tgt.close()
-                            (
-                                tar_file_ptr,
-                                global_batch_ctr,
-                                num_files_in_tar,
-                                tar_file_ctr,
-                            ) = MTDataPreproc.write_parallel_batches_to_tarfiles(
-                                out_dir=out_dir,
-                                num_batches_per_tarfile=num_batches_per_tarfile,
-                                clean=clean,
-                                max_seq_length=max_seq_length,
-                                min_seq_length=min_seq_length,
-                                src_fname=tmp_f_src.name,
-                                tgt_fname=tmp_f_tgt.name,
-                                num_tokens=tokens_in_batch,
-                                encoder_tokenizer=encoder_tokenizer,
-                                decoder_tokenizer=decoder_tokenizer,
-                                num_files_in_tar=num_files_in_tar,
-                                tar_file_ptr=tar_file_ptr,
-                                tar_file_ctr=tar_file_ctr,
-                                global_batch_ctr=global_batch_ctr,
-                                pkl_file_prefix=pkl_file_prefix,
-                            )
-
-                            num_lines = 0
-                            shard_num += 1
-
-                            os.remove(tmp_f_src.name)
-                            os.remove(tmp_f_tgt.name)
-
-                            tmp_f_src = tempfile.NamedTemporaryFile(delete=False, mode='w')
-                            tmp_f_tgt = tempfile.NamedTemporaryFile(delete=False, mode='w')
-
-                tmp_f_src.close()
-                tmp_f_tgt.close()
-                (
-                    tar_file_ptr,
-                    global_batch_ctr,
-                    num_files_in_tar,
-                    tar_file_ctr,
-                ) = MTDataPreproc.write_parallel_batches_to_tarfiles(
-                    out_dir=out_dir,
-                    num_batches_per_tarfile=num_batches_per_tarfile,
-                    clean=clean,
-                    max_seq_length=max_seq_length,
-                    min_seq_length=min_seq_length,
-                    src_fname=tmp_f_src.name,
-                    tgt_fname=tmp_f_tgt.name,
-                    num_tokens=tokens_in_batch,
-                    encoder_tokenizer=encoder_tokenizer,
-                    decoder_tokenizer=decoder_tokenizer,
-                    num_files_in_tar=num_files_in_tar,
-                    tar_file_ptr=tar_file_ptr,
-                    tar_file_ctr=tar_file_ctr,
-                    global_batch_ctr=global_batch_ctr,
-                    pkl_file_prefix=pkl_file_prefix,
+                # get number of lines so that we can create a partition of the lines of the text file
+                num_src_lines, num_tgt_lines = Parallel(n_jobs=2)(
+                    delayed(MTDataPreproc._get_num_lines)(filename) for filename in filenames
                 )
-                tar_file_ptr.close()
-                os.remove(tmp_f_src.name)
-                os.remove(tmp_f_tgt.name)
+                logging.info(f'Found {num_src_lines} source lines and  {num_tgt_lines} target lines.')
+                assert num_src_lines == num_tgt_lines, 'Number of source lines should equal number of target lines.'
 
-                if num_files_in_tar != num_batches_per_tarfile:
-                    os.remove(
-                        os.path.join(
-                            out_dir, '%s-batches.tokens.%d.%d.tar' % (pkl_file_prefix, tokens_in_batch, tar_file_ctr)
-                        )
+                # create a partition of lines that we can parallelize over
+                lines_partition = MTDataPreproc._get_lines_partition(num_src_lines, lines_per_dataset_fragment)
+                logging.info(f"Found {len(lines_partition)} fragments to parallelize over.")
+
+                # create tarfiles for each fragment in parallel
+                results_list = Parallel(n_jobs=n_jobs)(
+                    delayed(MTDataPreproc._process_fragment)(
+                        src_filename=src_fname,
+                        tgt_filename=tgt_fname,
+                        lines_indices=lines_indices,
+                        out_dir=out_dir,
+                        num_batches_per_tarfile=num_batches_per_tarfile,
+                        clean=clean,
+                        max_seq_length=max_seq_length,
+                        min_seq_length=min_seq_length,
+                        tokens_in_batch=tokens_in_batch,
+                        encoder_tokenizer_name=encoder_tokenizer_name,
+                        encoder_tokenizer_model=encoder_tokenizer_model,
+                        encoder_bpe_dropout=encoder_bpe_dropout,
+                        encoder_model_name=encoder_model_name,
+                        decoder_tokenizer_name=decoder_tokenizer_name,
+                        decoder_tokenizer_model=decoder_tokenizer_model,
+                        decoder_bpe_dropout=decoder_bpe_dropout,
+                        decoder_model_name=decoder_model_name,
+                        fragment_index=fragment_index,
                     )
-                    global_batch_ctr -= num_files_in_tar
-                    logging.info('Dropping %d batches because of overflow' % (num_files_in_tar))
+                    for fragment_index, lines_indices in enumerate(lines_partition)
+                )
 
-                json.dump({'num_batches': global_batch_ctr}, open(metadata_path, 'w'))
+                # compute total batches so far
+                total_batches = sum([batch_count for batch_count, _ in results_list])
 
-        tar_file_paths = glob.glob(f'{out_dir}/{pkl_file_prefix}-batches.tokens.{tokens_in_batch}.*.tar')
+                # save batches from tar files containing the left over batches (if there's enough batches)
+                remainder_tar_file_ctr = 0
+                remainder_tar_file_path = os.path.join(
+                    out_dir, f'remainder-batches.tokens.{tokens_in_batch}.tar_file_{remainder_tar_file_ctr}.tar'
+                )
+                remainder_tar_file_ptr = tarfile.open(remainder_tar_file_path, 'w')
+                batch_in_tar_ctr = 0
+                for _, tar_file_path in results_list:
+                    tar_file_ptr = tarfile.open(tar_file_path, 'r')
+                    for member in tar_file_ptr.getmembers():
+                        remainder_tar_file_ptr.addfile(member, tar_file_ptr.extractfile(member.name))
+                        batch_in_tar_ctr += 1
+                        if batch_in_tar_ctr == num_batches_per_tarfile:
+                            remainder_tar_file_ctr += 1
+                            remainder_tar_file_ptr.close()
+                            remainder_tar_file_path = os.path.join(
+                                out_dir,
+                                f'remainder-batches.tokens.{tokens_in_batch}.tar_file_{remainder_tar_file_ctr}.tar',
+                            )
+                            remainder_tar_file_ptr = tarfile.open(remainder_tar_file_path, 'w',)
+                            batch_in_tar_ctr = 0
+                    tar_file_ptr.close()
+                    os.remove(tar_file_path)
+
+                # log the number of batches remaining as they will be discarded
+                num_batches_discarded = len(remainder_tar_file_ptr.getmembers())
+                total_batches -= num_batches_discarded
+                logging.info(
+                    f'Number of batches discarded: {num_batches_discarded}, total batches kept: {total_batches}'
+                )
+                remainder_tar_file_ptr.close()
+                os.remove(remainder_tar_file_path)
+
+                # dump metadata to json
+                metadata = {}
+                metadata['num_batches'] = total_batches
+
+                # rename tar files so they can be more easily used with CLI and YAML
+                tar_file_paths = glob.glob(f'{out_dir}/*.tar')
+                for index, path in enumerate(tar_file_paths):
+                    os.rename(
+                        path, os.path.join(out_dir, f'{tar_file_prefix}.batches.tokens.{tokens_in_batch}.{index}.tar')
+                    )
+
+                # add tar files to manifest
+                tar_file_paths = glob.glob(f'{out_dir}/*.tar')
+                metadata['tar_files'] = tar_file_paths
+                json.dump(metadata, open(metadata_path, 'w'))
+
+        tar_file_paths = glob.glob(f'{out_dir}/*.tar')
 
         num_tar_files = len(tar_file_paths)
         if num_tar_files < world_size:
@@ -365,6 +393,90 @@ class MTDataPreproc:
             )
 
         return tar_file_paths, metadata_path
+
+    @staticmethod
+    def _get_num_lines(filename):
+        with open(filename) as f:
+            for i, l in enumerate(f):
+                pass
+        return i + 1
+
+    @staticmethod
+    def _get_lines_partition(num_lines, lines_per_dataset_fragment):
+        # create partition based on fragment size
+        fragment_indices = []
+        for i in range(0, num_lines, lines_per_dataset_fragment):
+            fragment_indices.append([i, i + lines_per_dataset_fragment])
+        # modify last indices
+        last_indices = fragment_indices.pop()
+        last_indices[1] = -1
+        fragment_indices.append(last_indices)
+        # if fragment_indices[-1][1] >= num_lines:
+        #     fragment_indices.pop()
+        return fragment_indices
+
+    @staticmethod
+    def _process_fragment(
+        src_filename,
+        tgt_filename,
+        lines_indices,
+        out_dir,
+        num_batches_per_tarfile,
+        clean,
+        max_seq_length,
+        min_seq_length,
+        tokens_in_batch,
+        encoder_tokenizer_name,
+        encoder_tokenizer_model,
+        encoder_bpe_dropout,
+        encoder_model_name,
+        decoder_tokenizer_name,
+        decoder_tokenizer_model,
+        decoder_bpe_dropout,
+        decoder_model_name,
+        fragment_index,
+    ):
+        start = lines_indices[0]
+        stop = lines_indices[1]
+
+        # write lines in partition to temporary files to be consumed by write_parallel_batches_to_tarfiles
+        tmp_f_src = tempfile.NamedTemporaryFile(delete=False, mode='w')
+        tmp_f_tgt = tempfile.NamedTemporaryFile(delete=False, mode='w')
+
+        with open(src_filename, 'r') as src_in, open(tgt_filename) as tgt_in:
+            for line_number, (src_line, tgt_line) in enumerate(zip(src_in, tgt_in)):
+                if start <= line_number and line_number < stop:
+                    if src_line and tgt_line:
+                        tmp_f_src.write(src_line)
+                        tmp_f_tgt.write(tgt_line)
+
+        tmp_f_src.close()
+        tmp_f_tgt.close()
+
+        num_batches_from_fragment, remainder_tar_file_path = MTDataPreproc.write_parallel_batches_to_tarfiles(
+            out_dir=out_dir,
+            num_batches_per_tarfile=num_batches_per_tarfile,
+            clean=clean,
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            src_fname=tmp_f_src.name,
+            tgt_fname=tmp_f_tgt.name,
+            num_tokens=tokens_in_batch,
+            encoder_tokenizer_name=encoder_tokenizer_name,
+            encoder_tokenizer_model=encoder_tokenizer_model,
+            encoder_bpe_dropout=encoder_bpe_dropout,
+            encoder_model_name=encoder_model_name,
+            decoder_tokenizer_name=decoder_tokenizer_name,
+            decoder_tokenizer_model=decoder_tokenizer_model,
+            decoder_bpe_dropout=decoder_bpe_dropout,
+            decoder_model_name=decoder_model_name,
+            fragment_index=fragment_index,
+        )
+
+        os.remove(tmp_f_src.name)
+        os.remove(tmp_f_tgt.name)
+
+        return num_batches_from_fragment, remainder_tar_file_path
 
     @staticmethod
     def preprocess_monolingual_dataset(
@@ -590,13 +702,15 @@ class MTDataPreproc:
         src_fname,
         tgt_fname,
         num_tokens,
-        encoder_tokenizer,
-        decoder_tokenizer,
-        num_files_in_tar,
-        tar_file_ptr,
-        tar_file_ctr,
-        global_batch_ctr,
-        pkl_file_prefix,
+        encoder_tokenizer_name,
+        encoder_tokenizer_model,
+        encoder_bpe_dropout,
+        encoder_model_name,
+        decoder_tokenizer_name,
+        decoder_tokenizer_model,
+        decoder_bpe_dropout,
+        decoder_model_name,
+        fragment_index,
     ):
         """
         Writes current fragment of the overall parallel corpus to tarfiles by:
@@ -618,27 +732,48 @@ class MTDataPreproc:
             cache_data_per_node=False,
             use_cache=False,
         )
+        encoder_tokenizer, decoder_tokenizer = MTDataPreproc.get_enc_dec_tokenizers(
+            encoder_tokenizer_name,
+            encoder_tokenizer_model,
+            encoder_bpe_dropout,
+            encoder_model_name,
+            decoder_tokenizer_name,
+            decoder_tokenizer_model,
+            decoder_bpe_dropout,
+            decoder_model_name,
+        )
         dataset.batchify(encoder_tokenizer, decoder_tokenizer)
 
+        tar_file_ctr = 0
+        tar_file_path = os.path.join(
+            out_dir, 'fragment-%s-batches.tokens.%d.%d.tar' % (fragment_index, num_tokens, tar_file_ctr)
+        )
+        tar_file_ptr = tarfile.open(tar_file_path, 'w')
+        total_batch_ctr = 0
+        batch_ctr = 0
         for _, batch in dataset.batches.items():
-            global_batch_ctr += 1
+            total_batch_ctr += 1
+            batch_ctr += 1
             pickle.dump(
-                batch, open(os.path.join(out_dir, '%s-batch-%d.pkl' % (pkl_file_prefix, global_batch_ctr)), 'wb')
+                batch, open(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)), 'wb'),
             )
+            tar_file_ptr.add(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)))
+            os.remove(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)))
 
-            if num_files_in_tar == num_batches_per_tarfile:
+            if batch_ctr == num_batches_per_tarfile:
                 tar_file_ctr += 1
                 tar_file_ptr.close()
-                tar_file_ptr = tarfile.open(
-                    os.path.join(out_dir, '%s-batches.tokens.%d.%d.tar' % (pkl_file_prefix, num_tokens, tar_file_ctr)),
-                    'w',
+                tar_file_path = os.path.join(
+                    out_dir, 'fragment-%s-batches.tokens.%d.%d.tar' % (fragment_index, num_tokens, tar_file_ctr)
                 )
-                num_files_in_tar = 0
+                tar_file_ptr = tarfile.open(tar_file_path, 'w',)
+                batch_ctr = 0
 
-            tar_file_ptr.add(os.path.join(out_dir, '%s-batch-%d.pkl' % (pkl_file_prefix, global_batch_ctr)))
-            num_files_in_tar += 1
-            os.remove(os.path.join(out_dir, '%s-batch-%d.pkl' % (pkl_file_prefix, global_batch_ctr)))
-        return tar_file_ptr, global_batch_ctr, num_files_in_tar, tar_file_ctr
+        # return tar files paths that have batches remaining
+        remainder_tar_file_path = tar_file_ptr.name
+        tar_file_ptr.close()
+
+        return total_batch_ctr, remainder_tar_file_path
 
     @staticmethod
     def write_monolingual_batches_to_tarfiles(
