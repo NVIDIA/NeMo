@@ -338,7 +338,6 @@ class MTDataPreproc:
                     for member in tar_file_ptr.getmembers():
                         remainder_tar_file_ptr.addfile(member, tar_file_ptr.extractfile(member.name))
                         batch_in_tar_ctr += 1
-                        total_batches += 1
                         if batch_in_tar_ctr == num_batches_per_tarfile:
                             remainder_tar_file_ctr += 1
                             remainder_tar_file_ptr.close()
@@ -367,7 +366,7 @@ class MTDataPreproc:
                 # rename tar files so they can be more easily used with CLI and YAML
                 tar_file_paths = glob.glob(f'{out_dir}/*.tar')
                 for index, path in enumerate(tar_file_paths):
-                    os.rename(path, f'batches.tokens.{tokens_in_batch}.{index}.tar')
+                    os.rename(path, os.path.join(out_dir, f'batches.tokens.{tokens_in_batch}.{index}.tar'))
 
                 # add tar files to manifest
                 tar_file_paths = glob.glob(f'{out_dir}/*.tar')
@@ -765,17 +764,10 @@ class MTDataPreproc:
                 tar_file_ptr = tarfile.open(tar_file_path, 'w',)
                 batch_ctr = 0
 
-        # log or possibly return left-over batches remaining in the last tar file for this fragment
-        # for now, we are discarding the left-over batches
-        # logging.info(f'Total number of batches from fragment {pkl_file_prefix}: {total_batch_ctr}.')
-        # num_batches_to_discard = len(tar_file_ptr.getmembers())
-        # logging.info(f'Number of batches to be discarded from fragment {pkl_file_prefix}: {num_batches_to_discard}.')
-
         # return tar files paths that have batches remaining
         remainder_tar_file_path = tar_file_ptr.name
         tar_file_ptr.close()
-        # os.remove(tar_file_path)
-        # num_batches_from_fragment = total_batch_ctr
+
         return total_batch_ctr, remainder_tar_file_path
 
     @staticmethod
