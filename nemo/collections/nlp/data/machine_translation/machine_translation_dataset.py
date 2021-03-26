@@ -60,6 +60,7 @@ class TranslationDataConfig:
     metadata_path: Optional[str] = None
     tar_shuffle_n: int = 100
     n_preproc_jobs: int = -2
+    tar_file_prefix: str = 'parallel'
 
 
 class TranslationDataset(Dataset):
