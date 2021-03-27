@@ -116,6 +116,7 @@ class TalkNetPitchModel(ModelPT):
         d_out = cfg.model.jasper[-1].filters
         self.sil_proj = nn.Conv1d(d_out, 1, kernel_size=1)
         self.body_proj = nn.Conv1d(d_out, 1, kernel_size=1)
+        self.f0_mean, self.f0_std = cfg.f0_mean, cfg.f0_std
 
     def forward(self, text, text_len, durs):
         x, x_len = self.embed(text, durs).transpose(1, 2), durs.sum(-1)
@@ -123,12 +124,6 @@ class TalkNetPitchModel(ModelPT):
         f0_sil = self.sil_proj(y).squeeze(1)
         f0_body = self.body_proj(y).squeeze(1)
         return f0_sil, f0_body
-
-    # F0_MEAN, F0_STD = 150.23434143088116, 42.795667026124704 # from stas (libri_tts, all?)
-    # F0_MEAN, F0_STD = 178.7767791748047, 33.51659393310547 # lj_speech, train
-    # F0_MEAN, F0_STD = 136.86508178710938, 36.010013580322266 # hi-fi multi-tts(evelina ds), speaker=9017, train
-    # F0_MEAN, F0_STD = 186.96742248535156, 34.70537185668945  # hi-fi multi-tts(evelina ds), speaker=92, train
-    F0_MEAN, F0_STD = 183.02639770507812, 33.22303771972656 # hi-fi multi-tts(evelina ds), speaker=1259, train
 
     def _metrics(self, true_f0, true_f0_mask, pred_f0_sil, pred_f0_body):
         sil_mask = true_f0 < 1e-5
@@ -140,11 +135,11 @@ class TalkNetPitchModel(ModelPT):
         sil_acc *= true_f0_mask.type_as(sil_acc)
         sil_acc = sil_acc.sum() / true_f0_mask.sum()
 
-        body_mse = F.mse_loss(pred_f0_body, (true_f0 - self.F0_MEAN) / self.F0_STD, reduction='none')
+        body_mse = F.mse_loss(pred_f0_body, (true_f0 - self.f0_mean) / self.f0_std, reduction='none')
         body_mask = ~sil_mask
         body_mse *= body_mask.type_as(body_mse)  # noqa
         body_mse = body_mse.sum() / body_mask.sum()  # noqa
-        body_mae = ((pred_f0_body * self.F0_STD + self.F0_MEAN) - true_f0).abs()
+        body_mae = ((pred_f0_body * self.f0_std + self.f0_mean) - true_f0).abs()
         body_mae *= body_mask.type_as(body_mae)  # noqa
         body_mae = body_mae.sum() / body_mask.sum()  # noqa
 
@@ -299,7 +294,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
         # Pitch
         f0_sil, f0_body = self._pitch_model(text, text_len, durs)
         sil_mask = f0_sil.sigmoid() > 0.5
-        f0 = f0_body * self._pitch_model.F0_STD + self._pitch_model.F0_MEAN
+        f0 = f0_body * self._pitch_model.f0_std + self._pitch_model.f0_mean
         f0 = (~sil_mask * f0).float()
 
         # Spect

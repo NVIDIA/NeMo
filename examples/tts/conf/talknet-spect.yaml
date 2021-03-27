@@ -31,8 +31,9 @@ model:
         punct: true
         spaces: true
         stresses: false
+        add_blank_at: last
     dataloader_params:
-      drop_last: false
+      drop_last: true
       shuffle: true
       batch_size: 64
       num_workers: 4
@@ -56,16 +57,17 @@ model:
         punct: true
         spaces: true
         stresses: false
+        add_blank_at: last
     dataloader_params:
       drop_last: false
       shuffle: false
       batch_size: 64
-      num_workers: 8
+      num_workers: 1
 
   preprocessor:
-    _target_: "nemo.collections.asr.parts.features.FilterbankFeatures"
+    _target_: "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
     dither: 0.0
-    nfilt: ${model.n_mels}
+    features: ${model.n_mels}
     frame_splicing: 1
     highfreq: 8000
     log: true
@@ -75,12 +77,15 @@ model:
     mag_power: 1.0
     n_fft: 1024
     n_window_size: 1024
+    window_size: False
     n_window_stride: 256
+    window_stride: False
     normalize: null
     pad_to: 1
     pad_value: -11.52
     preemph: null
     sample_rate: ${sample_rate}
+    stft_exact_pad: false
     stft_conv: true
     window: hann
 
@@ -215,6 +220,8 @@ model:
     sched:
       name: CosineAnnealing
       min_lr: 1e-5
+      warmup_ratio: 0.02
+      max_steps: ???
 
 trainer:
   gpus: 1
@@ -234,3 +241,6 @@ exp_manager:
   name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"
