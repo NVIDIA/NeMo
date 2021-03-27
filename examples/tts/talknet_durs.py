@@ -20,7 +20,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path='conf', config_name='my-talknet-durs')
+@hydra_runner(config_path='conf', config_name='talknet-durs')
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get('exp_manager', None))

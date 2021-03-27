@@ -85,7 +85,6 @@ model:
     pad_value: -11.52
     preemph: null
     sample_rate: ${sample_rate}
-    stft_exact_pad: false
     stft_conv: true
     window: hann
 
