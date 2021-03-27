@@ -571,7 +571,7 @@ NeMo's Experiment Manager leverages PyTorch Lightning for model checkpointing,
 TensorBoard Logging, and Weights and Biases logging. The Experiment Manager is included by default
 in all NeMo example scripts.
 
-To use the experiment manager simply call it and pass in the PyTorch Lightning ``Trainer``.
+To use the experiment manager simply call :class:`~nemo.utils.exp_manager.exp_manager` and pass in the PyTorch Lightning ``Trainer``.
 
 .. code-block:: python
 
@@ -887,24 +887,49 @@ Base class for all NeMo models
 .. autoclass:: nemo.core.ModelPT
     :show-inheritance:
     :members:
+    :member-order: bysource
     :undoc-members: cfg, num_weights
     :exclude-members: set_eff_save, use_eff_save, teardown
-    :member-order: bysource
 
 
 Base Neural Module class
 ------------------------
 
-.. automodule:: nemo.core.NeuralModule
-    :members:
-    :undoc-members:
+.. autoclass:: nemo.core.NeuralModule
     :show-inheritance:
-
-
-Neural Type class
------------------
-
-.. automodule:: nemo.core.neural_types.neural_type
     :members:
-    :undoc-members:
+    :member-order: bysource
+
+Neural Type classes
+-------------------
+
+.. autoclass:: nemo.core.neural_types.NeuralType
     :show-inheritance:
+    :members:
+    :member-order: bysource
+
+.. autoclass:: nemo.core.neural_types.axes.AxisType
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+.. autoclass:: nemo.core.neural_types.elements.ElementType
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+.. autoclass:: nemo.core.neural_types.comparison.NeuralTypeComparisonResult
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+
+
+Experiment manager
+------------------
+
+.. autoclass:: nemo.utils.exp_manager.exp_manager
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
