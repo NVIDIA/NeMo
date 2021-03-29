@@ -208,39 +208,207 @@ Given BPE tokenizers, and a cleaned parallel corpus, the following steps are app
 
 Datasets can be configured as follows
 
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| **Parameter**                                               | **Data Type**   |   **Default**  | **Description**                                                                                |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.src_file_name        | str             | null           | Path to the source language file                                                               |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.tgt_file_name        | str             | null           | Path to the target language file                                                               |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.tokens_in_batch      | int             | 512            | Maximum number of tokens per minibatch                                                         |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.clean                | bool            | true           | Whether to clean the dataset by discarding examples that are greater than max_seq_length       |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.max_seq_length       | int             | 512            | Path to pre-computed vocab file if exists                                                      |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.cache_ids            | bool            | true           | Whether to cache IDs to avoid re-tokenizing data                                               |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.cache_data_per_node  | bool            | false          | Whether to cache IDs in each of the nodes in multi-node training                               |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.use_cache            | bool            | true           | Whether to use the cache if available                                                          |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.shuffle              | bool            | true           | Whether to shuffle minibatches in the PyTorch DataLoader                                       |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.num_samples          | int             | -1             | Number of samples to use. -1 for the entire dataset                                            |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.drop_last            | bool            | false          | Drop last minibatch if it is not of equal size to the others                                   |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.pin_memory           | bool            | false          | Whether to pin memory in the PyTorch DataLoader                                                |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
-| model.{train_ds,validation_ds,test_ds}.num_workers          | int             | 8              | Number of workers for the PyTorch DataLoader                                                   |
-+-------------------------------------------------------------+-----------------+----------------+------------------------------------------------------------------------------------------------+
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| **Parameter**                                               | **Data Type**   |   **Default**  | **Description**                                                                                                      |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.src_file_name        | str             | null           | Path to the source language file                                                                                     |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.tgt_file_name        | str             | null           | Path to the target language file                                                                                     |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.tokens_in_batch      | int             | 512            | Maximum number of tokens per minibatch                                                                               |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.clean                | bool            | true           | Whether to clean the dataset by discarding examples that are greater than max_seq_length                             |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.max_seq_length       | int             | 512            | Maximum sequence to be used with the `clean` argument above.                                                         |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.shuffle              | bool            | true           | Whether to shuffle minibatches in the PyTorch DataLoader                                                             |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.num_samples          | int             | -1             | Number of samples to use. -1 for the entire dataset                                                                  |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.drop_last            | bool            | false          | Drop last minibatch if it is not of equal size to the others                                                         |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.pin_memory           | bool            | false          | Whether to pin memory in the PyTorch DataLoader                                                                      |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.num_workers          | int             | 8              | Number of workers for the PyTorch DataLoader                                                                         |
++-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
 
 
 Tarred Datasets for Large Corpora
 ------------------
+
+When training with DistributedDataParallel, each process has its own copy of the dataset and for large datasets, this may not always fit in CPU memory.
+`Webdatasets <https://github.com/tmbdev/webdataset>`__ circumvents this problem by efficiently iterating over tarfiles stored on disk. Each tarfile may contain hundreds to thousands of pickle files, each containing a single minibatch.
+
+We strongly recommend using this method when working with datasets with > 1 million sentence pairs.
+
+Tarred datasets can be configured as follows:
+
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| **Parameter**                                                     | **Data Type**   |   **Default**  | **Description**                                                                                                |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.use_tarred_dataset         | bool            | false          | Whether to use tarred datasets                                                                                 |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.tar_files                  | str             | null           | String specifying path to all tarfiles. Example with 100 tarfiles /path/to/tarfiles._OP_1..100_CL_.tar         |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.metadata_file              | str             | null           | Path to JSON metadata file that contains only a single entry for the total number of batches in the dataset    |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.lines_per_dataset_fragment | int             | 1000000        | This                                                                                                           |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.num_batches_per_tarfile    | int             | 100            | Maximum sequence to be used with the `clean` argument above.                                                   |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.tar_shuffle_n              | int             | 100            | Whether to cache IDs to avoid re-tokenizing data. This will be deprecated in favor of tarred datasets.         |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{train_ds,validation_ds,test_ds}.shard_strategy             | str             | scatter        | Whether to cache IDs in each of the nodes in multi-node training.                                              |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.preproc_out_dir                                             | str             | null           | Path to folder that contains processed tarfiles or directory where new tarfiles will be written                |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+
+They can be created in two ways
+
+1. Using the hydra config and `training script <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
+
+Example:
+
+.. code ::
+
+    python examples/nlp/machine_translation/enc_dec_nmt.py \
+      -cn aayn_base \
+      do_training=false \
+      model.preproc_out_dir=/path/to/preproc_dir \
+      model.train_ds.use_tarred_dataset=true \
+      model.train_ds.lines_per_dataset_fragment=1000000 \
+      model.train_ds.num_batches_per_tarfile=200 \
+      model.train_ds.src_file_name=train.tokenized.en \
+      model.train_ds.tgt_file_name=train.tokenized.es \
+      model.validation_ds.src_file_name=validation.tokenized.en \
+      model.validation_ds.tgt_file_name=validation.tokenized.es \
+      model.encoder_tokenizer.vocab_size=32000 \
+      model.decoder_tokenizer.vocab_size=32000 \
+      ~model.test_ds \
+      trainer.gpus=[0,1,2,3] \
+      +trainer.fast_dev_run=true \
+      exp_manager=null \
+
+The above script will process the parallel tokenized text files into tarred datasets that are written to `/path/to/preproc_dir`.
+Since `do_training` is set to False, the above script will only create tarred datasets and then exit. If `do_training` is set True then one of two things happen:
+
+(a) If no tarfiles present in `model.preproc_out_dir`, the script will first create those files and then commence training. 
+(b) If tarfiles are already present in ``model.preproc_out_dir`, the script will start training from the provided tarfiles.
+
+2. Using a separate script without hydra 
+
+Tarred datasets for parallel corpora can also be created with a script that doesn't require specifying a configs via hydra and just uses python argparse.
+
+Example:
+
+.. code ::
+
+    python examples/nlp/machine_translation/create_tarred_parallel_dataset.py \
+      --shared_tokenizer \
+      --clean \
+      --bpe_dropout 0.1 \
+      --src_fname train.tokenized.en \
+      --tgt_fname train.tokenized.es \
+      --out_dir /path/to/preproc_dir \
+      --vocab_size 32000 \
+      --max_seq_length 512 \
+      --min_seq_length 1 \
+      --tokens_in_batch 8192 \
+      --lines_per_dataset_fragment 1000000 \
+      --num_batches_per_tarfile 200
+
+You can then set `model.preproc_out_dir=/path/to/preproc_dir` and `model.train_ds.use_tarred_dataset=true` to train with this data.
+
+Model Configuration and Training
+-----------------------------------
+
+The overall model consists of an encoder, decoder and classification head. Encoders and Decoders have the following configuration options:
+
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| **Parameter**                                                     | **Data Type**   |   **Default**  | **Description**                                                                                                |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.max_sequence_length                       | int             | 512            | Maximum sequence length of positional encodings.                                                               |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.embedding_dropout                         | float           | 0.1            | Path to JSON metadata file that contains only a single entry for the total number of batches in the dataset    |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.learn_positional_encodings                | bool            | false          | If True, this is a regular learnable embedding layer, if False, fixes position encodings to sinusoidal.        |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.hidden_size                               | int             | 512            | Size of the transformer hidden states                                                                          |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.num_layers                                | int             | 6              | Number of transformer layers                                                                                   |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.inner_size                                | int             | 2048           | Size of the hidden states within the feedforward layers.                                                       |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.num_attention_heads                       | int             | 8              | Number of attention heads                                                                                      |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.ffn_dropout                               | float           | 0.1            | Dropout probability within the feedforward layers                                                              |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.attn_score_dropout                        | float           | 0.1            | Dropout probability of the attention scores before softmax normalization                                       |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.attn_layer_dropout                        | float           | 0.1            | Dropout probability of the attention query, key and value projection activations                               |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.hidden_act                                | str             | relu           | Activation function throughout the network                                                                     |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.mask_future                               | bool            | false,true     | Whether to mask future timesteps for attention. Defaults to True for Decoder and False for encoder             |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+| model.{encoder,decoder}.pre_ln                                    | bool            | false          | Whether to apply layer-normalization before (true) or after (false) a sub-layer.                                              |
++-------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+
+Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), an inverse square root learning rate schedule from :cite:`nlp-machine_translation-vaswani2017attention`.
+The **model.optim** section sets the optimization parameters.
+
+The following script will create tarred datasets based on the provided parallel corpus and train a model based on the `base` configuration from :cite:`nlp-machine_translation-vaswani2017attention`.
+
+.. code ::
+
+    python examples/nlp/machine_translation/enc_dec_nmt.py \
+      -cn aayn_base \
+      do_training=true \
+      trainer.gpus=8 \
+      ~trainer.max_epochs \
+      +trainer.max_steps=100000 \
+      +trainer.val_check_interval=1000 \
+      +exp_manager.exp_dir=/path/to/store/results \
+      +exp_manager.create_checkpoint_callback=True \
+      +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
+      +exp_manager.checkpoint_callback_params.mode=max \
+      +exp_manager.checkpoint_callback_params.save_top_k=5 \
+      model.preproc_out_dir=/path/to/preproc_dir \
+      model.train_ds.use_tarred_dataset=true \
+      model.train_ds.lines_per_dataset_fragment=1000000 \
+      model.train_ds.num_batches_per_tarfile=200 \
+      model.train_ds.src_file_name=train.tokenized.en \
+      model.train_ds.tgt_file_name=train.tokenized.es \
+      model.validation_ds.src_file_name=validation.tokenized.en \
+      model.validation_ds.tgt_file_name=validation.tokenized.es \
+      model.encoder_tokenizer.vocab_size=32000 \
+      model.decoder_tokenizer.vocab_size=32000 \
+      ~model.test_ds \
+
+The trainer keeps track of the sacreBLEU score :cite:`nlp-machine_translation-post2018call` on the provided validation set and saves checkpoints that had the top 5 (by default) sacreBLEU scores.
+
+At the end of training, a `.nemo` file will be written to the result directory using which we can run inference on a test set.
+
+Model Inference
+-----------------------------------
+To generate translations on a test set and compute sacrebleu scores, the inference script can be run as follow:
+
+.. code ::
+
+    python examples/nlp/machine_translation/nmt_transformer_infer.py \
+      --model /path/to/model.nemo \
+      --srctext test.en \
+      --tgtout test.en-es.translations \
+      --batch_size 128 \
+      --source_lang en \
+      --target_lang es
+
+The --srctext file must be provided before tokenization and normalization.
+The resulting --tgtout file is detokenized and can be used to compute sacreBLEU scores.
+
+.. code ::
+
+    cat test.en-es.translations | sacrebleu test.es
 
 References
 ----------
