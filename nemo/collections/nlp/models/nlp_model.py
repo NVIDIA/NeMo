@@ -24,7 +24,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning.overrides.data_parallel import LightningDistributedDataParallel
+from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
@@ -211,35 +211,6 @@ class NLPModel(ModelPT, Exportable):
             logging.info(f'mp_rank: {app_state.model_parallel_rank}')
             logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
-    def configure_ddp(self, model: LightningModule, device_ids: List[int]) -> DistributedDataParallel:
-        """ Override LightningModule ddp if using model parallel.
-
-        Args:
-            model (LightningModule): the LightningModule currently being optimized
-            device_ids (List[int]): the list of GPU ids.
-
-        Returns:
-            DistributedDataParallel: DDP wrapped model
-        """
-
-        app_state = AppState()
-
-        if app_state.model_parallel_size is not None:
-            logging.info("Configuring DDP for model parallelism.")
-            logging.info(f"data_parallel_group: {app_state.data_parallel_group}")
-            # with model parallelism, multiple GPUs form a large "logical GPU"
-            # this means that data parallel groups span multiple GPUs
-            # and are non-trivial
-
-            model = LightningDistributedDataParallel(
-                model, device_ids, output_device=device_ids[0], process_group=app_state.data_parallel_group
-            )
-            return model
-
-        else:
-            logging.info("Did not detect model parallel using LightningModule.configure_ddp")
-            return LightningModule.configure_ddp(self, model, device_ids)
-
     def _clip_gradients(self, optimizer, clip_val=None):
         """ Override of PTL Gradient Clipping.
             Enables model parallel gradient clipping from Megatron-LM.
@@ -410,3 +381,37 @@ class NLPCheckpointConnector(CheckpointConnector):
                     )
                     atomic_save(checkpoint, filepath)
         return None
+
+    class NLPDDPPlugin(DDPPlugin):
+        """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
+        """
+
+    def configure_ddp(self):
+        """ Override LightningModule ddp if using model parallel.
+
+        Args:
+            model (LightningModule): the LightningModule currently being optimized
+            device_ids (List[int]): the list of GPU ids.
+
+        Returns:
+            DistributedDataParallel: DDP wrapped model
+        """
+
+        app_state = AppState()
+
+        if app_state.model_parallel_size is not None:
+            logging.info("Configuring DDP for model parallelism.")
+
+            # With model parallelism, multiple GPUs form a large "logical GPU"
+            # this means that data parallel groups span multiple GPUs
+            # and are non-trivial
+            device_ids = self.determine_ddp_device_ids()
+            self._model = DistributedDataParallel(
+                LightningDistributedModule(self.model),
+                device_ids=device_ids,
+                output_device=device_ids[0],
+                process_group=app_state.data_parallel_group,
+            )
+
+        else:
+            return DDPPlugin.configure_ddp(self)
