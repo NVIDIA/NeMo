@@ -38,6 +38,8 @@ class SentencePieceTokenizer(TokenizerSpec):
         Args:
             model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
             special_tokens: either list of special tokens or dictionary of token name to token value
+            legacy: when set to True, the previous behavior of the SentecePiece wrapper will be restored, 
+                including the possibility to add special tokens inside wrapper.
         """
         if not model_path or not os.path.exists(model_path):
             raise ValueError(f"model_path: {model_path} is invalid")
@@ -51,7 +53,7 @@ class SentencePieceTokenizer(TokenizerSpec):
         if special_tokens:
             if not self.legacy:
                 raise ValueError(
-                    "Special tokens must be None when legacy is set to False. Provide special tokens at train time, or set legacy=True."
+                    "Special tokens must be None when legacy is set to False. Provide special tokens at train time."
                 )
             self.add_special_tokens(special_tokens)
 
