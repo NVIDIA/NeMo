@@ -54,7 +54,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'pytest -m "unit and not skipduringci and not pleasefixme" --with_downloads'
+        sh 'pytest -m "not pleasefixme" --with_downloads'
       }
     }
 
@@ -66,7 +66,7 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "unit and not pleasefixme" --cpu --with_downloads'
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads'
       }
     }
 
