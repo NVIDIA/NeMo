@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-from functools import partial
-from typing import Callable
-
 import pytest
 import torch
 
