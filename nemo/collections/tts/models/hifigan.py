@@ -110,7 +110,10 @@ class HifiGanModel(Vocoder):
         """
         return self.generator(x=spec)
 
-    @typecheck(output_types={"audio": NeuralType(('B', 'T'), AudioSignal())})
+    @typecheck(
+        input_types={"spec": NeuralType(('B', 'C', 'T'), MelSpectrogramType())},
+        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+    )
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
         return self(spec=spec).squeeze(1)
 

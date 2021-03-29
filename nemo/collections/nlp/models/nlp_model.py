@@ -353,17 +353,6 @@ class NLPModel(ModelPT, Exportable):
                     raise NotImplementedError(
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
                     )
-            else:
-                # Megatron without model parallelism
-                self.complete_megatron_init()
-        else:
-            # testing stage
-            self.complete_megatron_init()
-
-    def complete_megatron_init(self):
-        if hasattr(self, 'bert_model'):
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                self.bert_model.complete_lazy_init()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
