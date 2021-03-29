@@ -55,6 +55,7 @@ def data_exists(data_dir):
 
 
 class TestPretrainedModelPerformance(TestCase):
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(
@@ -83,6 +84,7 @@ class TestPretrainedModelPerformance(TestCase):
     @pytest.mark.skipif(
         not data_exists('/home/TestData/nlp/token_classification_punctuation/fisher'), reason='Not a Jenkins machine'
     )
+    @pytest.mark.with_downloads()
     def test_punct_capit_with_distilbert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
         model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_distilbert")
@@ -93,6 +95,7 @@ class TestPretrainedModelPerformance(TestCase):
         assert abs(metrics['punct_f1'] - 52.4225) < 0.001
         assert int(model.punct_class_report.total_examples) == 128
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(

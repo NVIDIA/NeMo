@@ -38,21 +38,21 @@ class TestMegatron(TestCase):
         pretrained_lm_models = nemo_nlp.modules.get_pretrained_lm_models_list()
         self.assertTrue(len(pretrained_lm_models) > 0)
 
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.unit
-    def test_get_pretrained_bert_345m_uncased_model(self):
-        model_name = "megatron-bert-345m-uncased"
-        model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
-        if torch.cuda.is_available():
-            model = model.cuda()
-
-        assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
-
-        typecheck.set_typecheck_enabled(enabled=False)
-        inp = model.input_example()
-        out = model.forward(*inp)
-        typecheck.set_typecheck_enabled(enabled=True)
-        self.model = model
+    # @pytest.mark.run_only_on('GPU')
+    # @pytest.mark.unit
+    # def test_get_pretrained_bert_345m_uncased_model(self):
+    #     model_name = "megatron-bert-345m-uncased"
+    #     model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
+    #     if torch.cuda.is_available():
+    #         model = model.cuda()
+    #
+    #     assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
+    #
+    #     typecheck.set_typecheck_enabled(enabled=False)
+    #     inp = model.input_example()
+    #     out = model.forward(*inp)
+    #     typecheck.set_typecheck_enabled(enabled=True)
+    #     self.model = model
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
