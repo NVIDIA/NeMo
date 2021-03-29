@@ -163,12 +163,16 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         Args:
             x (torch.Tensor): (batch, nheads, time, 2*time-1)
         """
-        qlen = x.size(2)
-        pos_len = x.size(-1)
-        x = x.view(x.size(0), x.size(1), -1)
-        x = torch.nn.functional.pad(x, pad=(0, qlen))
-        x = x.view(x.size(0), x.size(1), qlen, pos_len + 1)
-        return x[:, :, :, 0:qlen].flip(dims=[-1])
+        x_size = x.size()  # (b, h, t1, t2)
+        qlen = x_size[-2]
+        pos_len = x_size[-1]
+
+        # need to add a column of zeros on the left side of last two dimensions to perform the relative shifting
+        x = torch.nn.functional.pad(x, pad=(1, 0, 0, 0))  # (b, h, t1, t2+1)
+        x = x.view(*x.size()[:-2], pos_len + 1, qlen)  # (b, h, t2+1, t1)
+        # need to drop the first row
+        x = x[:, :, 1:].view(*x_size)  # (b, h, t1, t2)
+        return x
 
     def forward(self, query, key, value, mask, pos_emb):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
@@ -203,6 +207,8 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # (batch, head, time1, time2)
         matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
         matrix_bd = self.rel_shift(matrix_bd)
+        # drops extra elements in the matrix_bd if there are any left from rel_shift() to match the matrix_ac's size
+        matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
         scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
 
@@ -225,14 +231,14 @@ class PositionalEncoding(torch.nn.Module):
         self.d_model = d_model
         self.xscale = xscale
         self.dropout = torch.nn.Dropout(p=dropout_rate)
-        self.pe = None
-        self.extend_pe(torch.tensor(0.0).expand(1, max_len))
+        self.extend_pe(length=max_len)
         if dropout_rate_emb > 0:
             self.dropout_emb = nn.Dropout(dropout_rate_emb)
         else:
             self.dropout_emb = None
 
-    def create_pe(self, pos_length, positions):
+    def create_pe(self, positions):
+        pos_length = positions.size(0)
         pe = torch.zeros(pos_length, self.d_model)
         div_term = torch.exp(
             torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
@@ -242,13 +248,15 @@ class PositionalEncoding(torch.nn.Module):
         pe = pe.unsqueeze(0)
         return pe
 
-    def extend_pe(self, x):
+    def extend_pe(self, length):
         """Reset and extend the positional encodings if needed."""
-        if self.pe is None or self.pe.size(1) < x.size(1):
-            positions = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
-            self.pe = self.create_pe(pos_length=x.size(1), positions=positions)
-        if self.pe.dtype != x.dtype or self.pe.device != x.device:
-            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
+        if hasattr(self, 'pe') and self.pe.size(1) >= length:
+            return
+        positions = torch.arange(0, length, dtype=torch.float32).unsqueeze(1)
+        pe = self.create_pe(positions=positions)
+        if not hasattr(self, 'pe'):
+            self.register_buffer('pe', pe, persistent=False)
+        self.pe = pe
 
     def forward(self, x: torch.Tensor):
         """Adds positional encoding.
@@ -259,6 +267,9 @@ class PositionalEncoding(torch.nn.Module):
             pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
         """
         self.extend_pe(x)
+        if self.pe.dtype != x.dtype or self.pe.device != x.device:
+            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
+
         if self.xscale:
             x = x * self.xscale
         pos_emb = self.pe[:, : x.size(1)]
@@ -289,14 +300,18 @@ class RelPositionalEncoding(PositionalEncoding):
 
         self.max_len = max_len
 
-    def extend_pe(self, x):
+    def extend_pe(self, length):
         """Reset and extend the positional encodings if needed."""
-        needed_size = 2 * x.size(1) - 1
-        if self.pe is None or self.pe.size(1) < needed_size:
-            positions = torch.arange(-(x.size(1) - 1), x.size(1), 1.0, dtype=torch.float32).unsqueeze(1)
-            self.pe = self.create_pe(pos_length=needed_size, positions=positions)
-        if self.pe.dtype != x.dtype or self.pe.device != x.device:
-            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
+        needed_size = 2 * (length - 1) + 1
+        if hasattr(self, 'pe') and self.pe.size(1) >= needed_size:
+            return
+        # positions would be from negative numbers to positive
+        # positive positions would be used for left positions and negative for right positions
+        positions = torch.arange(length - 1, -length, -1, dtype=torch.float32).unsqueeze(1)
+        pe = self.create_pe(positions=positions)
+        if not hasattr(self, 'pe'):
+            self.register_buffer('pe', pe, persistent=False)
+        self.pe = pe
 
     def forward(self, x):
         """Compute positional encoding.
@@ -306,12 +321,20 @@ class RelPositionalEncoding(PositionalEncoding):
             x (torch.Tensor): Its shape is (batch, time, feature_size)
             pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
         """
-        self.extend_pe(x)
+        self.extend_pe(length=x.size(1))
+        if self.pe.dtype != x.dtype or self.pe.device != x.device:
+            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
+
         if self.xscale:
             x = x * self.xscale
 
-        start_pos = (self.pe.size(1) + 1) // 2 - x.size(1)
-        pos_emb = self.pe[:, start_pos:-start_pos]
+        # center_pos would be the index of position 0
+        # negative positions would be used for right and positive for left tokens
+        # for input of length L, 2*L-1 positions are needed, positions from (L-1) to -(L-1)
+        center_pos = self.pe.size(1) // 2
+        start_pos = center_pos - x.size(1) + 1
+        end_pos = center_pos + x.size(1)
+        pos_emb = self.pe[:, start_pos:end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
         return self.dropout(x), pos_emb
