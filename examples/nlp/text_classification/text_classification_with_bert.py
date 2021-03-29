@@ -95,6 +95,7 @@ You may restore the saved model like this:
     eval_model.set_trainer(eval_trainer)
     eval_trainer.test(model=eval_model, verbose=False)
 """
+from nemo.collections.nlp.models.nlp_model import NLPDDPPlugin
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
@@ -107,7 +108,7 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf", config_name="text_classification_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'\nConfig Params:\n{cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer(plugins=[NLPDDPPlugin(find_unused_parameters=True)], **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if not cfg.model.train_ds.file_path:
