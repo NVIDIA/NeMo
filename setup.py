@@ -99,7 +99,7 @@ try:
 
     version = torch.__version__
     SUPPORTED_TORCH_VERSION = f"torch=={version}"
-    
+
     if 'a' in version or 'b' in version:
         # It is githash release, force to supported Pytorch Lightning branch
         SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning==1.2.2"
