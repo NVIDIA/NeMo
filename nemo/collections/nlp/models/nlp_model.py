@@ -15,7 +15,7 @@
 import hashlib
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from megatron import mpu
@@ -29,6 +29,7 @@ from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
 from pytorch_lightning.utilities.cloud_io import atomic_save
+from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from torch.nn.parallel import DistributedDataParallel
 from transformers import TRANSFORMERS_CACHE
 
@@ -203,13 +204,14 @@ class NLPModel(ModelPT, Exportable):
         # we initialize megatron-lm model parallel and data parallel groups
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
-            mpu.initialize_model_parallel(app_state.model_parallel_size)
-            app_state.model_parallel_group = mpu.get_model_parallel_group()
-            app_state.data_parallel_group = mpu.get_data_parallel_group()
-            app_state.model_parallel_rank = torch.distributed.get_rank(group=app_state.model_parallel_group)
-            app_state.data_parallel_rank = torch.distributed.get_rank(group=app_state.data_parallel_group)
-            logging.info(f'mp_rank: {app_state.model_parallel_rank}')
-            logging.info(f'dp_rank: {app_state.data_parallel_rank}')
+            if torch.distributed.is_initialized():
+                mpu.initialize_model_parallel(app_state.model_parallel_size)
+                app_state.model_parallel_group = mpu.get_model_parallel_group()
+                app_state.data_parallel_group = mpu.get_data_parallel_group()
+                app_state.model_parallel_rank = torch.distributed.get_rank(group=app_state.model_parallel_group)
+                app_state.data_parallel_rank = torch.distributed.get_rank(group=app_state.data_parallel_group)
+                logging.info(f'mp_rank: {app_state.model_parallel_rank}')
+                logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
     def _clip_gradients(self, optimizer, clip_val=None):
         """ Override of PTL Gradient Clipping.
@@ -245,9 +247,11 @@ class NLPModel(ModelPT, Exportable):
         """
         # TODO: implement model parallel for test stage
         if stage == 'fit':
-            # set find_unused_parameters to True by default for NLP models
-            if isinstance(self.trainer.accelerator.training_type_plugin, DDPPlugin):
-                self.trainer.accelerator.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
+
+            # if isinstance(self.trainer.accelerator.training_type_plugin, DDPPlugin):
+            #     self.trainer.accelerator.training_type_plugin = NLPDDPPlugin()
+            #     # set find_unused_parameters to True by default for NLP models
+            #     self.trainer.accelerator.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
 
             # adds self.bert_model config to .nemo file
             if hasattr(self, 'bert_model') and self.bert_model is not None:
@@ -261,15 +265,21 @@ class NLPModel(ModelPT, Exportable):
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
                 # mpu grad clipping needs parameters to have the attribute model_parallel
-                parameters = self._trainer.get_model().parameters()
-                for p in parameters:
-                    if not hasattr(p, 'model_parallel'):
-                        p.model_parallel = False
+                try:
+                    parameters = self._trainer.get_model().parameters()
+                    for p in parameters:
+                        if not hasattr(p, 'model_parallel'):
+                            p.model_parallel = False
+                except:
+                    pass
 
-                # Update PTL trainer to use our configure_ddp
-                self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
+                # # Update PTL trainer to use our configure_ddp
+                # self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
+
+                # TODO: figure out how to override clip gradients again
                 # Update PTL trainer to use our _clip_gradients
-                self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
+                # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
+
                 self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
 
                 # Configure checkpointing for model parallel
@@ -284,7 +294,7 @@ class NLPModel(ModelPT, Exportable):
                         )
 
                 if isinstance(self.bert_model, MegatronBertEncoder):
-                    self.bert_model.complete_lazy_init()
+                    # self.bert_model.complete_lazy_init()
 
                     # model parallel checkpoints need to be restored after torch.distributed is initialized
                     if self._trainer.resume_from_checkpoint is not None:
@@ -312,14 +322,15 @@ class NLPModel(ModelPT, Exportable):
                         )
                         self.bert_model.restore_weights(self.bert_model._restore_path)
 
-                    logging.info("Replacing sampler with model parallel sampler")
-                    mp_sampler = torch.utils.data.distributed.DistributedSampler(
-                        self._train_dl.dataset,
-                        num_replicas=app_state.data_parallel_size,
-                        rank=app_state.data_parallel_rank,
-                    )
-                    mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
-                    self._train_dl = mp_dl
+                    if torch.distributed.is_initialized():
+                        logging.info("Replacing sampler with model parallel sampler")
+                        mp_sampler = torch.utils.data.distributed.DistributedSampler(
+                            self._train_dl.dataset,
+                            num_replicas=app_state.data_parallel_size,
+                            rank=app_state.data_parallel_rank,
+                        )
+                        mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
+                        self._train_dl = mp_dl
                 else:
                     raise NotImplementedError(
                         f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
@@ -382,9 +393,22 @@ class NLPCheckpointConnector(CheckpointConnector):
                     atomic_save(checkpoint, filepath)
         return None
 
-    class NLPDDPPlugin(DDPPlugin):
-        """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
-        """
+
+class NLPDDPPlugin(DDPPlugin):
+    """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
+    """
+
+    distributed_backend = "ddp"
+
+    def __init__(
+        self,
+        parallel_devices: Optional[List[torch.device]] = None,
+        num_nodes: int = 1,
+        cluster_environment: ClusterEnvironment = None,
+        sync_batchnorm: bool = False,
+        **kwargs: Union[Any, Dict[str, Any]],
+    ) -> None:
+        super().__init__(parallel_devices, num_nodes, cluster_environment, sync_batchnorm, **kwargs)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
