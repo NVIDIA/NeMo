@@ -43,9 +43,9 @@ class ClassifyFst(GraphFst):
         money = MoneyFst().fst
         whitelist = WhiteListFst().fst
         graph = (
-            pynutil.add_weight(whitelist, 1.0)
+            pynutil.add_weight(whitelist, 1.01)
             | pynutil.add_weight(time, 1.1)
-            | pynutil.add_weight(date, 1.01)
+            | pynutil.add_weight(date, 1.09)
             | pynutil.add_weight(decimal, 1.1)
             | pynutil.add_weight(measure, 1.1)
             | pynutil.add_weight(cardinal, 1.1)
