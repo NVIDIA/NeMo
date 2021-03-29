@@ -261,28 +261,6 @@ class NLPModel(ModelPT, Exportable):
                             app_state.checkpoint_callback_params,
                         )
 
-                # model parallel checkpoints need to be restored after torch.distributed is initialized
-                if self._trainer.resume_from_checkpoint is not None:
-                    # update path based on model parallel rank
-                    filepath = self._trainer.resume_from_checkpoint
-                    dirname = os.path.dirname(os.path.dirname(filepath))
-                    basename = os.path.basename(filepath)
-                    filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-                    self._trainer.resume_from_checkpoint = filepath
-                    logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
-                    # need to set checkpoint version for megatron-lm
-                    checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
-                        'checkpoint_version', None
-                    )
-                    if checkpoint_version is not None:
-                        set_checkpoint_version(checkpoint_version)
-                    else:
-                        logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                        set_checkpoint_version(0)
-                # else:
-                #     logging.info(f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}")
-                #     self.bert_model.restore_weights(self.bert_model._restore_path)
-
     def on_pretrain_routine_start(self) -> None:
         """ PTL hook that is called after DDP is initialized.
         """
@@ -314,8 +292,29 @@ class NLPModel(ModelPT, Exportable):
                 # Update PTL trainer to use our _clip_gradients
                 # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
-                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}")
-                self.bert_model.restore_weights(self.bert_model._restore_path)
+                # model parallel checkpoints need to be restored after torch.distributed is initialized
+                if self._trainer.resume_from_checkpoint is not None:
+                    # update path based on model parallel rank
+                    filepath = self._trainer.resume_from_checkpoint
+                    dirname = os.path.dirname(os.path.dirname(filepath))
+                    basename = os.path.basename(filepath)
+                    filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+                    self._trainer.resume_from_checkpoint = filepath
+                    logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
+                    # need to set checkpoint version for megatron-lm
+                    checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
+                        'checkpoint_version', None
+                    )
+                    if checkpoint_version is not None:
+                        set_checkpoint_version(checkpoint_version)
+                    else:
+                        logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
+                        set_checkpoint_version(0)
+                else:
+                    logging.info(
+                        f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
+                    )
+                    self.bert_model.restore_weights(self.bert_model._restore_path)
 
         else:
             raise NotImplementedError(f'The BERT encoder: {self.bert_model} does not support model parallelism yet.')
