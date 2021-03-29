@@ -238,103 +238,92 @@ class NLPModel(ModelPT, Exportable):
         else:
             return Accelerator._clip_gradients(self, optimizer, clip_val)
 
-    def setup(self, stage: str) -> None:
+    def on_pretrain_routine_start(self) -> None:
         """ PTL hook that is called after DDP is initialized.
-            Called at the beginning of fit and test.
-
-        Args:
-            stage (str): either 'fit' or 'test'
         """
-        # TODO: implement model parallel for test stage
-        if stage == 'fit':
 
-            # if isinstance(self.trainer.accelerator.training_type_plugin, DDPPlugin):
-            #     self.trainer.accelerator.training_type_plugin = NLPDDPPlugin()
-            #     # set find_unused_parameters to True by default for NLP models
-            #     self.trainer.accelerator.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
+        # if isinstance(self.trainer.accelerator.training_type_plugin, DDPPlugin):
+        #     self.trainer.accelerator.training_type_plugin = NLPDDPPlugin()
+        #     # set find_unused_parameters to True by default for NLP models
+        #     self.trainer.accelerator.training_type_plugin._ddp_kwargs['find_unused_parameters'] = True
 
-            # adds self.bert_model config to .nemo file
-            if hasattr(self, 'bert_model') and self.bert_model is not None:
-                self.register_bert_model()
+        # adds self.bert_model config to .nemo file
+        if hasattr(self, 'bert_model') and self.bert_model is not None:
+            self.register_bert_model()
 
-            app_state = AppState()
+        app_state = AppState()
 
-            if app_state.model_parallel_size is not None:
+        if app_state.model_parallel_size is not None:
 
-                if app_state.model_parallel_group is None:
-                    self.init_model_parallel(app_state.global_rank, app_state.world_size)
+            if app_state.model_parallel_group is None:
+                self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
-                # mpu grad clipping needs parameters to have the attribute model_parallel
-                try:
-                    parameters = self._trainer.get_model().parameters()
-                    for p in parameters:
-                        if not hasattr(p, 'model_parallel'):
-                            p.model_parallel = False
-                except:
-                    pass
+            # mpu grad clipping needs parameters to have the attribute model_parallel
+            parameters = self._trainer.get_model().parameters()
+            for p in parameters:
+                if not hasattr(p, 'model_parallel'):
+                    p.model_parallel = False
 
-                # # Update PTL trainer to use our configure_ddp
-                # self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
+            # # Update PTL trainer to use our configure_ddp
+            # self._trainer.accelerator_backend.ddp_plugin.configure_ddp = self.configure_ddp
 
-                # TODO: figure out how to override clip gradients again
-                # Update PTL trainer to use our _clip_gradients
-                # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
+            # TODO: figure out how to override clip gradients again
+            # Update PTL trainer to use our _clip_gradients
+            # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
-                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
+            self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
 
-                # Configure checkpointing for model parallel
-                if app_state.create_checkpoint_callback:
-                    # global rank 0 is configured by exp_manager
-                    if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
-                        configure_checkpointing(
-                            self._trainer,
-                            app_state.log_dir,
-                            app_state.checkpoint_name,
-                            app_state.checkpoint_callback_params,
-                        )
+            # Configure checkpointing for model parallel
+            # if app_state.create_checkpoint_callback:
+            #     # global rank 0 is configured by exp_manager
+            #     if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
+            #         configure_checkpointing(
+            #             self._trainer,
+            #             app_state.log_dir,
+            #             app_state.checkpoint_name,
+            #             app_state.checkpoint_callback_params,
+            #         )
 
-                if isinstance(self.bert_model, MegatronBertEncoder):
-                    # self.bert_model.complete_lazy_init()
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                # self.bert_model.complete_lazy_init()
 
-                    # model parallel checkpoints need to be restored after torch.distributed is initialized
-                    if self._trainer.resume_from_checkpoint is not None:
-                        # update path based on model parallel rank
-                        filepath = self._trainer.resume_from_checkpoint
-                        dirname = os.path.dirname(os.path.dirname(filepath))
-                        basename = os.path.basename(filepath)
-                        filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-                        self._trainer.resume_from_checkpoint = filepath
-                        logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
-                        # need to set checkpoint version for megatron-lm
-                        checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
-                            'checkpoint_version', None
-                        )
-                        if checkpoint_version is not None:
-                            set_checkpoint_version(checkpoint_version)
-                        else:
-                            logging.warning(
-                                'Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.'
-                            )
-                            set_checkpoint_version(0)
-                    else:
-                        logging.info(
-                            f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
-                        )
-                        self.bert_model.restore_weights(self.bert_model._restore_path)
+                # # model parallel checkpoints need to be restored after torch.distributed is initialized
+                # if self._trainer.resume_from_checkpoint is not None:
+                #     # update path based on model parallel rank
+                #     filepath = self._trainer.resume_from_checkpoint
+                #     dirname = os.path.dirname(os.path.dirname(filepath))
+                #     basename = os.path.basename(filepath)
+                #     filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+                #     self._trainer.resume_from_checkpoint = filepath
+                #     logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
+                #     # need to set checkpoint version for megatron-lm
+                #     checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
+                #         'checkpoint_version', None
+                #     )
+                #     if checkpoint_version is not None:
+                #         set_checkpoint_version(checkpoint_version)
+                #     else:
+                #         logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
+                #         set_checkpoint_version(0)
+                # else:
+                #     logging.info(
+                #         f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
+                #     )
+                #     self.bert_model.restore_weights(self.bert_model._restore_path)
 
-                    if torch.distributed.is_initialized():
-                        logging.info("Replacing sampler with model parallel sampler")
-                        mp_sampler = torch.utils.data.distributed.DistributedSampler(
-                            self._train_dl.dataset,
-                            num_replicas=app_state.data_parallel_size,
-                            rank=app_state.data_parallel_rank,
-                        )
-                        mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
-                        self._train_dl = mp_dl
-                else:
-                    raise NotImplementedError(
-                        f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
+                if torch.distributed.is_initialized():
+                    logging.info("Replacing sampler with model parallel sampler")
+                    mp_sampler = torch.utils.data.distributed.DistributedSampler(
+                        self._train_dl.dataset,
+                        num_replicas=app_state.data_parallel_size,
+                        rank=app_state.data_parallel_rank,
                     )
+                    mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
+                    self._train_dl = mp_dl
+            else:
+                raise NotImplementedError(
+                    f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
+                )
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
