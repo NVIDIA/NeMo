@@ -20,7 +20,7 @@ import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.collections.asr.models import ASRModel, EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
 
