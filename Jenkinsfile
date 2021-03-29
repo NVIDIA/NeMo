@@ -154,7 +154,6 @@ pipeline {
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_pynini.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
-          }
         }
       }
     }
@@ -179,33 +178,33 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
-//         stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text.py \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             +model.train_ds.use_dali=True \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             +model.validation_ds.use_dali=True \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-//             sh 'rm -rf examples/asr/speech_to_text_results'
-//           }
-//         }
-//         stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text.py \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             +model.train_ds.use_dali=True \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             +model.validation_ds.use_dali=True \
-//             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-//             sh 'rm -rf examples/asr/speech_to_text_results'
-//           }
-//         }
+        //         stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+        //           steps {
+        //             sh 'python examples/asr/speech_to_text.py \
+        //             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //             +model.train_ds.use_dali=True \
+        //             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //             +model.validation_ds.use_dali=True \
+        //             trainer.gpus=[0] \
+        //             +trainer.fast_dev_run=True \
+        //             exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //             sh 'rm -rf examples/asr/speech_to_text_results'
+        //           }
+        //         }
+        //         stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+        //           steps {
+        //             sh 'python examples/asr/speech_to_text.py \
+        //             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //             +model.train_ds.use_dali=True \
+        //             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //             +model.validation_ds.use_dali=True \
+        //             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+        //             trainer.gpus=[0] \
+        //             +trainer.fast_dev_run=True \
+        //             exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //             sh 'rm -rf examples/asr/speech_to_text_results'
+        //           }
+        //         }
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -1017,7 +1016,7 @@ pipeline {
 
     stage('L2: NMT Tarred Dataset Creation') {
       when {
-        anyOf{
+        anyOf {
           branch 'main'
           changeRequest target: 'main'
         }
