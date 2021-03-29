@@ -328,6 +328,8 @@ def create_spt_model(
 
     # Add BERT control symbols
     tokens = []
+    special_tokens = ["<s>", "</s>", "<pad>", "<unk>"]
+    special_tokens += control_symbols + user_defined_symbols
 
     with open(f"{output_dir}/tokenizer.vocab", "r") as f:
         # Read tokens from each line and parse for vocab
