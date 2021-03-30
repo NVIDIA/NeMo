@@ -2,7 +2,7 @@
 # Default learning parameters in this config are set for effective batch size of 1k on 32 GPUs.
 # To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
-name: &name "CitriNet-384-8x-Stride-Asymmetric-240ms"
+name: &name "CitriNet-384-8x-Stride-Asymmetric-720ms"
 
 # kernel: \[([0-9]+)\]
 # filters: ([0-9]+)
@@ -84,7 +84,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 24  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 48  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -184,7 +184,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 6  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 7  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -196,7 +196,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 6  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 8  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -208,7 +208,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 6  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -220,7 +220,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 6  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 10  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -232,7 +232,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 6  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 11  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -244,7 +244,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 6  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 12  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -258,7 +258,7 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         stride_last: true
         residual_mode: "stride_add"
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -270,7 +270,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -282,7 +282,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -294,7 +294,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -306,7 +306,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -318,7 +318,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -330,7 +330,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -342,7 +342,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
       - filters: &enc_final 640
         repeat: 1
@@ -354,7 +354,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
-        future_context: 3  # Context = (K // 2) <Right frames> * 2 ^ S
+        future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
 
 
   decoder:
