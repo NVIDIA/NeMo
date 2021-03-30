@@ -400,10 +400,6 @@ class NLPDDPPlugin(DDPPlugin):
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, sync_batchnorm, **kwargs)
-        # self._ddp_kwargs['find_unused_parameters'] = True
-
-    def preconfigure_ddp(self):
-        self._ddp_kwargs['find_unused_parameters'] = True
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -434,4 +430,10 @@ class NLPDDPPlugin(DDPPlugin):
             )
 
         else:
-            return DDPPlugin.configure_ddp(self)
+            device_ids = self.determine_ddp_device_ids()
+            self._model = DistributedDataParallel(
+                LightningDistributedModule(self.model),
+                device_ids=device_ids,
+                find_unused_parameters=True,
+                **self._ddp_kwargs,
+            )
