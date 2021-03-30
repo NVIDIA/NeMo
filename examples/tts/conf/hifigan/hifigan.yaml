@@ -27,7 +27,7 @@ model:
     pad_value: -11.52
     preemph: null
     sample_rate: 22050
-    stft_exact_pad: true
+    exact_pad: true
     stft_conv: false
     window: hann
     use_grads: false
@@ -37,23 +37,31 @@ model:
     lr: 0.0002
     betas: [0.8, 0.99]
 
+  sched:
+    name: CosineAnnealing
+    min_lr: 1e-5
+    warmup_ratio: 0.02
+    max_steps: ???
+
   denoise_strength: 0.0025
-  max_steps: 2500000
 
 trainer:
   gpus: -1 # number of gpus
-  max_steps: ${model.max_steps}
+  max_epochs: ???
   num_nodes: 1
   accelerator: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
+  flush_logs_every_n_steps: 200
   log_every_n_steps: 100
-  check_val_every_n_epoch: 10
-  automatic_optimization: false
+  check_val_every_n_epoch: 1
 
 exp_manager:
   exp_dir: null
   name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"
