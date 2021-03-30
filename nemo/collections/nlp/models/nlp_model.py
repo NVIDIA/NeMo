@@ -240,6 +240,10 @@ class NLPModel(ModelPT, Exportable):
 
     def setup(self, stage: str) -> None:
         if stage == 'fit':
+
+            if isinstance(self.trainer.accelerator.training_type_plugin, DDPPlugin):
+                self.trainer.accelerator.training_type_plugin = NLPDDPPlugin()
+
             # adds self.bert_model config to .nemo file
             if hasattr(self, 'bert_model') and self.bert_model is not None:
                 self.register_bert_model()
