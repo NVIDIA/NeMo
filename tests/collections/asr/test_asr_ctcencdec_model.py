@@ -227,7 +227,6 @@ class TestEncDecCTCModel:
             'tarred_shard_strategy',
             'shuffle_n',
             'use_start_end_token',
-            'load_audio',
             'use_start_end_token',
         ]
 
@@ -258,7 +257,6 @@ class TestEncDecCTCModel:
             'global_rank',
             'world_size',
             'use_start_end_token',
-            'load_audio',
         ]
 
         REMAP_ARGS = {
