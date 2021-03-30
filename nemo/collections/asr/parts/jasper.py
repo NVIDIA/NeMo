@@ -181,6 +181,10 @@ class MaskedConv1d(nn.Module):
         self.use_mask = use_mask
         self.heads = heads
 
+        if self.use_mask:
+            self.max_len = 0
+            self.lens = None
+
     def get_seq_len(self, lens):
         return (
             lens + 2 * self.conv.padding[0] - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
@@ -188,11 +192,13 @@ class MaskedConv1d(nn.Module):
 
     def forward(self, x, lens):
         if self.use_mask:
-            lens = lens.to(dtype=torch.long)
             max_len = x.size(2)
-            mask = torch.arange(max_len).to(lens.device).expand(len(lens), max_len) >= lens.unsqueeze(1)
+            if max_len > self.max_len:
+                self.lens = torch.arange(max_len).to(lens.device)
+                self.max_len = max_len
+
+            mask = self.lens[:max_len].unsqueeze(0) >= lens.unsqueeze(1)
             x = x.masked_fill(mask.unsqueeze(1).to(device=x.device), 0)
-            # del mask
             lens = self.get_seq_len(lens)
 
         sh = x.shape
