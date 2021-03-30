@@ -133,7 +133,7 @@ class TestSaveRestore:
         self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]))
 
     @pytest.mark.unit
-    def test_EncDecCTCModelBPE(self):
+    def test_EncDecCTCModelBPE_v2(self):
         # TODO: Switch to using named configs because here we don't really care about weights
         cn = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
         self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]))
@@ -271,3 +271,36 @@ class TestSaveRestore:
 
             # Test that new config has arbitrary content
             assert model_copy.cfg.xyz == "abc"
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_from_with_target_class(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+
+            # Update config
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+
+            # Create model
+            model = MockModel(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')  # type: MockModel
+
+            assert model.temp_file == empty_file.name
+
+            # Save file using MockModel
+            with tempfile.TemporaryDirectory() as save_folder:
+                save_path = os.path.join(save_folder, "temp.nemo")
+                model.save_to(save_path)
+
+                # Restore test (using ModelPT as restorer)
+                # This forces the target class = MockModel to be used as resolver
+                model_copy = ModelPT.restore_from(save_path, map_location='cpu')
+
+        # Restore test
+        diff = model.w.weight - model_copy.w.weight
+        assert diff.mean() <= 1e-9
+        assert isinstance(model_copy, MockModel)
+        assert os.path.basename(model.temp_file) == model_copy.temp_file
+        assert model_copy.temp_data == ["*****\n"]
