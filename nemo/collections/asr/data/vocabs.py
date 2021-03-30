@@ -95,11 +95,7 @@ class Chars(Base):
     """Chars vocabulary."""
 
     def __init__(
-        self,
-        punct=True,
-        spaces=False,
-        apostrophe=True,
-        add_blank_at="last_but_one",
+        self, punct=True, spaces=False, apostrophe=True, add_blank_at="last_but_one",
     ):
         labels = []
         self.space, labels = len(labels), labels + [' ']  # Space

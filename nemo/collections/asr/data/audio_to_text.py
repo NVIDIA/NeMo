@@ -316,12 +316,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         if notation == 'chars':
             vocab = vocabs.Chars(punct=punct, spaces=spaces, add_blank_at=add_blank_at)
         elif notation == 'phonemes':
-            vocab = vocabs.Phonemes(
-                punct=punct,
-                stresses=stresses,
-                spaces=spaces,
-                add_blank_at=add_blank_at,
-            )
+            vocab = vocabs.Phonemes(punct=punct, stresses=stresses, spaces=spaces, add_blank_at=add_blank_at,)
         else:
             raise ValueError("Unsupported vocab type.")
         return vocab

@@ -88,9 +88,7 @@ class HifiGanModel(Vocoder):
         }
 
         self.scheduler_d = CosineAnnealing(
-            optimizer=self.optim_d,
-            max_steps=self._cfg.sched.max_steps,
-            min_lr=self._cfg.sched.min_lr,
+            optimizer=self.optim_d, max_steps=self._cfg.sched.max_steps, min_lr=self._cfg.sched.min_lr,
         )
         sch2_dict = {
             'scheduler': self.scheduler_d,
