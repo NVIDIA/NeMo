@@ -22,8 +22,8 @@ import tempfile
 
 import youtokentome as yttm
 from joblib import Parallel, delayed
-from pytorch_lightning import Trainer
 from omegaconf import OmegaConf
+from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
@@ -73,7 +73,9 @@ class MTDataPreproc:
             ):
                 raise NotImplementedError(f"Currently we only support {supported_tokenizers}.")
 
-            if cfg.get('shared_tokenizer') and cfg.encoder_tokenizer.get('library') != cfg.decoder_tokenizer.get('library'):
+            if cfg.get('shared_tokenizer') and cfg.encoder_tokenizer.get('library') != cfg.decoder_tokenizer.get(
+                'library'
+            ):
                 raise ValueError("Shared tokenizers cannot be from different libraries.")
 
             # Prepare tokenizers
@@ -111,8 +113,12 @@ class MTDataPreproc:
                         global_rank=self.global_rank,
                         encoder_training_sample_size=cfg.encoder_tokenizer.get('training_sample_size', -1),
                         decoder_training_sample_size=cfg.decoder_tokenizer.get('training_sample_size', -1),
-                        encoder_special_tokens=OmegaConf.to_container(cfg.encoder_tokenizer.special_tokens) if cfg.encoder_tokenizer.special_tokens else None,
-                        decoder_special_tokens=OmegaConf.to_container(cfg.decoder_tokenizer.special_tokens) if cfg.decoder_tokenizer.special_tokens else None,
+                        encoder_special_tokens=OmegaConf.to_container(cfg.encoder_tokenizer.special_tokens)
+                        if cfg.encoder_tokenizer.special_tokens
+                        else None,
+                        decoder_special_tokens=OmegaConf.to_container(cfg.decoder_tokenizer.special_tokens)
+                        if cfg.decoder_tokenizer.special_tokens
+                        else None,
                     )
                     # update config
                     self._cfg.encoder_tokenizer.tokenizer_model = self.encoder_tokenizer_model
@@ -646,7 +652,7 @@ class MTDataPreproc:
         if encoder_special_tokens:
             if isinstance(encoder_special_tokens, dict):
                 encoder_special_tokens = list(encoder_special_tokens.values())
-                print (encoder_special_tokens)
+                print(encoder_special_tokens)
 
         if decoder_special_tokens:
             if isinstance(decoder_special_tokens, dict):
