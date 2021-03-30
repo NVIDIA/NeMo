@@ -56,6 +56,8 @@ class NLPModel(ModelPT, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
         self.set_world_size(trainer)
+        if isinstance(self._trainer.accelerator_connector._training_type_plugin, DDPPlugin):
+            self._trainer.accelerator_connector._training_type_plugin = NLPDDPPlugin()
 
     @rank_zero_only
     def register_bert_model(self):
@@ -240,9 +242,6 @@ class NLPModel(ModelPT, Exportable):
 
     def setup(self, stage: str) -> None:
         if stage == 'fit':
-
-            if isinstance(self.trainer.accelerator.training_type_plugin, DDPPlugin):
-                self.trainer.accelerator.training_type_plugin = NLPDDPPlugin()
 
             # adds self.bert_model config to .nemo file
             if hasattr(self, 'bert_model') and self.bert_model is not None:
