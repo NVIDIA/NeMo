@@ -430,6 +430,7 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
+                find_unused_parameters=True,
             )
 
         else:
