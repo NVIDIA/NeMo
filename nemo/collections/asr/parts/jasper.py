@@ -20,6 +20,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from nemo.collections.asr.parts.activations import Swish
+from nemo.utils import logging
 
 try:
     from pytorch_quantization import calib
@@ -72,6 +73,31 @@ def get_same_padding(kernel_size, stride, dilation):
     if stride > 1 and dilation > 1:
         raise ValueError("Only stride OR dilation may be greater than 1")
     return (dilation * (kernel_size - 1)) // 2
+
+
+def get_asymtric_padding(kernel_size, stride, dilation, future_context):
+    if stride > 1 and dilation > 1:
+        raise ValueError("Only stride OR dilation may be greater than 1")
+
+    if kernel_size <= future_context:
+        # kernel size is smaller than future context, equivalent to using entire context of kernel
+        # simply return symmetric padding for this scenario
+        return get_same_padding(kernel_size, stride, dilation)
+
+    left_context = (kernel_size - 1 - future_context)
+    right_context = future_context
+
+    if left_context < ((kernel_size - 1) // 2):
+        logging.warning(f"Future context window is larger than half the kernel size!\n"
+                        f"Left context = {left_context} | Right context = {right_context} | "
+                        f"Kernel size = {kernel_size}")
+
+    if dilation > 1:
+        left_context = (dilation * kernel_size - 1 - dilation * future_context)
+        right_context = dilation * future_context
+        return (left_context, right_context)
+
+    return (left_context, right_context)
 
 
 class StatsPoolLayer(nn.Module):
@@ -421,6 +447,7 @@ class JasperBlock(nn.Module):
         se_context_window=None,
         se_interpolation_mode='nearest',
         stride_last=False,
+        future_context: int = -1,
         quantize=False,
     ):
         super(JasperBlock, self).__init__()
@@ -434,7 +461,11 @@ class JasperBlock(nn.Module):
         else:
             kernel_size = compute_new_kernel_size(kernel_size, kernel_size_factor)
 
-        padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
+        if future_context < 0:
+            padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
+        else:
+            padding_val = get_asymtric_padding(kernel_size[0], stride[0], dilation[0], future_context)
+
         self.conv_mask = conv_mask
         self.separable = separable
         self.residual_mode = residual_mode
