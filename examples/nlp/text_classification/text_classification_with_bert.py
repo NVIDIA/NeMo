@@ -95,10 +95,10 @@ You may restore the saved model like this:
     eval_model.set_trainer(eval_trainer)
     eval_trainer.test(model=eval_model, verbose=False)
 """
-from nemo.collections.nlp.models.nlp_model import NLPDDPPlugin
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
+from nemo.collections.nlp.models.nlp_model import NLPDDPPlugin
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
