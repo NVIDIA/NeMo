@@ -23,7 +23,7 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.uniglowloss import UniGlowLoss
-from nemo.collections.tts.models.base import Vocoder
+from nemo.collections.tts.models.base import GlowVocoder
 from nemo.collections.tts.modules.uniglow import UniGlowModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -46,7 +46,7 @@ class WaveglowConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-class UniGlowModel(Vocoder):
+class UniGlowModel(GlowVocoder):
     """Waveglow model used to convert betweeen spectrograms and audio"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -128,10 +128,17 @@ class UniGlowModel(Vocoder):
         return tensors
 
     @typecheck(
-        input_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
+        input_types={
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "sigma": NeuralType(optional=True),
+            "denoise": NeuralType(optional=True),
+            "denoiser_strength": NeuralType(optional=True),
+        },
         output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     )
-    def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
+    def convert_spectrogram_to_audio(
+        self, spec: torch.Tensor, sigma: bool = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
+    ) -> torch.Tensor:
         if not self.removed_weightnorm:
             self.model.remove_weightnorm()
             self.removed_weightnorm = True
@@ -139,6 +146,8 @@ class UniGlowModel(Vocoder):
 
         with torch.no_grad():
             audio = self.model(spec=spec, audio=None, sigma=sigma)
+            if denoise:
+                audio = self.denoise(audio=audio, strength=denoiser_strength)
 
         return audio
 
