@@ -58,11 +58,12 @@ class TestMegatron(TestCase):
     @pytest.mark.unit
     @pytest.mark.skip('ONNX export is broken in PyTorch')
     def test_onnx_export(self):
-        assert self.model
+        model = get_pretrained_bert_345m_uncased_model()
+        assert model
         with tempfile.TemporaryDirectory() as tmpdir:
             # Generate filename in the temporary directory.
             # Test export.
-            self.model.export(os.path.join(tmpdir, "megatron.onnx"))
+            model.export(os.path.join(tmpdir, "megatron.onnx"))
 
 
 if __name__ == "__main__":
