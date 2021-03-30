@@ -12,4 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.asr.parts.numba.numba_utils import numba_cuda_is_supported
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import RNNTLossNumba
+
+__NUMBA_MINIMUM_VERSION__ = "0.53.0"
