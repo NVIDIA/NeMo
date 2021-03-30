@@ -32,7 +32,6 @@ def get_classification_label_dataset(featurizer, config: dict) -> audio_to_label
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
         trim=config.get('trim_silence', False),
-        load_audio=config.get('load_audio', True),
         is_regression_task=config.get('is_regression_task', False),
     )
     return dataset
@@ -55,7 +54,6 @@ def get_speech_label_dataset(featurizer, config: dict) -> audio_to_label.AudioTo
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
         trim=config.get('trim_silence', False),
-        load_audio=config.get('load_audio', True),
         time_length=config.get('time_length', 0.31),
         shift_length=config.get('shift_length', 0.01),
         normalize_audio=config.get('normalize_audio', False),
@@ -121,7 +119,6 @@ def get_tarred_speech_label_dataset(
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
         trim=config.get('trim_silence', False),
-        load_audio=config.get('load_audio', True),
         time_length=config.get('time_length', 0.31),
         shift_length=config.get('shift_length', 0.01),
         normalize_audio=config.get('normalize_audio', False),
