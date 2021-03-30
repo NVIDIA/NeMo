@@ -54,10 +54,10 @@ def device(request):
 
 
 @pytest.fixture(autouse=True)
-def run_only_on_device_fixture(request, device_):
+def run_only_on_device_fixture(request, device):
     if request.node.get_closest_marker('run_only_on'):
-        if request.node.get_closest_marker('run_only_on').args[0] != device_:
-            pytest.skip('skipped on this device: {}'.format(device_))
+        if request.node.get_closest_marker('run_only_on').args[0] != device:
+            pytest.skip('skipped on this device: {}'.format(device))
 
 
 @pytest.fixture(autouse=True)
