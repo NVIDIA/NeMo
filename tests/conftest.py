@@ -60,8 +60,8 @@ def run_only_on_device_fixture(request, device):
             pytest.skip('skipped on this device: {}'.format(device))
 
 
-@pytest.fixture
-def cleanup_local_folder(autouse=True):
+@pytest.fixture(autouse=True)
+def cleanup_local_folder():
     # Asserts in fixture are not recommended, but I'd rather stop users from deleting expensive training runs
     assert not Path("./lightning_logs").exists()
     assert not Path("./NeMo_experiments").exists()
