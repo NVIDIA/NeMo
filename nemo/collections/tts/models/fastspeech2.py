@@ -22,7 +22,7 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
-from nemo.collections.tts.losses.fastspeech2loss import L2MelLoss
+from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L2MelLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastspeech2 import FastSpeech2Encoder, MelSpecDecoder, VarianceAdaptor
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -32,29 +32,13 @@ from nemo.utils import logging
 
 
 @dataclass
-class PreprocessorParams:
-    pad_value: float = MISSING
-
-
-@dataclass
-class Preprocessor:
-    cls: str = MISSING
-    params: PreprocessorParams = PreprocessorParams()
-
-
-@dataclass
 class FastSpeech2Config:
-    fastspeech2: Dict[Any, Any] = MISSING
-    preprocessor: Preprocessor = Preprocessor()
-    # TODO: may need more params
+    preprocessor: Dict[Any, Any] = MISSING
+    encoder: Dict[Any, Any] = MISSING
+    decoder: Dict[Any, Any] = MISSING
+    variance_adaptor: Dict[Any, Any] = MISSING
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
-
-
-class DurationLoss(torch.nn.Module):
-    def forward(self, log_duration_pred, duration_target, mask):
-        log_duration_target = torch.log(duration_target + 1)
-        return torch.nn.functional.mse_loss(log_duration_pred, log_duration_target)
 
 
 class FastSpeech2Model(SpectrogramGenerator):
@@ -78,15 +62,15 @@ class FastSpeech2Model(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.energy = cfg.add_energy_predictor
         self.pitch = cfg.add_pitch_predictor
+        self.energy = cfg.add_energy_predictor
         self.duration = True
         self.duration_coeff = cfg.duration_coeff
 
-        self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
-        self.encoder = FastSpeech2Encoder()
-        self.variance_adapter = VarianceAdaptor(pitch=self.pitch, energy=self.energy)
-        self.mel_decoder = MelSpecDecoder()
+        self.audio_to_melspec_preprocessor = instantiate(self._cfg.preprocessor)
+        self.encoder = instantiate(self._cfg.encoder)
+        self.mel_decoder = instantiate(self._cfg.decoder)
+        self.variance_adapter = instantiate(self._cfg.variance_adaptor)
         self.loss = L2MelLoss()
         self.mseloss = torch.nn.MSELoss()
         self.durationloss = DurationLoss()
@@ -135,14 +119,17 @@ class FastSpeech2Model(SpectrogramGenerator):
         else:
             pitch, energies = None, None
             f, fl, t, tl, durations, pitch, _ = batch
-        spec, spec_len = self.audio_to_melspec_precessor(f, fl)
+        spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
         mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
             spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies
         )
         total_loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         self.log(name="train_mel_loss", value=total_loss.clone().detach())
         if self.duration:
-            dur_loss = self.durationloss(log_dur_preds, durations.float(), encoded_text_mask)
+            dur_loss = self.durationloss(
+                log_duration_pred=log_dur_preds,
+                duration_target=durations.float(),
+                mask=encoded_text_mask)
             dur_loss *= self.duration_coeff
             self.log(name="train_dur_loss", value=dur_loss)
             total_loss += dur_loss
@@ -180,7 +167,7 @@ class FastSpeech2Model(SpectrogramGenerator):
 
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, _, _, _ = batch
-        spec, spec_len = self.audio_to_melspec_precessor(f, fl)
+        spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
         mel, log_dur_preds, _, _, _ = self(spec_len=spec_len, text=t, text_length=tl)
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return {
