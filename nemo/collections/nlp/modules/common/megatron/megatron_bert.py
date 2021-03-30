@@ -68,6 +68,8 @@ class MegatronBertEncoder(BertModule):
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
+        # convert config to dictionary
+        config = OmegaConf.to_container(config)
         config["vocab_file"] = vocab_file
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
         config['lazy_mpu_init'] = True
