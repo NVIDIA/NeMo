@@ -17,8 +17,18 @@ import operator
 from nemo.utils import model_utils
 
 
-def numba_cuda_is_supported(version) -> bool:
-    module_available, msg = model_utils.check_lib_version('numba', checked_version=version, operator=operator.ge)
+def numba_cuda_is_supported(min_version: str) -> bool:
+    """
+    Tests if an appropriate version of numba is installed, and if it is,
+    if cuda is supported properly within it.
+    
+    Args:
+        min_version: The minimum version of numba that is required.
+
+    Returns:
+        bool, whether cuda is supported with this current installation or not.
+    """
+    module_available, msg = model_utils.check_lib_version('numba', checked_version=min_version, operator=operator.ge)
 
     # If numba is not installed
     if module_available is None:
@@ -39,9 +49,15 @@ def numba_cuda_is_supported(version) -> bool:
         return False
 
 
-def skip_numba_cuda_test_if_unsupported(version):
-    numba_cuda_support = numba_cuda_is_supported(version)
+def skip_numba_cuda_test_if_unsupported(min_version: str):
+    """
+    Helper method to skip pytest test case if numba cuda is not supported.
+    
+    Args:
+        min_version: The minimum version of numba that is required.
+    """
+    numba_cuda_support = numba_cuda_is_supported(min_version)
     if not numba_cuda_support:
         import pytest
 
-        pytest.skip(f"Numba cuda test is being skipped. Minimum version required : {version}")
+        pytest.skip(f"Numba cuda test is being skipped. Minimum version required : {min_version}")

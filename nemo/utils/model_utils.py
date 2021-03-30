@@ -470,7 +470,7 @@ def resolve_subclass_pretrained_model_info(base_class) -> List['PretrainedModelI
 
 def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optional[bool], str):
     """
-    Checks if a library is installed, and if it is, checks the operator(lib.__version__, version) as a result.
+    Checks if a library is installed, and if it is, checks the operator(lib.__version__, checked_version) as a result.
     This bool result along with a string analysis of result is returned.
 
     If the library is not installed at all, then returns None instead, along with a string explaining
@@ -485,7 +485,7 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optiona
     Returns:
         A tuple of results:
         -   Bool or None. Bool if the library could be imported, and the result of
-            operator(lib.__version__, version) or False if __version__ is not implemented in lib.
+            operator(lib.__version__, checked_version) or False if __version__ is not implemented in lib.
             None is passed if the library is not installed at all.
         -   A string analysis of the check.
     """
