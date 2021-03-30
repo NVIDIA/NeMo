@@ -127,9 +127,6 @@ class MTDataPreproc:
                     self.encoder_tokenizer_model = cfg.encoder_tokenizer.get('tokenizer_model')
                     self.decoder_tokenizer_model = cfg.decoder_tokenizer.get('tokenizer_model')
 
-            if self.encoder_tokenizer_model is None or self.decoder_tokenizer_model is None:
-                raise NotImplementedError(f"Currently we only support {supported_train_tokenizers} for training.")
-
             self.encoder_tokenizer, self.decoder_tokenizer = self.get_enc_dec_tokenizers(
                 encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
                 encoder_model_name=cfg.encoder.get('model_name'),
