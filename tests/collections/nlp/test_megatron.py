@@ -46,6 +46,8 @@ class TestMegatron(TestCase):
         pretrained_lm_models = nemo_nlp.modules.get_pretrained_lm_models_list()
         self.assertTrue(len(pretrained_lm_models) > 0)
 
+    @pytest.mark.skipif(not os.path.exists('/home/TestData/nlp'), reason='Not a Jenkins machine')
+    @pytest.mark.with_downloads()
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_get_model(self):
