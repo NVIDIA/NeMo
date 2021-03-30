@@ -18,7 +18,6 @@ import torch.nn as nn
 from nemo.collections.tts.modules.fastspeech2_submodules import (
     FFTransformer,
     LengthRegulator,
-    LengthRegulator2,
     VariancePredictor,
     WaveformDiscriminator,
     WaveformGenerator,
@@ -150,7 +149,7 @@ class VarianceAdaptor(NeuralModule):
         if vocab is not None:
             self.length_regulator = GaussianEmbedding(vocab)
         else:
-            self.length_regulator = LengthRegulator2()
+            self.length_regulator = LengthRegulator()
 
         self.pitch = pitch
         self.energy = energy
