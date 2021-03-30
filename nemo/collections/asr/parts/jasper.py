@@ -180,21 +180,19 @@ class MaskedConv1d(nn.Module):
             )
         self.use_mask = use_mask
         self.heads = heads
+        self.same_padding = (stride == 1) and (2 * padding == dilation * (kernel_size - 1))
 
         if self.use_mask:
             self.max_len = 0
             self.lens = None
 
     def get_seq_len(self, lens):
-        padding = self.conv.padding[0]
-        stride = self.conv.stride[0]
-        dilation = self.conv.dilation[0]
-        kernel_size = self.conv.kernel_size[0]
-
-        if (stride == 1) and (2 * padding == dilation * (kernel_size - 1)):
+        if self.same_padding:
             return lens
 
-        return (lens + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1
+        return (
+            lens + 2 * self.conv.padding[0] - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
+        ) // self.conv.stride[0] + 1
 
     def forward(self, x, lens):
         if self.use_mask:
@@ -326,7 +324,6 @@ class SqueezeExcite(nn.Module):
         return x * y
 
 
-
 class SqueezeExciteAttention(nn.Module):
     def __init__(
         self,
@@ -416,7 +413,6 @@ class SqueezeExciteAttention(nn.Module):
         y = torch.sigmoid(y)
 
         return y
-
 
 
 class JasperBlock(nn.Module):
@@ -847,12 +843,11 @@ class ParallelBlock(nn.Module):
         self.blocks = nn.ModuleList(blocks)
         self.aggregation_mode = aggregation_mode
         if aggregation_mode == "single":
-            self.weights = nn.Parameter(torch.ones(1, len(blocks), 1,  1), requires_grad=True)
+            self.weights = nn.Parameter(torch.ones(1, len(blocks), 1, 1), requires_grad=True)
         elif aggregation_mode == "per_channel":
             self.weights = nn.Parameter(torch.ones(1, len(blocks), out_filters, 1), requires_grad=True)
         elif aggregation_mode == "se_attention":
             self.attention = SqueezeExciteAttention(out_filters, len(blocks) * out_filters, reduction_ratio)
-
 
     def forward(self, x):
         if len(self.blocks) == 1:
@@ -876,7 +871,7 @@ class ParallelBlock(nn.Module):
 
             weighted_output = output[-1]
             if self.aggregation_mode:
-              weighted_output = scaling_weights[:, i, :, :] * output[-1]
+                weighted_output = scaling_weights[:, i, :, :] * output[-1]
 
             if result is None:
                 result = weighted_output
