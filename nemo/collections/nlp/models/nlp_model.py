@@ -56,8 +56,9 @@ class NLPModel(ModelPT, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
         self.set_world_size(trainer)
-        if isinstance(self._trainer.accelerator_connector._training_type_plugin, DDPPlugin):
-            self._trainer.accelerator_connector._training_type_plugin = NLPDDPPlugin()
+        if self._trainer is not None:
+            if isinstance(self._trainer.accelerator_connector._training_type_plugin, DDPPlugin):
+                self._trainer.accelerator_connector._training_type_plugin = NLPDDPPlugin()
 
     @rank_zero_only
     def register_bert_model(self):
