@@ -28,7 +28,6 @@ model:
     window_size: 0.02
     window_stride: 0.01
     features: &n_mels 64
-    stft_conv: false
 
   spec_augment:
     rect_freq: 50
