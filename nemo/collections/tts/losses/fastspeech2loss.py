@@ -16,8 +16,31 @@ import torch
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types.elements import LengthsType, LossType, MelSpectrogramType
+from nemo.core.neural_types.elements import LengthsType, LossType, MaskType, MelSpectrogramType, TokenDurationType
 from nemo.core.neural_types.neural_type import NeuralType
+
+
+class DurationLoss(Loss):
+    """A Loss module that computes the log duration prediction loss for FastSpeech 2."""
+
+    @property
+    def input_types(self):
+        return {
+            "log_duration_pred": NeuralType(('B', 'T'), TokenDurationType()),
+            "duration_target": NeuralType(('B', 'T'), TokenDurationType()),
+            "mask": NeuralType(('B', 'T', 'D'), MaskType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, *, log_duration_pred, duration_target, mask):
+        log_duration_target = torch.log(duration_target + 1)
+        return torch.nn.functional.mse_loss(log_duration_pred, log_duration_target)
 
 
 class L1MelLoss(Loss):
