@@ -270,7 +270,6 @@ class TestEncDecCTCModel:
             'blank_index',
             'global_rank',
             'world_size',
-            'load_audio',
         ]
 
         REMAP_ARGS = {

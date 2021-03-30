@@ -49,9 +49,7 @@ class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     unk_index: int = -1
     normalize: bool = False
     trim: bool = True
-    load_audio: bool = True
     parser: Optional[str] = 'en'
-    add_misc: bool = False
     eos_id: Optional[int] = None
     bos_id: Optional[int] = None
     pad_id: int = 0

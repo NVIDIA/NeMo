@@ -1,8 +1,8 @@
-name: &name "EncoderDecoderMelToSpec"
-sample_rate: &sr 22050
-n_fft: &n_fft 1024
-hop_length: &hop_length 256
-destination: &destination "/tmp"
+name: "EncoderDecoderMelToSpec"
+sample_rate: 22050
+n_fft: 1024
+hop_length: 256
+destination: "/tmp"
 
 model:
   train_ds:
@@ -98,6 +98,6 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True

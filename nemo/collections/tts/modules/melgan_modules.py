@@ -345,7 +345,7 @@ class MelGANDiscriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "decision": NeuralType(('B', 'S', 'T'), VoidType()),
+            "decision": [NeuralType(('B', 'S', 'T'), VoidType())],
         }
 
     @typecheck()
@@ -439,7 +439,7 @@ class MelGANMultiScaleDiscriminator(NeuralModule):
     @property
     def output_types(self):
         return {
-            "decision": NeuralType((('B', 'S', 'T')), VoidType()),
+            "decision": [NeuralType((('B', 'S', 'T')), VoidType())],
         }
 
     @typecheck()

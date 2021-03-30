@@ -227,8 +227,6 @@ class FastPitchModel(SpectrogramGenerator):
             min_duration=cfg.get('min_duration', None),
             max_utts=cfg.get('max_utts', 0),
             trim=cfg.get('trim_silence', True),
-            load_audio=cfg.get('load_audio', True),
-            add_misc=cfg.get('add_misc', False),
         )
 
         return torch.utils.data.DataLoader(
