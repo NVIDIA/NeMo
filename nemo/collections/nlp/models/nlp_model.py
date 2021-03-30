@@ -265,10 +265,11 @@ class NLPModel(ModelPT, Exportable):
         """ PTL hook that is called after DDP is initialized.
         """
 
-        if isinstance(self.bert_model, MegatronBertEncoder):
-            app_state = AppState()
+        app_state = AppState()
 
-            if app_state.model_parallel_size is not None:
+        if app_state.model_parallel_size is not None:
+
+            if isinstance(self.bert_model, MegatronBertEncoder):
 
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
@@ -316,8 +317,10 @@ class NLPModel(ModelPT, Exportable):
                     )
                     self.bert_model.restore_weights(self.bert_model._restore_path)
 
-        else:
-            raise NotImplementedError(f'The BERT encoder: {self.bert_model} does not support model parallelism yet.')
+            else:
+                raise NotImplementedError(
+                    f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
+                )
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
