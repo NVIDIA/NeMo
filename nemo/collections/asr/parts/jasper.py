@@ -175,6 +175,16 @@ class MaskedConv1d(nn.Module):
             out_channels = heads
             groups = heads
 
+        # preserve original padding
+        self._padding = padding
+
+        if type(padding) in (tuple, list):
+            self.pad_layer = nn.ConstantPad1d(padding, value=0.0)
+            # reset padding for conv since pad_layer will handle it
+            padding = 0
+        else:
+            self.pad_layer = None
+
         if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
             self.conv = quant_nn.QuantConv1d(
                 in_channels,
@@ -218,9 +228,14 @@ class MaskedConv1d(nn.Module):
         if self.same_padding:
             return lens
 
-        return (
-            lens + 2 * self.conv.padding[0] - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
-        ) // self.conv.stride[0] + 1
+        if self.pad_layer is None:
+            return (
+                lens + 2 * self.conv.padding[0] - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
+            ) // self.conv.stride[0] + 1
+        else:
+            return (
+                lens + sum(self._padding) - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
+            ) // self.conv.stride[0] + 1
 
     def forward(self, x, lens):
         if self.use_mask:
@@ -233,6 +248,10 @@ class MaskedConv1d(nn.Module):
             mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
             x = x * mask.unsqueeze(1).to(device=x.device)
             lens = self.get_seq_len(lens)
+
+        # asymmtric pad if necessary
+        if self.pad_layer is not None:
+            x = self.pad_layer(x)
 
         sh = x.shape
         if self.heads != -1:

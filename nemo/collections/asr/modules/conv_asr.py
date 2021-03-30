@@ -176,6 +176,7 @@ class ConvASREncoder(NeuralModule, Exportable):
                     se_interpolation_mode=se_interpolation_mode,
                     kernel_size_factor=kernel_size_factor,
                     stride_last=stride_last,
+                    future_context=future_context,
                     quantize=quantize,
                 )
             )
