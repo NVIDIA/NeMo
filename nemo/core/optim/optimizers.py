@@ -18,16 +18,13 @@ from typing import Any, Dict, List, Optional, Union
 
 import hydra
 import torch.optim as optim
-from apex.optimizers import FusedLAMB
 from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.novograd import Novograd
-
-__all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
-
+from nemo.utils import logging
 
 AVAILABLE_OPTIMIZERS = {
     'sgd': optim.SGD,
@@ -36,11 +33,19 @@ AVAILABLE_OPTIMIZERS = {
     'adadelta': adadelta.Adadelta,
     'adamax': adamax.Adamax,
     'adagrad': adagrad.Adagrad,
-    'lamb': FusedLAMB,
     'rmsprop': rmsprop.RMSprop,
     'rprop': rprop.Rprop,
     'novograd': Novograd,
 }
+
+try:
+    from apex.optimizers import FusedLAMB
+
+    AVAILABLE_OPTIMIZERS['lamb'] = FusedLAMB
+except ModuleNotFoundError:
+    logging.warning("Apex was not found. Using the lamb optimizer will error out.")
+
+__all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
 
 def parse_optimizer_args(
