@@ -69,7 +69,6 @@ model:
     dither: 0.00001
     pad_to: 0
     pad_value: 0.0
-    stft_exact_pad: false
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
