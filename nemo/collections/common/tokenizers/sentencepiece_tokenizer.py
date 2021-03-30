@@ -273,6 +273,7 @@ def create_spt_model(
         raise ValueError(f"data_file must be valid file path, but got {data_file}")
     data_dir = os.path.dirname(data_file)
     vocab = []
+    special_tokens = ["<s>", "</s>", "<pad>", "<unk>"]
     if not output_dir:
         output_dir = f'{data_dir}/spt'
     if if_exist(output_dir, ['tokenizer.model']):
@@ -304,10 +305,12 @@ def create_spt_model(
     if control_symbols:
         control_string = (",").join(control_symbols)
         cmd += f" --control_symbols={control_string}"
+        special_tokens += control_symbols
 
     if user_defined_symbols:
         user_string = (",").join(user_defined_symbols)
         cmd += f" --user_defined_symbols={user_string}"
+        special_tokens += user_defined_symbols
 
     if do_lower_case:
         cmd += " --normalization_rule_name=nmt_nfkc_cf"
@@ -325,8 +328,6 @@ def create_spt_model(
 
     # Add BERT control symbols
     tokens = []
-    special_tokens = ["<s>", "</s>", "<pad>", "<unk>"]
-    special_tokens += control_symbols + user_defined_symbols
 
     with open(f"{output_dir}/tokenizer.vocab", "r") as f:
         # Read tokens from each line and parse for vocab
