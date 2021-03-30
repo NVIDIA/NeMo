@@ -58,7 +58,6 @@ class NLPModel(ModelPT, Exportable):
         self.set_world_size(trainer)
         if self._trainer is not None:
             if isinstance(self._trainer.accelerator_connector._training_type_plugin, DDPPlugin):
-                # self._trainer.accelerator_connector._training_type_plugin = NLPDDPPlugin(find_unused_parameters=True)
                 self._trainer.accelerator_connector._training_type_plugin = NLPDDPPlugin()
 
     @rank_zero_only
@@ -243,6 +242,8 @@ class NLPModel(ModelPT, Exportable):
             return Accelerator._clip_gradients(self, optimizer, clip_val)
 
     def setup(self, stage: str) -> None:
+        """ PTL hook that is called on all DDP processes. """
+
         if stage == 'fit':
 
             # adds self.bert_model config to .nemo file
@@ -403,13 +404,7 @@ class NLPDDPPlugin(DDPPlugin):
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
-
-        Args:
-            model (LightningModule): the LightningModule currently being optimized
-            device_ids (List[int]): the list of GPU ids.
-
-        Returns:
-            DistributedDataParallel: DDP wrapped model
+            Sets find_unused_parameters to True.
         """
 
         app_state = AppState()
