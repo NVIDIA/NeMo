@@ -58,7 +58,7 @@ class NLPModel(ModelPT, Exportable):
         self.set_world_size(trainer)
         if self._trainer is not None:
             if isinstance(self._trainer.accelerator_connector._training_type_plugin, DDPPlugin):
-                self._trainer.accelerator_connector._training_type_plugin = NLPDDPPlugin()
+                self._trainer.accelerator_connector._training_type_plugin = NLPDDPPlugin(find_unused_parameters=True)
 
     @rank_zero_only
     def register_bert_model(self):
@@ -399,7 +399,7 @@ class NLPDDPPlugin(DDPPlugin):
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, sync_batchnorm, **kwargs)
-        self._ddp_kwargs['find_unused_parameters'] = True
+        # self._ddp_kwargs['find_unused_parameters'] = True
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
