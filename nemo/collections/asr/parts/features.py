@@ -85,8 +85,10 @@ def normalize_batch(x, seq_len, normalize_type):
 
 def splice_frames(x, frame_splicing):
     """ Stacks frames together across feature dim
+
     input is batch_size, feature_dim, num_frames
     output is batch_size, feature_dim*frame_splicing, num_frames
+
     """
     seq = [x]
     for n in range(1, frame_splicing):
@@ -184,8 +186,8 @@ class STFTExactPad(STFTPatch):
             # scale by hop ratio
             inverse_transform *= self.filter_length / self.hop_length
 
-        inverse_transform = inverse_transform[..., self.pad_amount:]
-        inverse_transform = inverse_transform[..., : -self.pad_amount:]
+        inverse_transform = inverse_transform[..., self.pad_amount :]
+        inverse_transform = inverse_transform[..., : -self.pad_amount :]
         inverse_transform = inverse_transform.squeeze(1)
 
         return inverse_transform
@@ -197,30 +199,30 @@ class FilterbankFeatures(nn.Module):
     """
 
     def __init__(
-            self,
-            sample_rate=16000,
-            n_window_size=320,
-            n_window_stride=160,
-            window="hann",
-            normalize="per_feature",
-            n_fft=None,
-            preemph=0.97,
-            nfilt=64,
-            lowfreq=0,
-            highfreq=None,
-            log=True,
-            log_zero_guard_type="add",
-            log_zero_guard_value=2 ** -24,
-            dither=CONSTANT,
-            pad_to=16,
-            max_duration=16.7,
-            frame_splicing=1,
-            exact_pad=False,
-            stft_exact_pad=False,  # TODO: Remove this in 1.1.0
-            stft_conv=False,  # TODO: Remove this in 1.1.0
-            pad_value=0,
-            mag_power=2.0,
-            use_grads=False,
+        self,
+        sample_rate=16000,
+        n_window_size=320,
+        n_window_stride=160,
+        window="hann",
+        normalize="per_feature",
+        n_fft=None,
+        preemph=0.97,
+        nfilt=64,
+        lowfreq=0,
+        highfreq=None,
+        log=True,
+        log_zero_guard_type="add",
+        log_zero_guard_value=2 ** -24,
+        dither=CONSTANT,
+        pad_to=16,
+        max_duration=16.7,
+        frame_splicing=1,
+        exact_pad=False,
+        stft_exact_pad=False,  # TODO: Remove this in 1.1.0
+        stft_conv=False,  # TODO: Remove this in 1.1.0
+        pad_value=0,
+        mag_power=2.0,
+        use_grads=False,
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
@@ -231,12 +233,12 @@ class FilterbankFeatures(nn.Module):
             )
         self.log_zero_guard_value = log_zero_guard_value
         if (
-                n_window_size is None
-                or n_window_stride is None
-                or not isinstance(n_window_size, int)
-                or not isinstance(n_window_stride, int)
-                or n_window_size <= 0
-                or n_window_stride <= 0
+            n_window_size is None
+            or n_window_stride is None
+            or not isinstance(n_window_size, int)
+            or not isinstance(n_window_stride, int)
+            or n_window_size <= 0
+            or n_window_stride <= 0
         ):
             raise ValueError(
                 f"{self} got an invalid value for either n_window_size or "
