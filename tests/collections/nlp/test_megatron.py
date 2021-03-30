@@ -46,9 +46,10 @@ class TestMegatron(TestCase):
         pretrained_lm_models = nemo_nlp.modules.get_pretrained_lm_models_list()
         self.assertTrue(len(pretrained_lm_models) > 0)
 
+    @pytest.mark.skipif(not os.path.exists('/home/TestData/nlp'), reason='Not a Jenkins machine')
+    @pytest.mark.with_downloads()
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.skip("Only one Megatron model is allowed")
     def test_get_model(self):
         model = get_pretrained_bert_345m_uncased_model()
         assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
@@ -71,4 +72,4 @@ class TestMegatron(TestCase):
 
 if __name__ == "__main__":
     t = TestMegatron()
-    t.test_onnx_export()
+    t.test_get_model()
