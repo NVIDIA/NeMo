@@ -5,14 +5,17 @@ n_mels: &n_mels 80
 fmax: &fmax 8000
 n_stride: &n_window_stride 256
 pad_value: &pad_value -11.52
+
+# Dataset info
 train_dataset: ???
 validation_datasets: ???
 supplementary_dir: ???
 ignore_file: ???
 
 model:
-  add_energy_predictor: True
   add_pitch_predictor: True
+  add_energy_predictor: True
+  d_model: 256
   duration_coeff: 0.25
   train_ds:
     dataset:
@@ -29,7 +32,6 @@ model:
       shuffle: true
       batch_size: 64
       num_workers: 4
-
 
   validation_ds:
     dataset:
@@ -70,19 +72,64 @@ model:
     stft_conv: true
     window: hann
 
+  # FFTransformer encoder
+  encoder:
+    _target_: nemo.collections.tts.modules.fastspeech2.FastSpeech2Encoder
+    d_model: ${model.d_model}
+    n_layers: 4
+    n_attn_heads: 2
+    d_attn_head: 256
+    d_inner: 1024
+    kernel_size: 9
+    dropout: 0.1
+    attn_dropout: 0.1
+    n_embed: 84   # Should match number of tokens in symbol set
+    padding_idx: 83
+
+  # FFTransformer mel spec decoder
+  decoder:
+    _target_: nemo.collections.tts.modules.fastspeech2.MelSpecDecoder
+    d_model: ${model.d_model}
+    d_out: *n_mels
+    n_layers: 4
+    n_attn_heads: 2
+    d_attn_head: 256
+    d_inner: 1024
+    kernel_size: 9
+    dropout: 0.1
+    attn_dropout: 0.1
+
+  # VarianceAdaptor
+  variance_adaptor:
+    _target_: nemo.collections.tts.modules.fastspeech2.VarianceAdaptor
+    d_model: ${model.d_model}
+    dropout: 0.2
+    dur_d_hidden: 256
+    dur_kernel_size: 3
+    va_hidden: 256
+    pitch: ${model.add_pitch_predictor}
+    log_pitch: True
+    n_f0_bins: 256
+    pitch_kernel_size: 3
+    pitch_min: 80.0
+    pitch_max: 800.0
+    energy: ${model.add_energy_predictor}
+    n_energy_bins: 256
+    energy_kernel_size: 3
+    energy_min: 0.0
+    energy_max: 600.0
+
   optim:
     name: adam
     betas: [0.9,0.98]
     lr: 1e-3
     weight_decay: 1e-6
-    # TODO: add warmup, decrease learning rate
     # scheduler setup
     sched:
       name: NoamAnnealing
       warmup_steps: 4000
       min_lr: 1e-5
-      d_model: 256
-
+      d_model: ${model.d_model}
 
 trainer:
   gpus: 1 # number of gpus
@@ -92,7 +139,6 @@ trainer:
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  # gradient_clip_val: 1.0
   flush_logs_every_n_steps: 1000
   log_every_n_steps: 200
   check_val_every_n_epoch: 25

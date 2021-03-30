@@ -103,7 +103,6 @@ class VarianceAdaptor(NeuralModule):
         dropout=0.2,
         dur_d_hidden=256,
         dur_kernel_size=3,
-        max_duration=100,
         va_hidden=256,
         pitch=True,
         log_pitch=True,
@@ -127,7 +126,6 @@ class VarianceAdaptor(NeuralModule):
             dropout: Variance adaptor dropout. Defaults to 0.2.
             dur_d_hidden: Hidden dim of the duration predictor. Defaults to 256.
             dur_kernel_size: Kernel size for the duration predictor. Defaults to 3.
-            max_duration: ### Currently unused ###
             va_hidden: Hidden dimension of the variance adaptor, i.e. the output of the pitch predictor and
                 energy predictor. Defaults to 256.
             pitch (bool): Whether or not to use the pitch predictor.
@@ -146,8 +144,6 @@ class VarianceAdaptor(NeuralModule):
         super().__init__()
 
         # -- Duration Setup --
-        # TODO: what should this max duration be? should this be set at all? (Not currently used.)
-        self.max_duration = max_duration
         self.duration_predictor = VariancePredictor(
             d_model=d_model, d_inner=dur_d_hidden, kernel_size=dur_kernel_size, dropout=dropout
         )
