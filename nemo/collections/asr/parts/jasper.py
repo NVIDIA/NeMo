@@ -197,8 +197,8 @@ class MaskedConv1d(nn.Module):
                 self.lens = torch.arange(max_len).to(lens.device)
                 self.max_len = max_len
 
-            mask = self.lens[:max_len].unsqueeze(0) >= lens.unsqueeze(1)
-            x = x.masked_fill(mask.unsqueeze(1).to(device=x.device), 0)
+            mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
+            x = x * mask.unsqueeze(1).to(device=x.device)
             lens = self.get_seq_len(lens)
 
         sh = x.shape
