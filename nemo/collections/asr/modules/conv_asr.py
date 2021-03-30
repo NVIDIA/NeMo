@@ -333,15 +333,17 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
                     )
                 )
             if len(parallel_blocks) == 1:
-              encoder_layers.append(parallel_blocks[0])
+                encoder_layers.append(parallel_blocks[0])
             else:
-              encoder_layers.append(ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode, out_filters=lcfg['filters']))
-              if bn_zero_init:
-                for block in parallel_blocks:
-                    for layer in list(block.mconv)[::-1]:
-                        if isinstance(layer, nn.BatchNorm1d):
-                            last_bn_layers.append(layer)
-                            break
+                encoder_layers.append(
+                    ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode, out_filters=lcfg['filters'])
+                )
+                if bn_zero_init:
+                    for block in parallel_blocks:
+                        for layer in list(block.mconv)[::-1]:
+                            if isinstance(layer, nn.BatchNorm1d):
+                                last_bn_layers.append(layer)
+                                break
             feat_in = lcfg['filters']
 
         self._feat_out = feat_in
