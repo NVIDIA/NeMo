@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from unittest import TestCase
 
 import numpy as np
 import pytest
-from tools.text_normalization.normalize import normalize_identity, normalize_nemo
+
+try:
+    from tools.text_normalization.normalize import normalize_identity, normalize_nemo
+
+    nemo_normalization_available = True
+except ModuleNotFoundError:
+    nemo_normalization_available = False
 
 
 class TestTextNormalization(TestCase):
     @pytest.mark.unit
+    @pytest.mark.skipif(not nemo_normalization_available, reason="nemo_normalization tool not installed")
     def test_identity(self):
         text_in = ["1", "12kg", "1 2"]
         text_pred = normalize_identity(text_in)
@@ -30,6 +36,7 @@ class TestTextNormalization(TestCase):
         self.assertTrue(text_norm != text_pred)
 
     @pytest.mark.unit
+    @pytest.mark.skipif(not nemo_normalization_available, reason="nemo_normalization tool not installed")
     def test_numbers(self):
         text_in = ["1", "12kg", "1, 2, 3"]
         text_gold = ["one", "twelve kilograms", "one, two, three"]
@@ -37,6 +44,7 @@ class TestTextNormalization(TestCase):
         self.assertTrue(text_out == text_gold)
 
     @pytest.mark.unit
+    @pytest.mark.skipif(not nemo_normalization_available, reason="nemo_normalization tool not installed")
     def test_time(self):
         text_valid = ["01:00", "01:00 am", "01:00 a.m.", "1.59 p.m."]
         text_gold = ["one o'clock", "one a m", "one a m", "one fifty nine p m"]
@@ -47,6 +55,7 @@ class TestTextNormalization(TestCase):
         self.assertTrue(all(np.asarray(text_out_invalid) != np.asarray(text_gold)))
 
     @pytest.mark.unit
+    @pytest.mark.skipif(not nemo_normalization_available, reason="nemo_normalization tool not installed")
     def test_whitelist(self):
         text_in = ["Dr. Evil", "idea", "Mrs. Norris"]
         text_gold = ["Doctor Evil", "idea", "Misses Norris"]
@@ -54,6 +63,7 @@ class TestTextNormalization(TestCase):
         self.assertTrue(text_out == text_gold)
 
     @pytest.mark.unit
+    @pytest.mark.skipif(not nemo_normalization_available, reason="nemo_normalization tool not installed")
     def test_boundaries(self):
         text_valid = [" 1 ", "1", "1, ", "1!!!!", "(1)Hello"]
         text_gold_valid = list(map(lambda x: x.replace("1", "one"), text_valid))
