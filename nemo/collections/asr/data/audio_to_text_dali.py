@@ -173,18 +173,18 @@ class AudioToCharDALIDataset(Iterator):
 
         has_preprocessor = preprocessor_cfg is not None
         if has_preprocessor:
-            if preprocessor_cfg.cls == "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor":
+            if preprocessor_cfg._target_ == "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor":
                 feature_type = "mel_spectrogram"
-            elif preprocessor_cfg.cls == "nemo.collections.asr.modules.AudioToMFCCPreprocessor":
+            elif preprocessor_cfg._target_ == "nemo.collections.asr.modules.AudioToMFCCPreprocessor":
                 feature_type = "mfcc"
             else:
                 raise ValueError(
-                    f"{self} received an unexpected preprocessor configuration: {preprocessor_cfg.cls}."
+                    f"{self} received an unexpected preprocessor configuration: {preprocessor_cfg._target_}."
                     f" Supported preprocessors are: AudioToMelSpectrogramPreprocessor, AudioToMFCCPreprocessor"
                 )
 
             # Default values taken from AudioToMelSpectrogramPreprocessor
-            params = preprocessor_cfg.params
+            params = preprocessor_cfg
             self.dither = params['dither'] if 'dither' in params else 0.0
             self.preemph = params['preemph'] if 'preemph' in params else 0.97
             self.window_size_sec = params['window_size'] if 'window_size' in params else 0.02
@@ -291,7 +291,7 @@ class AudioToCharDALIDataset(Iterator):
                 random_shuffle=shuffle,
                 shard_id=self.shard_id,
                 num_shards=self.num_shards,
-                pad_last_batch=True,
+                pad_last_batch=False,
             )
 
             transcript_len = dali.fn.shapes(dali.fn.reshape(transcript, shape=[-1]))
@@ -354,16 +354,7 @@ class AudioToCharDALIDataset(Iterator):
                 spec = dali.fn.normalize(spec, axes=self.normalization_axes)
 
                 # Extracting the length of the spectrogram
-                shape_start = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
-                shape_len = dali.types.Constant(np.array([1], dtype=np.float32), device='cpu')
-                spec_len = dali.fn.slice(
-                    dali.fn.shapes(spec),
-                    shape_start,
-                    shape_len,
-                    normalized_anchor=False,
-                    normalized_shape=False,
-                    axes=(0,),
-                )
+                spec_len = dali.fn.slice(dali.fn.shapes(spec), 1, 1, axes=(0,))
 
                 # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
                 spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1))
