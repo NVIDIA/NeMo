@@ -333,6 +333,37 @@ class NLPModel(ModelPT, Exportable):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
         return None
 
+    # remove rank check as model parallel models need to be saved on data parallel rank 0
+    # @rank_zero_only
+    def save_to(self, save_path: str):
+        """
+        Saves model instance (weights and configuration) into .nemo file
+         You can use "restore_from" method to fully restore instance from .nemo file.
+
+        .nemo file is an archive (tar.gz) with the following:
+            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_wights.chpt - model checkpoint
+
+        Args:
+            save_path: Path to .nemo file where model instance should be saved
+        """
+
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            if app_state.data_parallel_rank == 0:
+                # update .nemo path for model parallel save
+                base_path = save_path[0:-5]
+                save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02}.nemo'
+                self._default_save_to(save_path)
+            else:
+                return
+        else:
+            # Add NeMo rank check as well
+            if not is_global_rank_zero():
+                return
+            else:
+                self._default_save_to(save_path)
+
     @property
     def input_module(self):
         return self.bert_model
