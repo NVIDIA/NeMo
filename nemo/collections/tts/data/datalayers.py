@@ -213,8 +213,8 @@ class MelAudioDataset(Dataset):
         audio = torch.FloatTensor(audio).unsqueeze(0)
         mel = self.mel_load_func(mel_file)
 
+        frames = math.ceil(self.n_segments / self.mel_hop_size)
         if audio.shape[1] > self.n_segments:
-            frames = math.ceil(self.n_segments / self.mel_hop_size)
             start = random.randint(0, mel.shape[1] - frames - 1)
             mel = mel[:, start : start + frames]
             audio = audio[:, start * self.mel_hop_size : (start + frames) * self.mel_hop_size]

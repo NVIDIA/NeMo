@@ -42,6 +42,7 @@ model:
     warmup_ratio: 0.02
     max_steps: ???
 
+  l1_loss_factor: 45
   denoise_strength: 0.0025
 
 trainer:
@@ -54,7 +55,7 @@ trainer:
   logger: False  # Provided by exp_manager
   flush_logs_every_n_steps: 200
   log_every_n_steps: 100
-  check_val_every_n_epoch: 1
+  check_val_every_n_epoch: 10
 
 exp_manager:
   exp_dir: null

@@ -57,8 +57,7 @@ class HifiGanModel(Vocoder):
         self.discriminator_loss = DiscriminatorLoss()
         self.generator_loss = GeneratorLoss()
 
-        self.l1_factor = 45
-        self.num_log_audios = 5
+        self.l1_factor = cfg.get("l1_loss_factor", 45)
 
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
@@ -208,7 +207,7 @@ class HifiGanModel(Vocoder):
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             clips = []
             specs = []
-            for i in range(min(self.num_log_audios, audio.shape[0])):
+            for i in range(min(5, audio.shape[0])):
                 clips += [
                     wandb.Audio(
                         audio[i, : audio_len[i]].data.cpu().numpy(),

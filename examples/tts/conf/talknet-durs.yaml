@@ -32,7 +32,7 @@ model:
         stresses: false
         add_blank_at: last
     dataloader_params:
-      drop_last: true
+      drop_last: false
       shuffle: true
       batch_size: 64
       num_workers: 4
