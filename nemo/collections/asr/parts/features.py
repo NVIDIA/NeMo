@@ -231,6 +231,11 @@ class FilterbankFeatures(nn.Module):
                 "to False for FilterbankFeatures and AudioToMelSpectrogramPreprocessor. Please set exact_pad to True "
                 "as needed."
             )
+        if (exact_pad or stft_exact_pad) and self.n_window_stride % 2 == 1:
+            raise NotImplementedError(
+                f"{self} received exact_pad == True, but hop_size was odd. If audio_length % hop_size == 0. Then the "
+                "returned spectrogram would not be of length audio_length // hop_size. Please use an even hop_size."
+            )
         self.log_zero_guard_value = log_zero_guard_value
         if (
             n_window_size is None
@@ -249,7 +254,7 @@ class FilterbankFeatures(nn.Module):
         self.win_length = n_window_size
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
-        self.stft_pad_amount = (self.win_length - self.hop_length) // 2 if exact_pad else 0
+        self.stft_pad_amount = (self.n_fft - self.hop_length) // 2 if exact_pad else None
         self.stft_exact_pad = stft_exact_pad
         self.stft_conv = stft_conv
 
@@ -262,6 +267,8 @@ class FilterbankFeatures(nn.Module):
                 self.stft = STFTPatch(self.n_fft, self.hop_length, self.win_length, window)
         else:
             logging.info("STFT using torch")
+            if exact_pad:
+                logging.info("STFT using exact pad")
             torch_windows = {
                 'hann': torch.hann_window,
                 'hamming': torch.hamming_window,
@@ -348,7 +355,7 @@ class FilterbankFeatures(nn.Module):
             pad_amount = self.stft.pad_amount * 2
         else:
             # Assuming that center is True is stft_pad_amount = 0
-            pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount > 0 else self.n_fft // 2 * 2
+            pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
         seq_len = torch.floor((seq_len + pad_amount - self.n_fft) / self.hop_length) + 1
         return seq_len.to(dtype=torch.long)
 
@@ -359,7 +366,7 @@ class FilterbankFeatures(nn.Module):
     def forward(self, x, seq_len):
         seq_len = self.get_seq_len(seq_len.float())
 
-        if self.stft_pad_amount > 0:
+        if self.stft_pad_amount is not None:
             x = torch.nn.functional.pad(
                 x.unsqueeze(1), (self.stft_pad_amount, self.stft_pad_amount), "reflect"
             ).squeeze(1)
