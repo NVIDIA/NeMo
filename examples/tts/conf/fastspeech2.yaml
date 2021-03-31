@@ -17,6 +17,7 @@ model:
   add_energy_predictor: True
   d_model: 256
   duration_coeff: 0.25
+
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.data.datalayers.AudioWithSupplementaryDataset"

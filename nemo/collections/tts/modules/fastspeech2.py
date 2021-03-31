@@ -114,7 +114,6 @@ class VarianceAdaptor(NeuralModule):
         energy_kernel_size=3,
         energy_min=0.0,
         energy_max=600.0,
-        vocab=None,
     ):
         """
         FastSpeech 2 variance adaptor, which adds information like duration, pitch, etc. to the phoneme encoding.
@@ -146,10 +145,7 @@ class VarianceAdaptor(NeuralModule):
         self.duration_predictor = VariancePredictor(
             d_model=d_model, d_inner=dur_d_hidden, kernel_size=dur_kernel_size, dropout=dropout
         )
-        if vocab is not None:
-            self.length_regulator = GaussianEmbedding(vocab)
-        else:
-            self.length_regulator = LengthRegulator()
+        self.length_regulator = LengthRegulator()
 
         self.pitch = pitch
         self.energy = energy
@@ -256,46 +252,6 @@ class VarianceAdaptor(NeuralModule):
         out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
 
         return out, log_dur_preds, pitch_preds, energy_preds, spec_len
-
-
-class GaussianEmbedding(nn.Module):
-    """Gaussian embedding layer."""
-
-    EPS = 1e-6
-
-    def __init__(self, vocab, sigma_c=2.0):
-        super().__init__()
-
-        self.pad = vocab.pad
-        self.sigma_c = sigma_c
-
-    def forward(self, text, durs):
-        """
-        durs : Shape: Batch x Text Length
-        """
-        total_time = torch.max(durs.sum(1))
-
-        # Calculate mean from durations
-        mean = (durs / 2.0) + torch.cumsum(durs, dim=-1)  # B x SL
-        mean = mean.unsqueeze(1).repeat(1, total_time, 1)  # B X TL X SL
-
-        # Calculate sigma from durations
-        sigmas = durs
-        sigmas = sigmas.float() / self.sigma_c
-        sigmas = sigmas.unsqueeze(1).repeat(1, total_time, 1) + self.EPS
-        assert mean.shape == sigmas.shape
-
-        # Times indexes
-        t_ind = torch.arange(total_time, device=mean.device).view(1, -1, 1).repeat(durs.shape[0], 1, durs.shape[-1])
-        t_ind = t_ind.float() + 0.5
-
-        # Weights: [B,T,N]
-        distribution = torch.distributions.normal.Normal(mean, sigmas)
-        probs = distribution.log_prob(t_ind).exp()
-
-        # Normalize distribution per spectorgram frame
-        probs = probs / (probs.sum(-1, keepdim=True) + self.EPS)
-        return torch.matmul(probs, text)
 
 
 @experimental
