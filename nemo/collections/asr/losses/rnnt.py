@@ -27,13 +27,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import operator
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 try:
     import warprnnt_pytorch as warprnnt
@@ -61,7 +63,7 @@ WARP_RNNT_INSTALLATION_MESSAGE = (
 NUMBA_INSTALLATION_MESSAGE = (
     "Could not import `numba`.\n"
     "To use transducer loss, please install numba in one of the following ways."
-    "1) If using conda, simply install `conda install numba cudatoolkit=11`\n"
+    "1) If using conda, simply install `conda install -c numba numba`\n"
     "2) If using pip, `pip install --upgrade --ignore-installed numba`\n"
     "followed by `export NUMBAPRO_LIBDEVICE='/usr/local/cuda/nvvm/libdevice/'` and \n"
     "`export NUMBAPRO_NVVM='/usr/local/cuda/nvvm/lib64/libnvvm.so'`"
@@ -71,17 +73,26 @@ NUMBA_INSTALLATION_MESSAGE = (
 @dataclass
 class RNNTLossConfig:
     loss_name: str
+    lib_name: str
     is_available: bool = False
     installation_msg: str = ""
+    min_version: Optional[str] = None
 
 
 # Resolved list of available RNNT losses
 RNNT_LOSS_RESOLVER = {
     "warprnnt": RNNTLossConfig(
-        loss_name="warprnnt", is_available=WARP_RNNT_AVAILABLE, installation_msg=WARP_RNNT_INSTALLATION_MESSAGE
+        loss_name="warprnnt",
+        lib_name="warprnnt_pytorch",
+        is_available=WARP_RNNT_AVAILABLE,
+        installation_msg=WARP_RNNT_INSTALLATION_MESSAGE,
     ),
     "warprnnt_numba": RNNTLossConfig(
-        loss_name="warprnnt_numba", is_available=NUMBA_RNNT_AVAILABLE, installation_msg=NUMBA_INSTALLATION_MESSAGE
+        loss_name="warprnnt_numba",
+        lib_name="numba",
+        min_version='0.53.0',
+        is_available=NUMBA_RNNT_AVAILABLE,
+        installation_msg=NUMBA_INSTALLATION_MESSAGE,
     ),
 }
 
@@ -119,8 +130,27 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         )
         raise ImportError(msg)
 
+    # Library version check
+    if loss_config.min_version is not None:
+        ver_matched, msg = model_utils.check_lib_version(
+            loss_config.lib_name, checked_version=loss_config.min_version, operator=operator.ge
+        )
+
+        if ver_matched is False:
+            msg = (
+                f"{msg}\n"
+                f"****************************************************************\n"
+                f"To update the selected loss function, please follow the steps below:\n"
+                f"{loss_config.installation_msg}"
+            )
+            raise RuntimeError(msg)
+
     # Resolve loss functions sequentially
     loss_kwargs = {} if loss_kwargs is None else loss_kwargs
+
+    # Get actual loss name for `default`
+    if loss_name == 'default':
+        loss_name = loss_config.loss_name
 
     if loss_name == 'warprnnt':
         loss_func = warprnnt.RNNTLoss(blank=blank_idx, reduction='none')
