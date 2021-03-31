@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Union
 
-from nemo.package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __shortversion__,
-    __version__,
-)
+import inflect
+
+_inflect = inflect.engine()
+
+
+def num_to_word(x: Union[str, int]):
+    """
+    converts integer to spoken representation
+
+    Args
+        x: integer
+
+    Returns: spoken representation 
+    """
+    if isinstance(x, int):
+        x = str(x)
+        x = _inflect.number_to_words(str(x)).replace("-", " ").replace(",", "")
+    return x

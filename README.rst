@@ -25,6 +25,7 @@
   :target: https://github.com/psf/black
   :alt: Code style: black
 
+.. _main-readme:
 **NVIDIA NeMo**
 ===============
 

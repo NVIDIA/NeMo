@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 
-from nemo.package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __shortversion__,
-    __version__,
-)
+
+def parse_test_case_file(file_name):
+    test_pairs = []
+    with open(os.path.dirname(os.path.abspath(__file__)) + '/' + file_name, 'r') as f:
+        for line in f:
+            spoken, written = line.split('~')
+            test_pairs.append((spoken, written.strip("\n")))
+    print(test_pairs)
+    return test_pairs
