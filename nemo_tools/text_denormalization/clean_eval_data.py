@@ -25,8 +25,9 @@ from nemo_tools.text_denormalization.data_loader_utils import (
 
 
 """
-filter_loaded_data() cleans data (list of instances) for inverse text normalization. Filters and cleaners can be specified for each semiotic class individuallyself.
-For example, normalized text should only include chacters and whitespace characters but no punctuation. 
+This file is for evaluation purposes.
+filter_loaded_data() cleans data (list of instances) for inverse text normalization. Filters and cleaners can be specified for each semiotic class individually.
+For example, normalized text should only include characters and whitespace characters but no punctuation. 
             Cardinal unnormalized instances should contain at least one integer and all other characters are removed.
 """
 
@@ -107,6 +108,7 @@ def filter_decimal_1(instance: Instance) -> bool:
 
 def process_decimal_1(instance: Instance) -> Instance:
     un_normalized = instance.un_normalized
+    un_normalized = re.sub(r",", "", un_normalized)
     normalized = instance.normalized
     normalized = re.sub(r"[^a-z ]", "", normalized)
     return Instance(token_type=instance.token_type, un_normalized=un_normalized, normalized=normalized)
@@ -121,7 +123,10 @@ def process_measure_1(instance: Instance) -> Instance:
     un_normalized = instance.un_normalized
     normalized = instance.normalized
     un_normalized = re.sub(r",", "", un_normalized)
-    un_normalized = re.sub(r"(\d)%", r"\1 %", un_normalized)
+    un_normalized = re.sub(r"m2", "m²", un_normalized)
+    un_normalized = re.sub(r"(\d)([^\d.\s])", r"\1 \2", un_normalized)
+    normalized = re.sub(r"[^a-z\s]", "", normalized)
+    normalized = re.sub(r"per ([a-z\s]*)s$", r"per \1", normalized)
     normalized = re.sub(r"[^a-z ]", "", normalized)
     return Instance(token_type=instance.token_type, un_normalized=un_normalized, normalized=normalized)
 

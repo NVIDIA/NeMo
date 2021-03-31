@@ -209,6 +209,5 @@ DENORMALIZERS = {
 
 
 if __name__ == "__main__":
-    # Example usage:
     s = sys.argv[1]  # input string
     denormalize(s, verbose=True)

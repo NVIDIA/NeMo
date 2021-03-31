@@ -25,7 +25,6 @@ PLAIN_TYPE = "PLAIN"
 Instance = namedtuple('Instance', 'token_type un_normalized normalized')
 known_types = [
     "PLAIN",
-    "PUNCT",
     "DATE",
     "CARDINAL",
     "LETTERS",
@@ -73,9 +72,12 @@ def load_kaggle_text_norm_file(file_path: str) -> List[Instance]:
                 res.append(Instance(token_type=EOS_TYPE, un_normalized="", normalized=""))
             else:
                 l_type, l_token, l_normalized = parts
-                if l_type in [PUNCT_TYPE, PLAIN_TYPE]:
+                l_token = l_token.lower()
+                l_normalized = l_normalized.lower()
+
+                if l_type == PLAIN_TYPE:
                     res.append(Instance(token_type=l_type, un_normalized=l_token, normalized=l_token))
-                else:
+                elif l_type != PUNCT_TYPE:
                     res.append(Instance(token_type=l_type, un_normalized=l_token, normalized=l_normalized))
     return res
 

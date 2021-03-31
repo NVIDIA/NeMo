@@ -53,6 +53,8 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    # Example usage:
+    # python run_evaluate.py --input=<INPUT> --cat=<CATEGORY> --filter
     args = parse_args()
     file_path = args.input
     denormalizer = DENORMALIZERS[args.denormalizer]
@@ -90,6 +92,8 @@ if __name__ == "__main__":
         token_count_per_type[token_type] * accuracy for token_type, accuracy in token_accuracy.items()
     ]
     print("- Accuracy: " + str(sum(token_weighted_accuracy) / sum(token_count_per_type.values())))
+
+    print(" - Total: " + str(sum(token_count_per_type.values())))
 
     # csv output
     for token_type in token_accuracy:

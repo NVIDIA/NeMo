@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pynini
-from nemo_tools.text_denormalization.graph_utils import GraphFst
+from nemo_tools.text_denormalization.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_tools.text_denormalization.taggers.punctuation import PunctuationFst
 from nemo_tools.text_denormalization.taggers.tokenize_and_classify import ClassifyFst
 from pynini.lib import pynutil
@@ -34,10 +34,8 @@ class ClassifyFinalFst(GraphFst):
         token_plus_punct = (
             pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
         )
-        graph = token_plus_punct + pynini.closure(pynini.cross(pynini.closure(" ", 1), " ") + token_plus_punct)
-        graph = (
-            pynini.closure(pynutil.delete(pynini.closure(" ", 1)), 0, 1)
-            + graph
-            + pynini.closure(pynutil.delete(pynini.closure(" ", 1)), 0, 1)
-        )
+
+        graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
+        graph = delete_space + graph + delete_space
+
         self.fst = graph.optimize()
