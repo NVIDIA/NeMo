@@ -66,15 +66,6 @@ def run_only_on_device_fixture(request, device):
 
 
 @pytest.fixture(autouse=True)
-def downloads_weights(request, device):
-    if request.node.get_closest_marker('with_downloads'):
-        if not request.config.getoption("--with_downloads"):
-            pytest.skip(
-                'To run this test, pass --with_downloads option. It will download (and cache) models from cloud.'
-            )
-
-
-@pytest.fixture
 def cleanup_local_folder():
     # Asserts in fixture are not recommended, but I'd rather stop users from deleting expensive training runs
     assert not Path("./lightning_logs").exists()

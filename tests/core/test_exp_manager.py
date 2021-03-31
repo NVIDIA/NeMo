@@ -110,7 +110,7 @@ class TestExpManager:
             exp_manager(pl.Trainer(), {"unused": 1})
 
     @pytest.mark.unit
-    def test_trainer_loggers(self, cleanup_local_folder, tmp_path):
+    def test_trainer_loggers(self, tmp_path):
         """ Test that a trainer with logger errors out with a number of arguments. Test that it works with
         create_tensorboard_logger set to False
         """
@@ -164,7 +164,7 @@ class TestExpManager:
         assert isinstance(test_trainer.logger, pl.loggers.WandbLogger)
 
     @pytest.mark.unit
-    def test_checkpoint_configurations(self, cleanup_local_folder):
+    def test_checkpoint_configurations(self):
         """ Test that trainer creating modelcheckpoint and asking exp_manager to do it too results in errors, but
         is error free if only one is asked to do so.
         """
@@ -180,7 +180,7 @@ class TestExpManager:
         exp_manager(test_trainer_2, disable_tb_logger)  # Should succeed without error
 
     @pytest.mark.unit
-    def test_default_log_dir(self, cleanup_local_folder):
+    def test_default_log_dir(self):
         """Check the default of ./nemo_experiments/default/datetime works as intended"""
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
 
@@ -311,7 +311,7 @@ class TestExpManager:
         assert prev_log.exists()
 
     @pytest.mark.unit
-    def test_nemo_checkpoint_save_best_model_1(self, cleanup_local_folder, tmp_path):
+    def test_nemo_checkpoint_save_best_model_1(self, tmp_path):
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
         log_dir = exp_manager(
             test_trainer,
@@ -326,7 +326,7 @@ class TestExpManager:
         assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
 
     @pytest.mark.unit
-    def test_nemo_checkpoint_save_best_model_2(self, cleanup_local_folder, tmp_path):
+    def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
         log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test")},)
         model = ExampleModel()
