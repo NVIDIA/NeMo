@@ -42,6 +42,11 @@ def pytest_addoption(parser):
         action='store_true',
         help="pass that argument to use local test data/skip downloading from URL/GitHub (DEFAULT: False)",
     )
+    parser.addoption(
+        '--with_downloads',
+        action='store_true',
+        help="pass this argument to active tests which download models from the cloud.",
+    )
 
 
 @pytest.fixture
@@ -58,6 +63,15 @@ def run_only_on_device_fixture(request, device):
     if request.node.get_closest_marker('run_only_on'):
         if request.node.get_closest_marker('run_only_on').args[0] != device:
             pytest.skip('skipped on this device: {}'.format(device))
+
+
+@pytest.fixture(autouse=True)
+def downloads_weights(request, device):
+    if request.node.get_closest_marker('with_downloads'):
+        if not request.config.getoption("--with_downloads"):
+            pytest.skip(
+                'To run this test, pass --with_downloads option. It will download (and cache) models from cloud.'
+            )
 
 
 @pytest.fixture(autouse=True)
