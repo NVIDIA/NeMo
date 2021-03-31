@@ -34,7 +34,7 @@ RUN apt-get update && \
 
 # build torchaudio (change latest release version to match pytorch)
 WORKDIR /tmp/torchaudio_build
-RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.git && \
+RUN git clone --depth 1 --branch release/0.7 https://github.com/pytorch/audio.git && \
     cd audio && \
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
@@ -96,7 +96,14 @@ ARG NEMO_VERSION=1.0.0rc1
 RUN /usr/bin/test -n "$NEMO_VERSION" && \
     /bin/echo "export NEMO_VERSION=${NEMO_VERSION}" >> /root/.bashrc && \
     /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
-RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
+RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" && \
+    python -c "import nemo.collections.asr as nemo_asr" && \
+    python -c "import nemo.collections.nlp as nemo_nlp" && \
+    python -c "import nemo.collections.tts as nemo_tts"
+
+# TODO: Remove once 20.04 container is base container
+# install latest numba version
+RUN conda update -c numba numba -y
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo

@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from numba import cuda
 
+from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
 
 
@@ -23,6 +24,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_log_sum_exp(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x, y):
@@ -53,6 +56,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_log_sum_exp_neg_inf(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x, y):
@@ -83,6 +88,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_div_up(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x, y):
@@ -114,6 +121,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_add(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x, y):
@@ -145,6 +154,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_maximum(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x, y):
@@ -176,6 +187,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_identity(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x):
@@ -205,6 +218,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_negate(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x):
@@ -234,6 +249,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_exponential(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x):
@@ -264,6 +281,8 @@ class TestRNNTHelper:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
     @pytest.mark.unit
     def test_log_plus(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         # wrapper kernel for device function that is tested
         @cuda.jit
         def _kernel(x, y):

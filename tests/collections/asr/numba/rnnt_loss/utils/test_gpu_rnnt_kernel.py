@@ -17,6 +17,7 @@ import pytest
 import torch
 from numba import cuda
 
+from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.numba.rnnt_loss import rnnt_numpy
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import certify_inputs
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt_kernel, reduce
@@ -33,6 +34,8 @@ class TestRNNTCUDAKernels:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
     def test_compute_alphas_kernel(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         random = np.random.RandomState(0)
         original_shape = [1, 5, 11, 3]
         B, T, U, V = original_shape
@@ -99,6 +102,8 @@ class TestRNNTCUDAKernels:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
     def test_compute_betas_kernel(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         random = np.random.RandomState(0)
         original_shape = [1, 5, 11, 3]
         B, T, U, V = original_shape
