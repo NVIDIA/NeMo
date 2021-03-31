@@ -96,7 +96,7 @@ RNNT_LOSS_RESOLVER = {
     ),
 }
 
-RNNT_LOSS_RESOLVER['default'] = RNNT_LOSS_RESOLVER['warprnnt']
+RNNT_LOSS_RESOLVER['default'] = RNNT_LOSS_RESOLVER['warprnnt_numba']
 
 
 def _warn_unused_additional_kwargs(loss_name, kwargs):
@@ -244,6 +244,7 @@ class RNNTLoss(Loss):
         max_targets_len = target_lengths.max()
 
         # Force cast joint to float32
+        # TODO: Remove once Numba supports FP16
         if log_probs.dtype != torch.float32:
             logits_orig = log_probs
             log_probs = log_probs.float()
