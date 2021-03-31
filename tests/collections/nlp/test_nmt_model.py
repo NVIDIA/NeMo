@@ -78,6 +78,7 @@ class TestMTEncDecModel:
         assert isinstance(model, MTEncDecModel)
         export_test(model, ".onnx")
 
+    @pytest.mark.skipif(not os.path.exists('/home/TestData/nlp'), reason='Not a Jenkins machine')
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_gpu_export_ts(self):
