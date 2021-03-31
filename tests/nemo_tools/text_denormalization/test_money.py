@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +13,16 @@
 # limitations under the License.
 
 
-from nemo.package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __shortversion__,
-    __version__,
-)
+import pytest
+from nemo_tools.text_denormalization.denormalize import denormalize
+from parameterized import parameterized
+from utils import parse_test_case_file
+
+
+class TestMoney:
+    @parameterized.expand(parse_test_case_file('data_text_denormalization/test_cases_money.txt'))
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_denorm(self, test_input, expected):
+        pred = denormalize(test_input, verbose=False)
+        assert pred == expected
