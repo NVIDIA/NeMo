@@ -49,10 +49,6 @@ class FastSpeech2Model(SpectrogramGenerator):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.vocab = None
-        if cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset":
-            self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
-
         schema = OmegaConf.structured(FastSpeech2Config)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
         if isinstance(cfg, dict):
@@ -100,7 +96,6 @@ class FastSpeech2Model(SpectrogramGenerator):
 
     @typecheck()
     def forward(self, *, spec_len, text, text_length, durations=None, pitch=None, energies=None):
-        #with typecheck.disable_checks(): # TODO: remove
         encoded_text, encoded_text_mask = self.encoder(text=text, text_length=text_length)
         aligned_text, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
             x=encoded_text,
@@ -114,11 +109,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         return mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx):
-        if self.vocab is None:
-            f, fl, t, tl, durations, pitch, energies = batch
-        else:
-            pitch, energies = None, None
-            f, fl, t, tl, durations, pitch, _ = batch
+        f, fl, t, tl, durations, pitch, energies = batch
         spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
         mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
             spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies
