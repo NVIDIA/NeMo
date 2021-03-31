@@ -4,7 +4,7 @@
 Introduction
 ------------
 
-NeMo's nemo_tools is a python package that is installed with the nemo_toolkit. See :ref:`main-readme` for installation guide.
+NeMo's nemo_tools is a python package that is installed with the nemo_toolkit. See NeMo `README.rst <https://github.com/NVIDIA/NeMo/blob/main/README.rst>`_ for installation guide.
 
 Additional requirements
 ------------------------
