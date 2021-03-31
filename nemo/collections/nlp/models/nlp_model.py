@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import hashlib
 import json
 import os
+from os import path
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -36,9 +38,10 @@ from transformers import TRANSFORMERS_CACHE
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 from nemo.utils.exp_manager import configure_checkpointing
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -363,6 +366,87 @@ class NLPModel(ModelPT, Exportable):
                 return
             else:
                 self._default_save_to(save_path)
+
+    @classmethod
+    def restore_from(
+        cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = False,
+        return_config: bool = False,
+    ):
+        """
+        Restores model instance (weights and configuration) from .nemo file.
+
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict.
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
+
+            Example:
+                ```
+                model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+                assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+                ```
+
+        Returns:
+            An instance of type cls or its underlying config (if return_config is set).
+        """
+        global _MODEL_RESTORE_PATH
+
+        if not path.exists(restore_path):
+            raise FileNotFoundError(f"Can't find {restore_path}")
+
+        if os.path.isfile(restore_path):
+            _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
+            return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
+        elif os.path.isdir(restore_path):
+            app_state = AppState()
+            nemo_files = glob.glob(os.path.join(restore_path, '*.nemo'))
+            model_parallel_size = len(nemo_files)
+            app_state.model_parallel_size = model_parallel_size
+            logging.info(
+                (
+                    f'restore_path: {restore_path} is a directory. '
+                    f'Assuming megatron model parallelism with '
+                    f'model_parallel_size: {model_parallel_size}'
+                )
+            )
+            # set world size to model parallel size for inference
+            # TODO: what to do for resuming training?
+            app_state.world_size = model_parallel_size
+
+            # try to get local rank from global
+            local_rank = None
+            try:
+                local_rank = int(os.environ['LOCAL_RANK'])
+            except:
+                logging.info('Global variable LOCAL_RANK not yet specified')
+
+            if local_rank is not None:
+                app_state.local_rank = local_rank
+            else:
+                # if local is None then we are on the main process
+                local_rank = 0
+
+            model_parallel_rank = compute_model_parallel_rank(local_rank, model_parallel_size)
+            app_state.model_parallel_rank = model_parallel_rank
+
+            restore_path = ''
+            # select .nemo file based on model parallel rank
+            for file in nemo_files:
+                if f'mp_rank_{app_state.model_parallel_rank:02d}.nemo' in file:
+                    restore_path = file
+
+            logging.info(f'Model parallel .nemo file detected. Restoring from: {restore_path}')
+            _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
+            return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
     @property
     def input_module(self):
