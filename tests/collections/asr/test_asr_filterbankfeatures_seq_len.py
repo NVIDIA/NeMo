@@ -46,7 +46,7 @@ class TestFilterbankFeatures:
                 n_window_stride=hop_size,
                 normalize=False,
             )
-            audio_length = np.random.randint(nfft + 1, 2 ** 16)
+            audio_length = np.random.randint(nfft, 2 ** 16)
             test_1 = torch.randn(1, audio_length)
             test_1_len = torch.tensor([audio_length])
             fb_spec, fb_len = fb_module(test_1, test_1_len)
@@ -78,7 +78,7 @@ class TestFilterbankFeatures:
                 n_window_stride=hop_size,
                 normalize=False,
             )
-            audio_length = np.random.randint(nfft + 1, 2 ** 16)
+            audio_length = np.random.randint(nfft, 2 ** 16)
             test_1 = torch.randn(1, audio_length)
             test_1_len = torch.tensor([audio_length])
             fb_spec, fb_len = fb_module(test_1, test_1_len)

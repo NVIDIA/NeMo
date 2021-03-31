@@ -231,7 +231,7 @@ class FilterbankFeatures(nn.Module):
                 "to False for FilterbankFeatures and AudioToMelSpectrogramPreprocessor. Please set exact_pad to True "
                 "as needed."
             )
-        if (exact_pad or stft_exact_pad) and self.n_window_stride % 2 == 1:
+        if (exact_pad or stft_exact_pad) and n_window_stride % 2 == 1:
             raise NotImplementedError(
                 f"{self} received exact_pad == True, but hop_size was odd. If audio_length % hop_size == 0. Then the "
                 "returned spectrogram would not be of length audio_length // hop_size. Please use an even hop_size."
