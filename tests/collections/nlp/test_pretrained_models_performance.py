@@ -53,6 +53,7 @@ def data_exists(data_dir):
 
 
 class TestPretrainedModelPerformance:
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(
@@ -76,6 +77,7 @@ class TestPretrainedModelPerformance:
         preds_5 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=5)[0]
         assert preds_5 == 'What can i'
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(
@@ -91,6 +93,7 @@ class TestPretrainedModelPerformance:
         assert abs(metrics['punct_f1'] - 52.4225) < 0.001
         assert int(model.punct_class_report.total_examples) == 128
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.skipif(
