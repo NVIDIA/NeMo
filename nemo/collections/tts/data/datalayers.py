@@ -684,7 +684,6 @@ class AudioWithSupplementaryDataset(Dataset):
 
         pruned_duration = 0
         pruned_items = 0
-        # error = []
         for item in audio_files:
             LJ_id = item["audio_filepath"].split("/")[-1].split(".")[0]
 
