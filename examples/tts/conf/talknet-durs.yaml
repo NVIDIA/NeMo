@@ -151,7 +151,6 @@ model:
       name: CosineAnnealing
       min_lr: 1e-5
       warmup_ratio: 0.02
-      max_steps: ???
 
 trainer:
   gpus: 1

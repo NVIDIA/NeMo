@@ -40,14 +40,14 @@ model:
     name: CosineAnnealing
     min_lr: 1e-5
     warmup_ratio: 0.02
-    max_steps: ???
 
+  max_steps: 25000000
   l1_loss_factor: 45
   denoise_strength: 0.0025
 
 trainer:
   gpus: -1 # number of gpus
-  max_epochs: ???
+  max_steps: ${model.max_steps}
   num_nodes: 1
   accelerator: ddp
   accumulate_grad_batches: 1
