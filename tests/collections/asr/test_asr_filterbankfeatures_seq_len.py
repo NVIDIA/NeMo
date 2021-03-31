@@ -43,7 +43,7 @@ class TestFilterbankFeatures:
             fb_module = FilterbankFeatures(
                 exact_pad=False, pad_to=1, n_fft=nfft, n_window_size=window_size, n_window_stride=hop_size
             )
-            audio_length = random.randint(window_size, 2 ** 16)
+            audio_length = random.randint(nfft, 2 ** 16)
             test_1 = torch.randn(1, audio_length)
             test_1_len = torch.tensor([audio_length])
             result, result_len = fb_module(test_1, test_1_len)
@@ -66,7 +66,7 @@ class TestFilterbankFeatures:
             fb_module = FilterbankFeatures(
                 exact_pad=True, pad_to=1, n_fft=nfft, n_window_size=window_size, n_window_stride=hop_size
             )
-            audio_length = random.randint(window_size, 2 ** 16)
+            audio_length = random.randint(nfft, 2 ** 16)
             test_1 = torch.randn(1, audio_length)
             test_1_len = torch.tensor([audio_length])
             result, result_len = fb_module(test_1, test_1_len)
