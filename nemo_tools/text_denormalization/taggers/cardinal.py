@@ -101,8 +101,6 @@ class CardinalFst(GraphFst):
             graph_zero,
         )
 
-        # graph = pynutil.add_weight(graph, weight=-1) | (pynutil.insert("one ") + (graph_hundred_component_at_least_one_none_zero_digit | graph_thousands ))
-
         graph = graph @ pynini.union(
             pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
         )

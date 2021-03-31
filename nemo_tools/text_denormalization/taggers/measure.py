@@ -92,7 +92,6 @@ class MeasureFst(GraphFst):
             + delete_extra_space
             + unit_singular
         )
-        # final_graph = optional_graph_negative +  delete_extra_space + graph_integer + delete_extra_space + point + delete_extra_space + graph_fractional
         final_graph = subgraph_decimal | subgraph_cardinal
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
