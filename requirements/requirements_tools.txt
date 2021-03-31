@@ -1,3 +1,2 @@
 inflect
 regex
-word2number
