@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from numpy import isin
 
 import torch
 from megatron import get_args, initialize_megatron
@@ -27,7 +28,7 @@ from megatron.mpu import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
 )
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
@@ -69,7 +70,8 @@ class MegatronBertEncoder(BertModule):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
         # convert config to dictionary
-        config = OmegaConf.to_container(config)
+        if isinstance(config, DictConfig):
+            config = OmegaConf.to_container(config)
         config["vocab_file"] = vocab_file
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
         config['lazy_mpu_init'] = True
