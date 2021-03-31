@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from numba import cuda
 
+from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import reduce
 
 
@@ -23,6 +24,8 @@ class TestRNNTCUDAReductions:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
     def test_reduce_max(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         random = np.random.RandomState(0)
         original_shape = [1, 5, 4, 3]
         x = random.randn(*original_shape).reshape([-1])
@@ -50,6 +53,8 @@ class TestRNNTCUDAReductions:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
     def test_reduce_exp(self):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
         random = np.random.RandomState(0)
         original_shape = [1, 5, 4, 2]
         x = random.randn(*original_shape).reshape([-1])
