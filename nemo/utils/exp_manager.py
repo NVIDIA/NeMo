@@ -657,13 +657,24 @@ def configure_checkpointing(
     logging.debug(params.filename)
     logging.debug(params.prefix)
 
-    if "val" in params.monitor and trainer.max_epochs != -1 and trainer.max_epochs < trainer.check_val_every_n_epoch:
-        logging.error(
-            "The checkpoint callback was told to monitor a validation value but trainer.max_epochs("
-            f"{trainer.max_epochs}) was less than trainer.check_val_every_n_epoch({trainer.check_val_every_n_epoch})."
-            f"It is very likely this run will fail with ModelCheckpoint(monitor='{params.monitor}') not found in the "
-            "returned metrics. Please ensure that validation is run within trainer.max_epochs."
-        )
+    if "val" in params.monitor:
+        if (
+            trainer.max_epochs is not None
+            and trainer.max_epochs != -1
+            and trainer.max_epochs < trainer.check_val_every_n_epoch
+        ):
+            logging.error(
+                "The checkpoint callback was told to monitor a validation value but trainer.max_epochs("
+                f"{trainer.max_epochs}) was less than trainer.check_val_every_n_epoch({trainer.check_val_every_n_epoch}"
+                f"). It is very likely this run will fail with ModelCheckpoint(monitor='{params.monitor}') not found "
+                "in the returned metrics. Please ensure that validation is run within trainer.max_epochs."
+            )
+        elif trainer.max_steps is not None:
+            logging.warning(
+                "The checkpoint callback was told to monitor a validation value and trainer's max_steps was set to "
+                f"{trainer.max_steps}. Please ensure that max_steps will run for at least "
+                f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
+            )
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
     trainer.callbacks.append(checkpoint_callback)
