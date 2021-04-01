@@ -3,9 +3,9 @@ dataset:
   _target_: "nemo.collections.tts.data.datalayers.MelAudioDataset"
   manifest_filepath: ${validation_datasets}
   min_duration: 3
-  n_segments: 66150
+  n_segments: 66048
 dataloader_params:
   drop_last: false
   shuffle: false
-  batch_size: 3
+  batch_size: 16
   num_workers: 4
