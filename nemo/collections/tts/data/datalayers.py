@@ -219,7 +219,7 @@ class MelAudioDataset(Dataset):
             mel = mel[:, start : start + frames]
             audio = audio[:, start * self.mel_hop_size : (start + frames) * self.mel_hop_size]
         else:
-            mel = torch.nn.functional.pad(mel, (0, frames - mel.shape[1]))
+            mel = np.pad(mel, ((0, 0), (0, frames - mel.shape[1])))
             audio = torch.nn.functional.pad(audio, (0, self.n_segments - audio.shape[1]))
 
         return audio.squeeze(0), audio.shape[1], mel

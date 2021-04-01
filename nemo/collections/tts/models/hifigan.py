@@ -211,39 +211,39 @@ class HifiGanModel(Vocoder):
                 clips += [
                     wandb.Audio(
                         audio[i, : audio_len[i]].data.cpu().numpy(),
-                        caption=f"real audio {i}, epoch {self.current_epoch}",
+                        caption=f"real audio {i}",
                         sample_rate=self.sample_rate,
                     ),
                     wandb.Audio(
                         audio_pred[i, 0, : audio_len[i]].data.cpu().numpy().astype('float32'),
-                        caption=f"generated audio {i}, epoch {self.current_epoch}",
+                        caption=f"generated audio {i}",
                         sample_rate=self.sample_rate,
                     ),
                     wandb.Audio(
                         pred_denoised[i, : audio_len[i]].data.cpu().numpy(),
-                        caption=f"denoised audio {i}, epoch {self.current_epoch}",
+                        caption=f"denoised audio {i}",
                         sample_rate=self.sample_rate,
                     ),
                 ]
                 specs += [
                     wandb.Image(
                         plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                        caption=f"input mel {i}, epoch {self.current_epoch}",
+                        caption=f"input mel {i}",
                     ),
                     wandb.Image(
                         plot_spectrogram_to_numpy(audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                        caption=f"output mel {i}, epoch {self.current_epoch}",
+                        caption=f"output mel {i}",
                     ),
                     wandb.Image(
                         plot_spectrogram_to_numpy(pred_denoised_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                        caption=f"denoised mel {i}, epoch {self.current_epoch}",
+                        caption=f"denoised mel {i}",
                     ),
                 ]
                 if self.input_as_mel:
                     specs += [
                         wandb.Image(
                             plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
-                            caption=f"gt mel {i}, epoch {self.current_epoch}",
+                            caption=f"gt mel {i}",
                         ),
                     ]
 
