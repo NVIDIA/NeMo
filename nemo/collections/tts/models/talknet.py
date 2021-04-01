@@ -24,13 +24,13 @@ from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.talknet import GaussianEmbedding, MaskedInstanceNorm1d, StyleResidual
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
-
+from pytorch_lightning import Trainer
 
 class TalkNetDursModel(ModelPT):
     """TalkNet's durations prediction pipeline."""
 
-    def __init__(self, cfg: DictConfig):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
         typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
@@ -105,8 +105,8 @@ class TalkNetDursModel(ModelPT):
 class TalkNetPitchModel(ModelPT):
     """TalkNet's pitch prediction pipeline."""
 
-    def __init__(self, cfg: DictConfig):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
         typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
@@ -197,8 +197,8 @@ class TalkNetPitchModel(ModelPT):
 class TalkNetSpectModel(SpectrogramGenerator):
     """TalkNet's mel spectrogram prediction pipeline."""
 
-    def __init__(self, cfg: DictConfig):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
         typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
