@@ -15,6 +15,7 @@
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 from torch import nn
 from torch.nn import functional as F
 
@@ -24,7 +25,6 @@ from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.talknet import GaussianEmbedding, MaskedInstanceNorm1d, StyleResidual
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
-from pytorch_lightning import Trainer
 
 
 class TalkNetDursModel(ModelPT):
