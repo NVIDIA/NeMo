@@ -26,6 +26,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from pytorch_lightning import Trainer
 
+
 class TalkNetDursModel(ModelPT):
     """TalkNet's durations prediction pipeline."""
 
