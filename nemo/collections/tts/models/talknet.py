@@ -65,7 +65,7 @@ class TalkNetDursModel(ModelPT):
         pred_durs = self(text=text, text_len=text_len)
         loss, acc = self._metrics(true_durs=durs, true_text_len=text_len, pred_durs=pred_durs,)
         train_log = {'train_loss': loss, 'train_acc': acc}
-        return {'loss': loss, 'progress_bar': train_log, 'train_log': train_log}
+        return {'loss': loss, 'progress_bar': train_log, 'log': train_log}
 
     def validation_step(self, batch, batch_idx):
         _, _, text, text_len, durs, *_ = batch
@@ -116,15 +116,14 @@ class TalkNetPitchModel(ModelPT):
         d_out = cfg.model.jasper[-1].filters
         self.sil_proj = nn.Conv1d(d_out, 1, kernel_size=1)
         self.body_proj = nn.Conv1d(d_out, 1, kernel_size=1)
+        self.f0_mean, self.f0_std = cfg.f0_mean, cfg.f0_std
 
     def forward(self, text, text_len, durs):
-        x, x_len = self.embed(text, durs).transpose(1, 2), text_len
+        x, x_len = self.embed(text, durs).transpose(1, 2), durs.sum(-1)
         y, _ = self.model(x, x_len)
         f0_sil = self.sil_proj(y).squeeze(1)
         f0_body = self.body_proj(y).squeeze(1)
         return f0_sil, f0_body
-
-    F0_MEAN, F0_STD = 150.23434143088116, 42.795667026124704
 
     def _metrics(self, true_f0, true_f0_mask, pred_f0_sil, pred_f0_body):
         sil_mask = true_f0 < 1e-5
@@ -136,11 +135,11 @@ class TalkNetPitchModel(ModelPT):
         sil_acc *= true_f0_mask.type_as(sil_acc)
         sil_acc = sil_acc.sum() / true_f0_mask.sum()
 
-        body_mse = F.mse_loss(pred_f0_body, (true_f0 - self.F0_MEAN) / self.F0_STD, reduction='none')
+        body_mse = F.mse_loss(pred_f0_body, (true_f0 - self.f0_mean) / self.f0_std, reduction='none')
         body_mask = ~sil_mask
         body_mse *= body_mask.type_as(body_mse)  # noqa
         body_mse = body_mse.sum() / body_mask.sum()  # noqa
-        body_mae = ((pred_f0_body * self.F0_STD + self.F0_MEAN) - true_f0).abs()
+        body_mae = ((pred_f0_body * self.f0_std + self.f0_mean) - true_f0).abs()
         body_mae *= body_mask.type_as(body_mae)  # noqa
         body_mae = body_mae.sum() / body_mask.sum()  # noqa
 
@@ -155,7 +154,7 @@ class TalkNetPitchModel(ModelPT):
             true_f0=f0, true_f0_mask=f0_mask, pred_f0_sil=pred_f0_sil, pred_f0_body=pred_f0_body,
         )
         train_log = {'train_loss': loss, 'train_sil_acc': sil_acc, 'train_body_mae': body_mae}
-        return {'loss': loss, 'progress_bar': train_log, 'train_log': train_log}
+        return {'loss': loss, 'progress_bar': train_log, 'log': train_log}
 
     def validation_step(self, batch, batch_idx):
         _, _, text, text_len, durs, f0, f0_mask = batch
@@ -236,7 +235,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
         pred_mel = self(text=text, text_len=text_len, durs=durs, f0=f0)
         loss = self._metrics(true_mel=mel, true_mel_len=mel_len, pred_mel=pred_mel)
         train_log = {'train_loss': loss}
-        return {'loss': loss, 'progress_bar': train_log, 'train_log': train_log}
+        return {'loss': loss, 'progress_bar': train_log, 'log': train_log}
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, text, text_len, durs, f0, f0_mask = batch
@@ -295,7 +294,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
         # Pitch
         f0_sil, f0_body = self._pitch_model(text, text_len, durs)
         sil_mask = f0_sil.sigmoid() > 0.5
-        f0 = f0_body * self._pitch_model.F0_STD + self._pitch_model.F0_MEAN
+        f0 = f0_body * self._pitch_model.f0_std + self._pitch_model.f0_mean
         f0 = (~sil_mask * f0).float()
 
         # Spect
