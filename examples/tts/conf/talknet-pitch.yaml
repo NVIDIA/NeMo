@@ -11,6 +11,10 @@ model:
   dropout: 0.1
   separable: true
 
+  # F0 stats (depends on dataset, current for LJSpeech)
+  f0_mean: 178.7767791748047
+  f0_std: 33.51659393310547
+
   train_ds:
     dataset:
       _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
@@ -30,6 +34,7 @@ model:
         punct: true
         spaces: true
         stresses: false
+        add_blank_at: last
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -55,11 +60,12 @@ model:
         punct: true
         spaces: true
         stresses: false
+        add_blank_at: last
     dataloader_params:
       drop_last: false
       shuffle: false
       batch_size: 64
-      num_workers: 8
+      num_workers: 1
 
   model:
     _target_: "nemo.collections.asr.modules.ConvASREncoder"
@@ -148,6 +154,7 @@ model:
     sched:
       name: CosineAnnealing
       min_lr: 1e-5
+      warmup_ratio: 0.02
 
 trainer:
   gpus: 1
@@ -167,3 +174,6 @@ exp_manager:
   name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_body_mae"
+    mode: "min"

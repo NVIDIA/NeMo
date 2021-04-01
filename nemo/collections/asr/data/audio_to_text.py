@@ -255,12 +255,11 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     Dataset that loads tensors via a json file containing paths to audio
     files, transcripts, and durations (in seconds) and F0 along mel length.
     Each new line is a different sample. Example below:
-    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
-    "/path/to/audio.txt", "duration": 23.147}
+    {"audio_filepath": "/path/to/audio_1.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82}
     ...
-    {"audio_filepath": "/path/to/audio.wav", "text": "the
-    transcription", "offset": 301.75, "duration": 0.82, "utt":
-    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+    {"audio_filepath": "/path/to/audio_n.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82}
 
     Additionally, user provides path to precomputed durations via "durs_file" arg, which is a pickled python dict,
     mapping example tag to it's durations tensor. Tag is a unique example identifier, which is a wav filename
@@ -278,8 +277,10 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
 
     Args:
         **kwargs: Passed to AudioToCharDataset constructor.
-        durs_path (str): String path to pickled list of '[(tag, durs)]' durations location.
-        rep (bool): True if repeat text graphemes according to durs.
+        durs_file (str): String path to pickled durations location.
+        f0_file (str): String path to pickled f0 statistics location.
+        blanking (bool): Boolean flag indicate whether add or not blanks between text graphemes.
+        load_audio(bool): Boolean flag indicate whether do or not load audio.
         vocab: Vocabulary config (parser + set of graphemes to use). Constructor propagates these to
             `self.make_vocab` function call to build a complete vocabulary.
     """
@@ -298,7 +299,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         }
 
     @staticmethod
-    def make_vocab(notation='chars', punct=True, spaces=False, stresses=False):
+    def make_vocab(notation='chars', punct=True, spaces=False, stresses=False, add_blank_at="last_but_one"):
         """Constructs vocabulary from given parameters.
 
         Args:
@@ -306,14 +307,16 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
             punct (bool): True if reserve grapheme for basic punctuation.
             spaces (bool): True if prepend spaces to every punctuation symbol.
             stresses (bool): True if use phonemes codes with stresses (0-2).
+            add_blank_at: add blank to labels in the specified order ("last" or "last_but_one"),
+             if None then no blank in labels.
 
         Returns:
             (vocabs.Base) Vocabulary
         """
         if notation == 'chars':
-            vocab = vocabs.Chars(punct=punct, spaces=spaces)
+            vocab = vocabs.Chars(punct=punct, spaces=spaces, add_blank_at=add_blank_at)
         elif notation == 'phonemes':
-            vocab = vocabs.Phonemes(punct=punct, stresses=stresses, spaces=spaces)
+            vocab = vocabs.Phonemes(punct=punct, stresses=stresses, spaces=spaces, add_blank_at=add_blank_at,)
         else:
             raise ValueError("Unsupported vocab type.")
         return vocab
@@ -322,14 +325,19 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         durs_file = kwargs.pop('durs_file', None)
         f0_file = kwargs.pop('f0_file', None)
         blanking = kwargs.pop('blanking', False)
+        self.load_audio = kwargs.pop('load_audio', True)
         self.vocab = self.make_vocab(**kwargs.pop('vocab', {}))
         kwargs.setdefault('labels', [])  # For compatibility.
         super().__init__(**kwargs)
 
         tags = []
+        self.id2enc_text = {}
         for i, e in enumerate(self.collection):
             tag = os.path.splitext(os.path.basename(e.audio_file))[0]
             tags.append(tag)
+            # cache vocab encoding
+            self.id2enc_text[i] = self.vocab.encode(e.text_raw)
+
         if durs_file:
             tag2durs = torch.load(durs_file)
             durs = []
@@ -343,9 +351,11 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         self.blanking = blanking
 
     def __getitem__(self, item):
-        sample = self.collection[item]
-        audio, audio_len, _, _ = super().__getitem__(item)  # noqa
-        text = self.vocab.encode(sample.text_raw)
+        audio, audio_len = None, None
+        if self.load_audio:
+            audio, audio_len, _, _ = super().__getitem__(item)  # noqa
+
+        text = self.id2enc_text[item]
         text, text_len = torch.tensor(text).long(), torch.tensor(len(text)).long()
         durs, f0 = self.durs[item], self.f0[item]
         return (
