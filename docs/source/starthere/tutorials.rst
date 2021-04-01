@@ -86,7 +86,7 @@ To run tutorials:
      - GLUE Benchmark
      - `GLUE Benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/GLUE_Benchmark.ipynb>`_
    * - NLP
-     - Punctuation and Capitialization
+     - Punctuation and Capitalization
      - `Punctuation and Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - NLP
      - Named Entity Recognition - BioMegatron
