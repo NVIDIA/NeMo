@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.02-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.03-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -68,7 +68,7 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
     rm -rf ../tests test ../tensorflow_binding
 
 # uninstall stuff from base container
-RUN pip uninstall -y sacrebleu
+RUN pip uninstall -y sacrebleu torchtext
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
@@ -89,7 +89,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.0.0rc1
+ARG NEMO_VERSION=main
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
@@ -101,7 +101,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" 
     python -c "import nemo.collections.nlp as nemo_nlp" && \
     python -c "import nemo.collections.tts as nemo_tts"
 
-# TODO: Remove once 20.04 container is base container
+# TODO: Remove once 21.04 container is base container
 # install latest numba version
 RUN conda update -c numba numba -y
 
