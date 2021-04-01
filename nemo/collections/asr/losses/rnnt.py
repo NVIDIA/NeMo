@@ -108,6 +108,10 @@ def _warn_unused_additional_kwargs(loss_name, kwargs):
         )
 
 
+def resolve_rnnt_default_loss_name() -> str:
+    return RNNT_LOSS_RESOLVER['default'].loss_name
+
+
 def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) -> torch.nn.Module:
     loss_function_names = list(RNNT_LOSS_RESOLVER.keys())
 

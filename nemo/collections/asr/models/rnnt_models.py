@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.losses.rnnt import RNNTLoss
+from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -93,7 +93,7 @@ class EncDecRNNTModel(ASRModel):
         self.joint = EncDecRNNTModel.from_config_dict(self.cfg.joint)
 
         # Setup RNNT Loss
-        loss_name, loss_kwargs = self._setup_loss(self.cfg.get("loss", None))
+        loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
 
         self.loss = RNNTLoss(
             num_classes=self.joint.num_classes_with_blank - 1, loss_name=loss_name, loss_kwargs=loss_kwargs
@@ -136,7 +136,7 @@ class EncDecRNNTModel(ASRModel):
             self._optim_variational_noise_std = 0
             self._optim_variational_noise_start = 0
 
-    def _setup_loss(self, cfg: Optional[DictConfig]):
+    def extract_rnnt_loss_cfg(self, cfg: Optional[DictConfig]):
         """
         Helper method to extract the rnnt loss name, and potentially its kwargs
         to be passed.
@@ -148,17 +148,13 @@ class EncDecRNNTModel(ASRModel):
                 should have a keyname as follows : `{loss_name}_kwargs`.
 
                 Note that whichever loss_name is selected, that corresponding kwargs will be
-                selected. For the "default" case, the "default_kwargs" will be used, not the
-                "{resolved_default}_kwargs".
+                selected. For the "default" case, the "{resolved_default}_kwargs" will be used.
 
         Examples:
             .. code-block:: yaml
                 loss_name: "default"
 
-                default_kwargs:
-                    kwargs1: some_val
-
-                warprnnt_kwargs:
+                warprnnt_numba_kwargs:
                     kwargs2: some_other_val
 
         Returns:
@@ -168,6 +164,10 @@ class EncDecRNNTModel(ASRModel):
             cfg = DictConfig({})
 
         loss_name = cfg.get("loss_name", "default")
+
+        if loss_name == "default":
+            loss_name = resolve_rnnt_default_loss_name()
+
         loss_kwargs = cfg.get(f"{loss_name}_kwargs", None)
 
         logging.info(f"Using RNNT Loss : {loss_name}\n" f"Loss {loss_name}_kwargs: {loss_kwargs}")
@@ -275,7 +275,7 @@ class EncDecRNNTModel(ASRModel):
             self.decoder = EncDecRNNTModel.from_config_dict(new_decoder_config)
 
             del self.loss
-            loss_name, loss_kwargs = self._setup_loss(self.cfg.get('loss', None))
+            loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get('loss', None))
             self.loss = RNNTLoss(
                 num_classes=self.joint.num_classes_with_blank - 1, loss_name=loss_name, loss_kwargs=loss_kwargs
             )
