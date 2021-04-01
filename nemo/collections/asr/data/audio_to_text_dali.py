@@ -16,7 +16,6 @@ import math
 from collections.abc import Iterator
 from typing import Callable, List, Optional, Union
 
-import numpy as np
 import torch
 from omegaconf import DictConfig
 
