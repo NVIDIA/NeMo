@@ -156,6 +156,9 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
     if loss_name == 'default':
         loss_name = loss_config.loss_name
 
+    """
+    Resolve RNNT loss functions
+    """
     if loss_name == 'warprnnt':
         loss_func = warprnnt.RNNTLoss(blank=blank_idx, reduction='none')
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
