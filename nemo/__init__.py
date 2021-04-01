@@ -13,9 +13,7 @@
 # limitations under the License.
 
 
-import os
-
-from .package_info import (
+from nemo.package_info import (
     __contact_emails__,
     __contact_names__,
     __description__,
@@ -28,6 +26,3 @@ from .package_info import (
     __shortversion__,
     __version__,
 )
-
-if "NEMO_PACKAGE_BUILDING" not in os.environ:
-    from nemo import collections, core, utils

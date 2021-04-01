@@ -71,9 +71,7 @@ def compute_new_kernel_size(kernel_size, kernel_width):
 def get_same_padding(kernel_size, stride, dilation):
     if stride > 1 and dilation > 1:
         raise ValueError("Only stride OR dilation may be greater than 1")
-    if dilation > 1:
-        return (dilation * kernel_size) // 2 - 1
-    return kernel_size // 2
+    return (dilation * (kernel_size - 1)) // 2
 
 
 class StatsPoolLayer(nn.Module):
