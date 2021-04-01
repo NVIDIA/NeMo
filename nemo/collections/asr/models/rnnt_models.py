@@ -34,13 +34,6 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
-try:
-    import warprnnt_pytorch as warprnnt
-
-    WARP_RNNT_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    WARP_RNNT_AVAILABLE = False
-
 
 class EncDecRNNTModel(ASRModel):
     """Base class for encoder decoder RNNT-based models."""
@@ -57,16 +50,6 @@ class EncDecRNNTModel(ASRModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        # Required loss function
-        if not WARP_RNNT_AVAILABLE:
-            raise ImportError(
-                "Could not import `warprnnt_pytorch`.\n"
-                "Please visit https://github.com/HawkAaron/warp-transducer "
-                "and follow the steps in the readme to build and install the "
-                "pytorch bindings for RNNT Loss, or use the provided docker "
-                "container that supports RNN-T loss."
-            )
-
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
