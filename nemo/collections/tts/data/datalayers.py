@@ -213,13 +213,13 @@ class MelAudioDataset(Dataset):
         audio = torch.FloatTensor(audio).unsqueeze(0)
         mel = self.mel_load_func(mel_file)
 
+        frames = math.ceil(self.n_segments / self.mel_hop_size)
         if audio.shape[1] > self.n_segments:
-            frames = math.ceil(self.n_segments / self.mel_hop_size)
             start = random.randint(0, mel.shape[1] - frames - 1)
             mel = mel[:, start : start + frames]
             audio = audio[:, start * self.mel_hop_size : (start + frames) * self.mel_hop_size]
         else:
-            mel = torch.nn.functional.pad(mel, (0, frames - mel.shape[1]))
+            mel = np.pad(mel, ((0, 0), (0, frames - mel.shape[1])))
             audio = torch.nn.functional.pad(audio, (0, self.n_segments - audio.shape[1]))
 
         return audio.squeeze(0), audio.shape[1], mel
