@@ -524,7 +524,7 @@ def preprocess_linear_specs_dataset(valid_filelist, train_filelist, n_fft, hop_l
     return tar_dir
 
 
-class AudioWithSupplementaryDataset(Dataset):
+class FastSpeech2Dataset(Dataset):
     """
     LJSpeech stats not counting files inside of wavs_to_ignore
     pitch_min = tensor(80.5247)
