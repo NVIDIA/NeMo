@@ -101,6 +101,7 @@ class TestExportableClassifiers:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.skip('Are we exporting to torchscript?')
     def test_IntentSlotClassificationModel_export_to_torchscript(self, dummy_data):
         with tempfile.TemporaryDirectory() as tmpdir:
             wget.download(
