@@ -41,6 +41,7 @@ model:
     separable: true
     se: true
     se_context_size: -1
+    kernel_size_factor: 1.0
 
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
@@ -99,6 +100,7 @@ model:
         stride_last: true
         residual_mode: "stride_add"
         future_context: -1  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -111,6 +113,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: -1  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -123,6 +126,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: -1  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -135,6 +139,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: -1  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -147,6 +152,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: -1  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -159,6 +165,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: -1  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -173,6 +180,7 @@ model:
         stride_last: true
         residual_mode: "stride_add"
         future_context: 6  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -185,6 +193,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 7  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -197,6 +206,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 8  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -209,6 +219,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 9  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -221,6 +232,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 10  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -233,6 +245,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 11  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -245,6 +258,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 12  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -259,6 +273,7 @@ model:
         stride_last: true
         residual_mode: "stride_add"
         future_context: 12  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -271,6 +286,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 13  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -283,6 +299,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 14  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -295,6 +312,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 15  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -307,6 +325,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 16  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -319,6 +338,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 16  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -331,6 +351,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 16  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 384
         repeat: ${model.model_defaults.repeat}
@@ -343,6 +364,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 16  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: &enc_final 640
         repeat: 1
@@ -355,6 +377,7 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
         future_context: 16  # Context = (K // 2) <Right frames> * 2 ^ S
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
 
   decoder:
