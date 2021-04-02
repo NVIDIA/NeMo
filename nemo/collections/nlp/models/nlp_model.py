@@ -37,8 +37,8 @@ from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, app_state, logging

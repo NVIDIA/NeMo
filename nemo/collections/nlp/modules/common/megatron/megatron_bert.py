@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import os
-from numpy import isin
 
 import torch
 from megatron import get_args, initialize_megatron
@@ -28,6 +27,7 @@ from megatron.mpu import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
 )
+from numpy import isin
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
