@@ -50,7 +50,7 @@ class _RNNTNumba(Function):
         certify_inputs(acts, labels, act_lens, label_lens)
 
         loss_func = rnnt.rnnt_loss_gpu if is_cuda else rnnt.rnnt_loss_cpu
-        grads = torch.zeros_like(acts) if acts.requires_grad else torch.zeros(0).to(acts)
+        grads = torch.zeros_like(acts) if acts.requires_grad else None
         minibatch_size = acts.size(0)
         costs = torch.zeros(minibatch_size, device=acts.device, dtype=acts.dtype)
 
