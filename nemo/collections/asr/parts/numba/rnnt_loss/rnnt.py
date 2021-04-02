@@ -172,6 +172,7 @@ def rnnt_loss_gpu(
     if status != global_constants.RNNTStatus.RNNT_STATUS_SUCCESS:
         raise RuntimeError("Invalid parameter passed when calculating working space memory")
 
+    # Select GPU index
     cuda.select_device(acts.device.index)
     gpu_workspace = torch.zeros(gpu_size, device=acts.device, dtype=acts.dtype, requires_grad=False)
 

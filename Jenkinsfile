@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:21.02-py3'
+      image 'nvcr.io/nvidia/pytorch:21.03-py3'
       args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -13,8 +13,13 @@ pipeline {
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
-        sh 'python -c "import torchtext; print(torchtext.__version__)"'
         sh 'python -c "import torchvision; print(torchvision.__version__)"'
+      }
+    }
+
+    stage('Uninstall torchtext') {
+      steps {
+        sh 'pip uninstall -y torchtext'
       }
     }
 
@@ -285,6 +290,45 @@ pipeline {
         }
       }
     }
+
+//  TODO: UNCOMMENT TESTS AFTER 21.04 release (numba 0.53 min requirement)
+//     stage('L2: ASR RNNT dev run') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       parallel {
+//         stage('Speech to Text - RNNT') {
+//           steps {
+//             sh 'python examples/asr/speech_to_text_rnnt.py \
+//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+//             model.train_ds.batch_size=8 \
+//             trainer.gpus=[0] \
+//             +trainer.fast_dev_run=True \
+//             exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_results'
+//             sh 'rm -rf examples/asr/speech_to_text_rnnt_results'
+//           }
+//         }
+//         stage('L2: Speech to Text RNNT WPE') {
+//           steps {
+//             sh 'python examples/asr/speech_to_text_rnnt_bpe.py \
+//             --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
+//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+//             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+//             model.tokenizer.type="wpe" \
+//             trainer.gpus=[0] \
+//             +trainer.fast_dev_run=True \
+//             exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_wpe_results'
+//             sh 'rm -rf examples/asr/speech_to_text_rnnt_wpe_results'
+//           }
+//         }
+//       }
+//     }
 
     stage('L2: ASR Multi-dataloader dev run') {
       when {
