@@ -183,7 +183,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         version=cfg.version,
         explicit_log_dir=cfg.explicit_log_dir,
         use_datetime_version=cfg.use_datetime_version,
-        resume_if_exists=cfg.resume_if_exists
+        resume_if_exists=cfg.resume_if_exists,
     )
 
     if cfg.resume_if_exists:
@@ -411,7 +411,7 @@ def get_log_dir(
     version: str = None,
     explicit_log_dir: str = None,
     use_datetime_version: bool = True,
-    resume_if_exists: bool = False
+    resume_if_exists: bool = False,
 ) -> (Path, str, str, str):
     """
     Obtains the log_dir used for exp_manager.
@@ -462,7 +462,9 @@ def get_log_dir(
 
         if not version:
             if resume_if_exists:
-                logging.warning("No version folders would be created under the log folder as 'resume_if_exists' is enabled.")
+                logging.warning(
+                    "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
+                )
                 version = ""
             elif is_global_rank_zero():
                 if use_datetime_version:
