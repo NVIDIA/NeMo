@@ -44,6 +44,8 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    cache_ids: false
+    use_cache: false
 
   test_ds:
     src_file_name: ???
@@ -56,6 +58,8 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    cache_ids: false
+    use_cache: false
 
   optim:
     name: adam
