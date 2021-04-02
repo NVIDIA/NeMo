@@ -20,7 +20,7 @@ model:
 
   train_ds:
     dataset:
-      _target_: "nemo.collections.tts.data.datalayers.AudioWithSupplementaryDataset"
+      _target_: "nemo.collections.tts.data.datalayers.FastSpeech2Dataset"
       manifest_filepath: ${train_dataset}
       sample_rate: *sr
       supplementary_dir: ${supplementary_dir}
@@ -36,7 +36,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.tts.data.datalayers.AudioWithSupplementaryDataset"
+      _target_: "nemo.collections.tts.data.datalayers.FastSpeech2Dataset"
       manifest_filepath: ${validation_datasets}
       sample_rate: *sr
       supplementary_dir: ${supplementary_dir}

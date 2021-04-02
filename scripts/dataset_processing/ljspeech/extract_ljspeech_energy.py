@@ -20,11 +20,9 @@ USAGE: python extract_ljspeech_energy.py --ljspeech_dir=<LJSpeech_base_path>
 """
 import argparse
 import glob
-import os
-
 import librosa
 import numpy as np
-import torch
+import os
 
 parser = argparse.ArgumentParser(description="Extracts energies (L2-norm of STFT frame amplitudes) from LJSpeech data.")
 parser.add_argument("--ljspeech_dir", required=True, default=None, type=str)
