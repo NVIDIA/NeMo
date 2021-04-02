@@ -32,6 +32,9 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
+# uninstall stuff from base container
+RUN pip uninstall -y sacrebleu torchtext
+
 # build torchaudio (change latest release version to match pytorch)
 WORKDIR /tmp/torchaudio_build
 RUN git clone --depth 1 --branch release/0.7 https://github.com/pytorch/audio.git && \
@@ -75,9 +78,6 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
     cd ../pytorch_binding && \
     python3 setup.py install && \
     rm -rf ../tests test ../tensorflow_binding
-
-# uninstall stuff from base container
-RUN pip uninstall -y sacrebleu torchtext
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
