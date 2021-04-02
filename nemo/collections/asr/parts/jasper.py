@@ -178,7 +178,7 @@ class MaskedConv1d(nn.Module):
             )
         self.use_mask = use_mask
         self.heads = heads
-        self.same_padding = (stride == 1) and (2 * padding == dilation * (kernel_size - 1))
+        self.same_padding = (self.conv.stride[0] == 1) and (2 * self.conv.padding[0] == self.conv.dilation[0] * (self.conv.kernel_size[0] - 1))
 
         if self.use_mask:
             self.max_len = 0
