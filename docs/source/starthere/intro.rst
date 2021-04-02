@@ -29,16 +29,33 @@ Requirements
 ------------
 
 1) Python 3.6, 3.7 or 3.8
-2) Pytorch 1.7.1.  WARNING: This version currently does not support Pytorch 1.8.0
+2) Pytorch 1.7.1.  WARNING: "1.0.0rc" version currently does not support Pytorch 1.8.0
 3) NVIDIA GPU for training.
 
 Quick Start
 -----------
 
-We start by describing a simple prototype application which will take audio in one language and translate it into audio in another.
-The fastest way to start is to go through `Getting Started Colab notebook. <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_
+The best way to start is by going through these notebooks:
 
-Below we is the exact same code-snippet for your reference.
+.. list-table:: **Start here**
+   :widths: 15 25 25
+   :header-rows: 1
+
+   * - Domain
+     - Title
+     - GitHub URL
+   * - General
+     - Getting Started: Exploring Nemo Fundamentals
+     - `NeMo Fundamentals <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
+   * - General
+     - Getting Started: Sample Conversational AI application
+     - `Audio translator example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/AudioTranslationSample.ipynb>`_
+   * - General
+     - Getting Started: Voice swap application
+     - `Voice swap example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/VoiceSwapSample.ipynb>`_
+
+
+Below we is the code snippet of Audio Translator application.
 
 .. code-block:: python
 
