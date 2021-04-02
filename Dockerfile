@@ -82,7 +82,7 @@ RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements .
-RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
 #install TRT tools: PT quantization support and ONNX graph optimizer
 WORKDIR /tmp/trt_build
