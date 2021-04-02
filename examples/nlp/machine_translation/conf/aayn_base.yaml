@@ -23,9 +23,9 @@ model:
     tokens_in_batch: 512
     clean: true
     max_seq_length: 512
-    cache_ids: true
+    cache_ids: false
     cache_data_per_node: false
-    use_cache: true
+    use_cache: false
     shuffle: true
     num_samples: -1
     drop_last: false
@@ -43,6 +43,8 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    cache_ids: false
+    use_cache: false
 
   test_ds:
     src_file_name: ???
@@ -55,6 +57,8 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    cache_ids: false
+    use_cache: false
 
   optim:
     name: adam
