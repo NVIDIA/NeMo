@@ -105,7 +105,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
     name, and version from the logger. Otherwise it will use the exp_dir and name arguments to create the logging
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
-    The version will be a datetime string or an integer. Note, exp_manager does not handle versioning on slurm
+    The version will be a datetime string or an integer. Note, exp_manager does not handle versioning on Slurm
     multi-node runs. Datestime version can be disabled if use_datetime_version is set to False.
     It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning. It copies
     sys.argv, and git information if available to the logging directory. It creates a log file for each process to log
@@ -183,6 +183,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         version=cfg.version,
         explicit_log_dir=cfg.explicit_log_dir,
         use_datetime_version=cfg.use_datetime_version,
+        resume_if_exists=cfg.resume_if_exists
     )
 
     if cfg.resume_if_exists:
@@ -262,7 +263,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
     Checks that the passed trainer is compliant with NeMo and exp_manager's passed configuration. Checks that:
         - Throws error when hydra has changed the working directory. This causes issues with lightning's DDP
         - Throws error when trainer has loggers defined but create_tensorboard_logger or create_WandB_logger is True
-        - Prints error messages when 1) run on multi-node and not slurm, and 2) run on multi-gpu without DDP
+        - Prints error messages when 1) run on multi-node and not Slurm, and 2) run on multi-gpu without DDP
     """
     if HydraConfig.initialized() and get_original_cwd() != os.getcwd():
         raise ValueError(
@@ -278,7 +279,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
     if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
-            "You are running multi-node without slurm. Please note that this is not tested in NeMo and could result in "
+            "You are running multi-node without Slurm. Please note that this is not tested in NeMo and could result in "
             "errors."
         )
     if trainer.num_gpus > 1 and not trainer.use_ddp:
@@ -410,6 +411,7 @@ def get_log_dir(
     version: str = None,
     explicit_log_dir: str = None,
     use_datetime_version: bool = True,
+    resume_if_exists: bool = False
 ) -> (Path, str, str, str):
     """
     Obtains the log_dir used for exp_manager.
@@ -419,6 +421,7 @@ def get_log_dir(
         exp_dir (str): the base exp_dir without name nor version
         name (str): The name of the experiment
         version (str): The version of the experiment
+        resume_if_exists (bool): if resume_if_exists of the exp_manager's config is enabled or not
 
     Raise:
         LoggerMisconfigurationError: If trainer is incompatible with arguments
@@ -457,9 +460,9 @@ def get_log_dir(
         name = name or "default"
         version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
-        if version is None:
-            if check_slurm(trainer):
-                logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
+        if not version:
+            if resume_if_exists:
+                logging.warning("No version folders would be created under the log folder as 'resume_if_exists' is enabled.")
                 version = ""
             elif is_global_rank_zero():
                 if use_datetime_version:
