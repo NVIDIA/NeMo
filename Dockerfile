@@ -49,7 +49,7 @@ RUN git clone --branch v0.8.1 https://github.com/pytorch/text.git && \
     cd text && \
     git submodule update --init --recursive && \
     python setup.py clean install && \
-    cd .. && rm -r text 
+    cd .. && rm -r text
 
 # build RNN-T loss
 WORKDIR /workspace/deps/rnnt
