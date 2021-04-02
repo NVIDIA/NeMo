@@ -39,6 +39,14 @@ RUN git clone --depth 1 --branch release/0.7 https://github.com/pytorch/audio.gi
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
+# build torchtext
+WORKDIR /tmp/torchtext_build
+RUN git clone --branch v0.8.1 https://github.com/pytorch/text.git && \
+    cd text && \
+    git submodule update --init --recursive && \
+    python setup.py clean install && \
+    cd .. && rm -r text 
+
 # build RNN-T loss
 WORKDIR /workspace/deps/rnnt
 RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
