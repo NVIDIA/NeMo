@@ -39,6 +39,7 @@ RUN git clone --depth 1 --branch release/0.7 https://github.com/pytorch/audio.gi
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
+# TODO: remove when 21.04 container is released
 # build torchtext
 WORKDIR /tmp/torchtext_build
 RUN git clone --branch v0.8.1 https://github.com/pytorch/text.git && \
