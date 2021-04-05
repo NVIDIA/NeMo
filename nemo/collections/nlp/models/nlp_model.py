@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from megatron import mpu
 from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
+from megatron.initialize import _set_random_seed
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
@@ -494,8 +495,11 @@ class NLPDDPPlugin(DDPPlugin):
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, sync_batchnorm, **kwargs)
 
-    def start_training(self, trainer: 'Trainer') -> None:
-        """ PTL Hook that is called after DPP is initialized. """
+    def init_ddp_connection(self, global_rank: int, world_size: int) -> None:
+        # call PTL init ddp
+        super().init_ddp_connection(global_rank, world_size)
+
+        # init model parallel
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
@@ -505,11 +509,23 @@ class NLPDDPPlugin(DDPPlugin):
                 if app_state.model_parallel_group is None:
                     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
+    def start_training(self, trainer: 'Trainer') -> None:
+        """ PTL Hook that is called after DPP is initialized. """
+        app_state = AppState()
+
+        if app_state.model_parallel_size is not None:
+
+            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
+
                 # mpu grad clipping needs parameters to have the attribute model_parallel
                 parameters = self.lightning_module.parameters()
                 for p in parameters:
                     if not hasattr(p, 'model_parallel'):
                         p.model_parallel = False
+
+                # TODO: figure out how to override clip gradients again
+                # Update PTL trainer to use our _clip_gradients
+                # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
                 # logging.info("Replacing sampler with model parallel sampler")
                 # mp_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -520,23 +536,17 @@ class NLPDDPPlugin(DDPPlugin):
                 # mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
                 # self._train_dl = mp_dl
 
-                # TODO: figure out how to override clip gradients again
-                # Update PTL trainer to use our _clip_gradients
-                # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
-
                 # model parallel checkpoints need to be restored after torch.distributed is initialized
-                if self._trainer.resume_from_checkpoint is not None:
+                if trainer.resume_from_checkpoint is not None:
                     # update path based on model parallel rank
-                    filepath = self._trainer.resume_from_checkpoint
+                    filepath = trainer.resume_from_checkpoint
                     dirname = os.path.dirname(os.path.dirname(filepath))
                     basename = os.path.basename(filepath)
                     filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-                    self._trainer.resume_from_checkpoint = filepath
-                    logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
+                    trainer.resume_from_checkpoint = filepath
+                    logging.info(f'Resuming training from checkpoint {trainer.resume_from_checkpoint}')
                     # need to set checkpoint version for megatron-lm
-                    checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
-                        'checkpoint_version', None
-                    )
+                    checkpoint_version = torch.load(trainer.resume_from_checkpoint).get('checkpoint_version', None)
                     if checkpoint_version is not None:
                         set_checkpoint_version(checkpoint_version)
                     else:
@@ -544,13 +554,13 @@ class NLPDDPPlugin(DDPPlugin):
                         set_checkpoint_version(0)
                 else:
                     logging.info(
-                        f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
+                        f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.bert_model._restore_path}"
                     )
-                    self.bert_model.restore_weights(self.bert_model._restore_path)
+                    self.lightning_module.bert_model.restore_weights(self.lightning_module.bert_model._restore_path)
 
             else:
                 raise NotImplementedError(
-                    f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
+                    f'The BERT encoder: {self.lightning_module.bert_model} does not support model parallelism yet.'
                 )
 
         return super().start_training(trainer)
@@ -563,7 +573,9 @@ class NLPDDPPlugin(DDPPlugin):
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
-            logging.info("Configuring DDP for model parallelism.")
+            logging.info(
+                f"Configuring DDP for model parallelism. Data parallel group is {app_state.data_parallel_group}."
+            )
 
             # With model parallelism, multiple GPUs form a large "logical GPU"
             # this means that data parallel groups span multiple GPUs
@@ -603,6 +615,7 @@ class NLPDDPPlugin(DDPPlugin):
                 app_state.data_parallel_rank = torch.distributed.get_rank(group=app_state.data_parallel_group)
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
+                _set_random_seed(1234)
 
     @property
     def distributed_sampler_kwargs(self):
