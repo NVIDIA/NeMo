@@ -43,7 +43,7 @@ class MultiSimilarityLoss(Loss):
         scale_pos: Optional[float] = 2.0,
         scale_neg: Optional[float] = 40.0,
         offset: Optional[float] = 0.5,
-        margin: Optional[float] = 0.0
+        margin: Optional[float] = 0.1
     ):
         super().__init__()
         self._scale_pos = scale_pos
