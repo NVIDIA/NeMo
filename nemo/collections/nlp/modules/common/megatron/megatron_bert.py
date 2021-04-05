@@ -33,6 +33,7 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 from nemo.utils import logging
+from nemo.utils import app_state
 from nemo.utils.app_state import AppState
 
 __all__ = ['MegatronBertEncoder']
@@ -154,7 +155,9 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        self.complete_lazy_init()
+        app_state = AppState()
+        if app_state.model_parallel_size is None:
+            self.complete_lazy_init()
 
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
