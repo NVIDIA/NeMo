@@ -449,6 +449,11 @@ class Serialization(ABC):
 
                 # try instantiating model with target class
                 if imported_cls is not None:
+                    # if calling class (cls) is subclass of imported class,
+                    # use subclass instead
+                    if issubclass(cls, imported_cls):
+                        imported_cls = cls
+
                     try:
                         instance = imported_cls(cfg=config)
                     except Exception:
