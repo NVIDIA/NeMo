@@ -524,16 +524,11 @@ def preprocess_linear_specs_dataset(valid_filelist, train_filelist, n_fft, hop_l
     return tar_dir
 
 
-class FastSpeech2Dataset_Old(Dataset):
+class FastSpeech2Dataset(Dataset):
     """
-    LJSpeech stats not counting files inside of wavs_to_ignore
-    pitch_min = tensor(80.5247)
-    pitch_max = tensor(783.9908)
-    energy_min = 0.017866515
-    energy_max = 314.96185
-    duration_min = 0
-    duration_max = 101
+    (Assumes supp data is in energies/ and phoneme_durations/, etc.)
     """
+    #TODO: docstring
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -551,105 +546,22 @@ class FastSpeech2Dataset_Old(Dataset):
     def __init__(
         self,
         manifest_filepath: str,
+        mappings_filepath: str,
         sample_rate: int,
-        supplementary_dir: str,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
-        ignore_file: Optional[str] = None,
+        ignore_file: Optional[str] = None,  #TODO: remove this later
         max_utts: int = 0,
         trim: bool = False,
-        load_supplementary_values: bool = True,  # NOTE: Val files do not have some sup files, this param is also kinda hacky
+        load_supplementary_values = True,   # Val LJSpeech files missing some supp. data
     ):
         super().__init__()
 
-        self.mapping = {
-            0: {'count': 39, 'symbol': '!'},
-            1: {'count': 141, 'symbol': "'"},
-            2: {'count': 706, 'symbol': '"'},
-            3: {'count': 11043, 'symbol': ','},
-            4: {'count': 7565, 'symbol': '.'},
-            5: {'count': 141, 'symbol': ':'},
-            6: {'count': 520, 'symbol': ';'},
-            7: {'count': 70, 'symbol': '?'},
-            8: {'count': 170543, 'symbol': ' '},
-            14: {'count': 1316, 'symbol': '-'},
-            16: {'count': 3, 'symbol': '['},
-            17: {'count': 3, 'symbol': ']'},
-            18: {'count': 50, 'symbol': '('},
-            19: {'count': 50, 'symbol': ')'},
-            102: {'count': 225, 'symbol': '@AA0'},
-            103: {'count': 11880, 'symbol': '@AA1'},
-            104: {'count': 658, 'symbol': '@AA2'},
-            106: {'count': 435, 'symbol': '@AE0'},
-            107: {'count': 15084, 'symbol': '@AE1'},
-            108: {'count': 827, 'symbol': '@AE2'},
-            110: {'count': 59710, 'symbol': '@AH0'},
-            111: {'count': 14996, 'symbol': '@AH1'},
-            112: {'count': 339, 'symbol': '@AH2'},
-            114: {'count': 1145, 'symbol': '@AO0'},
-            115: {'count': 10623, 'symbol': '@AO1'},
-            116: {'count': 706, 'symbol': '@AO2'},
-            118: {'count': 16, 'symbol': '@AW0'},
-            119: {'count': 2962, 'symbol': '@AW1'},
-            120: {'count': 255, 'symbol': '@AW2'},
-            122: {'count': 273, 'symbol': '@AY0'},
-            123: {'count': 8205, 'symbol': '@AY1'},
-            124: {'count': 854, 'symbol': '@AY2'},
-            125: {'count': 11763, 'symbol': '@B'},
-            126: {'count': 3567, 'symbol': '@CH'},
-            127: {'count': 33358, 'symbol': '@D'},
-            128: {'count': 22814, 'symbol': '@DH'},
-            130: {'count': 735, 'symbol': '@EH0'},
-            131: {'count': 18100, 'symbol': '@EH1'},
-            132: {'count': 1549, 'symbol': '@EH2'},
-            134: {'count': 12579, 'symbol': '@ER0'},
-            135: {'count': 5202, 'symbol': '@ER1'},
-            136: {'count': 117, 'symbol': '@ER2'},
-            138: {'count': 535, 'symbol': '@EY0'},
-            139: {'count': 12971, 'symbol': '@EY1'},
-            140: {'count': 1157, 'symbol': '@EY2'},
-            141: {'count': 12972, 'symbol': '@F'},
-            142: {'count': 4416, 'symbol': '@G'},
-            143: {'count': 10564, 'symbol': '@HH'},
-            145: {'count': 19161, 'symbol': '@IH0'},
-            146: {'count': 19879, 'symbol': '@IH1'},
-            147: {'count': 2485, 'symbol': '@IH2'},
-            149: {'count': 10160, 'symbol': '@IY0'},
-            150: {'count': 11012, 'symbol': '@IY1'},
-            151: {'count': 754, 'symbol': '@IY2'},
-            152: {'count': 3707, 'symbol': '@JH'},
-            153: {'count': 21486, 'symbol': '@K'},
-            154: {'count': 24768, 'symbol': '@L'},
-            155: {'count': 18003, 'symbol': '@M'},
-            156: {'count': 52522, 'symbol': '@N'},
-            157: {'count': 5529, 'symbol': '@NG'},
-            159: {'count': 1090, 'symbol': '@OW0'},
-            160: {'count': 6331, 'symbol': '@OW1'},
-            161: {'count': 428, 'symbol': '@OW2'},
-            163: {'count': 3, 'symbol': '@OY0'},
-            164: {'count': 597, 'symbol': '@OY1'},
-            165: {'count': 40, 'symbol': '@OY2'},
-            166: {'count': 15440, 'symbol': '@P'},
-            167: {'count': 30768, 'symbol': '@R'},
-            168: {'count': 33268, 'symbol': '@S'},
-            169: {'count': 6225, 'symbol': '@SH'},
-            170: {'count': 50815, 'symbol': '@T'},
-            171: {'count': 2727, 'symbol': '@TH'},
-            173: {'count': 22, 'symbol': '@UH0'},
-            174: {'count': 2086, 'symbol': '@UH1'},
-            175: {'count': 94, 'symbol': '@UH2'},
-            177: {'count': 894, 'symbol': '@UW0'},
-            178: {'count': 10345, 'symbol': '@UW1'},
-            179: {'count': 477, 'symbol': '@UW2'},
-            180: {'count': 15056, 'symbol': '@V'},
-            181: {'count': 15645, 'symbol': '@W'},
-            182: {'count': 3400, 'symbol': '@Y'},
-            183: {'count': 21323, 'symbol': '@Z'},
-            184: {'count': 483, 'symbol': '@ZH'},
-        }
-
-        for i, key in enumerate(self.mapping):
-            self.mapping[key]["symbol"] = i
+        # Retrieve mappings from file
+        with open(mappings_filepath, 'r') as f:
+            mappings = json.load(f)
+            self.word2phones = mappings['word2phones']
+            self.phone2idx = mappings['phone2idx']
 
         # Load data from manifests
         audio_files = []
@@ -664,7 +576,6 @@ class FastSpeech2Dataset_Old(Dataset):
                     audio_files.append({"audio_filepath": item["audio_filepath"], "duration": item["duration"]})
                     total_duration += item["duration"]
 
-        # Prune data according to max/min_duration and ignore_file
         total_dataset_len = len(audio_files)
         logging.info(f"Loaded dataset with {total_dataset_len} files totalling {total_duration/3600:.2f} hours.")
         self.data = []
@@ -680,47 +591,49 @@ class FastSpeech2Dataset_Old(Dataset):
         if ignore_file:
             logging.info(f"using {ignore_file} to prune dataset.")
             with open(ignore_file, "rb") as f:
-                wavs_to_ignore = pickle.load(f)
+                wavs_to_ignore = set(pickle.load(f))
 
         pruned_duration = 0
         pruned_items = 0
         for item in audio_files:
-            LJ_id = item["audio_filepath"].split("/")[-1].split(".")[0]
+            audio_path = item['audio_filepath']
+            LJ_id = os.path.splitext(os.path.basename(audio_path))[0]
 
-            # Prune according to duration & the ignore file
+            # Prune data according to min/max_duration & the ignore file
             if (min_duration and item["duration"] < min_duration) or (
                 max_duration and item["duration"] > max_duration
             ):
                 pruned_duration += item["duration"]
                 pruned_items += 1
                 continue
-            if ignore_file:
-                found_id = False
-                for i, wav_id in enumerate(wavs_to_ignore):
-                    if LJ_id == wav_id:
-                        pruned_duration += item["duration"]
-                        wavs_to_ignore.pop(i)
-                        pruned_items += 1
-                        found_id = True
-                        break
-                if found_id:
-                    continue
-            # Else not pruned, load durations file
-            durations = torch.load(Path(supplementary_dir) / f"{LJ_id}_mfa_adjusted_enctxt_tkndur.pt")
+            if ignore_file and (LJ_id in wavs_to_ignore):
+                pruned_items += 1
+                pruned_duration += item["duration"]
+                wavs_to_ignore.remove(LJ_id)
+                continue
 
-            # Get text tokens from lookup to match with durations
-            text_tokens = [self.mapping[int(i)]["symbol"] for i in durations["text_encoded"]]
+            # Else not pruned, load additional info
+
+            # Phoneme durations and text token indices from durations file
+            dur_path = audio_path.replace('/wavs/', '/phoneme_durations/').replace('.wav', '.npz')
+            duration_info = np.load(dur_path)
+            durs = torch.from_numpy(duration_info['durs'])
+            text_tokens = torch.from_numpy(duration_info['tokens'])
+
             if load_supplementary_values:
                 # Load pitch file (F0s)
-                pitches = torch.load(Path(supplementary_dir) / f"{LJ_id}_melodia_f0min80_f0max800_harm1.0_mps0.0.pt")
+                pitch_path = audio_path.replace('/wavs/', '/tmp_pitches/').replace('.wav', '.pt')   #TODO: fix path
+                pitches = torch.load(pitch_path)
 
                 # Load energy file (L2-norm of the amplitude of each STFT frame of an utterance)
-                energies = torch.from_numpy(np.load(Path(supplementary_dir) / f"{LJ_id}_l2_stft_energy.npy"))
+                energies_path = audio_path.replace('/wavs/', '/energies/').replace('.wav', '.npy')
+                energies = torch.from_numpy(np.load(energies_path))
+
                 self.data.append(
                     dataitem(
-                        audio_file=item["audio_filepath"],
-                        duration=durations["token_duration"],
-                        pitches=torch.clamp(pitches['f0'], min=1e-5),
+                        audio_file=item['audio_filepath'],
+                        duration=durs,
+                        pitches=torch.clamp(pitches['f0'], min=1e-5),   #TODO: may need to update this
                         energies=energies,
                         text_tokens=text_tokens,
                     )
@@ -728,8 +641,8 @@ class FastSpeech2Dataset_Old(Dataset):
             else:
                 self.data.append(
                     dataitem(
-                        audio_file=item["audio_filepath"],
-                        duration=durations["token_duration"],
+                        audio_file=item['audio_filepath'],
+                        duration=durs,
                         text_tokens=text_tokens,
                     )
                 )
@@ -748,7 +661,7 @@ class FastSpeech2Dataset_Old(Dataset):
 
         features = self.featurizer.process(sample.audio_file, trim=self.trim)
         f, fl = features, torch.tensor(features.shape[0]).long()
-        t, tl = torch.tensor(sample.text_tokens).long(), torch.tensor(len(sample.text_tokens)).long()
+        t, tl = sample.text_tokens.long(), torch.tensor(len(sample.text_tokens)).long()
 
         if self.load_supplementary_values:
             return f, fl, t, tl, sample.duration, sample.pitches, sample.energies
@@ -759,7 +672,7 @@ class FastSpeech2Dataset_Old(Dataset):
         return len(self.data)
 
     def _collate_fn(self, batch):
-        pad_id = len(self.mapping)
+        pad_id = len(self.phone2idx)
         if self.load_supplementary_values:
             _, audio_lengths, _, tokens_lengths, duration, pitches, energies = zip(*batch)
         else:
