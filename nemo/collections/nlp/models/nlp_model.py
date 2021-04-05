@@ -60,9 +60,6 @@ class NLPModel(ModelPT, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
         self.set_world_size(trainer)
-        # if self._trainer is not None:
-        #     if isinstance(self._trainer.accelerator_connector._training_type_plugin, DDPPlugin):
-        #         self._trainer.accelerator_connector._training_type_plugin = NLPDDPPlugin()
 
     @rank_zero_only
     def register_bert_model(self):
@@ -248,67 +245,6 @@ class NLPModel(ModelPT, Exportable):
                             app_state.checkpoint_callback_params,
                         )
 
-    # def on_pretrain_routine_start(self) -> None:
-    #     """ PTL hook that is called after DDP is initialized.
-    #     """
-
-    #     app_state = AppState()
-
-    #     if app_state.model_parallel_size is not None:
-
-    #         if isinstance(self.bert_model, MegatronBertEncoder):
-
-    #             if app_state.model_parallel_group is None:
-    #                 self.init_model_parallel(app_state.global_rank, app_state.world_size)
-
-    #             # mpu grad clipping needs parameters to have the attribute model_parallel
-    #             parameters = self._trainer.get_model().parameters()
-    #             for p in parameters:
-    #                 if not hasattr(p, 'model_parallel'):
-    #                     p.model_parallel = False
-
-    #             logging.info("Replacing sampler with model parallel sampler")
-    #             mp_sampler = torch.utils.data.distributed.DistributedSampler(
-    #                 self._train_dl.dataset,
-    #                 num_replicas=app_state.data_parallel_size,
-    #                 rank=app_state.data_parallel_rank,
-    #             )
-    #             mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
-    #             self._train_dl = mp_dl
-
-    #             # TODO: figure out how to override clip gradients again
-    #             # Update PTL trainer to use our _clip_gradients
-    #             # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
-
-    #             # model parallel checkpoints need to be restored after torch.distributed is initialized
-    #             if self._trainer.resume_from_checkpoint is not None:
-    #                 # update path based on model parallel rank
-    #                 filepath = self._trainer.resume_from_checkpoint
-    #                 dirname = os.path.dirname(os.path.dirname(filepath))
-    #                 basename = os.path.basename(filepath)
-    #                 filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-    #                 self._trainer.resume_from_checkpoint = filepath
-    #                 logging.info(f'Resuming training from checkpoint {self._trainer.resume_from_checkpoint}')
-    #                 # need to set checkpoint version for megatron-lm
-    #                 checkpoint_version = torch.load(self._trainer.resume_from_checkpoint).get(
-    #                     'checkpoint_version', None
-    #                 )
-    #                 if checkpoint_version is not None:
-    #                     set_checkpoint_version(checkpoint_version)
-    #                 else:
-    #                     logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-    #                     set_checkpoint_version(0)
-    #             else:
-    #                 logging.info(
-    #                     f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}"
-    #                 )
-    #                 self.bert_model.restore_weights(self.bert_model._restore_path)
-
-    #         else:
-    #             raise NotImplementedError(
-    #                 f'The BERT encoder: {self.bert_model} does not support model parallelism yet.'
-    #             )
-
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
@@ -353,6 +289,7 @@ class NLPModel(ModelPT, Exportable):
         map_location: Optional[torch.device] = None,
         strict: bool = False,
         return_config: bool = False,
+        trainer: Trainer = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -366,6 +303,7 @@ class NLPModel(ModelPT, Exportable):
             strict: Passed to load_state_dict.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            trainer: Must be passed in to use model parallel .nemo
 
             Example:
                 ```
@@ -397,8 +335,7 @@ class NLPModel(ModelPT, Exportable):
                 )
             )
             # set world size to model parallel size for inference
-            # TODO: what to do for resuming training?
-            app_state.world_size = model_parallel_size
+            app_state.world_size = trainer.num_gpus * trainer.num_nodes
 
             # try to get local rank from global
             local_rank = None
@@ -424,7 +361,11 @@ class NLPModel(ModelPT, Exportable):
 
             logging.info(f'Model parallel .nemo file detected. Restoring from: {restore_path}')
             _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
-            return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
+            restored_model = cls._default_restore_from(
+                restore_path, override_config_path, map_location, strict, return_config
+            )
+            restored_model._trainer = trainer
+            return restored_model
 
     @property
     def input_module(self):
