@@ -1215,6 +1215,11 @@ class ModelPT(LightningModule, Model):
         tar.close()
         return out_folder
 
+    @property
+    def _model_restore_path(self) -> str:
+        global _MODEL_RESTORE_PATH
+        return _MODEL_RESTORE_PATH
+
     @staticmethod
     def _is_model_being_restored() -> bool:
         global _MODEL_IS_RESTORED

@@ -52,6 +52,8 @@ NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_
 
 os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 
+_MODEL_RESTORE_PATH = None
+
 
 class NLPModel(ModelPT, Exportable):
     """Base class for NLP Models.
@@ -478,6 +480,7 @@ class NLPDDPPlugin(DDPPlugin):
                 # self._train_dl = mp_dl
 
                 # model parallel checkpoints need to be restored after torch.distributed is initialized
+                global _MODEL_RESTORE_PATH
                 if trainer.resume_from_checkpoint is not None:
                     # update path based on model parallel rank
                     filepath = trainer.resume_from_checkpoint
@@ -493,6 +496,12 @@ class NLPDDPPlugin(DDPPlugin):
                     else:
                         logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
                         set_checkpoint_version(0)
+                # elif self.lightning_module._model_restore_path is not None:
+                elif _MODEL_RESTORE_PATH is not None:
+                    logging.info(f'Model restored from: {_MODEL_RESTORE_PATH}.')
+                    # TODO: get checkpoint version from model (it's not always 0)
+                    logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
+                    set_checkpoint_version(0)
                 else:
                     logging.info(
                         f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.bert_model._restore_path}"
@@ -505,6 +514,20 @@ class NLPDDPPlugin(DDPPlugin):
                 )
 
         return super().start_training(trainer)
+
+    def start_testing(self, trainer: 'Trainer') -> None:
+        """ PTL Hook that is called after DPP is initialized. """
+        app_state = AppState()
+
+        if app_state.model_parallel_size is not None:
+
+            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
+
+                # TODO: get checkpoint version from model (it's not always 0)
+                logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
+                set_checkpoint_version(0)
+
+        return super().start_testing(trainer)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
