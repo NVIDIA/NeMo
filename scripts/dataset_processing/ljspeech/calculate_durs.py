@@ -17,6 +17,7 @@ Calculates durations for LJSpeech based on MFA TextGrid alignments.
 import argparse
 import glob
 import json
+from math import ceil
 import numpy as np
 import os
 import re
@@ -59,9 +60,12 @@ def calculate_durations(textgrid, phone2idx=None):
         # Read file and get rid of header
         lines = [line.strip() for line in f.readlines()]
         idx = lines.index(f'name = "{keyword}"')
-        total = int(find_nums(lines[idx + 3])[0])
+        total_frames = ceil(
+            float(find_nums(lines[idx + 2])[0]) * args.sr / args.window_stride
+        )
+        total_tokens = int(find_nums(lines[idx + 3])[0])
 
-        for i in range(idx + 4, idx + (total * 4), 4):
+        for i in range(idx + 4, idx + (total_tokens * 4), 4):
             token, dur = get_token_and_dur(lines[i: i+4])
             if phone2idx:
                 tokens.append(phone2idx[token])
@@ -69,9 +73,28 @@ def calculate_durations(textgrid, phone2idx=None):
                 tokens.append(token)
             durs.append(dur)
 
-    durs, tokens = np.array(durs), np.array(tokens) if phone2idx else tokens
+    durs = np.array(durs)
     durs *= (args.sr / args.window_stride)
     durs = np.rint(durs)
+
+    # Take care of rounding error (may need extra silence token)
+    if phone2idx:
+        tokens.append(phone2idx['sil'])
+        tokens = np.array(tokens)
+    else:
+        tokens.append('')
+    durs = np.append(durs, 0)
+
+    if durs.sum() < total_frames:
+        # Add silence frames
+        durs[-1] = total_frames - durs.sum()
+    elif durs.sum() > total_frames:
+        # Remove frames from longest dur token
+        longest_dur_token = np.argmax(durs)
+        durs[longest_dur_token] -= durs.sum() - total_frames
+
+    assert durs.sum() == total_frames
+    assert len(durs) == len(tokens)
 
     return tokens, durs
 

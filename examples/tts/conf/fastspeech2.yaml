@@ -9,7 +9,7 @@ pad_value: &pad_value -11.52
 # Dataset info
 train_dataset: ???
 validation_datasets: ???
-supplementary_dir: ???
+mappings_file: ???  # JSON file with word->phone and phone->idx mappings
 ignore_file: ???
 
 model:
@@ -22,8 +22,8 @@ model:
     dataset:
       _target_: "nemo.collections.tts.data.datalayers.FastSpeech2Dataset"
       manifest_filepath: ${train_dataset}
+      mappings_filepath: ${mappings_file}
       sample_rate: *sr
-      supplementary_dir: ${supplementary_dir}
       max_duration: null
       min_duration: 0.1
       ignore_file: ${ignore_file}
@@ -38,8 +38,8 @@ model:
     dataset:
       _target_: "nemo.collections.tts.data.datalayers.FastSpeech2Dataset"
       manifest_filepath: ${validation_datasets}
+      mappings_filepath: ${mappings_file}
       sample_rate: *sr
-      supplementary_dir: ${supplementary_dir}
       max_duration: null
       min_duration: 0.1
       ignore_file: ${ignore_file}
