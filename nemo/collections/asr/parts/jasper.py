@@ -198,9 +198,10 @@ class MaskedConv1d(nn.Module):
         if self.use_mask:
             max_len = x.size(2)
             if max_len > self.max_len:
-                self.lens = torch.arange(max_len).to(lens.device)
+                self.lens = torch.arange(max_len)
                 self.max_len = max_len
 
+            self.lens = self.lens.to(lens.device)
             mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
             x = x * mask.unsqueeze(1).to(device=x.device)
             lens = self.get_seq_len(lens)
