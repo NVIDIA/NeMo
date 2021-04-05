@@ -27,10 +27,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import operator
+from dataclasses import dataclass
+from typing import Optional
+
 import torch
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.utils import logging, model_utils
 
 try:
     import warprnnt_pytorch as warprnnt
@@ -38,6 +43,136 @@ try:
     WARP_RNNT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     WARP_RNNT_AVAILABLE = False
+
+try:
+    from nemo.collections.asr.parts.numba.rnnt_loss import RNNTLossNumba
+
+    NUMBA_RNNT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    NUMBA_RNNT_AVAILABLE = False
+
+
+WARP_RNNT_INSTALLATION_MESSAGE = (
+    "Could not import `warprnnt_pytorch`.\n"
+    "Please visit https://github.com/HawkAaron/warp-transducer "
+    "and follow the steps in the readme to build and install the "
+    "pytorch bindings for RNNT Loss, or use the provided docker "
+    "container that supports RNN-T loss."
+)
+
+NUMBA_INSTALLATION_MESSAGE = (
+    "Could not import `numba`.\n"
+    "To use transducer loss, please install numba in one of the following ways."
+    "1) If using conda, simply install `conda install -c numba numba`\n"
+    "2) If using pip, `pip install --upgrade --ignore-installed numba`\n"
+    "followed by `export NUMBAPRO_LIBDEVICE='/usr/local/cuda/nvvm/libdevice/'` and \n"
+    "`export NUMBAPRO_NVVM='/usr/local/cuda/nvvm/lib64/libnvvm.so'`"
+)
+
+
+@dataclass
+class RNNTLossConfig:
+    loss_name: str
+    lib_name: str
+    is_available: bool = False
+    installation_msg: str = ""
+    min_version: Optional[str] = None
+
+
+# Resolved list of available RNNT losses
+RNNT_LOSS_RESOLVER = {
+    "warprnnt": RNNTLossConfig(
+        loss_name="warprnnt",
+        lib_name="warprnnt_pytorch",
+        is_available=WARP_RNNT_AVAILABLE,
+        installation_msg=WARP_RNNT_INSTALLATION_MESSAGE,
+    ),
+    "warprnnt_numba": RNNTLossConfig(
+        loss_name="warprnnt_numba",
+        lib_name="numba",
+        min_version='0.53.0',
+        is_available=NUMBA_RNNT_AVAILABLE,
+        installation_msg=NUMBA_INSTALLATION_MESSAGE,
+    ),
+}
+
+RNNT_LOSS_RESOLVER['default'] = RNNT_LOSS_RESOLVER['warprnnt_numba']
+
+
+def _warn_unused_additional_kwargs(loss_name, kwargs):
+    if len(kwargs) > 0:
+        logging.warning(
+            f"Loss function `{loss_name}` was provided with following additional kwargs,\n"
+            f"however they were ignored as it is unused.\n"
+            f"{kwargs}"
+        )
+
+
+def resolve_rnnt_default_loss_name() -> str:
+    return RNNT_LOSS_RESOLVER['default'].loss_name
+
+
+def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) -> torch.nn.Module:
+    loss_function_names = list(RNNT_LOSS_RESOLVER.keys())
+
+    if loss_name not in loss_function_names:
+        raise ValueError(
+            f"Provided `loss_name` {loss_name} not in list of available RNNT losses \n" f"{loss_function_names}"
+        )
+
+    all_available_losses = {name: config for name, config in RNNT_LOSS_RESOLVER.items() if config.is_available}
+
+    loss_config = RNNT_LOSS_RESOLVER[loss_name]  # type: RNNTLossConfig
+
+    # Re-raise import error with installation message
+    if not loss_config.is_available:
+        msg = (
+            f"Installed RNNT losses are : {list(all_available_losses.keys())}.\n"
+            f"****************************************************************\n"
+            f"To install the selected loss function, please follow the steps below:\n"
+            f"{loss_config.installation_msg}"
+        )
+        raise ImportError(msg)
+
+    # Library version check
+    if loss_config.min_version is not None:
+        ver_matched, msg = model_utils.check_lib_version(
+            loss_config.lib_name, checked_version=loss_config.min_version, operator=operator.ge
+        )
+
+        if ver_matched is False:
+            msg = (
+                f"{msg}\n"
+                f"****************************************************************\n"
+                f"To update the selected loss function, please follow the steps below:\n"
+                f"{loss_config.installation_msg}"
+            )
+            raise RuntimeError(msg)
+
+    # Resolve loss functions sequentially
+    loss_kwargs = {} if loss_kwargs is None else loss_kwargs
+
+    # Get actual loss name for `default`
+    if loss_name == 'default':
+        loss_name = loss_config.loss_name
+
+    """
+    Resolve RNNT loss functions
+    """
+    if loss_name == 'warprnnt':
+        loss_func = warprnnt.RNNTLoss(blank=blank_idx, reduction='none')
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
+    elif loss_name == 'warprnnt_numba':
+        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none')
+        _warn_unused_additional_kwargs(loss_name, loss_kwargs)
+
+    else:
+        raise ValueError(
+            f"Invalid value of `loss_name`: {loss_name}. Allowed loss names are :" f"{loss_function_names}"
+        )
+
+    return loss_func
 
 
 class RNNTLoss(Loss):
@@ -60,9 +195,11 @@ class RNNTLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction='mean_batch'):
+    def __init__(self, num_classes, reduction: str = 'mean_batch', loss_name: str = "default", loss_kwargs=None):
         """
         RNN-T Loss function based on https://github.com/HawkAaron/warp-transducer.
+        Optionally, can utilize a numba implementation of the same loss without having to compile the loss,
+        albiet there is a small speed penalty for JIT numba compile.
 
         Note:
             Requires the pytorch bindings to be installed prior to calling this class.
@@ -87,24 +224,21 @@ class RNNTLoss(Loss):
 
             reduction: Type of reduction to perform on loss. Possibly values are `mean`, `sum` or None.
                 None will return a torch vector comprising the individual loss values of the batch.
+
+            loss_name: String that is resolved into an RNNT loss function. Available list of losses
+                is ininitialized in `RNNT_LOSS_RESOLVER` dictionary.
+
+            loss_kwargs: Optional Dict of (str, value) pairs that are passed to the instantiated loss
+                function.
         """
         super(RNNTLoss, self).__init__()
-
-        if not WARP_RNNT_AVAILABLE:
-            raise ImportError(
-                "Could not import `warprnnt_pytorch`.\n"
-                "Please visit https://github.com/HawkAaron/warp-transducer "
-                "and follow the steps in the readme to build and install the "
-                "pytorch bindings for RNNT Loss, or use the provided docker "
-                "container that supports RNN-T loss."
-            )
 
         if reduction not in [None, 'mean', 'sum', 'mean_batch']:
             raise ValueError('`reduction` must be one of [mean, sum, mean_batch]')
 
         self._blank = num_classes
         self.reduction = reduction
-        self._loss = warprnnt.RNNTLoss(blank=self._blank, reduction='none')
+        self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -117,6 +251,7 @@ class RNNTLoss(Loss):
         max_targets_len = target_lengths.max()
 
         # Force cast joint to float32
+        # TODO: Remove once Numba supports FP16
         if log_probs.dtype != torch.float32:
             logits_orig = log_probs
             log_probs = log_probs.float()

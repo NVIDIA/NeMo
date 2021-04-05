@@ -24,14 +24,9 @@ from omegaconf import DictConfig
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 
-try:
-    from warprnnt_pytorch import RNNTLoss
-
-    WARP_RNNT_AVAILABLE = True
-
-except (ImportError, ModuleNotFoundError):
-    WARP_RNNT_AVAILABLE = False
+NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
 
 @pytest.fixture()
@@ -95,9 +90,7 @@ def asr_model(test_data_dir):
 
 class TestEncDecRNNTBPEModel:
     @pytest.mark.skipif(
-        not WARP_RNNT_AVAILABLE,
-        reason='RNNTLoss has not been compiled. Please compile and install '
-        'RNNT Loss first before running this test',
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_constructor(self, asr_model):
@@ -109,9 +102,7 @@ class TestEncDecRNNTBPEModel:
         assert isinstance(instance2, EncDecRNNTBPEModel)
 
     @pytest.mark.skipif(
-        not WARP_RNNT_AVAILABLE,
-        reason='RNNTLoss has not been compiled. Please compile and install '
-        'RNNT Loss first before running this test',
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_forward(self, asr_model):
@@ -145,9 +136,7 @@ class TestEncDecRNNTBPEModel:
         assert diff <= 1e-6
 
     @pytest.mark.skipif(
-        not WARP_RNNT_AVAILABLE,
-        reason='RNNTLoss has not been compiled. Please compile and install '
-        'RNNT Loss first before running this test',
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
@@ -164,9 +153,7 @@ class TestEncDecRNNTBPEModel:
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
     @pytest.mark.skipif(
-        not WARP_RNNT_AVAILABLE,
-        reason='RNNTLoss has not been compiled. Please compile and install '
-        'RNNT Loss first before running this test',
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, asr_model):
@@ -195,9 +182,7 @@ class TestEncDecRNNTBPEModel:
             assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint))
 
     @pytest.mark.skipif(
-        not WARP_RNNT_AVAILABLE,
-        reason='RNNTLoss has not been compiled. Please compile and install '
-        'RNNT Loss first before running this test',
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
     def test_decoding_change(self, asr_model):

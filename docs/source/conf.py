@@ -98,6 +98,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx.ext.inheritance_diagram",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
     "sphinx_rtd_theme",
 ]
@@ -126,7 +127,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "2018-, NVIDIA CORPORATION"
+copyright = "2021-, NVIDIA CORPORATION"
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for

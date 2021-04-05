@@ -2,13 +2,12 @@ boto3
 h5py
 matplotlib>=3.3.2
 sentencepiece
-torchtext
 unidecode
 youtokentome
 numpy
 rapidfuzz
 gdown
-megatron-lm==1.1.5
+megatron-lm==2.2.0
 inflect
 sacrebleu[ja]
 sacremoses>=0.0.43

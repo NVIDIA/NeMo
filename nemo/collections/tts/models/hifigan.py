@@ -14,7 +14,6 @@
 
 import itertools
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
@@ -58,15 +57,17 @@ class HifiGanModel(Vocoder):
         self.discriminator_loss = DiscriminatorLoss()
         self.generator_loss = GeneratorLoss()
 
+        self.l1_factor = cfg.get("l1_loss_factor", 45)
+
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
 
         if self._train_dl and isinstance(self._train_dl.dataset, MelAudioDataset):
-            self.finetune = True
-            logging.info("fine-tuning on pre-computed mels")
+            self.input_as_mel = True
         else:
-            self.finetune = False
-            logging.info("training on ground-truth mels")
+            self.input_as_mel = False
+
+        self.automatic_optimization = False
 
     def configure_optimizers(self):
         self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
@@ -74,16 +75,20 @@ class HifiGanModel(Vocoder):
             self._cfg.optim, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
         )
 
-        max_steps = self._cfg.max_steps
-        warmup_steps = 0 if self.finetune else np.ceil(0.2 * max_steps)
         self.scheduler_g = CosineAnnealing(
-            self.optim_g, max_steps=max_steps, min_lr=1e-5, warmup_steps=warmup_steps
+            optimizer=self.optim_g,
+            max_steps=self._cfg.max_steps,
+            min_lr=self._cfg.sched.min_lr,
+            warmup_steps=self._cfg.sched.warmup_ratio * self._cfg.max_steps,
         )  # Use warmup to delay start
         sch1_dict = {
             'scheduler': self.scheduler_g,
             'interval': 'step',
         }
-        self.scheduler_d = CosineAnnealing(self.optim_d, max_steps=max_steps, min_lr=1e-5)
+
+        self.scheduler_d = CosineAnnealing(
+            optimizer=self.optim_d, max_steps=self._cfg.max_steps, min_lr=self._cfg.sched.min_lr,
+        )
         sch2_dict = {
             'scheduler': self.scheduler_d,
             'interval': 'step',
@@ -110,14 +115,17 @@ class HifiGanModel(Vocoder):
         """
         return self.generator(x=spec)
 
-    @typecheck(output_types={"audio": NeuralType(('B', 'T'), AudioSignal())})
+    @typecheck(
+        input_types={"spec": NeuralType(('B', 'C', 'T'), MelSpectrogramType())},
+        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+    )
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
         return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         # if in finetune mode the mels are pre-computed using a
         # spectrogram generator
-        if self.finetune:
+        if self.input_as_mel:
             audio, audio_len, audio_mel = batch
         # else, we compute the mel using the ground truth audio
         else:
@@ -143,20 +151,20 @@ class HifiGanModel(Vocoder):
             disc_real_outputs=msd_score_real, disc_generated_outputs=msd_score_gen
         )
         loss_d = loss_disc_msd + loss_disc_mpd
-        self.manual_backward(loss_d, self.optim_d)
+        self.manual_backward(loss_d)
         self.optim_d.step()
 
         # train generator
         self.optim_g.zero_grad()
-        loss_mel = F.l1_loss(audio_pred_mel, audio_trg_mel) * 45
+        loss_mel = F.l1_loss(audio_pred_mel, audio_trg_mel)
         _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.mpd(y=audio, y_hat=audio_pred)
         _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.msd(y=audio, y_hat=audio_pred)
         loss_fm_mpd = self.feature_loss(fmap_r=fmap_mpd_real, fmap_g=fmap_mpd_gen)
         loss_fm_msd = self.feature_loss(fmap_r=fmap_msd_real, fmap_g=fmap_msd_gen)
         loss_gen_mpd, _ = self.generator_loss(disc_outputs=mpd_score_gen)
         loss_gen_msd, _ = self.generator_loss(disc_outputs=msd_score_gen)
-        loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel
-        self.manual_backward(loss_g, self.optim_g)
+        loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel * self.l1_factor
+        self.manual_backward(loss_g)
         self.optim_g.step()
 
         metrics = {
@@ -172,10 +180,11 @@ class HifiGanModel(Vocoder):
             "global_step": self.global_step,
             "lr": self.optim_g.param_groups[0]['lr'],
         }
-        self.log_dict(metrics, on_step=False, on_epoch=True, sync_dist=True)
+        self.log_dict(metrics, on_step=True, sync_dist=True)
+        self.log("g_l1_loss", loss_mel, prog_bar=True, logger=False, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        if self.finetune:
+        if self.input_as_mel:
             audio, audio_len, audio_mel = batch
             audio_mel_len = [audio_mel.shape[1]] * audio_mel.shape[0]
         else:
@@ -187,12 +196,12 @@ class HifiGanModel(Vocoder):
         pred_denoised = self._bias_denoise(audio_pred, audio_mel).squeeze(1)
         pred_denoised_mel, _ = self.audio_to_melspec_precessor(pred_denoised, audio_len)
 
-        if self.finetune:
+        if self.input_as_mel:
             gt_mel, gt_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
         audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
         loss_mel = F.l1_loss(audio_mel, audio_pred_mel)
 
-        self.log("val_loss", loss_mel, prog_bar=True, sync_dist=True)
+        self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
 
         # plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
@@ -230,7 +239,7 @@ class HifiGanModel(Vocoder):
                         caption=f"denoised mel {i}",
                     ),
                 ]
-                if self.finetune:
+                if self.input_as_mel:
                     specs += [
                         wandb.Image(
                             plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
@@ -238,7 +247,7 @@ class HifiGanModel(Vocoder):
                         ),
                     ]
 
-            self.logger.experiment.log({"audio": clips, "specs": specs}, commit=False)
+            self.logger.experiment.log({"audio": clips, "specs": specs})
 
     def _bias_denoise(self, audio, mel):
         def stft(x):
@@ -254,13 +263,13 @@ class HifiGanModel(Vocoder):
             return x
 
         # create bias tensor
-        if self.stft_bias is None:
+        if self.stft_bias is None or self.stft_bias.shape[0] != audio.shape[0]:
             audio_bias = self(spec=torch.zeros_like(mel, device=mel.device))
             self.stft_bias, _ = stft(audio_bias)
             self.stft_bias = self.stft_bias[:, :, 0][:, :, None]
 
         audio_mags, audio_phase = stft(audio)
-        audio_mags = audio_mags - self.cfg.denoise_strength * self.stft_bias
+        audio_mags = audio_mags - self.cfg.get("denoise_strength", 0.0025) * self.stft_bias
         audio_mags = torch.clamp(audio_mags, 0.0)
         audio_denoised = istft(audio_mags, audio_phase).unsqueeze(1)
 
@@ -299,7 +308,7 @@ class HifiGanModel(Vocoder):
         model = PretrainedModelInfo(
             pretrained_model_name="tts_hifigan",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_hifigan/versions/1.0.0rc1/files/tts_hifigan.nemo",
-            description="This model is trained on LJSpeech sampled at 22050Hz. Trained on ground-truth mel-spectrograms, should not be used on synthetic mel-spectrograms.",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Tacotron2, TalkNet, and FastPitch. This model has been tested on generating female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)

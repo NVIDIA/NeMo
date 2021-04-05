@@ -4,6 +4,10 @@ NeMo NLP collection API
 Model Classes
 -------------
 
+.. autoclass:: nemo.collections.nlp.models.TextClassificationModel
+    :show-inheritance:
+    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact, classifytext
+
 .. autoclass:: nemo.collections.nlp.models.GLUEModel
     :show-inheritance:
     :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
@@ -19,6 +23,10 @@ Model Classes
 .. autoclass:: nemo.collections.nlp.models.QAModel
     :show-inheritance:
     :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, inference, validation_epoch_end, test_epoch_end
+
+.. autoclass:: nemo.collections.nlp.models.BERTLMModel
+    :show-inheritance:
+    :members: setup_training_data, setup_optimization
 
 Modules
 -------
