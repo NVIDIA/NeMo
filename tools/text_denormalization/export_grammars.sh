@@ -20,3 +20,5 @@ cd verbalize; thraxmakedep verbalize.grm ; make; cd ..
 mv classify/tokenize_and_classify.far .
 mv verbalize/verbalize.far .
 rm -rf classify/*.far verbalize/*.far util.far Makefile classify/Makefile verbalize/Makefile
+bash docker/build.sh 
+bash docker/launch.sh 
