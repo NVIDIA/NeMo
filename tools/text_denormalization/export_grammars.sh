@@ -13,13 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import 'money.grm' as m;
-
-# Combines all of the semiotic classes together.
-
-VERBALIZE = LoadFstFromFar['verbalize_verbalize.far', 'VERBALIZE'];
-
-export ALL = Optimize[VERBALIZE];
-
-# Exports the REDUP from money.
-export REDUP = m.REDUP;
+#!/bin/bash
+python pynini_export.py .
+cd classify; thraxmakedep tokenize_and_classify.grm ; make; cd ..
+cd verbalize; thraxmakedep verbalize.grm ; make; cd ..
+mv classify/tokenize_and_classify.far .
+mv verbalize/verbalize.far .
+rm -rf classify/*.far verbalize/*.far util.far Makefile classify/Makefile verbalize/Makefile
