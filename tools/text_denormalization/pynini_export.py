@@ -44,7 +44,7 @@ def export_grammars(output_dir):
         for stage, fst in graphs.items():
             out_dir = os.path.join(output_dir, stage)
             os.makedirs(out_dir, exist_ok=True)
-            _generator_main(f"{out_dir}/{category}_{stage}.far", fst, category.upper())
+            _generator_main(f"{out_dir}/{category}_tmp.far", fst, category.upper())
 
 
 if __name__ == '__main__':
