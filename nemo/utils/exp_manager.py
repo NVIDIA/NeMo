@@ -130,7 +130,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
                 trainer.resume_from_checkpoint so that the trainer should auto-resume. exp_manager will move files
-                under log_dir to log_dir/run_{int}. Defaults to False.
+                under log_dir to log_dir/run_{int}. Defaults to False. When resume_if_exists is True, we would not
+                create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
                 *end.ckpt indicating a previous training run fully completed. This behaviour can be disabled, in which
                 case the *end.ckpt will be loaded by setting resume_past_end to True. Defaults to False.
@@ -425,7 +426,10 @@ def get_log_dir(
         exp_dir (str): the base exp_dir without name nor version
         name (str): The name of the experiment
         version (str): The version of the experiment
-        resume_if_exists (bool): if resume_if_exists of the exp_manager's config is enabled or not
+        explicit_log_dir (str): The explicit path to the log folder. Defaults to False.
+        use_datetime_version (bool): Uses date and time as the version of the log folder. Defaults to True.
+        resume_if_exists (bool): if resume_if_exists of the exp_manager's config is enabled or not. When enabled, the
+            version folders would not get created.
 
     Raise:
         LoggerMisconfigurationError: If trainer is incompatible with arguments
