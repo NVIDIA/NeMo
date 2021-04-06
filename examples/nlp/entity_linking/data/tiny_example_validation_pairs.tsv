@@ -1,0 +1,21 @@
+1	Headache	cephalgia
+3	Coronary artery disease	heart disease
+3	atherosclerotic heart disease	damage of major heart blood vessels
+3	CAD	atherosclerotic heart disease
+3	CAD	heart disease
+3	atherosclerotic heart disease	heart disease
+3	Coronary artery disease	atherosclerotic heart disease
+3	CAD	damage of major heart blood vessels
+4	myocardial ischemia	cardiac ischemia
+5	kidneys cannot filter blood	chronic kidney disease
+5	kidneys cannot filter blood	chronic kidney failure
+5	chronic kidney disease	chronic kidney failure
+6	alchohol poisoning	severe drunkenness
+6	alchohol poisoning	over consumption of alcohol
+7	inability to process glucose	Type 2 diabetes
+7	diabetes mellitus	Type 2 diabetes
+7	diabetes mellitus	diabetes
+9	alogliptin	Vipidia
+9	Nesina	Vipidia
+9	Dipeptidyl peptidase-4 inhibitor	Nesina
+11	blood thinners	Apixaban
