@@ -182,6 +182,8 @@ class MaskedConv1d(nn.Module):
             2 * self.conv.padding[0] == self.conv.dilation[0] * (self.conv.kernel_size[0] - 1)
         )
 
+        # `self.lens` caches consecutive integers from 0 to `self.max_len` that are used to compute the mask for a
+        # batch. Recomputed to bigger size as needed. Stored on a device of the latest batch lens.
         if self.use_mask:
             self.max_len = 0
             self.lens = None
@@ -198,9 +200,10 @@ class MaskedConv1d(nn.Module):
         if self.use_mask:
             max_len = x.size(2)
             if max_len > self.max_len:
-                self.lens = torch.arange(max_len).to(lens.device)
+                self.lens = torch.arange(max_len)
                 self.max_len = max_len
 
+            self.lens = self.lens.to(lens.device)
             mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
             x = x * mask.unsqueeze(1).to(device=x.device)
             lens = self.get_seq_len(lens)
