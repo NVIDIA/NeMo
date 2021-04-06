@@ -46,24 +46,30 @@ def _speech_collate_fn(batch, pad_id):
     """
     _, audio_lengths, _, tokens_lengths = zip(*batch)
     max_audio_len = 0
-    max_audio_len = max(audio_lengths).item()
+    has_audio = audio_lengths[0] is not None
+    if has_audio:
+        max_audio_len = max(audio_lengths).item()
     max_tokens_len = max(tokens_lengths).item()
 
     audio_signal, tokens = [], []
     for sig, sig_len, tokens_i, tokens_i_len in batch:
-        sig_len = sig_len.item()
-        if sig_len < max_audio_len:
-            pad = (0, max_audio_len - sig_len)
-            sig = torch.nn.functional.pad(sig, pad)
-        audio_signal.append(sig)
+        if has_audio:
+            sig_len = sig_len.item()
+            if sig_len < max_audio_len:
+                pad = (0, max_audio_len - sig_len)
+                sig = torch.nn.functional.pad(sig, pad)
+            audio_signal.append(sig)
         tokens_i_len = tokens_i_len.item()
         if tokens_i_len < max_tokens_len:
             pad = (0, max_tokens_len - tokens_i_len)
             tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
         tokens.append(tokens_i)
 
-    audio_signal = torch.stack(audio_signal)
-    audio_lengths = torch.stack(audio_lengths)
+    if has_audio:
+        audio_signal = torch.stack(audio_signal)
+        audio_lengths = torch.stack(audio_lengths)
+    else:
+        audio_signal, audio_lengths = None, None
     tokens = torch.stack(tokens)
     tokens_lengths = torch.stack(tokens_lengths)
 
