@@ -1,0 +1,63 @@
+1	Pain in the head	cephalgia
+1	Pain in the head	cephalalgia
+1	Migraine	cephalgia
+1	Head ache	Pain in the head
+1	Head ache	Migraine
+1	Head ache	cephalalgia
+1	Headache	Migraine
+1	Migraine	cephalalgia
+1	cephalgia	cephalalgia
+1	Headache	Pain in the head
+1	Headache	cephalalgia
+1	Migraine	Pain in the head
+1	Head ache	Headache
+1	Head ache	cephalgia
+2	heart attack	Myocardial infraction 
+2	heart attack	MI
+2	necrosis of heart muscle 	MI
+2	Myocardial infraction 	MI
+2	heart attack	necrosis of heart muscle 
+2	Myocardial infraction 	necrosis of heart muscle 
+3	CAD	Coronary artery disease
+3	heart disease	damage of major heart blood vessels
+3	Coronary artery disease	damage of major heart blood vessels
+4	myocardial ischemia	reduced ability to pump blood
+4	cardiac ischemia	reduced ability to pump blood
+5	gradual loss of kidney function	chronic kidney failure
+5	gradual loss of kidney function	chronic kidney disease
+5	kidneys cannot filter blood	CKD
+5	chronic kidney disease	CKD
+5	gradual loss of kidney function	CKD
+5	gradual loss of kidney function	kidneys cannot filter blood
+5	chronic kidney failure	CKD
+6	acute alchohol intoxication	alchohol poisoning
+6	acute alchohol intoxication	over consumption of alcohol
+6	alchohol intoxication	acute alchohol intoxication
+6	severe drunkenness	over consumption of alcohol
+6	alchohol intoxication	alchohol poisoning
+6	alchohol intoxication	severe drunkenness
+6	alchohol intoxication	over consumption of alcohol
+6	acute alchohol intoxication	severe drunkenness
+7	diabetes	unable to take up sugar
+7	diabetes	Type 2 diabetes
+7	diabetes mellitus	unable to take up sugar
+7	unable to take up sugar	Type 2 diabetes
+7	inability to process glucose	unable to take up sugar
+7	diabetes	inability to process glucose
+7	diabetes mellitus	inability to process glucose
+8	Hyperinsulinemia	abnormally high levels of insulin
+8	High blood sugar	abnormally high levels of insulin
+8	Hyperinsulinemia	High blood sugar
+9	Dipeptidyl peptidase-4 inhibitor	alogliptin
+9	Dipeptidyl peptidase-4 inhibitor	dpp-4 inhibitor
+9	alogliptin	Nesina
+9	Dipeptidyl peptidase-4 inhibitor	Vipidia
+9	dpp-4 inhibitor	Nesina
+9	dpp-4 inhibitor	alogliptin
+9	dpp-4 inhibitor	Vipidia
+10	hypoglycemia 	low blood sugar
+11	anticoagulants	Apixaban
+11	blood thinners	Eliquis
+11	anticoagulants	Eliquis
+11	anticoagulants	blood thinners
+11	Apixaban	Eliquis

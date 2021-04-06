@@ -94,10 +94,10 @@ class EntityLinkingDataset(Dataset):
 
         concept_offset = self.newline_indices[idx]
 
-        with open(self.data_file, "rb") as f:
+        with open(self.data_file, "r", encoding='utf-8-sig') as f:
             # Find data pair within datafile using byte offset
             f.seek(concept_offset)
-            concept = f.readline()[:-1].decode("utf-8", errors="ignore")
+            concept = f.readline()[:-1]
             concept = concept.strip().split("\t")
 
             if self.is_index_data:
