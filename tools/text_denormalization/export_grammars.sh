@@ -17,8 +17,6 @@
 python pynini_export.py .
 cd classify; thraxmakedep tokenize_and_classify.grm ; make; cd ..
 cd verbalize; thraxmakedep verbalize.grm ; make; cd ..
-mv classify/tokenize_and_classify.far .
-mv verbalize/verbalize.far .
-rm -rf classify/*.far verbalize/*.far util.far Makefile classify/Makefile verbalize/Makefile
+rm -rf classify/tokenize_and_classify_tmp.far classify/puntuation.far verbalize/verbalize_tmp.far util.far Makefile classify/Makefile verbalize/Makefile
 bash docker/build.sh 
 bash docker/launch.sh 

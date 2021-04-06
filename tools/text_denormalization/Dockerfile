@@ -13,9 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-ARG THRAX=1.3.4
-
 # set base image (host OS)
 FROM conda/miniconda3
 
@@ -25,18 +22,14 @@ WORKDIR /workspace
 # install dependencies
 RUN conda update -n base -c defaults conda -y
 RUN conda install conda-build -y
-
 RUN apt-get update &&     apt-get install -y --reinstall build-essential &&     apt-get upgrade -y &&     apt-get install -y git &&     apt-get install make
-RUN conda update -n base -c defaults conda -y
-RUN conda install conda-build -y
-
 RUN git clone https://github.com/google/re2
 RUN cd re2 && make && make install
 RUN apt-get install build-essential -y && apt-get install wget -y
 RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v2.5.0/protobuf-2.5.0.tar.gz
 RUN tar xzvf protobuf-2.5.0.tar.gz
 RUN cd protobuf-2.5.0 && ./configure && make && make install && ldconfig
-RUN conda install -c conda-forge thrax=${THRAX} -y
+RUN conda install -c conda-forge thrax=1.3.4 -y
 RUN git clone https://github.com/yzhang123/sparrowhawk.git
-RUN cd sparrowhawk &&  git checkout test &&   apt-get install -y autoconf &&     bash autoreconf && ./configure && make && make install
+RUN cd sparrowhawk &&  git checkout test &&   apt-get install -y autoconf &&     bash autoreconf && ./configure && make && make install && ldconfig
 RUN echo "DONE"
