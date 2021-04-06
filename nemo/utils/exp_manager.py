@@ -105,12 +105,16 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
     name, and version from the logger. Otherwise it will use the exp_dir and name arguments to create the logging
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
-    The version will be a datetime string or an integer. Note, exp_manager does not handle versioning on Slurm
-    multi-node runs. Datestime version can be disabled if use_datetime_version is set to False.
-    It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning. It copies
-    sys.argv, and git information if available to the logging directory. It creates a log file for each process to log
-    their output into.
-    exp_manager additionally has a resume feature which can be used to continuing training from the constructed log_dir.
+
+    The version can be a datetime string or an integer. Datestime version can be disabled if use_datetime_version is set
+     to False. It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning.
+    It copies sys.argv, and git information if available to the logging directory. It creates a log file for each
+    process to log their output into.
+
+    exp_manager additionally has a resume feature (resume_if_exists) which can be used to continuing training from
+    the constructed log_dir. When you need to continue the training repeatedly (like on a cluster which you need
+    multiple consecutive jobs), we need to avoid creating the version folders. Therefore when resume_if_exists is set
+    to True, we would ignore creating the version folders.
 
     Args:
         trainer (pytorch_lightning.Trainer): The lightning trainer.
