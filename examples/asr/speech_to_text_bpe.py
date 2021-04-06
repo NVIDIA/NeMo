@@ -77,7 +77,7 @@ def main(cfg):
             gpus=gpu, precision=trainer.precision, amp_level=trainer.amp_level, amp_backend=trainer.amp_backend,
         )
         if asr_model.prepare_test(test_trainer):
-            trainer.test(asr_model)
+            test_trainer.test(asr_model)
 
 
 if __name__ == '__main__':
