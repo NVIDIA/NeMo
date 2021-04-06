@@ -30,16 +30,16 @@ def build_index(cfg: DictConfig, model: object):
     if cfg.apply_pca and os.path.isfile(cfg.pca.pca_save_name) and os.path.isfile(cfg.pca_embeddings_save_name):
         logging.info("Loading reduced dimensionality embeddings")
         embeddings = h5py.File(cfg.pca_embeddings_save_name, "r")
-        embeddings = embeddings[cfg.dataset.name][:] 
+        embeddings = embeddings[cfg.index_ds.name][:] 
 
     elif os.path.isfile(cfg.embedding_save_name):
         logging.info("Loading previously extracted index dataset embeddings")
         embeddings = h5py.File(cfg.embedding_save_name, "r")
-        embeddings = embeddings[cfg.dataset.name][:]
+        embeddings = embeddings[cfg.index_ds.name][:]
 
     else:
         logging.info("Encoding index dataset, this may take a while")
-        index_dataloader = model.setup_dataloader(cfg.dataset, is_index_data=True)
+        index_dataloader = model.setup_dataloader(cfg.index_ds, is_index_data=True)
         embeddings, concept_ids = get_index_embeddings(cfg, index_dataloader, model)
 
 
@@ -92,7 +92,7 @@ def map_idx_to_ids(cfg: DictConfig):
 def save_concept_ids(cfg: DictConfig):
     """Saves ordered concept ids in a pickle file"""
     concept_ids = []
-    with open(cfg.dataset.data_file, "r") as data_file:
+    with open(cfg.index_ds.data_file, "r") as data_file:
         for line in tqdm(data_file.readlines()):
             concept_id = line.split("\t")[0]
             concept_ids.append(concept_id)
@@ -106,7 +106,7 @@ def reduce_embedding_dim(pca, embeddings, cfg):
     logging.info("Applying PCA transformation to entire index dataset")
     embeddings = np.array(pca.transform(embeddings), dtype=np.float32)
     emb_file = h5py.File(cfg.pca_embeddings_save_name, "w")
-    emb_file.create_dataset(cfg.dataset.name, data=embeddings)
+    emb_file.create_dataset(cfg.index_ds.name, data=embeddings)
     emb_file.close()
 
     return embeddings
@@ -131,7 +131,7 @@ def get_index_embeddings(cfg: DictConfig, dataloader, model: object):
             concept_ids.extend(batch_concept_ids.numpy())
 
     emb_file = h5py.File(cfg.embedding_save_name, "w")
-    emb_file.create_dataset(cfg.dataset.name, data=embeddings)
+    emb_file.create_dataset(cfg.index_ds.name, data=embeddings)
     emb_file.close()
 
     pkl.dump(concept_ids, open(cfg.concept_id_save_name, "wb"))
@@ -266,7 +266,7 @@ def main(cfg: DictConfig, top_n: int, restore: bool):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--restore", action="store_true", help="Whether to restore encoder model weights from nemo path") 
-    parser.add_argument("--cfg", required=False, type=str, default="./conf/medical_entity_linking_config_pubmed.yaml")
+    parser.add_argument("--cfg", required=False, type=str, default="./conf/umls_medical_entity_linking_config.yaml")
     parser.add_argument("--top_n", required=False, type=int, default=5, help="Max number of items returned per query") 
     args = parser.parse_args()
 
