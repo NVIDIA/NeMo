@@ -113,8 +113,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     exp_manager additionally has a resume feature (resume_if_exists) which can be used to continuing training from
     the constructed log_dir. When you need to continue the training repeatedly (like on a cluster which you need
-    multiple consecutive jobs), we need to avoid creating the version folders. Therefore when resume_if_exists is set
-    to True, we would ignore creating the version folders.
+    multiple consecutive jobs), you need to avoid creating the version folders. Therefore from v1.0.0, when
+    resume_if_exists is set to True, creating the version folders is ignored.
 
     Args:
         trainer (pytorch_lightning.Trainer): The lightning trainer.
@@ -130,8 +130,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
                 trainer.resume_from_checkpoint so that the trainer should auto-resume. exp_manager will move files
-                under log_dir to log_dir/run_{int}. Defaults to False. When resume_if_exists is True, we would not
-                create version folders to make it easier to find the log folder for next runs.
+                under log_dir to log_dir/run_{int}. Defaults to False. From v1.0.0, when resume_if_exists is True,
+                we would not create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
                 *end.ckpt indicating a previous training run fully completed. This behaviour can be disabled, in which
                 case the *end.ckpt will be loaded by setting resume_past_end to True. Defaults to False.
