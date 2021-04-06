@@ -78,9 +78,9 @@ def main(cfg):
         gpu = 1 if cfg.trainer.gpus != 0 else 0
         trainer = pl.Trainer(
             gpus=gpu,
-            precision=cfg.trainer.precision,
-            amp_level=cfg.trainer.amp_level,
-            amp_backend=cfg.trainer.amp_backend,
+            precision=trainer.precision,
+            amp_level=trainer.amp_level,
+            amp_backend=trainer.amp_backend,
         )
         if asr_model.prepare_test(trainer):
             trainer.test(asr_model)
