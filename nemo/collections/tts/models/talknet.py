@@ -15,6 +15,7 @@
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 from torch import nn
 from torch.nn import functional as F
 
@@ -29,8 +30,8 @@ from nemo.core.classes.common import typecheck
 class TalkNetDursModel(ModelPT):
     """TalkNet's durations prediction pipeline."""
 
-    def __init__(self, cfg: DictConfig):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
         typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
@@ -105,8 +106,8 @@ class TalkNetDursModel(ModelPT):
 class TalkNetPitchModel(ModelPT):
     """TalkNet's pitch prediction pipeline."""
 
-    def __init__(self, cfg: DictConfig):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
         typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
@@ -197,8 +198,8 @@ class TalkNetPitchModel(ModelPT):
 class TalkNetSpectModel(SpectrogramGenerator):
     """TalkNet's mel spectrogram prediction pipeline."""
 
-    def __init__(self, cfg: DictConfig):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
         typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
