@@ -15,9 +15,9 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(cd $(dirname $0); pwd)
-: ${CLASSIFY_DIR:="$SCRIPT_DIR/classify"}
-: ${VERBALIZE_DIR:="$SCRIPT_DIR/verbalize"}
-: ${CMD:=${1:-/bin/bash}}
+: ${CLASSIFY_DIR:="$SCRIPT_DIR/../classify"}
+: ${VERBALIZE_DIR:="$SCRIPT_DIR/../verbalize"}
+: ${CMD:=${1:-"/bin/bash"}}
 
 MOUNTS=""
 MOUNTS+=" -v $CLASSIFY_DIR:/workspace/sparrowhawk/documentation/grammars/en_toy/classify"
