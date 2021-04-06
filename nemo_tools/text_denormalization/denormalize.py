@@ -209,5 +209,9 @@ DENORMALIZERS = {
 
 
 if __name__ == "__main__":
+    import time
+
+    start = time.perf_counter()
     s = sys.argv[1]  # input string
     denormalize(s, verbose=True)
+    print((time.perf_counter() - start) * 1000)
