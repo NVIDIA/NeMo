@@ -15,7 +15,7 @@
   \ 0.0\n    sched:\n      name: CosineAnnealing\n      warmup_steps: null\n     \
   \ warmup_ratio: 0.1\n      min_lr: 0.0\n      last_epoch: -1\nindex:\n  dims: 768\n\
   \  nlist: 2\n  top_n: 3\n  query_num_factor: 20\n  index_save_name: tiny_example_entity_linking_index\n\
-  \  index_batch_size: 10\n  dataset:\n    name: tiny_example\n    data_file: tiny_example_index_data.tsv\n\
+  \  index_batch_size: 10\n  index_ds:\n    name: tiny_example\n    data_file: tiny_example_index_data.tsv\n\
   \    max_seq_length: ${model.max_seq_length}\n    batch_size: 100\n    shuffle:\
   \ false\n    num_workers: 2\n    pin_memory: false\n    drop_last: false\n  idx_to_id:\
   \ idx_to_id.pkl\n  id_to_string: id_to_string.pkl\n  concept_id_save_name: tiny_example_concept_ids.pkl\n\
