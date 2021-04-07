@@ -1,10 +1,6 @@
-name: &name FastSpeech2
-sample_rate: &sr 22050
-n_fft: &n_fft 1024
-n_mels: &n_mels 80
-fmax: &fmax 8000
-n_stride: &n_window_stride 256
-pad_value: &pad_value -11.52
+name: FastSpeech2
+sample_rate: 22050
+n_mels: 80
 
 # Dataset info
 train_dataset: ???
@@ -23,7 +19,7 @@ model:
       _target_: "nemo.collections.tts.data.datalayers.FastSpeech2Dataset"
       manifest_filepath: ${train_dataset}
       mappings_filepath: ${mappings_file}
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       max_duration: null
       min_duration: 0.1
       ignore_file: ${ignore_file}
@@ -39,7 +35,7 @@ model:
       _target_: "nemo.collections.tts.data.datalayers.FastSpeech2Dataset"
       manifest_filepath: ${validation_datasets}
       mappings_filepath: ${mappings_file}
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       max_duration: null
       min_duration: 0.1
       ignore_file: ${ignore_file}
@@ -54,23 +50,22 @@ model:
   preprocessor:
     _target_: nemo.collections.asr.parts.features.FilterbankFeatures
     dither: 0.0
-    nfilt: *n_mels
+    nfilt: ${n_mels}
     frame_splicing: 1
-    highfreq: *fmax
+    highfreq: 8000
     log: true
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
     lowfreq: 0
     mag_power: 1.0
-    n_fft: *n_fft
+    n_fft: 1024
     n_window_size: 1024
-    n_window_stride: *n_window_stride
+    n_window_stride: 256
     normalize: null
     pad_to: 16
-    pad_value: *pad_value
+    pad_value: -11.52
     preemph: null
-    sample_rate: *sr
-    stft_conv: true
+    sample_rate: ${sample_rate}
     window: hann
 
   # FFTransformer encoder
@@ -91,7 +86,7 @@ model:
   decoder:
     _target_: nemo.collections.tts.modules.fastspeech2.MelSpecDecoder
     d_model: ${model.d_model}
-    d_out: *n_mels
+    d_out: ${n_mels}
     n_layers: 4
     n_attn_heads: 2
     d_attn_head: 256
@@ -146,6 +141,6 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
