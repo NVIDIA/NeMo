@@ -72,7 +72,7 @@ Below we is the code snippet of Audio Translator application.
     # Speech Recognition model - QuartzNet trained on Russian part of MCV 6.0
     quartznet = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="stt_ru_quartznet15x5").cuda()
     # Neural Machine Translation model
-    nmt_model = nemo_nlp.models.MTEncDecModel.from_pretrained(model_name='nmt_ru_en_transformer6x6', strict=False).cuda()
+    nmt_model = nemo_nlp.models.MTEncDecModel.from_pretrained(model_name='nmt_ru_en_transformer6x6').cuda()
     # Spectrogram generator which takes text as an input and produces spectrogram
     spectrogram_generator = nemo_tts.models.Tacotron2Model.from_pretrained(model_name="tts_en_tacotron2").cuda()
     # Vocoder model which takes spectrogram and produces actual audio
