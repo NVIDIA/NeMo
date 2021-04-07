@@ -27,7 +27,7 @@ Automatically start docker container with production backend with plugged in gra
 
 This script runs the following steps in sequence:
 
-Exports grammars `tokenize_and_classify_tmp.far` and `verbalize_tmp.far` from nemo_tools to directory `classify` and `verbalize` respectively
+Exports grammars `tokenize_and_classify_tmp.far` and `verbalize_tmp.far` from nemo_tools to directory `classify/` and `verbalize/` respectively
 
 .. code-block:: bash
 
