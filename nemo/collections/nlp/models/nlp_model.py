@@ -470,15 +470,6 @@ class NLPDDPPlugin(DDPPlugin):
                 # Update PTL trainer to use our _clip_gradients
                 # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
-                # logging.info("Replacing sampler with model parallel sampler")
-                # mp_sampler = torch.utils.data.distributed.DistributedSampler(
-                #     self._train_dl.dataset,
-                #     num_replicas=app_state.data_parallel_size,
-                #     rank=app_state.data_parallel_rank,
-                # )
-                # mp_dl = self._trainer.replace_sampler(self._train_dl, mp_sampler)
-                # self._train_dl = mp_dl
-
                 # model parallel checkpoints need to be restored after torch.distributed is initialized
                 global _MODEL_RESTORE_PATH
                 if trainer.resume_from_checkpoint is not None:
@@ -550,13 +541,11 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
+                **self._ddp_kwargs,
             )
 
         else:
-            device_ids = self.determine_ddp_device_ids()
-            self._model = DistributedDataParallel(
-                LightningDistributedModule(self.model), device_ids=device_ids, **self._ddp_kwargs,
-            )
+            super().configure_ddp()
 
     def init_model_parallel(self, global_rank: int, world_size: int) -> None:
         """ Initializes Megatron-LM model parallel if using model parallelism.
@@ -575,19 +564,23 @@ class NLPDDPPlugin(DDPPlugin):
                 mpu.initialize_model_parallel(app_state.model_parallel_size)
                 app_state.model_parallel_group = mpu.get_model_parallel_group()
                 app_state.data_parallel_group = mpu.get_data_parallel_group()
-                app_state.model_parallel_rank = torch.distributed.get_rank(group=app_state.model_parallel_group)
-                app_state.data_parallel_rank = torch.distributed.get_rank(group=app_state.data_parallel_group)
+                app_state.model_parallel_rank = mpu.get_tensor_model_parallel_rank()
+                app_state.data_parallel_rank = mpu.get_data_parallel_rank()
+                app_state.data_parallel_size = mpu.get_data_parallel_world_size()
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
+                # TODO: get random seed from PTL
                 _set_random_seed(1234)
 
     @property
     def distributed_sampler_kwargs(self):
         app_state = AppState()
         if app_state.model_parallel_size is not None:
-
+            # When using model parallel, data parallel groups are non-trivial and they
+            # correspond to the logical GPUs. This means that the GPUs that form a
+            # single logical GPU all need to get the same batch of data.
             distributed_sampler_kwargs = dict(
-                num_replicas=(app_state.data_parallel_size), rank=app_state.data_parallel_rank
+                num_replicas=app_state.data_parallel_size, rank=app_state.data_parallel_rank
             )
             return distributed_sampler_kwargs
 
