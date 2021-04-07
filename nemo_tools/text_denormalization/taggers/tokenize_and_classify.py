@@ -42,19 +42,19 @@ class ClassifyFst(GraphFst):
         time = TimeFst().fst
         money = MoneyFst().fst
         whitelist = WhiteListFst().fst
-        # graph = (
-        #     pynutil.add_weight(whitelist, 1.01)
-        #     | pynutil.add_weight(time, 1.1)
-        #     | pynutil.add_weight(date, 1.09)
-        #     | pynutil.add_weight(decimal, 1.1)
-        #     | pynutil.add_weight(measure, 1.1)
-        #     | pynutil.add_weight(cardinal, 1.1)
-        #     | pynutil.add_weight(ordinal, 1.1)
-        #     | pynutil.add_weight(money, 1.1)
-        #     | pynutil.add_weight(word, 100)
-        # )
         graph = (
-                pynutil.add_weight(cardinal, 1.1)
-                | pynutil.add_weight(word, 100)
+            pynutil.add_weight(whitelist, 1.01)
+            | pynutil.add_weight(time, 1.1)
+            | pynutil.add_weight(date, 1.09)
+            | pynutil.add_weight(decimal, 1.1)
+            | pynutil.add_weight(measure, 1.1)
+            | pynutil.add_weight(cardinal, 1.1)
+            | pynutil.add_weight(ordinal, 1.1)
+            | pynutil.add_weight(money, 1.1)
+            | pynutil.add_weight(word, 100)
         )
+        # graph = (
+        #         pynutil.add_weight(cardinal, 1.1)
+        #         | pynutil.add_weight(word, 100)
+        # )
         self.fst = graph.optimize()

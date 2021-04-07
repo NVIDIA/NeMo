@@ -24,7 +24,6 @@ from nemo_tools.text_denormalization.data_loader_utils import (
 )
 from nemo_tools.text_denormalization.denormalize import DENORMALIZERS
 
-
 '''
 Runs Evaluation on data in the format of : <semiotic class>\t<unnormalized text>\t<`self` if trivial class or normalized text>
 like the Google text normalization data https://www.kaggle.com/richardwilliamsproat/text-normalization-for-english-russian-and-polish
@@ -108,15 +107,15 @@ if __name__ == "__main__":
             'numbers\t'
             + str(len(sentences_normalized))
             + '\t'
-            + '\t'.join([str(token_count_per_type[known_type]) for known_type in known_types])
+            + '\t'.join([str(token_count_per_type[known_type]) if known_type in tokens_per_type else '0' for known_type in known_types])
         )
         print(
             args.denormalizer
             + '\t'
             + str(sentences_accuracy)
             + '\t'
-            + '\t'.join([str(token_accuracy[known_type]) for known_type in known_types])
+            + '\t'.join([str(token_accuracy[known_type]) if known_type in token_accuracy else '0' for known_type in known_types])
         )
     else:
-        print('numbers\t' + '\t'.join([str(token_count_per_type[known_type]) for known_type in known_types]))
-        print(args.denormalizer + '\t'.join([str(token_accuracy[known_type]) for known_type in known_types]))
+        print(f'numbers\t{token_count_per_type[args.category]}')
+        print(f'{args.denormalizer}\t{token_accuracy[args.category]}')

@@ -73,5 +73,5 @@ if __name__ == "__main__":
 
     print("- Data: " + str(len(data)) + " sentences")
     denormalizer_prediction = denormalizer(data, verbose=args.verbose)
-    print("- Normalized. Writing out...")
     write_file(args.output, denormalizer_prediction)
+    print(f"- Normalized. Writing out to {args.output}")
