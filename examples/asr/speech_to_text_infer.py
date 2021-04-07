@@ -66,6 +66,10 @@ def main():
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
+
+    asr_model.preprocessor.featurizer.pad_to = 0
+    asr_model.preprocessor.featurizer.dither = 0.0
+
     asr_model.setup_test_data(
         test_data_config={
             'sample_rate': 16000,
