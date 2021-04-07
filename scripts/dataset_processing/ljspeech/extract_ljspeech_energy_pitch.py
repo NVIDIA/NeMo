@@ -19,43 +19,65 @@ energy files to `<LJSpeech_base_path>/energies/`, creating the directory if nece
 USAGE: python extract_ljspeech_energy.py --ljspeech_dir=<LJSpeech_base_path>
 """
 import argparse
-import glob
 import librosa
+import pysptk
 import numpy as np
-import os
+from pathlib import Path
+from scipy.io import wavfile
 
-parser = argparse.ArgumentParser(description="Extracts energies (L2-norm of STFT frame amplitudes) from LJSpeech data.")
+tqdm = None
+
+try:
+    from tqdm import tqdm
+except ModuleNotFoundError:
+    pass
+
+parser = argparse.ArgumentParser(
+    description="Extracts energies (L2-norm of STFT frame amplitudes) from LJSpeech data."
+)
 parser.add_argument("--ljspeech_dir", required=True, default=None, type=str)
 args = parser.parse_args()
 
 
 def main():
-    wavfile_list = glob.glob(os.path.join(args.ljspeech_dir, 'wavs/', '*.wav'))
+    wavfile_list = list(Path(args.ljspeech_dir + "wavs").glob('*.wav'))
 
-    # Create target dir <LJSpeech_base_dir>/energies if necessary
-    target_dir = os.path.join(args.ljspeech_dir, 'energies/')
-    if not os.path.exists(target_dir):
-        print(f"Creating target directory: {target_dir}")
-        os.makedirs(target_dir)
+    target_dir = Path(args.ljspeech_dir)
+    # Create target dir <LJSpeech_base_dir>/energies and <LJSpeech_base_dir>/pitch if necessary
+    if not Path(target_dir / "energies").exists():
+        print(f"Creating target directory: {target_dir/'energies'}")
+        Path(target_dir / "energies").mkdir()
+    if not Path(target_dir / "pitch").exists():
+        print(f"Creating target directory: {target_dir/'pitch'}")
+        Path(target_dir / "pitch").mkdir()
 
-    count = 0
-    for wavfile in wavfile_list:
-        basename, _ = os.path.splitext(os.path.basename(wavfile))
-        audio, sr = librosa.load(wavfile)
+    if tqdm is not None:
+        wavfile_list = tqdm(wavfile_list)
+    for count, file_ in enumerate(wavfile_list):
+        basename = Path(file_).stem
+        audio, sr = librosa.load(file_, sr=22050)
+        fs, x = wavfile.read(str(file_))
+
+        # Calculate f0
+        f0 = pysptk.rapt(x.astype(np.float32) * 32768, fs=sr, hopsize=256, otype="f0")
+
+        # Save to new file
+        save_path = target_dir / "pitch" / f"{basename}.npy"
+        np.save(save_path, f0)
 
         # Calculate energy
         stft_amplitude = np.abs(librosa.stft(audio, n_fft=1024, hop_length=256, win_length=1024))
         energy = np.linalg.norm(stft_amplitude, axis=0)  # axis=0 since librosa.stft -> (freq bins, frames)
 
         # Save to new file
-        save_path = os.path.join(target_dir, f"{basename}.npy")
+        save_path = target_dir / "energies" / f"{basename}.npy"
         np.save(save_path, energy)
 
-        count += 1
-        if count % 1000 == 0:
+        assert energy.shape == f0.shape
+        if tqdm is None and count % 1000 == 0:
             print(f"Finished processing {count} wav files...")
 
-    print(f"Finished energy extraction for a total of {count} wav files.")
+    print(f"Finished energy extraction for a total of {len(wavfile_list)} wav files.")
 
 
 if __name__ == '__main__':
