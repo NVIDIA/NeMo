@@ -25,40 +25,40 @@ Automatically start docker container with production backend with plugged in gra
 
     bash export_grammar.sh
 
-This scripts runs the following scripts in sequence:
+This script runs the following steps in sequence:
 
-Export grammars `tokenize_and_classify_tmp.far` and `verbalize_tmp.far` from nemo_tools
+Exports grammars `tokenize_and_classify_tmp.far` and `verbalize_tmp.far` from nemo_tools to directory `classify` and `verbalize` respectively
 
 .. code-block:: bash
 
     python pynini_export.py OUTPUT_DIR
 
 
-Use output of last step to compile final grammars `tokenize_and_classify.far` and `verbalize.far` for deployment
+Uses output of last step to compile final grammars `tokenize_and_classify.far` and `verbalize.far` for deployment
 
 .. code-block:: bash
 
     cd classify; thraxmakedep tokenize_and_classify.grm ; make; cd ..
     cd verbalize; thraxmakedep verbalize.grm ; make; cd ..
 
-Build C++ production backend docker
+Builds C++ production backend docker
 
 .. code-block:: bash
 
     bash docker/build.sh
 
 
-Plug in grammars into production backend by mounting exported grammar directory with sparrowhawk grammar directory. Launches docker prompt
+Plugs in grammars into production backend by mounting grammar directory `classify/` and `verbalize/` with sparrowhawk grammar directory inside docker. Returns docker prompt
 
 .. code-block:: bash
 
     bash docker/launch.sh
 
 
-Run Inverse Text Normalization: 
+Runs Inverse Text Normalization: 
 
 .. code-block:: bash
 
     echo "two dollars fifty" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
 
-This should return $2.50.
+This returns $2.50.
