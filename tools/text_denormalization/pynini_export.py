@@ -17,24 +17,36 @@
 import os
 import sys
 
+import pynini
 from nemo_tools.text_denormalization.taggers.tokenize_and_classify import ClassifyFst
 from nemo_tools.text_denormalization.verbalizers.verbalize import VerbalizeFst
 from pynini.export import export
 
+# This script exports OpenFst finite state archive files tokenize_and_classify.far and tokenize.far from compiled grammars inside nemo_tools inverse text normalization for  production purposes
 
-def _generator_main(file_name, graph, name):
+
+def _generator_main(file_name: str, graph: pynini.FstLike, rule_name: str):
+    """
+    Exports graph as OpenFst finite state archive (FAR) file with given file name and rule name. 
+
+    Args:
+        file_name: exported file name
+        graph: Pynini WFST graph to be exported
+        rule_name: rule name for graph in created FAR file
+
+    """
     exporter = export.Exporter(file_name)
-    exporter[name] = graph.optimize()
+    exporter[rule_name] = graph.optimize()
     exporter.close()
     print(f'Created {file_name}')
 
 
 def export_grammars(output_dir):
     """
-    Exports tokenizer_and_classify and verbalize Fsts as .far files. 
+    Exports tokenizer_and_classify and verbalize Fsts as OpenFst finite state archive (FAR) files. 
 
     Args:
-        output_dir: directory to export .far files to. Subdirectories will be created for tagger and verbalizer respectively.
+        output_dir: directory to export FAR files to. Subdirectories will be created for tagger and verbalizer respectively.
     """
     d = {}
     d['tokenize_and_classify'] = {'classify': ClassifyFst().fst}
