@@ -17,6 +17,8 @@ import hashlib
 import json
 import os
 from os import path
+import tarfile
+import tempfile
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -52,7 +54,9 @@ NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_
 
 os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 
+# add these to AppState
 _MODEL_RESTORE_PATH = None
+_MODEL_WEIGHTS = "model_weights.ckpt"
 
 
 class NLPModel(ModelPT, Exportable):
@@ -250,6 +254,13 @@ class NLPModel(ModelPT, Exportable):
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
+            logging.info(f"Saving Megatron checkpoint version: {checkpoint['checkpoint_version']}")
+        return None
+
+    def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
+            set_checkpoint_version(checkpoint['checkpoint_version'])
+            logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
         return None
 
     # remove rank check as model parallel models need to be saved on data parallel rank 0
@@ -367,7 +378,50 @@ class NLPModel(ModelPT, Exportable):
                 restore_path, override_config_path, map_location, strict, return_config
             )
             restored_model._trainer = trainer
+
+            # need to get megatron checkpoint version from the .nemo file
+            cwd = os.getcwd()
+            with tempfile.TemporaryDirectory() as tmpdir:
+                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                os.chdir(tmpdir)
+                with open('megatron_checkpoint_version.json', 'r') as f:
+                    checkpoint_version = json.load(f).get('checkpoint_version', None)
+                if checkpoint_version is None:
+                    raise ValueError("Could not find megatron checkpoint version.")
+                else:
+                    logging.info(f"Setting Megatron checkpoint version: {checkpoint_version}")
+                    set_checkpoint_version(checkpoint_version)
+                os.chdir(cwd)
+
             return restored_model
+
+    @rank_zero_only
+    def register_megatron_checkpoint_version(self):
+        """ Adds checkpoint version to .nemo archive """
+        if self.bert_model is None:
+            raise ValueError('Instantiate self.bert_model before registering megatron checkpoint version.')
+        else:
+            # get encoder config and create source for artifact
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                checkpoint_version = get_checkpoint_version()
+                if checkpoint_version is None:
+                    raise ValueError('Unable to get megatron checkpoint version.')
+                else:
+                    checkpoint_version_dict = {'checkpoint_version': checkpoint_version}
+                    checkpoint_version_path = 'megatron_checkpoint_version.json'
+                    checkpoint_version_src = os.path.join(NEMO_NLP_TMP, checkpoint_version_path)
+                    with open(checkpoint_version_src, 'w') as f:
+                        f.write(json.dumps(checkpoint_version_dict))
+                    self.register_artifact(checkpoint_version_path, checkpoint_version_src)
+
+    @staticmethod
+    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
+        if not path.exists(path2file):
+            raise FileNotFoundError(f"{path2file} does not exist")
+        tar = tarfile.open(path2file, "r:gz")
+        tar.extractall(path=out_folder)
+        tar.close()
+        return out_folder
 
     @property
     def input_module(self):
@@ -454,12 +508,10 @@ class NLPDDPPlugin(DDPPlugin):
 
     def start_training(self, trainer: 'Trainer') -> None:
         """ PTL Hook that is called after DPP is initialized. """
-        app_state = AppState()
 
-        if app_state.model_parallel_size is not None:
-
-            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
-
+        if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
+            app_state = AppState()
+            if app_state.model_parallel_size is not None:
                 # mpu grad clipping needs parameters to have the attribute model_parallel
                 parameters = self.lightning_module.parameters()
                 for p in parameters:
@@ -471,7 +523,9 @@ class NLPDDPPlugin(DDPPlugin):
                 # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
                 # model parallel checkpoints need to be restored after torch.distributed is initialized
-                global _MODEL_RESTORE_PATH
+                # global _MODEL_RESTORE_PATH
+
+                # update checkpoint name when auto-resuming
                 if trainer.resume_from_checkpoint is not None:
                     # update path based on model parallel rank
                     filepath = trainer.resume_from_checkpoint
@@ -487,22 +541,13 @@ class NLPDDPPlugin(DDPPlugin):
                     else:
                         logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
                         set_checkpoint_version(0)
-                # elif self.lightning_module._model_restore_path is not None:
-                elif _MODEL_RESTORE_PATH is not None:
-                    logging.info(f'Model restored from: {_MODEL_RESTORE_PATH}.')
-                    # TODO: get checkpoint version from model (it's not always 0)
-                    logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                    set_checkpoint_version(0)
                 else:
                     logging.info(
                         f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.bert_model._restore_path}"
                     )
                     self.lightning_module.bert_model.restore_weights(self.lightning_module.bert_model._restore_path)
 
-            else:
-                raise NotImplementedError(
-                    f'The BERT encoder: {self.lightning_module.bert_model} does not support model parallelism yet.'
-                )
+            self.lightning_module.register_megatron_checkpoint_version()
 
         return super().start_training(trainer)
 
@@ -513,10 +558,10 @@ class NLPDDPPlugin(DDPPlugin):
         if app_state.model_parallel_size is not None:
 
             if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
-
-                # TODO: get checkpoint version from model (it's not always 0)
-                logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                set_checkpoint_version(0)
+                # check megatron checkpoint version
+                checkpoint_version = get_checkpoint_version()
+                if checkpoint_version is None:
+                    raise ValueError("Unable to find megatron checkpoint version.")
 
         return super().start_testing(trainer)
 
