@@ -138,11 +138,11 @@ class FastPitchModel(SpectrogramGenerator):
     def forward(self, *, text, durs=None, pitch=None, speaker=0, pace=1.0):
         return self.fastpitch(text=text, durs=durs, pitch=pitch, speaker=speaker, pace=pace)
 
-    @typecheck(output_types={"spect": NeuralType(('B', 'T', 'C'), MelSpectrogramType())})
+    @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
         self.eval()
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
-        return spect
+        return spect.transpose(1, 2)
 
     def training_step(self, batch, batch_idx):
         audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
