@@ -29,7 +29,7 @@ Requirements
 ------------
 
 1) Python 3.6, 3.7 or 3.8
-2) Pytorch 1.7.1.  WARNING: "1.0.0rc" version currently does not support Pytorch 1.8.0
+2) Pytorch 1.7.1.  WARNING: "1.0.0rc1" version currently does not support Pytorch 1.8.0
 3) NVIDIA GPU for training.
 
 Quick Start
@@ -108,7 +108,7 @@ Use this installation mode if you want the latest released version.
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
-    pip install nemo_toolkit[all]==1.0.0b3
+    pip install nemo_toolkit[all]==1.0.0rc1
 
 Pip from source
 ~~~~~~~~~~~~~~~
@@ -142,7 +142,7 @@ It has all requirements and NeMo 1.0.0b3 already installed.
 
     docker run --gpus all -it --rm --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0b3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0rc1
 
 
 If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 20.11-py3 and then installing from GitHub.
