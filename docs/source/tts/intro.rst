@@ -12,9 +12,9 @@ Quick Start:
     from nemo.collections.tts.models.base import SpectrogramGenerator, Vocoder
 
     # Download and load the pretrained tacotron2 model
-    spec_generator = SpectrogramGenerator.from_pretrained("Tacotron2-22050Hz")
+    spec_generator = SpectrogramGenerator.from_pretrained("tts_en_tacotron2")
     # Download and load the pretrained waveglow model
-    vocoder = Vocoder.from_pretrained("WaveGlow-22050Hz")
+    vocoder = Vocoder.from_pretrained("tts_waveglow_88m")
 
     # All spectrogram generators start by parsing raw strings to a tokenized version of the string
     parsed = spec_gen.parse("You can type your sentence here to get nemo to produce speech.")
@@ -83,7 +83,7 @@ The NeMo TTS has two base classes corresponding to the two stage pipeline:
 
 The :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>` class has two important
 functions: :py:meth:`parse<nemo.collections.tts.models.base.SpectrogramGenerator.parse>` which
-accepts raw python strings and returns a torch.tensor that respresents tokenized text ready to pass to
+accepts raw python strings and returns a torch.tensor that represents tokenized text ready to pass to
 :py:meth:`generate_spectrogram<nemo.collections.tts.models.base.SpectrogramGenerator.generate_spectrogram>` which
 accepts a batch of tokenized text and returns a torch.tensor that represents a batch of spectrograms
 
