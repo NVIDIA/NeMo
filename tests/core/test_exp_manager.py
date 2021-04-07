@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 import re
 from pathlib import Path
 
@@ -335,4 +336,4 @@ class TestExpManager:
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
-        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03 < 1e-9
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
