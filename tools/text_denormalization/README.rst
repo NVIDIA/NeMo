@@ -1,4 +1,4 @@
-**NeMo/tools/inverse_text_normalization**
+**NeMo/tools/text_denormalization**
 =========================================
 
 Introduction
@@ -27,12 +27,19 @@ Automatically start docker container with production backend with plugged in gra
 
 This scripts runs the following scripts in sequence:
 
-Export grammars from nemo_tools
+Export grammars `tokenize_and_classify_tmp.far` and `verbalize_tmp.far` from nemo_tools
 
 .. code-block:: bash
 
-    python pynini_export.py
+    python pynini_export.py OUTPUT_DIR
 
+
+Use output of last step to compile final grammars `tokenize_and_classify.far` and `verbalize.far` for deployment
+
+.. code-block:: bash
+
+    cd classify; thraxmakedep tokenize_and_classify.grm ; make; cd ..
+    cd verbalize; thraxmakedep verbalize.grm ; make; cd ..
 
 Build C++ production backend docker
 
@@ -41,14 +48,14 @@ Build C++ production backend docker
     bash docker/build.sh
 
 
-Plug in grammars into production backend and launch docker prompt
+Plug in grammars into production backend by mounting exported grammar directory with sparrowhawk grammar directory. Launches docker prompt
 
 .. code-block:: bash
 
     bash docker/launch.sh
 
 
-To run Inverse Text Normalization: 
+Run Inverse Text Normalization: 
 
 .. code-block:: bash
 

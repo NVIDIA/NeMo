@@ -22,7 +22,7 @@ from nemo_tools.text_denormalization.taggers.tokenize_and_classify import Classi
 from nemo_tools.text_denormalization.verbalizers.verbalize import VerbalizeFst
 from pynini.export import export
 
-# This script exports OpenFst finite state archive files tokenize_and_classify.far and tokenize.far from compiled grammars inside nemo_tools inverse text normalization for  production purposes
+# This script exports OpenFst finite state archive files tokenize_and_classify_tmp.far and verbalize_tmp.far from compiled grammars inside nemo_tools inverse text normalization for  production purposes
 
 
 def _generator_main(file_name: str, graph: pynini.FstLike, rule_name: str):
