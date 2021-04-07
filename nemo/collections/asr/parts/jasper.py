@@ -188,9 +188,10 @@ class MaskedConv1d(nn.Module):
         # preserve original padding
         self._padding = padding
 
+        # if padding is a tuple/list, it is considered as asymmetric padding
         if type(padding) in (tuple, list):
             self.pad_layer = nn.ConstantPad1d(padding, value=0.0)
-            # reset padding for conv since pad_layer will handle it
+            # reset padding for conv since pad_layer will handle this
             padding = 0
         else:
             self.pad_layer = None
@@ -453,6 +454,53 @@ class JasperBlock(nn.Module):
         stride_last: Bool flag that determines whether all repeated blocks should stride at once,
             (stride of S^R when this flag is False) or just the last repeated block should stride
             (stride of S when this flag is True).
+        future_context: Int value that determins how many "right" / "future" context frames will be utilized
+            when calculating the output of the conv kernel. All calculations are done for odd kernel sizes only.
+
+            By default, this is -1, which is recomputed as the symmetric padding case.
+
+            When future_context >= 0, will compute the asymmetric padding as follows :
+            (left context, right context) = [K - 1 - future_context, future_context]
+
+            Determining an exact formula to limit future context is dependent on global layout of the model.
+            As such, we provide both "local" and "global" guidelines below.
+
+            Local context limit (should always be enforced)
+            - future context should be <= half the kernel size for any given layer
+            - future context > kernel size defaults to symmetric kernel
+            - future context of layer = number of future frames * width of each frame (dependent on stride)
+
+            Global context limit (should be carefully considered)
+            - future context should be layed out in an ever reducing pattern. Initial layers should restrict
+            future context less than later layers, since shallow depth (and reduced stride) means each frame uses
+            less amounts of future context.
+            - Beyond a certain point, future context should remain static for a given stride level. This is
+            the upper bound of the amount of future context that can be provided to the model on a global scale.
+            - future context is calculated (roughly) as - (2 ^ stride) * (K // 2) number of future frames.
+            This resultant value should be bound to some global maximum number of future seconds of audio (in ms).
+
+            Note: In the special case where K < future_context, it is assumed that the kernel is too small to limit
+            its future context, so symmetric padding is used instead.
+
+            Note: There is no explicit limitation on the amount of future context used, as long as
+            K > future_context constraint is maintained. This might lead to cases where future_context is
+            more than half the actual kernel size K! In such cases, the conv layer is utilizing more of the future
+            context than its current and past context to compute the output. While this is possible to do,
+            it is not recommended and the layer will raise a warning to notify the user of such cases.
+            It is advised to simply use symmetric padding for such cases.
+
+            Example:
+            Say we have a model that performs 8x stride and receives spectrogram frames with stride of 0.01s.
+            Say we wish to upper bound future context to 80 ms.
+
+            Layer ID, Kernel Size, Stride, Future Context, Global Context
+            0, K=5,  S=1, FC=8, GC= 2 * (2^0) = 2 * 0.01 ms  (special case, K < FC so use symmetric pad)
+            1, K=7,  S=1, FC=3, GC= 3 * (2^0) = 3 * 0.01 ms  (note that symmetric pad here uses 3 FC frames!)
+            2, K=11, S=2, FC=4, GC= 4 * (2^1) = 8 * 0.01 ms  (note that symmetric pad here uses 5 FC frames!)
+            3, K=15, S=1, FC=4, GC= 4 * (2^1) = 8 * 0.01 ms  (note that symmetric pad here uses 7 FC frames!)
+            4, K=21, S=2, FC=2, GC= 2 * (2^2) = 8 * 0.01 ms  (note that symmetric pad here uses 10 FC frames!)
+            5, K=25, S=2, FC=1, GC= 1 * (2^3) = 8 * 0.01 ms  (note that symmetric pad here uses 14 FC frames!)
+            6, K=29, S=1, FC=1, GC= 1 * (2^3) = 8 * 0.01 ms ...
         quantize: Bool flag whether to quantize the Convolutional blocks.
     """
 
@@ -481,7 +529,7 @@ class JasperBlock(nn.Module):
         conv_mask=False,
         se=False,
         se_reduction_ratio=16,
-        se_context_window=None,
+        se_context_window=-1,
         se_interpolation_mode='nearest',
         stride_last=False,
         future_context: int = -1,
