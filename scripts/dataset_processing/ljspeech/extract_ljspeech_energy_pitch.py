@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Extracts energy data from LJSpeech wav files and writes them to a directory as LJxxx-xxxx.npy files.
+Extracts energy and pitch data from LJSpeech wav files and writes them to a directory as LJxxx-xxxx.npy files.
 Assuming that the wavs are located at `<LJSpeech_base_path>/wavs`, this script will write the
-energy files to `<LJSpeech_base_path>/energies/`, creating the directory if necessary.
+energy files to `<LJSpeech_base_path>/energies/` and the pitch files to `<LJSpeech_base_path>/pitches`,
+creating the relevant directories if necessary.
 
-USAGE: python extract_ljspeech_energy.py --ljspeech_dir=<LJSpeech_base_path>
+USAGE: python extract_ljspeech_energy_pitch.py --ljspeech_dir=<LJSpeech_base_path>
 """
 import argparse
 import librosa
-import pysptk
 import numpy as np
+import pysptk
+
 from pathlib import Path
 from scipy.io import wavfile
 
@@ -33,7 +35,7 @@ except ModuleNotFoundError:
     pass
 
 parser = argparse.ArgumentParser(
-    description="Extracts energies (L2-norm of STFT frame amplitudes) from LJSpeech data."
+    description="Extracts energies (L2-norm of STFT frame amplitudes) and pitches (F0) from LJSpeech data."
 )
 parser.add_argument("--ljspeech_dir", required=True, default=None, type=str)
 args = parser.parse_args()
@@ -43,13 +45,13 @@ def main():
     wavfile_list = list(Path(args.ljspeech_dir + "wavs").glob('*.wav'))
 
     target_dir = Path(args.ljspeech_dir)
-    # Create target dir <LJSpeech_base_dir>/energies and <LJSpeech_base_dir>/pitch if necessary
+    # Create target dir <LJSpeech_base_dir>/energies and <LJSpeech_base_dir>/pitches if necessary
     if not Path(target_dir / "energies").exists():
         print(f"Creating target directory: {target_dir/'energies'}")
         Path(target_dir / "energies").mkdir()
-    if not Path(target_dir / "pitch").exists():
-        print(f"Creating target directory: {target_dir/'pitch'}")
-        Path(target_dir / "pitch").mkdir()
+    if not Path(target_dir / "pitches").exists():
+        print(f"Creating target directory: {target_dir/'pitches'}")
+        Path(target_dir / "pitches").mkdir()
 
     if tqdm is not None:
         wavfile_list = tqdm(wavfile_list)
@@ -62,7 +64,7 @@ def main():
         f0 = pysptk.rapt(x.astype(np.float32) * 32768, fs=sr, hopsize=256, otype="f0")
 
         # Save to new file
-        save_path = target_dir / "pitch" / f"{basename}.npy"
+        save_path = target_dir / "pitches" / f"{basename}.npy"
         np.save(save_path, f0)
 
         # Calculate energy

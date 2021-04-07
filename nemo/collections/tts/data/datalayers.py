@@ -550,7 +550,7 @@ class FastSpeech2Dataset(Dataset):
         sample_rate: int,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
-        ignore_file: Optional[str] = None,  #TODO: remove this later
+        ignore_file: Optional[str] = None,
         max_utts: int = 0,
         trim: bool = False,
         load_supplementary_values = True,   # Val LJSpeech files missing some supp. data
@@ -622,8 +622,8 @@ class FastSpeech2Dataset(Dataset):
 
             if load_supplementary_values:
                 # Load pitch file (F0s)
-                pitch_path = audio_path.replace('/wavs/', '/tmp_pitches/').replace('.wav', '.pt')   #TODO: fix path
-                pitches = torch.load(pitch_path)
+                pitch_path = audio_path.replace('/wavs/', '/pitches/').replace('.wav', '.npy')
+                pitches = torch.from_numpy(np.load(pitch_path))
 
                 # Load energy file (L2-norm of the amplitude of each STFT frame of an utterance)
                 energies_path = audio_path.replace('/wavs/', '/energies/').replace('.wav', '.npy')
@@ -633,7 +633,7 @@ class FastSpeech2Dataset(Dataset):
                     dataitem(
                         audio_file=item['audio_filepath'],
                         duration=durs,
-                        pitches=torch.clamp(pitches['f0'], min=1e-5),   #TODO: may need to update this
+                        pitches=torch.clamp(pitches, min=1e-5),
                         energies=energies,
                         text_tokens=text_tokens,
                     )
@@ -683,7 +683,7 @@ class FastSpeech2Dataset(Dataset):
         max_durations_len = max([len(i) for i in duration])
         max_duration_sum = max([sum(i) for i in duration])
         if self.load_supplementary_values:
-            max_pitches_len = max([i.shape[1] for i in pitches])  # Note pitch is 1, Length, so len(i) doesn't work
+            max_pitches_len = max([len(i) for i in pitches])
             max_energies_len = max([len(i) for i in energies])
             if max_pitches_len != max_energies_len or max_pitches_len != max_duration_sum:
                 logging.warning(
