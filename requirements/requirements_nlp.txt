@@ -4,7 +4,7 @@ matplotlib>=3.3.2
 sentencepiece
 torchtext
 unidecode
-youtokentome
+youtokentome>=1.0.5
 numpy
 rapidfuzz
 gdown
