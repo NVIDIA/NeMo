@@ -17,7 +17,7 @@ import 'money.grm' as m;
 
 # Combines all of the semiotic classes together.
 
-VERBALIZE = LoadFstFromFar['verbalize.far', 'VERBALIZE'];
+VERBALIZE = LoadFstFromFar['verbalize_tmp.far', 'VERBALIZE'];
 
 export ALL = Optimize[VERBALIZE];
 
