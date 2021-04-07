@@ -147,7 +147,7 @@ If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTo
 
 FAQ
 ---
-Have a look at our `Discussions board <https://github.com/NVIDIA/NeMo/discussions>`_ and feel free to post a question or start a discussion.
+Have a look at our `discussions board <https://github.com/NVIDIA/NeMo/discussions>`_ and feel free to post a question or start a discussion.
 
 
 Contributing
