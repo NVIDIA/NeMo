@@ -14,6 +14,7 @@
 
 from argparse import ArgumentParser
 
+import pandas as pd
 from nemo_tools.text_denormalization.clean_eval_data import filter_loaded_data
 from nemo_tools.text_denormalization.data_loader_utils import (
     evaluate,
@@ -23,7 +24,7 @@ from nemo_tools.text_denormalization.data_loader_utils import (
     training_data_to_tokens,
 )
 from nemo_tools.text_denormalization.denormalize import DENORMALIZERS
-import pandas as pd
+
 
 '''
 Runs Evaluation on data in the format of : <semiotic class>\t<unnormalized text>\t<`self` if trivial class or normalized text>
@@ -100,11 +101,20 @@ if __name__ == "__main__":
         if token_type not in known_types:
             raise ValueError("Unexpected token type: " + token_type)
 
-
     if args.category is None:
-        df = pd.DataFrame({f'{args.denormalizer}':[sentences_accuracy] + [token_accuracy[known_type] if known_type in token_accuracy else '0' for known_type in known_types],
-                           'Class': ['sent level'] + known_types,
-                           'Num Tokens': [len(sentences_normalized)] + [token_count_per_type[known_type] if known_type in tokens_per_type else '0' for known_type in known_types]}, columns=['Class', 'Num Tokens', f'{args.denormalizer}',])
+        df = pd.DataFrame(
+            {
+                f'{args.denormalizer}': [sentences_accuracy]
+                + [token_accuracy[known_type] if known_type in token_accuracy else '0' for known_type in known_types],
+                'Class': ['sent level'] + known_types,
+                'Num Tokens': [len(sentences_normalized)]
+                + [
+                    token_count_per_type[known_type] if known_type in tokens_per_type else '0'
+                    for known_type in known_types
+                ],
+            },
+            columns=['Class', 'Num Tokens', f'{args.denormalizer}',],
+        )
         print(df)
     else:
         print(f'numbers\t{token_count_per_type[args.category]}')
