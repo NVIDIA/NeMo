@@ -33,7 +33,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
-__all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
+__all__ = ['EncDecCTCModel']
 
 
 class EncDecCTCModel(ASRModel, ExportableEncDecModel):
