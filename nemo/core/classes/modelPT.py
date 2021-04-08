@@ -33,6 +33,7 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
+from nemo.utils import app_state
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -249,6 +250,7 @@ class ModelPT(LightningModule, Model):
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
+
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -367,7 +369,11 @@ class ModelPT(LightningModule, Model):
                 if return_config:
                     instance = conf
                 else:
-                    model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                    app_state = AppState()
+                    if app_state.model_parallel_rank is not None:
+                        model_weights = path.join(tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}')
+                    else:
+                        model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                     OmegaConf.set_struct(conf, True)
                     instance = cls.from_config_dict(config=conf)
                     instance = instance.to(map_location)

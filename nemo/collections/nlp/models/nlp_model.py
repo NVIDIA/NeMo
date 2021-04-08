@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 from os import path
+import shutil
 import tarfile
 import tempfile
 from typing import Any, Dict, List, Optional, Union
@@ -44,7 +45,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging, model_utils
 from nemo.utils.exp_manager import configure_checkpointing
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -54,8 +55,8 @@ NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_
 
 os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 
-# add these to AppState
 _MODEL_RESTORE_PATH = None
+_MODEL_CONFIG_YAML = "model_config.yaml"
 _MODEL_WEIGHTS = "model_weights.ckpt"
 
 
@@ -254,7 +255,6 @@ class NLPModel(ModelPT, Exportable):
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
-            logging.info(f"Saving Megatron checkpoint version: {checkpoint['checkpoint_version']}")
         return None
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
@@ -280,19 +280,80 @@ class NLPModel(ModelPT, Exportable):
 
         app_state = AppState()
         if app_state.model_parallel_size is not None:
-            if app_state.data_parallel_rank == 0:
-                # update .nemo path for model parallel save
-                base_path = save_path[0:-5]
-                save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02}.nemo'
-                self._default_save_to(save_path)
-            else:
-                return
+            self._default_save_to(save_path)
         else:
-            # Add NeMo rank check as well
-            if not is_global_rank_zero():
-                return
-            else:
-                self._default_save_to(save_path)
+            return super().save_to(save_path)
+
+    def _default_save_to(self, save_path: str):
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            tmpdir_name_path = os.path.join(NEMO_NLP_TMP, 'tmpdir_name.txt')
+            if is_global_rank_zero():
+                # global rank 0 opens the temporary directory
+                tmpdir = tempfile.TemporaryDirectory()
+                # write directory name to disk
+                print(tmpdir.name, file=open(tmpdir_name_path, 'w'))
+
+            # barrier so temporary directory has been created for all processes
+            torch.distributed.barrier()
+
+            tmpdir_name = None
+            if os.path.isfile(tmpdir_name_path):
+                with open(tmpdir_name_path, 'r') as f:
+                    tmpdir_name = f.read().split('\n')[0]
+
+            config_yaml = os.path.join(tmpdir_name, app_state._model_config_yaml)
+
+            if is_global_rank_zero():
+                # global rank 0 saves artifacts
+                if hasattr(self, 'artifacts') and self.artifacts is not None:
+                    for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArtifactItem)
+                        try:
+                            if src.path_type == model_utils.ArtifactPathType.LOCAL_PATH and os.path.exists(src.path):
+                                shutil.copy2(src.path, tmpdir_name)
+                            elif src.path_type == model_utils.ArtifactPathType.TAR_PATH:
+                                # Need to step into nemo archive to extract file
+                                # Get path where the command is executed - the artifacts will be "retrieved" there
+                                # (original .nemo behavior)
+                                cwd = os.getcwd()
+                                try:
+                                    # Step into the nemo archive to try and find the file
+                                    with tempfile.TemporaryDirectory() as archive_dir:
+                                        self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
+                                        os.chdir(archive_dir)
+                                        shutil.copy2(src.path, tmpdir_name)
+                                finally:
+                                    # change back working directory
+                                    os.chdir(cwd)
+                            else:
+                                raise ValueError(f"Invalid ArchivePathType found: {src.path_type}")
+                        except Exception:
+                            logging.error(f"Could not copy artifact {src} used in {conf_path}")
+                # global rank 0 saves config file
+                self.to_config_file(path2yaml_file=config_yaml)
+
+            if app_state.data_parallel_rank == 0:
+                # data parallel rank 0 saves checkpoint based on model parallel rank
+                os.makedirs(os.path.join(tmpdir_name, f'mp_rank_{app_state.model_parallel_rank:02}'))
+                model_weights = os.path.join(
+                    tmpdir_name, f'mp_rank_{app_state.model_parallel_rank:02}', app_state._model_weights_ckpt
+                )
+                torch.save(self.state_dict(), model_weights)
+
+            # barrier so that all processes have finished writing their weights before creating .nemo file
+            torch.distributed.barrier()
+
+            if is_global_rank_zero():
+                self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir_name)
+                tmpdir.cleanup()
+
+            # barrier so that rank 0 has finished cleaning up the temporary directory
+            torch.distributed.barrier()
+
+        elif is_global_rank_zero():
+            return super()._default_save_to(save_path)
+        else:
+            return
 
     @classmethod
     def restore_from(
@@ -327,27 +388,47 @@ class NLPModel(ModelPT, Exportable):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
-        global _MODEL_RESTORE_PATH
-
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
-        if os.path.isfile(restore_path):
-            _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
-            return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
-        elif os.path.isdir(restore_path):
-            app_state = AppState()
-            nemo_files = glob.glob(os.path.join(restore_path, '*.nemo'))
-            model_parallel_size = len(nemo_files)
-            app_state.model_parallel_size = model_parallel_size
-            logging.info(
-                (
-                    f'restore_path: {restore_path} is a directory. '
-                    f'Assuming megatron model parallelism with '
-                    f'model_parallel_size: {model_parallel_size}'
+        global _MODEL_RESTORE_PATH
+        _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
+
+        app_state = AppState()
+
+        global checkpoint_version
+
+        # detect if we have a model parallel .nemo file
+        if is_global_rank_zero():
+            with tempfile.TemporaryDirectory() as tmpdir:
+                cwd = os.getcwd()
+                os.chdir(tmpdir)
+                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                mp_ranks = glob.glob(os.path.join(tmpdir, 'mp_rank*'))
+                if mp_ranks is not None:
+                    app_state.model_parallel_size = len(mp_ranks)
+                    with open('megatron_checkpoint_version.json', 'r') as f:
+                        checkpoint_version = json.load(f).get('checkpoint_version', None)
+                    # get checkpoint version
+                    logging.info(
+                        (
+                            f'Detect model parallel .nemo file: {restore_path}. '
+                            f'Assuming megatron model parallelism with '
+                            f'model_parallel_size: {app_state.model_parallel_size}'
+                            f'and checkpoint version: {checkpoint_version}'
+                        )
+                    )
+                os.chdir(cwd)
+
+        if app_state.model_parallel_size is not None:
+            if checkpoint_version is None:
+                raise ValueError(
+                    "Restoring from megatron model parallel .nemo but ould not find megatron checkpoint version."
                 )
-            )
-            # set world size to model parallel size for inference
+            else:
+                logging.info(f"Setting megatron checkpoint version: {checkpoint_version}")
+                set_checkpoint_version(checkpoint_version)
+
             app_state.world_size = trainer.num_gpus * trainer.num_nodes
 
             # try to get local rank from global
@@ -363,37 +444,16 @@ class NLPModel(ModelPT, Exportable):
                 # if local is None then we are on the main process
                 local_rank = 0
 
-            model_parallel_rank = compute_model_parallel_rank(local_rank, model_parallel_size)
+            model_parallel_rank = compute_model_parallel_rank(local_rank, app_state.model_parallel_size)
             app_state.model_parallel_rank = model_parallel_rank
 
-            restore_path = ''
-            # select .nemo file based on model parallel rank
-            for file in nemo_files:
-                if f'mp_rank_{app_state.model_parallel_rank:02d}.nemo' in file:
-                    restore_path = file
-
-            logging.info(f'Model parallel .nemo file detected. Restoring from: {restore_path}')
-            _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
             restored_model = cls._default_restore_from(
                 restore_path, override_config_path, map_location, strict, return_config
             )
             restored_model._trainer = trainer
-
-            # need to get megatron checkpoint version from the .nemo file
-            cwd = os.getcwd()
-            with tempfile.TemporaryDirectory() as tmpdir:
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-                os.chdir(tmpdir)
-                with open('megatron_checkpoint_version.json', 'r') as f:
-                    checkpoint_version = json.load(f).get('checkpoint_version', None)
-                if checkpoint_version is None:
-                    raise ValueError("Could not find megatron checkpoint version.")
-                else:
-                    logging.info(f"Setting Megatron checkpoint version: {checkpoint_version}")
-                    set_checkpoint_version(checkpoint_version)
-                os.chdir(cwd)
-
             return restored_model
+        else:
+            return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
     @rank_zero_only
     def register_megatron_checkpoint_version(self):
@@ -422,6 +482,12 @@ class NLPModel(ModelPT, Exportable):
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder
+
+    @staticmethod
+    def __make_nemo_file_from_folder(filename, source_dir):
+        with tarfile.open(filename, "w:gz") as tar:
+            # tar.add(source_dir, arcname=path.basename(source_dir))
+            tar.add(source_dir, arcname=".")
 
     @property
     def input_module(self):
@@ -573,9 +639,7 @@ class NLPDDPPlugin(DDPPlugin):
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
-            logging.info(
-                f"Configuring DDP for model parallelism. Data parallel group is {app_state.data_parallel_group}."
-            )
+            logging.info(f"Configuring DDP for model parallelism.")
 
             # With model parallelism, multiple GPUs form a large "logical GPU"
             # this means that data parallel groups span multiple GPUs

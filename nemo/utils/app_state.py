@@ -45,6 +45,11 @@ class AppState(metaclass=Singleton):
         self._create_checkpoint_callback = None
         self._checkpoint_callback_params = None
 
+        # Save and Restore (.nemo)
+        self._tmpdir_name = None
+        self._model_config_yaml = "model_config.yaml"
+        self._model_weights_ckpt = "model_weights.ckpt"
+
     @property
     def device_id(self):
         """ Property returns the device_id
@@ -325,3 +330,11 @@ class AppState(metaclass=Singleton):
             params (dict): checkpoint_callback_params set by exp_manager.
         """
         self._checkpoint_callback_params = params
+
+    @property
+    def model_config_yaml(self):
+        return self._model_config_yaml
+
+    @property
+    def model_weights_ckpt(self):
+        return self._model_weights_ckpt
