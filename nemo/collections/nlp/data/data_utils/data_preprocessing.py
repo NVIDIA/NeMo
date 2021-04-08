@@ -435,8 +435,11 @@ def get_vocab(file):
     return labels
 
 
-# Finds all of the newline indices in a string
 def find_newlines(contents):
+    """
+    Finds all of the newline indices in a string.
+    """
+
     start = 0
 
     while True:
@@ -458,12 +461,14 @@ def find_newlines(contents):
         except ValueError:
             break
 
-# Loads dataset index file if it exsits
 def load_data_indices(idx_file: str, data_file: str, savename: str):
+    """
+    Loads dataset index file if it exsits
+    """
+
     if idx_file is None:
-        data_dir = data_file[: data_file.rfind('/')]
         mode = data_file[data_file.rfind('/') + 1 : data_file.rfind('.')]
-        idx_file = f"{data_dir}/{mode}_{savename}.pkl"
+        idx_file = f"{mode}_{savename}.pkl"
 
     if os.path.isfile(idx_file):
         # If the sentence indices file already exists, load from it
