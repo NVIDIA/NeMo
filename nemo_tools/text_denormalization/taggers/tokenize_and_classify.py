@@ -33,14 +33,26 @@ class ClassifyFst(GraphFst):
     def __init__(self):
         super().__init__(name="tokenize_and_classify", kind="classify")
 
-        cardinal = CardinalFst().fst
-        ordinal = OrdinalFst().fst
-        decimal = DecimalFst().fst
-        measure = MeasureFst().fst
-        date = DateFst().fst
+        cardinal = CardinalFst()
+        cardinal_no_exception = cardinal.graph_no_exception
+        cardinal_graph_hundred_component_at_least_one_none_zero_digit = cardinal.graph_hundred_component_at_least_one_none_zero_digit
+
+        cardinal = cardinal.fst
+
+        ordinal = OrdinalFst(cardinal_no_exception)
+        # ordinal_graph = cardinal_no_exception# ordinal.graph
+        ordinal_graph = ordinal.graph
+        ordinal = ordinal.fst
+
+        decimal = DecimalFst(cardinal_no_exception, cardinal_graph_hundred_component_at_least_one_none_zero_digit)
+        decimal_graph = decimal.final_graph_wo_negative
+        decimal = decimal.fst
+
+        measure = MeasureFst(cardinal_no_exception, decimal_graph).fst
+        date = DateFst(ordinal_graph).fst
         word = WordFst().fst
         time = TimeFst().fst
-        money = MoneyFst().fst
+        money = MoneyFst(cardinal_no_exception, decimal_graph).fst
         whitelist = WhiteListFst().fst
         graph = (
             pynutil.add_weight(whitelist, 1.01)
@@ -53,4 +65,6 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(money, 1.1)
             | pynutil.add_weight(word, 100)
         )
+        print(f'before optim: {graph.num_states()}')
         self.fst = graph.optimize()
+        print(f' after optim: {self.fst.num_states()}')

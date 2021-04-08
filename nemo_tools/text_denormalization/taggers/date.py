@@ -89,7 +89,7 @@ class DateFst(GraphFst):
         e.g. the fifth of january twenty twelve -> date { day: "5" month: "january" year: "2012" preserve_order: true }
     """
 
-    def __init__(self):
+    def __init__(self, ordinal_graph):
         super().__init__(name="date", kind="classify")
         # weekday, day, month, year, style(depr), text(depr), short_year(depr), era
         year_graph = _get_year_graph()
@@ -98,7 +98,9 @@ class DateFst(GraphFst):
         month_graph = _get_month_graph()
 
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
-        day_graph = pynutil.insert("day: \"") + pynutil.add_weight(OrdinalFst().graph, -0.7) + pynutil.insert("\"")
+
+        day_graph = pynutil.insert("day: \"") + pynutil.add_weight(ordinal_graph, -0.7) + pynutil.insert("\"")
+        # day_graph = pynutil.insert("day: \"") + pynutil.add_weight(OrdinalFst().graph, -0.7) + pynutil.insert("\"")
         optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
         optional_graph_year = pynini.closure(
             delete_extra_space

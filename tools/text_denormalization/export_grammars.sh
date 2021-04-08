@@ -20,8 +20,12 @@
 # To run inverse text normalization, run e.g.
 #       echo "two dollars fifty" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
 python pynini_export.py .
-cd classify; thraxmakedep tokenize_and_classify.grm ; make; cd ..
-cd verbalize; thraxmakedep verbalize.grm ; make; cd ..
-rm -rf classify/tokenize_and_classify_tmp.far classify/puntuation.far verbalize/verbalize_tmp.far util.far Makefile classify/Makefile verbalize/Makefile
-bash docker/build.sh 
-bash docker/launch.sh 
+cd classify && thraxmakedep tokenize_and_classify.grm ; make; cd ..
+cd verbalize && thraxmakedep verbalize.grm ; make; cd ..
+#rm -rf classify/tokenize_and_classify_tmp.far classify/puntuation.far verbalize/verbalize_tmp.far util.far Makefile classify/Makefile verbalize/Makefile
+cp classify/tokenize_and_classify.far /home/ebakhturina/misc_scripts/normalization/debug_denorm/.
+cp verbalize/verbalize.far /home/ebakhturina/misc_scripts/normalization/debug_denorm/.
+
+docker run -it -v /home/ebakhturina/misc_scripts/normalization/debug_denorm:/grammars gitlab-master.nvidia.com:5005/dl/sw-ai-app-design/jarvis-api/denorm-jarvis-api
+#bash docker/build.sh
+#bash docker/launch.sh

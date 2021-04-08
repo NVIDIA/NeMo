@@ -25,10 +25,10 @@ class OrdinalFst(GraphFst):
         e.g. thirteenth -> ordinal { integer: "13" }
     """
 
-    def __init__(self):
+    def __init__(self, cardinal_graph):
         super().__init__(name="ordinal", kind="classify")
 
-        cardinal_graph = CardinalFst().graph_no_exception
+        # cardinal_graph = CardinalFst().graph_no_exception
 
         graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
         graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv"))

@@ -35,11 +35,11 @@ class MoneyFst(GraphFst):
         e.g. twelve dollars and five cents -> money { integer_part: "12" fractional_part: 05 currency: "$" }
     """
 
-    def __init__(self):
+    def __init__(self, cardinal_graph, graph_decimal_final):
         super().__init__(name="money", kind="classify")
         # quantity, integer_part, fractional_part, currency, style(depr)
-        cardinal_graph = CardinalFst().graph_no_exception
-        graph_decimal_final = DecimalFst().final_graph_wo_negative
+        # cardinal_graph = CardinalFst().graph_no_exception
+        # graph_decimal_final = DecimalFst().final_graph_wo_negative
 
         unit = pynini.string_file(get_abs_path("data/currency.tsv"))
         unit_singular = pynini.invert(unit)

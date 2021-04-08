@@ -112,6 +112,7 @@ def select_tag(lattice: pynini.FstLike) -> str:
     Returns: shortest path
     """
     tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
+    print(tagged_text)
     return tagged_text
 
 
