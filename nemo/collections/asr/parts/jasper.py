@@ -225,9 +225,17 @@ class MaskedConv1d(nn.Module):
             )
         self.use_mask = use_mask
         self.heads = heads
+
+        # Calculations for "same" padding cache
         self.same_padding = (self.conv.stride[0] == 1) and (
             2 * self.conv.padding[0] == self.conv.dilation[0] * (self.conv.kernel_size[0] - 1)
         )
+        if self.pad_layer is None:
+            self.same_padding_asymmetric = False
+        else:
+            self.same_padding_asymmetric = (self.conv.stride[0] == 1) and (
+                sum(self._padding) == self.conv.dilation[0] * (self.conv.kernel_size[0] - 1)
+            )
 
         # `self.lens` caches consecutive integers from 0 to `self.max_len` that are used to compute the mask for a
         # batch. Recomputed to bigger size as needed. Stored on a device of the latest batch lens.
