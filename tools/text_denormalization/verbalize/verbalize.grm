@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import 'money.grm' as m;
 
 # Combines all of the semiotic classes together.
 
-VERBALIZE = LoadFstFromFar['verbalize_verbalize.far', 'VERBALIZE'];
+VERBALIZE = LoadFstFromFar['verbalize_tmp.far', 'VERBALIZE'];
 
 export ALL = Optimize[VERBALIZE];
 
 # Exports the REDUP from money.
-export REDUP = m.REDUP;
+export REDUP = "REDUP";
