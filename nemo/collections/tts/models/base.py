@@ -141,7 +141,7 @@ class GlowVocoder(Vocoder):
                     n_fft = self.audio_to_melspec_precessor.n_fft
                     hop_length = self.audio_to_melspec_precessor.hop_length
                     win_length = self.audio_to_melspec_precessor.win_length
-                    window = self.audio_to_melspec_precessor.window.to(self.audio_to_melspec_precessor.device)
+                    window = self.audio_to_melspec_precessor.window.to(self.device)
                 except AttributeError as e:
                     raise AttributeError(
                         f"{self} could not find a valid audio_to_melspec_precessor. GlowVocoder requires child class "

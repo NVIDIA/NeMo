@@ -30,11 +30,11 @@ For more information and questions, visit the `NVIDIA NeMo Discussion Board <htt
 Prerequisites
 -------------
 
-Before you begin using NeMo, it's assumed you meet the following prerequisites. 
+Before you begin using NeMo, it's assumed you meet the following prerequisites.
 
 #. You have Python version 3.6, 3.7 or 3.8.
 
-#. You have Pytorch version 1.7.1.  WARNING: This version currently does not support Pytorch 1.8.0
+#. You have Pytorch version 1.7.1.
 
 #. You have access to a Volta, Turing, or an NVIDIA Ampere architecture-based A100 GPU for training.
 
@@ -43,10 +43,27 @@ Quick Start Guide
 
 This NeMo Quick Start Guide is a starting point for users who want to try out NeMo; specifically, this guide enables users to quickly get started with the NeMo fundamentals by walking you through an example audio translator and voice swap.
 
-We start by describing a simple prototype application which will take audio in one language and translate it into audio in another.
-The fastest way to get started is to go through the `Getting Started Colab notebook <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_.
+The best way to start is by going through these notebooks:
 
-Below we is the exact same code-snippet for your reference.
+.. list-table:: **Start here**
+   :widths: 15 25 25
+   :header-rows: 1
+
+   * - Domain
+     - Title
+     - GitHub URL
+   * - General
+     - Getting Started: Exploring Nemo Fundamentals
+     - `NeMo Fundamentals <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
+   * - General
+     - Getting Started: Sample Conversational AI application
+     - `Audio translator example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/AudioTranslationSample.ipynb>`_
+   * - General
+     - Getting Started: Voice swap application
+     - `Voice swap example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/VoiceSwapSample.ipynb>`_
+
+
+Below we is the code snippet of Audio Translator application.
 
 .. code-block:: python
 
@@ -63,7 +80,7 @@ Below we is the exact same code-snippet for your reference.
     # Speech Recognition model - QuartzNet trained on Russian part of MCV 6.0
     quartznet = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="stt_ru_quartznet15x5").cuda()
     # Neural Machine Translation model
-    nmt_model = nemo_nlp.models.MTEncDecModel.from_pretrained(model_name='nmt_ru_en_transformer6x6', strict=False).cuda()
+    nmt_model = nemo_nlp.models.MTEncDecModel.from_pretrained(model_name='nmt_ru_en_transformer6x6').cuda()
     # Spectrogram generator which takes text as an input and produces spectrogram
     spectrogram_generator = nemo_tts.models.Tacotron2Model.from_pretrained(model_name="tts_en_tacotron2").cuda()
     # Vocoder model which takes spectrogram and produces actual audio
@@ -99,7 +116,7 @@ Use this installation mode if you want the latest released version.
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
-    pip install nemo_toolkit[all]==1.0.0b3
+    pip install nemo_toolkit[all]==1.0.0rc1
 
 Pip from source
 ~~~~~~~~~~~~~~~
@@ -133,7 +150,7 @@ The container includes all the dependencies and NeMo 1.0.0b3 already installed.
 
     docker run --gpus all -it --rm --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0b3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0rc1
 
 
 If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 20.11-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
