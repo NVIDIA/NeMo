@@ -79,9 +79,11 @@ def main(cfg):
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0
-        trainer = pl.Trainer(gpus=gpu, precision=cfg.trainer.precision)
-        if asr_model.prepare_test(trainer):
-            trainer.test(asr_model)
+        test_trainer = pl.Trainer(
+            gpus=gpu, precision=trainer.precision, amp_level=trainer.accelerator_connector.amp_level, amp_backend=cfg.trainer.get("amp_backend", "native"),
+        )
+        if asr_model.prepare_test(test_trainer):
+            test_trainer.test(asr_model)
 
 
 if __name__ == '__main__':
