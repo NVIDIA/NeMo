@@ -284,8 +284,8 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
     if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
-            "You are running multi-node without Slurm. Please note that this is not tested in NeMo and could result in "
-            "errors."
+            "You are running multi-node training without SLURM handling the processes."
+            " Please note that this is not tested in NeMo and could result in errors."
         )
     if trainer.num_gpus > 1 and not trainer.use_ddp:
         logging.error(
@@ -695,6 +695,6 @@ def configure_checkpointing(
 
 def check_slurm(trainer):
     try:
-        return trainer.is_slurm_managing_tasks
+        return trainer.accelerator_connector.is_slurm_managing_tasks
     except AttributeError:
         return False
