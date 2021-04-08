@@ -327,11 +327,11 @@ class NoisySpecsDataset(Dataset):
         """
         A modified dataset for training deep-griffin-lim iteration. Contains MSTFT (mag), STFT (y) , and noisy STFT which is
         used for initial phase. By using different levels of noise, the Degli model can learn to improve any phase, and thus
-        it can be used iteratively.  
+        it can be used iteratively.
 
         Args:
             destination (str, Path): Path to a directory containing the main data set folder, Similar to the directory
-            provided to the preprocessor script, which generates this dataset. 
+            provided to the preprocessor script, which generates this dataset.
             subdir (str): Either 'train', or 'valid', when using the standard script for generation.
             n_fft (int): STFT parameter. Also detrmines the STFT filter length.
             hop_length (int): STFT parameter.
