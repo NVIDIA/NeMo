@@ -3,7 +3,7 @@ name: SelfAlignmentPretrainingForMedicalEntityLinking
 trainer:
   gpus: 1
   num_nodes: 1
-  max_epochs: 2
+  max_epochs: 3
   max_steps: null
   accumulate_grad_batches: 1
   precision: 16
@@ -59,7 +59,7 @@ index:
   nlist: 2
   top_n: 3
   query_num_factor: 20
-  index_save_name: tiny_example_data/tiny_example_entity_linking_index
+  index_save_name: tiny_example_entity_linking_index
   index_batch_size: 10
   index_ds:
     name: tiny_example
@@ -72,8 +72,8 @@ index:
     drop_last: false
   idx_to_id: idx_to_id.pkl
   id_to_string: id_to_string.pkl
-  concept_id_save_name: tiny_example_data/tiny_example_concept_ids.pkl
-  embedding_save_name: tiny_example_data/tiny_example_concept_embeddings.hdf5
+  concept_id_save_name: tiny_example_concept_ids.pkl
+  embedding_save_name: tiny_example_concept_embeddings.hdf5
   pca_embeddings_save_name: null
   apply_pca: false
   pca: null
