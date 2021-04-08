@@ -16,7 +16,7 @@
 import 'punctuation.grm' as p;
 import '../util.grm' as u;
 
-types = LoadFstFromFar['tokenize_and_classify_classify.far', 'TOKENIZE_AND_CLASSIFY'];
+types = LoadFstFromFar['tokenize_and_classify_tmp.far', 'TOKENIZE_AND_CLASSIFY'];
 
 token = u.I["tokens { "] types u.I[" }"];
 
