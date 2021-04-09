@@ -15,7 +15,6 @@
 import pynini
 from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import NEMO_SIGMA, GraphFst, delete_extra_space, delete_space
-from nemo_tools.text_denormalization.taggers.ordinal import OrdinalFst
 from pynini.lib import pynutil
 
 
@@ -87,10 +86,16 @@ class DateFst(GraphFst):
     Finite state transducer for classifying date, 
         e.g. january fifth twenty twelve -> date { month: "january" day: "5" year: "2012" preserve_order: true }
         e.g. the fifth of january twenty twelve -> date { day: "5" month: "january" year: "2012" preserve_order: true }
+
+    Args:
+        ordinal: Ordinal GraphFST
     """
 
-    def __init__(self):
+    def __init__(self, ordinal: GraphFst):
         super().__init__(name="date", kind="classify")
+
+        ordinal_graph = ordinal.graph
+
         # weekday, day, month, year, style(depr), text(depr), short_year(depr), era
         year_graph = _get_year_graph()
         YEAR_WEIGHT = 0.001
@@ -98,7 +103,8 @@ class DateFst(GraphFst):
         month_graph = _get_month_graph()
 
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
-        day_graph = pynutil.insert("day: \"") + pynutil.add_weight(OrdinalFst().graph, -0.7) + pynutil.insert("\"")
+
+        day_graph = pynutil.insert("day: \"") + pynutil.add_weight(ordinal_graph, -0.7) + pynutil.insert("\"")
         optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
         optional_graph_year = pynini.closure(
             delete_extra_space
