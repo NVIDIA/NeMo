@@ -20,30 +20,16 @@
 import codecs
 import os
 import subprocess
-import sys
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
+import imp
 
 import setuptools
 
 
-def is_build_action():
-    if len(sys.argv) <= 1:
-        return False
-
-    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop", "style", "clean"]
-
-    if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
-        return True
-    else:
-        return False
-
-
-if is_build_action():
-    os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
-
-from nemo.package_info import (
+package_info = imp.load_source('package_info', 'nemo/package_info.py')
+from package_info import (
     __contact_emails__,
     __contact_names__,
     __description__,
@@ -95,6 +81,7 @@ extras_require = {
     'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
+    'tools': req_file("requirements_tools.txt"),
 }
 
 extras_require['all'] = list(chain(extras_require.values()))
@@ -104,43 +91,6 @@ extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']
 
 tests_requirements = extras_require["test"]
 
-########################## VERSION MISMATCH PATCH #############################
-# REMOVE AFTER 21.03 Container is released !
-
-try:
-    import torch
-
-    version = torch.__version__
-    SUPPORTED_TORCH_VERSION = f"torch=={version}"
-
-    if 'a' in version or 'b' in version:
-        # It is githash release, force to supported Pytorch Lightning branch
-        SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning==1.2.2"
-    else:
-        SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning>=1.2.3"
-except (ImportError, ModuleNotFoundError):
-    # Since no torch is installed, pip install torch will install latest torch and latest pytorch lightning
-    SUPPORTED_TORCH_VERSION = "torch"
-    SUPPORTED_PYTORCH_LIGHTNING = "pytorch-lightning>=1.2.3"
-
-install_requires_buffer = []
-for ix, line in enumerate(install_requires):
-    if 'lightning' in line:
-        install_requires_buffer.append(SUPPORTED_PYTORCH_LIGHTNING)
-    elif 'torch' in line:
-        install_requires_buffer.append(SUPPORTED_TORCH_VERSION)
-
-        # Pytorch 1.7.1 must use torchtext==0.8.0, torchaudio==0.7.2 and torchvision==0.8.2
-        if SUPPORTED_TORCH_VERSION == "torch<=1.7.1":
-            install_requires_buffer.append("torchvision==0.8.2")
-            install_requires_buffer.append("torchaudio==0.7.2")
-            install_requires_buffer.append("torchtext==0.8.0")
-
-    else:
-        install_requires_buffer.append(line)
-
-# override install requires
-install_requires = install_requires_buffer
 
 ###############################################################################
 #                            Code style checkers                              #
@@ -278,6 +228,8 @@ setuptools.setup(
     extras_require=extras_require,
     # Add in any packaged data.
     include_package_data=True,
+    exclude=['tools', 'tests'],
+    package_data={'': ['*.tsv', '*.txt']},
     zip_safe=False,
     # PyPI package information.
     keywords=__keywords__,
