@@ -1,14 +1,8 @@
-**nemo_tools**
+**nemo_text_processing**
 ==========================
 
 Introduction
 ------------
 
-NeMo's nemo_tools is a python package that is installed with the nemo_toolkit. See NeMo `README.rst <https://github.com/NVIDIA/NeMo/blob/main/README.rst>`_ for installation guide.
-
-Additional requirements
-------------------------
-
-1) pynini=2.1.3
-
-setup.sh installs all additional requirements.
+NeMo's `nemo_text_processing` is a Python package that is installed with the `nemo_toolkit`. 
+See `documentation <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_ for details.
