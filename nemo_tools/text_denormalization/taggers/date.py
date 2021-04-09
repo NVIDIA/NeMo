@@ -15,7 +15,6 @@
 import pynini
 from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import NEMO_SIGMA, GraphFst, delete_extra_space, delete_space
-from nemo_tools.text_denormalization.taggers.ordinal import OrdinalFst
 from pynini.lib import pynutil
 
 
@@ -100,7 +99,6 @@ class DateFst(GraphFst):
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
 
         day_graph = pynutil.insert("day: \"") + pynutil.add_weight(ordinal_graph, -0.7) + pynutil.insert("\"")
-        # day_graph = pynutil.insert("day: \"") + pynutil.add_weight(OrdinalFst().graph, -0.7) + pynutil.insert("\"")
         optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
         optional_graph_year = pynini.closure(
             delete_extra_space

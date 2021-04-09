@@ -36,11 +36,9 @@ class ClassifyFst(GraphFst):
         cardinal = CardinalFst()
         cardinal_no_exception = cardinal.graph_no_exception
         cardinal_graph_hundred_component_at_least_one_none_zero_digit = cardinal.graph_hundred_component_at_least_one_none_zero_digit
-
         cardinal = cardinal.fst
 
         ordinal = OrdinalFst(cardinal_no_exception)
-        # ordinal_graph = cardinal_no_exception# ordinal.graph
         ordinal_graph = ordinal.graph
         ordinal = ordinal.fst
 
@@ -55,27 +53,16 @@ class ClassifyFst(GraphFst):
         money = MoneyFst(cardinal_no_exception, decimal_graph).fst
         whitelist = WhiteListFst().fst
 
-        all_graphs = {'cardinal':cardinal, 'ordinal': ordinal, 'time': time, 'date': date,
-                      'decimal':decimal, 'whitelist': whitelist, 'measure': measure, 'money': money,
-                      'word': word}
-        total_st = 0
-        for gr_name, gr_cat in all_graphs.items():
-            num_st_cat = gr_cat.optimize().num_states()
-            print(f'{gr_name}: {num_st_cat}')
-            total_st += num_st_cat
-
         graph = (
             pynutil.add_weight(whitelist, 1.01)
-            # | pynutil.add_weight(time, 1.1)
-            # | pynutil.add_weight(date, 1.09)
-            # | pynutil.add_weight(decimal, 1.1)
+            | pynutil.add_weight(time, 1.1)
+            | pynutil.add_weight(date, 1.09)
+            | pynutil.add_weight(decimal, 1.1)
             | pynutil.add_weight(measure, 1.1)
             | pynutil.add_weight(cardinal, 1.1)
             | pynutil.add_weight(ordinal, 1.1)
             | pynutil.add_weight(money, 1.1)
             | pynutil.add_weight(word, 100)
         )
-        print(f'SUM: {total_st}')
-        print(f'before optim: {graph.num_states()}')
+
         self.fst = graph.optimize()
-        print(f' after optim: {self.fst.num_states()}')
