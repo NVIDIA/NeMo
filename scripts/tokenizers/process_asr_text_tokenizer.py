@@ -196,7 +196,14 @@ def __process_data(
     Returns:
     """
     if tokenizer_type == 'spe':
-        tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}_max{}').format(tokenizer_type, spe_type, vocab_size, spe_max_sentencepiece_length)
+        if spe_max_sentencepiece_length > 0:
+            tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}_max{}').format(
+                tokenizer_type, spe_type, vocab_size, spe_max_sentencepiece_length
+            )
+        else:
+            tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}').format(
+                tokenizer_type, spe_type, vocab_size, spe_max_sentencepiece_length
+            )
 
         if not os.path.exists(tokenizer_dir):
             os.makedirs(tokenizer_dir)
