@@ -15,12 +15,15 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+import json
+import re
 import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
+from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L2MelLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -73,28 +76,30 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.log_train_images = False
 
-    @property
-    def input_types(self):
-        return {
-            "spec_len": NeuralType(('B'), LengthsType()),
+        # Parser and mappings are used for inference only.
+        self.parser = parsers.make_parser(name='en')
+        with open(cfg.mappings_filepath, 'r') as f:
+            mappings = json.load(f)
+            self.word2phones = mappings['word2phones']
+            self.phone2idx = mappings['phone2idx']
+
+    @typecheck(
+        input_types = {
+            "spec_len": NeuralType(('B'), LengthsType(), optional=True),
             "text": NeuralType(('B', 'T'), TokenIndex()),
             "text_length": NeuralType(('B'), LengthsType()),
             "durations": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
             "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
             "energies": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
-        }
-
-    @property
-    def output_types(self):
-        return {
+        },
+        output_types = {
             "mel_spec": NeuralType(('B', 'T', 'C'), MelSpectrogramType()),
             "log_dur_preds": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
             "energy_preds": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
             "encoded_text_mask": NeuralType(('B', 'T', 'D'), MaskType()),
-        }
-
-    @typecheck()
+        },
+    )
     def forward(self, *, spec_len, text, text_length, durations=None, pitch=None, energies=None):
         encoded_text, encoded_text_mask = self.encoder(text=text, text_length=text_length)
         aligned_text, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
@@ -191,14 +196,28 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.log_train_images = True
 
-    #@typecheck(output_types={"spect": NeuralType(('B', 'T', 'C'), MelSpectrogramType())})
-    def generate_spectrogram(self, tokens: torch.Tensor) -> torch.Tensor:
-        # TODO
-        raise NotImplementedError
+    def parse(self, str_input: str) -> torch.tensor:
+        if str_input[-1] not in [".", "!", "?"]:
+            str_input = str_input + "."
 
-    def parse(self, str_input: str) -> torch.Tensor:
-        # TODO
-        raise NotImplementedError
+        # Convert text -> normalized text -> list of phones per word -> indices
+        norm_text = re.findall("""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
+        phones = [self.word2phones[t] for t in norm_text]
+        tokens = []
+        for phone_list in phones:
+            inds = [self.phone2idx[p] for p in phone_list]
+            tokens += inds
+
+        x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
+        return x
+
+    @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
+    def generate_spectrogram(self, tokens: torch.Tensor) -> torch.Tensor:
+        self.eval()
+        token_len = torch.tensor([tokens.shape[1]]).to(self.device)
+        spect, *_ = self(spec_len=None, text=tokens, text_length=token_len, durations=None, pitch=None, energies=None)
+
+        return spect.transpose(1, 2)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
