@@ -15,7 +15,7 @@
 from argparse import ArgumentParser
 from typing import List
 
-from denormalize import DENORMALIZERS
+from nemo_tools.text_denormalization.denormalize import DENORMALIZERS
 
 
 '''
