@@ -8,7 +8,7 @@ from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.data import EntityLinkingDataset
 from nemo.collections.common.losses import MultiSimilarityLoss
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import NeuralType
+from nemo.core.neural_types import NeuralType, ChannelType, MaskType, LogitsType
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging
 
