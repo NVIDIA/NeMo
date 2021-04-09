@@ -14,7 +14,7 @@
 
 
 import pytest
-from nemo_tools.text_denormalization.denormalize import denormalize
+from nemo_text_processing.inverse_text_normalization.inverse_normalize import inverse_normalize
 from parameterized import parameterized
 from utils import parse_test_case_file
 
@@ -24,5 +24,5 @@ class TestWord:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_denorm(self, test_input, expected):
-        pred = denormalize(test_input, verbose=False)
+        pred = inverse_normalize(test_input, verbose=False)
         assert pred == expected
