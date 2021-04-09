@@ -52,12 +52,6 @@ pipeline {
       }
     }
 
-    stage('Install nemo_tools requirements') {
-      steps {
-        sh 'bash nemo_tools/setup.sh'
-      }
-    }
-
     stage('PyTorch Lightning version') {
       steps {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
