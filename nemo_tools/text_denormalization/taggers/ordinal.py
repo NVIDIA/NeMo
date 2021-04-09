@@ -15,7 +15,6 @@
 import pynini
 from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import NEMO_CHAR, GraphFst
-from nemo_tools.text_denormalization.taggers.cardinal import CardinalFst
 from pynini.lib import pynutil
 
 
@@ -23,13 +22,15 @@ class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal
         e.g. thirteenth -> ordinal { integer: "13" }
+
+    Args:
+        cardinal: Cardinal GraphFST
     """
 
-    def __init__(self):
+    def __init__(self, cardinal: GraphFst):
         super().__init__(name="ordinal", kind="classify")
 
-        cardinal_graph = CardinalFst().graph_no_exception
-
+        cardinal_graph = cardinal.graph_no_exception
         graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
         graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv"))
         # change to General UTF8

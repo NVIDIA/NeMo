@@ -33,15 +33,22 @@ class ClassifyFst(GraphFst):
     def __init__(self):
         super().__init__(name="tokenize_and_classify", kind="classify")
 
-        cardinal = CardinalFst().fst
-        ordinal = OrdinalFst().fst
-        decimal = DecimalFst().fst
-        measure = MeasureFst().fst
-        date = DateFst().fst
+        cardinal_graph_fst = CardinalFst()
+        cardinal = cardinal_graph_fst.fst
+
+        ordinal_graph_fst = OrdinalFst(cardinal_graph_fst)
+        ordinal = ordinal_graph_fst.fst
+
+        decimal_graph_fst = DecimalFst(cardinal_graph_fst)
+        decimal = decimal_graph_fst.fst
+
+        measure = MeasureFst(cardinal_graph_fst, decimal_graph_fst).fst
+        date = DateFst(ordinal_graph_fst).fst
         word = WordFst().fst
         time = TimeFst().fst
-        money = MoneyFst().fst
+        money = MoneyFst(cardinal_graph_fst, decimal_graph_fst).fst
         whitelist = WhiteListFst().fst
+
         graph = (
             pynutil.add_weight(whitelist, 1.01)
             | pynutil.add_weight(time, 1.1)
@@ -53,4 +60,5 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(money, 1.1)
             | pynutil.add_weight(word, 100)
         )
+
         self.fst = graph.optimize()
