@@ -468,7 +468,7 @@ def load_data_indices(idx_file: str, data_file: str, savename: str):
 
     if idx_file is None:
         mode = data_file[data_file.rfind('/') + 1 : data_file.rfind('.')]
-        idx_file = f"{mode}_{savename}.pkl"
+        idx_file = f"{data_dir}/{mode}_{savename}.pkl"
 
     if os.path.isfile(idx_file):
         # If the sentence indices file already exists, load from it
