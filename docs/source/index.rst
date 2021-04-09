@@ -51,6 +51,13 @@ NVIDIA NeMo User Guide
 
 .. toctree::
    :maxdepth: 2
+   :caption: NeMo-Tools Package
+   :name: NeMo-Tools Package
+
+   nemo_tools/intro
+
+.. toctree::
+   :maxdepth: 2
    :caption: Tools
    :name: Tools
 
