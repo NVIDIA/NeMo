@@ -43,7 +43,7 @@ class TokenParser:
 
     def parse(self) -> List[dict]:
         """
-        Main function. Implementes grammar:
+        Main function. Implements grammar:
         A -> space F space F space F ... space
 
         Returns list of dictionaries
@@ -58,7 +58,7 @@ class TokenParser:
 
     def parse_token(self) -> Dict[str, Union[str, dict]]:
         """
-        Implementes grammar:
+        Implements grammar:
         F-> no_space KG no_space
 
         Returns: K, G as dictionary values
@@ -80,7 +80,7 @@ class TokenParser:
 
     def parse_token_value(self) -> Union[str, dict]:
         """
-        Implementes grammar:
+        Implements grammar:
         G-> no_space :"VALUE" no_space | no_space {A} no_space
 
         Returns: string or dictionary
