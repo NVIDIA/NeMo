@@ -284,8 +284,8 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
     if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
-            "You are running multi-node without Slurm. Please note that this is not tested in NeMo and could result in "
-            "errors."
+            "You are running multi-node training without SLURM handling the processes."
+            " Please note that this is not tested in NeMo and could result in errors."
         )
     if trainer.num_gpus > 1 and not trainer.use_ddp:
         logging.error(
@@ -473,7 +473,7 @@ def get_log_dir(
                 logging.warning(
                     "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
                 )
-                version = ""
+                version = None
             elif is_global_rank_zero():
                 if use_datetime_version:
                     version = time.strftime('%Y-%m-%d_%H-%M-%S')
@@ -695,6 +695,6 @@ def configure_checkpointing(
 
 def check_slurm(trainer):
     try:
-        return trainer.is_slurm_managing_tasks
+        return trainer.accelerator_connector.is_slurm_managing_tasks
     except AttributeError:
         return False
