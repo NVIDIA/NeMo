@@ -202,7 +202,7 @@ def __process_data(
             )
         else:
             tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}').format(
-                tokenizer_type, spe_type, vocab_size, spe_max_sentencepiece_length
+                tokenizer_type, spe_type, vocab_size
             )
 
         if not os.path.exists(tokenizer_dir):
