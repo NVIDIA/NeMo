@@ -235,8 +235,7 @@ class VarianceAdaptor(NeuralModule):
             if pitch_target is not None:
                 pitch_out = self.pitch_lookup(torch.bucketize(pitch_target, self.pitch_bins))
             else:
-                # pitch_preds = torch.clamp_min(torch.exp(lg_pitch_preds) - 1, 0)
-                pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds, self.pitch_bins))
+                pitch_out = self.pitch_lookup(torch.bucketize(pitch_preds.detach(), self.pitch_bins))
             out += pitch_out
         out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
 
@@ -247,7 +246,7 @@ class VarianceAdaptor(NeuralModule):
             if energy_target is not None:
                 energy_out = self.energy_lookup(torch.bucketize(energy_target, self.energy_bins))
             else:
-                energy_out = self.energy_lookup(torch.bucketize(energy_preds, self.energy_bins))
+                energy_out = self.energy_lookup(torch.bucketize(energy_preds.detach(), self.energy_bins))
             out += energy_out
         out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
 
