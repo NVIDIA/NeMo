@@ -84,6 +84,11 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
+
+# install nemo_tools dependencies
+COPY nemo_tools/setup.sh nemo_tools_setup.sh
+RUN bash nemo_tools_setup.sh
+
 #install TRT tools: PT quantization support and ONNX graph optimizer
 WORKDIR /tmp/trt_build
 RUN git clone https://github.com/NVIDIA/TensorRT.git && \
@@ -108,8 +113,8 @@ RUN /usr/bin/test -n "$NEMO_VERSION" && \
 RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" && \
     python -c "import nemo.collections.asr as nemo_asr" && \
     python -c "import nemo.collections.nlp as nemo_nlp" && \
-    python -c "import nemo.collections.tts as nemo_tts"
-
+    python -c "import nemo.collections.tts as nemo_tts" && \
+    python -c "import nemo_tools.text_normalization as text_normalization"
 # TODO: Remove once 21.04 container is base container
 # install latest numba version
 RUN conda update -c numba numba -y
