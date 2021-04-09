@@ -84,7 +84,8 @@ class TransformerEmbedding(nn.Module):
             self.position_embedding = nn.Embedding(max_sequence_length, hidden_size)
         else:
             self.position_embedding = FixedPositionalEncoding(hidden_size, max_sequence_length)
-        self.token_type_embedding = nn.Embedding(num_token_types, hidden_size)
+        if num_token_types > 0:
+            self.token_type_embedding = nn.Embedding(num_token_types, hidden_size)
         self.layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
         self.dropout = nn.Dropout(embedding_dropout)
 
