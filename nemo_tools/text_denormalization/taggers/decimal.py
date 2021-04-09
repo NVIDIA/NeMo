@@ -15,15 +15,11 @@
 import pynini
 from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import NEMO_DIGIT, GraphFst, delete_extra_space, delete_space
-from nemo_tools.text_denormalization.taggers.cardinal import CardinalFst
 from pynini.lib import pynutil
 
-cardinal = CardinalFst()
-cardinal_graph = cardinal.graph_no_exception
 
-
-def get_quantity(deci):
-    numbers = cardinal.graph_hundred_component_at_least_one_none_zero_digit @ (
+def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_digit):
+    numbers = cardinal_graph_hundred_component_at_least_one_none_zero_digit @ (
         pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
     )
     suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
@@ -44,11 +40,18 @@ class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, 
         e.g. minus twelve point five o o six billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" }
+
+    cardinal: Cardinal GraphFst
     """
 
-    def __init__(self):
+    def __init__(self, cardinal: GraphFst):
         super().__init__(name="decimal", kind="classify")
         # negative, fractional_part, quantity, exponent, style(depre)
+
+        cardinal_graph = cardinal.graph_no_exception
+        cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
+            cardinal.graph_hundred_component_at_least_one_none_zero_digit
+        )
 
         graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv")) | pynini.cross("o", "0")
@@ -69,7 +72,11 @@ class DecimalFst(GraphFst):
         )
         final_graph = optional_graph_negative + final_graph_wo_sign
 
-        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(final_graph_wo_sign)
-        final_graph |= optional_graph_negative + get_quantity(final_graph_wo_sign)
+        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
+            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
+        )
+        final_graph |= optional_graph_negative + get_quantity(
+            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
+        )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
