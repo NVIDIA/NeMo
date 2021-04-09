@@ -47,8 +47,6 @@ Example evaluation run:
     python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 [--cat CLASS_CATEGORY]
 
 
-
-
 References
 ----------
 

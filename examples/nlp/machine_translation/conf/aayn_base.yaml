@@ -93,7 +93,7 @@ model:
     model_name: null
     pretrained: false
     max_sequence_length: 512
-    num_token_types: 2
+    num_token_types: 0
     embedding_dropout: 0.1
     learn_positional_encodings: false
     hidden_size: 512
@@ -112,7 +112,7 @@ model:
     model_name: null
     pretrained: false
     max_sequence_length: 512
-    num_token_types: 2
+    num_token_types: 0
     embedding_dropout: 0.1
     learn_positional_encodings: false
     hidden_size: 512

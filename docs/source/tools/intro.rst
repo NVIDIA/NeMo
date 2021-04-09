@@ -1,5 +1,5 @@
-NeMo Tools
-==========
+Tools
+=====
 
 NeMo provides a set of tools useful for developing Automatic Speech Recognitions (ASR) and Text-to-Speech (TTS) models: \
 `https://github.com/NVIDIA/NeMo/tree/main/tools <https://github.com/NVIDIA/NeMo/tree/main/tools>`__ .
@@ -9,6 +9,5 @@ NeMo provides a set of tools useful for developing Automatic Speech Recognitions
 
    ctc_segmentation
    speech_data_explorer
-   text_normalization
 
 
