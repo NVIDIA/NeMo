@@ -437,9 +437,8 @@ def get_vocab(file):
 
 def find_newlines(contents):
     """
-    Finds all of the newline indices in a string.
+    Finds all of the newline positions in a text file.
     """
-
     start = 0
 
     while True:
@@ -461,12 +460,13 @@ def find_newlines(contents):
         except ValueError:
             break
 
+            
 def load_data_indices(idx_file: str, data_file: str, savename: str):
     """
     Loads dataset index file if it exsits
     """
-
     if idx_file is None:
+        data_dir = data_file[: data_file.rfind('/')]
         mode = data_file[data_file.rfind('/') + 1 : data_file.rfind('.')]
         idx_file = f"{data_dir}/{mode}_{savename}.pkl"
 
