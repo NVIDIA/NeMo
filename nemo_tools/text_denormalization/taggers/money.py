@@ -73,7 +73,7 @@ class MoneyFst(GraphFst):
         optional_cents_suffix = pynini.closure(
             delete_extra_space
             + pynutil.insert("fractional_part: \"")
-            + pynutil.add_weight(cardinal_graph, -0.7)
+            + pynutil.add_weight(cardinal_graph @ add_leading_zero_to_double_digit, -0.7)
             + pynutil.insert("\""),
             0,
             1,
