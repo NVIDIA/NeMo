@@ -77,9 +77,9 @@ def calculate_durations(textgrid, phone2idx=None):
     durs *= (args.sr / args.window_stride)
     durs = np.rint(durs)
 
-    # Take care of rounding error (may need extra silence token)
+    # Take care of rounding error (may need extra space token)
     if phone2idx:
-        tokens.append(phone2idx['sil'])
+        tokens.append(phone2idx['sp'])
         tokens = np.array(tokens)
     else:
         tokens.append('')
