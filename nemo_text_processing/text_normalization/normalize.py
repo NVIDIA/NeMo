@@ -206,4 +206,4 @@ normalizers = {"identity": normalize_identity, "nemo": normalize_nemo}
 if __name__ == "__main__":
     # Example usage:
     s = sys.argv[1]  # input string
-    normalize_numbers(s, verbose=True)
+    normalize(s, verbose=True)
