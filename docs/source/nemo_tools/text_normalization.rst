@@ -50,7 +50,7 @@ Example evaluation run:
 References
 ----------
 
-.. bibliography:: nemo_tools_all.bib
+.. bibliography:: tools_all.bib
     :style: plain
     :labelprefix: TOOLS-NORM
     :keyprefix: tools-norm-

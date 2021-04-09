@@ -14,7 +14,6 @@
 
 from argparse import ArgumentParser
 
-import pandas as pd
 from nemo_tools.text_denormalization.clean_eval_data import filter_loaded_data
 from nemo_tools.text_denormalization.data_loader_utils import (
     evaluate,
@@ -102,20 +101,16 @@ if __name__ == "__main__":
             raise ValueError("Unexpected token type: " + token_type)
 
     if args.category is None:
-        df = pd.DataFrame(
-            {
-                f'{args.denormalizer}': [sentences_accuracy]
-                + [token_accuracy[known_type] if known_type in token_accuracy else '0' for known_type in known_types],
-                'Class': ['sent level'] + known_types,
-                'Num Tokens': [len(sentences_normalized)]
-                + [
-                    token_count_per_type[known_type] if known_type in tokens_per_type else '0'
-                    for known_type in known_types
-                ],
-            },
-            columns=['Class', 'Num Tokens', f'{args.denormalizer}',],
-        )
-        print(df)
+        c1 = ['Class', 'sent level'] + known_types
+        c2 = ['Num Tokens', len(sentences_normalized)] + [
+            token_count_per_type[known_type] if known_type in tokens_per_type else '0' for known_type in known_types
+        ]
+        c3 = [args.denormalizer, sentences_accuracy] + [
+            token_accuracy[known_type] if known_type in token_accuracy else '0' for known_type in known_types
+        ]
+
+        for i in range(len(c1)):
+            print(f'{str(c1[i]):10s} | {str(c2[i]):10s} | {str(c3[i]):5s}')
     else:
         print(f'numbers\t{token_count_per_type[args.category]}')
         print(f'{args.denormalizer}\t{token_accuracy[args.category]}')
