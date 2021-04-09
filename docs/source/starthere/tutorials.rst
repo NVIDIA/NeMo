@@ -109,3 +109,6 @@ To run tutorials:
    * - Tools
      - Text Normalization for Text To Speech
      - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/Text_Normalization_Tutorial.ipynb>`_
+   * - Tools
+     - Text Denormalization for Text To Speech
+     - `Text Denormalization(Inverse_Text_Normalization) <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/Text_Denormalization_(Inverse_Text_Normalization).ipynb>`_

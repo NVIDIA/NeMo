@@ -70,7 +70,7 @@ if __name__ == "__main__":
         sentences_un_normalized, sentences_normalized, _ = training_data_to_sentences(training_data)
         print("- Data: " + str(len(sentences_normalized)) + " sentences")
         sentences_prediction = denormalizer(sentences_normalized)
-        print("- Deormalized. Evaluating...")
+        print("- Denormalized. Evaluating...")
         sentences_accuracy = evaluate(
             preds=sentences_prediction, labels=sentences_un_normalized, input=sentences_normalized
         )
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         tokens_un_normalized, tokens_normalized = tokens_per_type[token_type]
         print("  - Data: " + str(len(tokens_normalized)) + " tokens")
         tokens_prediction = denormalizer(tokens_normalized)
-        print("  - Deormalized. Evaluating...")
+        print("  - Denormalized. Evaluating...")
         token_accuracy[token_type] = evaluate(tokens_prediction, tokens_un_normalized, input=tokens_normalized)
         print("  - Accuracy: " + str(token_accuracy[token_type]))
     token_count_per_type = {token_type: len(tokens_per_type[token_type][0]) for token_type in tokens_per_type}
@@ -93,30 +93,24 @@ if __name__ == "__main__":
     ]
     print("- Accuracy: " + str(sum(token_weighted_accuracy) / sum(token_count_per_type.values())))
 
-    print(" - Total: " + str(sum(token_count_per_type.values())))
+    print(" - Total: " + str(sum(token_count_per_type.values())), '\n')
 
     # csv output
     for token_type in token_accuracy:
         if token_type not in known_types:
             raise ValueError("Unexpected token type: " + token_type)
-    print('')
-    print('\tsentence level\ttoken level')
-    print('\t\t' + '\t'.join(known_types))
 
     if args.category is None:
-        print(
-            'numbers\t'
-            + str(len(sentences_normalized))
-            + '\t'
-            + '\t'.join([str(token_count_per_type[known_type]) for known_type in known_types])
-        )
-        print(
-            args.denormalizer
-            + '\t'
-            + str(sentences_accuracy)
-            + '\t'
-            + '\t'.join([str(token_accuracy[known_type]) for known_type in known_types])
-        )
+        c1 = ['Class', 'sent level'] + known_types
+        c2 = ['Num Tokens', len(sentences_normalized)] + [
+            token_count_per_type[known_type] if known_type in tokens_per_type else '0' for known_type in known_types
+        ]
+        c3 = [args.denormalizer, sentences_accuracy] + [
+            token_accuracy[known_type] if known_type in token_accuracy else '0' for known_type in known_types
+        ]
+
+        for i in range(len(c1)):
+            print(f'{str(c1[i]):10s} | {str(c2[i]):10s} | {str(c3[i]):5s}')
     else:
-        print('numbers\t' + '\t'.join([str(token_count_per_type[known_type]) for known_type in known_types]))
-        print(args.denormalizer + '\t'.join([str(token_accuracy[known_type]) for known_type in known_types]))
+        print(f'numbers\t{token_count_per_type[args.category]}')
+        print(f'{args.denormalizer}\t{token_accuracy[args.category]}')
