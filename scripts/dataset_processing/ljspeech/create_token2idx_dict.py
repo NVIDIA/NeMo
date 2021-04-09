@@ -38,6 +38,15 @@ def main():
             word2phones[word] = tokens
             phonemes.update(tokens)
 
+    # Small list of additional punctuation
+    word2phones[','] = ['sp']
+    word2phones[';'] = ['sp']
+    word2phones['.'] = ['sp']
+    word2phones['!'] = ['sp']
+    word2phones['?'] = ['sp']
+    word2phones['"'] = ['sp']
+    word2phones['-'] = ['sp']
+
     phone2idx = {k: i for i, k in enumerate(phonemes)}
     phone2idx['sil'] = len(phone2idx)   # Silence
     phone2idx['sp'] = len(phone2idx)    # Space
@@ -49,6 +58,8 @@ def main():
     }
     with open(args.dict_out, 'w') as f:
         json.dump(dicts, f)
+
+    print(f"Total number of phone indices: {len(phone2idx)}")
 
 if __name__ == '__main__':
     main()
