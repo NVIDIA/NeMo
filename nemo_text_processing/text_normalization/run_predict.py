@@ -16,7 +16,7 @@ from argparse import ArgumentParser
 from time import perf_counter
 from typing import List
 
-from nemo_tools.text_normalization.normalize import normalizers
+from nemo_text_processing.text_normalization.normalize import normalizers
 
 
 '''

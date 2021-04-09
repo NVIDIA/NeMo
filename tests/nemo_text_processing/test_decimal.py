@@ -19,7 +19,7 @@ from utils import parse_test_case_file
 
 
 class TestDecimal:
-    @parameterized.expand(parse_test_case_file('data_text_denormalization/test_cases_decimal.txt'))
+    @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/test_cases_decimal.txt'))
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_denorm(self, test_input, expected):

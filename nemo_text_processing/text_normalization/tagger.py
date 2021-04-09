@@ -14,8 +14,8 @@
 
 
 import regex as re
-from nemo_tools.text_normalization.tag import Tag, TagType
-from nemo_tools.text_normalization.verbalizer import _currency_dict, _measurements_dict, _whitelist_dict
+from nemo_text_processing.text_normalization.tag import Tag, TagType
+from nemo_text_processing.text_normalization.verbalizer import _currency_dict, _measurements_dict, _whitelist_dict
 
 
 def make_re(re_inner: str, *args):

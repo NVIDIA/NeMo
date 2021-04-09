@@ -14,8 +14,8 @@
 
 from argparse import ArgumentParser
 
-from nemo_tools.text_normalization.normalize import normalizers
-from nemo_tools.text_normalization.utils import (
+from nemo_text_processing.text_normalization.normalize import normalizers
+from nemo_text_processing.text_normalization.utils import (
     evaluate,
     known_types,
     load_files,

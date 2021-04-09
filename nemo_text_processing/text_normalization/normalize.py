@@ -15,8 +15,8 @@
 import sys
 from typing import List
 
-from nemo_tools.text_normalization.tag import Tag, TagType
-from nemo_tools.text_normalization.tagger import (
+from nemo_text_processing.text_normalization.tag import Tag, TagType
+from nemo_text_processing.text_normalization.tagger import (
     tag_cardinal,
     tag_date,
     tag_decimal,
@@ -27,7 +27,7 @@ from nemo_tools.text_normalization.tagger import (
     tag_verbatim,
     tag_whitelist,
 )
-from nemo_tools.text_normalization.verbalizer import (
+from nemo_text_processing.text_normalization.verbalizer import (
     expand_cardinal,
     expand_date,
     expand_decimal,
