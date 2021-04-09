@@ -86,10 +86,16 @@ class DateFst(GraphFst):
     Finite state transducer for classifying date, 
         e.g. january fifth twenty twelve -> date { month: "january" day: "5" year: "2012" preserve_order: true }
         e.g. the fifth of january twenty twelve -> date { day: "5" month: "january" year: "2012" preserve_order: true }
+
+    Args:
+        ordinal: Ordinal GraphFST
     """
 
-    def __init__(self, ordinal_graph):
+    def __init__(self, ordinal: GraphFst):
         super().__init__(name="date", kind="classify")
+
+        ordinal_graph = ordinal.graph
+
         # weekday, day, month, year, style(depr), text(depr), short_year(depr), era
         year_graph = _get_year_graph()
         YEAR_WEIGHT = 0.001

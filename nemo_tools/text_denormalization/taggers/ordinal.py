@@ -22,11 +22,15 @@ class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal
         e.g. thirteenth -> ordinal { integer: "13" }
+
+    Args:
+        cardinal: Cardinal GraphFST
     """
 
-    def __init__(self, cardinal_graph):
+    def __init__(self, cardinal: GraphFst):
         super().__init__(name="ordinal", kind="classify")
 
+        cardinal_graph = cardinal.graph_no_exception
         graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
         graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv"))
         # change to General UTF8

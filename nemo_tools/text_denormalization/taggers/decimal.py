@@ -40,11 +40,18 @@ class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, 
         e.g. minus twelve point five o o six billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" }
+
+    cardinal: Cardinal GraphFst
     """
 
-    def __init__(self, cardinal_graph, cardinal_graph_hundred_component_at_least_one_none_zero_digit):
+    def __init__(self, cardinal: GraphFst):
         super().__init__(name="decimal", kind="classify")
         # negative, fractional_part, quantity, exponent, style(depre)
+
+        cardinal_graph = cardinal.graph_no_exception
+        cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
+            cardinal.graph_hundred_component_at_least_one_none_zero_digit
+        )
 
         graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv")) | pynini.cross("o", "0")

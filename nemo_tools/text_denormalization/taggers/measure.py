@@ -29,11 +29,17 @@ class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure
         e.g. minus twelve kilograms -> measure { negative: "true" cardinal { integer: "12" } units: "kg" }
+
+    Args:
+        cardinal: Cardinal GraphFST
+        decimal: Decimal GraphFST
     """
 
-    def __init__(self, cardinal_graph, decimal_final_graph_wo_negative):
+    def __init__(self, cardinal: GraphFst, decimal: GraphFst):
         super().__init__(name="measure", kind="classify")
         # decimal, fraction, cardinal, units, style(depr)
+
+        cardinal_graph = cardinal.graph_no_exception
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit_singular = pynini.invert(graph_unit)  # singular -> abbr
@@ -61,7 +67,7 @@ class MeasureFst(GraphFst):
         subgraph_decimal = (
             pynutil.insert("decimal { ")
             + optional_graph_negative
-            + decimal_final_graph_wo_negative
+            + decimal.final_graph_wo_negative
             + pynutil.insert(" }")
             + delete_extra_space
             + unit_plural

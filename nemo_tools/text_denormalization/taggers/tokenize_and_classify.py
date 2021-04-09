@@ -33,26 +33,20 @@ class ClassifyFst(GraphFst):
     def __init__(self):
         super().__init__(name="tokenize_and_classify", kind="classify")
 
-        cardinal = CardinalFst()
-        cardinal_no_exception = cardinal.graph_no_exception
-        cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
-            cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        )
-        cardinal = cardinal.fst
+        cardinal_graph_fst = CardinalFst()
+        cardinal = cardinal_graph_fst.fst
 
-        ordinal = OrdinalFst(cardinal_no_exception)
-        ordinal_graph = ordinal.graph
-        ordinal = ordinal.fst
+        ordinal_graph_fst = OrdinalFst(cardinal_graph_fst)
+        ordinal = ordinal_graph_fst.fst
 
-        decimal = DecimalFst(cardinal_no_exception, cardinal_graph_hundred_component_at_least_one_none_zero_digit)
-        decimal_graph = decimal.final_graph_wo_negative
-        decimal = decimal.fst
+        decimal_graph_fst = DecimalFst(cardinal_graph_fst)
+        decimal = decimal_graph_fst.fst
 
-        measure = MeasureFst(cardinal_no_exception, decimal_graph).fst
-        date = DateFst(ordinal_graph).fst
+        measure = MeasureFst(cardinal_graph_fst, decimal_graph_fst).fst
+        date = DateFst(ordinal_graph_fst).fst
         word = WordFst().fst
         time = TimeFst().fst
-        money = MoneyFst(cardinal_no_exception, decimal_graph).fst
+        money = MoneyFst(cardinal_graph_fst, decimal_graph_fst).fst
         whitelist = WhiteListFst().fst
 
         graph = (
