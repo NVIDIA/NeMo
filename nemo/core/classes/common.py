@@ -15,6 +15,7 @@
 
 """Interfaces common to all Neural Modules and Models."""
 import hashlib
+import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -31,7 +32,7 @@ import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
-from nemo.utils.model_utils import maybe_update_config_version
+from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
@@ -425,15 +426,48 @@ class Serialization(ABC):
 
         config = maybe_update_config_version(config)
 
+        # Hydra 0.x API
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
+        # Hydra 1.x API
         elif '_target_' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
         else:
-            # models are handled differently for now
-            instance = cls(cfg=config)
+            instance = None
+
+            # Attempt class path resolution from config `target` class (if it exists)
+            if 'target' in config:
+                target_cls = config.target
+                imported_cls = None
+                try:
+                    # try to import the target class
+                    imported_cls = import_class_by_path(target_cls)
+                except (ImportError, ModuleNotFoundError):
+                    logging.debug(f'Target class `{target_cls}` could not be imported, falling back to original cls')
+
+                # try instantiating model with target class
+                if imported_cls is not None:
+                    # if calling class (cls) is subclass of imported class,
+                    # use subclass instead
+                    if issubclass(cls, imported_cls):
+                        imported_cls = cls
+
+                    try:
+                        instance = imported_cls(cfg=config)
+                    except Exception:
+                        imported_cls_tb = traceback.format_exc()
+                        logging.debug(
+                            f"Model instantiation from target class failed with following error.\n"
+                            f"Falling back to `cls`.\n"
+                            f"{imported_cls_tb}"
+                        )
+                        instance = None
+
+            # target class resolution was unsuccessful, fall back to current `cls`
+            if instance is None:
+                instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
             instance._cfg = config

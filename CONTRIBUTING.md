@@ -5,20 +5,31 @@ We do all of NeMo's development in the open. Contributions from NeMo community a
 
 # Pull Requests (PR) Guidelines
 
+**Send your PRs to the `main` branch**
+
 1) Make sure your PR does one thing. Have a clear answer to "What does this PR do?".
 2) Read General Principles and style guide below
-3) Make sure unittest pass on your machine
-4) Make sure you sign your commits. E.g. use ``git commit -s`` when before your commit
-5) Make sure all unittests finish successfully before sending PR ``pytest`` or (if yor dev box does not have GPU) ``pytest --cpu`` from NeMo's root folder
-6) Send your PR and request a review
+3) Make sure you sign your commits. E.g. use ``git commit -s`` when before your commit
+4) Make sure all unittests finish successfully before sending PR ``pytest`` or (if yor dev box does not have GPU) ``pytest --cpu`` from NeMo's root folder
+5) Send your PR and request a review
 
-Send your PR to the `main` branch
+## Unit tests
+Quick tests (locally, while developing)
+```
+pytest
+# If you don't have NVIDIA GPU do:
+# pytest --cpu
+```
+Full tests, including pre-trained model downloads
+```
+pytest --with_downloads
+```
 
-Whom should you ask for review:
-1. For changes to NeMo's core: @okuchaiev, @blisc, @titu1994, @tkornuta-nvidia, or @ericharper
-1. For changes to NeMo's ASR collection: @okuchaiev, @titu1994, @redoctopus, @blisc, or @vsl9
-1. For changes to NeMo's NLP collection: @ekmb, @yzhang123, @VahidooX, @vladgets, or @ericharper
-1. For changes to NeMo's TTS collection: @blisc or @stasbel
+## Whom should you ask for review:
+1. For changes to NeMo's core: @ericharper, @titu1994, @blisc, or @okuchaiev  
+1. For changes to NeMo's ASR collection: @titu1994, @redoctopus, @jbalam-nv, or @okuchaiev
+1. For changes to NeMo's NLP collection: @MaximumEntropy, @ericharper, @ekmb, @yzhang123, @VahidooX, @vladgets, or @okuchaiev 
+1. For changes to NeMo's TTS collection: @blisc or @stasbel, or @okuchaiev
 
 Note that some people may self-assign to review your PR - in which case, please wait for them to add a review.
 
@@ -27,7 +38,7 @@ Your  pull requests must pass all checks and peer-review before they can be merg
 # General principles
 1. **User-oriented**: make it easy for end users, even at the cost of writing more code in the background
 1. **Robust**: make it hard for users to make mistakes.
-1. **Supporting of both training and inferencing**: if a module can only be used for training, write a companion module to be used during inference.
+1. **Well-tested**: please add simple, fast unittests. Consider adding CI tests for end-to-end functionality.
 1. **Reusable**: for every piece of code, think about how it can be reused in the future and make it easy to be reused.
 1. **Readable**: code should be easier to read.
 1. **Legal**: if you copy even one line of code from the Internet, make sure that the code allows the license that NeMo supports. Give credit and link back to the code.

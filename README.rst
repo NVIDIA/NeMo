@@ -25,6 +25,7 @@
   :target: https://github.com/psf/black
   :alt: Code style: black
 
+.. _main-readme:
 **NVIDIA NeMo**
 ===============
 
@@ -72,7 +73,7 @@ Documentation
 +=========+=============+==================================================================================================================================+
 | Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_          |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Next    | |r1.0.0rc1| | `Documentation of the next release (i.e. r1.0.0rc1). <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/>`_ |
+| Next    | |r1.0.0rc1| | `Documentation of the most recent release: r1.0.0rc1 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/>`_ |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 | Stable  | |stable|    | `Documentation of the stable (i.e. stable) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_      |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
@@ -97,7 +98,7 @@ Use this installation mode if you want the latest released version.
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
-    pip install nemo_toolkit[all]==1.0.0b3
+    pip install nemo_toolkit['all']==1.0.0rc1
 
 Pip from source
 ~~~~~~~~~~~~~~~
