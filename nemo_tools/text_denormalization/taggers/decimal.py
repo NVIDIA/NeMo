@@ -17,6 +17,7 @@ from nemo_tools.text_denormalization.data_loader_utils import get_abs_path
 from nemo_tools.text_denormalization.graph_utils import NEMO_DIGIT, GraphFst, delete_extra_space, delete_space
 from pynini.lib import pynutil
 
+
 def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_digit):
     numbers = cardinal_graph_hundred_component_at_least_one_none_zero_digit @ (
         pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
@@ -64,7 +65,11 @@ class DecimalFst(GraphFst):
         )
         final_graph = optional_graph_negative + final_graph_wo_sign
 
-        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit)
-        final_graph |= optional_graph_negative + get_quantity(final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit)
+        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
+            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
+        )
+        final_graph |= optional_graph_negative + get_quantity(
+            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
+        )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

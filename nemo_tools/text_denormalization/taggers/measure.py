@@ -24,6 +24,7 @@ from nemo_tools.text_denormalization.graph_utils import (
 )
 from pynini.lib import pynutil
 
+
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure

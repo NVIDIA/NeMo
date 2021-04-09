@@ -35,7 +35,9 @@ class ClassifyFst(GraphFst):
 
         cardinal = CardinalFst()
         cardinal_no_exception = cardinal.graph_no_exception
-        cardinal_graph_hundred_component_at_least_one_none_zero_digit = cardinal.graph_hundred_component_at_least_one_none_zero_digit
+        cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
+            cardinal.graph_hundred_component_at_least_one_none_zero_digit
+        )
         cardinal = cardinal.fst
 
         ordinal = OrdinalFst(cardinal_no_exception)
