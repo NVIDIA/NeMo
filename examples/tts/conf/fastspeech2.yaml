@@ -79,8 +79,8 @@ model:
     kernel_size: 9
     dropout: 0.1
     attn_dropout: 0.1
-    n_embed: 84   # Should match number of tokens in symbol set
-    padding_idx: 83
+    n_embed: 73   # Should match number of tokens in symbol set +1 (pad_idx)
+    padding_idx: 72
 
   # FFTransformer mel spec decoder
   decoder:
