@@ -22,25 +22,25 @@ from nemo_tools.text_denormalization.graph_utils import (
     delete_space,
     get_singulars,
 )
-from nemo_tools.text_denormalization.taggers.cardinal import CardinalFst
-from nemo_tools.text_denormalization.taggers.decimal import DecimalFst
 from pynini.lib import pynutil
-
-cardinal = CardinalFst()
-decimal = DecimalFst()
 
 
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure
         e.g. minus twelve kilograms -> measure { negative: "true" cardinal { integer: "12" } units: "kg" }
+
+    Args:
+        cardinal: Cardinal GraphFST
+        decimal: Decimal GraphFST
     """
 
-    def __init__(self):
+    def __init__(self, cardinal: GraphFst, decimal: GraphFst):
         super().__init__(name="measure", kind="classify")
         # decimal, fraction, cardinal, units, style(depr)
 
         cardinal_graph = cardinal.graph_no_exception
+
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit_singular = pynini.invert(graph_unit)  # singular -> abbr
         graph_unit_plural = get_singulars(graph_unit_singular)  # plural -> abbr
