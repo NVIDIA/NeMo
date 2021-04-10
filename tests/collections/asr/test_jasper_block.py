@@ -273,3 +273,23 @@ class TestJasperBlock:
         assert ylen[0] == 131
         assert block.mconv[0].pad_layer is None
         assert block.mconv[0]._padding == config['kernel_size'][0] // 2
+
+    @pytest.mark.unit
+    def test_padding_size_conv1d(self):
+        input_size = 1024
+        output_size = 1024
+        kernel_sizes = torch.randint(low=1, high=10, size=(3,))
+        dilation_sizes = torch.randint(low=1, high=10, size=(3,))
+        stride = 1
+        inp = torch.rand(32, 1024, 300)
+
+        for kernel_size in kernel_sizes:
+            for dilation_size in dilation_sizes:
+                padding = jasper.get_same_padding(kernel_size, stride, dilation_size)
+
+                conv = torch.nn.Conv1d(
+                    input_size, output_size, kernel_size=kernel_size, dilation=dilation_size, padding=padding
+                )
+
+                out = conv(inp)
+                assert out.shape == inp.shape
