@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+
 import pytest
 import torch
 
@@ -278,8 +280,8 @@ class TestJasperBlock:
     def test_padding_size_conv1d(self):
         input_size = 1024
         output_size = 1024
-        kernel_sizes = torch.randint(low=1, high=10, size=(3,))
-        dilation_sizes = torch.randint(low=1, high=10, size=(3,))
+        kernel_sizes = [3, 7, 11]
+        dilation_sizes = [2, 3, 4]
         stride = 1
         inp = torch.rand(32, 1024, 300)
 
