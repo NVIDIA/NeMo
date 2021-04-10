@@ -21,7 +21,7 @@ from typing import List
 
 import regex
 import scipy.io.wavfile as wav
-from nemo_text_processing.text_normalization.normalize import normalize_nemo as normalize
+from nemo_text_processing.text_normalization.normalize import normalize
 from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 from num2words import num2words
 
