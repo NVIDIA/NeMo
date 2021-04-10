@@ -51,10 +51,10 @@ NVIDIA NeMo User Guide
 
 .. toctree::
    :maxdepth: 2
-   :caption: NeMo-Tools Package
-   :name: NeMo-Tools Package
+   :caption: NeMo-Text-Processing Package
+   :name: NeMo-Text-Processing Package
 
-   nemo_tools/intro
+   nemo_text_processing/intro
 
 .. toctree::
    :maxdepth: 2
