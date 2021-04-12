@@ -17,11 +17,14 @@ import pytest
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import inverse_normalize
 from nemo_text_processing.text_normalization.normalize import normalize
 from parameterized import parameterized
-from utils import parse_test_case_file
+from utils import parse_test_case_file, PYNINI_AVAILABLE
 
 
 class TestOrdinal:
     @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/test_cases_ordinal.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, "`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_denorm(self, test_input, expected):
@@ -29,6 +32,9 @@ class TestOrdinal:
         assert pred == expected
 
     @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_ordinal.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, "`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
