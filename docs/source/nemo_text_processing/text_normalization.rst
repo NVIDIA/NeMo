@@ -12,7 +12,7 @@ This tool is currently based on Pyhon Regex.
 
 .. note::
 
-    For more details, see the tutorial `NeMo/tutorials/text_processing/Text_Normalization_Tutorial.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization_Tutorial.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/Text_Normalization_Tutorial.ipynb>`_.
+    For more details, see the tutorial `NeMo/tutorials/text_processing/Text_Normalization_Tutorial.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization_Tutorial.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization_Tutorial.ipynb>`_.
     
 
 Prediction
