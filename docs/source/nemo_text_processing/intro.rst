@@ -12,5 +12,6 @@ Additional requirements can be found in `setup.sh <https://github.com/NVIDIA/NeM
 
    text_normalization
    inverse_text_normalization
+   api
 
 
