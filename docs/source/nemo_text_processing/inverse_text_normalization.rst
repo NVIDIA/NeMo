@@ -16,6 +16,35 @@ See :doc:`ITN Deployment <../tools/inverse_text_normalization_deployment>` for d
     For more details, see the tutorial `NeMo/tutorials/text_processing/Inverse_Text_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_.
 
 
+
+
+
+
+Classes
+----------------------------------
+
+
+The base class for every grammar is :class:`GraphFst<nemo_text_processing.inverse_text_normalization.graph_utils.GraphFst>`.
+This tool is designed as a two-stage application: 1. `classification` of the input into semiotic tokens and 2. `verbalization` into written form.
+For every stage and every semiotic token class there is a corresponding grammar, e.g. :class:`taggers.CardinalFst<nemo_text_processing.inverse_text_normalization.taggers.cardinal.CardinalFst>`
+and :class:`verbalizers.CardinalFst<nemo_text_processing.inverse_text_normalization.verbalizers.cardinal.CardinalFst>`.
+Together, they compose the final grammars :class:`taggers.ClassifyFinalFst<nemo_text_processing.inverse_text_normalization.classify.tokenize_and_classify_final.ClassifyFinalFst>` and 
+:class:`verbalizers.VerbalizeFinalFst<nemo_text_processing.inverse_text_normalization.classify.verbalize_final.VerbalizeFinalFst>` that are compiled into WFST and used for inference.
+
+
+
+
+
+
+.. autoclass:: nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify.ClassifyFst
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo_text_processing.inverse_text_normalization.VerbalizeFst
+    :show-inheritance:
+    :members:
+
+
 Prediction
 ----------------------------------
 
