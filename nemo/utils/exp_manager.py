@@ -613,9 +613,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if trainer.fast_dev_run:
             return None
         # Load the best model and then re-save it
-        if self.save_best_model:
-            trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+        # TODO: make this work for model parallel, hopefully just need to call on data parallel rank 0
+        # if self.save_best_model:
+        #     trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
+        # pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
 
 def configure_checkpointing(

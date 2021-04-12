@@ -287,68 +287,64 @@ class NLPModel(ModelPT, Exportable):
     def _default_save_to(self, save_path: str):
         app_state = AppState()
         if app_state.model_parallel_size is not None:
-            tmpdir_name_path = os.path.join(NEMO_NLP_TMP, 'tmpdir_name.txt')
-            if is_global_rank_zero():
-                # global rank 0 opens the temporary directory
-                tmpdir = tempfile.TemporaryDirectory()
-                # write directory name to disk
-                print(tmpdir.name, file=open(tmpdir_name_path, 'w'))
+            # each model parallel rank creates a .nemo file
+            # after all .nemo files are created, each rank
+            # will add their checkpoint to global rank 0
 
-            # barrier so temporary directory has been created for all processes
-            torch.distributed.barrier()
+            base_dir = os.path.dirname(save_path)
 
-            tmpdir_name = None
-            if os.path.isfile(tmpdir_name_path):
-                with open(tmpdir_name_path, 'r') as f:
-                    tmpdir_name = f.read().split('\n')[0]
+            # update save_path based on model parallel_rank
+            base_path = save_path[0:-5]
+            rank_0_save_path = f'{base_path}_mp_rank_00.nemo'
 
-            config_yaml = os.path.join(tmpdir_name, app_state._model_config_yaml)
-
-            if is_global_rank_zero():
-                # global rank 0 saves artifacts
-                if hasattr(self, 'artifacts') and self.artifacts is not None:
-                    for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArtifactItem)
-                        try:
-                            if src.path_type == model_utils.ArtifactPathType.LOCAL_PATH and os.path.exists(src.path):
-                                shutil.copy2(src.path, tmpdir_name)
-                            elif src.path_type == model_utils.ArtifactPathType.TAR_PATH:
-                                # Need to step into nemo archive to extract file
-                                # Get path where the command is executed - the artifacts will be "retrieved" there
-                                # (original .nemo behavior)
-                                cwd = os.getcwd()
-                                try:
-                                    # Step into the nemo archive to try and find the file
-                                    with tempfile.TemporaryDirectory() as archive_dir:
-                                        self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
-                                        os.chdir(archive_dir)
-                                        shutil.copy2(src.path, tmpdir_name)
-                                finally:
-                                    # change back working directory
-                                    os.chdir(cwd)
-                            else:
-                                raise ValueError(f"Invalid ArchivePathType found: {src.path_type}")
-                        except Exception:
-                            logging.error(f"Could not copy artifact {src} used in {conf_path}")
-                # global rank 0 saves config file
-                self.to_config_file(path2yaml_file=config_yaml)
+            mp_save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02}.nemo'
 
             if app_state.data_parallel_rank == 0:
-                # data parallel rank 0 saves checkpoint based on model parallel rank
-                os.makedirs(os.path.join(tmpdir_name, f'mp_rank_{app_state.model_parallel_rank:02}'))
-                model_weights = os.path.join(
-                    tmpdir_name, f'mp_rank_{app_state.model_parallel_rank:02}', app_state._model_weights_ckpt
-                )
-                torch.save(self.state_dict(), model_weights)
+                super()._default_save_to(mp_save_path)
 
             # barrier so that all processes have finished writing their weights before creating .nemo file
             torch.distributed.barrier()
 
-            if is_global_rank_zero():
-                self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir_name)
-                tmpdir.cleanup()
+            # if app_state.data_parallel_rank == 0:
+            #     # extract checkpoints to megatron-lm directory convention mp_rank_**/
+            #     mp_tar = tarfile.open(mp_save_path, 'r')
+            #     for member in mp_tar.getmembers():
+            #         if member.name == './model_weights.ckpt':
+            #             mp_tar.extract(
+            #                 member.name, os.path.join(base_dir, f'mp_rank_{app_state.model_parallel_rank:02}'),
+            #             )
+            #     mp_tar.close()
 
-            # barrier so that rank 0 has finished cleaning up the temporary directory
-            torch.distributed.barrier()
+            # torch.distributed.barrier()
+
+            if is_global_rank_zero():
+                # extract all tar files
+                for mp_rank in range(app_state.model_parallel_size):
+                    mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02}.nemo'
+                    mp_tar = tarfile.open(mp_tar_path, 'r:gz')
+                    mp_tar.extractall(path=os.path.join(base_dir, f'mp_rank_{mp_rank:02}'))
+                    mp_tar.close()
+
+                # now have rank_0 add each checkpoint to the tar
+                # rank_0_tar = tarfile.open(rank_0_save_path, 'w:gz')
+
+                # for mp_rank in range(1, app_state.model_parallel_size):
+                #     mp_save_path = f'{base_path}_mp_rank_{mp_rank:02}.nemo'
+                #     mp_tar = tarfile.open(mp_save_path, 'r:gz')
+                #     for member in mp_tar.getmembers():
+                #         if member.name == './model_weights.ckpt':
+                #             rank_0_tar.addfile(
+                #                 tarfile.TarInfo(os.path.join(f'mp_rank_{mp_rank:02}', 'model_weights.ckpt')),
+                #                 mp_tar.extractfile(member.name),
+                #             )
+                #     mp_tar.close()
+
+                # rank_0_tar.close()
+
+                # after adding each checkpoint, rename the rank_0 tar
+                # os.rename(rank_0_save_path, save_path)
+
+            # clean up ?
 
         elif is_global_rank_zero():
             return super()._default_save_to(save_path)
