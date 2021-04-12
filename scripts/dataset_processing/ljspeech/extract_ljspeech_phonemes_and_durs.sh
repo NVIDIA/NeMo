@@ -121,9 +121,9 @@ if [ -z $G2P_DICT ]; then
 fi
 
 # Run alignment
-#echo "Starting MFA with dictionary at: $G2P_DICT"
-#mfa download acoustic english
-#mfa align --clean $LJSPEECH_BASE $G2P_DICT english $LJSPEECH_BASE/alignments
+echo "Starting MFA with dictionary at: $G2P_DICT"
+mfa download acoustic english
+mfa align --clean $LJSPEECH_BASE $G2P_DICT english $LJSPEECH_BASE/alignments
 
 # Create JSON mappings from word to phonemes and phonemes to indices
 echo "Creating word->phone and phone->idx mappings at $LJSPEECH_BASE/mappings.json..."
