@@ -19,13 +19,11 @@ creating the relevant directories if necessary.
 
 USAGE: python extract_ljspeech_energy_pitch.py --ljspeech_dir=<LJSpeech_base_path>
 """
+from pathlib import Path
+
 import argparse
 import librosa
 import numpy as np
-import pysptk
-
-from pathlib import Path
-from scipy.io import wavfile
 
 tqdm = None
 
@@ -42,7 +40,8 @@ args = parser.parse_args()
 
 
 def main():
-    wavfile_list = list(Path(args.ljspeech_dir + "wavs").glob('*.wav'))
+    wavfile_dir = Path(args.ljspeech_dir) / "wavs"
+    wavfile_list = list(wavfile_dir.glob('*.wav'))
 
     target_dir = Path(args.ljspeech_dir)
     # Create target dir <LJSpeech_base_dir>/energies and <LJSpeech_base_dir>/pitches if necessary
@@ -58,10 +57,11 @@ def main():
     for count, file_ in enumerate(wavfile_list):
         basename = Path(file_).stem
         audio, sr = librosa.load(file_, sr=22050)
-        fs, x = wavfile.read(str(file_))
 
         # Calculate f0
-        f0 = pysptk.rapt(x.astype(np.float32) * 32768, fs=sr, hopsize=256, otype="f0")
+        # Please note that fmin and fmax are good approximates for the speaker in LJSpeech and may not generalize to
+        # other speakers
+        f0, _, _ = librosa.pyin(audio, fmin=80, fmax=800, frame_length=1024, sr=sr, fill_na=0.0)
 
         # Save to new file
         save_path = target_dir / "pitches" / f"{basename}.npy"
