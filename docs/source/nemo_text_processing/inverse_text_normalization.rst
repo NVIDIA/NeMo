@@ -6,14 +6,43 @@ ITN is the task of converting the raw spoken output of the ASR model into its wr
 
 For example, 
 `"in nineteen seventy"` -> `"in 1975"` 
-and `"one hundred and twenty three dollars"` -> `"$123"`.
+and `"it costs one hundred and twenty three dollars"` -> `"it costs $123"`.
 
-This tool is based on WFST-grammars :cite:`tools-itn-mohri2009`. We also provide a deployment route to C++ using Sparrowhawk -- an open-source version of Google Kestrel :cite:`tools-itn-ebden2015kestrel`.
+This tool is based on WFST-grammars. We also provide a deployment route to C++ using Sparrowhawk -- an open-source version of Google Kestrel :cite:`textprocessing-itn-ebden2015kestrel`.
 See :doc:`ITN Deployment <../tools/inverse_text_normalization_deployment>` for details.
 
 .. note::
 
-    For more details, see the tutorial `NeMo/tutorials/tools/Inverse_Text_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/tools/Inverse_Text_Normalization.ipynb>`__.
+    For more details, see the tutorial `NeMo/tutorials/text_processing/Inverse_Text_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_.
+
+
+Prediction
+----------------------------------
+
+Example prediction run:
+
+.. code::
+
+    python run_prediction.py  --input=<INPUT_TEXT_FILE> --output=<OUTPUT_PATH>  [--verbose]
+
+
+Data Cleaning for Evaluation
+----------------------------------
+
+.. code::
+
+    python clean_eval_data.py  --input=<INPUT_TEXT_FILE>
+
+
+
+Evaluation
+----------------------------------
+
+Example evaluation run on (cleaned) `Google's text normalization dataset <https://www.kaggle.com/richardwilliamsproat/text-normalization-for-english-russian-and-polish>`__ :cite:`textprocessing-itn-sproat2016rnn`:
+
+.. code::
+
+    python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 [--cat CLASS_CATEGORY] [--filter]
 
 
 
@@ -21,7 +50,7 @@ See :doc:`ITN Deployment <../tools/inverse_text_normalization_deployment>` for d
 References
 ----------
 
-.. bibliography:: tools_all.bib
+.. bibliography:: textprocessing_all.bib
     :style: plain
-    :labelprefix: TOOLS-ITN
-    :keyprefix: tools-itn-
+    :labelprefix: TEXTPROCESSING-ITN
+    :keyprefix: textprocessing-itn-
