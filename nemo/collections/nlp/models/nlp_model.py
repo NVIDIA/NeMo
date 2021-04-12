@@ -304,18 +304,6 @@ class NLPModel(ModelPT, Exportable):
             # barrier so that all processes have finished writing their weights before creating .nemo file
             torch.distributed.barrier()
 
-            # if app_state.data_parallel_rank == 0:
-            #     # extract checkpoints to megatron-lm directory convention mp_rank_**/
-            #     mp_tar = tarfile.open(mp_save_path, 'r')
-            #     for member in mp_tar.getmembers():
-            #         if member.name == './model_weights.ckpt':
-            #             mp_tar.extract(
-            #                 member.name, os.path.join(base_dir, f'mp_rank_{app_state.model_parallel_rank:02}'),
-            #             )
-            #     mp_tar.close()
-
-            # torch.distributed.barrier()
-
             if is_global_rank_zero():
                 # extract all tar files
                 for mp_rank in range(app_state.model_parallel_size):
@@ -342,26 +330,11 @@ class NLPModel(ModelPT, Exportable):
                     # clean up leftover directory
                     shutil.rmtree(os.path.join(base_dir, f'mp_rank_{mp_rank:02}'))
 
-                # now have rank_0 add each checkpoint to the tar
-                # rank_0_tar = tarfile.open(rank_0_save_path, 'w:gz')
+                # create tar file from base_path
+                self.__make_nemo_file_from_folder(save_path, base_path)
 
-                # for mp_rank in range(1, app_state.model_parallel_size):
-                #     mp_save_path = f'{base_path}_mp_rank_{mp_rank:02}.nemo'
-                #     mp_tar = tarfile.open(mp_save_path, 'r:gz')
-                #     for member in mp_tar.getmembers():
-                #         if member.name == './model_weights.ckpt':
-                #             rank_0_tar.addfile(
-                #                 tarfile.TarInfo(os.path.join(f'mp_rank_{mp_rank:02}', 'model_weights.ckpt')),
-                #                 mp_tar.extractfile(member.name),
-                #             )
-                #     mp_tar.close()
-
-                # rank_0_tar.close()
-
-                # after adding each checkpoint, rename the rank_0 tar
-                # os.rename(rank_0_save_path, save_path)
-
-            # clean up ?
+                # clean up base_path
+                shutil.rmtree(base_path)
 
         elif is_global_rank_zero():
             return super()._default_save_to(save_path)
