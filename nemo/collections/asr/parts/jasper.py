@@ -309,7 +309,7 @@ class SqueezeExcite(nn.Module):
                 nn.Linear(channels, channels // reduction_ratio, bias=False),
                 activation,
                 nn.Linear(channels // reduction_ratio, channels, bias=False),
-            ).float()
+            )
 
     def forward(self, x):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
