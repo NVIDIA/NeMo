@@ -16,7 +16,7 @@ import glob
 import hashlib
 import json
 import os
-from os import path
+from os import mkdir, path, rename
 import shutil
 import tarfile
 import tempfile
@@ -291,11 +291,10 @@ class NLPModel(ModelPT, Exportable):
             # after all .nemo files are created, each rank
             # will add their checkpoint to global rank 0
 
-            base_dir = os.path.dirname(save_path)
+            base_dir = os.path.dirname(save_path)  # use the directory to merge mp_rank .nemo files into one
 
             # update save_path based on model parallel_rank
-            base_path = save_path[0:-5]
-            rank_0_save_path = f'{base_path}_mp_rank_00.nemo'
+            base_path = save_path[0:-5]  # everything excpe the .nemo extension
 
             mp_save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02}.nemo'
 
@@ -324,6 +323,24 @@ class NLPModel(ModelPT, Exportable):
                     mp_tar = tarfile.open(mp_tar_path, 'r:gz')
                     mp_tar.extractall(path=os.path.join(base_dir, f'mp_rank_{mp_rank:02}'))
                     mp_tar.close()
+                    os.remove(mp_tar_path)
+
+                # move rank 0 .nemo extract to base_path
+                shutil.move(os.path.join(base_dir, 'mp_rank_00'), base_path)
+
+                # move mp_rank_00 checkpoint to mp_rank_00 directory inside base_path
+                os.mkdir(os.path.join(base_path, 'mp_rank_00'))
+                shutil.move(os.path.join(base_path, 'model_weights.ckpt'), os.path.join(base_path, 'mp_rank_00'))
+
+                # move other mp_rank checkpoints from base_dir to base_path
+                for mp_rank in range(1, app_state.model_parallel_size):
+                    os.mkdir(os.path.join(base_path, f'mp_rank_{mp_rank:02}'))
+                    shutil.move(
+                        os.path.join(base_dir, f'mp_rank_{mp_rank:02}', 'model_weights.ckpt'),
+                        os.path.join(base_path, f'mp_rank_{mp_rank:02}'),
+                    )
+                    # clean up leftover directory
+                    shutil.rmtree(os.path.join(base_dir, f'mp_rank_{mp_rank:02}'))
 
                 # now have rank_0 add each checkpoint to the tar
                 # rank_0_tar = tarfile.open(rank_0_save_path, 'w:gz')
