@@ -612,11 +612,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def on_train_end(self, trainer, pl_module):
         if trainer.fast_dev_run:
             return None
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            return None
+
+        # TODO: make this work for model parallel, need to call on data parallel rank 0 and update best_model_path
         # Load the best model and then re-save it
-        # TODO: make this work for model parallel, hopefully just need to call on data parallel rank 0
-        # if self.save_best_model:
-        #     trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
-        # pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+        if self.save_best_model:
+            trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
 
 def configure_checkpointing(
