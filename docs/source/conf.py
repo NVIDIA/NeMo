@@ -107,7 +107,7 @@ bibtex_bibfiles = [
     'asr/asr_all.bib',
     'nlp/nlp_all.bib',
     'tools/tools_all.bib',
-    'nemo_tools/tools_all.bib',
+    'nemo_text_processing/textprocessing_all.bib',
     'tts_all.bib',
 ]
 
