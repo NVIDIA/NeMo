@@ -19,7 +19,7 @@ ${PIP} uninstall -y nemo_cv
 
 ${PIP} install -U setuptools
 
-echo 'Installing nemo'
+echo 'Installing nemo and nemo_text_processing'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
     ${PIP} install --editable ".[all]"
 else
@@ -28,5 +28,8 @@ else
     DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
     ${PIP} install "${DIST_FILE}[all]"
 fi
+
+echo 'Installing additional nemo_text_processing conda dependency'
+bash nemo_text_processing/setup.sh
 
 echo 'All done!'
