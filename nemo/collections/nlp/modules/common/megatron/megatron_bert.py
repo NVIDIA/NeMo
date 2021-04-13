@@ -27,12 +27,11 @@ from megatron.mpu import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
 )
-from numpy import isin
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
-from nemo.utils import app_state, logging
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 __all__ = ['MegatronBertEncoder']

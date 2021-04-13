@@ -33,7 +33,6 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
-from nemo.utils import app_state
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 

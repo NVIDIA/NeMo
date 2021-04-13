@@ -16,7 +16,6 @@ import glob
 import hashlib
 import json
 import os
-from os import mkdir, path, rename
 import shutil
 import tarfile
 import tempfile
@@ -45,7 +44,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.utils import AppState, logging, model_utils
+from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import configure_checkpointing
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -374,7 +373,7 @@ class NLPModel(ModelPT, Exportable):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
-        if not path.exists(restore_path):
+        if not os.path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
         global _MODEL_RESTORE_PATH
@@ -395,7 +394,7 @@ class NLPModel(ModelPT, Exportable):
                 # get checkpoint version
                 logging.info(
                     (
-                        f'Detect model parallel .nemo file: {restore_path}. '
+                        f'Detected model parallel .nemo file: {restore_path}. '
                         f'Assuming megatron model parallelism with '
                         f'model_parallel_size: {app_state.model_parallel_size} '
                         f'and checkpoint version: {checkpoint_version}'
@@ -459,7 +458,7 @@ class NLPModel(ModelPT, Exportable):
 
     @staticmethod
     def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
-        if not path.exists(path2file):
+        if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
         tar = tarfile.open(path2file, "r:gz")
         tar.extractall(path=out_folder)
