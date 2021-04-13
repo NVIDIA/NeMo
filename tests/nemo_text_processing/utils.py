@@ -14,6 +14,13 @@
 
 import os
 
+try:
+    import pynini
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    PYNINI_AVAILABLE = False
+
 
 def parse_test_case_file(file_name):
     test_pairs = []

@@ -131,6 +131,8 @@ class TestExportableClassifiers:
             assert modules[217].original_name == 'SequenceTokenClassifier'
             assert modules[219].original_name == 'MultiLayerPerceptron'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_TokenClassificationModel_export_to_onnx(self):
         model = nemo_nlp.models.TokenClassificationModel.from_pretrained(model_name="ner_en_bert")
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -141,6 +143,8 @@ class TestExportableClassifiers:
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_PunctuationCapitalizationModel_export_to_onnx(self):
         model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(model_name="punctuation_en_distilbert")
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -153,6 +157,8 @@ class TestExportableClassifiers:
             assert onnx_model.graph.output[0].name == 'punct_logits'
             assert onnx_model.graph.output[1].name == 'capit_logits'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_QAModel_export_to_onnx(self):
         model = nemo_nlp.models.QAModel.from_pretrained(model_name="qa_squadv2.0_bertbase")
         with tempfile.TemporaryDirectory() as tmpdir:

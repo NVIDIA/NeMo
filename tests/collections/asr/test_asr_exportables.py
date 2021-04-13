@@ -42,6 +42,8 @@ class TestExportable:
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logprobs'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_EncDecClassificationModel_export_to_onnx(self, speech_classification_model):
         model = speech_classification_model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -52,6 +54,8 @@ class TestExportable:
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logits'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_EncDecSpeakerLabelModel_export_to_onnx(self, speaker_label_model):
         model = speaker_label_model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -62,6 +66,8 @@ class TestExportable:
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logits'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_EncDecCitrinetModel_export_to_onnx(self, citrinet_model):
         model = citrinet_model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
