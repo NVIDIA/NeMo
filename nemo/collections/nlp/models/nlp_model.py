@@ -569,9 +569,6 @@ class NLPDDPPlugin(DDPPlugin):
                 # Update PTL trainer to use our _clip_gradients
                 # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
-                # model parallel checkpoints need to be restored after torch.distributed is initialized
-                # global _MODEL_RESTORE_PATH
-
                 # update checkpoint name when auto-resuming
                 if trainer.resume_from_checkpoint is not None:
                     # update path based on model parallel rank
