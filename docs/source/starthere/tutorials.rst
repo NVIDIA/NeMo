@@ -107,5 +107,8 @@ To run tutorials:
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
    * - Tools
-     - Text Normalization for Text To Speech
+     - Text Normalization for TTS
      - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/Text_Normalization_Tutorial.ipynb>`_
+   * - Tools
+     - Inverse Text Normalization for ASR
+     - `Inverse Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/Inverse_Text_Normalization.ipynb>`_
