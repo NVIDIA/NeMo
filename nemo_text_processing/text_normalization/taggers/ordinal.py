@@ -36,7 +36,7 @@ class OrdinalFst(GraphFst):
     def __init__(self, cardinal: GraphFst):
         super().__init__(name="ordinal", kind="classify")
 
-        cardinal_graph = cardinal.graph_no_exception
+        cardinal_graph = cardinal.graph
         graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
         graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv"))
         # change to General UTF8

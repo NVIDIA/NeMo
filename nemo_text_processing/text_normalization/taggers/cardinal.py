@@ -118,7 +118,7 @@ class CardinalFst(GraphFst):
         graph = graph @ pynini.union(
             pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
         )
-        self.graph = pynini.invert(graph) @ (pynini.closure(pynutil.delete(" ")) + pynini.closure(pynini.closure(NEMO_ALPHA) + delete_extra_space) + pynini.closure(NEMO_ALPHA) + pynini.closure(pynutil.delete(" ")) )
+        self.graph = pynini.invert(graph) @ (pynini.closure(pynutil.delete(" ")) + pynini.closure(pynini.closure(NEMO_ALPHA, 1) + delete_extra_space) + pynini.closure(NEMO_ALPHA, 1) + pynini.closure(pynutil.delete(" ")) )
 
         optional_minus_graph = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross("-", "\"minus\" "), 0, 1

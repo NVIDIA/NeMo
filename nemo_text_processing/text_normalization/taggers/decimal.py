@@ -59,7 +59,7 @@ class DecimalFst(GraphFst):
         super().__init__(name="decimal", kind="classify")
         # negative, fractional_part, quantity, exponent, style(depre)
 
-        cardinal_graph = cardinal.graph_no_exception
+        cardinal_graph = cardinal.graph
         cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
             cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )

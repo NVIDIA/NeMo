@@ -47,7 +47,7 @@ class MoneyFst(GraphFst):
         super().__init__(name="money", kind="classify")
         # quantity, integer_part, fractional_part, currency, style(depr)
 
-        cardinal_graph = cardinal.graph_no_exception
+        cardinal_graph = cardinal.graph
         graph_decimal_final = decimal.final_graph_wo_negative
 
         unit = pynini.string_file(get_abs_path("data/currency.tsv"))

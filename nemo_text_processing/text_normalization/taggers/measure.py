@@ -45,7 +45,7 @@ class MeasureFst(GraphFst):
         super().__init__(name="measure", kind="classify")
         # decimal, fraction, cardinal, units, style(depr)
 
-        cardinal_graph = cardinal.graph_no_exception
+        cardinal_graph = cardinal.graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit_singular = pynini.invert(graph_unit)  # singular -> abbr

@@ -139,7 +139,6 @@ class TokenParser:
         Returns parsed string key
         """
         assert self.char not in string.whitespace and self.char != EOS
-
         incl_criterium = string.ascii_letters + "_"
         l = []
         while self.char in incl_criterium:
