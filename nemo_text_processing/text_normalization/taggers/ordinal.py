@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, GraphFst, NEMO_DIGIT, NEMO_ALPHA
 
 try:
     import pynini
@@ -37,14 +36,7 @@ class OrdinalFst(GraphFst):
         super().__init__(name="ordinal", kind="classify")
 
         cardinal_graph = cardinal.graph
-        graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
-        graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv"))
-        # change to General UTF8
-        graph = pynini.closure(NEMO_CHAR) + pynini.union(
-            graph_digit, graph_teens, pynini.cross("tieth", "ty"), pynini.cross("th", "")
-        )
-
-        self.graph = graph @ cardinal_graph
+        self.graph = ((pynini.closure(NEMO_DIGIT) + pynutil.delete(pynini.union("rd",  "th",  "st" ,  "nd"))) @ cardinal_graph).optimize()
         final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
