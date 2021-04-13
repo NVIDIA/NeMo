@@ -656,7 +656,9 @@ class NLPDDPPlugin(DDPPlugin):
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
                 # TODO: get random seed from PTL
-                _set_random_seed(1234)
+                seed = os.environ.get("PL_GLOBAL_SEED", 1234)
+                # random seed must be set for megatron model parallel init
+                _set_random_seed(seed)
 
     @property
     def distributed_sampler_kwargs(self):
