@@ -276,19 +276,19 @@ class TestJasperBlock:
 
     @pytest.mark.unit
     def test_padding_size_conv1d(self):
-        input_size = 1024
-        output_size = 1024
+        input_channels = 1
+        output_channels = 1
         kernel_sizes = [3, 7, 11]
         dilation_sizes = [2, 3, 4]
         stride = 1
-        inp = torch.rand(32, 1024, 300)
+        inp = torch.rand(2, 1, 40)
 
         for kernel_size in kernel_sizes:
             for dilation_size in dilation_sizes:
                 padding = jasper.get_same_padding(kernel_size, stride, dilation_size)
 
                 conv = torch.nn.Conv1d(
-                    input_size, output_size, kernel_size=kernel_size, dilation=dilation_size, padding=padding
+                    input_channels, output_channels, kernel_size=kernel_size, dilation=dilation_size, padding=padding
                 )
 
                 out = conv(inp)
