@@ -83,37 +83,15 @@ class FastPitchModel(SpectrogramGenerator):
     def parser(self):
         if self._parser is not None:
             return self._parser
-        if self._validation_dl is not None:
-            return self._validation_dl.dataset.parser
-        if self._test_dl is not None:
-            return self._test_dl.dataset.parser
-        if self._train_dl is not None:
-            return self._train_dl.dataset.parser
 
-        # Else construct a parser
-        # Try to get params from validation, test, and then train
-        params = {}
-        try:
-            params = self._cfg.validation_ds.dataset
-        except ConfigAttributeError:
-            pass
-        if params == {}:
-            try:
-                params = self._cfg.test_ds.dataset
-            except ConfigAttributeError:
-                pass
-        if params == {}:
-            try:
-                params = self._cfg.train_ds.dataset
-            except ConfigAttributeError:
-                pass
-
-        name = params.get('parser', None) or 'en'
-        unk_id = params.get('unk_index', None) or -1
-        blank_id = params.get('blank_index', None) or -1
-        do_normalize = params.get('normalize', None) or False
         self._parser = parsers.make_parser(
-            labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
+            labels=self._cfg.labels,
+            name='en',
+            unk_id=-1,
+            blank_id=-1,
+            do_normalize=True,
+            abbreviation_version="fastpitch",
+            make_table=False,
         )
         return self._parser
 
@@ -208,19 +186,9 @@ class FastPitchModel(SpectrogramGenerator):
         return {'val_loss': tb_logs['val_loss'], 'log': tb_logs}
 
     def _loader(self, cfg):
-        parser = parsers.make_parser(
-            labels=self._cfg.labels,
-            name='en',
-            unk_id=-1,
-            blank_id=-1,
-            do_normalize=True,
-            abbreviation_version="fastpitch",
-            make_table=False,
-        )
-
         dataset = FastPitchDataset(
             manifest_filepath=cfg['manifest_filepath'],
-            parser=parser,
+            parser=self.parser,
             sample_rate=cfg['sample_rate'],
             int_values=cfg.get('int_values', False),
             max_duration=cfg.get('max_duration', None),
