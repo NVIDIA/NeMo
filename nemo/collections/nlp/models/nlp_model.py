@@ -386,7 +386,7 @@ class NLPModel(ModelPT, Exportable):
             os.chdir(tmpdir)
             cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
             mp_ranks = glob.glob(os.path.join(tmpdir, 'mp_rank*'))
-            if mp_ranks is not None:
+            if mp_ranks:
                 app_state.model_parallel_size = len(mp_ranks)
                 with open('megatron_checkpoint_version.json', 'r') as f:
                     checkpoint_version = json.load(f).get('checkpoint_version', None)
