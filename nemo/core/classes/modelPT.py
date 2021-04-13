@@ -19,7 +19,6 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
-from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
 
