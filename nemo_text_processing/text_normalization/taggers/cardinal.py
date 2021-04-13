@@ -62,9 +62,7 @@ class CardinalFst(GraphFst):
         graph_hundred_component_at_least_one_none_zero_digit = graph_hundred_component @ (
             pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)
         )
-        self.graph_hundred_component_at_least_one_none_zero_digit = (
-            graph_hundred_component_at_least_one_none_zero_digit
-        )
+        self.graph_hundred_component_at_least_one_none_zero_digit = pynini.invert(graph_hundred_component_at_least_one_none_zero_digit).optimize()
 
         graph_thousands = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("thousand"),
@@ -119,6 +117,7 @@ class CardinalFst(GraphFst):
             pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
         )
         self.graph = pynini.invert(graph) @ (pynini.closure(pynutil.delete(" ")) + pynini.closure(pynini.closure(NEMO_ALPHA, 1) + delete_extra_space) + pynini.closure(NEMO_ALPHA, 1) + pynini.closure(pynutil.delete(" ")) )
+        self.graph = self.graph.optimize()
 
         optional_minus_graph = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross("-", "\"minus\" "), 0, 1

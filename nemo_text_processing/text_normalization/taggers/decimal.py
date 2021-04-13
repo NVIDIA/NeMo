@@ -23,28 +23,11 @@ from nemo_text_processing.text_normalization.graph_utils import (
 try:
     import pynini
     from pynini.lib import pynutil
+    delete_space = pynutil.delete(" ")
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
-
-
-def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_digit):
-    numbers = cardinal_graph_hundred_component_at_least_one_none_zero_digit @ (
-        pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
-    )
-    suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
-    res = (
-        pynutil.insert("integer_part: \"")
-        + numbers
-        + pynutil.insert("\"")
-        + delete_extra_space
-        + pynutil.insert("quantity: \"")
-        + suffix
-        + pynutil.insert("\"")
-    )
-    res |= deci + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
-    return res
 
 
 class DecimalFst(GraphFst):
@@ -68,26 +51,21 @@ class DecimalFst(GraphFst):
         graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv")) | pynini.cross("o", "0")
 
         graph_decimal = pynini.closure(graph_decimal + delete_space) + graph_decimal
-        self.graph = graph_decimal
+        self.graph = pynini.invert(graph_decimal).optimize()
 
-        point = pynutil.delete("point")
+        point = pynutil.delete(".")
 
         optional_graph_negative = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1
+            pynutil.insert("negative: ") + pynini.cross("-", "\"true\""), 0, 1
         )
 
-        graph_fractional = pynutil.insert("fractional_part: \"") + graph_decimal + pynutil.insert("\"")
+        graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
         graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
         final_graph_wo_sign = (
-            pynini.closure(graph_integer + delete_extra_space, 0, 1) + point + delete_extra_space + graph_fractional
+            pynini.closure(graph_integer + pynutil.insert(" "), 0, 1) + point + pynutil.insert(" ") + graph_fractional
         )
         final_graph = optional_graph_negative + final_graph_wo_sign
 
-        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
-            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
-        )
-        final_graph |= optional_graph_negative + get_quantity(
-            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
-        )
+        self.final_graph_wo_negative = final_graph_wo_sign
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
