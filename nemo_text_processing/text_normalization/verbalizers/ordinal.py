@@ -15,12 +15,7 @@
 
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_space,
-)
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst, delete_space
 
 try:
     import pynini
@@ -40,7 +35,6 @@ class OrdinalFst(GraphFst):
     def __init__(self):
         super().__init__(name="ordinal", kind="verbalize")
 
-        
         graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv")).invert()
         graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv")).invert()
 
@@ -53,14 +47,7 @@ class OrdinalFst(GraphFst):
         )
         convert_rest = pynutil.insert("th", weight=0.01)
 
-        suffix = pynini.cdrewrite(
-            graph_digit
-            | graph_teens
-            | convert_rest,
-            "",
-            "[EOS]",
-            NEMO_SIGMA,
-        )
+        suffix = pynini.cdrewrite(graph_digit | graph_teens | convert_rest, "", "[EOS]", NEMO_SIGMA,)
         graph = graph @ suffix
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

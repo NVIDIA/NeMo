@@ -13,16 +13,12 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import (
-    NEMO_DIGIT,
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-)
+from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst, delete_extra_space, delete_space
 
 try:
     import pynini
     from pynini.lib import pynutil
+
     delete_space = pynutil.delete(" ")
 
     PYNINI_AVAILABLE = True
@@ -55,9 +51,7 @@ class DecimalFst(GraphFst):
 
         point = pynutil.delete(".")
 
-        optional_graph_negative = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("-", "\"true\""), 0, 1
-        )
+        optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\""), 0, 1)
 
         graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
         graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")

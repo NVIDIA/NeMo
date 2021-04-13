@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, GraphFst, NEMO_DIGIT, NEMO_ALPHA
+from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_CHAR, NEMO_DIGIT, GraphFst
 
 try:
     import pynini
@@ -36,7 +36,9 @@ class OrdinalFst(GraphFst):
         super().__init__(name="ordinal", kind="classify")
 
         cardinal_graph = cardinal.graph
-        self.graph = ((pynini.closure(NEMO_DIGIT) + pynutil.delete(pynini.union("rd",  "th",  "st" ,  "nd"))) @ cardinal_graph).optimize()
+        self.graph = (
+            (pynini.closure(NEMO_DIGIT) + pynutil.delete(pynini.union("rd", "th", "st", "nd"))) @ cardinal_graph
+        ).optimize()
         final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

@@ -41,7 +41,7 @@ class MeasureFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="measure", kind="verbalize")
-        optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
+        optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
         unit = (
             pynutil.delete("units:")
             + delete_space

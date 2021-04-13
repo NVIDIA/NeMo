@@ -15,13 +15,13 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_SIGMA,
     NEMO_SPACE,
-    NEMO_ALPHA,
     GraphFst,
+    delete_extra_space,
     delete_space,
-    delete_extra_space
 )
 from nemo_text_processing.text_normalization.utils import num_to_word
 
@@ -53,7 +53,9 @@ class CardinalFst(GraphFst):
 
         graph_hundred = pynutil.delete("hundred")
 
-        graph_hundred_component = pynini.union(graph_digit + delete_space + graph_hundred + delete_space, pynutil.insert("0"))
+        graph_hundred_component = pynini.union(
+            graph_digit + delete_space + graph_hundred + delete_space, pynutil.insert("0")
+        )
         graph_hundred_component += pynini.union(
             graph_teen | pynutil.insert("00"),
             (graph_ties + delete_space | pynutil.insert("0")) + (graph_digit | pynutil.insert("0")),
@@ -62,7 +64,9 @@ class CardinalFst(GraphFst):
         graph_hundred_component_at_least_one_none_zero_digit = graph_hundred_component @ (
             pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)
         )
-        self.graph_hundred_component_at_least_one_none_zero_digit = pynini.invert(graph_hundred_component_at_least_one_none_zero_digit).optimize()
+        self.graph_hundred_component_at_least_one_none_zero_digit = pynini.invert(
+            graph_hundred_component_at_least_one_none_zero_digit
+        ).optimize()
 
         graph_thousands = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("thousand"),
@@ -116,12 +120,15 @@ class CardinalFst(GraphFst):
         graph = graph @ pynini.union(
             pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
         )
-        self.graph = pynini.invert(graph) @ (pynini.closure(pynutil.delete(" ")) + pynini.closure(pynini.closure(NEMO_ALPHA, 1) + delete_extra_space) + pynini.closure(NEMO_ALPHA, 1) + pynini.closure(pynutil.delete(" ")) )
+        self.graph = pynini.invert(graph) @ (
+            pynini.closure(pynutil.delete(" "))
+            + pynini.closure(pynini.closure(NEMO_ALPHA, 1) + delete_extra_space)
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.closure(pynutil.delete(" "))
+        )
         self.graph = self.graph.optimize()
 
-        optional_minus_graph = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("-", "\"minus\" "), 0, 1
-        )
+        optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"minus\" "), 0, 1)
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
 

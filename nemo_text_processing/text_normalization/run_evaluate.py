@@ -35,10 +35,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", type=str)
     parser.add_argument(
-        "--normalizer",
-        default='nemo',
-        help="normalizer to use (" + ", ".join(DENORMALIZERS.keys()) + ")",
-        type=str,
+        "--normalizer", default='nemo', help="normalizer to use (" + ", ".join(DENORMALIZERS.keys()) + ")", type=str,
     )
     parser.add_argument(
         "--cat",

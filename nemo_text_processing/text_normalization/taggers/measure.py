@@ -14,12 +14,13 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_NON_BREAKING_SPACE,
     NEMO_SIGMA,
+    SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
     delete_extra_space,
     delete_space,
-    get_singulars,
 )
 
 try:
@@ -48,54 +49,53 @@ class MeasureFst(GraphFst):
         cardinal_graph = cardinal.graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
-        graph_unit_singular = pynini.invert(graph_unit)  # singular -> abbr
-        graph_unit_plural = get_singulars(graph_unit_singular)  # plural -> abbr
+        graph_unit = convert_space(graph_unit)
+        optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        optional_graph_negative = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1
+        graph_unit2 = pynini.closure(
+            delete_space
+            + pynutil.insert(NEMO_NON_BREAKING_SPACE)
+            + pynini.cross("/", "per")
+            + delete_space
+            + pynutil.insert(NEMO_NON_BREAKING_SPACE)
+            + graph_unit,
+            0,
+            1,
         )
 
-        unit_singular = convert_space(graph_unit_singular)
-        unit_plural = convert_space(graph_unit_plural)
-        unit_misc = pynutil.insert("/") + pynutil.delete("per") + delete_space + convert_space(graph_unit_singular)
+        graph_unit_plural = graph_unit @ SINGULAR_TO_PLURAL
 
-        unit_singular = (
-            pynutil.insert("units: \"")
-            + (unit_singular | unit_misc | pynutil.add_weight(unit_singular + delete_space + unit_misc, 0.01))
-            + pynutil.insert("\"")
-        )
-        unit_plural = (
-            pynutil.insert("units: \"")
-            + (unit_plural | unit_misc | pynutil.add_weight(unit_plural + delete_space + unit_misc, 0.01))
-            + pynutil.insert("\"")
-        )
+        unit_plural = pynutil.insert("units: \"") + graph_unit_plural + graph_unit2 + pynutil.insert("\"")
+
+        unit_singular = pynutil.insert("units: \"") + graph_unit + graph_unit2 + pynutil.insert("\"")
 
         subgraph_decimal = (
             pynutil.insert("decimal { ")
             + optional_graph_negative
             + decimal.final_graph_wo_negative
-            + pynutil.insert(" }")
-            + delete_extra_space
+            + delete_space
+            + pynutil.insert(" } ")
             + unit_plural
         )
         subgraph_cardinal = (
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
-            + ((NEMO_SIGMA - "one") @ cardinal_graph)
+            + ((NEMO_SIGMA - "1") @ cardinal_graph)
+            + delete_space
             + pynutil.insert("\"")
-            + pynutil.insert(" }")
-            + delete_extra_space
+            + pynutil.insert(" } ")
             + unit_plural
         )
+
         subgraph_cardinal |= (
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
-            + pynini.cross("one", "1")
+            + pynini.cross("1", "one")
+            + delete_space
             + pynutil.insert("\"")
-            + pynutil.insert(" }")
-            + delete_extra_space
+            + pynutil.insert(" } ")
             + unit_singular
         )
         final_graph = subgraph_decimal | subgraph_cardinal
