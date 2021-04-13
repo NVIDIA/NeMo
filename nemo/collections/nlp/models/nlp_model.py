@@ -468,7 +468,6 @@ class NLPModel(ModelPT, Exportable):
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
-            # tar.add(source_dir, arcname=path.basename(source_dir))
             tar.add(source_dir, arcname=".")
 
     @property
