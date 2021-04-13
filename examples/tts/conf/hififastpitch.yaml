@@ -1,4 +1,4 @@
-name: "FastPitchs"
+name: "HiFiFastPitch"
 sample_rate: 22050
 
 labels: [' ', '!', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
