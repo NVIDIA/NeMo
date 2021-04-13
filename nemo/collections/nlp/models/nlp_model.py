@@ -262,8 +262,7 @@ class NLPModel(ModelPT, Exportable):
             logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
         return None
 
-    # remove rank check as model parallel models need to be saved on data parallel rank 0
-    # @rank_zero_only
+    # no rank check as model parallel models need to be saved on data parallel rank 0
     def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file
