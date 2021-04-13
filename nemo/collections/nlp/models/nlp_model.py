@@ -434,7 +434,7 @@ class NLPModel(ModelPT, Exportable):
             restored_model._trainer = trainer
             return restored_model
         else:
-            return super().restore_from(cls, restore_path, override_config_path, map_location, strict, return_config)
+            return super().restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
             # cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
