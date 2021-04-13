@@ -211,6 +211,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        use_grads=False,
     ):
         super().__init__(n_window_size, n_window_stride)
 
@@ -248,6 +249,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             stft_conv=stft_conv,
             pad_value=pad_value,
             mag_power=mag_power,
+            use_grads=use_grads,
         )
 
     def get_features(self, input_signal, length):
@@ -582,6 +584,7 @@ class AudioToMelSpectrogramPreprocessorConfig:
     stft_conv: bool = False
     pad_value: int = 0
     mag_power: float = 2.0
+    use_grads: bool = False
 
 
 @dataclass
