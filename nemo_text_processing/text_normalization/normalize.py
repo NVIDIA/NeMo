@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,198 +12,213 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import sys
+from collections import OrderedDict
 from typing import List
 
-from nemo_text_processing.text_normalization.tag import Tag, TagType
-from nemo_text_processing.text_normalization.tagger import (
-    tag_cardinal,
-    tag_date,
-    tag_decimal,
-    tag_measure,
-    tag_money,
-    tag_ordinal,
-    tag_time,
-    tag_verbatim,
-    tag_whitelist,
-)
-from nemo_text_processing.text_normalization.verbalizer import (
-    expand_cardinal,
-    expand_date,
-    expand_decimal,
-    expand_digit,
-    expand_electronic,
-    expand_fraction,
-    expand_letter,
-    expand_measurement,
-    expand_money,
-    expand_ordinal,
-    expand_punct,
-    expand_roman,
-    expand_telephone,
-    expand_time,
-    expand_verbatim,
-    expand_whitelist,
-)
+from nemo_text_processing.text_normalization.taggers.tokenize_and_classify_final import ClassifyFinalFst
+from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
+from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from tqdm import tqdm
 
-TAGGERS = [
-    tag_whitelist,
-    tag_money,
-    tag_measure,
-    tag_time,
-    tag_decimal,
-    tag_date,
-    tag_ordinal,
-    tag_cardinal,
-    tag_verbatim,
-]
+try:
+    import pynini
 
-VERBALIZERS = {
-    TagType.CARDINAL: [expand_cardinal, expand_roman],
-    TagType.DATE: [expand_date],
-    TagType.DECIMAL: [expand_decimal],
-    TagType.DIGIT: [expand_digit],
-    TagType.ELECTRONIC: [expand_electronic],
-    TagType.FRACTION: [expand_fraction],
-    TagType.LETTERS: [expand_letter],
-    TagType.MEASURE: [expand_measurement],
-    TagType.MONEY: [expand_money],
-    TagType.ORDINAL: [expand_ordinal],
-    TagType.PUNCT: [expand_punct],
-    TagType.TELEPHONE: [expand_telephone],
-    TagType.TIME: [expand_time],
-    TagType.VERBATIM: [expand_verbatim],
-    TagType.WHITELIST: [expand_whitelist],
-}
+    tagger = ClassifyFinalFst()
+    verbalizer = VerbalizeFinalFst()
+    parser = TokenParser()
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    # Add placeholders
+    tagger = None
+    verbalizer = None
+    parser = None
+
+    PYNINI_AVAILABLE = False
 
 
-def find_tags(text: str) -> List[Tag]:
+def _permute(d: OrderedDict) -> List[str]:
     """
-    Given text use all taggers to find all possible tags within the text 
+    Creates reorderings of dictionary elements and serializes as strings
+
     Args:
-        text: string
-    Returns: List of tags
-    """
-    tags = []
-    for tagger in TAGGERS:
-        foundTags = find_tag(text, tagger)
-        if foundTags:
-            tags.extend(foundTags)
-    return tags
+        d: (nested) dictionary of key value pairs
 
-
-def find_tag(text: str, tagger) -> List[Tag]:
+    Return permutations of different string serializations of key value pairs
     """
-    Given text and tagger find all matching tags
-    Args:
-        text: string
-        tagger: tagger
-    Returns: List of Tags or None
-    """
-    return tagger(text)
-
-
-def select_tags(tags: List[Tag]) -> List[Tag]:
-    """
-    from all possible given tags to a given text select only those that are non-overlapping.
-    This can have multiple strategies.
-    Args:
-        tags: list of tags
-    Returns: List of tags that are not overlapping. Should be subset of input list of tags
-    """
-    res = []
-    for tag in tags:
-        overlapping = False
-        for existing in res:
-            if Tag.overlap(existing, tag):
-                overlapping = True
-                break
-        if not overlapping:
-            res.append(tag)
-    return res
-
-
-def verbalize(text: str, tags: List[Tag]) -> str:
-    """
-    Given text and corresponding list of tags. Applies verbalization where possible for tagged substrings and returns transduced text.
-    This is context-independent, i.e. normalization only looks at tagged substring.
-    Args:
-        text: input text
-        tags: list of tags of input text
-    Returns: normalized input text
-    """
-    # sort by last starting point
-    tags = sorted(tags, key=lambda x: -x.start)
-    for tag in tags:
-        text = text[: tag.start] + _verbalize(tag) + text[tag.end :]
-    return text
-
-
-def _verbalize(tag: Tag) -> str:
-    """
-    Given tag applies verbalization if possible and returns transduced text.
-    This is context-independent.
-    Args:
-        tag: tag
-    Returns: verbalized text
-    """
-    expand_funcs = VERBALIZERS[tag.kind]
-    res = [f(tag.data) for f in expand_funcs]
-    res = [x for x in res if x]
-    if not res:
-        return tag.text
+    l = []
+    if PRESERVE_ORDER_KEY in d.keys():
+        d_permutations = [d.items()]
     else:
-        return res[0]
+        d_permutations = itertools.permutations(d.items())
+    for perm in d_permutations:
+        subl = [""]
+        for k, v in perm:
+            if isinstance(v, str):
+                subl = ["".join(x) for x in itertools.product(subl, [f"{k}: \"{v}\" "])]
+            elif isinstance(v, OrderedDict):
+                rec = _permute(v)
+                subl = ["".join(x) for x in itertools.product(subl, [f" {k} {{ "], rec, [f" }} "])]
+            elif isinstance(v, bool):
+                subl = ["".join(x) for x in itertools.product(subl, [f"{k}: true "])]
+            else:
+                raise ValueError()
+        l.extend(subl)
+    return l
 
 
-def normalize(text: str, verbose: bool):
+def generate_permutations(tokens: List[dict]):
     """
-    main function. normalizes alphanumerical tokens in given text to its verbalized form:
-    e.g. "12kg -> twelve kilograms"
+    Generates permutations of string serializations of list of dictionaries
+
     Args:
-        text: string that may include semiotic classes.
-    Returns: verbalized form in string format
+        tokens: list of dictionaries
+
+    Returns string serialization of list of dictionaries
     """
-    tags = find_tags(text)
-    tags = select_tags(tags)
-    output = verbalize(text, tags)
-    if verbose:
-        print(text)
-        print(output)
-        print([str(tag) for tag in tags])
+
+    def _helper(prefix: str, tokens: List[dict], idx: int):
+        """
+        Generates permutations of string serializations of given dictionary
+
+        Args:
+            tokens: list of dictionaries
+            prefix: prefix string
+            idx:    index of next dictionary
+
+        Returns string serialization of dictionary
+        """
+        if idx == len(tokens):
+            yield prefix
+            return
+        token_options = _permute(tokens[idx])
+        for token_option in token_options:
+            yield from _helper(prefix + token_option, tokens, idx + 1)
+
+    return _helper("", tokens, 0)
+
+
+def find_tags(text: str) -> 'pynini.FstLike':
+    """
+    Given text use tagger Fst to tag text
+
+    Args:
+        text: sentence
+
+    Returns: tagged lattice
+    """
+    lattice = text @ tagger.fst
+    return lattice
+
+
+def select_tag(lattice: 'pynini.FstLike') -> str:
+    """
+    Given tagged lattice return shortest path
+
+    Args:
+        tagged_text: tagged text
+
+    Returns: shortest path
+    """
+    tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
+    return tagged_text
+
+
+def find_verbalizer(tagged_text: str) -> 'pynini.FstLike':
+    """
+    Given tagged text, e.g. token {name: ""} token {money {fractional: ""}}, creates verbalization lattice
+    This is context-independent.
+
+    Args:
+        tagged_text: input text
+
+    Returns: verbalized lattice
+    """
+    lattice = tagged_text @ verbalizer.fst
+    return lattice
+
+
+def select_verbalizer(lattice: 'pynini.FstLike') -> str:
+    """
+    Given verbalized lattice return shortest path
+
+    Args:
+        lattice: verbalization lattice
+
+    Returns: shortest path
+    """
+    output = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
     return output
 
 
-def normalize_identity(texts: List[str], verbose: bool = False) -> List[str]:
+def normalize(text: str, verbose: bool) -> str:
     """
-    Identity normalizer. Returns input unchanged
+    main function. normalizes spoken tokens in given text to its written form
+        e.g. twelve kilograms -> 12 kg
+
     Args:
-        texts: input string
-    Returns input string
+        text: string that may include semiotic classes.
+
+    Returns: written form
+    """
+
+    text = pynini.escape(text)
+    tagged_lattice = find_tags(text)
+    tagged_text = select_tag(tagged_lattice)
+    parser(tagged_text)
+    tokens = parser.parse()
+    tags_reordered = generate_permutations(tokens)
+    for tagged_text in tags_reordered:
+        tagged_text = pynini.escape(tagged_text)
+        verbalizer_lattice = find_verbalizer(tagged_text)
+        if verbalizer_lattice.num_states() == 0:
+            continue
+        output = select_verbalizer(verbalizer_lattice)
+        if verbose:
+            print(output)
+        return output
+    raise ValueError()
+
+
+def normalize_identity(texts: List[str], verbose=False) -> List[str]:
+    """
+    Identity function. Returns input unchanged
+
+    Args:
+        texts: input strings
+
+    Returns input strings
     """
     return texts
 
 
-def normalize_nemo(texts: List[str], verbose: bool = False) -> List[str]:
+def normalize_nemo(texts: List[str], verbose=False) -> List[str]:
     """
-    Text normalization with NeMo algorithm.
+    NeMo text normalizer 
+
     Args:
-        texts: List of unnormlized strings
-        verbose: if specified prints debugging info
-    Returns list of normalized strings
+        texts: input strings
+
+    Returns converted input strings
     """
     res = []
     for input in tqdm(texts):
-        text = normalize(input, verbose=verbose)
+        try:
+            text = normalize(input, verbose=verbose)
+        except:
+            raise Exception
         res.append(text)
     return res
 
 
-normalizers = {"identity": normalize_identity, "nemo": normalize_nemo}
+NORMALIZERS = {
+    "identity": normalize_identity,
+    "nemo": normalize_nemo,
+}
 
 
 if __name__ == "__main__":
-    # Example usage:
     s = sys.argv[1]  # input string
     normalize(s, verbose=True)

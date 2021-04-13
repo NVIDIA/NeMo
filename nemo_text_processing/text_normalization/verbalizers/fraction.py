@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,23 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
-
-import inflect
-
-_inflect = inflect.engine()
+from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
 
-def num_to_word(x: Union[str, int]):
+class FractionFst(GraphFst):
     """
-    converts integer to spoken representation
-
-    Args
-        x: integer
-
-    Returns: spoken representation 
+    Finite state transducer for verbalizing fraction, 
     """
-    if isinstance(x, int):
-        x = str(x)
-        x = _inflect.number_to_words(str(x)).replace("-", " ").replace(",", "")
-    return x
+
+    def __init__(self):
+        super().__init__(name="fraction", kind="verbalize")

@@ -11,24 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Union
-
-import inflect
-
-_inflect = inflect.engine()
-
-
-def num_to_word(x: Union[str, int]):
-    """
-    converts integer to spoken representation
-
-    Args
-        x: integer
-
-    Returns: spoken representation 
-    """
-    if isinstance(x, int):
-        x = str(x)
-        x = _inflect.number_to_words(str(x)).replace("-", " ").replace(",", "")
-    return x

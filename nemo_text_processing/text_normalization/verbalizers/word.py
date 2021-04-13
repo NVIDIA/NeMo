@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.utils import logging
+from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst, delete_space
 
 try:
     import pynini
+    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    logging.warning(
-        "`pynini` is not installed ! \n"
-        "Please run the `nemo_text_processing/setup.sh` script"
-        "prior to usage of this toolkit."
-    )
-
     PYNINI_AVAILABLE = False
+
+
+class WordFst(GraphFst):
+    """
+    Finite state transducer for verbalizing word
+        e.g. tokens { name: "sleep" } -> sleep
+    """
+
+    def __init__(self):
+        super().__init__(name="word", kind="verbalize")
+        chars = pynini.closure(NEMO_CHAR - " ", 1)
+        char = pynutil.delete("name:") + delete_space + pynutil.delete("\"") + chars + pynutil.delete("\"")
+        graph = char @ pynini.cdrewrite(pynini.cross(u"\u00A0", " "), "", "", NEMO_SIGMA)
+
+        self.fst = graph.optimize()
