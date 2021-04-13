@@ -16,6 +16,7 @@ import os
 
 try:
     import pynini
+
     PYNINI_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False

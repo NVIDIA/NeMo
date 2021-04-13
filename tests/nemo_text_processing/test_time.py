@@ -16,7 +16,7 @@ import pytest
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import inverse_normalize
 from nemo_text_processing.text_normalization.normalize import normalize
 from parameterized import parameterized
-from utils import parse_test_case_file, PYNINI_AVAILABLE
+from utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestTime:
