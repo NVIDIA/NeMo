@@ -45,6 +45,6 @@ class MoneyFst(GraphFst):
             + pynini.closure(NEMO_CHAR - " ", 1)
             + pynutil.delete("\"")
         )
-        graph = unit + delete_space + decimal.numbers
+        graph = decimal.numbers + delete_space + pynutil.insert(" ") + unit
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

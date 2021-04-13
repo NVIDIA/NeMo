@@ -16,11 +16,11 @@ from nemo_text_processing.text_normalization.data_loader_utils import get_abs_pa
 from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_DIGIT,
     NEMO_SIGMA,
+    SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
     delete_extra_space,
     delete_space,
-    get_singulars,
     insert_space,
 )
 
@@ -50,62 +50,23 @@ class MoneyFst(GraphFst):
         cardinal_graph = cardinal.graph
         graph_decimal_final = decimal.final_graph_wo_negative
 
-        unit = pynini.string_file(get_abs_path("data/currency.tsv"))
-        unit_singular = pynini.invert(unit)
-        unit_plural = get_singulars(unit_singular)
+        unit_singular = pynini.string_file(get_abs_path("data/currency.tsv"))
+        unit_plural = convert_space(unit_singular @ SINGULAR_TO_PLURAL)
+        unit_singular = convert_space(unit_singular)
 
-        graph_unit_singular = pynutil.insert("currency: \"") + convert_space(unit_singular) + pynutil.insert("\"")
-        graph_unit_plural = pynutil.insert("currency: \"") + convert_space(unit_plural) + pynutil.insert("\"")
-
-        add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
-        # twelve dollars (and) fifty cents, zero cents
-        cents_standalone = (
-            pynutil.insert("fractional_part: \"")
-            + pynini.union(
-                pynutil.add_weight(((NEMO_SIGMA - "one") @ cardinal_graph), -0.7) @ add_leading_zero_to_double_digit
-                + delete_space
-                + pynutil.delete("cents"),
-                pynini.cross("one", "01") + delete_space + pynutil.delete("cent"),
-            )
-            + pynutil.insert("\"")
-        )
-
-        optional_cents_standalone = pynini.closure(
-            delete_space
-            + pynini.closure(pynutil.delete("and") + delete_space, 0, 1)
-            + insert_space
-            + cents_standalone,
-            0,
-            1,
-        )
-        # twelve dollars fifty, only after integer
-        optional_cents_suffix = pynini.closure(
-            delete_extra_space
-            + pynutil.insert("fractional_part: \"")
-            + pynutil.add_weight(cardinal_graph @ add_leading_zero_to_double_digit, -0.7)
-            + pynutil.insert("\""),
-            0,
-            1,
-        )
+        graph_unit_singular = pynutil.insert("currency: \"") + unit_singular + pynutil.insert("\"")
+        graph_unit_plural = pynutil.insert("currency: \"") + unit_plural + pynutil.insert("\"")
 
         graph_integer = (
-            pynutil.insert("integer_part: \"")
-            + ((NEMO_SIGMA - "one") @ cardinal_graph)
+            graph_unit_plural
+            + pynutil.insert(" integer_part: \"")
+            + ((NEMO_SIGMA - "1") @ cardinal_graph)
             + pynutil.insert("\"")
-            + delete_extra_space
-            + graph_unit_plural
-            + (optional_cents_standalone | optional_cents_suffix)
         )
         graph_integer |= (
-            pynutil.insert("integer_part: \"")
-            + pynini.cross("one", "1")
-            + pynutil.insert("\"")
-            + delete_extra_space
-            + graph_unit_singular
-            + (optional_cents_standalone | optional_cents_suffix)
+            graph_unit_singular + pynutil.insert(" integer_part: \"") + pynini.cross("1", "one") + pynutil.insert("\"")
         )
-        graph_decimal = graph_decimal_final + delete_extra_space + graph_unit_plural
-        graph_decimal |= pynutil.insert("currency: \"$\" integer_part: \"0\" ") + cents_standalone
+        graph_decimal = graph_unit_plural + insert_space + graph_decimal_final
         final_graph = graph_integer | graph_decimal
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
