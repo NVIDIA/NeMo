@@ -13,12 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pynini
 from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
 from nemo_text_processing.inverse_text_normalization.verbalizers.decimal import DecimalFst
-from pynini.lib import pynutil
 
-decimal = DecimalFst()
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    decimal = DecimalFst()
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    # Add placeholders
+    decimal = None
+
+    PYNINI_AVAILABLE = False
 
 
 class MoneyFst(GraphFst):
