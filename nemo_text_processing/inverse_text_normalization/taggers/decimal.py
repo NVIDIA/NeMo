@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pynini
 from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.inverse_text_normalization.graph_utils import (
     NEMO_DIGIT,
@@ -20,7 +19,14 @@ from nemo_text_processing.inverse_text_normalization.graph_utils import (
     delete_extra_space,
     delete_space,
 )
-from pynini.lib import pynutil
+
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
 
 
 def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_digit):
