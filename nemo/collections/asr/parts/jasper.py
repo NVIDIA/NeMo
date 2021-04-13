@@ -20,6 +20,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from nemo.collections.asr.parts.activations import Swish
+from nemo.utils import logging
 
 try:
     from pytorch_quantization import calib
@@ -30,7 +31,6 @@ try:
     PYTORCH_QUANTIZATION_AVAILABLE = True
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
-
 
 jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
 
@@ -68,10 +68,46 @@ def compute_new_kernel_size(kernel_size, kernel_width):
     return new_kernel_size
 
 
-def get_same_padding(kernel_size, stride, dilation):
+def get_same_padding(kernel_size, stride, dilation) -> int:
     if stride > 1 and dilation > 1:
         raise ValueError("Only stride OR dilation may be greater than 1")
     return (dilation * (kernel_size - 1)) // 2
+
+
+def get_asymtric_padding(kernel_size, stride, dilation, future_context):
+    if stride > 1 and dilation > 1:
+        raise ValueError("Only stride OR dilation may be greater than 1")
+
+    left_context = kernel_size - 1 - future_context
+    right_context = future_context
+
+    symmetric_padding = get_same_padding(kernel_size, stride, dilation)
+
+    if kernel_size <= future_context:
+        # kernel size is smaller than future context, equivalent to using entire context of kernel
+        # simply return symmetric padding for this scenario
+        logging.warning(
+            f"Future context window is larger than the kernel size!\n"
+            f"Left context = {left_context} | Right context = greater than {right_context} | "
+            f"Kernel size = {kernel_size}\n"
+            f"Switching to symmetric padding (left context = right context = {symmetric_padding})"
+        )
+        return symmetric_padding
+
+    if left_context < symmetric_padding:
+        logging.warning(
+            f"Future context window is larger than half the kernel size!\n"
+            f"Conv layer therefore uses more future information than past to compute its output!\n"
+            f"Left context = {left_context} | Right context = {right_context} | "
+            f"Kernel size = {kernel_size}"
+        )
+
+    if dilation > 1:
+        left_context = dilation * kernel_size - 1 - dilation * future_context
+        right_context = dilation * future_context
+        return (left_context, right_context)
+
+    return (left_context, right_context)
 
 
 class StatsPoolLayer(nn.Module):
@@ -149,6 +185,17 @@ class MaskedConv1d(nn.Module):
             out_channels = heads
             groups = heads
 
+        # preserve original padding
+        self._padding = padding
+
+        # if padding is a tuple/list, it is considered as asymmetric padding
+        if type(padding) in (tuple, list):
+            self.pad_layer = nn.ConstantPad1d(padding, value=0.0)
+            # reset padding for conv since pad_layer will handle this
+            padding = 0
+        else:
+            self.pad_layer = None
+
         if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
             self.conv = quant_nn.QuantConv1d(
                 in_channels,
@@ -178,9 +225,17 @@ class MaskedConv1d(nn.Module):
             )
         self.use_mask = use_mask
         self.heads = heads
+
+        # Calculations for "same" padding cache
         self.same_padding = (self.conv.stride[0] == 1) and (
             2 * self.conv.padding[0] == self.conv.dilation[0] * (self.conv.kernel_size[0] - 1)
         )
+        if self.pad_layer is None:
+            self.same_padding_asymmetric = False
+        else:
+            self.same_padding_asymmetric = (self.conv.stride[0] == 1) and (
+                sum(self._padding) == self.conv.dilation[0] * (self.conv.kernel_size[0] - 1)
+            )
 
         # `self.lens` caches consecutive integers from 0 to `self.max_len` that are used to compute the mask for a
         # batch. Recomputed to bigger size as needed. Stored on a device of the latest batch lens.
@@ -189,12 +244,17 @@ class MaskedConv1d(nn.Module):
             self.lens = None
 
     def get_seq_len(self, lens):
-        if self.same_padding:
+        if self.same_padding or self.same_padding_asymmetric:
             return lens
 
-        return (
-            lens + 2 * self.conv.padding[0] - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
-        ) // self.conv.stride[0] + 1
+        if self.pad_layer is None:
+            return (
+                lens + 2 * self.conv.padding[0] - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
+            ) // self.conv.stride[0] + 1
+        else:
+            return (
+                lens + sum(self._padding) - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
+            ) // self.conv.stride[0] + 1
 
     def forward(self, x, lens):
         if self.use_mask:
@@ -207,6 +267,10 @@ class MaskedConv1d(nn.Module):
             mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
             x = x * mask.unsqueeze(1).to(device=x.device)
             lens = self.get_seq_len(lens)
+
+        # asymmtric pad if necessary
+        if self.pad_layer is not None:
+            x = self.pad_layer(x)
 
         sh = x.shape
         if self.heads != -1:
@@ -391,6 +455,53 @@ class JasperBlock(nn.Module):
         stride_last: Bool flag that determines whether all repeated blocks should stride at once,
             (stride of S^R when this flag is False) or just the last repeated block should stride
             (stride of S when this flag is True).
+        future_context: Int value that determins how many "right" / "future" context frames will be utilized
+            when calculating the output of the conv kernel. All calculations are done for odd kernel sizes only.
+
+            By default, this is -1, which is recomputed as the symmetric padding case.
+
+            When future_context >= 0, will compute the asymmetric padding as follows :
+            (left context, right context) = [K - 1 - future_context, future_context]
+
+            Determining an exact formula to limit future context is dependent on global layout of the model.
+            As such, we provide both "local" and "global" guidelines below.
+
+            Local context limit (should always be enforced)
+            - future context should be <= half the kernel size for any given layer
+            - future context > kernel size defaults to symmetric kernel
+            - future context of layer = number of future frames * width of each frame (dependent on stride)
+
+            Global context limit (should be carefully considered)
+            - future context should be layed out in an ever reducing pattern. Initial layers should restrict
+            future context less than later layers, since shallow depth (and reduced stride) means each frame uses
+            less amounts of future context.
+            - Beyond a certain point, future context should remain static for a given stride level. This is
+            the upper bound of the amount of future context that can be provided to the model on a global scale.
+            - future context is calculated (roughly) as - (2 ^ stride) * (K // 2) number of future frames.
+            This resultant value should be bound to some global maximum number of future seconds of audio (in ms).
+
+            Note: In the special case where K < future_context, it is assumed that the kernel is too small to limit
+            its future context, so symmetric padding is used instead.
+
+            Note: There is no explicit limitation on the amount of future context used, as long as
+            K > future_context constraint is maintained. This might lead to cases where future_context is
+            more than half the actual kernel size K! In such cases, the conv layer is utilizing more of the future
+            context than its current and past context to compute the output. While this is possible to do,
+            it is not recommended and the layer will raise a warning to notify the user of such cases.
+            It is advised to simply use symmetric padding for such cases.
+
+            Example:
+            Say we have a model that performs 8x stride and receives spectrogram frames with stride of 0.01s.
+            Say we wish to upper bound future context to 80 ms.
+
+            Layer ID, Kernel Size, Stride, Future Context, Global Context
+            0, K=5,  S=1, FC=8, GC= 2 * (2^0) = 2 * 0.01 ms  (special case, K < FC so use symmetric pad)
+            1, K=7,  S=1, FC=3, GC= 3 * (2^0) = 3 * 0.01 ms  (note that symmetric pad here uses 3 FC frames!)
+            2, K=11, S=2, FC=4, GC= 4 * (2^1) = 8 * 0.01 ms  (note that symmetric pad here uses 5 FC frames!)
+            3, K=15, S=1, FC=4, GC= 4 * (2^1) = 8 * 0.01 ms  (note that symmetric pad here uses 7 FC frames!)
+            4, K=21, S=2, FC=2, GC= 2 * (2^2) = 8 * 0.01 ms  (note that symmetric pad here uses 10 FC frames!)
+            5, K=25, S=2, FC=1, GC= 1 * (2^3) = 8 * 0.01 ms  (note that symmetric pad here uses 14 FC frames!)
+            6, K=29, S=1, FC=1, GC= 1 * (2^3) = 8 * 0.01 ms ...
         quantize: Bool flag whether to quantize the Convolutional blocks.
     """
 
@@ -419,9 +530,10 @@ class JasperBlock(nn.Module):
         conv_mask=False,
         se=False,
         se_reduction_ratio=16,
-        se_context_window=None,
+        se_context_window=-1,
         se_interpolation_mode='nearest',
         stride_last=False,
+        future_context: int = -1,
         quantize=False,
     ):
         super(JasperBlock, self).__init__()
@@ -435,7 +547,11 @@ class JasperBlock(nn.Module):
         else:
             kernel_size = compute_new_kernel_size(kernel_size, kernel_size_factor)
 
-        padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
+        if future_context < 0:
+            padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
+        else:
+            padding_val = get_asymtric_padding(kernel_size[0], stride[0], dilation[0], future_context)
+
         self.conv_mask = conv_mask
         self.separable = separable
         self.residual_mode = residual_mode
