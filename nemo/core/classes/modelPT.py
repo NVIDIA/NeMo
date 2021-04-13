@@ -371,7 +371,9 @@ class ModelPT(LightningModule, Model):
                 else:
                     app_state = AppState()
                     if app_state.model_parallel_rank is not None:
-                        model_weights = path.join(tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}')
+                        model_weights = path.join(
+                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', _MODEL_WEIGHTS
+                        )
                     else:
                         model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                     OmegaConf.set_struct(conf, True)

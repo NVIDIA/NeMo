@@ -382,29 +382,26 @@ class NLPModel(ModelPT, Exportable):
 
         app_state = AppState()
 
-        global checkpoint_version
-
         # detect if we have a model parallel .nemo file
-        if is_global_rank_zero():
-            with tempfile.TemporaryDirectory() as tmpdir:
-                cwd = os.getcwd()
-                os.chdir(tmpdir)
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-                mp_ranks = glob.glob(os.path.join(tmpdir, 'mp_rank*'))
-                if mp_ranks is not None:
-                    app_state.model_parallel_size = len(mp_ranks)
-                    with open('megatron_checkpoint_version.json', 'r') as f:
-                        checkpoint_version = json.load(f).get('checkpoint_version', None)
-                    # get checkpoint version
-                    logging.info(
-                        (
-                            f'Detect model parallel .nemo file: {restore_path}. '
-                            f'Assuming megatron model parallelism with '
-                            f'model_parallel_size: {app_state.model_parallel_size}'
-                            f'and checkpoint version: {checkpoint_version}'
-                        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cwd = os.getcwd()
+            os.chdir(tmpdir)
+            cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+            mp_ranks = glob.glob(os.path.join(tmpdir, 'mp_rank*'))
+            if mp_ranks is not None:
+                app_state.model_parallel_size = len(mp_ranks)
+                with open('megatron_checkpoint_version.json', 'r') as f:
+                    checkpoint_version = json.load(f).get('checkpoint_version', None)
+                # get checkpoint version
+                logging.info(
+                    (
+                        f'Detect model parallel .nemo file: {restore_path}. '
+                        f'Assuming megatron model parallelism with '
+                        f'model_parallel_size: {app_state.model_parallel_size} '
+                        f'and checkpoint version: {checkpoint_version}'
                     )
-                os.chdir(cwd)
+                )
+            os.chdir(cwd)
 
         if app_state.model_parallel_size is not None:
             if checkpoint_version is None:
