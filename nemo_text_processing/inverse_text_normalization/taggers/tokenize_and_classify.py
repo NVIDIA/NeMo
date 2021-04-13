@@ -22,7 +22,13 @@ from nemo_text_processing.inverse_text_normalization.taggers.ordinal import Ordi
 from nemo_text_processing.inverse_text_normalization.taggers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.taggers.word import WordFst
-from pynini.lib import pynutil
+
+try:
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
 
 
 class ClassifyFst(GraphFst):
