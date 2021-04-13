@@ -17,15 +17,26 @@ import sys
 from collections import OrderedDict
 from typing import List
 
-import pynini
 from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify_final import ClassifyFinalFst
 from nemo_text_processing.inverse_text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from tqdm import tqdm
 
-tagger = ClassifyFinalFst()
-verbalizer = VerbalizeFinalFst()
-parser = TokenParser()
+try:
+    import pynini
+
+    tagger = ClassifyFinalFst()
+    verbalizer = VerbalizeFinalFst()
+    parser = TokenParser()
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    # Add placeholders
+    tagger = None
+    verbalizer = None
+    parser = None
+
+    PYNINI_AVAILABLE = False
 
 
 def _permute(d: OrderedDict) -> List[str]:
@@ -89,7 +100,7 @@ def generate_permutations(tokens: List[dict]):
     return _helper("", tokens, 0)
 
 
-def find_tags(text: str) -> pynini.FstLike:
+def find_tags(text: str) -> 'pynini.FstLike':
     """
     Given text use tagger Fst to tag text
 
@@ -102,7 +113,7 @@ def find_tags(text: str) -> pynini.FstLike:
     return lattice
 
 
-def select_tag(lattice: pynini.FstLike) -> str:
+def select_tag(lattice: 'pynini.FstLike') -> str:
     """
     Given tagged lattice return shortest path
 
@@ -115,7 +126,7 @@ def select_tag(lattice: pynini.FstLike) -> str:
     return tagged_text
 
 
-def find_verbalizer(tagged_text: str) -> pynini.FstLike:
+def find_verbalizer(tagged_text: str) -> 'pynini.FstLike':
     """
     Given tagged text, e.g. token {name: ""} token {money {fractional: ""}}, creates verbalization lattice
     This is context-independent.
@@ -129,7 +140,7 @@ def find_verbalizer(tagged_text: str) -> pynini.FstLike:
     return lattice
 
 
-def select_verbalizer(lattice: pynini.FstLike) -> str:
+def select_verbalizer(lattice: 'pynini.FstLike') -> str:
     """
     Given verbalized lattice return shortest path
 

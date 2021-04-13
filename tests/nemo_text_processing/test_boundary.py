@@ -21,7 +21,7 @@ from utils import parse_test_case_file, PYNINI_AVAILABLE
 class TestBoundary:
     @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_boundary.txt'))
     @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, "`pynini` not installed, please install via nemo_text_processing/setup.sh"
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
