@@ -12,7 +12,7 @@ To run tutorials:
 * Click on Colab link (see table below)
 * Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
-.. list-table:: *Tutorials*
+.. list-table:: **Tutorials**
    :widths: 15 25 25
    :header-rows: 1
 
@@ -20,11 +20,14 @@ To run tutorials:
      - Title
      - GitHub URL
    * - General
-     - NeMo Getting Started. Prototyping Conversational AI Application
-     - `Audio translator app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_
+     - Getting Started: Exploring Nemo Fundamentals
+     - `NeMo Fundamentals <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
    * - General
-     - Exploring NeMo Fundamentals
-     - `NeMo Primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
+     - Getting Started: Sample Conversational AI application
+     - `Audio translator example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/AudioTranslationSample.ipynb>`_
+   * - General
+     - Getting Started: Voice swap application
+     - `Voice swap example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/VoiceSwapSample.ipynb>`_
    * - General
      - Exploring NeMo Model Construction
      - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/01_NeMo_Models.ipynb>`_
@@ -86,7 +89,7 @@ To run tutorials:
      - GLUE Benchmark
      - `GLUE Benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/GLUE_Benchmark.ipynb>`_
    * - NLP
-     - Punctuation and Capitialization
+     - Punctuation and Capitalization
      - `Punctuation and Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - NLP
      - Named Entity Recognition - BioMegatron
@@ -104,5 +107,8 @@ To run tutorials:
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
    * - Tools
-     - Text Normalization for Text To Speech
+     - Text Normalization for TTS
      - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/Text_Normalization_Tutorial.ipynb>`_
+   * - Tools
+     - Inverse Text Normalization for ASR
+     - `Inverse Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/tools/Inverse_Text_Normalization.ipynb>`_

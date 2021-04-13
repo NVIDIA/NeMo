@@ -584,6 +584,9 @@ class ModelPT(LightningModule, Model):
         if optim_config is not None and isinstance(optim_config, DictConfig):
             optim_config = OmegaConf.to_container(optim_config, resolve=True)
 
+        if self._trainer is None:
+            logging.warning(f"Trainer wasn't specified in model constructor. Make sure that you really wanted it.")
+
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
