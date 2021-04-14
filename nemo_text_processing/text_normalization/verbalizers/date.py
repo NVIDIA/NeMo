@@ -35,8 +35,9 @@ class DateFst(GraphFst):
         e.g. tdate { month: "january" day: "5" year: "2012" preserve_order: true } -> february 5 2012
     """
 
-    def __init__(self):
+    def __init__(self, ordinal):
         super().__init__(name="date", kind="verbalize")
+
         month = (
             pynutil.delete("month:")
             + delete_space
@@ -50,7 +51,7 @@ class DateFst(GraphFst):
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
-        )
+        ) @ ordinal.suffix
         year = (
             pynutil.delete("year:")
             + delete_space
@@ -67,7 +68,9 @@ class DateFst(GraphFst):
 
         # (day) month year
         graph_dmy = (
-            pynini.closure(day + delete_extra_space, 0, 1) + month + pynini.closure(delete_extra_space + year, 0, 1)
+            pynini.closure(day + delete_extra_space + pynutil.insert("of "), 0, 1)
+            + month
+            + pynini.closure(delete_extra_space + year, 0, 1)
         )
 
         optional_preserve_order = pynini.closure(
