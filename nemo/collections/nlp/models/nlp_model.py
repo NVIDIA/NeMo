@@ -234,11 +234,11 @@ class NLPModel(ModelPT, Exportable):
             if hasattr(self, 'bert_model') and self.bert_model is not None:
                 self.register_bert_model()
 
-            self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
-
             app_state = AppState()
 
             if app_state.model_parallel_size is not None:
+
+                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
 
                 # Configure checkpointing for model parallel
                 if app_state.create_checkpoint_callback:
