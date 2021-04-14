@@ -1,7 +1,7 @@
 import torch
 from pytorch_lightning import Trainer
-from typing import Optional, Dict, List
-from omegaconf import DictConfig, OmegaConf
+from typing import Optional, Dict
+from omegaconf import DictConfig
 from transformers import AutoTokenizer
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model

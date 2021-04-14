@@ -9,10 +9,9 @@ import pickle as pkl
 from tqdm import tqdm
 from argparse import ArgumentParser
 from sklearn.decomposition import PCA
-from typing import Optional, Dict, List
+from typing import Dict
 from omegaconf import DictConfig, OmegaConf
 from collections import OrderedDict
-from nemo.collections.nlp.data import EntityLinkingDataset
 from nemo.collections.nlp.models import EntityLinkingModel
 from nemo.utils import logging
 

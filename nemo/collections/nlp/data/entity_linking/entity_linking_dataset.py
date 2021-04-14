@@ -12,23 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import ast
 import torch
-import random
 import array
 import pickle as pkl
-import numpy as np
-import pandas as pd
 
 from tqdm import tqdm
-from typing import Dict, List, Tuple, Optional
+from typing import Optional
 from nemo.utils import logging
 from nemo.core.classes import Dataset
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types import NeuralType, ChannelType, MaskType, LabelsType
-from nemo.collections.nlp.parts.utils_funcs import list2str
-from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats, find_newlines, load_data_indices
+from nemo.collections.nlp.data.data_utils.data_preprocessing import find_newlines, load_data_indices
 
 __all__ = ['EntityLinkingDataset']
 
@@ -76,8 +69,6 @@ class EntityLinkingDataset(Dataset):
             # Store data file indicies to avoid generating them again
             with open(newline_idx_file, "wb") as f:
                 pkl.dump(newline_indices, f)
-
-            newline_indices = newline_indices
 
         self.newline_indices = newline_indices
         self.data_file = data_file

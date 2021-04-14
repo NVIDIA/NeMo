@@ -67,7 +67,7 @@ class BertPretrainingDataset(Dataset):
         # from main memory when needed during training.
 
         # Try and load sentence indices file if already exists
-        sentence_indices, sentence_idx_file = load_data_indices(sentence_idx_file, "sentence_indices")
+        sentence_indices, sentence_idx_file = load_data_indices(sentence_idx_file, data_file, "sentence_indices")
 
         # If sentence indices file doesn't exists, generate and store sentence indices
         if sentence_indices is None:
