@@ -23,7 +23,6 @@ from nemo_text_processing.text_normalization.graph_utils import (
     delete_extra_space,
     delete_space,
 )
-from nemo_text_processing.text_normalization.utils import num_to_word
 
 try:
     import pynini

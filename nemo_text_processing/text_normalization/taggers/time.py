@@ -15,6 +15,7 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_DIGIT,
     GraphFst,
     convert_space,
     delete_extra_space,
@@ -22,7 +23,6 @@ from nemo_text_processing.text_normalization.graph_utils import (
     insert_space,
 )
 from nemo_text_processing.text_normalization.taggers.cardinal import CardinalFst
-from nemo_text_processing.text_normalization.utils import num_to_word
 
 try:
     import pynini
@@ -45,30 +45,32 @@ class TimeFst(GraphFst):
         super().__init__(name="time", kind="classify")
         # hours, minutes, seconds, suffix, zone, style, speak_period
 
-        suffix_graph = pynini.string_file(get_abs_path("data/time_suffix.tsv"))
-        time_zone_graph = pynini.invert(pynini.string_file(get_abs_path("data/time_zone.tsv")))
+        suffix_graph = pynini.invert(pynini.string_file(get_abs_path("data/time_suffix.tsv")))
+        time_zone_graph = pynini.string_file(get_abs_path("data/time_zone.tsv"))
 
         # only used for < 1000 thousand -> 0 weight
         cardinal = pynutil.add_weight(CardinalFst().graph, weight=-0.7)
 
-        labels_hour = [num_to_word(x) for x in range(0, 24)]
-        labels_minute_single = [num_to_word(x) for x in range(1, 10)]
-        labels_minute_double = [num_to_word(x) for x in range(10, 60)]
+        labels_hour = [str(x) for x in range(0, 24)]
+        labels_minute_single = [str(x) for x in range(1, 10)]
+        labels_minute_double = [str(x) for x in range(10, 60)]
 
-        graph_hour = pynini.union(*labels_hour) @ cardinal
+        delete_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (
+            pynini.closure(pynutil.delete("0"), 0, 1) + NEMO_DIGIT
+        )
+
+        graph_hour = delete_leading_zero_to_double_digit @ pynini.union(*labels_hour) @ cardinal
 
         graph_minute_single = pynini.union(*labels_minute_single) @ cardinal
         graph_minute_double = pynini.union(*labels_minute_double) @ cardinal
-        graph_minute_verbose = pynini.cross("half", "30") | pynini.cross("quarter", "15")
-        oclock = pynini.cross(pynini.union("o' clock", "o clock", "o'clock", "oclock"), "")
+        oclock = pynutil.insert("o'clock")
 
         final_graph_hour = pynutil.insert("hours: \"") + graph_hour + pynutil.insert("\"")
         final_graph_minute = (
             pynutil.insert("minutes: \"")
             + (
-                pynutil.insert("00")
-                | oclock + pynutil.insert("00")
-                | pynutil.delete("o") + delete_space + graph_minute_single
+                oclock + pynutil.delete("00")
+                | pynini.cross("0", "o") + insert_space + graph_minute_single
                 | graph_minute_double
             )
             + pynutil.insert("\"")
@@ -88,18 +90,8 @@ class TimeFst(GraphFst):
         # five o' clock
         # two o eight, two thiry five (am/pm)
         # two pm/am
-        graph_hm = final_graph_hour + delete_extra_space + final_graph_minute
-        # 10 past four, quarter past four, half past four
-        graph_mh = (
-            pynutil.insert("minutes: \"")
-            + pynini.union(graph_minute_single, graph_minute_double, graph_minute_verbose)
-            + pynutil.insert("\"")
-            + delete_space
-            + pynutil.delete("past")
-            + delete_extra_space
-            + final_graph_hour
-        )
-        final_graph = ((graph_hm | graph_mh) + final_suffix_optional + final_time_zone_optional).optimize()
+        graph_hm = final_graph_hour + pynutil.delete(":") + insert_space + final_graph_minute
+        final_graph = (graph_hm + final_suffix_optional + final_time_zone_optional).optimize()
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

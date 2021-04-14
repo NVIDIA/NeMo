@@ -13,13 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import (
-    NEMO_CHAR,
-    NEMO_DIGIT,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
 
 try:
     import pynini
@@ -40,19 +34,18 @@ class TimeFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="time", kind="verbalize")
-        add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
         hour = (
             pynutil.delete("hours:")
             + delete_space
             + pynutil.delete("\"")
-            + pynini.closure(NEMO_DIGIT, 1)
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
         minute = (
             pynutil.delete("minutes:")
             + delete_space
             + pynutil.delete("\"")
-            + pynini.closure(NEMO_DIGIT, 1)
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
         suffix = (
@@ -61,7 +54,7 @@ class TimeFst(GraphFst):
             + pynutil.delete("suffix:")
             + delete_space
             + pynutil.delete("\"")
-            + pynini.closure(NEMO_CHAR - " ", 1)
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
         optional_suffix = pynini.closure(suffix, 0, 1)
@@ -71,17 +64,10 @@ class TimeFst(GraphFst):
             + pynutil.delete("zone:")
             + delete_space
             + pynutil.delete("\"")
-            + pynini.closure(NEMO_CHAR - " ", 1)
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
         optional_zone = pynini.closure(zone, 0, 1)
-        graph = (
-            hour @ add_leading_zero_to_double_digit
-            + delete_space
-            + pynutil.insert(":")
-            + (minute @ add_leading_zero_to_double_digit)
-            + optional_suffix
-            + optional_zone
-        )
+        graph = hour + delete_space + insert_space + minute + optional_suffix + optional_zone
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
