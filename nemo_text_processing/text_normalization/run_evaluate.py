@@ -35,7 +35,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", type=str)
     parser.add_argument(
-        "--normalizer", default='nemo', help="normalizer to use (" + ", ".join(DENORMALIZERS.keys()) + ")", type=str,
+        "--normalizer", default='nemo', help="normalizer to use (" + ", ".join(NORMALIZERS.keys()) + ")", type=str,
     )
     parser.add_argument(
         "--cat",
@@ -66,10 +66,10 @@ if __name__ == "__main__":
         print("Sentence level evaluation...")
         sentences_un_normalized, sentences_normalized, _ = training_data_to_sentences(training_data)
         print("- Data: " + str(len(sentences_normalized)) + " sentences")
-        sentences_prediction = normalizer(sentences_normalized)
+        sentences_prediction = normalizer(sentences_un_normalized)
         print("- Denormalized. Evaluating...")
         sentences_accuracy = evaluate(
-            preds=sentences_prediction, labels=sentences_un_normalized, input=sentences_normalized
+            preds=sentences_prediction, labels=sentences_normalized, input=sentences_un_normalized
         )
         print("- Accuracy: " + str(sentences_accuracy))
 
@@ -80,9 +80,11 @@ if __name__ == "__main__":
         print("- Token type: " + token_type)
         tokens_un_normalized, tokens_normalized = tokens_per_type[token_type]
         print("  - Data: " + str(len(tokens_normalized)) + " tokens")
-        tokens_prediction = normalizer(tokens_normalized)
+        tokens_prediction = normalizer(tokens_un_normalized)
         print("  - Denormalized. Evaluating...")
-        token_accuracy[token_type] = evaluate(tokens_prediction, tokens_un_normalized, input=tokens_normalized)
+        token_accuracy[token_type] = evaluate(
+            preds=tokens_prediction, labels=tokens_normalized, input=tokens_un_normalized
+        )
         print("  - Accuracy: " + str(token_accuracy[token_type]))
     token_count_per_type = {token_type: len(tokens_per_type[token_type][0]) for token_type in tokens_per_type}
     token_weighted_accuracy = [

@@ -52,22 +52,23 @@ class MeasureFst(GraphFst):
         graph_unit = convert_space(graph_unit)
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        graph_unit2 = pynini.closure(
-            delete_space
-            + pynutil.insert(NEMO_NON_BREAKING_SPACE)
-            + pynini.cross("/", "per")
-            + delete_space
-            + pynutil.insert(NEMO_NON_BREAKING_SPACE)
-            + graph_unit,
-            0,
-            1,
+        graph_unit2 = pynini.cross("/", "per") + delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit
+
+        optional_graph_unit2 = pynini.closure(
+            delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit2, 0, 1,
         )
 
         graph_unit_plural = graph_unit @ SINGULAR_TO_PLURAL
 
-        unit_plural = pynutil.insert("units: \"") + graph_unit_plural + graph_unit2 + pynutil.insert("\"")
+        unit_plural = (
+            pynutil.insert("units: \"")
+            + (graph_unit_plural + optional_graph_unit2 | graph_unit2)
+            + pynutil.insert("\"")
+        )
 
-        unit_singular = pynutil.insert("units: \"") + graph_unit + graph_unit2 + pynutil.insert("\"")
+        unit_singular = (
+            pynutil.insert("units: \"") + (graph_unit + optional_graph_unit2 | graph_unit2) + pynutil.insert("\"")
+        )
 
         subgraph_decimal = (
             pynutil.insert("decimal { ")
@@ -77,6 +78,7 @@ class MeasureFst(GraphFst):
             + pynutil.insert(" } ")
             + unit_plural
         )
+
         subgraph_cardinal = (
             pynutil.insert("cardinal { ")
             + optional_graph_negative

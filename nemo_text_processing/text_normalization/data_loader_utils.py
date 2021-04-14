@@ -129,6 +129,10 @@ def evaluate(preds: List[str], labels: List[str], input: Optional[List[str]] = N
     for i in range(nums):
         pred_norm = clean_generic(preds[i])
         label_norm = clean_generic(labels[i])
+
+        # print(f"inpu: {json.dumps(input[i])}")
+        # print(f"gold: {json.dumps(label_norm)}")
+        # print(f"pred: {json.dumps(pred_norm)}")
         if pred_norm == label_norm:
             acc = acc + 1
         else:

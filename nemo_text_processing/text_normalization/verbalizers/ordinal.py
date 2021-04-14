@@ -47,7 +47,12 @@ class OrdinalFst(GraphFst):
         )
         convert_rest = pynutil.insert("th", weight=0.01)
 
-        suffix = pynini.cdrewrite(graph_digit | graph_teens | convert_rest, "", "[EOS]", NEMO_SIGMA,).optimize()
+        suffix = pynini.cdrewrite(
+            graph_digit | graph_teens | pynutil.add_weight(pynini.cross("ty", "tieth"), weight=0.001) | convert_rest,
+            "",
+            "[EOS]",
+            NEMO_SIGMA,
+        ).optimize()
         graph = graph @ suffix
         self.suffix = suffix
         delete_tokens = self.delete_tokens(graph)

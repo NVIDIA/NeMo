@@ -7,7 +7,9 @@ mm	millimeter
 ha	hectare
 mi	mile
 m²	square meter
+m2	square meter
 km²	square kilometer
+km2	square kilometer
 ft	foot
 %	percent
 hz	hertz
@@ -27,9 +29,9 @@ nm	nanometer
 rpm	revolution per minute
 min	minute
 mA	milli ampere
-%	per cent
 kwh	kilo watt hour
 m³	cubic meter
+m3	cubic meter
 mph	mile per hour
 tw	tera watt
 mv	milli volt
@@ -85,13 +87,16 @@ ds	deci second
 ms	milli second
 dm	deci meter
 dm³	cubic deci meter
+dm3	cubic deci meter
 amu	atomic mass unit
 mb	megabit
 mf	mega farad
 bq	becquerel
 pb	petabit
 mm²	square millimeter
+mm2	square millimeter
 cm²	square centimeter
+cm2	square centimeter
 sq mi	square mile
 sq ft	square foot
 kpa	kilopascal
@@ -99,7 +104,6 @@ cd	candela
 tl	tera liter
 ms	mega second
 mpa	megapascal
-pm	peta meter
 pb	peta byte
 gwh	giga watt hour
 kcal	kilo calory

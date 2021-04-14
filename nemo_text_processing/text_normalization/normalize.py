@@ -167,8 +167,8 @@ def normalize(text: str, verbose: bool) -> str:
     text = pynini.escape(text)
     tagged_lattice = find_tags(text)
     tagged_text = select_tag(tagged_lattice)
-    print(tagged_text)
     parser(tagged_text)
+    print(tagged_text)
     tokens = parser.parse()
     tags_reordered = generate_permutations(tokens)
     for tagged_text in tags_reordered:

@@ -45,7 +45,7 @@ class TimeFst(GraphFst):
         super().__init__(name="time", kind="classify")
         # hours, minutes, seconds, suffix, zone, style, speak_period
 
-        suffix_graph = pynini.invert(pynini.string_file(get_abs_path("data/time_suffix.tsv")))
+        suffix_graph = pynini.string_file(get_abs_path("data/time_suffix.tsv"))
         time_zone_graph = pynini.string_file(get_abs_path("data/time_zone.tsv"))
 
         # only used for < 1000 thousand -> 0 weight
@@ -63,7 +63,6 @@ class TimeFst(GraphFst):
 
         graph_minute_single = pynini.union(*labels_minute_single) @ cardinal
         graph_minute_double = pynini.union(*labels_minute_double) @ cardinal
-        oclock = pynutil.insert("o'clock")
 
         final_graph_hour = pynutil.insert("hours: \"") + graph_hour + pynutil.insert("\"")
         final_graph_minute = (
@@ -83,18 +82,28 @@ class TimeFst(GraphFst):
             1,
         )
 
-        # five o' clock
-        # two o eight, two thiry five (am/pm)
-        # two pm/am
+        # 2:30 pm, 02:30, 2:00
         graph_hm = (
             final_graph_hour
-            + pynutil.delete(pynini.union(":", "."))
+            + pynutil.delete(":")
             + (pynutil.delete("00") | insert_space + final_graph_minute)
             + final_suffix_optional
             + final_time_zone_optional
         )
+
+        # 2.xx pm/am
+        graph_hm2 = (
+            final_graph_hour
+            + pynutil.delete(".")
+            + (pynutil.delete("00") | insert_space + final_graph_minute)
+            + delete_space
+            + insert_space
+            + final_suffix
+            + final_time_zone_optional
+        )
+        # 2 pm est
         graph_h = final_graph_hour + delete_space + insert_space + final_suffix + final_time_zone_optional
-        final_graph = (graph_hm | graph_h).optimize()
+        final_graph = (graph_hm | graph_h | graph_hm2).optimize()
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
