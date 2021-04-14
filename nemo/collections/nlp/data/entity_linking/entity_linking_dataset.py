@@ -16,11 +16,9 @@ import torch
 import array
 import pickle as pkl
 
-from tqdm import tqdm
 from typing import Optional
 from nemo.utils import logging
 from nemo.core.classes import Dataset
-from nemo.core.classes.common import typecheck
 from nemo.collections.nlp.data.data_utils.data_preprocessing import find_newlines, load_data_indices
 
 __all__ = ['EntityLinkingDataset']
