@@ -28,6 +28,7 @@ import sphinx_rtd_theme
 
 sys.path.insert(0, os.path.abspath("../.."))
 sys.path.insert(0, os.path.abspath("../../nemo"))
+sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
 
@@ -107,7 +108,7 @@ bibtex_bibfiles = [
     'asr/asr_all.bib',
     'nlp/nlp_all.bib',
     'tools/tools_all.bib',
-    'nemo_tools/tools_all.bib',
+    'nemo_text_processing/textprocessing_all.bib',
     'tts_all.bib',
 ]
 
