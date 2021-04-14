@@ -48,7 +48,7 @@ def parse_args():
         default=None,
         choices=known_types,
     )
-    parser.add_argument("--filter", action='store_true', help="clean data for denormalization purposes")
+    parser.add_argument("--filter", action='store_true', help="clean data for inverse normalization purposes")
     return parser.parse_args()
 
 

@@ -206,7 +206,7 @@ def expand_date(data: dict) -> str:
     SUFFIX = "suffix"
     DAY = "day"
     try:
-        res[MONTH] = month_mapping[data[MONTH]]
+        res[MONTH] = _month_dict[data[MONTH]]
     except Exception:
         pass
     try:
