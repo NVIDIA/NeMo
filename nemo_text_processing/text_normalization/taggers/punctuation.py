@@ -37,7 +37,7 @@ class PunctuationFst(GraphFst):
 
         medium = (
             pynutil.insert("tokens { name: \"")
-            + convert_space(medium_punct)
+            + medium_punct
             + pynutil.insert("\"")
             + pynutil.insert(" pause_length: \"")
             + convert_space(pynutil.insert("PAUSE_MEDIUM phrase_break: true type: PUNCT"))
@@ -45,7 +45,7 @@ class PunctuationFst(GraphFst):
         )
         loong = (
             pynutil.insert("tokens { name: \"")
-            + convert_space(long_punct)
+            + long_punct
             + pynutil.insert("\"")
             + pynutil.insert(" pause_length: \"")
             + convert_space(pynutil.insert("PAUSE_LONG phrase_break: true type: PUNCT"))
