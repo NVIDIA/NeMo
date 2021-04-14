@@ -68,6 +68,16 @@ class HiFiFastPitchModel(TextToWaveform):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
+        self._parser = parsers.make_parser(
+            labels=cfg.labels,
+            name='en',
+            unk_id=-1,
+            blank_id=-1,
+            do_normalize=True,
+            abbreviation_version="fastpitch",
+            make_table=False,
+        )
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(HiFiFastPitchConfig)
@@ -80,7 +90,6 @@ class HiFiFastPitchModel(TextToWaveform):
         OmegaConf.merge(cfg, schema)
 
         # torch.backends.cudnn.benchmark = True  # TODO
-        self._parser = None
         self.preprocessor = instantiate(self._cfg.preprocessor)
         self.melspec_fn = instantiate(self._cfg.preprocessor, highfreq=None, use_grads=True)
         self.encoder = instantiate(self._cfg.input_fft)
@@ -267,7 +276,7 @@ class HiFiFastPitchModel(TextToWaveform):
                 real_audio.append(audio[i, splice * 256 : (splice + self.splice_length) * 256])
             real_audio = torch.stack(real_audio).unsqueeze(1)
 
-            dur_loss, pitch_loss = self.loss(
+            _, dur_loss, pitch_loss = self.loss(
                 log_durs_predicted=log_dur_preds,
                 pitch_predicted=pitch_preds,
                 durs_tgt=durs,
@@ -276,8 +285,9 @@ class HiFiFastPitchModel(TextToWaveform):
             )
 
             # Do HiFiGAN generator loss
-            real_spliced_spec = self.melspec_fn(real_audio)
-            pred_spliced_spec = self.melspec_fn(audio_pred)
+            audio_length = torch.tensor([self.splice_length*256 for _ in range(real_audio.shape[0])]).to(real_audio.device)
+            real_spliced_spec, _ = self.melspec_fn(real_audio.squeeze(), length=audio_length)
+            pred_spliced_spec, _ = self.melspec_fn(audio_pred.squeeze(), length=audio_length)
             loss_mel = torch.nn.functional.l1_loss(real_spliced_spec, pred_spliced_spec)
             loss_mel *= self.mel_loss_coeff
             _, gen_score_mp, real_feat_mp, gen_feat_mp = self.multiperioddisc(real_audio, audio_pred)
@@ -328,16 +338,18 @@ class HiFiFastPitchModel(TextToWaveform):
         audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
-        audio_pred, _, _, _ = self(text=text, durs=None, pitch=None, splice=False)
-        pred_spec = self.melspec_fn(audio_pred)
+        audio_pred, _, log_durs_predicted, _ = self(text=text, durs=None, pitch=None, splice=False)
+        audio_length = torch.sum(torch.clamp(torch.exp(log_durs_predicted-1), 0), axis=1)
+        audio_pred.squeeze_()
+        pred_spec, _ = self.melspec_fn(audio_pred, length=audio_length)
         loss = self.mel_val_loss(
             spec_pred=pred_spec, spec_target=mels, spec_target_len=mel_lens, pad_value=-11.52, transpose=False
         )
 
         return {
             "val_loss": loss,
-            "audio_target": audio.squeeze(),
-            "audio_pred": audio_pred.squeeze(),
+            "audio_target": audio if batch_idx==0 else None,
+            "audio_pred": audio_pred.squeeze() if batch_idx==0 else None,
         }
 
     def validation_epoch_end(self, outputs):
