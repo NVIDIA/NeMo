@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.models.nlp_model import NLPDDPPlugin
 import os
 
 import pytorch_lightning as pl
@@ -101,7 +102,7 @@ For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipy
 
 @hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if not cfg.pretrained_model:
@@ -109,7 +110,7 @@ def main(cfg: DictConfig) -> None:
         model = TokenClassificationModel(cfg.model, trainer=trainer)
     else:
         if os.path.exists(cfg.pretrained_model):
-            model = TokenClassificationModel.restore_from(cfg.pretrained_model)
+            model = TokenClassificationModel.restore_from(cfg.pretrained_model, trainer=trainer)
         elif cfg.pretrained_model in TokenClassificationModel.get_available_model_names():
             model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
         else:

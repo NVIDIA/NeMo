@@ -436,8 +436,6 @@ class NLPModel(ModelPT, Exportable):
         else:
             return super().restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
-            # cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
-
     @rank_zero_only
     def register_megatron_checkpoint_version(self):
         """ Adds checkpoint version to .nemo archive """
@@ -570,8 +568,11 @@ class NLPDDPPlugin(DDPPlugin):
                 # Update PTL trainer to use our _clip_gradients
                 # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
 
-                # update checkpoint name when auto-resuming
-                if trainer.resume_from_checkpoint is not None:
+                if get_checkpoint_version():
+                    # Restored from .nemo, checkpoint_version will already be set
+                    pass
+                elif trainer.resume_from_checkpoint is not None:
+                    # PTL auto-resuming, need to update checkpoint name
                     # update path based on model parallel rank
                     filepath = trainer.resume_from_checkpoint
                     dirname = os.path.dirname(os.path.dirname(filepath))
