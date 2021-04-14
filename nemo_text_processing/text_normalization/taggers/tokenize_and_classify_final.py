@@ -35,7 +35,7 @@ class ClassifyFinalFst(GraphFst):
         super().__init__(name="tokenize_and_classify_final", kind="classify")
 
         classify = ClassifyFst().fst
-        punct = PunctuationFst().fst
+        punct = pynutil.add_weight(PunctuationFst().fst, weight=1.1)
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
         token_plus_punct = (
             pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
