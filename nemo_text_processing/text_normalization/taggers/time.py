@@ -68,11 +68,7 @@ class TimeFst(GraphFst):
         final_graph_hour = pynutil.insert("hours: \"") + graph_hour + pynutil.insert("\"")
         final_graph_minute = (
             pynutil.insert("minutes: \"")
-            + (
-                oclock + pynutil.delete("00")
-                | pynini.cross("0", "o") + insert_space + graph_minute_single
-                | graph_minute_double
-            )
+            + (pynini.cross("0", "o") + insert_space + graph_minute_single | graph_minute_double)
             + pynutil.insert("\"")
         )
         final_suffix = pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\"")
@@ -90,8 +86,15 @@ class TimeFst(GraphFst):
         # five o' clock
         # two o eight, two thiry five (am/pm)
         # two pm/am
-        graph_hm = final_graph_hour + pynutil.delete(":") + insert_space + final_graph_minute
-        final_graph = (graph_hm + final_suffix_optional + final_time_zone_optional).optimize()
+        graph_hm = (
+            final_graph_hour
+            + pynutil.delete(pynini.union(":", "."))
+            + (pynutil.delete("00") | insert_space + final_graph_minute)
+            + final_suffix_optional
+            + final_time_zone_optional
+        )
+        graph_h = final_graph_hour + delete_space + insert_space + final_suffix + final_time_zone_optional
+        final_graph = (graph_hm | graph_h).optimize()
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

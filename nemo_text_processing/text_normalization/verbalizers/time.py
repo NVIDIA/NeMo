@@ -48,26 +48,25 @@ class TimeFst(GraphFst):
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
+        optional_minute = pynini.closure(delete_space + insert_space + minute, 0, 1)
         suffix = (
-            delete_space
-            + insert_space
-            + pynutil.delete("suffix:")
+            pynutil.delete("suffix:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
-        optional_suffix = pynini.closure(suffix, 0, 1)
+        optional_suffix = pynini.closure(delete_space + insert_space + suffix, 0, 1)
         zone = (
-            delete_space
-            + insert_space
-            + pynutil.delete("zone:")
+            pynutil.delete("zone:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
-        optional_zone = pynini.closure(zone, 0, 1)
+        optional_zone = pynini.closure(delete_space + insert_space + zone, 0, 1)
         graph = hour + delete_space + insert_space + minute + optional_suffix + optional_zone
+        graph |= hour + insert_space + pynutil.insert("o'clock") + optional_zone
+        graph |= hour + delete_space + insert_space + suffix + optional_zone
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

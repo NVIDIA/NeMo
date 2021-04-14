@@ -1,2 +1,2 @@
-Dr. Evil~Doctor Evil
-Mrs. Norris~Misses Norris
+dr. Evil~doctor Evil
+mrs. Norris~misses Norris
