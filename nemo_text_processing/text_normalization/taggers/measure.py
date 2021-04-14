@@ -49,6 +49,7 @@ class MeasureFst(GraphFst):
         cardinal_graph = cardinal.graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
+        graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
         graph_unit = convert_space(graph_unit)
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
@@ -57,8 +58,6 @@ class MeasureFst(GraphFst):
         optional_graph_unit2 = pynini.closure(
             delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit2, 0, 1,
         )
-
-        graph_unit_plural = graph_unit @ SINGULAR_TO_PLURAL
 
         unit_plural = (
             pynutil.insert("units: \"")
