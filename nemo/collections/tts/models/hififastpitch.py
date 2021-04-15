@@ -90,8 +90,10 @@ class HiFiFastPitchModel(TextToWaveform):
         OmegaConf.merge(cfg, schema)
 
         # torch.backends.cudnn.benchmark = True  # TODO
+        # self.melspec_fn = SkinnyFilterBanks()
         self.preprocessor = instantiate(self._cfg.preprocessor)
         self.melspec_fn = instantiate(self._cfg.preprocessor, highfreq=None, use_grads=True)
+
         self.encoder = instantiate(self._cfg.input_fft)
         self.duration_predictor = instantiate(self._cfg.duration_predictor)
         self.pitch_predictor = instantiate(self._cfg.pitch_predictor)
@@ -124,7 +126,6 @@ class HiFiFastPitchModel(TextToWaveform):
         self.log_train_images = False
         self.logged_real_samples = False
         self._tb_logger = None
-        self.mel_basis = None
         self.hann_window = None
         self.splice_length = self._cfg.splice_length
         typecheck.set_typecheck_enabled(enabled=False)  # TODO
@@ -243,7 +244,7 @@ class HiFiFastPitchModel(TextToWaveform):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
-        mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
+        mels, mel_lens = self.preprocessor(audio, audio_lens)
 
         # train discriminator
         if optimizer_idx == 0:
@@ -285,9 +286,11 @@ class HiFiFastPitchModel(TextToWaveform):
             )
 
             # Do HiFiGAN generator loss
-            audio_length = torch.tensor([self.splice_length*256 for _ in range(real_audio.shape[0])]).to(real_audio.device)
-            real_spliced_spec, _ = self.melspec_fn(real_audio.squeeze(), length=audio_length)
-            pred_spliced_spec, _ = self.melspec_fn(audio_pred.squeeze(), length=audio_length)
+            audio_length = torch.tensor([self.splice_length * 256 for _ in range(real_audio.shape[0])]).to(
+                real_audio.device
+            )
+            real_spliced_spec, _ = self.melspec_fn(real_audio.squeeze(), audio_length)
+            pred_spliced_spec, _ = self.melspec_fn(audio_pred.squeeze(), audio_length)
             loss_mel = torch.nn.functional.l1_loss(real_spliced_spec, pred_spliced_spec)
             loss_mel *= self.mel_loss_coeff
             _, gen_score_mp, real_feat_mp, gen_feat_mp = self.multiperioddisc(real_audio, audio_pred)
@@ -336,20 +339,20 @@ class HiFiFastPitchModel(TextToWaveform):
 
     def validation_step(self, batch, batch_idx):
         audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
-        mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
+        mels, mel_lens = self.preprocessor(audio, audio_lens)
 
         audio_pred, _, log_durs_predicted, _ = self(text=text, durs=None, pitch=None, splice=False)
-        audio_length = torch.sum(torch.clamp(torch.exp(log_durs_predicted-1), 0), axis=1)
+        audio_length = torch.sum(torch.clamp(torch.exp(log_durs_predicted - 1), 0), axis=1)
         audio_pred.squeeze_()
-        pred_spec, _ = self.melspec_fn(audio_pred, length=audio_length)
+        pred_spec, _ = self.melspec_fn(audio_pred, audio_length)
         loss = self.mel_val_loss(
             spec_pred=pred_spec, spec_target=mels, spec_target_len=mel_lens, pad_value=-11.52, transpose=False
         )
 
         return {
             "val_loss": loss,
-            "audio_target": audio if batch_idx==0 else None,
-            "audio_pred": audio_pred.squeeze() if batch_idx==0 else None,
+            "audio_target": audio if batch_idx == 0 else None,
+            "audio_pred": audio_pred.squeeze() if batch_idx == 0 else None,
         }
 
     def validation_epoch_end(self, outputs):
@@ -416,3 +419,25 @@ class HiFiFastPitchModel(TextToWaveform):
 
     def convert_text_to_waveform(self):
         pass  # TODO
+
+
+class SkinnyFilterBanks(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mel_basis = None
+
+    def forward(self, audio, length):
+        if self.mel_basis is None:
+            mel = librosa.filters.mel(22050, 1024, 80, 0, None)
+            self.mel_basis = torch.from_numpy(mel).float().to(audio.device)
+            self.hann_window = torch.hann_window(1024).to(audio.device)
+
+        spec = torch.stft(
+            audio.squeeze(), 1024, hop_length=256, win_length=1024, window=self.hann_window, center=True,
+        )
+
+        spec = torch.sqrt(spec.pow(2).sum(-1) + (1e-9))
+        spec = torch.matmul(self.mel_basis, spec)
+        spec = torch.log(torch.clamp(spec, min=1e-5))
+
+        return spec, None

@@ -43,13 +43,12 @@ model:
     num_workers: 8
 
   preprocessor:
-    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
     dither: 0.0
-    features: ${model.n_mel_channels}
-    frame_splicing: 1
+    frame_splicing: ${model.n_mel_channels}
     highfreq: 8000
     log: true
-    log_zero_guard_type: add
+    log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
     lowfreq: 0
     mag_power: 1.0
@@ -62,8 +61,6 @@ model:
     preemph: null
     sample_rate: ${sample_rate}
     window: hann
-    window_size: null
-    window_stride: null
     exact_pad: true
     use_grads: false
 
