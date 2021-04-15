@@ -417,7 +417,7 @@ class NLPModel(ModelPT, Exportable):
             try:
                 local_rank = int(os.environ['LOCAL_RANK'])
             except:
-                logging.info('Global variable LOCAL_RANK not yet specified')
+                logging.info('Global variable LOCAL_RANK not yet specified. Assuming LOCAL_RANK is 0.')
 
             if local_rank is not None:
                 app_state.local_rank = local_rank

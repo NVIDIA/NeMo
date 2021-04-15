@@ -728,6 +728,28 @@ pipeline {
       }
     }
 
+    stage('L2: Model Parallel Size 2 Megatron Train from .nemo') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/token_classification && \
+        python token_classification_train.py \
+        pretrained_model=/home/TestData/nlp/mp_2_nemo/ner_350M.nemo \
+        model.dataset.data_dir=/home/TestData/nlp/ner/ \
+        model.train_ds.batch_size=2 \
+        model.dataset.use_cache=false \
+        trainer.gpus=[0,1] \
+        +trainer.fast_dev_run=true \
+        model.dataset.class_balancing="weighted_loss" \
+        exp_manager=null'
+      }
+    }
+
     stage('L2: Parallel NLP Examples 2') {
       when {
         anyOf {
