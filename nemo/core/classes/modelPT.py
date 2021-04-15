@@ -32,6 +32,7 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
+from nemo.utils import app_state
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -1241,11 +1242,17 @@ class ModelPT(LightningModule, Model):
         """
         global _MODEL_RESTORE_PATH
 
-        if _MODEL_RESTORE_PATH is None:
+        app_state = AppState()
+
+        if _MODEL_RESTORE_PATH is None and app_state.model_restore_path is None:
             return False
         else:
-            if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
-                return True
+            if _MODEL_RESTORE_PATH:
+                if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
+                    return True
+            elif app_state.model_restore_path:
+                if tarfile.is_tarfile(app_state.model_restore_path):
+                    return True
             else:
                 return False
 

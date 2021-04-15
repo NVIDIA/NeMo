@@ -49,6 +49,7 @@ class AppState(metaclass=Singleton):
         self._tmpdir_name = None
         self._model_config_yaml = "model_config.yaml"
         self._model_weights_ckpt = "model_weights.ckpt"
+        self._model_restore_path = None
 
     @property
     def device_id(self):
@@ -338,3 +339,11 @@ class AppState(metaclass=Singleton):
     @property
     def model_weights_ckpt(self):
         return self._model_weights_ckpt
+
+    @property
+    def model_restore_path(self):
+        return self._model_restore_path
+
+    @model_restore_path.setter
+    def model_restore_path(self, path):
+        self._model_restore_path = path

@@ -32,10 +32,7 @@ def main(cfg: DictConfig) -> None:
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     model = TextClassificationModel.restore_from(cfg.model.nemo_path, trainer=trainer)
-    # model.setup_training_data(train_data_config=cfg.model.train_ds)
-    # model.setup_validation_data(val_data_config=cfg.model.validation_ds)
     model.setup_test_data(test_data_config=cfg.model.test_ds)
-    # model.setup_optimization(cfg.model.optim)
 
     trainer.test(model=model, ckpt_path=None)
 

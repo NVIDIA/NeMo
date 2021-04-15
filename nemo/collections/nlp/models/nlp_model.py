@@ -376,10 +376,8 @@ class NLPModel(ModelPT, Exportable):
         if not os.path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
-        global _MODEL_RESTORE_PATH
-        _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
-
         app_state = AppState()
+        app_state.model_restore_path = os.path.abspath(os.path.expanduser(restore_path))
 
         # detect if we have a model parallel .nemo file
         with tempfile.TemporaryDirectory() as tmpdir:
