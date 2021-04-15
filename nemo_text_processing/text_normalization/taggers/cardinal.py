@@ -50,6 +50,13 @@ class CardinalFst(GraphFst):
         graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))
         graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
 
+        delete_extra_spaces = (
+            pynini.closure(pynutil.delete(" "))
+            + pynini.closure(pynini.closure(NEMO_ALPHA, 1) + delete_extra_space)
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.closure(pynutil.delete(" "))
+        )
+
         graph_hundred = pynutil.delete("hundred")
 
         graph_hundred_component = pynini.union(
@@ -65,9 +72,17 @@ class CardinalFst(GraphFst):
             pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)
         )
 
-        # all 3 digit numbers apart from 000 -> string
-        self.graph_hundred_component_at_least_one_none_zero_digit = pynini.invert(
-            graph_hundred_component_at_least_one_none_zero_digit
+        # all 3 digit numbers apart from 0 -> string
+        self.graph_hundred_component_at_least_one_none_zero_digit = (
+            pynini.invert(
+                graph_hundred_component_at_least_one_none_zero_digit
+                @ (
+                    pynutil.delete(pynini.closure("0"))
+                    + pynini.difference(NEMO_DIGIT, "0")
+                    + pynini.closure(NEMO_DIGIT)
+                )
+            )
+            @ delete_extra_spaces
         ).optimize()
 
         insert_comma = pynini.closure(pynutil.insert(","), 0, 1)
@@ -149,12 +164,7 @@ class CardinalFst(GraphFst):
             "0",
         )
 
-        self.graph = pynini.invert(graph) @ (
-            pynini.closure(pynutil.delete(" "))
-            + pynini.closure(pynini.closure(NEMO_ALPHA, 1) + delete_extra_space)
-            + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.closure(pynutil.delete(" "))
-        )
+        self.graph = pynini.invert(graph) @ delete_extra_spaces
         self.graph = self.graph.optimize()
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"minus\" "), 0, 1)

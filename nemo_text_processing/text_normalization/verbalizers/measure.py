@@ -21,9 +21,6 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    decimal = DecimalFst()
-    cardinal = CardinalFst()
-
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     # Add placeholders
@@ -39,7 +36,7 @@ class MeasureFst(GraphFst):
         e.g. tokens { measure { negative: "true" cardinal { integer: "12" } units: "kg" } } -> -12 kg
     """
 
-    def __init__(self):
+    def __init__(self, decimal, cardinal):
         super().__init__(name="measure", kind="verbalize")
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
         unit = (

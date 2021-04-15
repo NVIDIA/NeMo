@@ -26,6 +26,22 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
+def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_digit):
+    numbers = cardinal_graph_hundred_component_at_least_one_none_zero_digit
+    suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
+    res = (
+        pynutil.insert("integer_part: \"")
+        + numbers
+        + pynutil.insert("\"")
+        + delete_extra_space
+        + pynutil.insert("quantity: \"")
+        + suffix
+        + pynutil.insert("\"")
+    )
+    res |= deci + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
+    return res
+
+
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, 
@@ -44,22 +60,31 @@ class DecimalFst(GraphFst):
         )
 
         graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv")) | pynini.cross("o", "0")
+        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
 
-        graph_decimal = pynini.closure(graph_decimal + delete_space) + graph_decimal
+        graph_decimal = (
+            pynini.cross("zero", "0")
+            | graph_decimal
+            | (graph_decimal | pynini.cross("o", "0"))
+            + pynini.closure(delete_space + (graph_decimal | pynini.cross("o", "0")), 1)
+        )
         self.graph = pynini.invert(graph_decimal).optimize()
 
         point = pynutil.delete(".")
 
-        optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\""), 0, 1)
+        optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
         graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
         final_graph_wo_sign = (
             pynini.closure(graph_integer + pynutil.insert(" "), 0, 1) + point + pynutil.insert(" ") + graph_fractional
         )
-        final_graph = optional_graph_negative + final_graph_wo_sign
 
-        self.final_graph_wo_negative = final_graph_wo_sign
+        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
+            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
+        )
+
+        final_graph = optional_graph_negative + self.final_graph_wo_negative
+
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
