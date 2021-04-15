@@ -13,7 +13,7 @@
 # limitations under the License.
 import io
 import os
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union, Any
 
 import braceexpand
 import torch
@@ -126,6 +126,9 @@ class _AudioTextDataset(Dataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
+        load_audio: bool = True,
+        add_misc: bool = False,
+        manifest_line_parser: Callable[[str, Optional[str]], Dict[str, Any]] = None,
     ):
         self.parser = parser
 
@@ -135,6 +138,7 @@ class _AudioTextDataset(Dataset):
             min_duration=min_duration,
             max_duration=max_duration,
             max_number=max_utts,
+            manifest_line_parser=manifest_line_parser,
         )
 
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
@@ -232,7 +236,10 @@ class AudioToCharDataset(_AudioTextDataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
+        load_audio: bool = True,
         parser: Union[str, Callable] = 'en',
+        add_misc: bool = False,
+        manifest_line_parser: Callable[[str, Optional[str]], Dict[str, Any]] = None,
     ):
         self.labels = labels
 
@@ -253,6 +260,9 @@ class AudioToCharDataset(_AudioTextDataset):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
+            load_audio=load_audio,
+            add_misc=add_misc,
+            manifest_line_parser=manifest_line_parser,
         )
 
 

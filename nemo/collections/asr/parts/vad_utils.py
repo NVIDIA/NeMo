@@ -21,8 +21,8 @@ import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-# from pyannote.core import Annotation, Segment
-# from pyannote.metrics import detection
+from pyannote.core import Annotation, Segment
+from pyannote.metrics import detection
 
 from nemo.utils import logging
 
