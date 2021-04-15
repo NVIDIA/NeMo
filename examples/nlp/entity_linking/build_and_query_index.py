@@ -13,23 +13,25 @@
 # limitations under the License.
 
 import os
-import torch
+import pickle as pkl
 import random
+from argparse import ArgumentParser
+from collections import OrderedDict
+from typing import Dict
+
 import faiss
 import h5py
 import numpy as np
-import pickle as pkl
-
-from tqdm import tqdm
-from argparse import ArgumentParser
-from sklearn.decomposition import PCA
-from typing import Dict
+import torch
 from omegaconf import DictConfig, OmegaConf
-from collections import OrderedDict
+from sklearn.decomposition import PCA
+from tqdm import tqdm
+
 from nemo.collections.nlp.models import EntityLinkingModel
 from nemo.utils import logging
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def build_index(cfg: DictConfig, model: object): 
     """
@@ -38,6 +40,7 @@ def build_index(cfg: DictConfig, model: object):
     Args:
         cfg: Config file specifying index parameters
     """
+
     # Get index dataset embeddings 
     # PCA model exists and index embeddings have already been PCAed, no need to re-extract/PCA them
     if cfg.apply_pca and os.path.isfile(cfg.pca.pca_save_name) and os.path.isfile(cfg.pca_embeddings_save_name):
@@ -55,24 +58,22 @@ def build_index(cfg: DictConfig, model: object):
         index_dataloader = model.setup_dataloader(cfg.index_ds, is_index_data=True)
         embeddings, concept_ids = get_index_embeddings(cfg, index_dataloader, model)
 
-
     # Create pca model to reduce dimensionality of index dataset and decrease memory footprint
     if cfg.apply_pca:
 
         # Need to train PCA model and apply PCA transformation with newly trained model
         if not os.path.isfile(cfg.pca.pca_save_name):
             logging.info("Fitting PCA model for embedding dimensionality reduction")
-            pca_train_set = random.sample(list(embeddings), k=int(len(embeddings)*cfg.pca.sample_fraction))
+            pca_train_set = random.sample(list(embeddings), k=int(len(embeddings) * cfg.pca.sample_fraction))
             pca = PCA(n_components=cfg.pca.output_dim)
             pca.fit(pca_train_set)
             pkl.dump(pca, open(cfg.pca.pca_save_name, "wb"))
             embeddings = reduce_embedding_dim(pca, embeddings, cfg)
         
-        #PCA model already trained, just need to reduce dimensionality of all embeddings
+        # PCA model already trained, just need to reduce dimensionality of all embeddings
         elif not os.path.isfile(cfg.pca_embeddings_save_name):
             pca = pkl.load(open(cfg.pca.pca_save_name, "rb"))
             embeddings = reduce_embedding_dim(pca, embeddings, cfg)
-
 
     # Build faiss index from embeddings
     logging.info(f"Training index with embedding dim size {cfg.dims} using {faiss.get_num_gpus()} gpus")
@@ -83,7 +84,7 @@ def build_index(cfg: DictConfig, model: object):
 
     logging.info("Adding dataset embeddings to index")
     for i in tqdm(range(0, embeddings.shape[0], cfg.index_batch_size)):
-        index.add(embeddings[i:i+cfg.index_batch_size])
+        index.add(embeddings[i : i + cfg.index_batch_size])
 
     logging.info("Saving index")
     faiss.write_index(faiss.index_gpu_to_cpu(index), cfg.index_save_name)
@@ -98,7 +99,7 @@ def map_idx_to_ids(cfg: DictConfig):
 
     concept_ids = pkl.load(open(cfg.concept_id_save_name, "rb"))
     logging.info("Mapping concept_ids to their unique indices")
-    idx2id = {idx : cui for idx, cui in tqdm(enumerate(concept_ids), total=len(concept_ids))}
+    idx2id = {idx: cui for idx, cui in tqdm(enumerate(concept_ids), total=len(concept_ids))}
     pkl.dump(idx2id, open(cfg.idx_to_id, "wb"))
 
 
@@ -129,6 +130,7 @@ def get_index_embeddings(cfg: DictConfig, dataloader, model: object):
     """Use entity linking encoder to get embeddings for full index dataset"""
     embeddings = []
     concept_ids = []
+
                     
     with torch.no_grad():
         for batch in tqdm(dataloader):
@@ -136,9 +138,9 @@ def get_index_embeddings(cfg: DictConfig, dataloader, model: object):
             input_ids = input_ids.to(device)
             token_type_ids = token_type_ids.to(device)
             input_mask = input_mask.to(device)
-            batch_embeddings = model.forward(input_ids=input_ids,
-                                   token_type_ids=token_type_ids,
-                                   attention_mask=input_mask)
+            batch_embeddings = model.forward(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=input_mask
+            )
 
             embeddings.extend(batch_embeddings.detach().cpu().numpy())
             concept_ids.extend(batch_concept_ids.numpy())
@@ -149,36 +151,35 @@ def get_index_embeddings(cfg: DictConfig, dataloader, model: object):
 
     pkl.dump(concept_ids, open(cfg.concept_id_save_name, "wb"))
 
+
     return embeddings, concept_ids 
 
 
 def get_query_embedding(query, model):
     """Use entity linking encoder to get embedding for index query"""
-    model_input = model.tokenizer(query,
-                                add_special_tokens = True,
-                                padding = True,
-                                truncation = True,
-                                max_length = 512,
-                                return_token_type_ids = True,
-                                return_attention_mask = True,
-                                )
+    model_input = model.tokenizer(
+        query,
+        add_special_tokens = True,
+        padding = True,
+        truncation = True,
+        max_length = 512,
+        return_token_type_ids = True,
+        return_attention_mask = True,
+        )
 
-    query_emb = model.forward(input_ids=torch.LongTensor([model_input["input_ids"]]).to(device),
-                             token_type_ids=torch.LongTensor([model_input["token_type_ids"]]).to(device),
-                             attention_mask=torch.LongTensor([model_input["attention_mask"]]).to(device))
+    query_emb = model.forward(
+        input_ids=torch.LongTensor([model_input["input_ids"]]).to(device),
+        token_type_ids=torch.LongTensor([model_input["token_type_ids"]]).to(device),
+        attention_mask=torch.LongTensor([model_input["attention_mask"]]).to(device)
+    )
 
     return query_emb
 
 
-def query_index(query: str, 
-                top_n: int,
-                cfg: DictConfig, 
-                model: object, 
-                index: object,
-                pca: object,
-                idx2id: dict,
-                id2string: dict,
-                ) -> Dict:
+def query_index(
+    query: str, top_n: int, cfg: DictConfig, model: object, index: object, pca: object, idx2id: dict, id2string: dict,
+) -> Dict:
+
     """
     Query the nearest neighbor index of entities to find the 
     concepts in the index dataset that are most similar to the 
@@ -205,7 +206,7 @@ def query_index(query: str,
     if cfg.apply_pca:
         query_emb = pca.transform(query_emb)
 
-    dist, neighbors = index.search(query_emb.astype(np.float32), cfg.query_num_factor*top_n)
+    dist, neighbors = index.search(query_emb.astype(np.float32), cfg.query_num_factor * top_n)
     dist, neighbors = dist[0], neighbors[0]
     unique_ids = OrderedDict()
     neighbor_idx = 0
@@ -247,8 +248,9 @@ def main(cfg: DictConfig, top_n: int, restore: bool):
 
     model = model.to(device)
 
-    if not os.path.isfile(cfg.index.index_save_name) or \
-          (cfg.apply_pca and not os.path.isfile(cfg.index.pca.pca_save_name)):
+    if not os.path.isfile(cfg.index.index_save_name) or (
+          cfg.apply_pca and not os.path.isfile(cfg.index.pca.pca_save_name)
+    ):
         build_index(cfg.index, model)
 
     if not os.path.isfile(cfg.index.idx_to_id):
@@ -257,7 +259,7 @@ def main(cfg: DictConfig, top_n: int, restore: bool):
     logging.info("Loading index and associated files")
     index = faiss.read_index(cfg.index.index_save_name)
     idx2id = pkl.load(open(cfg.index.idx_to_id, "rb"))
-    id2string = pkl.load(open(cfg.index.id_to_string, "rb")) # Should be created during dataset prep
+    id2string = pkl.load(open(cfg.index.id_to_string, "rb"))  # Should be created during dataset prep
 
     if cfg.index.apply_pca:
         pca = pkl.load(open(cfg.index.pca.pca_save_name, "rb"))
@@ -276,9 +278,12 @@ def main(cfg: DictConfig, top_n: int, restore: bool):
 
         print("----------------\n")
 
+
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument("--restore", action="store_true", help="Whether to restore encoder model weights from nemo path") 
+    parser.add_argument(
+        "--restore", action="store_true", help="Whether to restore encoder model weights from nemo path"
+    ) 
     parser.add_argument("--cfg", required=False, type=str, default="./conf/umls_medical_entity_linking_config.yaml")
     parser.add_argument("--top_n", required=False, type=int, default=5, help="Max number of items returned per query") 
     args = parser.parse_args()

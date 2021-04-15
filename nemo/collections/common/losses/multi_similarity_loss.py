@@ -12,25 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from typing import Optional
 
-from nemo.utils import logging
+import torch
+
 from nemo.core.classes import Loss
-from nemo.core.neural_types import LabelsType, NeuralType, LogitsType, LossType
 from nemo.core.classes.common import typecheck
+from nemo.core.neural_types import LabelsType, LogitsType, LossType, NeuralType
+from nemo.utils import logging
 
 __all__ = ['MultiSimilarityLoss']
+
 
 class MultiSimilarityLoss(Loss):
     @property
     def input_types(self):
         """Returns definitions of module input ports.
         """
-        return {
-            "logits": NeuralType(('B', 'D'), LogitsType()),
-            "labels": NeuralType(('B'), LabelsType())
-        }
+        return {"logits": NeuralType(('B', 'D'), LogitsType()), "labels": NeuralType(('B'), LabelsType())}
 
     @property
     def output_types(self):
@@ -43,7 +42,7 @@ class MultiSimilarityLoss(Loss):
         scale_pos: Optional[float] = 2.0,
         scale_neg: Optional[float] = 40.0,
         offset: Optional[float] = 0.5,
-        margin: Optional[float] = 0.1
+        margin: Optional[float] = 0.1,
     ):
         super().__init__()
         self._scale_pos = scale_pos
@@ -56,11 +55,12 @@ class MultiSimilarityLoss(Loss):
     def forward(self, logits, labels):
         cos_sim = torch.matmul(logits, torch.t(logits))
         losses = []
+
         
         for i in range(logits.size(0)):
             # mine hard pairs relative to anchor i
             positive_sims = cos_sim[i][labels.eq(labels[i])]
-            positive_sims = positive_sims[positive_sims.lt(1 - self._epsilon)] # omit identical pairs
+            positive_sims = positive_sims[positive_sims.lt(1 - self._epsilon)]  # omit identical pairs
             negative_sims = cos_sim[i][labels.ne(labels[i])]
 
             if len(negative_sims) == 0 or len(positive_sims) == 0:
@@ -75,13 +75,19 @@ class MultiSimilarityLoss(Loss):
             if len(hard_negatives) == 0 or len(hard_positives) == 0:
                 continue
             
-            pos_term = 1.0 / self._scale_pos * torch.log(
-                1 + torch.sum(torch.exp(-self._scale_pos * (hard_positives - self._offset))))
-            neg_term = 1.0 / self._scale_neg * torch.log(
-                1 + torch.sum(torch.exp(self._scale_neg * (hard_negatives - self._offset))))
+            pos_term = (
+                1.0 
+                / self._scale_pos 
+                * torch.log(1 + torch.sum(torch.exp(-self._scale_pos * (hard_positives - self._offset)))
+            )
+            neg_term = (
+                1.0 
+                / self._scale_neg 
+                * torch.log(1 + torch.sum(torch.exp(self._scale_neg * (hard_negatives - self._offset)))
+            )
             losses.append(pos_term + neg_term)
         
-        if (len(losses) == 0):
+        if len(losses) == 0:
             loss = torch.zeros([], requires_grad=True).cuda()
             logging.info(f'Encountered zero loss in multisimloss, loss = {loss}')
         else:

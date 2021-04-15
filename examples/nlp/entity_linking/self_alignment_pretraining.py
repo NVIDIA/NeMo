@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+
 # Please see tutorial at Nemo/tutorials/nlp/Entity_Linking_Medical.ipynb for 
 # more information on entity linking and self alignment pretraining. 
 
-from pytorch_lightning import Trainer
 from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models import EntityLinkingModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
 
 @hydra_runner(config_path="conf", config_name="umls_medical_entity_linking_config.yaml")
 def main(cfg: DictConfig) -> None:
@@ -41,6 +44,7 @@ def main(cfg: DictConfig) -> None:
         # '.nemo' file contains the last checkpoint and the params to initialize the model
         model.save_to(cfg.model.nemo_path)
         logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
+
 
 if __name__ == '__main__':
     main()

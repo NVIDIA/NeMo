@@ -12,21 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict, Optional
+
 import torch
-from pytorch_lightning import Trainer
-from typing import Optional, Dict
 from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 from transformers import AutoTokenizer
+
+from nemo.collections.common.losses import MultiSimilarityLoss
+from nemo.collections.nlp.data import EntityLinkingDataset
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.data import EntityLinkingDataset
-from nemo.collections.common.losses import MultiSimilarityLoss
-from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import NeuralType, ChannelType, MaskType, LogitsType
 from nemo.core.classes.common import typecheck
+from nemo.core.classes.exportable import Exportable
+from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
 from nemo.utils import logging
 
 __all__ = ['EntityLinkingModel']
+
 
 class EntityLinkingModel(NLPModel, Exportable):
     """
@@ -42,10 +45,10 @@ class EntityLinkingModel(NLPModel, Exportable):
             "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
+
     @property 
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"logits": NeuralType(('B', 'D'), LogitsType())}
-
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes the SAP-BERT model for entity linking."""
@@ -69,11 +72,11 @@ class EntityLinkingModel(NLPModel, Exportable):
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = AutoTokenizer.from_pretrained(
-            cfg.tokenizer_name,
-            vocab_file=cfg.vocab_file,
-            do_lower_case=cfg.do_lower_case)
+            cfg.tokenizer_name, vocab_file=cfg.vocab_file, do_lower_case=cfg.do_lower_case
+        )
 
         self.tokenizer = tokenizer
+
         
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -82,7 +85,7 @@ class EntityLinkingModel(NLPModel, Exportable):
         )
 
         # normalize to unit sphere
-        logits = torch.nn.functional.normalize(hidden_states[:,self._idx_conditioned_on], p=2, dim=1)
+        logits = torch.nn.functional.normalize(hidden_states[:, self._idx_conditioned_on], p=2, dim=1)
         return logits
 
     def training_step(self, batch, batch_idx):
@@ -93,6 +96,7 @@ class EntityLinkingModel(NLPModel, Exportable):
         input_ids, token_type_ids, attention_mask, concept_ids = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
         train_loss = self.loss(logits=logits, labels=concept_ids)
+
 
         # No hard examples found in batch, 
         # shouldn't use this batch to update model weights
@@ -139,9 +143,9 @@ class EntityLinkingModel(NLPModel, Exportable):
         if outputs:
             avg_loss = torch.stack([x["val_loss"] for x in outputs if x["val_loss"] != None]).mean()
             self.log(f"val_loss", avg_loss, prog_bar=True)
+
             
             return {"val_loss": avg_loss}
-
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if not train_data_config or not train_data_config.data_file:
@@ -170,21 +174,21 @@ class EntityLinkingModel(NLPModel, Exportable):
     def setup_dataloader(self, cfg: Dict, is_index_data: bool = False) -> 'torch.utils.data.DataLoader':
         
         dataset = EntityLinkingDataset( 
-                tokenizer=self.tokenizer,
-                data_file=cfg.data_file,
-                max_seq_length=cfg.max_seq_length,
-                is_index_data=is_index_data,
-            )
+            tokenizer=self.tokenizer,
+            data_file=cfg.data_file,
+            max_seq_length=cfg.max_seq_length,
+            is_index_data=is_index_data,
+        )
     
         return torch.utils.data.DataLoader(
-                dataset=dataset,
-                batch_size=cfg.batch_size,
-                collate_fn=dataset.collate_fn,
-                shuffle=cfg.get("shuffle", True),
-                num_workers=cfg.get("num_wokers", 2),
-                pin_memory=cfg.get("pin_memory", False),
-                drop_last=cfg.get("drop_last", False)
-                )
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            collate_fn=dataset.collate_fn,
+            shuffle=cfg.get("shuffle", True),
+            num_workers=cfg.get("num_wokers", 2),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False)
+        )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

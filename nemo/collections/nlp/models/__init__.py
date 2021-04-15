@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.nlp.models.dialogue_state_tracking.sgdqa_model import SGDQAModel
+from nemo.collections.nlp.models.entity_linking.entity_linking_model import EntityLinkingModel
 from nemo.collections.nlp.models.glue_benchmark.glue_benchmark_model import GLUEModel
 from nemo.collections.nlp.models.information_retrieval import BertDPRModel, BertJointIRModel
 from nemo.collections.nlp.models.intent_slot_classification import IntentSlotClassificationModel
@@ -25,4 +26,3 @@ from nemo.collections.nlp.models.neural_machine_translation.neural_machine_trans
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.collections.nlp.models.token_classification import PunctuationCapitalizationModel, TokenClassificationModel
-from nemo.collections.nlp.models.entity_linking.entity_linking_model import EntityLinkingModel

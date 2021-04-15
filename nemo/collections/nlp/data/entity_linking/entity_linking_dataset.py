@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import array
 import pickle as pkl
-
 from typing import Optional
-from nemo.utils import logging
-from nemo.core.classes import Dataset
+
+import torch
+
 from nemo.collections.nlp.data.data_utils.data_preprocessing import find_newlines, load_data_indices
+from nemo.core.classes import Dataset
+from nemo.utils import logging
 
 __all__ = ['EntityLinkingDataset']
 
@@ -48,7 +49,7 @@ class EntityLinkingDataset(Dataset):
         newline_idx_file: Optional[str] = None,
         max_seq_length: Optional[int] = 512,
         is_index_data: bool = False,
-        ):
+    ):
 
         self.tokenizer = tokenizer
 
@@ -97,7 +98,6 @@ class EntityLinkingDataset(Dataset):
                 concept_id, concept1, concept2 = concept
                 return (int(concept_id), concept1, concept2)
 
-
     def _collate_fn(self, batch):
         """collate batch of input_ids, segment_ids, input_mask, and label
 
@@ -112,18 +112,20 @@ class EntityLinkingDataset(Dataset):
         else:
             concept_ids, concepts1, concepts2 = zip(*batch)
             concept_ids = list(concept_ids) 
-            concept_ids.extend(concept_ids) # Need to double label list to match each concept
+            concept_ids.extend(concept_ids)  # Need to double label list to match each concept
             concepts = list(concepts1)
             concepts.extend(concepts2)
 
-        batch = self.tokenizer(concepts,
-                          add_special_tokens = True,
-                          padding = True,
-                          truncation = True,
-                          max_length = self.max_seq_length,
-                          return_token_type_ids = True,
-                          return_attention_mask = True,
-                          return_length = True)
+        batch = self.tokenizer(
+            concepts,
+            add_special_tokens = True,
+            padding = True,
+            truncation = True,
+            max_length = self.max_seq_length,
+            return_token_type_ids = True,
+            return_attention_mask = True,
+            return_length = True
+        )
 
         return (
             torch.LongTensor(batch["input_ids"]),

@@ -13,15 +13,34 @@
 # limitations under the License.
 
 import itertools
-import random
-import pandas as pd
 import pickle as pkl
-
+import random
 from argparse import ArgumentParser
-from tqdm import tqdm
-from omegaconf import OmegaConf
 
-HEADERS = ['CUI', 'LAT', 'TS', 'LUI', 'STT', 'SUI', 'ISPREF', 'AUI', 'SAUI', 'SCUI', 'SDUI', 'SAB', 'TTY', 'CODE', 'STR', 'SRL', 'SUPPRESS', 'CVF']
+import pandas as pd
+from omegaconf import OmegaConf
+from tqdm import tqdm
+
+HEADERS = ['CUI', 
+           'LAT', 
+           'TS', 
+           'LUI', 
+           'STT', 
+           'SUI', 
+           'ISPREF', 
+           'AUI', 
+           'SAUI', 
+           'SCUI', 
+           'SDUI', 
+           'SAB', 
+           'TTY', 
+           'CODE', 
+           'STR', 
+           'SRL', 
+           'SUPPRESS', 
+           'CVF',
+           ]
+
 
 def process_umls_training_dataset(data_path, train_save_name, val_save_name, max_pairs, train_split, headers):
     """
@@ -48,6 +67,7 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
 
     cui = df["CUI"].iloc[0]
     names = []
+
     
     for idx in tqdm(range(len(df))):
         # Address incorrectly formatted data
@@ -58,16 +78,19 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
         if df["CUI"].iloc[idx] == cui and df["LAT"].iloc[idx] == "ENG":
             concept_string = df["STR"].iloc[idx]
             names.append(concept_string)
+
             
         else:
             # Pair off concept synonyms to make training and val sets
             pairs = list(itertools.combinations(names, 2))
+
             
             if len(pairs) == 0:
                 # Not enough concepts gathered to make a pair
                 cui = df["CUI"].iloc[idx]
                 names = [df["STR"].iloc[idx]]
                 continue
+
         
             # Removing leading C to convert label string to int
             cui = int(cui[1:])
@@ -76,6 +99,7 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
             # Keep up to max pairs number pairs for any one concept
             for pair in pairs[:max_pairs]:
 
+
                 # Want concepts in train and val splits to be randomly selected and mutually exclusive 
                 add_to_train = random.random()
 
@@ -83,6 +107,7 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
                     train_file.write(f'{cui}\t{pair[0]}\t{pair[1]}\n')
                 else:
                     val_file.write(f'{cui}\t{pair[0]}\t{pair[1]}\n')
+
             
             # Switch to next concept
             cui = df["CUI"].iloc[idx]
@@ -115,7 +140,7 @@ def process_umls_index_dataset(data_path, data_savename, id2string_savename, hea
     with open(data_savename, "w") as outfile:
         for idx, row in tqdm(df.iterrows(), total=df.shape[0]):
             # Address incorrectly formatted data
-            if type(row["STR"]) != str or "|" in  row["STR"]:
+            if type(row["STR"]) != str or "|" in row["STR"]:
                 continue
 
             cui = row["CUI"]
@@ -141,22 +166,25 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--index", action="store_true", help="Whether to process data for building an index")
     parser.add_argument("--cfg", required=False, type=str, default="conf/umls_medical_entity_linking_config.yaml")
-    parser.add_argument("--max_pairs", required=False, type=int, default=50, help="Max number of train pairs for a single concepts")
-    parser.add_argument("--train_split", required=False, type=float, default=.99, help="Precentage of data to add to train set")
+    parser.add_argument(
+        "--max_pairs", required=False, type=int, default=50, help="Max number of train pairs for a single concepts"
+    )
+    parser.add_argument(
+        "--train_split", required=False, type=float, default=0.99, help="Precentage of data to add to train set"
+    )
 
     args = parser.parse_args()
     cfg = OmegaConf.load(args.cfg)
 
     if args.index:
-        process_umls_index_dataset(cfg.index.raw_data, 
-                                   cfg.index.index_ds.data_file, 
-                                   cfg.index.id_to_string, 
-                                   HEADERS)
+        process_umls_index_dataset(cfg.index.raw_data, cfg.index.index_ds.data_file, cfg.index.id_to_string, HEADERS)
     else:
-        process_umls_training_dataset(cfg.model.raw_data, 
-                                      cfg.model.train_ds.data_file, 
-                                      cfg.model.validation_ds.data_file, 
-                                      args.max_pairs,
-                                      args.train_split,
-                                      HEADERS)
+        process_umls_training_dataset(
+            cfg.model.raw_data, 
+            cfg.model.train_ds.data_file, 
+            cfg.model.validation_ds.data_file, 
+            args.max_pairs,
+            args.train_split,
+            HEADERS,
+        )
 

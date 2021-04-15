@@ -13,13 +13,15 @@
 # limitations under the License.
 
 import os
-import wget
 import shutil
 import tempfile
-import pytest
 
+import pytest
+import wget
 from omegaconf import OmegaConf
+
 from nemo.collections.nlp.models import EntityLinkingModel
+
 
 def get_cfg(save_dir):
     wget.download(
