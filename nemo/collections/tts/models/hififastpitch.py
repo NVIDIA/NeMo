@@ -90,7 +90,6 @@ class HiFiFastPitchModel(TextToWaveform):
         OmegaConf.merge(cfg, schema)
 
         # torch.backends.cudnn.benchmark = True  # TODO
-        # self.melspec_fn = SkinnyFilterBanks()
         self.preprocessor = instantiate(self._cfg.preprocessor)
         self.melspec_fn = instantiate(self._cfg.preprocessor, highfreq=None, use_grads=True)
 
@@ -419,25 +418,3 @@ class HiFiFastPitchModel(TextToWaveform):
 
     def convert_text_to_waveform(self):
         pass  # TODO
-
-
-class SkinnyFilterBanks(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.mel_basis = None
-
-    def forward(self, audio, length):
-        if self.mel_basis is None:
-            mel = librosa.filters.mel(22050, 1024, 80, 0, None)
-            self.mel_basis = torch.from_numpy(mel).float().to(audio.device)
-            self.hann_window = torch.hann_window(1024).to(audio.device)
-
-        spec = torch.stft(
-            audio.squeeze(), 1024, hop_length=256, win_length=1024, window=self.hann_window, center=True,
-        )
-
-        spec = torch.sqrt(spec.pow(2).sum(-1) + (1e-9))
-        spec = torch.matmul(self.mel_basis, spec)
-        spec = torch.log(torch.clamp(spec, min=1e-5))
-
-        return spec, None
