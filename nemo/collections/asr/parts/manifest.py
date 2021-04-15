@@ -63,7 +63,7 @@ def item_iter(
 
     if parse_func is None:
         parse_func = __parse_item
-    elif parse_func is "open_stt":
+    elif parse_func == "open_stt":
         parse_func = __parse_open_stt
 
     k = -1
@@ -126,7 +126,9 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     if 'text' in item:
         pass
     elif 'text_filepath' in item:
-        with open(item.pop('text_filepath'), 'r') as f:
+        if item['text_filepath'][0] != "/":
+            item['text_filepath'] = join(manifest_path, item['text_filepath'])
+        with open(item.pop('text_filepath'), 'r', encoding='utf8') as f:
             item['text'] = f.read().replace('\n', '')
     elif 'normalized_text' in item:
         item['text'] = item['normalized_text']
