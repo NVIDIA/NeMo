@@ -615,15 +615,15 @@ class FastSpeech2Dataset(Dataset):
             # Else not pruned, load additional info
 
             # Phoneme durations and text token indices from durations file
-            dur_path = audio_path.replace('/wavs/', '/phoneme_durations/').replace('.wav', '.npz')
-            duration_info = np.load(dur_path)
-            durs = torch.from_numpy(duration_info['durs'])
-            text_tokens = torch.from_numpy(duration_info['tokens'])
+            dur_path = audio_path.replace('/wavs/', '/phoneme_durations_realign/').replace('.wav', '.pt')
+            duration_info = torch.load(dur_path)
+            durs = duration_info['token_duration']
+            text_tokens = duration_info['text_encoded']
 
             if load_supplementary_values:
                 # Load pitch file (F0s)
                 pitch_path = audio_path.replace('/wavs/', '/pitches/').replace('.wav', '.npy')
-                pitches = torch.from_numpy(np.load(pitch_path))
+                pitches = torch.from_numpy(np.load(pitch_path).astype(dtype='float32'))
 
                 # Load energy file (L2-norm of the amplitude of each STFT frame of an utterance)
                 energies_path = audio_path.replace('/wavs/', '/energies/').replace('.wav', '.npy')
