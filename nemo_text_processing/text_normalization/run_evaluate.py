@@ -67,7 +67,7 @@ if __name__ == "__main__":
         sentences_un_normalized, sentences_normalized, _ = training_data_to_sentences(training_data)
         print("- Data: " + str(len(sentences_normalized)) + " sentences")
         sentences_prediction = normalizer(sentences_un_normalized)
-        print("- Denormalized. Evaluating...")
+        print("- Normalized. Evaluating...")
         sentences_accuracy = evaluate(
             preds=sentences_prediction, labels=sentences_normalized, input=sentences_un_normalized
         )
@@ -91,6 +91,7 @@ if __name__ == "__main__":
         token_count_per_type[token_type] * accuracy for token_type, accuracy in token_accuracy.items()
     ]
     print("- Accuracy: " + str(sum(token_weighted_accuracy) / sum(token_count_per_type.values())))
+    print(" - Total: " + str(sum(token_count_per_type.values())), '\n')
 
     print(" - Total: " + str(sum(token_count_per_type.values())), '\n')
 
