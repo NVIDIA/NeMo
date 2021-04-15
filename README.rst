@@ -25,6 +25,7 @@
   :target: https://github.com/psf/black
   :alt: Code style: black
 
+.. _main-readme:
 **NVIDIA NeMo**
 ===============
 
@@ -62,19 +63,19 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/
 
-.. |v1.0.0b1| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.0b1
+.. |stable| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/
+  :target:  https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/
 
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 | Version | Status      | Description                                                                                                                      |
 +=========+=============+==================================================================================================================================+
 | Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_          |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Next    | |r1.0.0rc1| | `Documentation of the next release (i.e. r1.0.0rc1). <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/>`_ |
+| Next    | |r1.0.0rc1| | `Documentation of the most recent release: r1.0.0rc1 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/>`_ |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Stable  | |v1.0.0b1|  | `Documentation of the stable (i.e. v1.0.0b1) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/>`_  |
+| Stable  | |stable|    | `Documentation of the stable (i.e. stable) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_      |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 
 Tutorials
@@ -97,7 +98,7 @@ Use this installation mode if you want the latest released version.
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
-    pip install nemo_toolkit[all]==1.0.0b3
+    pip install nemo_toolkit['all']==1.0.0rc1
 
 Pip from source
 ~~~~~~~~~~~~~~~
@@ -130,7 +131,7 @@ It has all requirements and NeMo 1.0.0b3 already installed.
 
     docker run --gpus all -it --rm --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0b3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0rc1
 
 
 If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 20.11-py3 and then installing from GitHub.
@@ -139,7 +140,7 @@ If you chose to work with main branch, we recommend using NVIDIA's PyTorch conta
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.03-py3
 
 Examples
 --------

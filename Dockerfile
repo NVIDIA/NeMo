@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.02-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.03-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -32,48 +32,24 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
+# uninstall stuff from base container
+RUN pip uninstall -y sacrebleu torchtext
+
 # build torchaudio (change latest release version to match pytorch)
 WORKDIR /tmp/torchaudio_build
-RUN git clone --depth 1 --branch release/0.6 https://github.com/pytorch/audio.git && \
+RUN git clone --depth 1 --branch release/0.7 https://github.com/pytorch/audio.git && \
     cd audio && \
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
-# build RNN-T loss
-WORKDIR /workspace/deps/rnnt
-RUN COMMIT_SHA=f546575109111c455354861a0567c8aa794208a2 && \
-    git clone https://github.com/HawkAaron/warp-transducer && \
-    cd warp-transducer && \
-    git checkout $COMMIT_SHA && \
-    # disable old compile flags (compute_30 arch)
-    sed -i 's/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30 -O2")/#set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30 -O2")/g' CMakeLists.txt && \
-    # enable Cuda 11 compilation if necessary
-    sed -i 's/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")/set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")/g' CMakeLists.txt && \
-    # build loss function
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make VERBOSE=1 && \
-    # set env flags
-    export CUDA_HOME="/usr/local/cuda" && \
-    export WARP_RNNT_PATH=`pwd` && \
-    export CUDA_TOOLKIT_ROOT_DIR=$CUDA_HOME && \
-    export LD_LIBRARY_PATH="$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH" && \
-    export LIBRARY_PATH=$CUDA_HOME/lib64:$LIBRARY_PATH && \
-    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH && \
-    export CFLAGS="-I$CUDA_HOME/include $CFLAGS" && \
-    # install pytorch binding
-    cd ../pytorch_binding && \
-    python3 setup.py install && \
-    rm -rf ../tests test ../tensorflow_binding
-
-# uninstall stuff from base container
-RUN pip uninstall -y sacrebleu
-
-# install nemo dependencies
-WORKDIR /tmp/nemo
-COPY requirements .
-RUN for f in $(ls requirements/*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
+# TODO: remove when 21.04 container is released
+# build torchtext
+WORKDIR /tmp/torchtext_build
+RUN git clone --branch v0.8.1 https://github.com/pytorch/text.git && \
+    cd text && \
+    git submodule update --init --recursive && \
+    python setup.py clean install && \
+    cd .. && rm -r text
 
 #install TRT tools: PT quantization support and ONNX graph optimizer
 WORKDIR /tmp/trt_build
@@ -82,6 +58,15 @@ RUN git clone https://github.com/NVIDIA/TensorRT.git && \
     cd ../pytorch-quantization && \
     python setup.py install && \
     rm -fr  /tmp/trt_build
+
+# install nemo dependencies
+WORKDIR /tmp/nemo
+COPY requirements .
+RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
+
+# install nemo_text_processing dependencies
+COPY nemo_text_processing /tmp/nemo/nemo_text_processing/
+RUN /bin/bash /tmp/nemo/nemo_text_processing/setup.sh
 
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
@@ -96,7 +81,15 @@ ARG NEMO_VERSION=1.0.0rc1
 RUN /usr/bin/test -n "$NEMO_VERSION" && \
     /bin/echo "export NEMO_VERSION=${NEMO_VERSION}" >> /root/.bashrc && \
     /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
-RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]"
+RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" && \
+    python -c "import nemo.collections.asr as nemo_asr" && \
+    python -c "import nemo.collections.nlp as nemo_nlp" && \
+    python -c "import nemo.collections.tts as nemo_tts" && \
+    python -c "import nemo_text_processing.text_normalization as text_normalization"
+
+# TODO: Remove once 21.04 container is base container
+# install latest numba version
+RUN conda update -c numba numba -y
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo

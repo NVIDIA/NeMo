@@ -47,6 +47,9 @@ An example SpeakerNet train and validation configuration could look like:
       batch_size: 32
       shuffle: False    # No need to shuffle the validation data
 
+      
+If you would like to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
+
 
 Preprocessor Configuration
 --------------------------
@@ -94,7 +97,7 @@ For more information about the SpeakerNet Encoder models, see the :doc:`Models <
 Decoder Configurations
 ------------------------
 
-After features have been computed from speakernet encoder, we pass these features to thedecoder to compute embeddings and then to compute log probabilities
+After features have been computed from speakernet encoder, we pass these features to the decoder to compute embeddings and then to compute log probabilities
 for training models.
 
 .. code-block:: yaml

@@ -67,6 +67,9 @@ def get_tokenizer(
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
+        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure of BPE to help
+            model better learn word compositionality and become robust to segmentation errors. 
+            It has emperically been shown to improve inference time BLEU scores.
     """
     if special_tokens is None:
         special_tokens_dict = {}
@@ -82,7 +85,7 @@ def get_tokenizer(
 
     if tokenizer_name == 'sentencepiece':
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_model, special_tokens=special_tokens
+            model_path=tokenizer_model, special_tokens=special_tokens, legacy=True
         )
     elif tokenizer_name == 'yttm':
         return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
@@ -112,19 +115,29 @@ def get_nmt_tokenizer(
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
+        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure of BPE to help
+            model better learn word compositionality and become robust to segmentation errors. 
+            It has emperically been shown to improve inference time BLEU scores.        
     """
+    if special_tokens is None:
+        special_tokens_dict = {}
+    else:
+        special_tokens_dict = special_tokens
+
     if library == 'yttm':
         logging.info(f'Getting YouTokenToMeTokenizer with model: {tokenizer_model}.')
         return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
-
     elif library == 'huggingface':
-        if special_tokens is None:
-            special_tokens_dict = {}
-        else:
-            special_tokens_dict = special_tokens
         logging.info(f'Getting HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
         return AutoTokenizer(
             pretrained_model_name=model_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
         )
+    elif library == 'sentencepiece':
+        logging.info(f'Getting SentencePiece with model: {model_name}')
+        return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
+            model_path=tokenizer_model, special_tokens=special_tokens_dict
+        )
     else:
-        raise NotImplementedError('Currently we only support "yttm" and "huggingface" tokenizer library.')
+        raise NotImplementedError(
+            'Currently we only support "yttm", "huggingface", and "sentencepiece" tokenizer library.'
+        )

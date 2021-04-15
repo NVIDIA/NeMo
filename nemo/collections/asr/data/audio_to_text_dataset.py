@@ -44,9 +44,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         unk_index=config.get('unk_index', -1),
         normalize=config.get('normalize_transcripts', False),
         trim=config.get('trim_silence', False),
-        load_audio=config.get('load_audio', True),
         parser=config.get('parser', 'en'),
-        add_misc=config.get('add_misc', False),
     )
     return dataset
 
@@ -75,8 +73,6 @@ def get_bpe_dataset(
         min_duration=config.get('min_duration', None),
         max_utts=config.get('max_utts', 0),
         trim=config.get('trim_silence', False),
-        load_audio=config.get('load_audio', True),
-        add_misc=config.get('add_misc', False),
         use_start_end_token=config.get('use_start_end_token', True),
     )
     return dataset
@@ -115,7 +111,6 @@ def get_tarred_char_dataset(
         normalize=config.get('normalize_transcripts', False),
         trim=config.get('trim_silence', False),
         parser=config.get('parser', 'en'),
-        add_misc=config.get('add_misc', False),
         shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         global_rank=global_rank,
         world_size=world_size,
@@ -158,7 +153,6 @@ def get_tarred_bpe_dataset(
         min_duration=config.get('min_duration', None),
         max_utts=config.get('max_utts', 0),
         trim=config.get('trim_silence', False),
-        add_misc=config.get('add_misc', False),
         use_start_end_token=config.get('use_start_end_token', True),
         shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         global_rank=global_rank,

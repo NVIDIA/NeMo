@@ -192,7 +192,7 @@ class FastPitchModule(NeuralModule):
             assert pitch is not None
 
         # Calculate speaker embedding
-        if self.speaker_emb is None:
+        if self.speaker_emb is None or speaker is None:
             spk_emb = 0
         else:
             # if type(speaker) is int:
