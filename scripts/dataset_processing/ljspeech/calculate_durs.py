@@ -20,12 +20,9 @@ import json
 from math import ceil
 import numpy as np
 import os
-import re
 import tgt
 import torch
 from tqdm import tqdm
-
-from align_sequences import align
 
 parser = argparse.ArgumentParser(
     description="Calculates phoneme durations for LJSpeech from TextGrids."
@@ -36,38 +33,6 @@ parser.add_argument('--mappings', required=False, default=None, type=str,
 parser.add_argument('--sr', required=False, default=22050, type=int)
 parser.add_argument('--hop_length', required=False, default=256, type=int)
 args = parser.parse_args()
-
-
-def align_sequences(seq_a, seq_b, gap_char):
-    alignment = align(seq_a, seq_b, match_fn=match_fn, gap_char=gap_char,
-                      one_alignment_only=True)[0]
-    return alignment
-
-def adjust_mfa_text_and_durations(phones_orig, phones_mfa, duration_mfa, phone2idx, gap_string='gap_char'):
-    # Align [original text mapped to phonemes] and [phonemes from MFA]
-    match_fn = lambda x, y: 1 if x == y else 0
-    alignment = align(
-        phones_orig,
-        phones_mfa,
-        match_fn=match_fn,
-        gap_char=[gap_string],
-        one_alignment_only=True
-    )[0]
-    txt_align, txt_align_mfa = alignment[0], alignment[1]
-
-    # Adjust durations and text
-    duration_mfa_list = duration_mfa.tolist()
-    txt_dur_adjusted = np.array([
-        (txt_align[i], 0) if txt_align_mfa[i] == gap_string
-        else (txt_align_mfa[i], duration_mfa_list.pop(0))
-        for i in range(len(txt_align_mfa))])
-
-    text_adjusted = torch.LongTensor(
-        [phone2idx[x] for x in txt_dur_adjusted[:, 0]])
-    duration_adjusted = torch.LongTensor(
-        txt_dur_adjusted[:, 1].astype(np.long))
-
-    return text_adjusted, duration_adjusted
 
 
 def calculate_durations(textgrid, phone2idx):
@@ -115,7 +80,7 @@ def main():
     textgrid_list = glob.glob(os.path.join(args.ljspeech_dir, 'alignments/wavs/*.TextGrid'))
 
     # Create target_dir if necessary
-    target_dir = os.path.join(args.ljspeech_dir, 'phoneme_durations_realign/')
+    target_dir = os.path.join(args.ljspeech_dir, 'phoneme_durations/')
     print(f"Calculating phoneme durations, files will be in: {target_dir}")
 
     if not os.path.exists(target_dir):
@@ -134,20 +99,10 @@ def main():
     for textgrid in tqdm(textgrid_list):
         phones_mfa, tokens_mfa, durs = calculate_durations(textgrid, phone2idx)
 
-        # Adjust durations by comparing against original text
-        basename = os.path.splitext(os.path.basename(textgrid))[0][5:]  # Chop off 'wavs_' prefix
-        text_file = os.path.join(args.ljspeech_dir, 'wavs/', f"{basename}.txt")
-        with open(text_file, 'r') as f:
-            text = f.read().strip()
-        norm_text = re.findall("""[\w']+|[.,!?;"]""", text)
-        phones = [word2phones[t] if t in word2phones else ' ' for t in norm_text]
-        phones = [phone for plist in phones for phone in plist]
-
-        text_encoded, durs = adjust_mfa_text_and_durations(phones, phones_mfa, durs, phone2idx)
-
         # Save to file
+        basename = os.path.splitext(os.path.basename(textgrid))[0][5:]  # Chop off 'wavs_' prefix
         target_path = os.path.join(target_dir, f'{basename}.pt')
-        torch.save({'text_encoded': text_encoded, 'token_duration': durs}, target_path)
+        torch.save({'text_encoded': tokens_mfa, 'token_duration': durs}, target_path)
 
 
 if __name__ == '__main__':
