@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.nlp_model import NLPDDPPlugin
 import os
 
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import TokenClassificationModel
+from nemo.collections.nlp.models.nlp_model import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
