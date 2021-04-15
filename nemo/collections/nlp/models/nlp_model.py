@@ -119,6 +119,7 @@ class NLPModel(ModelPT, Exportable):
             if os.path.exists('tokenizer.vocab_file'):
                 # model is being restored from .nemo file so tokenizer.vocab_file has precedence
                 vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
+                cfg.vocab_file = vocab_file
 
             # tokenizer.vocab_file is added to the config file and registered as artifact for .nemo file
             # during training but this file is missing for load_from_checkpoint() method call
