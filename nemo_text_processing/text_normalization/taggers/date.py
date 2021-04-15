@@ -13,7 +13,13 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst, delete_extra_space, delete_space
+from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_DIGIT,
+    NEMO_SIGMA,
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+)
 
 try:
     import pynini
@@ -56,6 +62,7 @@ def _get_year_graph():
         | graph_ties + pynutil.insert(" ") + pynini.cross("00", "hundred")
         | pynini.cross("2", "two") + pynutil.insert(" ") + pynini.cross("000", "thousand")
     )
+    graph = (pynini.union("1", "2") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT) @ graph
     return graph
 
 
@@ -76,6 +83,7 @@ class DateFst(GraphFst):
 
         # weekday, day, month, year, style(depr), text(depr), short_year(depr), era
         year_graph = _get_year_graph()
+
         YEAR_WEIGHT = 0.001
         year_graph = pynutil.add_weight(year_graph, YEAR_WEIGHT)
         month_graph = _get_month_graph()

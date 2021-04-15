@@ -167,7 +167,7 @@ class CardinalFst(GraphFst):
         self.graph = pynini.invert(graph) @ delete_extra_spaces
         self.graph = self.graph.optimize()
 
-        optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"minus\" "), 0, 1)
+        optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
 

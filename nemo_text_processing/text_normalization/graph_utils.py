@@ -62,6 +62,7 @@ try:
 
     SINGULAR_TO_PLURAL = graph_plural
     PLURAL_TO_SINGULAR = pynini.invert(graph_plural)
+    TO_LOWER = pynini.union(*[pynini.cross(x, y) for x, y in zip(string.ascii_uppercase, string.ascii_lowercase)])
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):

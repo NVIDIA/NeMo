@@ -209,6 +209,7 @@ def normalize_nemo(texts: List[str], verbose=False) -> List[str]:
         try:
             text = normalize(input, verbose=verbose)
         except:
+            print(input)
             raise Exception
         res.append(text)
     return res
