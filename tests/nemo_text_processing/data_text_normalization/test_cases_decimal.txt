@@ -1,3 +1,4 @@
-1~one
-2~two
-3~three
+.1665~point one six six five
+2.0~two point zero
+2.00~two point o o
+2.050~two point o five o

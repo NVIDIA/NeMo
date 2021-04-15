@@ -60,41 +60,67 @@ class CardinalFst(GraphFst):
             (graph_ties + delete_space | pynutil.insert("0")) + (graph_digit | pynutil.insert("0")),
         )
 
+        #  string -> all 3 digit numbers apart from 000
         graph_hundred_component_at_least_one_none_zero_digit = graph_hundred_component @ (
             pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)
         )
+
+        # all 3 digit numbers apart from 000 -> string
         self.graph_hundred_component_at_least_one_none_zero_digit = pynini.invert(
             graph_hundred_component_at_least_one_none_zero_digit
         ).optimize()
 
-        graph_thousands = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("thousand"),
-            pynutil.insert("000", weight=0.1),
+        insert_comma = pynini.closure(pynutil.insert(","), 0, 1)
+
+        graph_thousands = (
+            pynini.union(
+                graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("thousand"),
+                pynutil.insert("000", weight=0.1),
+            )
+            + insert_comma
         )
 
-        graph_million = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("million"),
-            pynutil.insert("000", weight=0.1),
+        graph_million = (
+            pynini.union(
+                graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("million"),
+                pynutil.insert("000", weight=0.1),
+            )
+            + insert_comma
         )
-        graph_billion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("billion"),
-            pynutil.insert("000", weight=0.1),
+        graph_billion = (
+            pynini.union(
+                graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("billion"),
+                pynutil.insert("000", weight=0.1),
+            )
+            + insert_comma
         )
-        graph_trillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("trillion"),
-            pynutil.insert("000", weight=0.1),
+        graph_trillion = (
+            pynini.union(
+                graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("trillion"),
+                pynutil.insert("000", weight=0.1),
+            )
+            + insert_comma
         )
-        graph_quadrillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("quadrillion"),
-            pynutil.insert("000", weight=0.1),
+        graph_quadrillion = (
+            pynini.union(
+                graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("quadrillion"),
+                pynutil.insert("000", weight=0.1),
+            )
+            + insert_comma
         )
-        graph_quintillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("quintillion"),
-            pynutil.insert("000", weight=0.1),
+        graph_quintillion = (
+            pynini.union(
+                graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("quintillion"),
+                pynutil.insert("000", weight=0.1),
+            )
+            + insert_comma
         )
-        graph_sextillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("sextillion"),
-            pynutil.insert("000", weight=0.1),
+        graph_sextillion = (
+            pynini.union(
+                graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("sextillion"),
+                pynutil.insert("000", weight=0.1),
+            )
+            + insert_comma
         )
 
         graph = pynini.union(
@@ -117,8 +143,12 @@ class CardinalFst(GraphFst):
         )
 
         graph = graph @ pynini.union(
-            pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
+            pynini.closure(pynutil.delete(pynini.union("0", ",")))
+            + pynini.difference(NEMO_DIGIT, "0")
+            + pynini.closure(pynini.union(NEMO_DIGIT, ",")),
+            "0",
         )
+
         self.graph = pynini.invert(graph) @ (
             pynini.closure(pynutil.delete(" "))
             + pynini.closure(pynini.closure(NEMO_ALPHA, 1) + delete_extra_space)
