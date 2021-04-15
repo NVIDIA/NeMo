@@ -294,7 +294,7 @@ class NLPModel(ModelPT, Exportable):
             # update save_path based on model parallel_rank
             base_path = save_path[0:-5]  # everything excpe the .nemo extension
 
-            mp_save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02}.nemo'
+            mp_save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02d}.nemo'
 
             if app_state.data_parallel_rank == 0:
                 super()._default_save_to(mp_save_path)
@@ -305,9 +305,10 @@ class NLPModel(ModelPT, Exportable):
             if is_global_rank_zero():
                 # extract all tar files
                 for mp_rank in range(app_state.model_parallel_size):
-                    mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02}.nemo'
+                    mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
+                    logging.info(f'mp_tar_path: {mp_tar_path}')
                     mp_tar = tarfile.open(mp_tar_path, 'r:gz')
-                    mp_tar.extractall(path=os.path.join(base_dir, f'mp_rank_{mp_rank:02}'))
+                    mp_tar.extractall(path=os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
                     mp_tar.close()
                     os.remove(mp_tar_path)
 
@@ -320,13 +321,13 @@ class NLPModel(ModelPT, Exportable):
 
                 # move other mp_rank checkpoints from base_dir to base_path
                 for mp_rank in range(1, app_state.model_parallel_size):
-                    os.mkdir(os.path.join(base_path, f'mp_rank_{mp_rank:02}'))
+                    os.mkdir(os.path.join(base_path, f'mp_rank_{mp_rank:02d}'))
                     shutil.move(
-                        os.path.join(base_dir, f'mp_rank_{mp_rank:02}', 'model_weights.ckpt'),
-                        os.path.join(base_path, f'mp_rank_{mp_rank:02}'),
+                        os.path.join(base_dir, f'mp_rank_{mp_rank:02d}', 'model_weights.ckpt'),
+                        os.path.join(base_path, f'mp_rank_{mp_rank:02d}'),
                     )
                     # clean up leftover directory
-                    shutil.rmtree(os.path.join(base_dir, f'mp_rank_{mp_rank:02}'))
+                    shutil.rmtree(os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
 
                 # create tar file from base_path
                 self.__make_nemo_file_from_folder(save_path, base_path)

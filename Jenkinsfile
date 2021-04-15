@@ -708,8 +708,6 @@ pipeline {
       steps{
         sh 'cd examples/nlp/text_classification && \
         python text_classification_with_bert.py \
-        exp_manager.create_checkpoint_callback=false \
-        exp_manager.exp_dir=exp_mp_2_megatron_bert \
         trainer.gpus=[0,1] \
         trainer.num_nodes=1 \
         trainer.precision=16 \
@@ -724,6 +722,26 @@ pipeline {
         model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
         model.nemo_path=null \
         ~model.infer_samples \
+        exp_manager=null'
+      }
+    }
+
+    stage('L2: Model Parallel Size 2 Megatron Evaluation from .nemo') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/text_classification && \
+        python model_parallel_text_classification_evaluation.py \
+        trainer.gpus=[0,1] \
+        trainer.num_nodes=1 \
+        model.dataset.num_classes=6 \
+        model.test_ds.file_path=/home/TestData/nlp/retail_text_classification/dev.tsv \
+        model.nemo_path=/home/TestData/nlp/mp_2_nemo/retail_text_class_350M.nemo \
         exp_manager=null'
       }
     }
