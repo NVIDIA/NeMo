@@ -67,7 +67,6 @@ class TestEntityLinkingModel:
             assert model.num_weights == model_copy.num_weights
 
 
-
 if __name__ == "__main__":
     t = TestEntityLinkingModel()
     t.test_creation_saving_restoring()
