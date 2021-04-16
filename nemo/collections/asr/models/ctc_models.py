@@ -31,13 +31,14 @@ from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecMode
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.mixins import TeacherStudentMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModel']
 
 
-class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, TeacherStudentMixin):
     """Base class for encoder decoder CTC-based models."""
 
     @classmethod
@@ -156,7 +157,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = max(1, trainer.num_nodes * trainer.num_gpus)
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
@@ -623,6 +624,18 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             'test_wer': logs['val_wer'],
         }
         return test_logs
+
+    # student teacher training
+    def get_logits(self, batch, batch_nb) -> 'Tensor':
+        signal, signal_len, transcript, transcript_len = batch
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            log_probs, encoded_len, predictions = self.forward(
+                processed_signal=signal, processed_signal_length=signal_len
+            )
+        else:
+            log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
+
+        return log_probs
 
     def test_dataloader(self):
         if self._test_dl is not None:
