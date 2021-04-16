@@ -292,6 +292,7 @@ class NLPModel(ModelPT, Exportable):
 
             base_dir = os.path.dirname(save_path)  # use the directory to merge mp_rank .nemo files into one
 
+            # TODO: accept general paths
             # update save_path based on model parallel_rank
             base_path = save_path[0:-5]  # everything excpe the .nemo extension
 
@@ -304,6 +305,7 @@ class NLPModel(ModelPT, Exportable):
             torch.distributed.barrier()
 
             if is_global_rank_zero():
+                # TODO: do in a temporary directory
                 # extract all tar files
                 for mp_rank in range(app_state.model_parallel_size):
                     mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
@@ -404,7 +406,7 @@ class NLPModel(ModelPT, Exportable):
         if app_state.model_parallel_size is not None:
             if checkpoint_version is None:
                 raise ValueError(
-                    "Restoring from megatron model parallel .nemo but ould not find megatron checkpoint version."
+                    "Restoring from megatron model parallel .nemo but could not find megatron checkpoint version."
                 )
             else:
                 logging.info(f"Setting megatron checkpoint version: {checkpoint_version}")

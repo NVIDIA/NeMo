@@ -144,10 +144,13 @@ def get_megatron_lm_model(
     if not vocab_file:
         vocab_file = get_megatron_vocab_file(pretrained_model_name)
 
-    # if checkpoint path is a directory, then we automatically compute model parallel size,
-    # and model parallel rank
-    if os.path.isdir(checkpoint_file):
-        app_state = AppState()
+    app_state = AppState()
+    if app_state.model_parallel_size is not None and app_state.model_parallel_rank is not None:
+        # model parallel already known from .nemo restore
+        model_parallel_size = app_state.model_parallel_size
+        model_parallel_rank = app_state.model_parallel_rank
+    elif os.path.isdir(checkpoint_file):
+        # starting training from megatron-lm checkpoint
         model_parallel_size = len(os.listdir(checkpoint_file))
         app_state.model_parallel_size = model_parallel_size
         logging.info(
