@@ -78,10 +78,8 @@ def main():
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    # audio_file_paths = audio_file_paths[0:10]
+    audio_file_paths = audio_file_paths[0:10]
 
-    wer_dist_greedy = 0
-    words_count = 0
     if args.use_probs_cache and os.path.exists(args.probs_cache_path):
         logging.info(f"Found a pickle file of probabilities at {args.probs_cache_path}.")
         logging.info(f"Loading the cached pickle file of probabilities from {args.probs_cache_path}...")
@@ -102,15 +100,17 @@ def main():
         with open(args.probs_cache_path, 'wb') as f_dump:
             pickle.dump(all_probs, f_dump)
 
+    wer_dist_greedy = 0
+    words_count = 0
     for batch_idx, probs in enumerate(all_probs):
         preds = np.argmax(probs, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
         pred_text = asr_model._wer.ctc_decoder_predictions_tensor(preds_tensor)[0]
         pred_split = pred_text.split()
-        target = target_transcripts[batch_idx].split()
-        dist = editdistance.eval(target, pred_split)
+        target_split = target_transcripts[batch_idx].split()
+        dist = editdistance.eval(target_split, pred_split)
         wer_dist_greedy += dist
-        words_count += len(target)
+        words_count += len(target_split)
 
     # delete the model to free the memory
     del asr_model
@@ -155,7 +155,6 @@ def main():
                             dist = editdistance.eval(target_split, pred_split)
                             dist_min = dist_max = dist
                             wer_dist_best += dist
-                            words_count += len(target_split)
                         else:
                             dist = editdistance.eval(target_split, pred_split)
                             dist_min = min(dist_min, dist)
