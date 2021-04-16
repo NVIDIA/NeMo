@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import math
 from typing import Dict, Optional
 
+import numpy as np
 import torch
+import torch.utils.data as pt_data
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.common.metrics import Perplexity
+from nemo.collections.common.metrics import Perplexity, GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.nlp.data import L2RLanguageModelingDataset, TarredL2RLanguageModelingDataset
+from nemo.collections.nlp.data import TarredOneSideTranslationDataset, TranslationOneSideDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
@@ -41,10 +44,8 @@ class TransformerLMModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
-        self.global_rank = 0
         self.world_size = 1
         if trainer is not None:
-            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         # shared params for dataset and data loaders
@@ -106,23 +107,9 @@ class TransformerLMModel(ModelPT):
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.embedding_layer.token_embedding.weight
 
-        if hasattr(self.tokenizer, 'pad_token'):
-            pad_id = self.tokenizer.pad_id
-        else:
-            raise ValueError(
-                "The tokenizer must support a special `pad_token`. Provide it using" "the `special_tokens` dictionary."
-            )
-
-        self.training_loss = SmoothedCrossEntropyLoss(pad_id=pad_id)
-        self.validation_loss = SmoothedCrossEntropyLoss(
-            pad_id=pad_id, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
-        )
-
-        self.training_perplexity = Perplexity(dist_sync_on_step=True)
-        self.validation_perplexity = Perplexity(compute_on_step=False)
-
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization()
+        self.loss_fn = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id)
+        self.eval_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
+        self.eval_ppl = Perplexity()
 
     @typecheck()
     def forward(self, input_ids, attention_mask):
@@ -142,145 +129,137 @@ class TransformerLMModel(ModelPT):
         passed in as `batch`.
         """
         # forward pass
-        input_ids, input_mask, labels = batch
+        for i in range(len(batch)):
+            if batch[i].ndim == 3:
+                # Dataset returns already batched data and the first dimension of size 1
+                # added by DataLoader is excess.
+                batch[i] = batch[i].squeeze(dim=0)
+        ids, mask = batch
+        input_ids, labels = ids[:, :-1], ids[:, 1:]
+        input_mask = mask[:, :-1]
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
 
-        train_loss = self.training_loss(log_probs=log_probs, labels=labels)
-        training_perplexity = self.training_perplexity(logits=log_probs)
+        train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
 
         tensorboard_logs = {
             "train_loss": train_loss,
             "lr": self._optimizer.param_groups[0]["lr"],
-            "train_ppl": training_perplexity,
         }
         return {"loss": train_loss, "log": tensorboard_logs}
 
+    def eval_step(self, batch, batch_idx, mode):
+        for i in range(len(batch)):
+            if batch[i].ndim == 3:
+                # Dataset returns already batched data and the first dimension of size 1
+                # added by DataLoader is excess.
+                batch[i] = batch[i].squeeze(dim=0)
+        ids, mask = batch
+        input_ids, labels = ids[:, :-1], ids[:, 1:]
+        input_mask, output_mask = mask[:, :-1], mask[:, 1:]
+        log_probs = self(input_ids=input_ids, attention_mask=input_mask)
+
+        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+        self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+        self.eval_ppl(log_probs=log_probs, labels=labels, mask=output_mask)
+        return {}
+
+    def test_step(self, batch, batch_idx):
+        return self.eval_step(batch, batch_idx, 'test')
+    
     def validation_step(self, batch, batch_idx):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_mask, labels = batch
-        log_probs = self(input_ids=input_ids, attention_mask=input_mask)
+        return self.eval_step(batch, batch_idx, 'val')
 
-        val_loss = self.validation_loss(log_probs=log_probs, labels=labels)
-        self.validation_perplexity(logits=log_probs)
-
-        tensorboard_logs = {"val_loss": val_loss}
-
-        return {"val_loss": val_loss, "log": tensorboard_logs}
+    def eval_epoch_end(self, outputs, mode):
+        eval_loss = self.eval_loss.compute()
+        eval_ppl = self.eval_ppl.compute()
+        ans = {f"{mode}_loss": eval_loss, f"{mode}_ppl": eval_ppl}
+        ans['log'] = dict(ans)
+        logging.info(f"\n\n\n\n Validation PPL: {np.round(eval_ppl.item(), 2)}")
+        return ans
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        validation_perplexity = self.validation_perplexity.compute()
-        tensorboard_logs = {"val_loss": avg_loss, "val_ppl": validation_perplexity}
-        return {"val_loss": avg_loss, "log": tensorboard_logs}
-
-    def test_step(self, batch, batch_idx):
-        """
-        Lightning calls this inside the test loop with the data from the test dataloader
-        passed in as `batch`.
-        """
-        output_dict = self.validation_step(batch, batch_idx)
-        result = {"test_loss": output_dict['val_loss'], "log": {}}
-        for k, v in output_dict['log'].items():
-            new_k = k.replace("val", "test")
-            result['log'][new_k] = v
-
-        return result
+        self.log_dict(self.eval_epoch_end(outputs, 'val'), sync_dist=True)
+        self.eval_loss.reset()
+        self.eval_ppl.reset()
 
     def test_epoch_end(self, outputs):
-        """
-        Called at the end of test step to aggregate outputs.
-        :param outputs: list of individual outputs of each test step.
-        """
-
-        avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
-        validation_perplexity = self.validation_perplexity.compute()
-        tensorboard_logs = {"test_loss": avg_loss, "test_ppl": validation_perplexity}
-        return {"test_loss": avg_loss, "log": tensorboard_logs}
+        return self.eval_epoch_end(outputs, 'test')
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
-        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
-        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
-        # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
-            # We also need to check if limit_train_batches is already set.
-            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
-            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if isinstance(self._trainer.limit_train_batches, float):
-                self._trainer.limit_train_batches = int(
-                    self._trainer.limit_train_batches
-                    * math.ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
-                )
-
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(
-            cfg=val_data_config, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
-        )
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader_from_config(
-            cfg=test_data_config, predict_last_k=self.dataset_cfg.get("predict_last_k", 0),
-        )
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, predict_last_k=0):
-        if cfg.get('use_cache', False):
-            logging.info("Constructing tokenized dataset cache...")
 
-        shuffle = cfg.shuffle
-
-        if cfg.get('is_tarred', False):
-            if ('tarred_text_filepaths' in cfg and cfg['tarred_text_filepaths'] is None) or (
-                'file_name' in cfg and cfg['file_name'] is None
-            ):
-                logging.warning(
-                    "Could not load dataset as `file_name` was None or "
-                    f"`tarred_text_filepaths` is None. Provided config : {cfg}"
-                )
-                return None
-
-            shuffle_n = cfg.get('shuffle_n', 4 * cfg['batch_size']) if shuffle else 0
-            dataset = TarredL2RLanguageModelingDataset(
-                text_tar_filepaths=cfg['tarred_text_filepaths'],
-                metadata_path=cfg['file_name'],
+        if cfg.get("use_tarred_dataset", False):
+            if cfg.get("metadata_file") is None:
+                raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
+            else:
+                metadata_file = cfg.get('metadata_file')
+                with open(metadata_file) as metadata_reader:
+                    metadata = json.load(metadata_reader)
+                if cfg.get('tar_files') is None:
+                    tar_files = metadata.get('tar_files')
+                    if tar_files is not None:
+                        logging.info(f'Loading from tarred dataset {tar_files}')
+                    else:
+                        raise FileNotFoundError("Could not find tarred dataset in config or metadata.")
+                else:
+                    tar_files = cfg.get('tar_files')
+                    if metadata.get('tar_files') is not None:
+                        raise ValueError(
+                            'Tar files specified in config and in metadata file. Tar files should only be specified once.'
+                        )
+            dataset = TarredOneSideTranslationDataset(
+                text_tar_filepaths=tar_files,
+                metadata_path=metadata_file,
                 tokenizer=self.tokenizer,
-                max_seq_length=self.dataset_cfg.max_seq_length,
-                batch_step=predict_last_k,
-                shuffle_n=shuffle_n,
-                shard_strategy=cfg.get("tarred_shard_strategy", "scatter"),
+                shuffle_n=cfg.get("tar_shuffle_n", 100),
+                shard_strategy=cfg.get("shard_strategy", "scatter"),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
             )
-
-            shuffle = False
+            return torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=1,
+                num_workers=cfg.get("num_workers", 2),
+                pin_memory=cfg.get("pin_memory", False),
+                drop_last=cfg.get("drop_last", False),
+            )
         else:
-            if "file_name" in cfg and cfg.file_name is None:
-                logging.warning(f"Could not load dataset as `file_name` was None. Provided config : {cfg}")
-                return None
-
-            dataset = L2RLanguageModelingDataset(
+            dataset = TranslationOneSideDataset(
                 tokenizer=self.tokenizer,
                 dataset=cfg.file_name,
-                max_seq_length=self.dataset_cfg.max_seq_length,
-                batch_step=predict_last_k,
-                use_cache=cfg.get('use_cache', False),
+                tokens_in_batch=cfg.tokens_in_batch,
+                clean=cfg.get("clean", False),
+                max_seq_length=cfg.get("max_seq_length", 512),
+                min_seq_length=cfg.get("min_seq_length", 1),
+                cache_ids=cfg.get("cache_ids", False),
             )
-
+        if cfg.shuffle:
+            sampler = pt_data.RandomSampler(dataset)
+        else:
+            sampler = pt_data.SequentialSampler(dataset)
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=cfg.batch_size,
-            shuffle=shuffle,
-            num_workers=self.dataset_cfg.get("num_workers", 2),
-            pin_memory=self.dataset_cfg.get("pin_memory", False),
-            drop_last=self.dataset_cfg.get("drop_last", False),
+            batch_size=1,
+            sampler=sampler,
+            num_workers=cfg.get("num_workers", 2),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False),
         )
 
     @classmethod
