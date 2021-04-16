@@ -35,32 +35,25 @@ def softmax(x):
     return e / e.sum(axis=-1).reshape([x.shape[0], 1])
 
 
-def greedy_decoder(logits):
-    indices = np.argmax(logits, axis=1)
-    res = []
-    cur = -1
-    for idx in indices:
-        if idx != cur:
-            cur = idx
-            if cur != logits.shape[1] - 1:
-                res.append(idx)
-    return res
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Evaluate an ASR model with beam search decoding and an n-gram KenLM language model.'
     )
     parser.add_argument("--model_path", required=True, type=str)
-    parser.add_argument("--kenlm_model_path", required=True, type=str)
+    parser.add_argument("--kenlm_model_path", required=False, default=None, type=str)
     parser.add_argument("--input_manifest", required=True, type=str)
-    parser.add_argument("--output_path", required=True, type=str)
+    parser.add_argument("--preds_output_path", required=True, type=str)
+    parser.add_argument("--probs_cache_path", default=None, type=str)
+    parser.add_argument("--use_probs_cache", action="store_true")
     parser.add_argument("--beam_width", required=True, type=int)
     parser.add_argument("--beam_alpha", required=True, type=float)
     parser.add_argument("--beam_beta", required=True, type=float)
-    parser.add_argument("--acoustic_batch_size", default=16, required=True, type=int)
-    parser.add_argument("--beam_batch_size", default=16, required=True, type=int)
-    parser.add_argument("--device", default="cuda:0", required=True, type=str)
+    parser.add_argument("--acoustic_batch_size", default=16, type=int)
+    parser.add_argument("--beam_batch_size", default=128, type=int)
+    parser.add_argument("--device", default="cuda:0", type=str)
+    parser.add_argument(
+        "--decoding_mode", choices=["greedy", "beamsearch", "beamsearch_ngram"], default="beamsearch_ngram", type=str
+    )
     args = parser.parse_args()
 
     logging.info(f"BEAM WIDTH : {args.beam_width}")
@@ -73,104 +66,119 @@ def main():
     # Set model to inference mode
     asr_model.eval()
 
-    vocab = asr_model.tokenizer.tokenizer.get_vocab()
-    vocab = list(vocab.keys())
+    model_tokenizer = asr_model.tokenizer
+    vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
 
-    beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
-        vocab=[chr(idx + TOKEN_OFFSET) for idx in range(len(vocab))],
-        beam_width=args.beam_width,
-        alpha=args.beam_alpha,
-        beta=args.beam_beta,
-        lm_path=args.kenlm_model_path,
-        num_cpus=max(os.cpu_count(), 1),
-        input_tensor=False,
-    )
+    target_transcripts = []
+    with open(args.input_manifest, 'r') as manifest_file:
+        audio_file_paths = []
+        for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ..."):
+            data = json.loads(line)
+            target_transcripts.append(data['text'])
+            audio_file_paths.append(data['audio_filepath'])
 
+    # drop it later
+    # audio_file_paths = audio_file_paths[0:10]
 
-    output_path_pkl = f"{args.output_path}.pkl"
-    origs = []
-    if not os.path.exists(output_path_pkl):
-        probs = []
-        with open(args.input_manifest, 'r') as f:
-            B = args.acoustic_batch_size
-            n = 0
-            lines = []
-            for line in tqdm(f, desc=f"Reading Manifest {args.input_manifest} ..."):
-                data = json.loads(line)
-                origs.append(data['text'])
-                lines.append(data)
-                n = n + 1
-                if n < B:
-                    continue
-                with torch.no_grad():
-                    files = [data['audio_filepath'] for data in lines]
-                    logprobs = asr_model.transcribe(files, batch_size=B, logprobs=True)
-                    for logprob in logprobs:
-                        logits = logprob.cpu().numpy()
-                        probs.append(softmax(logits))
-                n = 0
-                lines = []
-            if n > 0:
-                with torch.no_grad():
-                    files = [data['audio_filepath'] for data in lines]
-                    logprobs = asr_model.transcribe(files, batch_size=n, logprobs=True)
-                    for logprob in logprobs:
-                        logits = logprob.cpu().numpy()
-                        probs.append(softmax(logits))
+    wer_dist_greedy = 0
+    words_count = 0
+    if args.use_probs_cache and os.path.exists(args.probs_cache_path):
+        logging.info(f"Found a pickle file of probabilities at {args.probs_cache_path}.")
+        logging.info(f"Loading the cached pickle file of probabilities from {args.probs_cache_path}...")
+        with open(args.probs_cache_path, 'rb') as probs_file:
+            all_probs = pickle.load(probs_file)
 
-        logging.info(f"Writing pickle files of probabilities at {output_path_pkl}")
-        with open(output_path_pkl, 'wb') as f_dump:
-            pickle.dump(probs, f_dump)
+        if len(all_probs) != len(audio_file_paths):
+            raise ValueError(
+                f"The number of samples in the probabilities file '{args.probs_cache_path}' is not "
+                f"the same as the manifest file. "
+                f"You may need to delete the probabilities cached file."
+            )
     else:
-        logging.info(f"Loading pickle file of probs from {output_path_pkl}")
-        with open(output_path_pkl, 'r') as f:
-            for line in tqdm(f, desc=f"Reading Manifest {args.input_manifest} ..."):
-                data = json.loads(line)
-                origs.append(data['text'])
+        with torch.no_grad():
+            all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
+        all_probs = [softmax(logits) for logits in all_logits]
+        logging.info(f"Writing pickle files of probabilities at {args.probs_cache_path}")
+        with open(args.probs_cache_path, 'wb') as f_dump:
+            pickle.dump(all_probs, f_dump)
 
-        with open(output_path_pkl, 'rb') as f_dump:
-            probs = pickle.load(f_dump)
+    for batch_idx, probs in enumerate(all_probs):
+        preds = np.argmax(probs, axis=1)
+        preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
+        pred_text = asr_model._wer.ctc_decoder_predictions_tensor(preds_tensor)[0]
+        pred_split = pred_text.split()
+        target = target_transcripts[batch_idx].split()
+        dist = editdistance.eval(target, pred_split)
+        wer_dist_greedy += dist
+        words_count += len(target)
 
-    with open(args.output_path, 'w') as f_out:
-        for idx in tqdm(range(int(np.ceil(len(probs) / args.beam_batch_size)))):
-            # DISABLE TYPE CHECKING
-            with nemo.core.typecheck.disable_checks():
-                beams = beam_search_lm.forward(
-                    log_probs=probs[idx * args.beam_batch_size: (idx + 1) * args.beam_batch_size],
-                    log_probs_length=None,
-                )
+    # delete the model to free the memory
+    del asr_model
 
-            for beam in beams:
-                for candidate in beam:
-                    pred = asr_model.tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
-                    score = candidate[0]
-                    f_out.write('{}\t{}\n'.format(pred, score))
+    if args.decoding_mode == "beamsearch_ngram":
+        if not os.path.exists(args.kenlm_model_path):
+            raise FileNotFoundError(f"Could not find the KenLM model file '{args.kenlm_model_path}'.")
+        lm_path = args.kenlm_model_path
+    else:
+        lm_path = None
 
-    # WER calculations
-    wer_dist = 0
-    wer_dist_min = 0
-    wer_words = 0
-    with open(args.output_path, 'r') as f_pred:
-        for idx, line in enumerate(tqdm(f_pred)):
-            pred_text = line.split('\t')[0]
-            pred = pred_text.split()
-            score = float(line.split('\t')[1])
-            if idx % args.beam_width == 0:
-                # first candidate
-                orig = origs[int(idx / args.beam_width)].split()
-                dist = editdistance.eval(orig, pred)
-                dist_min = dist
-                wer_dist += dist
-                wer_words += len(orig)
-            else:
-                dist_min = min(dist_min, editdistance.eval(orig, pred))
-            if idx % args.beam_width == args.beam_width - 1:
-                # last candidate
-                wer_dist_min += dist_min
+    if args.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
+        # creating the beam search decoder
+        beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
+            vocab=[chr(idx + TOKEN_OFFSET) for idx in range(len(vocabs))],
+            beam_width=args.beam_width,
+            alpha=args.beam_alpha,
+            beta=args.beam_beta,
+            lm_path=lm_path,
+            num_cpus=max(os.cpu_count(), 1),
+            input_tensor=False,
+        )
 
-    print('WER = {:.2%}'.format(wer_dist / wer_words))
-    print('best WER = {:.2%}'.format(wer_dist_min / wer_words))
-    print()
+        wer_dist_best = 0
+        wer_dist_min = 0
+        wer_dist_max = 0
+        sample_idx = 0
+        with open(args.preds_output_path, 'w') as f_out:
+            for batch_idx in tqdm(range(int(np.ceil(len(all_probs) / args.beam_batch_size)))):
+                # disabling type checking
+                with nemo.core.typecheck.disable_checks():
+                    probs_batch = all_probs[batch_idx * args.beam_batch_size : (batch_idx + 1) * args.beam_batch_size]
+                    beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
+
+                for beams_idx, beams in enumerate(beams_batch):
+                    for candidate_idx, candidate in enumerate(beams):
+                        target_split = target_transcripts[sample_idx + beams_idx].split()
+                        pred_text = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
+                        pred_split = pred_text.split()
+                        if candidate_idx == 0:
+                            # first candidate
+                            dist = editdistance.eval(target_split, pred_split)
+                            dist_min = dist_max = dist
+                            wer_dist_best += dist
+                            words_count += len(target_split)
+                        else:
+                            dist = editdistance.eval(target_split, pred_split)
+                            dist_min = min(dist_min, dist)
+                            dist_max = max(dist_max, dist)
+
+                        if candidate_idx == args.beam_width - 1:
+                            # last candidate
+                            wer_dist_min += dist_min
+                            wer_dist_max += dist_max
+
+                        # pred = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
+                        score = candidate[0]
+                        f_out.write('{}\t{}\n'.format(pred_text, score))
+                sample_idx += len(probs_batch)
+
+        logging.info('Greedy WER = {:.2%}'.format(wer_dist_greedy / words_count))
+        logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(wer_dist_best / words_count))
+        logging.info('Best WER = {:.2%}'.format(wer_dist_min / words_count))
+        logging.info('Worst WER = {:.2%}'.format(wer_dist_max / words_count))
+    elif args.decoding_mode == "greedy":
+        logging.info('Greedy WER = {:.2%}'.format(wer_dist_greedy / words_count))
+    else:
+        raise ValueError(f"'{args.decoding_mode}' is not a supported decoding approach.")
 
 
 if __name__ == '__main__':

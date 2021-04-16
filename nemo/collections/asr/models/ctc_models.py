@@ -241,7 +241,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                     if logprobs:
                         # dump log probs per file
                         for idx in range(logits.shape[0]):
-                            hypotheses.append(logits[idx][: logits_len[idx]])
+                            lg = logits[idx][: logits_len[idx]]
+                            hypotheses.append(lg.cpu().numpy())
                     else:
                         current_hypotheses = self._wer.ctc_decoder_predictions_tensor(
                             greedy_predictions, predictions_len=logits_len, return_hypotheses=return_hypotheses,
