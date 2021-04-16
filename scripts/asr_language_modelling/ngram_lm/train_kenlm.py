@@ -119,18 +119,17 @@ def main():
     parser = argparse.ArgumentParser(
         description='Train an n-gram language model with KenLM to be used with BeamSearch decoder of ASR models.'
     )
-    parser.add_argument("--input_path", required=True, type=str)
-    parser.add_argument("--model_path", required=True, type=str)
-    parser.add_argument("--lm_model", required=True, type=str)
+    parser.add_argument("--nemo_model_file", required=True, type=str)
+    parser.add_argument("--text_train_file", required=True, type=str)
+    parser.add_argument("--lm_model_file", required=True, type=str)
     parser.add_argument("--ngram_length", required=True, type=int)
-    parser.add_argument("--kenlm_path", required=True, type=str)
+    parser.add_argument("--kenlm_model_file", required=True, type=str)
     parser.add_argument("--do_lowercase", action='store_true')
-    #parser.add_argument("--processed_text_file", required=True, type=str)
     args = parser.parse_args()
 
     """ LMPLZ ARGUMENT SETUP """
     args = [
-        os.path.join(args.kenlm_path, 'lmplz'),
+        os.path.join(args.kenlm_model_file, 'lmplz'),
         "-o",
         args.ngram_length,
         "--text",
@@ -140,14 +139,19 @@ def main():
         "--discount_fallback",
     ]
 
-    result = subprocess.run(args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    ret = subprocess.run(args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
 
     """ BINARY BUILD """
-    args = [os.path.join(args.kenlm_path, "build_binary"), "trie", f"{args.lm_model}.tmp.arpa", args.lm_model]
+    args = [
+        os.path.join(args.kenlm_model_file, "build_binary"),
+        "trie",
+        f"{args.lm_model_file}.tmp.arpa",
+        args.lm_model_file,
+    ]
 
     logging.info(f"Running binary_build command \n\n{' '.join(args)}\n\n")
 
-    result = subprocess.run(args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    ret = subprocess.run(args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
 
 
 if __name__ == '__main__':

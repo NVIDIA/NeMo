@@ -39,11 +39,11 @@ def main():
     parser = argparse.ArgumentParser(
         description='Evaluate an ASR model with beam search decoding and an n-gram KenLM language model.'
     )
-    parser.add_argument("--model_path", required=True, type=str)
-    parser.add_argument("--kenlm_model_path", required=False, default=None, type=str)
+    parser.add_argument("--nemo_model_file", required=True, type=str)
+    parser.add_argument("--kenlm_model_file", required=False, default=None, type=str)
     parser.add_argument("--input_manifest", required=True, type=str)
-    parser.add_argument("--preds_output_path", required=True, type=str)
-    parser.add_argument("--probs_cache_path", default=None, type=str)
+    parser.add_argument("--preds_output_file", required=True, type=str)
+    parser.add_argument("--probs_cache_file", default=None, type=str)
     parser.add_argument("--use_probs_cache", action="store_true")
     parser.add_argument("--beam_width", required=True, type=int)
     parser.add_argument("--beam_alpha", required=True, type=float)
@@ -60,7 +60,7 @@ def main():
     logging.info(f"BEAM ALPHA : {args.beam_alpha}")
     logging.info(f"BEAM BETA : {args.beam_beta}")
 
-    asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(args.model_path, map_location=torch.device(args.device))
+    asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
     asr_model.preprocessor.featurizer.dither = 0
     asr_model.preprocessor.featurizer.pad_to = 0
     # Set model to inference mode
@@ -78,17 +78,17 @@ def main():
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    audio_file_paths = audio_file_paths[0:10]
+    # audio_file_paths = audio_file_paths[0:10]
 
-    if args.use_probs_cache and os.path.exists(args.probs_cache_path):
-        logging.info(f"Found a pickle file of probabilities at {args.probs_cache_path}.")
-        logging.info(f"Loading the cached pickle file of probabilities from {args.probs_cache_path}...")
-        with open(args.probs_cache_path, 'rb') as probs_file:
+    if args.use_probs_cache and os.path.exists(args.probs_cache_file):
+        logging.info(f"Found a pickle file of probabilities at {args.probs_cache_file}.")
+        logging.info(f"Loading the cached pickle file of probabilities from {args.probs_cache_file}...")
+        with open(args.probs_cache_file, 'rb') as probs_file:
             all_probs = pickle.load(probs_file)
 
         if len(all_probs) != len(audio_file_paths):
             raise ValueError(
-                f"The number of samples in the probabilities file '{args.probs_cache_path}' is not "
+                f"The number of samples in the probabilities file '{args.probs_cache_file}' is not "
                 f"the same as the manifest file. "
                 f"You may need to delete the probabilities cached file."
             )
@@ -96,8 +96,8 @@ def main():
         with torch.no_grad():
             all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
         all_probs = [softmax(logits) for logits in all_logits]
-        logging.info(f"Writing pickle files of probabilities at {args.probs_cache_path}")
-        with open(args.probs_cache_path, 'wb') as f_dump:
+        logging.info(f"Writing pickle files of probabilities at {args.probs_cache_file}")
+        with open(args.probs_cache_file, 'wb') as f_dump:
             pickle.dump(all_probs, f_dump)
 
     wer_dist_greedy = 0
@@ -116,9 +116,9 @@ def main():
     del asr_model
 
     if args.decoding_mode == "beamsearch_ngram":
-        if not os.path.exists(args.kenlm_model_path):
-            raise FileNotFoundError(f"Could not find the KenLM model file '{args.kenlm_model_path}'.")
-        lm_path = args.kenlm_model_path
+        if not os.path.exists(args.kenlm_model_file):
+            raise FileNotFoundError(f"Could not find the KenLM model file '{args.kenlm_model_file}'.")
+        lm_path = args.kenlm_model_file
     else:
         lm_path = None
 
@@ -138,7 +138,7 @@ def main():
         wer_dist_min = 0
         wer_dist_max = 0
         sample_idx = 0
-        with open(args.preds_output_path, 'w') as f_out:
+        with open(args.preds_output_file, 'w') as f_out:
             for batch_idx in tqdm(range(int(np.ceil(len(all_probs) / args.beam_batch_size)))):
                 # disabling type checking
                 with nemo.core.typecheck.disable_checks():
