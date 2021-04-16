@@ -60,7 +60,9 @@ def main():
     logging.info(f"BEAM ALPHA : {args.beam_alpha}")
     logging.info(f"BEAM BETA : {args.beam_beta}")
 
-    asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
+    asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(
+        args.nemo_model_file, map_location=torch.device(args.device)
+    )
     asr_model.preprocessor.featurizer.dither = 0
     asr_model.preprocessor.featurizer.pad_to = 0
     # Set model to inference mode
