@@ -378,16 +378,18 @@ class SqueezeExcite(nn.Module):
     def forward(self, x):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
         batch, channels, timesteps = x.size()[:3]
-        y = self.pool(x)  # [B, C, T - context_window + 1]
-        y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
-        y = self.fc(y)  # [B, T - context_window + 1, C]
-        y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
+        # Computes in float32 to avoid instabilities during training with AMP.
+        with torch.cuda.amp.autocast(enabled=False):
+            x = x.float()
+            y = self.pool(x)  # [B, C, T - context_window + 1]
+            y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
+            y = self.fc(y)  # [B, T - context_window + 1, C]
+            y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
 
         if self.context_window > 0:
             y = torch.nn.functional.interpolate(y, size=timesteps, mode=self.interpolation_mode)
 
         y = torch.sigmoid(y)
-
         return x * y
 
 
