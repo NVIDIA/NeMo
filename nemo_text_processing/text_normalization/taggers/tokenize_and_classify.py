@@ -49,7 +49,7 @@ class ClassifyFst(GraphFst):
         decimal = decimal_graph_fst.fst
 
         measure = MeasureFst(cardinal_graph_fst, decimal_graph_fst).fst
-        date = DateFst(ordinal_graph_fst).fst
+        date = DateFst(cardinal_graph_fst).fst
         word = WordFst().fst
         time = TimeFst().fst
         money = MoneyFst(cardinal_graph_fst, decimal_graph_fst).fst

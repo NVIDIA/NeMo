@@ -66,9 +66,12 @@ class DateFst(GraphFst):
             month + pynini.closure(delete_extra_space + day, 0, 1) + pynini.closure(delete_extra_space + year, 0, 1)
         )
 
-        # (day) month year
+        # day month year
         graph_dmy = (
-            pynini.closure(day + delete_extra_space + pynutil.insert("of "), 0, 1)
+            pynutil.insert("the ")
+            + day
+            + delete_extra_space
+            + pynutil.insert("of ")
             + month
             + pynini.closure(delete_extra_space + year, 0, 1)
         )
