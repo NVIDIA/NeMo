@@ -111,20 +111,20 @@ class EntityLinkingDataset(Dataset):
 
         else:
             concept_ids, concepts1, concepts2 = zip(*batch)
-            concept_ids = list(concept_ids) 
+            concept_ids = list(concept_ids)
             concept_ids.extend(concept_ids)  # Need to double label list to match each concept
             concepts = list(concepts1)
             concepts.extend(concepts2)
 
         batch = self.tokenizer(
             concepts,
-            add_special_tokens = True,
-            padding = True,
-            truncation = True,
-            max_length = self.max_seq_length,
-            return_token_type_ids = True,
-            return_attention_mask = True,
-            return_length = True
+            add_special_tokens=True,
+            padding=True,
+            truncation=True,
+            max_length=self.max_seq_length,
+            return_token_type_ids=True,
+            return_attention_mask=True,
+            return_length=True,
         )
 
         return (

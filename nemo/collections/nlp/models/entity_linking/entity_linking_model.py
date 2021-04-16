@@ -45,8 +45,7 @@ class EntityLinkingModel(NLPModel, Exportable):
             "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
-
-    @property 
+    @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"logits": NeuralType(('B', 'D'), LogitsType())}
 
@@ -77,12 +76,9 @@ class EntityLinkingModel(NLPModel, Exportable):
 
         self.tokenizer = tokenizer
 
-        
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        hidden_states = self.model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        hidden_states = self.model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
 
         # normalize to unit sphere
         logits = torch.nn.functional.normalize(hidden_states[:, self._idx_conditioned_on], p=2, dim=1)
@@ -97,8 +93,7 @@ class EntityLinkingModel(NLPModel, Exportable):
         logits = self.forward(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
         train_loss = self.loss(logits=logits, labels=concept_ids)
 
-
-        # No hard examples found in batch, 
+        # No hard examples found in batch,
         # shouldn't use this batch to update model weights
         if train_loss == 0:
             train_loss = None
@@ -121,7 +116,7 @@ class EntityLinkingModel(NLPModel, Exportable):
             logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
             val_loss = self.loss(logits=logits, labels=concept_ids)
 
-        # No hard examples found in batch, 
+        # No hard examples found in batch,
         # shouldn't use this batch to update model weights
         if val_loss == 0:
             val_loss = None
@@ -144,7 +139,6 @@ class EntityLinkingModel(NLPModel, Exportable):
             avg_loss = torch.stack([x["val_loss"] for x in outputs if x["val_loss"] != None]).mean()
             self.log(f"val_loss", avg_loss, prog_bar=True)
 
-            
             return {"val_loss": avg_loss}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -172,14 +166,14 @@ class EntityLinkingModel(NLPModel, Exportable):
         self._validation_dl = self.setup_dataloader(cfg=val_data_config)
 
     def setup_dataloader(self, cfg: Dict, is_index_data: bool = False) -> 'torch.utils.data.DataLoader':
-        
-        dataset = EntityLinkingDataset( 
+
+        dataset = EntityLinkingDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.data_file,
             max_seq_length=cfg.max_seq_length,
             is_index_data=is_index_data,
         )
-    
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg.batch_size,
@@ -187,7 +181,7 @@ class EntityLinkingModel(NLPModel, Exportable):
             shuffle=cfg.get("shuffle", True),
             num_workers=cfg.get("num_wokers", 2),
             pin_memory=cfg.get("pin_memory", False),
-            drop_last=cfg.get("drop_last", False)
+            drop_last=cfg.get("drop_last", False),
         )
 
     @classmethod
@@ -197,4 +191,3 @@ class EntityLinkingModel(NLPModel, Exportable):
     @classmethod
     def from_pretrained(cls, name: str):
         pass
-

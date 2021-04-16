@@ -56,7 +56,6 @@ class MultiSimilarityLoss(Loss):
         cos_sim = torch.matmul(logits, torch.t(logits))
         losses = []
 
-        
         for i in range(logits.size(0)):
             # mine hard pairs relative to anchor i
             positive_sims = cos_sim[i][labels.eq(labels[i])]
@@ -65,28 +64,28 @@ class MultiSimilarityLoss(Loss):
 
             if len(negative_sims) == 0 or len(positive_sims) == 0:
                 continue
-        
+
             # negatives that are more similar than the least-similar positive
             hard_negatives = negative_sims[negative_sims.gt(min(positive_sims) - self._margin)]
 
             # positives that are less similar than the most-similar negative
             hard_positives = positive_sims[positive_sims.lt(max(negative_sims) + self._margin)]
-            
+
             if len(hard_negatives) == 0 or len(hard_positives) == 0:
                 continue
-            
+
             pos_term = (
-                1.0 
-                / self._scale_pos 
-                * torch.log(1 + torch.sum(torch.exp(-self._scale_pos * (hard_positives - self._offset)))
+                1.0
+                / self._scale_pos
+                * torch.log(1 + torch.sum(torch.exp(-self._scale_pos * (hard_positives - self._offset))))
             )
             neg_term = (
-                1.0 
-                / self._scale_neg 
-                * torch.log(1 + torch.sum(torch.exp(self._scale_neg * (hard_negatives - self._offset)))
+                1.0
+                / self._scale_neg
+                * torch.log(1 + torch.sum(torch.exp(self._scale_neg * (hard_negatives - self._offset))))
             )
             losses.append(pos_term + neg_term)
-        
+
         if len(losses) == 0:
             loss = torch.zeros([], requires_grad=True).cuda()
             logging.info(f'Encountered zero loss in multisimloss, loss = {loss}')

@@ -21,25 +21,26 @@ import pandas as pd
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-HEADERS = ['CUI', 
-           'LAT', 
-           'TS', 
-           'LUI', 
-           'STT', 
-           'SUI', 
-           'ISPREF', 
-           'AUI', 
-           'SAUI', 
-           'SCUI', 
-           'SDUI', 
-           'SAB', 
-           'TTY', 
-           'CODE', 
-           'STR', 
-           'SRL', 
-           'SUPPRESS', 
-           'CVF',
-           ]
+HEADERS = [
+    'CUI',
+    'LAT',
+    'TS',
+    'LUI',
+    'STT',
+    'SUI',
+    'ISPREF',
+    'AUI',
+    'SAUI',
+    'SCUI',
+    'SDUI',
+    'SAB',
+    'TTY',
+    'CODE',
+    'STR',
+    'SRL',
+    'SUPPRESS',
+    'CVF',
+]
 
 
 def process_umls_training_dataset(data_path, train_save_name, val_save_name, max_pairs, train_split, headers):
@@ -68,7 +69,6 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
     cui = df["CUI"].iloc[0]
     names = []
 
-    
     for idx in tqdm(range(len(df))):
         # Address incorrectly formatted data
         if type(df["STR"].iloc[idx]) != str or "|" in df["STR"].iloc[idx]:
@@ -79,19 +79,16 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
             concept_string = df["STR"].iloc[idx]
             names.append(concept_string)
 
-            
         else:
             # Pair off concept synonyms to make training and val sets
             pairs = list(itertools.combinations(names, 2))
 
-            
             if len(pairs) == 0:
                 # Not enough concepts gathered to make a pair
                 cui = df["CUI"].iloc[idx]
                 names = [df["STR"].iloc[idx]]
                 continue
 
-        
             # Removing leading C to convert label string to int
             cui = int(cui[1:])
             random.shuffle(pairs)
@@ -99,8 +96,7 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
             # Keep up to max pairs number pairs for any one concept
             for pair in pairs[:max_pairs]:
 
-
-                # Want concepts in train and val splits to be randomly selected and mutually exclusive 
+                # Want concepts in train and val splits to be randomly selected and mutually exclusive
                 add_to_train = random.random()
 
                 if add_to_train <= train_split:
@@ -108,7 +104,6 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
                 else:
                     val_file.write(f'{cui}\t{pair[0]}\t{pair[1]}\n')
 
-            
             # Switch to next concept
             cui = df["CUI"].iloc[idx]
             names = [df["STR"].iloc[idx]]
@@ -180,11 +175,10 @@ if __name__ == '__main__':
         process_umls_index_dataset(cfg.index.raw_data, cfg.index.index_ds.data_file, cfg.index.id_to_string, HEADERS)
     else:
         process_umls_training_dataset(
-            cfg.model.raw_data, 
-            cfg.model.train_ds.data_file, 
-            cfg.model.validation_ds.data_file, 
+            cfg.model.raw_data,
+            cfg.model.train_ds.data_file,
+            cfg.model.validation_ds.data_file,
             args.max_pairs,
             args.train_split,
             HEADERS,
         )
-

@@ -33,7 +33,7 @@ from nemo.utils import logging
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def build_index(cfg: DictConfig, model: object): 
+def build_index(cfg: DictConfig, model: object):
     """
     Builds faiss index from index dataset specified in the config.
         
@@ -41,12 +41,12 @@ def build_index(cfg: DictConfig, model: object):
         cfg: Config file specifying index parameters
     """
 
-    # Get index dataset embeddings 
+    # Get index dataset embeddings
     # PCA model exists and index embeddings have already been PCAed, no need to re-extract/PCA them
     if cfg.apply_pca and os.path.isfile(cfg.pca.pca_save_name) and os.path.isfile(cfg.pca_embeddings_save_name):
         logging.info("Loading reduced dimensionality embeddings")
         embeddings = h5py.File(cfg.pca_embeddings_save_name, "r")
-        embeddings = embeddings[cfg.index_ds.name][:] 
+        embeddings = embeddings[cfg.index_ds.name][:]
 
     elif os.path.isfile(cfg.embedding_save_name):
         logging.info("Loading previously extracted index dataset embeddings")
@@ -69,7 +69,7 @@ def build_index(cfg: DictConfig, model: object):
             pca.fit(pca_train_set)
             pkl.dump(pca, open(cfg.pca.pca_save_name, "wb"))
             embeddings = reduce_embedding_dim(pca, embeddings, cfg)
-        
+
         # PCA model already trained, just need to reduce dimensionality of all embeddings
         elif not os.path.isfile(cfg.pca_embeddings_save_name):
             pca = pkl.load(open(cfg.pca.pca_save_name, "rb"))
@@ -131,7 +131,6 @@ def get_index_embeddings(cfg: DictConfig, dataloader, model: object):
     embeddings = []
     concept_ids = []
 
-                    
     with torch.no_grad():
         for batch in tqdm(dataloader):
             input_ids, token_type_ids, input_mask, batch_concept_ids = batch
@@ -151,26 +150,25 @@ def get_index_embeddings(cfg: DictConfig, dataloader, model: object):
 
     pkl.dump(concept_ids, open(cfg.concept_id_save_name, "wb"))
 
-
-    return embeddings, concept_ids 
+    return embeddings, concept_ids
 
 
 def get_query_embedding(query, model):
     """Use entity linking encoder to get embedding for index query"""
     model_input = model.tokenizer(
         query,
-        add_special_tokens = True,
-        padding = True,
-        truncation = True,
-        max_length = 512,
-        return_token_type_ids = True,
-        return_attention_mask = True,
-        )
+        add_special_tokens=True,
+        padding=True,
+        truncation=True,
+        max_length=512,
+        return_token_type_ids=True,
+        return_attention_mask=True,
+    )
 
     query_emb = model.forward(
         input_ids=torch.LongTensor([model_input["input_ids"]]).to(device),
         token_type_ids=torch.LongTensor([model_input["token_type_ids"]]).to(device),
-        attention_mask=torch.LongTensor([model_input["attention_mask"]]).to(device)
+        attention_mask=torch.LongTensor([model_input["attention_mask"]]).to(device),
     )
 
     return query_emb
@@ -249,7 +247,7 @@ def main(cfg: DictConfig, top_n: int, restore: bool):
     model = model.to(device)
 
     if not os.path.isfile(cfg.index.index_save_name) or (
-          cfg.apply_pca and not os.path.isfile(cfg.index.pca.pca_save_name)
+        cfg.apply_pca and not os.path.isfile(cfg.index.pca.pca_save_name)
     ):
         build_index(cfg.index, model)
 
@@ -283,9 +281,9 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument(
         "--restore", action="store_true", help="Whether to restore encoder model weights from nemo path"
-    ) 
+    )
     parser.add_argument("--cfg", required=False, type=str, default="./conf/umls_medical_entity_linking_config.yaml")
-    parser.add_argument("--top_n", required=False, type=int, default=5, help="Max number of items returned per query") 
+    parser.add_argument("--top_n", required=False, type=int, default=5, help="Max number of items returned per query")
     args = parser.parse_args()
 
     cfg = OmegaConf.load(args.cfg)

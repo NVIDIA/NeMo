@@ -13,9 +13,8 @@
 # limitations under the License.
 
 
-
-# Please see tutorial at Nemo/tutorials/nlp/Entity_Linking_Medical.ipynb for 
-# more information on entity linking and self alignment pretraining. 
+# Please see tutorial at Nemo/tutorials/nlp/Entity_Linking_Medical.ipynb for
+# more information on entity linking and self alignment pretraining.
 
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer

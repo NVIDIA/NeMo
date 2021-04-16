@@ -460,7 +460,7 @@ def find_newlines(contents):
         except ValueError:
             break
 
-            
+
 def load_data_indices(idx_file: str, data_file: str, savename: str):
     """
     Loads dataset index file if it exsits
