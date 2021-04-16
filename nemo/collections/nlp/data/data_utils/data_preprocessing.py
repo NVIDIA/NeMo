@@ -465,16 +465,15 @@ def load_data_indices(idx_file: str, data_file: str, savename: str):
     """
     Loads dataset index file if it exsits
     """
-    if idx_file is None:
-        data_dir = data_file[: data_file.rfind('/')]
-        mode = data_file[data_file.rfind('/') + 1 : data_file.rfind('.')]
-        idx_file = f"{data_dir}/{mode}_{savename}.pkl"
+    data_dir = data_file[: data_file.rfind('/')]
+    mode = data_file[data_file.rfind('/') + 1 : data_file.rfind('.')]
+    idx_file = f"{data_dir}/{mode}_{savename}.pkl"
 
     if os.path.isfile(idx_file):
         # If the sentence indices file already exists, load from it
         with open(idx_file, "rb") as f:
             indices = pickle.load(f)
 
-            return indices, idx_file
+            return indices, idx_file, data_dir
 
-    return None, idx_file
+    return None, idx_file, data_dir

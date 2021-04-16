@@ -54,7 +54,7 @@ class EntityLinkingDataset(Dataset):
         self.tokenizer = tokenizer
 
         # Try and load pair indices file if already exists
-        newline_indices, newline_idx_file = load_data_indices(newline_idx_file, data_file, "newline_indices")
+        newline_indices, newline_idx_file, _ = load_data_indices(newline_idx_file, data_file, "newline_indices")
 
         # If pair indices file doesn't exists, generate and store them
         if newline_indices is None:
