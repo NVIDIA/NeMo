@@ -134,7 +134,7 @@ def main():
     parser.add_argument(
         "--decoding_mode", choices=["greedy", "beamsearch", "beamsearch_ngram"], default="beamsearch_ngram", type=str
     )
-    parser.add_argument("--parallel_runs", default=3, type=int)
+    parser.add_argument("--parallel_runs", default=1, type=int)
 
     args = parser.parse_args()
 
@@ -161,8 +161,8 @@ def main():
     #audio_file_paths = audio_file_paths[0:10]
 
     if args.use_probs_cache and os.path.exists(args.probs_cache_file):
-        logging.info(f"Found a pickle file of probabilities at {args.probs_cache_file}.")
-        logging.info(f"Loading the cached pickle file of probabilities from {args.probs_cache_file}...")
+        logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
+        logging.info(f"Loading the cached pickle file of probabilities from '{args.probs_cache_file}' ...")
         with open(args.probs_cache_file, 'rb') as probs_file:
             all_probs = pickle.load(probs_file)
 
@@ -221,7 +221,7 @@ def main():
             beam_batch_size=args.beam_batch_size,
             preds_output_file=args.preds_output_file,
             target_transcripts=target_transcripts,
-            progress_bar=True if len(hp_grid)==1 else False
+            progress_bar=True
         )
 
         for grid_idx in range(0, len(hp_grid), args.parallel_runs):
