@@ -20,8 +20,6 @@ import json
 import logging
 import os
 import pickle
-from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 
 import editdistance
 import numpy as np
@@ -216,7 +214,6 @@ def main():
                 f"preds_out_width{hp['beam_width']}_alpha{hp['beam_alpha']}_beta{hp['beam_beta']}.tsv",
             )
         logging.info(f"Grid search size: {len(hp_grid)}")
-        logging.info(f"Number of parallel jobs: {args.parallel_runs}")
         logging.info(f"It may take some time...")
 
         logging.info(f"==========================Starting the beam search decoding threads==========================")
