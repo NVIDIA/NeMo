@@ -14,7 +14,6 @@
 #
 
 TOKEN_OFFSET = 100
-parallel_runs = 2
 
 import argparse
 import json
@@ -232,16 +231,15 @@ def main():
             sub_grid = hp_grid[start:end]
             with ThreadPoolExecutor() as executor:
                 for results in executor.map(lambda p: partial_eval_method(**p), sub_grid):
-                    logging.info(
-                        f"==================================================================================="
-                    )
-                    logging.info(f"Beam Width : {results[0]}")
-                    logging.info(f"Beam Alpha : {results[1]}")
+                    logging.info(f"=================================================================================")
+                    logging.info(f"Beam Width: {results[0]}")
+                    logging.info(f"Beam Alpha: {results[1]}")
                     logging.info(f"Beam Beta : {results[2]}")
 
                     logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(results[3]))
                     logging.info('Best WER = {:.2%}'.format(results[4]))
                     logging.info('Worst WER = {:.2%}'.format(results[5]))
+                    logging.info(f"=================================================================================")
 
 
 if __name__ == '__main__':
