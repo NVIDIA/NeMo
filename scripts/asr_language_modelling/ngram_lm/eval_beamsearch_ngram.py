@@ -50,9 +50,11 @@ def beam_search_eval(
     beam_batch_size,
     preds_output_file,
     target_transcripts,
-    progress_bar=True
+    progress_bar=True,
 ):
-    logging.info(f"Evaluating with beam search decoding and N-gram: beam_width={beam_width}, beam_alpha={beam_alpha}, beam_beta={beam_beta} ...")
+    logging.info(
+        f"Evaluating with beam search decoding and N-gram: beam_width={beam_width}, beam_alpha={beam_alpha}, beam_beta={beam_beta} ..."
+    )
     vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
     # creating the beam search decoder
     beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
@@ -158,7 +160,7 @@ def main():
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    #audio_file_paths = audio_file_paths[0:10]
+    # audio_file_paths = audio_file_paths[0:10]
 
     if args.use_probs_cache and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
@@ -221,7 +223,7 @@ def main():
             beam_batch_size=args.beam_batch_size,
             preds_output_file=args.preds_output_file,
             target_transcripts=target_transcripts,
-            progress_bar=True
+            progress_bar=True,
         )
 
         for grid_idx in range(0, len(hp_grid), args.parallel_runs):
@@ -230,7 +232,9 @@ def main():
             sub_grid = hp_grid[start:end]
             with ThreadPoolExecutor() as executor:
                 for results in executor.map(lambda p: partial_eval_method(**p), sub_grid):
-                    logging.info(f"===================================================================================")
+                    logging.info(
+                        f"==================================================================================="
+                    )
                     logging.info(f"Beam Width : {results[0]}")
                     logging.info(f"Beam Alpha : {results[1]}")
                     logging.info(f"Beam Beta : {results[2]}")

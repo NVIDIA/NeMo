@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-import gc
 import json
 import os
 
@@ -60,11 +59,7 @@ def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32, token_
         f"Chunking {dataset_len} rows into {dataset_len / float(chunk_size):0.4f} tasks (each chunk contains {chunk_size} elements)"
     )
 
-    vocabulary = tokenizer.tokenizer.get_vocab()
-    idx_to_token = {v: k for k, v in vocabulary.items()}
-
     current_step = 0
-
     if os.path.exists(path):
         print(f"Deleting previous file : {path}")
         os.remove(path)
@@ -81,14 +76,9 @@ def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32, token_
 
             # Write dataset
             write_dataset(tokenized_data, path)
-
             current_step += len(tokenized_data)
-
             print(f"Finished writing {len(tokenized_data)} chunks to {path}. Current chunk index = {current_step}")
-
             del tokenized_data
-            gc.collect()
-
             if end >= dataset_len:
                 break
 

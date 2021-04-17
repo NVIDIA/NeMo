@@ -76,7 +76,7 @@ def main():
         f"{args.kenlm_model_file}.tmp.arpa",
         "--discount_fallback",
     ]
-    ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
 
     """ BINARY BUILD """
     logging.info(f"Running binary_build command \n\n{' '.join(kenlm_args)}\n\n")
@@ -86,7 +86,7 @@ def main():
         f"{args.kenlm_model_file}.tmp.arpa",
         args.kenlm_model_file,
     ]
-    ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
 
     os.remove(encoded_train_file)
 
