@@ -109,14 +109,16 @@ def beam_search_eval(
             sample_idx += len(probs_batch)
 
     logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
-    return (
-        beam_width,
-        beam_alpha,
-        beam_beta,
-        wer_dist_best / words_count,
-        wer_dist_min / words_count,
-        wer_dist_max / words_count,
-    )
+    logging.info(f"Beam Width: {beam_width}")
+    logging.info(f"Beam Alpha: {beam_alpha}")
+    logging.info(f"Beam Beta : {beam_beta}")
+    if lm_path:
+        logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(wer_dist_best / words_count))
+    else:
+        logging.info('WER with beam search decoding = {:.2%}'.format(wer_dist_best / words_count))
+    logging.info('Best WER = {:.2%}'.format(wer_dist_min / words_count))
+    logging.info('Worst WER = {:.2%}'.format(wer_dist_max / words_count))
+    logging.info(f"=================================================================================")
 
 
 def main():
@@ -137,7 +139,7 @@ def main():
     parser.add_argument(
         "--decoding_mode", choices=["greedy", "beamsearch", "beamsearch_ngram"], default="beamsearch_ngram", type=str
     )
-    parser.add_argument("--parallel_runs", default=1, type=int)
+    # parser.add_argument("--parallel_runs", default=1, type=int)
 
     args = parser.parse_args()
 
@@ -217,33 +219,24 @@ def main():
         logging.info(f"Number of parallel jobs: {args.parallel_runs}")
         logging.info(f"It may take some time...")
 
-        partial_eval_method = partial(
-            beam_search_eval,
-            all_probs=all_probs,
-            lm_path=lm_path,
-            model_tokenizer=model_tokenizer,
-            beam_batch_size=args.beam_batch_size,
-            target_transcripts=target_transcripts,
-            progress_bar=True,
-        )
-
         logging.info(f"==========================Starting the beam search decoding threads==========================")
-        for grid_idx in range(0, len(hp_grid), args.parallel_runs):
-            start = grid_idx
-            end = min(start + args.parallel_runs, len(hp_grid))
-            sub_grid = hp_grid[start:end]
-            with ThreadPoolExecutor() as executor:
-                for results in executor.map(lambda p: partial_eval_method(**p), sub_grid):
-                    logging.info(f"Beam Width: {results[0]}")
-                    logging.info(f"Beam Alpha: {results[1]}")
-                    logging.info(f"Beam Beta : {results[2]}")
-                    if lm_path:
-                        logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(results[3]))
-                    else:
-                        logging.info('WER with beam search decoding = {:.2%}'.format(results[3]))
-                    logging.info('Best WER = {:.2%}'.format(results[4]))
-                    logging.info('Worst WER = {:.2%}'.format(results[5]))
-                    logging.info(f"=================================================================================")
+        for hp in hp_grid:
+            preds_output_file = os.path.join(
+                args.preds_output_folder,
+                f"preds_out_width{hp['beam_width']}_alpha{hp['beam_alpha']}_beta{hp['beam_beta']}.tsv",
+            )
+            beam_search_eval(
+                all_probs=all_probs,
+                target_transcripts=target_transcripts,
+                model_tokenizer=model_tokenizer,
+                preds_output_file=preds_output_file,
+                lm_path=lm_path,
+                beam_width=hp["beam_width"],
+                beam_alpha=hp["beam_alpha"],
+                beam_beta=hp["beam_beta"],
+                beam_batch_size=args.beam_batch_size,
+                progress_bar=True,
+            )
 
 
 if __name__ == '__main__':
