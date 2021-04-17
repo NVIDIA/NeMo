@@ -14,15 +14,20 @@
 #
 
 TOKEN_OFFSET = 100
+parallel_runs = 2
 
 import argparse
 import json
+import logging
 import os
 import pickle
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 
 import editdistance
 import numpy as np
 import torch
+from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
 import nemo
@@ -35,6 +40,81 @@ def softmax(x):
     return e / e.sum(axis=-1).reshape([x.shape[0], 1])
 
 
+def beam_search_eval(
+    all_probs,
+    lm_path,
+    beam_alpha,
+    beam_beta,
+    beam_width,
+    model_tokenizer,
+    beam_batch_size,
+    preds_output_file,
+    target_transcripts,
+    progress_bar=True
+):
+    logging.info(f"Evaluating with beam search decoding and N-gram: beam_width={beam_width}, beam_alpha={beam_alpha}, beam_beta={beam_beta} ...")
+    vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
+    # creating the beam search decoder
+    beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
+        vocab=[chr(idx + TOKEN_OFFSET) for idx in range(len(vocabs))],
+        beam_width=beam_width,
+        alpha=beam_alpha,
+        beta=beam_beta,
+        lm_path=lm_path,
+        num_cpus=max(os.cpu_count(), 1),
+        input_tensor=False,
+    )
+
+    wer_dist_best = 0
+    wer_dist_min = 0
+    wer_dist_max = 0
+    sample_idx = 0
+    words_count = 0
+    with open(preds_output_file, 'w') as f_out:
+        if progress_bar:
+            it = tqdm(range(int(np.ceil(len(all_probs) / beam_batch_size))))
+        else:
+            it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
+        for batch_idx in it:
+            # disabling type checking
+            with nemo.core.typecheck.disable_checks():
+                probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
+                beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
+
+            for beams_idx, beams in enumerate(beams_batch):
+                target_split = target_transcripts[sample_idx + beams_idx].split()
+                words_count += len(target_split)
+                for candidate_idx, candidate in enumerate(beams):
+                    pred_text = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
+                    pred_split = pred_text.split()
+                    if candidate_idx == 0:
+                        # first candidate
+                        dist = editdistance.eval(target_split, pred_split)
+                        dist_min = dist_max = dist
+                        wer_dist_best += dist
+                    else:
+                        dist = editdistance.eval(target_split, pred_split)
+                        dist_min = min(dist_min, dist)
+                        dist_max = max(dist_max, dist)
+
+                    if candidate_idx == beam_width - 1:
+                        # last candidate
+                        wer_dist_min += dist_min
+                        wer_dist_max += dist_max
+
+                    score = candidate[0]
+                    f_out.write('{}\t{}\n'.format(pred_text, score))
+            sample_idx += len(probs_batch)
+    return (
+        beam_width,
+        beam_alpha,
+        beam_beta,
+        wer_dist_best / words_count,
+        wer_dist_min / words_count,
+        wer_dist_max / words_count,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Evaluate an ASR model with beam search decoding and an n-gram KenLM language model.'
@@ -45,15 +125,17 @@ def main():
     parser.add_argument("--preds_output_file", required=True, type=str)
     parser.add_argument("--probs_cache_file", default=None, type=str)
     parser.add_argument("--use_probs_cache", action="store_true")
-    parser.add_argument("--beam_width", required=True, type=int)
-    parser.add_argument("--beam_alpha", required=True, type=float)
-    parser.add_argument("--beam_beta", required=True, type=float)
+    parser.add_argument("--beam_width", required=True, type=int, nargs="+")
+    parser.add_argument("--beam_alpha", required=True, type=float, nargs="+")
+    parser.add_argument("--beam_beta", required=True, type=float, nargs="+")
     parser.add_argument("--acoustic_batch_size", default=16, type=int)
     parser.add_argument("--beam_batch_size", default=128, type=int)
     parser.add_argument("--device", default="cuda:0", type=str)
     parser.add_argument(
         "--decoding_mode", choices=["greedy", "beamsearch", "beamsearch_ngram"], default="beamsearch_ngram", type=str
     )
+    parser.add_argument("--parallel_runs", default=3, type=int)
+
     args = parser.parse_args()
 
     asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(
@@ -76,7 +158,7 @@ def main():
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    # audio_file_paths = audio_file_paths[0:10]
+    #audio_file_paths = audio_file_paths[0:10]
 
     if args.use_probs_cache and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at {args.probs_cache_file}.")
@@ -110,6 +192,8 @@ def main():
         wer_dist_greedy += dist
         words_count += len(target_split)
 
+    logging.info('Greedy WER = {:.2%}'.format(wer_dist_greedy / words_count))
+
     # delete the model to free the memory
     del asr_model
 
@@ -120,66 +204,40 @@ def main():
     else:
         lm_path = None
 
-    logging.info(f"Beam Width : {args.beam_width}")
-    logging.info(f"Beam Alpha : {args.beam_alpha}")
-    logging.info(f"Beam Beta : {args.beam_beta}")
-
     if args.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
-        # creating the beam search decoder
-        beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
-            vocab=[chr(idx + TOKEN_OFFSET) for idx in range(len(vocabs))],
-            beam_width=args.beam_width,
-            alpha=args.beam_alpha,
-            beta=args.beam_beta,
+        logging.info(f"Starting the beam search decoding threads...")
+        params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha, 'beam_beta': args.beam_beta}
+        hp_grid = ParameterGrid(params)
+        hp_grid = list(hp_grid)
+        logging.info(f"Grid search size: {len(hp_grid)}")
+        logging.info(f"Number of parallel jobs: {args.parallel_runs}")
+        logging.info(f"It may take some time...")
+
+        partial_eval_method = partial(
+            beam_search_eval,
+            all_probs=all_probs,
             lm_path=lm_path,
-            num_cpus=max(os.cpu_count(), 1),
-            input_tensor=False,
+            model_tokenizer=model_tokenizer,
+            beam_batch_size=args.beam_batch_size,
+            preds_output_file=args.preds_output_file,
+            target_transcripts=target_transcripts,
+            progress_bar=True if len(hp_grid)==1 else False
         )
 
-        wer_dist_best = 0
-        wer_dist_min = 0
-        wer_dist_max = 0
-        sample_idx = 0
-        with open(args.preds_output_file, 'w') as f_out:
-            for batch_idx in tqdm(range(int(np.ceil(len(all_probs) / args.beam_batch_size)))):
-                # disabling type checking
-                with nemo.core.typecheck.disable_checks():
-                    probs_batch = all_probs[batch_idx * args.beam_batch_size : (batch_idx + 1) * args.beam_batch_size]
-                    beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
+        for grid_idx in range(0, len(hp_grid), args.parallel_runs):
+            start = grid_idx
+            end = min(start + args.parallel_runs, len(hp_grid))
+            sub_grid = hp_grid[start:end]
+            with ThreadPoolExecutor() as executor:
+                for results in executor.map(lambda p: partial_eval_method(**p), sub_grid):
+                    logging.info(f"===================================================================================")
+                    logging.info(f"Beam Width : {results[0]}")
+                    logging.info(f"Beam Alpha : {results[1]}")
+                    logging.info(f"Beam Beta : {results[2]}")
 
-                for beams_idx, beams in enumerate(beams_batch):
-                    for candidate_idx, candidate in enumerate(beams):
-                        target_split = target_transcripts[sample_idx + beams_idx].split()
-                        pred_text = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
-                        pred_split = pred_text.split()
-                        if candidate_idx == 0:
-                            # first candidate
-                            dist = editdistance.eval(target_split, pred_split)
-                            dist_min = dist_max = dist
-                            wer_dist_best += dist
-                        else:
-                            dist = editdistance.eval(target_split, pred_split)
-                            dist_min = min(dist_min, dist)
-                            dist_max = max(dist_max, dist)
-
-                        if candidate_idx == args.beam_width - 1:
-                            # last candidate
-                            wer_dist_min += dist_min
-                            wer_dist_max += dist_max
-
-                        # pred = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
-                        score = candidate[0]
-                        f_out.write('{}\t{}\n'.format(pred_text, score))
-                sample_idx += len(probs_batch)
-
-        logging.info('Greedy WER = {:.2%}'.format(wer_dist_greedy / words_count))
-        logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(wer_dist_best / words_count))
-        logging.info('Best WER = {:.2%}'.format(wer_dist_min / words_count))
-        logging.info('Worst WER = {:.2%}'.format(wer_dist_max / words_count))
-    elif args.decoding_mode == "greedy":
-        logging.info('Greedy WER = {:.2%}'.format(wer_dist_greedy / words_count))
-    else:
-        raise ValueError(f"'{args.decoding_mode}' is not a supported decoding approach.")
+                    logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(results[3]))
+                    logging.info('Best WER = {:.2%}'.format(results[4]))
+                    logging.info('Worst WER = {:.2%}'.format(results[5]))
 
 
 if __name__ == '__main__':

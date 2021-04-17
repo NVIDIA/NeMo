@@ -14,21 +14,19 @@
 #
 
 import argparse
-from kenlm_text_utils import read_train_file, tokenize
-
 import logging
 import os
 import subprocess
 import sys
 
 import torch
+from kenlm_text_utils import read_train_file, tokenize_text
 
 import nemo.collections.asr as nemo_asr
 
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
 TOKEN_OFFSET = 100
-
 
 
 def main():

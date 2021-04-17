@@ -13,11 +13,12 @@
 # limitations under the License.
 #
 
-from joblib import Parallel, delayed
-from tqdm.auto import tqdm
 import gc
 import json
 import os
+
+from joblib import Parallel, delayed
+from tqdm.auto import tqdm
 
 
 def read_train_file(path, lowercase: bool = False):
