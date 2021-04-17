@@ -41,14 +41,14 @@ def softmax(x):
 
 def beam_search_eval(
     all_probs,
-    lm_path,
-    beam_alpha,
-    beam_beta,
-    beam_width,
-    model_tokenizer,
-    beam_batch_size,
-    preds_output_file,
     target_transcripts,
+    model_tokenizer,
+    preds_output_file,
+    lm_path=None,
+    beam_alpha=1.0,
+    beam_beta=0.0,
+    beam_width=128,
+    beam_batch_size=16,
     progress_bar=True,
 ):
     vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
@@ -152,7 +152,7 @@ def main():
         audio_file_paths = []
         for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ...", ncols=120):
             data = json.loads(line)
-            target_transcripts.append(data['text']).split()
+            target_transcripts.append(data['text'].split())
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
