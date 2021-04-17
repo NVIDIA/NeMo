@@ -51,9 +51,6 @@ def beam_search_eval(
     target_transcripts,
     progress_bar=True,
 ):
-    # logging.info(
-    #     f"Evaluating with beam search decoding and N-gram: beam_width={beam_width}, beam_alpha={beam_alpha}, beam_beta={beam_beta} ..."
-    # )
     vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
     # creating the beam search decoder
     beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
