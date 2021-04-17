@@ -51,9 +51,9 @@ def beam_search_eval(
     target_transcripts,
     progress_bar=True,
 ):
-    logging.info(
-        f"Evaluating with beam search decoding and N-gram: beam_width={beam_width}, beam_alpha={beam_alpha}, beam_beta={beam_beta} ..."
-    )
+    # logging.info(
+    #     f"Evaluating with beam search decoding and N-gram: beam_width={beam_width}, beam_alpha={beam_alpha}, beam_beta={beam_beta} ..."
+    # )
     vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
     # creating the beam search decoder
     beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
@@ -73,7 +73,11 @@ def beam_search_eval(
     words_count = 0
     with open(preds_output_file, 'w') as f_out:
         if progress_bar:
-            it = tqdm(range(int(np.ceil(len(all_probs) / beam_batch_size))))
+            it = tqdm(
+                range(int(np.ceil(len(all_probs) / beam_batch_size))),
+                desc=f"Beam search decoding with width={beam_width}, alpha={beam_alpha}, beta={beam_beta}",
+                ncols=120,
+            )
         else:
             it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
         for batch_idx in it:
@@ -106,6 +110,8 @@ def beam_search_eval(
                     score = candidate[0]
                     f_out.write('{}\t{}\n'.format(pred_text, score))
             sample_idx += len(probs_batch)
+
+    logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
     return (
         beam_width,
         beam_alpha,
@@ -123,7 +129,7 @@ def main():
     parser.add_argument("--nemo_model_file", required=True, type=str)
     parser.add_argument("--kenlm_model_file", required=False, default=None, type=str)
     parser.add_argument("--input_manifest", required=True, type=str)
-    parser.add_argument("--preds_output_file", required=True, type=str)
+    parser.add_argument("--preds_output_folder", required=True, type=str)
     parser.add_argument("--probs_cache_file", default=None, type=str)
     parser.add_argument("--use_probs_cache", action="store_true")
     parser.add_argument("--beam_width", required=True, type=int, nargs="+")
@@ -142,24 +148,19 @@ def main():
     asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(
         args.nemo_model_file, map_location=torch.device(args.device)
     )
-    asr_model.preprocessor.featurizer.dither = 0
-    asr_model.preprocessor.featurizer.pad_to = 0
-    # Set model to inference mode
-    asr_model.eval()
 
     model_tokenizer = asr_model.tokenizer
-    vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
 
     target_transcripts = []
     with open(args.input_manifest, 'r') as manifest_file:
         audio_file_paths = []
-        for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ..."):
+        for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ...", ncols=120):
             data = json.loads(line)
             target_transcripts.append(data['text'])
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    # audio_file_paths = audio_file_paths[0:10]
+    audio_file_paths = audio_file_paths[0:100]
 
     if args.use_probs_cache and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
@@ -169,9 +170,8 @@ def main():
 
         if len(all_probs) != len(audio_file_paths):
             raise ValueError(
-                f"The number of samples in the probabilities file '{args.probs_cache_file}' is not "
-                f"the same as the manifest file. "
-                f"You may need to delete the probabilities cached file."
+                f"The number of samples in the probabilities file '{args.probs_cache_file}' does not "
+                f"match the manifest file. You may need to delete the probabilities cached file."
             )
     else:
         with torch.no_grad():
@@ -206,10 +206,17 @@ def main():
         lm_path = None
 
     if args.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
-        logging.info(f"Starting the beam search decoding threads...")
         params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha, 'beam_beta': args.beam_beta}
         hp_grid = ParameterGrid(params)
         hp_grid = list(hp_grid)
+        if not os.path.exists(args.preds_output_folder):
+            os.mkdir(args.preds_output_folder)
+
+        for hp in hp_grid:
+            hp["preds_output_file"] = os.path.join(
+                args.preds_output_folder,
+                f"preds_out_width{hp['beam_width']}_alpha{hp['beam_alpha']}_beta{hp['beam_beta']}.tsv",
+            )
         logging.info(f"Grid search size: {len(hp_grid)}")
         logging.info(f"Number of parallel jobs: {args.parallel_runs}")
         logging.info(f"It may take some time...")
@@ -220,23 +227,24 @@ def main():
             lm_path=lm_path,
             model_tokenizer=model_tokenizer,
             beam_batch_size=args.beam_batch_size,
-            preds_output_file=args.preds_output_file,
             target_transcripts=target_transcripts,
             progress_bar=True,
         )
 
+        logging.info(f"==========================Starting the beam search decoding threads==========================")
         for grid_idx in range(0, len(hp_grid), args.parallel_runs):
             start = grid_idx
             end = min(start + args.parallel_runs, len(hp_grid))
             sub_grid = hp_grid[start:end]
             with ThreadPoolExecutor() as executor:
                 for results in executor.map(lambda p: partial_eval_method(**p), sub_grid):
-                    logging.info(f"=================================================================================")
                     logging.info(f"Beam Width: {results[0]}")
                     logging.info(f"Beam Alpha: {results[1]}")
                     logging.info(f"Beam Beta : {results[2]}")
-
-                    logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(results[3]))
+                    if lm_path:
+                        logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(results[3]))
+                    else:
+                        logging.info('WER with beam search decoding = {:.2%}'.format(results[3]))
                     logging.info('Best WER = {:.2%}'.format(results[4]))
                     logging.info('Worst WER = {:.2%}'.format(results[5]))
                     logging.info(f"=================================================================================")
