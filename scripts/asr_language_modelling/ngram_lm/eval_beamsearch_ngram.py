@@ -128,7 +128,6 @@ def main():
     parser.add_argument("--input_manifest", required=True, type=str)
     parser.add_argument("--preds_output_folder", required=True, type=str)
     parser.add_argument("--probs_cache_file", default=None, type=str)
-    parser.add_argument("--use_probs_cache", action="store_true")
     parser.add_argument("--beam_width", required=True, type=int, nargs="+")
     parser.add_argument("--beam_alpha", required=True, type=float, nargs="+")
     parser.add_argument("--beam_beta", required=True, type=float, nargs="+")
@@ -157,9 +156,9 @@ def main():
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    audio_file_paths = audio_file_paths[0:100]
+    #audio_file_paths = audio_file_paths[0:100]
 
-    if args.use_probs_cache and os.path.exists(args.probs_cache_file):
+    if args.probs_cache_file and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
         logging.info(f"Loading the cached pickle file of probabilities from '{args.probs_cache_file}' ...")
         with open(args.probs_cache_file, 'rb') as probs_file:
