@@ -107,9 +107,6 @@ def beam_search_eval(
             sample_idx += len(probs_batch)
 
     logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
-    logging.info(f"Beam Width: {beam_width}")
-    logging.info(f"Beam Alpha: {beam_alpha}")
-    logging.info(f"Beam Beta : {beam_beta}")
     if lm_path:
         logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(wer_dist_best / words_count))
     else:
@@ -213,10 +210,11 @@ def main():
                 args.preds_output_folder,
                 f"preds_out_width{hp['beam_width']}_alpha{hp['beam_alpha']}_beta{hp['beam_beta']}.tsv",
             )
+
+        logging.info(f"==============================Starting the beam search decoding===============================")
         logging.info(f"Grid search size: {len(hp_grid)}")
         logging.info(f"It may take some time...")
-
-        logging.info(f"==========================Starting the beam search decoding threads==========================")
+        logging.info(f"==============================================================================================")
         for hp in hp_grid:
             preds_output_file = os.path.join(
                 args.preds_output_folder,
