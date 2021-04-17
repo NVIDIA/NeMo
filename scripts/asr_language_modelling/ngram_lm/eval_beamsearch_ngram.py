@@ -84,7 +84,7 @@ def beam_search_eval(
                 beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
 
             for beams_idx, beams in enumerate(beams_batch):
-                target_split = target_transcripts[sample_idx + beams_idx].split()
+                target_split = target_transcripts[sample_idx + beams_idx]
                 words_count += len(target_split)
                 for candidate_idx, candidate in enumerate(beams):
                     pred_text = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
@@ -152,11 +152,11 @@ def main():
         audio_file_paths = []
         for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ...", ncols=120):
             data = json.loads(line)
-            target_transcripts.append(data['text'])
+            target_transcripts.append(data['text']).split()
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    #audio_file_paths = audio_file_paths[0:100]
+    # audio_file_paths = audio_file_paths[0:100]
 
     if args.probs_cache_file and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
@@ -173,7 +173,7 @@ def main():
         with torch.no_grad():
             all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
         all_probs = [softmax(logits) for logits in all_logits]
-        logging.info(f"Writing pickle files of probabilities at {args.probs_cache_file}")
+        logging.info(f"Writing pickle files of probabilities at '{args.probs_cache_file}'...")
         with open(args.probs_cache_file, 'wb') as f_dump:
             pickle.dump(all_probs, f_dump)
 
@@ -184,7 +184,7 @@ def main():
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
         pred_text = asr_model._wer.ctc_decoder_predictions_tensor(preds_tensor)[0]
         pred_split = pred_text.split()
-        target_split = target_transcripts[batch_idx].split()
+        target_split = target_transcripts[batch_idx]
         dist = editdistance.eval(target_split, pred_split)
         wer_dist_greedy += dist
         words_count += len(target_split)
