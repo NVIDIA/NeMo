@@ -56,10 +56,6 @@ def main():
     )
     args = parser.parse_args()
 
-    logging.info(f"BEAM WIDTH : {args.beam_width}")
-    logging.info(f"BEAM ALPHA : {args.beam_alpha}")
-    logging.info(f"BEAM BETA : {args.beam_beta}")
-
     asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(
         args.nemo_model_file, map_location=torch.device(args.device)
     )
@@ -123,6 +119,10 @@ def main():
         lm_path = args.kenlm_model_file
     else:
         lm_path = None
+
+    logging.info(f"Beam Width : {args.beam_width}")
+    logging.info(f"Beam Alpha : {args.beam_alpha}")
+    logging.info(f"Beam Beta : {args.beam_beta}")
 
     if args.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
         # creating the beam search decoder
