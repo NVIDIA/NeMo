@@ -42,6 +42,9 @@ from nemo.core.classes.mixins import TeacherStudentMixin
 
 class TeacherStudentModelPT(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
+
         # Extract teacher model file
         if 'teacher_model_path' not in cfg:
             raise ValueError("Provided config must have a string path to a .nemo file which represents the model.")
@@ -53,7 +56,7 @@ class TeacherStudentModelPT(ModelPT):
         # prevent data loaders from being loaded for either student of teacher model
         original_state_value = ModelPT._is_model_being_restored()
         ModelPT._set_model_restore_state(is_being_restored=True)
-        logging.setLevel(logging.CRITICAL)
+        logging.setLevel(logging.ERROR)
 
         # initialize model config (from here on out, self.cfg == self.student.cfg)
         super().__init__(cfg=cfg, trainer=trainer)
@@ -156,6 +159,7 @@ class TeacherStudentModelPT(ModelPT):
         self.teardown = self.student.teardown
         self.configure_optimizers = self.student.configure_optimizers
 
+    # Abstract methods must be explicitly overridden, even if just delegates
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         return self.student.setup_training_data(train_data_config)
 
@@ -183,57 +187,6 @@ class TeacherStudentModelPT(ModelPT):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    # def multi_validation_epoch_end(
-    #     self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
-    # ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
-    #     x = self.student.multi_validation_epoch_end(outputs, dataloader_idx)
-    #     # get logs
-    #     cached_logs = self._trainer.logger_connector.cached_results
-    #     print("Cached logs :", cached_logs)
-    #
-    #     cached_logs = self.student._trainer.logger_connector.cached_results
-    #     print("Cached student logs :", cached_logs)
-    #     return x
-
-    # def validation_step(self, *args, **kwargs):
-    #     x = self.student.validation_step(*args, **kwargs)
-    #     # print("Val step : Trainer logger_connector.callback_metrics ",
-    #     #       self.student._trainer.logger_connector.callback_metrics)
-    #     return x
-    #
-    # def test_step(self, *args, **kwargs):
-    #     return self.student.test_step()
-    #
-    # def validation_step_end(self, *args, **kwargs):
-    #     x = self.student.validation_step_end(*args, **kwargs)
-    #     # print("Val step End : Trainer logger_connector.callback_metrics ",
-    #     #       self.student._trainer.logger_connector.callback_metrics)
-    #     return x
-    #
-    # def validation_epoch_end(
-    #     self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
-    # ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
-    #     x = self.student.validation_epoch_end(outputs)
-    #     print("Val epoch End : Trainer logger_connector.callback_metrics ",
-    #           self.student._trainer.logger_connector.callback_metrics)
-    #     return x
-    #
-    # def test_step_end(self, *args, **kwargs):
-    #     return self.student.test_step_end(*args, **kwargs)
-    #
-    # def multi_validation_epoch_end(
-    #     self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
-    # ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
-    #     x = self.student.multi_validation_epoch_end(outputs, dataloader_idx)
-    #     print("Multi Val epoch end : Trainer logger_connector.callback_metrics ",
-    #           self.student._trainer.logger_connector.callback_metrics)
-    #     return x
-    #
-    # def multi_test_epoch_end(
-    #     self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
-    # ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
-    #     return self.student.multi_test_epoch_end(outputs, dataloader_idx)
-
     def save_to(self, save_path: str):
         """ Delegate save_to to student model """
         self.student.save_to(save_path=save_path)
@@ -254,5 +207,5 @@ class TeacherStudentModelPT(ModelPT):
         Returns:
             List of available pre-trained models.
         """
-        # recursively walk the subclasses to generate pretrained model info
+        # No pretrained models of TeacherStudent model are possible.
         return []
