@@ -110,7 +110,8 @@ class ModelPT(LightningModule, Model):
         self._test_dl = None
         self._optimizer = None
         self._scheduler = None
-        self._trainer = trainer
+        self.trainer = trainer  # reference required for self.*_rank
+        self._trainer = self.trainer  # alias for backward compatibility
 
         # Set device_id in AppState
         if torch.cuda.is_available() and torch.cuda.current_device() is not None:
