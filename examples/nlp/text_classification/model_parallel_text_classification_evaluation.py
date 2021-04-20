@@ -18,8 +18,8 @@ This script runs model parallel text classification evaluation.
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models.nlp_model import NLPDDPPlugin
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
