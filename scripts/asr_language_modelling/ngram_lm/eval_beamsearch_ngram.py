@@ -16,12 +16,12 @@
 TOKEN_OFFSET = 100
 
 import argparse
+import contextlib
 import json
 import logging
 import os
 import pickle
 
-import contextlib
 import editdistance
 import numpy as np
 import torch
@@ -81,7 +81,7 @@ def beam_search_eval(
         for batch_idx in it:
             # disabling type checking
             with nemo.core.typecheck.disable_checks():
-                probs_batch = all_probs[batch_idx * beam_batch_size: (batch_idx + 1) * beam_batch_size]
+                probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
                 beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
 
             for beams_idx, beams in enumerate(beams_batch):
@@ -114,10 +114,20 @@ def beam_search_eval(
 
     logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
     if lm_path:
-        logging.info('WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}'.format(wer_dist_first / words_count, cer_dist_first / chars_count))
+        logging.info(
+            'WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}'.format(
+                wer_dist_first / words_count, cer_dist_first / chars_count
+            )
+        )
     else:
-        logging.info('WER/CER with beam search decoding = {:.2%}/{:.2%}'.format(wer_dist_first / words_count, cer_dist_first / chars_count))
-    logging.info('Best WER/CER in candidates = {:.2%}/{:.2%}'.format(wer_dist_best / words_count, cer_dist_best / chars_count))
+        logging.info(
+            'WER/CER with beam search decoding = {:.2%}/{:.2%}'.format(
+                wer_dist_first / words_count, cer_dist_first / chars_count
+            )
+        )
+    logging.info(
+        'Best WER/CER in candidates = {:.2%}/{:.2%}'.format(wer_dist_best / words_count, cer_dist_best / chars_count)
+    )
     logging.info(f"=================================================================================")
 
 
@@ -159,7 +169,7 @@ def main():
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    #audio_file_paths = audio_file_paths[0:100]
+    # audio_file_paths = audio_file_paths[0:100]
 
     if args.probs_cache_file and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
@@ -178,9 +188,11 @@ def main():
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast
         else:
+
             @contextlib.contextmanager
             def autocast():
                 yield
+
         with autocast():
             with torch.no_grad():
                 all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
