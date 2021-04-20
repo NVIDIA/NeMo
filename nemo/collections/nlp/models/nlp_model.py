@@ -360,12 +360,12 @@ class NLPModel(ModelPT, Exportable):
             strict: Passed to load_state_dict.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
-            trainer: Must be passed in to use model parallel .nemo
+            trainer: PyTorch Lightning trainer. Must be passed in to use model parallel .nemo
 
             Example:
                 ```
-                model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
-                assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+                model = nemo.collections.nlp.models.TokenClassificationModel.restore_from('token_classification.nemo')
+                assert isinstance(model, nemo.collections.nlp.models.TokenClassificationModel)
                 ```
 
         Returns:
@@ -399,6 +399,9 @@ class NLPModel(ModelPT, Exportable):
             os.chdir(cwd)
 
         if app_state.model_parallel_size is not None:
+            if not isinstance(trainer, Trainer):
+                raise ValueError("trainer must be a PyTorch Lightning Trainer to restore model parallel .nemo files.")
+
             if checkpoint_version is None:
                 raise ValueError(
                     "Restoring from megatron model parallel .nemo but could not find megatron checkpoint version."
