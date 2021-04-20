@@ -16,8 +16,9 @@ import os
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from torch.nn.parallel import DistributedDataParallel
-
+from megatron import mpu
+from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
+from megatron.initialize import _set_random_seed
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
@@ -25,10 +26,7 @@ from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from pytorch_lightning.utilities import rank_zero_warn
 from pytorch_lightning.utilities.cloud_io import atomic_save
-
-from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
-from megatron.initialize import _set_random_seed
-from megatron import mpu
+from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
 from nemo.utils import AppState, logging

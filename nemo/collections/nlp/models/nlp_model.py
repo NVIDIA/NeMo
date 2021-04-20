@@ -15,29 +15,26 @@
 import glob
 import hashlib
 import json
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 import os
 import shutil
 import tarfile
 import tempfile
 from typing import Any, Dict, Optional, Union
-from omegaconf import DictConfig, OmegaConf
 
 import torch
-
+from megatron import mpu
+from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.utilities import rank_zero_only
-
-from megatron import mpu
-from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
-
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
@@ -476,4 +473,3 @@ class NLPModel(ModelPT, Exportable):
     @property
     def output_module(self):
         return self.classifier
-
