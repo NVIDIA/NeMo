@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import json
 import os
 from typing import Dict, List, Optional, Tuple
@@ -151,7 +152,8 @@ def get_megatron_lm_model(
         model_parallel_rank = app_state.model_parallel_rank
     elif os.path.isdir(checkpoint_file):
         # starting training from megatron-lm checkpoint
-        model_parallel_size = len(os.listdir(checkpoint_file))
+        mp_ranks = glob.glob(os.path.join(checkpoint_file, 'mp_rank*'))
+        model_parallel_size = len(mp_ranks)
         app_state.model_parallel_size = model_parallel_size
         logging.info(
             (
