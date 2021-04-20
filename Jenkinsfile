@@ -696,6 +696,29 @@ pipeline {
         }
       }
     }
+
+    stage('L2: Entity Linking') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('Self Alignment Pretraining BERT') {
+           steps {
+             sh 'cd examples/nlp/entity_linking && \
+             python self_alignment_pretraining.py \
+             model.raw_data=None \
+             model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
+             model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_validation_pairs.tsv \
+             exp_manager.exp_dir=null'
+          }
+        }
+      }
+    }
+      
     // TODO: fix model parallel for PTL 1.2
     // stage('L2: Model Parallel Size 2 Megatron Text Classification') {
     //   when {
