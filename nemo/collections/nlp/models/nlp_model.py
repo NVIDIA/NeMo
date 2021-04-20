@@ -50,10 +50,6 @@ NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_
 
 os.makedirs(NEMO_NLP_TMP, exist_ok=True)
 
-_MODEL_RESTORE_PATH = None
-_MODEL_CONFIG_YAML = "model_config.yaml"
-_MODEL_WEIGHTS = "model_weights.ckpt"
-
 
 class NLPModel(ModelPT, Exportable):
     """Base class for NLP Models.
