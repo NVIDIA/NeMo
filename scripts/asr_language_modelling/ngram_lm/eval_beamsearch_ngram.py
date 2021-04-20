@@ -21,6 +21,7 @@ import logging
 import os
 import pickle
 
+import contextlib
 import editdistance
 import numpy as np
 import torch
@@ -131,6 +132,7 @@ def main():
     parser.add_argument("--acoustic_batch_size", default=16, type=int)
     parser.add_argument("--beam_batch_size", default=128, type=int)
     parser.add_argument("--device", default="cuda:0", type=str)
+    parser.add_argument("--use_amp", action="store_true")
     parser.add_argument(
         "--decoding_mode", choices=["greedy", "beamsearch", "beamsearch_ngram"], default="beamsearch_ngram", type=str
     )
@@ -167,8 +169,17 @@ def main():
                 f"match the manifest file. You may need to delete the probabilities cached file."
             )
     else:
-        with torch.no_grad():
-            all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
+        if args.use_amp:
+            if torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
+                logging.info("AMP is enabled!\n")
+                autocast = torch.cuda.amp.autocast
+        else:
+            @contextlib.contextmanager
+            def autocast():
+                yield
+        with autocast():
+            with torch.no_grad():
+                all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
         all_probs = [softmax(logits) for logits in all_logits]
         logging.info(f"Writing pickle files of probabilities at '{args.probs_cache_file}'...")
         with open(args.probs_cache_file, 'wb') as f_dump:
