@@ -267,7 +267,20 @@ class TarredOneSideTranslationDataset(IterableDataset):
         return ids, mask
 
     def __iter__(self):
-        return self._dataset.__iter__()
+        # We need to wrap an infinite generator since the actual files
+        # within the tar files contains large chunks of contiguous data.
+        # This prevents PTL from early exiting the train loop after exhausting
+        # all of the files in one iteration (though the actual dataset is many
+        # times larger due to each file containing a large chunk of data).
+
+        dl_iter = iter(self._dataset)
+        while True:
+            try:
+                batch = next(dl_iter)
+                yield batch
+            except StopIteration:
+                dl_iter = iter(self._dataset)
+                continue
 
     def __len__(self):
         return self.metadata['num_batches']

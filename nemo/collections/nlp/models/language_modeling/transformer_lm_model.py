@@ -47,6 +47,7 @@ class TransformerLMModel(ModelPT):
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.real_global_rank = trainer.global_rank
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
@@ -229,7 +230,7 @@ class TransformerLMModel(ModelPT):
                 tokenizer=self.tokenizer,
                 shuffle_n=cfg.get("tar_shuffle_n", 100),
                 shard_strategy=cfg.get("shard_strategy", "scatter"),
-                global_rank=self.global_rank,
+                global_rank=self.real_global_rank,
                 world_size=self.world_size,
             )
             return torch.utils.data.DataLoader(
