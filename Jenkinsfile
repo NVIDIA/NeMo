@@ -697,30 +697,6 @@ pipeline {
       }
     }
 
-    stage('L2: Entity Linking') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage ('Self Alignment Pretraining BERT') {
-           steps {
-             sh 'cd examples/nlp/entity_linking && \
-             python self_alignment_pretraining.py \
-             trainer.val_check_interval=3 \
-             model.raw_data=None \
-             model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
-             model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_data/tiny_example_validation_pairs.tsv \
-             model.train_ds.batch_size=8 \
-             model.validation_ds.batch_size=8 \
-             exp_manager.exp_dir=null'
-          }
-        }
-      }
-    }
       
     // TODO: fix model parallel for PTL 1.2
     // stage('L2: Model Parallel Size 2 Megatron Text Classification') {
@@ -942,6 +918,31 @@ pipeline {
               '
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
             }
+        }
+      }
+    }
+
+    stage('L2: Entity Linking') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('Self Alignment Pretraining BERT') {
+           steps {
+             sh 'cd examples/nlp/entity_linking && \
+             python self_alignment_pretraining.py \
+             trainer.val_check_interval=3 \
+             model.raw_data=None \
+             model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
+             model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_data/tiny_example_validation_pairs.tsv \
+             model.train_ds.batch_size=8 \
+             model.validation_ds.batch_size=8 \
+             exp_manager.exp_dir=null'
+          }
         }
       }
     }
