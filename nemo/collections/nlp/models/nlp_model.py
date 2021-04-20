@@ -301,7 +301,6 @@ class NLPModel(ModelPT, Exportable):
             torch.distributed.barrier()
 
             if is_global_rank_zero():
-                # TODO: do in a temporary directory
                 # extract all tar files
                 for mp_rank in range(app_state.model_parallel_size):
                     mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
