@@ -184,7 +184,7 @@ class MTDataPreproc:
                         f"Using tarred dataset created at {self.train_tar_files} and metadata created at {self._cfg.train_ds.metadata_file}"
                     )
                 elif cfg.train_ds.get('tar_files') is not None and cfg.train_ds.get('metadata_file') is None:
-                    raise ValueError('A metadata file required for tarred dataset but cfg.metadata_file is None.')
+                    raise ValueError('A metadata file is required for tarred dataset but cfg.metadata_file is None.')
                 elif cfg.train_ds.get('tar_files') is None and cfg.train_ds.get('metadata_file') is not None:
                     metadata = json.load(cfg.train_ds.get('metadata_file'))
                     if metadata['train_tar_files']:
