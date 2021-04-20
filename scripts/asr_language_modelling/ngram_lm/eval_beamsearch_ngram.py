@@ -210,12 +210,15 @@ def main():
         preds = np.argmax(probs, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
         pred_text = asr_model._wer.ctc_decoder_predictions_tensor(preds_tensor)[0]
+
         pred_split_w = pred_text.split()
         target_split_w = target_transcripts[batch_idx].split()
         pred_split_c = list(pred_text)
         target_split_c = list(target_transcripts[batch_idx])
+
         wer_dist = editdistance.eval(target_split_w, pred_split_w)
-        cer_dist = editdistance.eval(target_split_w, pred_split_w)
+        cer_dist = editdistance.eval(target_split_c, pred_split_c)
+
         wer_dist_greedy += wer_dist
         cer_dist_greedy += cer_dist
         words_count += len(target_split_w)
