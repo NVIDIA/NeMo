@@ -245,11 +245,15 @@ class NLPModel(ModelPT, Exportable):
                         )
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        """ LightningModule hook that's used to save things in addition to model weights. """
+
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             checkpoint['checkpoint_version'] = get_checkpoint_version()
         return None
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        """ LightningModule hook that's used to restore things saved with on_save_checkpoint."""
+
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
             set_checkpoint_version(checkpoint['checkpoint_version'])
             logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
