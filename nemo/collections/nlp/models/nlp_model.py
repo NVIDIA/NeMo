@@ -285,9 +285,8 @@ class NLPModel(ModelPT, Exportable):
 
             base_dir = os.path.dirname(save_path)  # use the directory to merge mp_rank .nemo files into one
 
-            # TODO: accept general paths
             # update save_path based on model parallel_rank
-            base_path = save_path[0:-5]  # everything excpe the .nemo extension
+            base_path = os.path.splitext(save_path)[0]  # everything except the extension
 
             mp_save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02d}.nemo'
 
