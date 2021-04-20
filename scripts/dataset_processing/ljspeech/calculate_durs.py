@@ -20,6 +20,7 @@ import json
 from math import ceil
 import numpy as np
 import os
+import pickle
 import tgt
 import torch
 from tqdm import tqdm
@@ -59,6 +60,8 @@ def calculate_durations(textgrid, phone2idx):
     tokens, durations = [], []
     for i in range(len(data_tier)):
         x = data_tier[i].text
+        if x == 'spn':
+            return None, None, None
         x = blank_token if x in blank_set else x
 
         if len(tokens) and tokens[-1] == blank_token and x == blank_token:
@@ -95,14 +98,27 @@ def main():
             phone2idx = mappings['phone2idx']
             word2phones = mappings['word2phones']
 
+    oov_samples = []
+
     # Iterate through all TextGrid files
     for textgrid in tqdm(textgrid_list):
+        basename = os.path.splitext(os.path.basename(textgrid))[0][5:]  # Chop off 'wavs_' prefix
+
         phones_mfa, tokens_mfa, durs = calculate_durations(textgrid, phone2idx)
 
+        if phones_mfa is None:
+            oov_samples.append(basename)
+            continue
+
         # Save to file
-        basename = os.path.splitext(os.path.basename(textgrid))[0][5:]  # Chop off 'wavs_' prefix
         target_path = os.path.join(target_dir, f'{basename}.pt')
         torch.save({'text_encoded': tokens_mfa, 'token_duration': durs}, target_path)
+
+    print(f"Getting rid of {len(oov_samples)} samples with OOV words.")
+    oov_target = os.path.join(args.ljspeech_dir, 'wavs_to_ignore.pkl')
+    with open(oov_target, 'wb') as f:
+        pickle.dump(oov_samples, f)
+    print(f"List of OOV samples written to: {oov_target}")
 
 
 if __name__ == '__main__':
