@@ -252,8 +252,13 @@ class NLPModel(ModelPT, Exportable):
         """ LightningModule hook that's used to restore things saved with on_save_checkpoint."""
 
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            set_checkpoint_version(checkpoint['checkpoint_version'])
-            logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
+            if get_checkpoint_version():
+                assert (
+                    checkpoint['checkpoint_version'] == get_checkpoint_version()
+                ), 'checkpoint version found on_load_checkpoint different than get_checkpoint_version'
+            else:
+                set_checkpoint_version(checkpoint['checkpoint_version'])
+                logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
         return None
 
     # no rank check as model parallel models need to be saved on data parallel rank 0
