@@ -712,8 +712,8 @@ pipeline {
              python self_alignment_pretraining.py \
              trainer.val_check_interval=3 \
              model.raw_data=None \
-             model.train_ds.data_file=/home/vadams/Projects/entity-linking-research/tiny_example_data/tiny_example_train_pairs.tsv \
-             model.validation_ds.data_file=/home/vadams/Projects/entity-linking-research/tiny_example_data/tiny_example_validation_pairs.tsv \
+             model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
+             model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_data/tiny_example_validation_pairs.tsv \
              model.train_ds.batch_size=8 \
              model.validation_ds.batch_size=8 \
              exp_manager.exp_dir=null'
