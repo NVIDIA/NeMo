@@ -159,7 +159,7 @@ def main():
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    audio_file_paths = audio_file_paths[0:100]
+    #audio_file_paths = audio_file_paths[0:100]
 
     if args.probs_cache_file and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
