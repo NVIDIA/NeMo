@@ -62,11 +62,13 @@ def beam_search_eval(
         input_tensor=False,
     )
 
-    wer_dist_best = 0
-    wer_dist_min = 0
-    wer_dist_max = 0
-    sample_idx = 0
+    wer_dist_first = cer_dist_first = 0
+    wer_dist_best = cer_dist_best = 0
+
     words_count = 0
+    chars_count = 0
+
+    sample_idx = 0
     with open(preds_output_file, 'w') as f_out:
         if progress_bar:
             it = tqdm(
@@ -79,41 +81,43 @@ def beam_search_eval(
         for batch_idx in it:
             # disabling type checking
             with nemo.core.typecheck.disable_checks():
-                probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
+                probs_batch = all_probs[batch_idx * beam_batch_size: (batch_idx + 1) * beam_batch_size]
                 beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
 
             for beams_idx, beams in enumerate(beams_batch):
-                target_split = target_transcripts[sample_idx + beams_idx]
-                words_count += len(target_split)
+                target = target_transcripts[sample_idx + beams_idx]
+                target_split_w = target.split()
+                target_split_c = list(target)
+                words_count += len(target_split_w)
+                chars_count += len(target_split_c)
+                wer_dist_min = cer_dist_min = 10000
                 for candidate_idx, candidate in enumerate(beams):
                     pred_text = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
-                    pred_split = pred_text.split()
+                    pred_split_w = pred_text.split()
+                    wer_dist = editdistance.eval(target_split_w, pred_split_w)
+                    pred_split_c = list(pred_text)
+                    cer_dist = editdistance.eval(target_split_c, pred_split_c)
+
+                    wer_dist_min = min(wer_dist_min, wer_dist)
+                    cer_dist_min = min(cer_dist_min, cer_dist)
+
                     if candidate_idx == 0:
                         # first candidate
-                        dist = editdistance.eval(target_split, pred_split)
-                        dist_min = dist_max = dist
-                        wer_dist_best += dist
-                    else:
-                        dist = editdistance.eval(target_split, pred_split)
-                        dist_min = min(dist_min, dist)
-                        dist_max = max(dist_max, dist)
-
-                    if candidate_idx == beam_width - 1:
-                        # last candidate
-                        wer_dist_min += dist_min
-                        wer_dist_max += dist_max
+                        wer_dist_first += wer_dist
+                        cer_dist_first += cer_dist
 
                     score = candidate[0]
                     f_out.write('{}\t{}\n'.format(pred_text, score))
+                wer_dist_best += wer_dist_min
+                cer_dist_best += cer_dist_min
             sample_idx += len(probs_batch)
 
     logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
     if lm_path:
-        logging.info('WER with beam search decoding and N-gram model = {:.2%}'.format(wer_dist_best / words_count))
+        logging.info('WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}'.format(wer_dist_first / words_count, cer_dist_first / chars_count))
     else:
-        logging.info('WER with beam search decoding = {:.2%}'.format(wer_dist_best / words_count))
-    logging.info('Best WER = {:.2%}'.format(wer_dist_min / words_count))
-    logging.info('Worst WER = {:.2%}'.format(wer_dist_max / words_count))
+        logging.info('WER/CER with beam search decoding = {:.2%}/{:.2%}'.format(wer_dist_first / words_count, cer_dist_first / chars_count))
+    logging.info('Best WER/CER in candidates = {:.2%}/{:.2%}'.format(wer_dist_best / words_count, cer_dist_best / chars_count))
     logging.info(f"=================================================================================")
 
 
@@ -151,11 +155,11 @@ def main():
         audio_file_paths = []
         for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ...", ncols=120):
             data = json.loads(line)
-            target_transcripts.append(data['text'].split())
+            target_transcripts.append(data['text'])
             audio_file_paths.append(data['audio_filepath'])
 
     # drop it later
-    # audio_file_paths = audio_file_paths[0:100]
+    audio_file_paths = audio_file_paths[0:100]
 
     if args.probs_cache_file and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
@@ -182,22 +186,30 @@ def main():
                 all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
         all_probs = [softmax(logits) for logits in all_logits]
         logging.info(f"Writing pickle files of probabilities at '{args.probs_cache_file}'...")
-        with open(args.probs_cache_file, 'wb') as f_dump:
-            pickle.dump(all_probs, f_dump)
+        if args.probs_cache_file:
+            with open(args.probs_cache_file, 'wb') as f_dump:
+                pickle.dump(all_probs, f_dump)
 
     wer_dist_greedy = 0
+    cer_dist_greedy = 0
     words_count = 0
+    chars_count = 0
     for batch_idx, probs in enumerate(all_probs):
         preds = np.argmax(probs, axis=1)
         preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
         pred_text = asr_model._wer.ctc_decoder_predictions_tensor(preds_tensor)[0]
-        pred_split = pred_text.split()
-        target_split = target_transcripts[batch_idx]
-        dist = editdistance.eval(target_split, pred_split)
-        wer_dist_greedy += dist
-        words_count += len(target_split)
+        pred_split_w = pred_text.split()
+        target_split_w = target_transcripts[batch_idx].split()
+        pred_split_c = list(pred_text)
+        target_split_c = list(target_transcripts[batch_idx])
+        wer_dist = editdistance.eval(target_split_w, pred_split_w)
+        cer_dist = editdistance.eval(target_split_w, pred_split_w)
+        wer_dist_greedy += wer_dist
+        cer_dist_greedy += cer_dist
+        words_count += len(target_split_w)
+        chars_count += len(target_split_c)
 
-    logging.info('Greedy WER = {:.2%}'.format(wer_dist_greedy / words_count))
+    logging.info('Greedy WER/CER = {:.2%}/{:.2%}'.format(wer_dist_greedy / words_count, cer_dist_greedy / chars_count))
 
     # delete the model to free the memory
     del asr_model
