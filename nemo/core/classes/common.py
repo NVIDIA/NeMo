@@ -548,6 +548,7 @@ class PretrainedModelInfo:
     description: str
     location: str
     class_: 'Model' = None
+    aliases: List[str] = None
 
     def __repr__(self):
         base = self.__class__.__name__
@@ -587,7 +588,9 @@ class Model(Typing, Serialization, FileIO):
     @abstractmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """
-        Should list all pre-trained models available via NVIDIA NGC cloud
+        Should list all pre-trained models available via NVIDIA NGC cloud.
+        Note: There is no check that requires model names and aliases to be unique. In the case of a collIsion, whatever
+        model (or alias) is listed first in the this returned list will be instantiated.
 
         Returns:
             A list of PretrainedModelInfo entries
@@ -637,12 +640,23 @@ class Model(Typing, Serialization, FileIO):
         """
         location_in_the_cloud = None
         description = None
-        if cls.list_available_models() is not None:
+        models = cls.list_available_models()
+        if models is not None:
             for pretrained_model_info in cls.list_available_models():
+                found = False
                 if pretrained_model_info.pretrained_model_name == model_name:
+                    found = True
+                elif pretrained_model_info.aliases is not None:
+                    for alias in pretrained_model_info.aliases:
+                        if alias == model_name:
+                            found = True
+                            break
+                if found:
                     location_in_the_cloud = pretrained_model_info.location
                     description = pretrained_model_info.description
                     class_ = pretrained_model_info.class_
+                    break
+
         if location_in_the_cloud is None:
             raise FileNotFoundError(
                 f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models."
