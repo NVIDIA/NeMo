@@ -56,24 +56,13 @@ class ExternalFeatureLoader(object):
             raise TypeError("Unsupported sample type: %s." % samples.dtype)
         return float32_samples
 
-<<<<<<< HEAD
-=======
-
->>>>>>> feature to seq label data loader
     def process(self, file_path, offset=0, duration=0, trim=False, orig_sr=None):
         feature = self.load_feature_from_file(file_path)
         return self.process_segment(feature)
 
-<<<<<<< HEAD
     def process_segment(self, feature_segment):
         if self.augmentor:
             # augmentor for external features. Here possible augmentor for external embedding feature is Diaconis Augmentation and might be implemented later
-=======
-
-    def process_segment(self, feature_segment):
-        if self.augmentor:
-            # augmentor for external features. Here possible augmentor for external embedding feature is Diaconis Augmentation and might be implemented later 
->>>>>>> feature to seq label data loader
             self.augmentor.perturb(feature_segment)
             return torch.tensor(feature_segment, dtype=torch.float)
 
