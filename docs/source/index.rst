@@ -8,6 +8,7 @@ NVIDIA NeMo User Guide
 
    starthere/intro
    starthere/tutorials
+   starthere/best-practices
 
 
 .. toctree::
@@ -51,8 +52,8 @@ NVIDIA NeMo User Guide
 
 .. toctree::
    :maxdepth: 2
-   :caption: NeMo-Text-Processing Package
-   :name: NeMo-Text-Processing Package
+   :caption: Text Processing
+   :name: Text Processing
 
    nemo_text_processing/intro
 
