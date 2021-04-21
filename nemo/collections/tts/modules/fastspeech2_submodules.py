@@ -338,7 +338,7 @@ class WaveformDiscriminator(nn.Module):
         # Apply weight norm to conv layers
         self.apply(_conv_weight_norm)
 
-        def forward(self, x):
-            for layer in self.layers:
-                x = layer(x)
-            return x
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x

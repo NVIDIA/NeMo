@@ -46,7 +46,7 @@ import shutil
 import sys
 from os.path import expanduser
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import librosa
 import numpy as np

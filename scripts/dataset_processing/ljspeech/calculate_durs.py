@@ -93,12 +93,11 @@ def main():
         os.mkdir(target_dir)
 
     # Read phoneme to idx mappings
-    phone2idx, word2phones = None, None
+    phone2idx = None
     if args.mappings:
         with open(args.mappings, 'r') as f:
             mappings = json.load(f)
             phone2idx = mappings['phone2idx']
-            word2phones = mappings['word2phones']
 
     oov_samples = []
 

@@ -134,7 +134,15 @@ fi
 
 # Run alignment
 echo "Starting MFA with dictionary at: $G2P_DICT"
-mfa download acoustic english
+
+read -r -d '' MFA_ERROR_MSG << EOM
+Could not run MFA. If it could not find OpenBlas, you may need to install it manually.
+(e.g. sudo apt-get install libopenblas-dev)
+EOM
+
+if ! mfa download acoustic english; then
+  echo $MFA_ERROR_MSG
+fi
 mfa align --clean $LJSPEECH_BASE $G2P_DICT english $LJSPEECH_BASE/alignments
 
 # Create JSON mappings from word to phonemes and phonemes to indices

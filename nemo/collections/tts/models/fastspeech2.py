@@ -22,13 +22,11 @@ from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L2MelLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.modules.fastspeech2 import FastSpeech2Encoder, MelSpecDecoder, VarianceAdaptor
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
