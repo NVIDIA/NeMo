@@ -103,7 +103,7 @@ def main():
     model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
 
     encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
-    if encoding_level == None:
+    if not encoding_level:
         logging.warning(f"Model type '{type(model).__name__}' is not supported. Would try to train a char-level LM.")
         encoding_level = 'char'
 
