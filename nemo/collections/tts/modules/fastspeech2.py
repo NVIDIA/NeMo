@@ -24,7 +24,16 @@ from nemo.collections.tts.modules.fastspeech2_submodules import (
     WaveformGenerator,
 )
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import *
+from nemo.core.neural_types.elements import (
+    EncodedRepresentation,
+    LengthsType,
+    MaskType,
+    MelSpectrogramType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenIndex,
+)
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -399,4 +408,4 @@ class WaveformDecoder(NeuralModule):
     @typecheck()
     def forward(self, *, decoder_input):
         generator_output = self.generator(decoder_input)
-        pass
+        return generator_output

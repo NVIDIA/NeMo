@@ -19,7 +19,6 @@ The manifest will be used for training, and the .txt files are for the MFA libra
 import argparse
 import json
 import os
-import sys
 
 import sox
 import wget
