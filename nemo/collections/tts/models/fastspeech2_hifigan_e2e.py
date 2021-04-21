@@ -39,10 +39,6 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.energy = cfg.add_energy_predictor
-        self.pitch = cfg.add_pitch_predictor
-        self.mel_loss_coeff = self._cfg.mel_loss_coefff
-
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.encoder = instantiate(self._cfg.encoder)
         self.variance_adapter = instantiate(self._cfg.variance_adaptor)
@@ -51,6 +47,7 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         self.multiperioddisc = MultiPeriodDiscriminator()
         self.multiscaledisc = MultiScaleDiscriminator()
 
+        self.melspec_fn = instantiate(self._cfg.preprocessor, highfreq=None, use_grads=True)
         self.mel_val_loss = L1MelLoss()
         self.durationloss = DurationLoss()
         self.feat_matching_loss = FeatureMatchingLoss()
@@ -58,16 +55,16 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         self.gen_loss = GeneratorLoss()
         self.mseloss = torch.nn.MSELoss()
 
+        self.energy = cfg.add_energy_predictor
+        self.pitch = cfg.add_pitch_predictor
+        self.mel_loss_coeff = self._cfg.mel_loss_coeff
+        self.splice_length = self._cfg.splice_length
+
         self.use_energy_pred = False
         self.use_pitch_pred = False
-        self.use_duration_pred = False
         self.log_train_images = False
         self.logged_real_samples = False
         self._tb_logger = None
-        self.max = 0
-        self.mel_basis = None
-        self.hann_window = None
-        self.splice_length = self._cfg.splice_length
         typecheck.set_typecheck_enabled(enabled=False)
 
     @property
@@ -85,12 +82,7 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         return self._tb_logger
 
     def configure_optimizers(self):
-        gen_params = chain(
-            self.phone_embedding.parameters(),
-            self.encoder.parameters(),
-            self.generator.parameters(),
-            self.variance_adapter.parameters(),
-        )
+        gen_params = chain(self.encoder.parameters(), self.generator.parameters(), self.variance_adapter.parameters(),)
         disc_params = chain(self.multiscaledisc.parameters(), self.multiperioddisc.parameters())
         opt1 = torch.optim.AdamW(disc_params, lr=self._cfg.lr)
         opt2 = torch.optim.AdamW(gen_params, lr=self._cfg.lr)
@@ -113,8 +105,7 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         return [opt1, opt2], [sch1_dict, sch2_dict]
 
     def forward(self, *, spec, spec_len, text, text_length, splice=True, durations=None, pitch=None, energies=None):
-        embedded_tokens = self.phone_embedding(text)
-        encoded_text, encoded_text_mask = self.encoder(text=embedded_tokens, text_lengths=text_length)
+        encoded_text, encoded_text_mask = self.encoder(text=text, text_length=text_length)
 
         context, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
             x=encoded_text,
@@ -142,11 +133,7 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         return output, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        if self.vocab is None:
-            f, fl, t, tl, durations, pitch, energies = batch
-        else:
-            pitch, energies = None, None
-            f, fl, t, tl, durations, _, _ = batch
+        f, fl, t, tl, durations, pitch, energies = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
 
         # train discriminator
@@ -157,7 +144,7 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
                     spec_len=spec_len,
                     text=t,
                     text_length=tl,
-                    durations=durations if not self.use_duration_pred else None,
+                    durations=durations,
                     pitch=pitch if not self.use_pitch_pred else None,
                     energies=energies if not self.use_energy_pred else None,
                 )
@@ -187,7 +174,7 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
                 spec_len=spec_len,
                 text=t,
                 text_length=tl,
-                durations=durations if not self.use_duration_pred else None,
+                durations=durations,
                 pitch=pitch if not self.use_pitch_pred else None,
                 energies=energies if not self.use_energy_pred else None,
             )
@@ -197,8 +184,11 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
             real_audio = torch.stack(real_audio).unsqueeze(1)
 
             # Do HiFiGAN generator loss
-            real_spliced_spec = self.mel_spectrogram(real_audio)
-            pred_spliced_spec = self.mel_spectrogram(audio_pred)
+            audio_length = torch.tensor([self.splice_length * 256 for _ in range(real_audio.shape[0])]).to(
+                real_audio.device
+            )
+            real_spliced_spec, _ = self.melspec_fn(real_audio.squeeze(), seq_len=audio_length)
+            pred_spliced_spec, _ = self.melspec_fn(audio_pred.squeeze(), seq_len=audio_length)
             loss_mel = torch.nn.functional.l1_loss(real_spliced_spec, pred_spliced_spec)
             loss_mel *= self.mel_loss_coeff
             _, gen_score_mp, real_feat_mp, gen_feat_mp = self.multiperioddisc(real_audio, audio_pred)
@@ -220,7 +210,9 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
             self.log(name="loss_gen_disc_mp", value=loss_gen_mp)
             self.log(name="loss_gen_disc_ms", value=loss_gen_ms)
 
-            dur_loss = self.durationloss(log_dur_preds, durations.float())
+            dur_loss = self.durationloss(
+                log_duration_pred=log_dur_preds, duration_target=durations.float(), mask=encoded_text_mask
+            )
             self.log(name="loss_gen_duration", value=dur_loss)
             total_loss += dur_loss
             if self.pitch:
@@ -253,34 +245,31 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
             return total_loss
 
     def validation_step(self, batch, batch_idx):
-        if self.vocab is None:
-            f, fl, t, tl, _ = batch
-        else:
-            f, fl, t, tl, _, _, _ = batch
+        f, fl, t, tl, _, _, _ = batch
         spec, spec_len = self.audio_to_melspec_precessor(f, fl)
         audio_pred, _, _, _, _, _ = self(spec=spec, spec_len=spec_len, text=t, text_length=tl, splice=False)
-        pred_spec = self.mel_spectrogram(audio_pred)
+        audio_pred.squeeze_()
+        pred_spec, _ = self.melspec_fn(audio_pred, seq_len=spec_len)
         loss = self.mel_val_loss(
             spec_pred=pred_spec, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52, transpose=False
         )
 
         return {
             "val_loss": loss,
-            "audio_target": f.squeeze(),
-            "audio_pred": audio_pred.squeeze(),
+            "audio_target": f.squeeze() if batch_idx == 0 else None,
+            "audio_pred": audio_pred if batch_idx == 0 else None,
         }
 
     def on_train_epoch_start(self):
-        if self.vocab is None:
-            # Switch to using energy predictions after 50% of training
-            if not self.use_energy_pred and self.current_epoch >= np.ceil(0.5 * self._trainer.max_epochs):
-                logging.info(f"Using energy predictions after epoch: {self.current_epoch}")
-                self.use_energy_pred = True
+        # Switch to using energy predictions after 50% of training
+        if not self.use_energy_pred and self.current_epoch >= np.ceil(0.5 * self._trainer.max_epochs):
+            logging.info(f"Using energy predictions after epoch: {self.current_epoch}")
+            self.use_energy_pred = True
 
-            # Switch to using pitch predictions after 62.5% of training
-            if not self.use_pitch_pred and self.current_epoch >= np.ceil(0.625 * self._trainer.max_epochs):
-                logging.info(f"Using pitch predictions after epoch: {self.current_epoch}")
-                self.use_pitch_pred = True
+        # Switch to using pitch predictions after 62.5% of training
+        if not self.use_pitch_pred and self.current_epoch >= np.ceil(0.625 * self._trainer.max_epochs):
+            logging.info(f"Using pitch predictions after epoch: {self.current_epoch}")
+            self.use_pitch_pred = True
 
     def validation_epoch_end(self, outputs):
         if self.tb_logger is not None:

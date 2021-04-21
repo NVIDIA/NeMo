@@ -87,10 +87,11 @@ model:
   # VarianceAdaptor
   variance_adaptor:
     _target_: nemo.collections.tts.modules.fastspeech2.VarianceAdaptor
-    d_model: ${model.d_model}
+    d_model: 256
     dropout: 0.2
     dur_d_hidden: 256
     dur_kernel_size: 3
+
     pitch: ${model.add_pitch_predictor}
     log_pitch: True
     n_f0_bins: 256
