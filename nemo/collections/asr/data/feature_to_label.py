@@ -11,12 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo.core.classes import Dataset, IterableDataset
 from typing import Dict, List, Optional
-from nemo.core.neural_types import AcousticEncodedRepresentation, LabelsType, LengthsType, NeuralType
-from nemo.collections.asr.parts import collections
-from nemo.utils import logging
+
 import torch
+
+from nemo.collections.asr.parts import collections
+from nemo.core.classes import Dataset, IterableDataset
+from nemo.core.neural_types import AcousticEncodedRepresentation, LabelsType, LengthsType, NeuralType
+from nemo.utils import logging
+
 
 def _feature_collate_fn(batch, pad_id):
     """collate batch of feat sig, feat len, tokens, tokens len
@@ -37,7 +40,7 @@ def _feature_collate_fn(batch, pad_id):
     tokens_lengths = torch.stack(tokens_lengths)
 
     return feat_signal, feat_lengths, tokens, tokens_lengths
-    
+
 
 class _FeatureSeqSpeakerLabelDataset(Dataset):
     """
@@ -60,37 +63,34 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
         """
         # TODO output type for external features
         output_types = {
-            'external_feat': NeuralType(('B','D', 'T'), AcousticEncodedRepresentation()) ,
+            'external_feat': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             'feat_length': NeuralType(tuple('B'), LengthsType()),
         }
 
         if self.is_speaker_emb:
             output_types.update(
                 {
-                    'embs':  NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+                    'embs': NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
                     'embs_length': NeuralType(tuple('B'), LengthsType()),
-                    'label': NeuralType(tuple('B, T'), LabelsType()), 
+                    'label': NeuralType(tuple('B, T'), LabelsType()),
                     'label_length': NeuralType(tuple('B'), LengthsType()),
                 }
             )
         else:
             output_types.update(
-                {'label': NeuralType(tuple('B', 'T'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
+                {
+                    'label': NeuralType(tuple('B', 'T'), LabelsType()),
+                    'label_length': NeuralType(tuple('B'), LengthsType()),
+                }
             )
 
         return output_types
 
     def __init__(
-        self,
-        *,
-        manifest_filepath: str,
-        labels: List[str],
-        feature_loader,
+        self, *, manifest_filepath: str, labels: List[str], feature_loader,
     ):
         super().__init__()
-        self.collection = collections.ASRFeatSeqLabel(
-            manifests_files=manifest_filepath.split(','),
-        )
+        self.collection = collections.ASRFeatSeqLabel(manifests_files=manifest_filepath.split(','),)
 
         self.feature_loader = feature_loader
         self.labels = labels if labels else self.collection.uniq_labels
@@ -113,7 +113,7 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
         f, fl = features, torch.tensor(features.shape[0]).long()
 
         t = torch.tensor(sample.seq_label).float()
-        tl = torch.tensor(1).long()  
+        tl = torch.tensor(1).long()
 
         return f, fl, t, tl
 
@@ -134,5 +134,6 @@ class FeatureToSeqSpeakerLabelDataset(_FeatureSeqSpeakerLabelDataset):
         feature_loader, Feature load to loader (external) feature.
     
     """
+
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=0)

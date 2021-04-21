@@ -201,6 +201,7 @@ class ASRAudioText(AudioText):
 
         super().__init__(ids, audio_files, durations, texts, offsets, speakers, orig_srs, *args, **kwargs)
 
+
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
 
@@ -339,9 +340,7 @@ class ASRSpeechLabel(SpeechLabel):
 class FeatSeqLabel(_Collection):
     """List of feature sequence of label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(
-        typename='FeatSeqLabelEntity', field_names='feature_file seq_label',
-    )
+    OUTPUT_TYPE = collections.namedtuple(typename='FeatSeqLabelEntity', field_names='feature_file seq_label',)
 
     def __init__(
         self,
@@ -353,14 +352,17 @@ class FeatSeqLabel(_Collection):
         """Instantiates feat-SeqLabel manifest with filters and preprocessing.
         """
         output_type = self.OUTPUT_TYPE
-        data, num_filtered = [], 0.0, 
+        data, num_filtered = (
+            [],
+            0.0,
+        )
         self.uniq_labels = set()
 
         if index_by_file_id:
             self.mapping = {}
 
         for feature_file, seq_label in zip(feature_files, seq_labels):
-            
+
             label_tokens, uniq_labels_in_seq = self.dnc_parser(seq_label)
 
             data.append(output_type(feature_file, label_tokens))
@@ -428,7 +430,6 @@ class ASRFeatSeqLabel(FeatSeqLabel):
 
         super().__init__(feature_files, seq_labels, *args, **kwargs)
 
-
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
         item = json.loads(line)
 
@@ -442,16 +443,15 @@ class ASRFeatSeqLabel(FeatSeqLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper feature file key."
             )
         item['feature_file'] = os.path.expanduser(item['feature_file'])
-      
+
         # Seq of Label.
         if 'seq_label' in item:
             item['seq_label'] = item.pop('seq_label')
         else:
-            raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper seq_label key.")
+            raise ValueError(
+                f"Manifest file has invalid json line " f"structure: {line} without proper seq_label key."
+            )
 
-        item = dict(
-            feature_file=item['feature_file'],
-            seq_label=item['seq_label'],
-        )
+        item = dict(feature_file=item['feature_file'], seq_label=item['seq_label'],)
 
         return item
