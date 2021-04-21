@@ -381,14 +381,19 @@ class NLPModel(ModelPT, Exportable):
         with tempfile.TemporaryDirectory() as tmpdir:
             cwd = os.getcwd()
             os.chdir(tmpdir)
-            # TODO: get mp_ranks from tarfile without unpacking it
-            cls._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-            mp_ranks = glob.glob(os.path.join(tmpdir, 'mp_rank*'))
+            # detect if model parallel from tarfile
+            tar = tarfile.open(restore_path, "r:gz")
+            names = tar.getnames()
+            mp_ranks = []
+            for name in names:
+                if 'mp_rank' in name:
+                    mp_ranks.append(name)
             if mp_ranks:
-                app_state.model_parallel_size = len(mp_ranks)
+                app_state.model_parallel_size = len(mp_ranks) // 2  # directory and file are included in getnames()
+                # get checkpoint version
+                tar.extract('./megatron_checkpoint_version.json', tmpdir)
                 with open('megatron_checkpoint_version.json', 'r') as f:
                     checkpoint_version = json.load(f).get('checkpoint_version', None)
-                # get checkpoint version
                 logging.info(
                     (
                         f'Detected model parallel .nemo file: {restore_path}. '
@@ -397,6 +402,7 @@ class NLPModel(ModelPT, Exportable):
                         f'and checkpoint version: {checkpoint_version}'
                     )
                 )
+            tar.close()
             os.chdir(cwd)
 
         if app_state.model_parallel_size is not None:
