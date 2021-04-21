@@ -15,7 +15,7 @@
 # Punctuation and capitalization model with pretrained BERT-like models
 
 pretrained_model: null # pretrained Punctuation and Capitalization model from list_available_models(), for example:
-# Punctuation_Capitalization_with_BERT_base_uncased or Punctuation_Capitalization_with_DistilBERT_base_uncased
+# punctuation_en_bert or punctuation_en_distilbert
 # or your_model.nemo
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU

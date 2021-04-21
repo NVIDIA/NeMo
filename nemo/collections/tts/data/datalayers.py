@@ -213,13 +213,13 @@ class MelAudioDataset(Dataset):
         audio = torch.FloatTensor(audio).unsqueeze(0)
         mel = self.mel_load_func(mel_file)
 
+        frames = math.ceil(self.n_segments / self.mel_hop_size)
         if audio.shape[1] > self.n_segments:
-            frames = math.ceil(self.n_segments / self.mel_hop_size)
             start = random.randint(0, mel.shape[1] - frames - 1)
             mel = mel[:, start : start + frames]
             audio = audio[:, start * self.mel_hop_size : (start + frames) * self.mel_hop_size]
         else:
-            mel = torch.nn.functional.pad(mel, (0, frames - mel.shape[1]))
+            mel = np.pad(mel, ((0, 0), (0, frames - mel.shape[1])))
             audio = torch.nn.functional.pad(audio, (0, self.n_segments - audio.shape[1]))
 
         return audio.squeeze(0), audio.shape[1], mel
@@ -327,11 +327,11 @@ class NoisySpecsDataset(Dataset):
         """
         A modified dataset for training deep-griffin-lim iteration. Contains MSTFT (mag), STFT (y) , and noisy STFT which is
         used for initial phase. By using different levels of noise, the Degli model can learn to improve any phase, and thus
-        it can be used iteratively.  
+        it can be used iteratively.
 
         Args:
             destination (str, Path): Path to a directory containing the main data set folder, Similar to the directory
-            provided to the preprocessor script, which generates this dataset. 
+            provided to the preprocessor script, which generates this dataset.
             subdir (str): Either 'train', or 'valid', when using the standard script for generation.
             n_fft (int): STFT parameter. Also detrmines the STFT filter length.
             hop_length (int): STFT parameter.

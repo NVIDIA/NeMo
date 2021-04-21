@@ -79,9 +79,13 @@ class ExportableEncDecModel(Exportable):
     def output_module(self):
         return self.decoder
 
-    def forward_for_export(self, input):
-        return self.output_module(self.input_module(input))
+    def forward_for_export(self, input, length=None):
+        encoder_output = self.input_module(input, length)
+        if isinstance(encoder_output, tuple):
+            return self.output_module(encoder_output[0])
+        else:
+            return self.output_module(encoder_output)
 
-    def _prepare_for_export(self):
-        self.input_module._prepare_for_export()
-        self.output_module._prepare_for_export()
+    def _prepare_for_export(self, **kwargs):
+        self.input_module._prepare_for_export(**kwargs)
+        self.output_module._prepare_for_export(**kwargs)

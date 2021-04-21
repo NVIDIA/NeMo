@@ -26,20 +26,13 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.losses.rnnt import RNNTLoss
+from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-
-try:
-    import warprnnt_pytorch as warprnnt
-
-    WARP_RNNT_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    WARP_RNNT_AVAILABLE = False
 
 
 class EncDecRNNTModel(ASRModel):
@@ -57,16 +50,6 @@ class EncDecRNNTModel(ASRModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        # Required loss function
-        if not WARP_RNNT_AVAILABLE:
-            raise ImportError(
-                "Could not import `warprnnt_pytorch`.\n"
-                "Please visit https://github.com/HawkAaron/warp-transducer "
-                "and follow the steps in the readme to build and install the "
-                "pytorch bindings for RNNT Loss, or use the provided docker "
-                "container that supports RNN-T loss."
-            )
-
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
@@ -91,7 +74,13 @@ class EncDecRNNTModel(ASRModel):
 
         self.decoder = EncDecRNNTModel.from_config_dict(self.cfg.decoder)
         self.joint = EncDecRNNTModel.from_config_dict(self.cfg.joint)
-        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
+
+        # Setup RNNT Loss
+        loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
+
+        self.loss = RNNTLoss(
+            num_classes=self.joint.num_classes_with_blank - 1, loss_name=loss_name, loss_kwargs=loss_kwargs
+        )
 
         if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecRNNTModel.from_config_dict(self.cfg.spec_augment)
@@ -129,6 +118,44 @@ class EncDecRNNTModel(ASRModel):
         else:
             self._optim_variational_noise_std = 0
             self._optim_variational_noise_start = 0
+
+    def extract_rnnt_loss_cfg(self, cfg: Optional[DictConfig]):
+        """
+        Helper method to extract the rnnt loss name, and potentially its kwargs
+        to be passed.
+
+        Args:
+            cfg: Should contain `loss_name` as a string which is resolved to a RNNT loss name.
+                If the default should be used, then `default` can be used.
+                Optionally, one can pass additional kwargs to the loss function. The subdict
+                should have a keyname as follows : `{loss_name}_kwargs`.
+
+                Note that whichever loss_name is selected, that corresponding kwargs will be
+                selected. For the "default" case, the "{resolved_default}_kwargs" will be used.
+
+        Examples:
+            .. code-block:: yaml
+                loss_name: "default"
+
+                warprnnt_numba_kwargs:
+                    kwargs2: some_other_val
+
+        Returns:
+            A tuple, the resolved loss name as well as its kwargs (if found).
+        """
+        if cfg is None:
+            cfg = DictConfig({})
+
+        loss_name = cfg.get("loss_name", "default")
+
+        if loss_name == "default":
+            loss_name = resolve_rnnt_default_loss_name()
+
+        loss_kwargs = cfg.get(f"{loss_name}_kwargs", None)
+
+        logging.info(f"Using RNNT Loss : {loss_name}\n" f"Loss {loss_name}_kwargs: {loss_kwargs}")
+
+        return loss_name, loss_kwargs
 
     @torch.no_grad()
     def transcribe(
@@ -231,7 +258,10 @@ class EncDecRNNTModel(ASRModel):
             self.decoder = EncDecRNNTModel.from_config_dict(new_decoder_config)
 
             del self.loss
-            self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
+            loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get('loss', None))
+            self.loss = RNNTLoss(
+                num_classes=self.joint.num_classes_with_blank - 1, loss_name=loss_name, loss_kwargs=loss_kwargs
+            )
 
             if decoding_cfg is None:
                 # Assume same decoding config as before
@@ -360,6 +390,20 @@ class EncDecRNNTModel(ASRModel):
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the training data loader via a Dict-like object.
+
+        Args:
+            train_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
 
@@ -382,6 +426,20 @@ class EncDecRNNTModel(ASRModel):
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the validation data loader via a Dict-like object.
+
+        Args:
+            val_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
 
@@ -391,6 +449,20 @@ class EncDecRNNTModel(ASRModel):
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the test data loader via a Dict-like object.
+
+        Args:
+            test_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
 
@@ -424,6 +496,34 @@ class EncDecRNNTModel(ASRModel):
     def forward(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
     ):
+        """
+        Forward pass of the model. Note that for RNNT Models, the forward pass of the model is a 3 step process,
+        and this method only performs the first step - forward of the acoustic model.
+
+        Please refer to the `training_step` in order to see the full `forward` step for training - which
+        performs the forward of the acoustic model, the prediction network and then the joint network.
+        Finally, it computes the loss and possibly compute the detokenized text via the `decoding` step.
+
+        Please refer to the `validation_step` in order to see the full `forward` step for inference - which
+        performs the forward of the acoustic model, the prediction network and then the joint network.
+        Finally, it computes the decoded tokens via the `decoding` step and possibly compute the batch metrics.
+
+        Args:
+            input_signal: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
+                `self.sample_rate` number of floating point values.
+            input_signal_length: Vector of length B, that contains the individual lengths of the audio
+                sequences.
+            processed_signal: Tensor that represents a batch of processed audio signals,
+                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
+            processed_signal_length: Vector of length B, that contains the individual lengths of the
+                processed audio sequences.
+
+        Returns:
+            A tuple of 2 elements -
+            1) The log probabilities tensor of shape [B, T, D].
+            2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
+        """
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) is False:

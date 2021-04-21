@@ -8,24 +8,25 @@ model:
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
+  src_language: 'en'
+  tgt_language: 'de'
 
   train_ds:
     src_file_name: null
     tgt_file_name: null
     use_tarred_dataset: False # if true tar_file_name and meta_file_name will be used (or created automatically) 
     # config for preprocessing training data and creating a tarred datset automatically
+    tar_file_prefix: parallel # prefix for tar file names
     tar_files: null # if data has already been preprocessed (rest of config ignored)
     metadata_file: null # metadata for tarred dataset
     lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
     num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
     shard_strategy: scatter # tarred dataset shard distribution strategy
+    n_preproc_jobs: -2 # number of processes to use for data preprocessing (-2 means all but 2)
     tokens_in_batch: 512
     clean: true
     max_seq_length: 512
-    cache_ids: true
-    cache_data_per_node: false
-    use_cache: true
     shuffle: true
     num_samples: -1
     drop_last: false
@@ -70,24 +71,29 @@ model:
       warmup_ratio: 0.1
 
   encoder_tokenizer:
-    tokenizer_name: yttm
+    library: yttm
     tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
 
   decoder_tokenizer:
-    tokenizer_name: yttm
+    library: yttm
     tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
 
   encoder:
+    library: nemo
+    model_name: null
+    pretrained: false
     max_sequence_length: 512
-    num_token_types: 2
+    num_token_types: 0
     embedding_dropout: 0.1
     learn_positional_encodings: false
     hidden_size: 512
@@ -102,8 +108,11 @@ model:
     pre_ln: false
 
   decoder:
+    library: nemo
+    model_name: null
+    pretrained: false
     max_sequence_length: 512
-    num_token_types: 2
+    num_token_types: 0
     embedding_dropout: 0.1
     learn_positional_encodings: false
     hidden_size: 512

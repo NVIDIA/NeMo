@@ -9,7 +9,6 @@ packaging
 ruamel.yaml
 soundfile
 sox
-torch-stft
 unidecode
 kaldi-python-io
 kaldiio
@@ -20,3 +19,4 @@ pydub
 pyannote.core
 pyannote.metrics
 spectralcluster
+torch-stft

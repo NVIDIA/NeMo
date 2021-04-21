@@ -18,6 +18,7 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import TokenClassificationModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -81,19 +82,19 @@ To train TokenClassification model from scratch with the default config file, ru
 
 To use one of the pretrained versions of the model specify a `pretrained_model` arg with either 
 TokenClassification model from list_available_models() or path to a .nemo file, for example: 
-NNER_Model_with_BERT_base_uncased or model.nemo, run:
+ner_en_bert or model.nemo, run:
 
-    python token_classification_train.py pretrained_model=NER_Model_with_BERT_base_uncased
+    python token_classification_train.py pretrained_model=ner_en_bert
 
 To use one of the pretrained versions of the model and fine-tune it, run:
 
     python token_classification_train.py \
            model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-           pretrained_model=NER_Model_with_BERT_base_uncased
+           pretrained_model=ner_en_bert
 
 <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained TokenClassification model from list_available_models() or 
-                     path to a .nemo file, for example: NER_Model_with_BERT_base_uncased or model.nemo
+                     path to a .nemo file, for example: ner_en_bert or model.nemo
                      
 For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipynb
 """
@@ -101,7 +102,7 @@ For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipy
 
 @hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if not cfg.pretrained_model:
@@ -109,7 +110,7 @@ def main(cfg: DictConfig) -> None:
         model = TokenClassificationModel(cfg.model, trainer=trainer)
     else:
         if os.path.exists(cfg.pretrained_model):
-            model = TokenClassificationModel.restore_from(cfg.pretrained_model)
+            model = TokenClassificationModel.restore_from(cfg.pretrained_model, trainer=trainer)
         elif cfg.pretrained_model in TokenClassificationModel.get_available_model_names():
             model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
         else:

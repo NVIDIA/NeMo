@@ -15,10 +15,12 @@
 
 """Interfaces common to all Neural Modules and Models."""
 import hashlib
+import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -30,7 +32,7 @@ import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
-from nemo.utils.model_utils import maybe_update_config_version
+from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
@@ -424,15 +426,48 @@ class Serialization(ABC):
 
         config = maybe_update_config_version(config)
 
+        # Hydra 0.x API
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
+        # Hydra 1.x API
         elif '_target_' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
         else:
-            # models are handled differently for now
-            instance = cls(cfg=config)
+            instance = None
+
+            # Attempt class path resolution from config `target` class (if it exists)
+            if 'target' in config:
+                target_cls = config.target
+                imported_cls = None
+                try:
+                    # try to import the target class
+                    imported_cls = import_class_by_path(target_cls)
+                except (ImportError, ModuleNotFoundError):
+                    logging.debug(f'Target class `{target_cls}` could not be imported, falling back to original cls')
+
+                # try instantiating model with target class
+                if imported_cls is not None:
+                    # if calling class (cls) is subclass of imported class,
+                    # use subclass instead
+                    if issubclass(cls, imported_cls):
+                        imported_cls = cls
+
+                    try:
+                        instance = imported_cls(cfg=config)
+                    except Exception:
+                        imported_cls_tb = traceback.format_exc()
+                        logging.debug(
+                            f"Model instantiation from target class failed with following error.\n"
+                            f"Falling back to `cls`.\n"
+                            f"{imported_cls_tb}"
+                        )
+                        instance = None
+
+            # target class resolution was unsuccessful, fall back to current `cls`
+            if instance is None:
+                instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
             instance._cfg = config
@@ -506,12 +541,14 @@ class FileIO(ABC):
             raise NotImplementedError()
 
 
+@total_ordering
 @dataclass
 class PretrainedModelInfo:
     pretrained_model_name: str
     description: str
     location: str
     class_: 'Model' = None
+    aliases: List[str] = None
 
     def __repr__(self):
         base = self.__class__.__name__
@@ -533,6 +570,14 @@ class PretrainedModelInfo:
         location_hash = hash(self.location)
         return location_hash
 
+    def __eq__(self, other):
+        # another object is equal to self, iff
+        # if it's hash is equal to hash(self)
+        return hash(self) == hash(other) or self.pretrained_model_name == other.pretrained_model_name
+
+    def __lt__(self, other):
+        return self.pretrained_model_name < other.pretrained_model_name
+
 
 class Model(Typing, Serialization, FileIO):
     """
@@ -543,7 +588,9 @@ class Model(Typing, Serialization, FileIO):
     @abstractmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """
-        Should list all pre-trained models available via NVIDIA NGC cloud
+        Should list all pre-trained models available via NVIDIA NGC cloud.
+        Note: There is no check that requires model names and aliases to be unique. In the case of a collIsion, whatever
+        model (or alias) is listed first in the this returned list will be instantiated.
 
         Returns:
             A list of PretrainedModelInfo entries
@@ -593,12 +640,23 @@ class Model(Typing, Serialization, FileIO):
         """
         location_in_the_cloud = None
         description = None
-        if cls.list_available_models() is not None:
+        models = cls.list_available_models()
+        if models is not None:
             for pretrained_model_info in cls.list_available_models():
+                found = False
                 if pretrained_model_info.pretrained_model_name == model_name:
+                    found = True
+                elif pretrained_model_info.aliases is not None:
+                    for alias in pretrained_model_info.aliases:
+                        if alias == model_name:
+                            found = True
+                            break
+                if found:
                     location_in_the_cloud = pretrained_model_info.location
                     description = pretrained_model_info.description
                     class_ = pretrained_model_info.class_
+                    break
+
         if location_in_the_cloud is None:
             raise FileNotFoundError(
                 f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models."

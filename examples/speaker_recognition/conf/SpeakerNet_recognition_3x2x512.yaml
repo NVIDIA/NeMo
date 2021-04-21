@@ -45,7 +45,6 @@ model:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
-    stft_conv: false
 
   encoder:
     _target_: nemo.collections.asr.modules.ConvASREncoder
@@ -139,7 +138,7 @@ model:
 
 trainer:
   gpus: 1 # number of gpus
-  max_epochs: 7205
+  max_epochs: 200
   max_steps: null # computed at runtime if not set
   num_nodes: 1
   accelerator: ddp

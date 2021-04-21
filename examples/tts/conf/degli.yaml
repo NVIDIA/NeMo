@@ -1,8 +1,8 @@
-name: &name "DeepGriffinLim"
-sample_rate: &sr 22050
-n_fft: &n_fft 1024
-hop_length: &hop_length 256
-destination: &destination "/tmp"
+name: "DeepGriffinLim"
+sample_rate: 22050
+n_fft: 1024
+hop_length: 256
+destination: "/tmp"
 
 model:
   train_ds:
@@ -84,7 +84,7 @@ model:
   train_params:
     repeat_training: 2
     repeat_validation: 32
-    sampling_rate: *sr
+    sampling_rate: ${sample_rate}
 
 trainer:
   gpus: 1 # number of gpus
@@ -102,6 +102,6 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True

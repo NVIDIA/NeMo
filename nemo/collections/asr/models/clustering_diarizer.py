@@ -39,7 +39,6 @@ from nemo.collections.asr.parts.vad_utils import (
 )
 from nemo.core.classes import Model
 from nemo.utils import logging, model_utils
-from nemo.utils.decorators.experimental import experimental
 from nemo.utils.exp_manager import NotFoundError
 
 try:
@@ -64,7 +63,6 @@ def get_available_model_names(class_name):
     return list(map(lambda x: x.pretrained_model_name, available_models))
 
 
-@experimental
 class ClusteringDiarizer(Model, DiarizationMixin):
     def __init__(self, cfg: DictConfig):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -110,7 +108,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
-                model_path = "SpeakerNet_verification"
+                model_path = "speakerdiarization_speakernet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name=model_path)
 
@@ -131,7 +129,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
-                model_path = "MatchboxNet-VAD-3x2"
+                model_path = "vad_telephony_marblenet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
 
@@ -246,7 +244,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             for line in manifest.readlines():
                 line = line.strip()
                 dic = json.loads(line)
-                uniq_names.append(dic['audio_filepath'].split('/')[-1].split('.')[0])
+                uniq_names.append(dic['audio_filepath'].split('/')[-1].rsplit('.', 1)[0])
 
         for i, test_batch in enumerate(tqdm(self._speaker_model.test_dataloader())):
             test_batch = [x.to(self._device) for x in test_batch]
@@ -263,7 +261,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         if not os.path.exists(embedding_dir):
             os.makedirs(embedding_dir, exist_ok=True)
 
-        prefix = manifest_file.split('/')[-1].split('.')[-2]
+        prefix = manifest_file.split('/')[-1].rsplit('.', 1)[-2]
 
         name = os.path.join(embedding_dir, prefix)
         self._embeddings_file = name + '_embeddings.pkl'
@@ -353,7 +351,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
-            # tar.add(source_dir, arcname=path.basename(source_dir))
             tar.add(source_dir, arcname="./")
 
     @rank_zero_only
@@ -369,11 +366,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         Args:
             save_path: Path to .nemo file where model instance should be saved
         """
-
-        # if not self.has_vad_model:
-        #     NotImplementedError(
-        #         "Saving a clustering based speaker diarization model without a VAD model is not" "supported"
-        #     )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -427,7 +419,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 conf.diarizer.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
                 conf.restore_map_location = map_location
                 OmegaConf.set_struct(conf, True)
-                # instance = cls.from_config_dict(config=conf)
                 instance = cls(cfg=conf)
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
