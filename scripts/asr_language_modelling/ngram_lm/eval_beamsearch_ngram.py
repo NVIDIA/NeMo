@@ -13,6 +13,67 @@
 # limitations under the License.
 #
 
+# This script would evaluate an N-gram language model trained with KenLM library (https://github.com/kpu/kenlm) in
+# fusion with beam search decoders on top of a trained ASR model. NeMo's beam search decoders are capable of using the
+# KenLM's N-gram models to find the best candidates. Currently this script supports BPE-based encodings and models.
+#
+# You may train the LM model with 'scripts/ngram_lm/train_kenlm.py'.
+#
+# USAGE: python eval_beamsearch_ngram.py --nemo_model_file <path to the .nemo file of the model> \
+#                                         --input_manifest <path to the evaluation Json manifest file \
+#                                         --kenlm_model_file <path to the binary KenLM model> \
+#                                         --preds_output_folder <folder to store the predictions> \
+#                                         --beam_width <list of the beam widths> \
+#                                         --beam_alpha <list of the beam alphas> \
+#                                         --beam_width <list of the beam betas> \
+#                                         ...
+#
+# The script would initially load the ASR model and predict the outputs of the model's encoder as log probabilities.
+# This part would be computed in batches on a device selected by '--device', which can be CPU ('--device='cpu') or
+# a single GPU ('--device=cuda:0'). The batch size of this part can get specified by '--acoustic_batch_size'.
+# The greedy decoding is done on the outputs and greedy WER and CER are calculated.
+# If decoding_mode is set to 'beamsearch' or 'beamsearch_ngram', beam search decoding is done on the outputs.
+# You may
+
+# Stores them in a cache file
+#
+# Args:
+#   --nemo_model_file: The path of the '.nemo' file of the ASR model to get evaluated
+#
+#   --input_manifest: The manifest file of the evaluation set.
+#       The manifest Json file need to contain json formatted samples per each line like this
+#       {"audio_filepath": "/data_path/file1.wav", "text": "The transcript of the audio file."}
+#
+#   --kenlm_model_file: The path to of KenLM binary model file.
+#       The N-gram LM model can get trained by 'scripts/ngram_lm/train_kenlm.py'.
+#
+#   --preds_output_folder: The path to the folder where the predictions are stored.
+#       The top K (K=beam width) candidates predicted by the beam search decoder would be stored in
+#       tab separated files ('.tsv'). The results for each combination of beam_width, beam_alpha, and beam_beta are
+#       stored in a file named 'preds_out_width{beam_width}_alpha{beam_alpha}_beta{beam_beta}.tsv' under the folder
+#       specified by '--preds_output_folder'. Each line contains a candidate with its corresponding score. For example,
+#       a prediction file would have 25*4=100 lines if beam_width is 25 and there are 4 samples in the manifest file.
+#
+#   --probs_cache_file: The cache file for storing the outputs of the model
+#
+#    --acoustic_batch_size: The batch size to calculate log probabilities
+#
+#    --use_amp: Whether to use AMP if available to calculate log probabilities
+#
+#    --device: The device to load the model onto and perform the inference
+#
+#    --decoding_mode: The decoding scheme to be used for evaluation
+#
+#    --beam_width: Whether to apply lower case conversion on the training text
+#
+#    --beam_alpha: Whether to apply lower case conversion on the training text
+#
+#    --beam_beta: Whether to apply lower case conversion on the training text
+#
+#    --beam_batch_size: The batch size to be used for beam search decoding
+#
+
+
 # Please check train_kenlm.py to find out why we need TOKEN_OFFSET
 TOKEN_OFFSET = 100
 
@@ -151,6 +212,22 @@ def main():
         "--probs_cache_file", default=None, type=str, help="The cache file for storing the outputs of the model"
     )
     parser.add_argument(
+        "--acoustic_batch_size", default=16, type=int, help="The batch size to calculate log probabilities"
+    )
+    parser.add_argument(
+        "--device", default="cuda:0", type=str, help="The device to load the model onto and perform the inference"
+    )
+    parser.add_argument(
+        "--use_amp", action="store_true", help="Whether to use AMP if available to calculate log probabilities"
+    )
+    parser.add_argument(
+        "--decoding_mode",
+        choices=["greedy", "beamsearch", "beamsearch_ngram"],
+        default="beamsearch_ngram",
+        type=str,
+        help="The decoding scheme to be used for evaluation.",
+    )
+    parser.add_argument(
         "--beam_width",
         required=True,
         type=int,
@@ -172,21 +249,7 @@ def main():
         help="The beta parameter or list of the betas of the beam search decoding",
     )
     parser.add_argument(
-        "--acoustic_batch_size", default=16, type=int, help="The batch size to be used for the model's inference"
-    )
-    parser.add_argument(
         "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
-    )
-    parser.add_argument(
-        "--device", default="cuda:0", type=str, help="The device to load the model onto and perform the inference"
-    )
-    parser.add_argument("--use_amp", action="store_true", help="Whether to use AMP if available for model's inference")
-    parser.add_argument(
-        "--decoding_mode",
-        choices=["greedy", "beamsearch", "beamsearch_ngram"],
-        default="beamsearch_ngram",
-        type=str,
-        help="The decoding scheme to be used for evaluation.",
     )
     args = parser.parse_args()
 
@@ -271,6 +334,7 @@ def main():
     else:
         lm_path = None
 
+    # 'greedy' decoding_mode would skip the beam search decoding
     if args.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
         params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha, 'beam_beta': args.beam_beta}
         hp_grid = ParameterGrid(params)

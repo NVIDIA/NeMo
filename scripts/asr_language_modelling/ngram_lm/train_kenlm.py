@@ -14,8 +14,10 @@
 #
 
 
-# This script would train an N-gram LM with KenLM library (https://github.com/kpu/kenlm) which can be used with the
-# beam search decoders on top of the ASR models. Currently this script supports BPE-based encodings and models.
+# This script would train an N-gram language model with KenLM library (https://github.com/kpu/kenlm) which can be used
+# with the beam search decoders on top of the ASR models. Currently this script supports BPE-based encodings and models.
+# After the N-gram model is trained, and stored in the binary format, you may use
+# 'scripts/ngram_lm/eval_beamsearch_ngram.py' to evaluate it on an ASR model.
 #
 # You need to install the KenLM library and also the beam search decoders to use this feature. Please refer
 # to 'scripts/ngram_lm/install_ctc_decoders.sh' on how to install them.
@@ -34,7 +36,7 @@
 #   --train_file: Path to the training file, it can be a text file or Json manifest.
 #       If the file's extension is anything other than '.json', it assumes that data format is plain text. Each line
 #       should contain one samples.
-#       For json manifest file, the file need to contain a json formatted samples per line. It extracts the 'text'
+#       For json manifest file, the file need to contain json formatted samples per each line. It extracts the 'text'
 #       field of each line.
 #
 #   --kenlm_model_file: The path to store the KenLM binary model file.
