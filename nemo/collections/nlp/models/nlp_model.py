@@ -279,6 +279,7 @@ class NLPModel(ModelPT, Exportable):
         if app_state.model_parallel_size is not None:
             self._default_save_to(save_path)
         else:
+            # super.save_to only runs on global rank 0
             return super().save_to(save_path)
 
     def _default_save_to(self, save_path: str):
