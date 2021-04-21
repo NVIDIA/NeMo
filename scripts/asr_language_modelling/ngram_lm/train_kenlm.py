@@ -13,6 +13,41 @@
 # limitations under the License.
 #
 
+
+# This script would train an N-gram LM with KenLM library (https://github.com/kpu/kenlm) which can be used with the
+# beam search decoders on top of the ASR models. Currently this script supports BPE-based encodings and models.
+#
+# You need to install the KenLM library and also the beam search decoders to use this feature. Please refer
+# to 'scripts/ngram_lm/install_ctc_decoders.sh' on how to install them.
+#
+# USAGE: python train_kenlm.py --nemo_model_file <path to the .nemo file of the model> \
+#                              --train_file <path to the training text or json manifest file \
+#                              --kenlm_bin_path <path to the bin folder of KenLM library> \
+#                              --kenlm_model_file <path to store the binary KenLM model> \
+#                              --ngram_length <order of N-gram model>
+#
+# After training is done, the binary LM model is stored at the path specified by '--kenlm_model_file'
+#
+# Args:
+#   --nemo_model_file: The path of the '.nemo' file of the ASR model. It is needed to extract the tokenizer.
+#
+#   --train_file: Path to the training file, it can be a text file or Json manifest.
+#       If the file's extension is anything other than '.json', it assumes that data format is plain text. Each line
+#       should contain one samples.
+#       For json manifest file, the file need to contain a json formatted samples per line. It extracts the 'text'
+#       field of each line.
+#
+#   --kenlm_model_file: The path to store the KenLM binary model file.
+#       This would be LM model to be used by the beam search decoders.
+#
+#   --kenlm_bin_path: The path to the bin folder of KenLM. It is a folder named 'bin' under where KenLM is installed.
+#
+#   --ngram_length: Specifies order of N-gram LM. Recommend to use 6 for BPE-based models.
+#       Higher orders may need the compilation of KenLM to support it.
+#
+#    --do_lower_case: Whether to apply lower case conversion on the training text
+#
+
 import argparse
 import logging
 import os
@@ -47,7 +82,7 @@ def main():
         "--train_file",
         required=True,
         type=str,
-        help="Path to the training file. It can be a text file or Json manifest",
+        help="Path to the training file, it can be a text file or Json manifest",
     )
     parser.add_argument(
         "--nemo_model_file", required=True, type=str, help="The path of the '.nemo' file of the ASR model"
@@ -58,7 +93,7 @@ def main():
     parser.add_argument("--ngram_length", required=True, type=int, help="The order of N-gram LM")
     parser.add_argument("--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM")
     parser.add_argument(
-        "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the trainig text"
+        "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
     args = parser.parse_args()
 

@@ -13,6 +13,10 @@
 # limitations under the License.
 #
 
+"""
+Utility methods to be used for training N-gram LM with KenLM in train_kenlm.py
+"""
+
 import json
 import os
 
