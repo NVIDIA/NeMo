@@ -133,31 +133,64 @@ def beam_search_eval(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Evaluate an ASR model with beam search decoding and an n-gram KenLM language model.'
+        description='Evaluate an ASR model with beam search decoding and n-gram KenLM language model.'
     )
-    parser.add_argument("--nemo_model_file", required=True, type=str)
-    parser.add_argument("--kenlm_model_file", required=False, default=None, type=str)
-    parser.add_argument("--input_manifest", required=True, type=str)
-    parser.add_argument("--preds_output_folder", required=True, type=str)
-    parser.add_argument("--probs_cache_file", default=None, type=str)
-    parser.add_argument("--beam_width", required=True, type=int, nargs="+")
-    parser.add_argument("--beam_alpha", required=True, type=float, nargs="+")
-    parser.add_argument("--beam_beta", required=True, type=float, nargs="+")
-    parser.add_argument("--acoustic_batch_size", default=16, type=int)
-    parser.add_argument("--beam_batch_size", default=128, type=int)
-    parser.add_argument("--device", default="cuda:0", type=str)
-    parser.add_argument("--use_amp", action="store_true")
     parser.add_argument(
-        "--decoding_mode", choices=["greedy", "beamsearch", "beamsearch_ngram"], default="beamsearch_ngram", type=str
+        "--nemo_model_file", required=True, type=str, help="The path of the '.nemo' file of the ASR model"
     )
-    # parser.add_argument("--parallel_runs", default=1, type=int)
-
+    parser.add_argument(
+        "--kenlm_model_file", required=False, default=None, type=str, help="The path of the KenLM binary model file"
+    )
+    parser.add_argument("--input_manifest", required=True, type=str, help="The manifest file of the evaluation set")
+    parser.add_argument(
+        "--preds_output_folder", required=True, type=str, help="The folder where the predictions are stored"
+    )
+    parser.add_argument(
+        "--probs_cache_file", default=None, type=str, help="The cache file for storing the outputs of the model"
+    )
+    parser.add_argument(
+        "--beam_width",
+        required=True,
+        type=int,
+        nargs="+",
+        help="The width or list of the widths of the beam search decoding",
+    )
+    parser.add_argument(
+        "--beam_alpha",
+        required=True,
+        type=float,
+        nargs="+",
+        help="The alpha parameter or list of the alphas of the beam search decoding",
+    )
+    parser.add_argument(
+        "--beam_beta",
+        required=True,
+        type=float,
+        nargs="+",
+        help="The beta parameter or list of the betas of the beam search decoding",
+    )
+    parser.add_argument(
+        "--acoustic_batch_size", default=16, type=int, help="The batch size to be used for the model's inference"
+    )
+    parser.add_argument(
+        "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
+    )
+    parser.add_argument(
+        "--device", default="cuda:0", type=str, help="The device to load the model onto and perform the inference"
+    )
+    parser.add_argument("--use_amp", action="store_true", help="Whether to use AMP if available for model's inference")
+    parser.add_argument(
+        "--decoding_mode",
+        choices=["greedy", "beamsearch", "beamsearch_ngram"],
+        default="beamsearch_ngram",
+        type=str,
+        help="The decoding scheme to be used for evaluation.",
+    )
     args = parser.parse_args()
 
     asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(
         args.nemo_model_file, map_location=torch.device(args.device)
     )
-
     model_tokenizer = asr_model.tokenizer
 
     target_transcripts = []

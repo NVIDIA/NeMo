@@ -29,9 +29,9 @@ NeMo's beam search decoders only support char-level encodings. In order to make 
 use a trick to encode the sub-word tokens of the training data as unicode characters and train a char-level KenLM. 
 TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words.
 
-This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space. 
-The only drawback is that there is a symmetric decoding by this offset value required when performing actual beam search, 
-but it is negligible in compute cost and the storage space benefits are more useful.
+This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require 
+less storage space. The only drawback is that there is a symmetric decoding by this offset value required when 
+performing actual beam search, but it is negligible in compute cost and the storage space benefits are more useful.
 """
 TOKEN_OFFSET = 100
 
@@ -47,13 +47,19 @@ def main():
         "--train_file",
         required=True,
         type=str,
-        help="Path to the training file. It can be a text file or Json manifest.",
+        help="Path to the training file. It can be a text file or Json manifest",
     )
-    parser.add_argument("--nemo_model_file", required=True, type=str)
-    parser.add_argument("--kenlm_model_file", required=True, type=str)
-    parser.add_argument("--ngram_length", required=True, type=int)
-    parser.add_argument("--do_lowercase", action='store_true')
-    parser.add_argument("--kenlm_bin_path", required=True, type=str)
+    parser.add_argument(
+        "--nemo_model_file", required=True, type=str, help="The path of the '.nemo' file of the ASR model"
+    )
+    parser.add_argument(
+        "--kenlm_model_file", required=True, type=str, help="The path to store the KenLM binary model file"
+    )
+    parser.add_argument("--ngram_length", required=True, type=int, help="The order of N-gram LM")
+    parser.add_argument("--kenlm_bin_path", required=True, type=str, help="The path to the bin folder of KenLM")
+    parser.add_argument(
+        "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the trainig text"
+    )
     args = parser.parse_args()
 
     """ TOKENIZER SETUP """
