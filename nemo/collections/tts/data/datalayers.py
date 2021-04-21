@@ -615,7 +615,7 @@ class FastSpeech2Dataset(Dataset):
             # Else not pruned, load additional info
 
             # Phoneme durations and text token indices from durations file
-            dur_path = audio_path.replace('/wavs/', '/phoneme_durations_realign/').replace('.wav', '.pt')
+            dur_path = audio_path.replace('/wavs/', '/phoneme_durations/').replace('.wav', '.pt')
             duration_info = torch.load(dur_path)
             durs = duration_info['token_duration']
             text_tokens = duration_info['text_encoded']
