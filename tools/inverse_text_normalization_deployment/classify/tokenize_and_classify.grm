@@ -13,18 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import 'punctuation.grm' as p;
 import '../util.grm' as u;
 
 types = LoadFstFromFar['tokenize_and_classify_tmp.far', 'TOKENIZE_AND_CLASSIFY'];
 
 token = u.I["tokens { "] types u.I[" }"];
 
-token_plus_punct = (p.PUNCT u.I[" "])* token (u.I[" "] p.PUNCT)*;
-
 # Collection of all possible semiotic classes, including ordinary words.
 
 export TOKENIZE_AND_CLASSIFY =
-  Optimize[token_plus_punct (" " token_plus_punct)*]
+  Optimize[token (" " token)*]
 ;
 
