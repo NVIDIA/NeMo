@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+# Please check train_kenlm.py to find out why we need TOKEN_OFFSET
 TOKEN_OFFSET = 100
 
 import argparse
@@ -92,6 +93,7 @@ def beam_search_eval(
                 chars_count += len(target_split_c)
                 wer_dist_min = cer_dist_min = 10000
                 for candidate_idx, candidate in enumerate(beams):
+                    # Need to shift by TOKEN_OFFSET to retrieve the original sub-word id
                     pred_text = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
                     pred_split_w = pred_text.split()
                     wer_dist = editdistance.eval(target_split_w, pred_split_w)
