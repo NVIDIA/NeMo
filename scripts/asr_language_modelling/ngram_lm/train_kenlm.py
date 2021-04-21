@@ -24,9 +24,19 @@ from kenlm_text_utils import read_train_file, tokenize_text
 
 import nemo.collections.asr as nemo_asr
 
+"""
+NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
+use a trick to encode the sub-word tokens of the training data as unicode characters and train a char-level KenLM. 
+TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words.
+
+This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require less storage space. 
+The only drawback is that there is a symmetric decoding by this offset value required when performing actual beam search, 
+but it is negligible in compute cost and the storage space benefits are more useful.
+"""
+TOKEN_OFFSET = 100
+
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
-TOKEN_OFFSET = 100
 
 
 def main():
@@ -66,6 +76,7 @@ def main():
     del model
 
     """ LMPLZ ARGUMENT SETUP """
+    # --discount_fallback is needed for training KenLM for BPE-based models
     kenlm_args = [
         os.path.join(args.kenlm_bin_path, 'lmplz'),
         "-o",

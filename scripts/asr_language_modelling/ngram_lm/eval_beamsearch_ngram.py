@@ -197,8 +197,8 @@ def main():
             with torch.no_grad():
                 all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
         all_probs = [softmax(logits) for logits in all_logits]
-        logging.info(f"Writing pickle files of probabilities at '{args.probs_cache_file}'...")
         if args.probs_cache_file:
+            logging.info(f"Writing pickle files of probabilities at '{args.probs_cache_file}'...")
             with open(args.probs_cache_file, 'wb') as f_dump:
                 pickle.dump(all_probs, f_dump)
 
