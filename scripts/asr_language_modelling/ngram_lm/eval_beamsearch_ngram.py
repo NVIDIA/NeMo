@@ -112,7 +112,7 @@
 #       Larger batch size may use larger memory but may be a little faster, not significantly.
 
 
-# Please check train_kenlm.py to find out why we need TOKEN_OFFSET
+# Please check train_kenlm.py to find out why we need TOKEN_OFFSET for BPE-based models
 TOKEN_OFFSET = 100
 
 import argparse
@@ -122,6 +122,7 @@ import os
 import pickle
 
 import editdistance
+import kenlm_utils
 import numpy as np
 import torch
 from sklearn.model_selection import ParameterGrid
@@ -130,11 +131,6 @@ from tqdm.auto import tqdm
 import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.utils import logging
-
-
-def softmax(x):
-    e = np.exp(x - np.max(x))
-    return e / e.sum(axis=-1).reshape([x.shape[0], 1])
 
 
 def beam_search_eval(
@@ -337,7 +333,7 @@ def main():
         with autocast():
             with torch.no_grad():
                 all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
-        all_probs = [softmax(logits) for logits in all_logits]
+        all_probs = [kenlm_utils.softmax(logits) for logits in all_logits]
         if args.probs_cache_file:
             logging.info(f"Writing pickle files of probabilities at '{args.probs_cache_file}'...")
             with open(args.probs_cache_file, 'wb') as f_dump:

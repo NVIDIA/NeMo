@@ -20,8 +20,21 @@ Utility methods to be used for training N-gram LM with KenLM in train_kenlm.py
 import json
 import os
 
+import numpy as np
 from joblib import Parallel, delayed
 from tqdm.auto import tqdm
+
+SUPPORTED_MODELS = {
+    'EncDecCTCModelBPE': 'subword',
+    'EncDecRNNTModelBPE': 'subword',
+    'EncDecCTCModel': 'char',
+    'EncDecRNNTModel': 'char',
+}
+
+
+def softmax(x):
+    e = np.exp(x - np.max(x))
+    return e / e.sum(axis=-1).reshape([x.shape[0], 1])
 
 
 def read_train_file(path, lowercase: bool = False):

@@ -57,8 +57,8 @@ import os
 import subprocess
 import sys
 
+import kenlm_utils
 import torch
-from kenlm_text_utils import read_train_file, tokenize_text
 
 import nemo.collections.asr as nemo_asr
 from nemo.utils import logging
@@ -73,13 +73,6 @@ TOKEN_OFFSET = 100
 
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
-
-SUPPORTED_MODELS = {
-    'EncDecCTCModelBPE': 'subword',
-    'EncDecRNNTModelBPE': 'subword',
-    'EncDecCTCModel': 'char',
-    'EncDecRNNTModel': 'char',
-}
 
 
 def main():
@@ -109,17 +102,17 @@ def main():
     logging.info(f"Loading nemo model '{args.nemo_model_file}' ...")
     model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
 
-    encoding_level = SUPPORTED_MODELS.get(type(model).__name__, None)
+    encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
     if encoding_level == None:
         logging.warning(f"Model type '{type(model).__name__}' is not supported. Would try to train a char-level LM.")
         encoding_level = 'char'
 
     """ DATASET SETUP """
     logging.info(f"Encoding the train file '{args.train_file}' ...")
-    dataset = read_train_file(args.train_file, lowercase=args.do_lowercase)
+    dataset = kenlm_utils.read_train_file(args.train_file, lowercase=args.do_lowercase)
     encoded_train_file = f"{args.kenlm_model_file}.tmp.txt"
     if encoding_level == "subword":
-        tokenize_text(
+        kenlm_utils.tokenize_text(
             dataset,
             model.tokenizer,
             path=encoded_train_file,
