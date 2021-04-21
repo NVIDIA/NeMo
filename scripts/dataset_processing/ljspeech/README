@@ -1,8 +1,9 @@
 These scripts are used for extracting features from LJSpeech.
 
-Note that you only need to run scripts with the prefix `extract_*`; these
-scripts will call other helper scripts as necessary.
+You will need to run the following scripts (note that these will call the other
+scripts as necessary):
 
+- `create_manifests_and_textfiles.py`
 - `extract_ljspeech_phonemes_and_durs.sh`
-  (Calls `manifest_to_textfiles.py`, `create_token2idx_dict.py`, and `calculate_durs.py`.)
+  (Calls `create_token2idx_dict.py` and `calculate_durs.py`.)
 - `extract_ljspeech_energy.py`
