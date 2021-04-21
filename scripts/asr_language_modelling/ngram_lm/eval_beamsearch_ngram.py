@@ -21,10 +21,10 @@
 # USAGE: python eval_beamsearch_ngram.py --nemo_model_file <path to the .nemo file of the model> \
 #                                         --input_manifest <path to the evaluation Json manifest file \
 #                                         --kenlm_model_file <path to the binary KenLM model> \
-#                                         --preds_output_folder <optional folder to store the predictions> \
 #                                         --beam_width <list of the beam widths> \
 #                                         --beam_alpha <list of the beam alphas> \
 #                                         --beam_width <list of the beam betas> \
+#                                         --preds_output_folder <optional folder to store the predictions> \
 #                                         ...
 #
 # The script would initially load the ASR model and predict the outputs of the model's encoder as log probabilities.
@@ -382,19 +382,14 @@ def main():
         params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha, 'beam_beta': args.beam_beta}
         hp_grid = ParameterGrid(params)
         hp_grid = list(hp_grid)
-        if not os.path.exists(args.preds_output_folder):
-            os.mkdir(args.preds_output_folder)
-
-        for hp in hp_grid:
-            hp["preds_output_file"] = os.path.join(
-                args.preds_output_folder,
-                f"preds_out_width{hp['beam_width']}_alpha{hp['beam_alpha']}_beta{hp['beam_beta']}.tsv",
-            )
 
         logging.info(f"==============================Starting the beam search decoding===============================")
         logging.info(f"Grid search size: {len(hp_grid)}")
         logging.info(f"It may take some time...")
         logging.info(f"==============================================================================================")
+
+        if args.preds_output_folder and not os.path.exists(args.preds_output_folder):
+            os.mkdir(args.preds_output_folder)
         for hp in hp_grid:
             if args.preds_output_folder:
                 preds_output_file = os.path.join(
