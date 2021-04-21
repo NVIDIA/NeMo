@@ -360,7 +360,7 @@ class NLPModel(ModelPT, Exportable):
             strict: Passed to load_state_dict.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
-            trainer: PyTorch Lightning trainer. Must be passed in to use model parallel .nemo
+            trainer: PyTorch Lightning trainer. Must be passed in order to use model parallel .nemo
 
             Example:
                 ```
