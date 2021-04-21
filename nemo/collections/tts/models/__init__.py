@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from nemo.collections.tts.models.aligner import AlignerModel
 from nemo.collections.tts.models.degli import DegliModel
 from nemo.collections.tts.models.ed_mel2spec import EDMel2SpecModel
 from nemo.collections.tts.models.fastpitch import FastPitchModel
@@ -42,4 +42,5 @@ __all__ = [
     "MelGanModel",
     "HifiGanModel",
     "FastPitchModel",
+    "AlignerModel",
 ]

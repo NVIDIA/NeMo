@@ -154,6 +154,7 @@ class Phonemes(Base):
         oov=Base.OOV,
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at="last_but_one",
+        pad_with_space=False,
     ):
         labels = []
         self.space, labels = len(labels), labels + [space]  # Space
@@ -175,6 +176,7 @@ class Phonemes(Base):
         self.punct = punct
         self.stresses = stresses
         self.spaces = spaces
+        self.pad_with_space = pad_with_space
 
     def encode(self, text):
         """See base class."""
@@ -202,5 +204,8 @@ class Phonemes(Base):
         # Remove trailing spaces
         while ps[-1] == space:
             ps.pop()
+
+        if self.pad_with_space:
+            ps = [space] + ps + [space]
 
         return [self._label2id[p] for p in ps]

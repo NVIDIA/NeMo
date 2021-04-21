@@ -204,6 +204,7 @@ class TalkNetSpectModel(SpectrogramGenerator):
 
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
+        self.blanking = cfg.train_ds.dataset.blanking
         self.preprocessor = instantiate(cfg.preprocessor)
         self.embed = GaussianEmbedding(self.vocab, cfg.d_char)
         self.norm_f0 = MaskedInstanceNorm1d(1)
@@ -278,27 +279,28 @@ class TalkNetSpectModel(SpectrogramGenerator):
     def generate_spectrogram(self, tokens: torch.Tensor, **kwargs) -> torch.Tensor:
         assert hasattr(self, '_durs_model') and hasattr(self, '_pitch_model')
 
-        # Durs
-        text = [
-            AudioToCharWithDursF0Dataset.interleave(
-                x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device).fill_(self.vocab.blank), y=t,
-            )
-            for t in tokens
-        ]
-        text = AudioToCharWithDursF0Dataset.merge(text, value=self.vocab.pad, dtype=torch.long)
-        text_len = torch.tensor(text.shape[-1], dtype=torch.long).unsqueeze(0)
-        durs = self._durs_model(text, text_len)
+        if self.blanking:
+            tokens = [
+                AudioToCharWithDursF0Dataset.interleave(
+                    x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device).fill_(self.vocab.blank), y=t,
+                )
+                for t in tokens
+            ]
+            tokens = AudioToCharWithDursF0Dataset.merge(tokens, value=self.vocab.pad, dtype=torch.long)
+
+        text_len = torch.tensor(tokens.shape[-1], dtype=torch.long).unsqueeze(0)
+        durs = self._durs_model(tokens, text_len)
         durs = durs.exp() - 1
         durs[durs < 0.0] = 0.0
         durs = durs.round().long()
 
         # Pitch
-        f0_sil, f0_body = self._pitch_model(text, text_len, durs)
+        f0_sil, f0_body = self._pitch_model(tokens, text_len, durs)
         sil_mask = f0_sil.sigmoid() > 0.5
         f0 = f0_body * self._pitch_model.f0_std + self._pitch_model.f0_mean
         f0 = (~sil_mask * f0).float()
 
         # Spect
-        mel = self(text, text_len, durs, f0)
+        mel = self(tokens, text_len, durs, f0)
 
         return mel
