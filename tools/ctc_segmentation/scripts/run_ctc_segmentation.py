@@ -119,8 +119,6 @@ if __name__ == '__main__':
         log_probs = asr_model.transcribe(paths2audio_files=[str(path_audio)], batch_size=1, logprobs=True)[0]
 
         # move blank values to the first column
-        print(log_probs.size)
-        log_probs = np.squeeze(log_probs, axis=0)
         blank_col = log_probs[:, -1].reshape((log_probs.shape[0], 1))
         log_probs = np.concatenate((blank_col, log_probs[:, :-1]), axis=1)
 
