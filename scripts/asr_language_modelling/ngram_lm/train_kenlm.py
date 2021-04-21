@@ -60,6 +60,7 @@ import torch
 from kenlm_text_utils import read_train_file, tokenize_text
 
 import nemo.collections.asr as nemo_asr
+from nemo.utils import logging
 
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
@@ -74,6 +75,13 @@ TOKEN_OFFSET = 100
 
 CHUNK_SIZE = 8192
 CHUNK_BUFFER_SIZE = 512
+
+SUPPORTED_MODELS = {
+    'EncDecCTCModelBPE': 'subword',
+    'EncDecRNNTModelBPE': 'subword',
+    'EncDecCTCModel': 'char',
+    'EncDecRNNTModel': 'char',
+}
 
 
 def main():
@@ -101,25 +109,38 @@ def main():
 
     """ TOKENIZER SETUP """
     logging.info(f"Loading nemo model '{args.nemo_model_file}' ...")
-    model = nemo_asr.models.EncDecCTCModelBPE.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
+    model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
 
-    encoded_train_file = f"{args.kenlm_model_file}.tmp.txt"
+    encoding_level = SUPPORTED_MODELS.get(type(model).__name__, None)
+    if encoding_level == None:
+        logging.warning(f"Model type '{type(model).__name__}' is not supported. Would try to train a char-level LM.")
+        encoding_level = 'char'
+
     """ DATASET SETUP """
     logging.info(f"Encoding the train file '{args.train_file}' ...")
     dataset = read_train_file(args.train_file, lowercase=args.do_lowercase)
-    tokenize_text(
-        dataset,
-        model.tokenizer,
-        path=encoded_train_file,
-        chunk_size=CHUNK_SIZE,
-        buffer_size=CHUNK_BUFFER_SIZE,
-        token_offset=TOKEN_OFFSET,
-    )
+    encoded_train_file = f"{args.kenlm_model_file}.tmp.txt"
+    if encoding_level == "subword":
+        tokenize_text(
+            dataset,
+            model.tokenizer,
+            path=encoded_train_file,
+            chunk_size=CHUNK_SIZE,
+            buffer_size=CHUNK_BUFFER_SIZE,
+            token_offset=TOKEN_OFFSET,
+        )
+        # --discount_fallback is needed for training KenLM for BPE-based models
+        discount_arg = "--discount_fallback"
+    else:
+        with open(encoded_train_file, 'w', encoding='utf-8') as f:
+            for line in dataset:
+                f.write(f"{line}\n")
+
+        discount_arg = ""
 
     del model
 
     """ LMPLZ ARGUMENT SETUP """
-    # --discount_fallback is needed for training KenLM for BPE-based models
     kenlm_args = [
         os.path.join(args.kenlm_bin_path, 'lmplz'),
         "-o",
@@ -128,8 +149,9 @@ def main():
         encoded_train_file,
         "--arpa",
         f"{args.kenlm_model_file}.tmp.arpa",
-        "--discount_fallback",
+        discount_arg,
     ]
+
     subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
 
     """ BINARY BUILD """
@@ -143,6 +165,7 @@ def main():
     subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
 
     os.remove(encoded_train_file)
+    logging.info(f"Deleted the temporary file '{encoded_train_file}'.")
 
 
 if __name__ == '__main__':
