@@ -75,7 +75,7 @@ class FastSpeech2Encoder(NeuralModule):
             dropatt=attn_dropout,  # Not in the FS2 paper
             embed_input=True,  # For the encoder, need to do embedding lookup
             n_embed=n_embed,
-            padding_idx=padding_idx
+            padding_idx=padding_idx,
         )
 
     @property

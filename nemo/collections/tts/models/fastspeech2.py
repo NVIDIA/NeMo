@@ -84,7 +84,7 @@ class FastSpeech2Model(SpectrogramGenerator):
             self.phone2idx = mappings['phone2idx']
 
     @typecheck(
-        input_types = {
+        input_types={
             "spec_len": NeuralType(('B'), LengthsType(), optional=True),
             "text": NeuralType(('B', 'T'), TokenIndex()),
             "text_length": NeuralType(('B'), LengthsType()),
@@ -92,7 +92,7 @@ class FastSpeech2Model(SpectrogramGenerator):
             "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
             "energies": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
         },
-        output_types = {
+        output_types={
             "mel_spec": NeuralType(('B', 'T', 'C'), MelSpectrogramType()),
             "log_dur_preds": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
@@ -108,7 +108,7 @@ class FastSpeech2Model(SpectrogramGenerator):
             dur_target=durations,
             pitch_target=pitch,
             energy_target=energies,
-            spec_len=spec_len
+            spec_len=spec_len,
         )
         mel = self.mel_decoder(decoder_input=aligned_text, lengths=spec_len)
         return mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
@@ -123,9 +123,8 @@ class FastSpeech2Model(SpectrogramGenerator):
         self.log(name="train_mel_loss", value=total_loss.clone().detach())
         if self.duration:
             dur_loss = self.durationloss(
-                log_duration_pred=log_dur_preds,
-                duration_target=durations.float(),
-                mask=encoded_text_mask)
+                log_duration_pred=log_dur_preds, duration_target=durations.float(), mask=encoded_text_mask
+            )
             dur_loss *= self.duration_coeff
             self.log(name="train_dur_loss", value=dur_loss)
             total_loss += dur_loss

@@ -25,12 +25,15 @@ import tgt
 import torch
 from tqdm import tqdm
 
-parser = argparse.ArgumentParser(
-    description="Calculates phoneme durations for LJSpeech from TextGrids."
-)
+parser = argparse.ArgumentParser(description="Calculates phoneme durations for LJSpeech from TextGrids.")
 parser.add_argument('--ljspeech_dir', required=True, default=None, type=str)
-parser.add_argument('--mappings', required=False, default=None, type=str,
-    help='JSON file of mappings created with create_token2idx_dict.py')
+parser.add_argument(
+    '--mappings',
+    required=False,
+    default=None,
+    type=str,
+    help='JSON file of mappings created with create_token2idx_dict.py',
+)
 parser.add_argument('--sr', required=False, default=22050, type=int)
 parser.add_argument('--hop_length', required=False, default=256, type=int)
 args = parser.parse_args()
@@ -48,9 +51,7 @@ def calculate_durations(textgrid, phone2idx):
     total_frames = ceil((data_tier.end_time - data_tier.start_time) * frames_per_second)
 
     # Find start and end frames of each token
-    se_in_frames = np.array([
-        (frames_per_second * d.start_time, frames_per_second * d.end_time)
-        for d in data_tier])
+    se_in_frames = np.array([(frames_per_second * d.start_time, frames_per_second * d.end_time) for d in data_tier])
     se_in_frames = np.round(se_in_frames)
     durs = (se_in_frames[:, 1] - se_in_frames[:, 0]).astype(int)
     blank_set = ('sil', 'sp', 'spn', '', '<unk>')
@@ -123,4 +124,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
