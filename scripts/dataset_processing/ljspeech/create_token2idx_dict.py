@@ -23,6 +23,7 @@ parser.add_argument('--dictionary', required=True, default=None, type=str)
 parser.add_argument('--dict_out', required=True, default=None, type=str)
 args = parser.parse_args()
 
+
 def main():
     if not os.path.exists(args.dictionary):
         raise FileNotFoundError(f"Could not find dictionary file {args.dictionary}")
@@ -49,9 +50,9 @@ def main():
 
     phone2idx = {k: i for i, k in enumerate(phonemes)}
     phone2idx[' '] = len(phone2idx)
-    phone2idx['sil'] = phone2idx[' ']   # Silence
-    phone2idx['sp'] = phone2idx[' ']    # Space
-    phone2idx['spn'] = phone2idx[' ']   # OOV/unk
+    phone2idx['sil'] = phone2idx[' ']  # Silence
+    phone2idx['sp'] = phone2idx[' ']  # Space
+    phone2idx['spn'] = phone2idx[' ']  # OOV/unk
 
     dicts = {
         'phone2idx': phone2idx,
@@ -61,6 +62,7 @@ def main():
         json.dump(dicts, f)
 
     print(f"Total number of phone indices: {len(phone2idx)}")
+
 
 if __name__ == '__main__':
     main()

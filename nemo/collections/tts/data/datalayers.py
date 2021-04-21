@@ -528,7 +528,8 @@ class FastSpeech2Dataset(Dataset):
     """
     (Assumes supp data is in energies/ and phoneme_durations/, etc.)
     """
-    #TODO: docstring
+
+    # TODO: docstring
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -553,7 +554,7 @@ class FastSpeech2Dataset(Dataset):
         ignore_file: Optional[str] = None,
         max_utts: int = 0,
         trim: bool = False,
-        load_supplementary_values = True,   # Val LJSpeech files missing some supp. data
+        load_supplementary_values=True,  # Val LJSpeech files missing some supp. data
     ):
         super().__init__()
 
@@ -639,13 +640,7 @@ class FastSpeech2Dataset(Dataset):
                     )
                 )
             else:
-                self.data.append(
-                    dataitem(
-                        audio_file=item['audio_filepath'],
-                        duration=durs,
-                        text_tokens=text_tokens,
-                    )
-                )
+                self.data.append(dataitem(audio_file=item['audio_filepath'], duration=durs, text_tokens=text_tokens,))
 
         logging.info(f"Pruned {pruned_items} files and {pruned_duration/3600:.2f} hours.")
         logging.info(
@@ -745,12 +740,4 @@ class FastSpeech2Dataset(Dataset):
                 pitches_batched,
                 energies_batched,
             )
-        return (
-            audio_signal,
-            audio_lengths,
-            tokens,
-            tokens_lengths,
-            duration_batched,
-            None,
-            None
-        )
+        return (audio_signal, audio_lengths, tokens, tokens_lengths, duration_batched, None, None)
