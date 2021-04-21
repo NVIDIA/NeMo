@@ -16,7 +16,6 @@
 # This script would evaluate an N-gram language model trained with KenLM library (https://github.com/kpu/kenlm) in
 # fusion with beam search decoders on top of a trained ASR model. NeMo's beam search decoders are capable of using the
 # KenLM's N-gram models to find the best candidates. Currently this script supports BPE-based encodings and models.
-#
 # You may train the LM model with 'scripts/ngram_lm/train_kenlm.py'.
 #
 # USAGE: python eval_beamsearch_ngram.py --nemo_model_file <path to the .nemo file of the model> \
@@ -31,11 +30,32 @@
 # The script would initially load the ASR model and predict the outputs of the model's encoder as log probabilities.
 # This part would be computed in batches on a device selected by '--device', which can be CPU ('--device='cpu') or
 # a single GPU ('--device=cuda:0'). The batch size of this part can get specified by '--acoustic_batch_size'.
-# The greedy decoding is done on the outputs and greedy WER and CER are calculated.
-# If decoding_mode is set to 'beamsearch' or 'beamsearch_ngram', beam search decoding is done on the outputs.
-# You may
-
-# Stores them in a cache file
+# Then greedy decoding is done on the outputs and greedy WER and CER are calculated.
+# If decoding_mode is set to 'beamsearch' or 'beamsearch_ngram', beam search decoding is also done on the outputs.
+#
+# The beam search decoder would calculated the scores as:
+#
+#   final_score = acoustic_score + beam_alpha*lm_score - beam_beta*seq_length
+#   beam_alpha: Specifies the The amount of importance to place on the N-gram language model.
+#               Larger alpha means more importance on the LM and less importance on the acoustic model.
+#   beam_beta: A penalty term given to longer word sequences. Larger beta will result in shorter sequences.
+#
+# The results would be reported in Word Error Rate (WER) and Character Error Rate (CER). The results if the best
+# candidate is selected from the candidates is also reported as the best WER/CER. It can show how good the predicted
+# candidates are.
+#
+# Hyperparameter grid search:
+# Beam search decoding with N-gram LM has three main hyperparameters: beam_width, beam_alpha, and beam_beta.
+# The accuracy of the model is dependent to the values of these parameters, specially beam_alpha and beam_beta.
+# You may specify a single or list of values for each of these parameters to perform grid search. It would perform the
+# beam search decoding on all the combinations of the these three hyperparameters. For instance, the following set of
+# parameters would results in 2*1*2=4 beam search decodings:
+#
+# python eval_beamsearch_ngram.py ... \
+#                     --beam_width 64 128 \
+#                     --beam_alpha 1.0 \
+#                     --beam_beta 1.0 0.5 \
+#
 #
 # Args:
 #   --nemo_model_file: The path of the '.nemo' file of the ASR model to get evaluated
@@ -76,13 +96,18 @@
 #       "beamsearch_ngram": The beam search decoding is done with N-gram LM
 #
 #    --beam_width: The width or list of the widths of the beam search decoding
+#       Width of the beam search specifies the number of top candidates/predictions it would search for
+#       You may pass a single value or list of values to perform grid search.
+#       Larger beams result in more accurate but slower predictions
 #
-#    --beam_alpha: The alpha parameter or list of the alphas of the beam search decoding
+#    --beam_alpha: The alpha parameter or list of the alphas for the beam search decoding
+#       The amount of importance to place on the N-gram language model.
 #
-#    --beam_beta: The beta parameter or list of the betas of the beam search decoding
+#    --beam_beta: The beta parameter or list of the betas for the beam search decoding
+#       A penalty term given to longer word sequences. Larger beta will result in shorter sequences.
 #
 #    --beam_batch_size: The batch size to be used for beam search decoding
-#
+#       Larger batch size may use larger memory but may be a little faster, not significantly.
 
 
 # Please check train_kenlm.py to find out why we need TOKEN_OFFSET
@@ -120,7 +145,7 @@ def beam_search_eval(
     beam_alpha=1.0,
     beam_beta=0.0,
     beam_width=128,
-    beam_batch_size=16,
+    beam_batch_size=128,
     progress_bar=True,
 ):
     vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
@@ -243,21 +268,21 @@ def main():
         required=True,
         type=int,
         nargs="+",
-        help="The width or list of the widths of the beam search decoding",
+        help="The width or list of the widths for the beam search decoding",
     )
     parser.add_argument(
         "--beam_alpha",
         required=True,
         type=float,
         nargs="+",
-        help="The alpha parameter or list of the alphas of the beam search decoding",
+        help="The alpha parameter or list of the alphas for the beam search decoding",
     )
     parser.add_argument(
         "--beam_beta",
         required=True,
         type=float,
         nargs="+",
-        help="The beta parameter or list of the betas of the beam search decoding",
+        help="The beta parameter or list of the betas for the beam search decoding",
     )
     parser.add_argument(
         "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
