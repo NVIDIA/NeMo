@@ -15,7 +15,8 @@
 
 # This script would evaluate an N-gram language model trained with KenLM library (https://github.com/kpu/kenlm) in
 # fusion with beam search decoders on top of a trained ASR model. NeMo's beam search decoders are capable of using the
-# KenLM's N-gram models to find the best candidates. Currently this script supports BPE-based encodings and models.
+# KenLM's N-gram models to find the best candidates. This script supports both character level and BPE level
+# encodings and models which is detected automatically from the type of the model.
 # You may train the LM model with 'scripts/ngram_lm/train_kenlm.py'.
 #
 # USAGE: python eval_beamsearch_ngram.py --nemo_model_file <path to the .nemo file of the model> \

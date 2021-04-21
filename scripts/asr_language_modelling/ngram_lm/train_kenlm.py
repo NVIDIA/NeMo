@@ -15,7 +15,8 @@
 
 
 # This script would train an N-gram language model with KenLM library (https://github.com/kpu/kenlm) which can be used
-# with the beam search decoders on top of the ASR models. Currently this script supports BPE-based encodings and models.
+# with the beam search decoders on top of the ASR models. This script supports both character level and BPE level
+# encodings and models which is detected automatically from the type of the model.
 # After the N-gram model is trained, and stored in the binary format, you may use
 # 'scripts/ngram_lm/eval_beamsearch_ngram.py' to evaluate it on an ASR model.
 #
