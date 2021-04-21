@@ -8,6 +8,7 @@ NVIDIA NeMo User Guide
 
    starthere/intro
    starthere/tutorials
+   starthere/best-practices
 
 
 .. toctree::

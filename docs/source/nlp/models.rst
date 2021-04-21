@@ -1,4 +1,4 @@
-..nlp_models:
+.. _nlp_models:
 
 Models
 ======
