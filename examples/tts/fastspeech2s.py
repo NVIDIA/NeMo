@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,19 +13,18 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-from pytorch_lightning.plugins import DDPPlugin
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.models.hififastpitch import HiFiFastPitchModel
+from nemo.collections.tts.models.fastspeech2s import FastSpeech2SModel
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="hififastpitch")
+@hydra_runner(config_path="conf", config_name="fastspeech2s")
 def main(cfg):
-    trainer = pl.Trainer(plugins=[DDPPlugin(find_unused_parameters=True)], **cfg.trainer)
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = HiFiFastPitchModel(cfg=cfg.model, trainer=trainer)
+    model = FastSpeech2SModel(cfg=cfg.model, trainer=trainer)
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])

@@ -52,7 +52,7 @@ from nemo.utils import logging
 
 
 @dataclass
-class HiFiFastPitchConfig:
+class FastPitchHifiGanE2EConfig:
     parser: Dict[Any, Any] = MISSING
     preprocessor: Dict[Any, Any] = MISSING
     input_fft: Dict[Any, Any] = MISSING
@@ -61,7 +61,7 @@ class HiFiFastPitchConfig:
     pitch_predictor: Dict[Any, Any] = MISSING
 
 
-class HiFiFastPitchModel(TextToWaveform):
+class FastPitchHifiGanE2EModel(TextToWaveform):
     """FastPitch Model that is used to generate mel spectrograms from text"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -80,7 +80,7 @@ class HiFiFastPitchModel(TextToWaveform):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        schema = OmegaConf.structured(HiFiFastPitchConfig)
+        schema = OmegaConf.structured(FastPitchHifiGanE2EConfig)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
