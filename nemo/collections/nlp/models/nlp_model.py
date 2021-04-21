@@ -269,7 +269,7 @@ class NLPModel(ModelPT, Exportable):
 
         .nemo file is an archive (tar.gz) with the following:
             model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-            model_wights.chpt - model checkpoint
+            model_weights.ckpt - model checkpoint
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
